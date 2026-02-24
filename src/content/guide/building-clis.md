@@ -8,36 +8,40 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         // Step 1: Ask for a name
         var name = "";
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.TextBox()
-                    .OnSubmit(e =>
-                    {
-                        name = e.Text ?? "";
-                        step.Complete(y => y.Text($"  ✓ Name: {name}"));
-                    }),
+        FlowStep? nameStep = null;
+        nameStep = flow.Step(ctx =>
+            ctx.TextBox()
+                .OnSubmit(e =>
+                {
+                    name = e.Text ?? "";
+                    nameStep!.Complete(y => y.Text($"  ✓ Name: {name}"));
+                }),
             options: opts => opts.MaxHeight = 3
         );
+        await nameStep;
 
         // Step 2: Pick a color
         var colors = new[] { "Red", "Green", "Blue" };
         var color = "";
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.VStack(v => [
-                    v.Text("Pick a color:"),
-                    v.List(colors).OnItemActivated(e =>
-                    {
-                        color = colors[e.ActivatedIndex];
-                        step.Complete(y => y.Text($"  ✓ Color: {color}"));
-                    })
-                ]),
+        FlowStep? colorStep = null;
+        colorStep = flow.Step(ctx =>
+            ctx.VStack(v => [
+                v.Text("Pick a color:"),
+                v.List(colors).OnItemActivated(e =>
+                {
+                    color = colors[e.ActivatedIndex];
+                    colorStep!.Complete(y => y.Text($"  ✓ Color: {color}"));
+                })
+            ]),
             options: opts => opts.MaxHeight = 6
         );
+        await colorStep;
 
         // After all steps complete, write a final summary
-        await flow.StepAsync(ctx =>
+        var summaryStep = flow.Step(ctx =>
             ctx.Text($"Hello {name}, you picked {color}!"));
+        summaryStep.Complete();
+        await summaryStep;
     })
     .Build();
 
@@ -52,59 +56,62 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bFlow(async flow =>
     {
         // Step 1: Project name
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.VStack(v => [
-                    v.Text("Enter your project name:"),
-                    v.TextBox(state.ProjectName)
-                        .OnSubmit(e =>
-                        {
-                            state.ProjectName = e.Text ?? "";
-                            step.Complete(y =>
-                                y.Text($"  ✓ Project: {state.ProjectName}"));
-                        })
-                        .FillWidth()
-                ]),
+        FlowStep? nameStep = null;
+        nameStep = flow.Step(ctx =>
+            ctx.VStack(v => [
+                v.Text("Enter your project name:"),
+                v.TextBox(state.ProjectName)
+                    .OnSubmit(e =>
+                    {
+                        state.ProjectName = e.Text ?? "";
+                        nameStep!.Complete(y =>
+                            y.Text($"  ✓ Project: {state.ProjectName}"));
+                    })
+                    .FillWidth()
+            ]),
             options: opts => opts.MaxHeight = 4
         );
+        await nameStep;
 
         // Step 2: Framework
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.VStack(v => [
-                    v.Text("Select a framework:"),
-                    v.List(SetupState.Frameworks)
-                        .OnItemActivated(e =>
-                        {
-                            state.Framework = SetupState.Frameworks[e.ActivatedIndex];
-                            step.Complete(y =>
-                                y.Text($"  ✓ Framework: {state.Framework}"));
-                        })
-                        .FixedHeight(SetupState.Frameworks.Length + 1)
-                ]),
+        FlowStep? fwStep = null;
+        fwStep = flow.Step(ctx =>
+            ctx.VStack(v => [
+                v.Text("Select a framework:"),
+                v.List(SetupState.Frameworks)
+                    .OnItemActivated(e =>
+                    {
+                        state.Framework = SetupState.Frameworks[e.ActivatedIndex];
+                        fwStep!.Complete(y =>
+                            y.Text($"  ✓ Framework: {state.Framework}"));
+                    })
+                    .FixedHeight(SetupState.Frameworks.Length + 1)
+            ]),
             options: opts => opts.MaxHeight = 8
         );
+        await fwStep;
 
         // Step 3: Confirm
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.VStack(v => [
-                    v.Text($"Create '{state.ProjectName}' with {state.Framework}?"),
-                    v.HStack(h => [
-                        h.Button("Yes").OnClick(_ =>
-                        {
-                            state.Confirmed = true;
-                            step.Complete(y =>
-                                y.Text($"  ✓ Created {state.ProjectName}!"));
-                        }),
-                        h.Button("No").OnClick(_ =>
-                        {
-                            step.Complete(y => y.Text("  ✗ Cancelled."));
-                        })
-                    ])
-                ]),
+        FlowStep? confirmStep = null;
+        confirmStep = flow.Step(ctx =>
+            ctx.VStack(v => [
+                v.Text($"Create '{state.ProjectName}' with {state.Framework}?"),
+                v.HStack(h => [
+                    h.Button("Yes").OnClick(_ =>
+                    {
+                        state.Confirmed = true;
+                        confirmStep!.Complete(y =>
+                            y.Text($"  ✓ Created {state.ProjectName}!"));
+                    }),
+                    h.Button("No").OnClick(_ =>
+                    {
+                        confirmStep!.Complete(y => y.Text("  ✗ Cancelled."));
+                    })
+                ])
+            ]),
             options: opts => opts.MaxHeight = 4
         );
+        await confirmStep;
     })
     .Build();
 
@@ -131,25 +138,26 @@ var state = new CommandState();
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bFlow(async flow =>
     {
-        await flow.StepAsync(
-            configure: step => ctx =>
-                ctx.VStack(v => [
-                    v.Text("Delete all files in /tmp?"),
-                    v.HStack(h => [
-                        h.Button("Yes, delete").OnClick(_ =>
-                        {
-                            state.ExitCode = 0;
-                            step.Complete(y => y.Text("  ✓ Deleted."));
-                        }),
-                        h.Button("Cancel").OnClick(_ =>
-                        {
-                            state.ExitCode = 1;
-                            step.Complete(y => y.Text("  ✗ Cancelled."));
-                        })
-                    ])
-                ]),
+        FlowStep? step = null;
+        step = flow.Step(ctx =>
+            ctx.VStack(v => [
+                v.Text("Delete all files in /tmp?"),
+                v.HStack(h => [
+                    h.Button("Yes, delete").OnClick(_ =>
+                    {
+                        state.ExitCode = 0;
+                        step!.Complete(y => y.Text("  ✓ Deleted."));
+                    }),
+                    h.Button("Cancel").OnClick(_ =>
+                    {
+                        state.ExitCode = 1;
+                        step!.Complete(y => y.Text("  ✗ Cancelled."));
+                    })
+                ])
+            ]),
             options: opts => opts.MaxHeight = 4
         );
+        await step;
     })
     .Build();
 
@@ -170,39 +178,34 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         var status = "Initializing...";
         var done = false;
 
-        await flow.StepAsync(
-            configure: step =>
-            {
-                // Start background work
-                _ = Task.Run(async () =>
-                {
-                    var steps = new[]
-                    {
-                        "Installing packages...",
-                        "Compiling project...",
-                        "Running tests..."
-                    };
-
-                    foreach (var s in steps)
-                    {
-                        status = s;
-                        step.Invalidate();
-                        await Task.Delay(1000);
-                    }
-
-                    done = true;
-                    step.Invalidate();
-                    await Task.Delay(300);
-                    step.Complete(y => y.Text("  ✓ All tasks complete!"));
-                });
-
-                return ctx => ctx.HStack(h => [
-                    h.Spinner(),
-                    h.Text($" {status}")
-                ]);
-            },
+        // Start the step — UI renders immediately
+        var step = flow.Step(ctx => ctx.HStack(h => [
+            h.Spinner(),
+            h.Text($" {status}")
+        ]),
             options: opts => opts.MaxHeight = 2
         );
+
+        // Do background work in the flow callback itself
+        var steps = new[]
+        {
+            "Installing packages...",
+            "Compiling project...",
+            "Running tests..."
+        };
+
+        foreach (var s in steps)
+        {
+            status = s;
+            step.Invalidate();
+            await Task.Delay(1000);
+        }
+
+        done = true;
+        step.Invalidate();
+        await Task.Delay(300);
+        step.Complete(y => y.Text("  ✓ All tasks complete!"));
+        await step;
     })
     .Build();
 
@@ -264,18 +267,30 @@ Avoid using `Console.WriteLine` or writing directly to `stdout` while Hex1b is r
 
 <CodeBlock lang="csharp" :code="flowBasicCode" command="dotnet run" />
 
-## The Step Context
+## The FlowStep Handle
 
-The `configure` overload of `StepAsync` gives you a `Hex1bStepContext` with these methods:
+`flow.Step()` returns a `FlowStep` handle with these methods:
 
 | Method | Purpose |
 |--------|---------|
 | `Complete(builder)` | Sets frozen output and stops the step |
-| `RequestStop()` | Stops without frozen output |
+| `Complete()` | Stops the step without frozen output |
 | `Invalidate()` | Triggers a re-render (thread-safe) |
 | `RequestFocus(predicate)` | Moves focus to a matching node |
 
-Capture the `step` context in event handlers and background tasks to control the step from anywhere.
+The handle is also awaitable — `await step` completes after the step finishes, including yield widget rendering and cursor advancement.
+
+### Sizing Information
+
+The `FlowStep` handle exposes terminal dimensions:
+
+| Property | Purpose |
+|----------|---------|
+| `TerminalWidth` | Terminal width in columns |
+| `TerminalHeight` | Terminal height in rows |
+| `StepHeight` | Rows allocated to this step |
+
+The `Hex1bFlowContext` also exposes `AvailableHeight` — the number of rows from the current cursor position to the bottom of the terminal before any scrolling would occur.
 
 ## Step Options
 
@@ -310,14 +325,15 @@ Since the flow callback is just an async lambda, derive your exit code from the 
 
 ## Background Work with Invalidate
 
-Use `step.Invalidate()` to trigger re-renders from background threads. This is essential for progress indicators and async operations:
+The flow callback itself is the natural place for background work. Start a step, do async work, and call `step.Invalidate()` to trigger re-renders:
 
 <CodeBlock lang="csharp" :code="spinnerCode" command="dotnet run" />
 
 The pattern is:
-1. Capture `step` in the `configure` callback
-2. Start a `Task.Run` that does work and calls `step.Invalidate()` after each state change
+1. Call `flow.Step()` to start the UI — it returns a `FlowStep` handle immediately
+2. Do async work directly in the flow callback, calling `step.Invalidate()` after each state change
 3. Call `step.Complete(builder)` when the work finishes
+4. `await step` to wait for cleanup before starting the next step
 
 ## Mixing Flow and Full-Screen
 

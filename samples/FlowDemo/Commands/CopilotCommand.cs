@@ -51,119 +51,118 @@ internal static class CopilotCommand
             .WithScrollback()
             .WithHex1bFlow(async flow =>
             {
-                await flow.StepAsync(
-                    configure: step =>
+                FlowStep? step = null;
+                step = flow.Step(ctx =>
+                {
+                    var modeColor = GetModeColor(state.CurrentMode);
+
+                    // Build the content area (output lines + optional spinner)
+                    var contentWidgets = new List<Hex1bWidget>();
+                    foreach (var line in state.OutputLines)
                     {
-                        step.RequestFocus(n => n is TextBoxNode);
-                        return ctx =>
-                        {
-                            var modeColor = GetModeColor(state.CurrentMode);
+                        contentWidgets.Add(ctx.Text(line));
+                    }
+                    if (state.IsThinking)
+                    {
+                        contentWidgets.Add(ctx.ThemePanel(
+                            theme => theme.Set(SpinnerTheme.ForegroundColor, Hex1bColor.Magenta),
+                            ctx.HStack(h => [h.Spinner(), h.Text(" Thinking...")])));
+                    }
 
-                            // Build the content area (output lines + optional spinner)
-                            var contentWidgets = new List<Hex1bWidget>();
-                            foreach (var line in state.OutputLines)
+                    // Content panel (scrollable output area)
+                    var contentPanel = ctx.VScrollPanel(sv =>
+                    {
+                        if (contentWidgets.Count == 0)
+                            return [sv.VStack(__ => []).Fill()];
+                        return [sv.VStack(__ => []).Fill(), .. contentWidgets];
+                    }, showScrollbar: false).Follow();
+
+                    // If terminal is active, show in HSplitter
+                    Hex1bWidget mainArea;
+                    if (state.TerminalHandle != null)
+                    {
+                        int termWidth = Console.WindowWidth;
+                        mainArea = ctx.HSplitter(
+                            contentPanel,
+                            ctx.Terminal(state.TerminalHandle),
+                            leftWidth: termWidth / 2
+                        ).Fill();
+                    }
+                    else
+                    {
+                        mainArea = contentPanel.Fill();
+                    }
+
+                    // Info bar above prompt: folder on left, model on right
+                    var currentFolder = Environment.CurrentDirectory;
+                    var homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+                    var displayPath = currentFolder.StartsWith(homePath, StringComparison.Ordinal)
+                        ? "~" + currentFolder[homePath.Length..]
+                        : currentFolder;
+                    var branchName = GetGitBranch(currentFolder);
+                    var folderDisplay = branchName is not null
+                        ? $" {displayPath}[⎇ {branchName}]"
+                        : $" {displayPath}";
+                    var infoBar = ctx.HStack(h => [
+                        h.Text(folderDisplay).FillWidth(),
+                        h.Text("gpt-4o "),
+                    ]);
+
+                    // Prompt area (always at bottom)
+                    var modeAnsi = GetModeAnsiText(state.CurrentMode);
+                    var modeColorAnsi = GetModeColorAnsi(state.CurrentMode);
+                    var promptArea = ctx.VStack(pv =>
+                    [
+                        infoBar,
+                        pv.ThemePanel(
+                            theme => theme.Set(SeparatorTheme.Color, modeColor),
+                            ctx.Separator()
+                        ),
+                        pv.ThemePanel(
+                            theme => theme
+                                .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}❯ \x1b[0m")
+                                .Set(TextBoxTheme.RightBracket, ""),
+                            ctx.TextBox().OnSubmit(e =>
                             {
-                                contentWidgets.Add(ctx.Text(line));
-                            }
-                            if (state.IsThinking)
+                                var text = e.Text?.Trim() ?? "";
+                                if (string.IsNullOrEmpty(text))
+                                    return;
+                                e.Node.Text = "";
+                                state.ShowCommands = false;
+                                HandleSubmit(text, step!, state);
+                            })
+                            .WithInputBindings(bindings =>
                             {
-                                contentWidgets.Add(ctx.ThemePanel(
-                                    theme => theme.Set(SpinnerTheme.ForegroundColor, Hex1bColor.Magenta),
-                                    ctx.HStack(h => [h.Spinner(), h.Text(" Thinking...")])));
-                            }
+                                bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
+                                {
+                                    int idx = Array.IndexOf(Modes, state.CurrentMode);
+                                    state.CurrentMode = Modes[(idx + 1) % Modes.Length];
+                                    actionCtx.Invalidate();
+                                }, "Cycle mode");
+                                bindings.Ctrl().Key(Hex1bKey.S).Action(actionCtx =>
+                                {
+                                    state.ShowCommands = !state.ShowCommands;
+                                    actionCtx.Invalidate();
+                                }, "Toggle commands");
+                            })
+                        ),
+                        pv.ThemePanel(
+                            theme => theme.Set(SeparatorTheme.Color, modeColor),
+                            ctx.Separator()
+                        ),
+                        pv.Text(modeAnsi),
+                        .. (state.ShowCommands
+                            ? Commands.Select(c => pv.Text($"  {modeColorAnsi}{c.Name}\x1b[0m  {c.Description}")).ToArray()
+                            : []),
+                    ]);
 
-                            // Content panel (scrollable output area)
-                            var contentPanel = ctx.VScrollPanel(sv =>
-                            {
-                                if (contentWidgets.Count == 0)
-                                    return [sv.VStack(__ => []).Fill()];
-                                return [sv.VStack(__ => []).Fill(), .. contentWidgets];
-                            }, showScrollbar: false).Follow();
-
-                            // If terminal is active, show in HSplitter
-                            Hex1bWidget mainArea;
-                            if (state.TerminalHandle != null)
-                            {
-                                int termWidth = Console.WindowWidth;
-                                mainArea = ctx.HSplitter(
-                                    contentPanel,
-                                    ctx.Terminal(state.TerminalHandle),
-                                    leftWidth: termWidth / 2
-                                ).Fill();
-                            }
-                            else
-                            {
-                                mainArea = contentPanel.Fill();
-                            }
-
-                            // Info bar above prompt: folder on left, model on right
-                            var currentFolder = Environment.CurrentDirectory;
-                            var homePath = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-                            var displayPath = currentFolder.StartsWith(homePath, StringComparison.Ordinal)
-                                ? "~" + currentFolder[homePath.Length..]
-                                : currentFolder;
-                            var branchName = GetGitBranch(currentFolder);
-                            var folderDisplay = branchName is not null
-                                ? $" {displayPath}[⎇ {branchName}]"
-                                : $" {displayPath}";
-                            var infoBar = ctx.HStack(h => [
-                                h.Text(folderDisplay).FillWidth(),
-                                h.Text("gpt-4o "),
-                            ]);
-
-                            // Prompt area (always at bottom)
-                            var modeAnsi = GetModeAnsiText(state.CurrentMode);
-                            var modeColorAnsi = GetModeColorAnsi(state.CurrentMode);
-                            var promptArea = ctx.VStack(pv =>
-                            [
-                                infoBar,
-                                pv.ThemePanel(
-                                    theme => theme.Set(SeparatorTheme.Color, modeColor),
-                                    ctx.Separator()
-                                ),
-                                pv.ThemePanel(
-                                    theme => theme
-                                        .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}❯ \x1b[0m")
-                                        .Set(TextBoxTheme.RightBracket, ""),
-                                    ctx.TextBox().OnSubmit(e =>
-                                    {
-                                        var text = e.Text?.Trim() ?? "";
-                                        if (string.IsNullOrEmpty(text))
-                                            return;
-                                        e.Node.Text = "";
-                                        state.ShowCommands = false;
-                                        HandleSubmit(text, step, state);
-                                    })
-                                    .WithInputBindings(bindings =>
-                                    {
-                                        bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
-                                        {
-                                            int idx = Array.IndexOf(Modes, state.CurrentMode);
-                                            state.CurrentMode = Modes[(idx + 1) % Modes.Length];
-                                            actionCtx.Invalidate();
-                                        }, "Cycle mode");
-                                        bindings.Ctrl().Key(Hex1bKey.S).Action(actionCtx =>
-                                        {
-                                            state.ShowCommands = !state.ShowCommands;
-                                            actionCtx.Invalidate();
-                                        }, "Toggle commands");
-                                    })
-                                ),
-                                pv.ThemePanel(
-                                    theme => theme.Set(SeparatorTheme.Color, modeColor),
-                                    ctx.Separator()
-                                ),
-                                pv.Text(modeAnsi),
-                                .. (state.ShowCommands
-                                    ? Commands.Select(c => pv.Text($"  {modeColorAnsi}{c.Name}\x1b[0m  {c.Description}")).ToArray()
-                                    : []),
-                            ]);
-
-                            return ctx.VStack(v => [mainArea, promptArea]);
-                        };
-                    },
+                    return ctx.VStack(v => [mainArea, promptArea]);
+                },
                     options: opts => opts.EnableMouse = true
                 );
+
+                step.RequestFocus(n => n is TextBoxNode);
+                await step;
 
                 // Cleanup terminal if still running
                 if (state.TerminalCts != null)
@@ -179,7 +178,7 @@ internal static class CopilotCommand
             .RunAsync();
     }
 
-    private static void HandleSubmit(string text, Hex1bStepContext step, AppState state)
+    private static void HandleSubmit(string text, FlowStep step, AppState state)
     {
         if (string.IsNullOrEmpty(text))
             return;

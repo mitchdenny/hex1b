@@ -35,36 +35,30 @@ internal static class AgentInitCommand
                 var detecting = true;
                 var detectedCount = 0;
 
-                await flow.StepAsync(
-                    configure: step =>
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            // Simulate scanning for agents
-                            foreach (var agent in DetectedAgents)
-                            {
-                                await Task.Delay(600);
-                                detected.Add(agent);
-                                detectedCount = detected.Count;
-                                step.Invalidate();
-                            }
-
-                            detecting = false;
-                            step.Invalidate();
-                            await Task.Delay(300);
-                            step.Complete(y => y.Text($"  ✓ Detected {detected.Count} agents"));
-                        });
-
-                        return ctx => ctx.HStack(h =>
-                        [
-                            detecting ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
-                            h.Text(detecting
-                                ? $" Detecting agents... ({detectedCount} found)"
-                                : $" Found {detected.Count} agents"),
-                        ]);
-                    },
+                var detectStep = flow.Step(ctx => ctx.HStack(h =>
+                [
+                    detecting ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
+                    h.Text(detecting
+                        ? $" Detecting agents... ({detectedCount} found)"
+                        : $" Found {detected.Count} agents"),
+                ]),
                     options: opts => opts.MaxHeight = 1
                 );
+
+                // Simulate scanning for agents
+                foreach (var agent in DetectedAgents)
+                {
+                    await Task.Delay(600);
+                    detected.Add(agent);
+                    detectedCount = detected.Count;
+                    detectStep.Invalidate();
+                }
+
+                detecting = false;
+                detectStep.Invalidate();
+                await Task.Delay(300);
+                detectStep.Complete(y => y.Text($"  ✓ Detected {detected.Count} agents"));
+                await detectStep;
 
                 // Step 2: Agent selection with checkboxes
                 // Pre-select all agents
@@ -73,64 +67,58 @@ internal static class AgentInitCommand
                     selected.Add(agent.Name);
                 }
 
-                await flow.StepAsync(
-                    configure: step => ctx => ctx.VStack(v =>
-                    [
-                        v.Text("Select agents to configure:"),
-                        .. detected.Select(agent =>
-                            (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxState.Checked : CheckboxState.Unchecked)
-                                .Label(agent.Name)
-                                .OnToggled(e =>
-                                {
-                                    if (selected.Contains(agent.Name))
-                                        selected.Remove(agent.Name);
-                                    else
-                                        selected.Add(agent.Name);
-                                })),
-                        v.Text($"  {selected.Count} of {detected.Count} selected"),
-                        v.Button("Configure selected").OnClick(e =>
-                            step.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
-                    ]),
+                FlowStep? selectStep = null;
+                selectStep = flow.Step(ctx => ctx.VStack(v =>
+                [
+                    v.Text("Select agents to configure:"),
+                    .. detected.Select(agent =>
+                        (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxState.Checked : CheckboxState.Unchecked)
+                            .Label(agent.Name)
+                            .OnToggled(e =>
+                            {
+                                if (selected.Contains(agent.Name))
+                                    selected.Remove(agent.Name);
+                                else
+                                    selected.Add(agent.Name);
+                            })),
+                    v.Text($"  {selected.Count} of {detected.Count} selected"),
+                    v.Button("Configure selected").OnClick(e =>
+                        selectStep!.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
+                ]),
                     options: opts => opts.MaxHeight = detected.Count + 5
                 );
+                await selectStep;
 
                 // Step 3: Configuration spinner per agent
                 var configuring = true;
                 var currentAgent = "";
                 var configuredIndex = 0;
 
-                await flow.StepAsync(
-                    configure: step =>
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            var selectedAgents = detected.Where(a => selected.Contains(a.Name)).ToList();
-
-                            foreach (var agent in selectedAgents)
-                            {
-                                currentAgent = agent.Name;
-                                configuredIndex++;
-                                step.Invalidate();
-                                await Task.Delay(1000);
-                                configured.Add(agent.Name);
-                            }
-
-                            configuring = false;
-                            step.Invalidate();
-                            await Task.Delay(300);
-                            step.Complete(y => y.Text($"  ✓ Configured {configured.Count} agents"));
-                        });
-
-                        return ctx => ctx.HStack(h =>
-                        [
-                            configuring ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
-                            h.Text(configuring
-                                ? $" Configuring {currentAgent}... ({configuredIndex}/{selected.Count})"
-                                : $" Configured {configured.Count} agents"),
-                        ]);
-                    },
+                var configStep = flow.Step(ctx => ctx.HStack(h =>
+                [
+                    configuring ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
+                    h.Text(configuring
+                        ? $" Configuring {currentAgent}... ({configuredIndex}/{selected.Count})"
+                        : $" Configured {configured.Count} agents"),
+                ]),
                     options: opts => opts.MaxHeight = 1
                 );
+
+                var selectedAgents = detected.Where(a => selected.Contains(a.Name)).ToList();
+                foreach (var agent in selectedAgents)
+                {
+                    currentAgent = agent.Name;
+                    configuredIndex++;
+                    configStep.Invalidate();
+                    await Task.Delay(1000);
+                    configured.Add(agent.Name);
+                }
+
+                configuring = false;
+                configStep.Invalidate();
+                await Task.Delay(300);
+                configStep.Complete(y => y.Text($"  ✓ Configured {configured.Count} agents"));
+                await configStep;
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()

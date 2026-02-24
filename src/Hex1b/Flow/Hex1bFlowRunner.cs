@@ -18,6 +18,9 @@ internal sealed class Hex1bFlowRunner
     // Current cursor row in the terminal buffer (0-based, relative to terminal top)
     private int _cursorRow;
 
+    // The currently active step, if any. Only one step may run at a time.
+    private FlowStep? _activeStep;
+
     public Hex1bFlowRunner(
         Func<Hex1bFlowContext, Task> flowCallback,
         Hex1bFlowOptions options,
@@ -27,6 +30,22 @@ internal sealed class Hex1bFlowRunner
         _options = options;
         _parentAdapter = parentAdapter;
     }
+
+    /// <summary>
+    /// Gets the terminal width in columns.
+    /// </summary>
+    internal int TerminalWidth => _parentAdapter.Width;
+
+    /// <summary>
+    /// Gets the terminal height in rows.
+    /// </summary>
+    internal int TerminalHeight => _parentAdapter.Height;
+
+    /// <summary>
+    /// Gets the number of rows available from the current cursor position
+    /// to the bottom of the terminal (before any scrolling would occur).
+    /// </summary>
+    internal int AvailableHeight => Math.Max(0, _parentAdapter.Height - _cursorRow);
 
     /// <summary>
     /// Runs the entire flow from start to finish.
@@ -45,176 +64,149 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Runs an inline step — a micro-TUI in the normal buffer.
+    /// Starts an inline step and returns a <see cref="FlowStep"/> handle for
+    /// controlling it. The step runs on a background task; use the handle to
+    /// invalidate, complete, and await the step.
     /// </summary>
-    internal async Task RunStepAsync(
+    internal FlowStep StartStep(
         Func<RootContext, Hex1bWidget> builder,
         Hex1bFlowStepOptions? options)
     {
-        await RunStepInternalAsync(builder, null, options);
-    }
+        if (_activeStep != null)
+            throw new InvalidOperationException(
+                "A step is already active. Call Complete() and await the current step before starting a new one.");
 
-    /// <summary>
-    /// Runs an inline step with step context for programmatic control.
-    /// </summary>
-    internal async Task RunStepAsync(
-        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>> configure,
-        Hex1bFlowStepOptions? options)
-    {
-        await RunStepInternalAsync(null, configure, options);
-    }
-
-    private async Task RunStepInternalAsync(
-        Func<RootContext, Hex1bWidget>? builder,
-        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>>? configure,
-        Hex1bFlowStepOptions? options)
-    {
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
 
-        // The step wants MaxHeight rows (or full terminal height if unspecified),
-        // capped to the terminal height since that's the max visible area.
         var desiredHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
         if (desiredHeight < 1) desiredHeight = 1;
 
-        // Track the row origin for this step (may be updated on resize)
-        var rowOrigin = _cursorRow;
+        var step = new FlowStep(terminalWidth, terminalHeight, desiredHeight);
+        _activeStep = step;
 
-        // Scroll the terminal if the cursor is too far down to fit the step
-        var overflow = (rowOrigin + desiredHeight) - terminalHeight;
-        if (overflow > 0)
-        {
-            _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
-            for (int i = 0; i < overflow; i++)
-            {
-                _parentAdapter.Write("\n");
-            }
-            // Adjust cursor row after scroll (frozen yields are already on screen)
-            rowOrigin -= overflow;
-            _cursorRow = rowOrigin;
-        }
+        // Start the step lifecycle on a background task
+        _ = RunStepLifecycleAsync(step, builder, options, desiredHeight);
 
-        // Clear the step region so leftover characters from previous steps don't bleed through
-        ClearRegion(rowOrigin, desiredHeight);
+        return step;
+    }
 
-        // Create the inline adapter for this step
-        var stepEnableMouse = options?.EnableMouse ?? false;
-        var stepCapabilities = _parentAdapter.Capabilities;
-        if (stepEnableMouse && !stepCapabilities.SupportsMouse)
-        {
-            // Override capabilities to enable mouse for this step even if the
-            // parent terminal didn't request it globally.
-            stepCapabilities = stepCapabilities with { SupportsMouse = true };
-        }
-
-        using var stepAdapter = new InlineStepAdapter(
-            terminalWidth, desiredHeight, rowOrigin,
-            stepCapabilities);
-
-        // Create the Hex1bApp with the inline adapter
-        var appOptions = new Hex1bAppOptions
-        {
-            WorkloadAdapter = stepAdapter,
-            EnableMouse = options?.EnableMouse ?? false,
-            EnableDefaultCtrlCExit = true,
-        };
-
-        if (_options.Theme != null)
-        {
-            appOptions.Theme = _options.Theme;
-        }
-
-        // Pump output from step adapter to parent adapter
-        using var outputPumpCts = new CancellationTokenSource();
-        var outputPumpTask = PumpStepOutputAsync(stepAdapter, outputPumpCts.Token);
-
-        // Pump input from parent adapter to step adapter, with resize handling
-        using var inputPumpCts = new CancellationTokenSource();
-        var inputPumpTask = PumpStepInputAsync(stepAdapter, inputPumpCts.Token,
-            onResize: (newWidth, newHeight) =>
-            {
-                // Recalculate step dimensions after terminal resize
-                var newStepHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
-                if (newStepHeight < 1) newStepHeight = 1;
-
-                // The step anchors to the bottom of the terminal.
-                // After reflow, assume content above was reflowed and the step
-                // should be repositioned at the bottom.
-                var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
-
-                // Clear the entire visible area below where we think we are —
-                // reflow may have left artifacts anywhere.
-                ClearRegion(0, newHeight);
-
-                // Update the adapter's row origin so ANSI rewrites use the new position
-                stepAdapter.RowOrigin = newRowOrigin;
-                rowOrigin = newRowOrigin;
-                _cursorRow = newRowOrigin;
-                desiredHeight = newStepHeight;
-
-                // Forward the resize with the step height to the adapter
-                _ = stepAdapter.ResizeAsync(newWidth, newStepHeight);
-            });
-
-        Hex1bStepContext? stepContext = null;
-
+    private async Task RunStepLifecycleAsync(
+        FlowStep step,
+        Func<RootContext, Hex1bWidget> builder,
+        Hex1bFlowStepOptions? options,
+        int desiredHeight)
+    {
         try
         {
-            if (configure != null)
+            var terminalWidth = _parentAdapter.Width;
+            var terminalHeight = _parentAdapter.Height;
+
+            // Track the row origin for this step (may be updated on resize)
+            var rowOrigin = _cursorRow;
+
+            // Scroll the terminal if the cursor is too far down to fit the step
+            var overflow = (rowOrigin + desiredHeight) - terminalHeight;
+            if (overflow > 0)
             {
-                // Configure pattern: pass step context to the callback
-                Hex1bApp? app = null;
-                Func<RootContext, Hex1bWidget>? widgetBuilder = null;
-                bool configureInvoked = false;
-
-                Func<RootContext, Hex1bWidget> wrappedBuilder = ctx =>
+                _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
+                for (int i = 0; i < overflow; i++)
                 {
-                    if (!configureInvoked)
-                    {
-                        configureInvoked = true;
-                        widgetBuilder = configure(stepContext!);
-                    }
-                    return widgetBuilder!(ctx);
-                };
-
-                app = new Hex1bApp(wrappedBuilder, appOptions);
-                stepContext = new Hex1bStepContext(app);
-                await using (app)
-                {
-                    await app.RunAsync(default);
+                    _parentAdapter.Write("\n");
                 }
+                rowOrigin -= overflow;
+                _cursorRow = rowOrigin;
+            }
+
+            // Clear the step region
+            ClearRegion(rowOrigin, desiredHeight);
+
+            // Create the inline adapter for this step
+            var stepEnableMouse = options?.EnableMouse ?? false;
+            var stepCapabilities = _parentAdapter.Capabilities;
+            if (stepEnableMouse && !stepCapabilities.SupportsMouse)
+            {
+                stepCapabilities = stepCapabilities with { SupportsMouse = true };
+            }
+
+            using var stepAdapter = new InlineStepAdapter(
+                terminalWidth, desiredHeight, rowOrigin,
+                stepCapabilities);
+
+            var appOptions = new Hex1bAppOptions
+            {
+                WorkloadAdapter = stepAdapter,
+                EnableMouse = options?.EnableMouse ?? false,
+                EnableDefaultCtrlCExit = true,
+            };
+
+            if (_options.Theme != null)
+            {
+                appOptions.Theme = _options.Theme;
+            }
+
+            // Pump output from step adapter to parent adapter
+            using var outputPumpCts = new CancellationTokenSource();
+            var outputPumpTask = PumpStepOutputAsync(stepAdapter, outputPumpCts.Token);
+
+            // Pump input from parent adapter to step adapter, with resize handling
+            using var inputPumpCts = new CancellationTokenSource();
+            var inputPumpTask = PumpStepInputAsync(stepAdapter, inputPumpCts.Token,
+                onResize: (newWidth, newHeight) =>
+                {
+                    var newStepHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
+                    if (newStepHeight < 1) newStepHeight = 1;
+
+                    var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
+
+                    ClearRegion(0, newHeight);
+
+                    stepAdapter.RowOrigin = newRowOrigin;
+                    rowOrigin = newRowOrigin;
+                    _cursorRow = newRowOrigin;
+                    desiredHeight = newStepHeight;
+                    step.StepHeight = newStepHeight;
+
+                    _ = stepAdapter.ResizeAsync(newWidth, newStepHeight);
+                });
+
+            try
+            {
+                await using var app = new Hex1bApp(builder, appOptions);
+                step.SetApp(app);
+                await app.RunAsync(default);
+            }
+            finally
+            {
+                outputPumpCts.Cancel();
+                inputPumpCts.Cancel();
+
+                try { await outputPumpTask; } catch (OperationCanceledException) { }
+                try { await inputPumpTask; } catch (OperationCanceledException) { }
+            }
+
+            // Clear the step region so remnants don't show through the yield widget
+            ClearRegion(_cursorRow, desiredHeight);
+
+            // Render the completed widget as frozen output
+            var completedBuilder = step.CompletedBuilder;
+            if (completedBuilder != null)
+            {
+                var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
+                _cursorRow += completedHeight;
             }
             else
             {
-                await using var app = new Hex1bApp(builder!, appOptions);
-                await app.RunAsync(default);
+                _cursorRow += desiredHeight;
             }
-        }
-        finally
-        {
-            // Stop the I/O pumps
-            outputPumpCts.Cancel();
-            inputPumpCts.Cancel();
 
-            try { await outputPumpTask; } catch (OperationCanceledException) { }
-            try { await inputPumpTask; } catch (OperationCanceledException) { }
+            _activeStep = null;
+            step.SetCompleted();
         }
-
-        // Clear the step region so remnants of the interactive widget don't show
-        // through the (typically much smaller) completed widget.
-        ClearRegion(_cursorRow, desiredHeight);
-
-        // After step completes, render the completed widget as frozen output
-        var completedBuilder = stepContext?.CompletedBuilder;
-        if (completedBuilder != null)
+        catch (Exception ex)
         {
-            var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
-            _cursorRow += completedHeight;
-        }
-        else
-        {
-            // No completed widget — just advance cursor past the step region
-            _cursorRow += desiredHeight;
+            _activeStep = null;
+            step.SetFaulted(ex);
         }
     }
 

@@ -15,6 +15,22 @@ public sealed class Hex1bFlowContext
         _runner = runner;
     }
 
+    /// <summary>
+    /// Width of the terminal in columns.
+    /// </summary>
+    public int TerminalWidth => _runner.TerminalWidth;
+
+    /// <summary>
+    /// Height of the terminal in rows.
+    /// </summary>
+    public int TerminalHeight => _runner.TerminalHeight;
+
+    /// <summary>
+    /// Number of rows available from the current cursor position to the bottom
+    /// of the terminal, before any scrolling would occur.
+    /// </summary>
+    public int AvailableHeight => _runner.AvailableHeight;
+
     private static Hex1bFlowStepOptions? BuildOptions(Action<Hex1bFlowStepOptions>? configure)
     {
         if (configure == null) return null;
@@ -24,35 +40,30 @@ public sealed class Hex1bFlowContext
     }
 
     /// <summary>
-    /// Runs an inline interactive step in the normal terminal buffer.
-    /// The step reserves space from the current cursor position down and supports
-    /// full interactivity (focus, keyboard navigation, etc.).
+    /// Starts an inline interactive step in the normal terminal buffer and returns
+    /// a <see cref="FlowStep"/> handle for controlling it. The step renders immediately
+    /// on a background task; use the handle to <see cref="FlowStep.Invalidate">invalidate</see>,
+    /// <see cref="FlowStep.Complete()">complete</see>, and <c>await</c> the step.
     /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Only one step may be active at a time. Starting a new step while a previous
+    /// step is still active throws <see cref="InvalidOperationException"/>. Call
+    /// <see cref="FlowStep.Complete()"/> and <c>await</c> the step before starting the next one.
+    /// </para>
+    /// <para>
+    /// The returned handle is awaitable: <c>await step;</c> completes after the step
+    /// finishes, including yield widget rendering and cursor advancement.
+    /// </para>
+    /// </remarks>
     /// <param name="builder">Widget builder for the interactive TUI content.</param>
     /// <param name="options">Optional callback to configure step options.</param>
-    public Task StepAsync(
+    /// <returns>A <see cref="FlowStep"/> handle for controlling the running step.</returns>
+    public FlowStep Step(
         Func<RootContext, Hex1bWidget> builder,
         Action<Hex1bFlowStepOptions>? options = null)
     {
-        return _runner.RunStepAsync(builder, BuildOptions(options));
-    }
-
-    /// <summary>
-    /// Runs an inline interactive step, providing access to <see cref="Hex1bStepContext"/>
-    /// for programmatic control. Use <see cref="Hex1bStepContext.Complete"/> to set the
-    /// frozen output rendered after the step completes, or <see cref="Hex1bStepContext.RequestStop"/>
-    /// to exit without output.
-    /// </summary>
-    /// <param name="configure">
-    /// Configuration callback that receives the step context and returns the widget builder.
-    /// The step context can be captured for use in event handlers and background tasks.
-    /// </param>
-    /// <param name="options">Optional callback to configure step options.</param>
-    public Task StepAsync(
-        Func<Hex1bStepContext, Func<RootContext, Hex1bWidget>> configure,
-        Action<Hex1bFlowStepOptions>? options = null)
-    {
-        return _runner.RunStepAsync(configure, BuildOptions(options));
+        return _runner.StartStep(builder, BuildOptions(options));
     }
 
     /// <summary>

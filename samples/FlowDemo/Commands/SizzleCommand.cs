@@ -92,76 +92,77 @@ internal static class SizzleCommand
                 int globeHeight = Math.Max(termHeight / 2, 10);
 
                 // Inline globe slice — right-click a location to select it
-                await flow.StepAsync(
-                    configure: step => ctx => ctx.VStack(vstack => [
-                        vstack.Text("🌍 Right-click a location to select it. Drag to rotate, scroll to zoom. Ctrl+C to cancel."),
-                        vstack.Interactable(ic =>
-                            ic.Surface(s =>
-                            {
-                                lastSurfaceW = s.Width;
-                                lastSurfaceH = s.Height;
-
-                                double weatherTime = (DateTime.UtcNow - weatherStartTime).TotalSeconds;
-                                var cloudDrift = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(weatherTime * 0.02));
-
-                                return [s.Layer(surface => DrawGlobe(surface, contourSegments, contourLevels,
-                                    cloudSegments, cloudShadow, vertices, spatialGrid, cloudDrift,
-                                    rotQ, zoom, Pois, poiScreenPositions))];
-                            })
-                            .RedrawAfter(2000)
-                        )
-                        .WithInputBindings(bindings =>
+                FlowStep? step = null;
+                step = flow.Step(ctx => ctx.VStack(vstack => [
+                    vstack.Text("🌍 Right-click a location to select it. Drag to rotate, scroll to zoom. Ctrl+C to cancel."),
+                    vstack.Interactable(ic =>
+                        ic.Surface(s =>
                         {
-                            bindings.Drag(MouseButton.Left).Action((startX, startY) =>
-                            {
-                                int prevDx = 0, prevDy = 0;
-                                int dotW = lastSurfaceW * 2, dotH = lastSurfaceH * 4;
-                                double radius = Math.Min(dotW, dotH) * 0.65 * zoom;
-                                double radiansPerCell = 2.0 / radius;
-                                return DragHandler.Simple(
-                                    onMove: (dx, dy) =>
-                                    {
-                                        int ddx = dx - prevDx, ddy = dy - prevDy;
-                                        prevDx = dx; prevDy = dy;
-                                        if (ddx == 0 && ddy == 0) return;
-                                        var qYaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(ddx * radiansPerCell));
-                                        var qPitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)(-ddy * radiansPerCell));
-                                        rotQ = Quaternion.Normalize(qYaw * qPitch * rotQ);
-                                    },
-                                    onEnd: () => { }
-                                );
-                            });
+                            lastSurfaceW = s.Width;
+                            lastSurfaceH = s.Height;
 
-                            bindings.Mouse(MouseButton.ScrollUp).Action(_ => zoom = Math.Min(5.0, zoom * 1.15));
-                            bindings.Mouse(MouseButton.ScrollDown).Action(_ => zoom = Math.Max(0.3, zoom * 0.87));
+                            double weatherTime = (DateTime.UtcNow - weatherStartTime).TotalSeconds;
+                            var cloudDrift = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(weatherTime * 0.02));
 
-                            // Right-click to select a POI and exit
-                            bindings.Mouse(MouseButton.Right).Action(actionCtx =>
-                            {
-                                int mx = actionCtx.MouseX, my = actionCtx.MouseY;
-                                if (mx < 0 || my < 0) return;
-
-                                double bestDist = double.MaxValue;
-                                int bestIdx = -1;
-                                for (int i = 0; i < poiScreenPositions.Count; i++)
-                                {
-                                    var sp = poiScreenPositions[i];
-                                    double dx2 = sp.cx - mx;
-                                    double dy2 = sp.cy - my;
-                                    double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
-                                    if (d < bestDist) { bestDist = d; bestIdx = i; }
-                                }
-
-                                if (bestIdx < 0 || bestDist > 8.0) return;
-                                var clicked = poiScreenPositions[bestIdx];
-                                selectedLocation = Pois[clicked.poiIndex].Name;
-                                step.Complete(y => y.Text($"  ✓ Selected: {selectedLocation}"));
-                            });
+                            return [s.Layer(surface => DrawGlobe(surface, contourSegments, contourLevels,
+                                cloudSegments, cloudShadow, vertices, spatialGrid, cloudDrift,
+                                rotQ, zoom, Pois, poiScreenPositions))];
                         })
-                        .Fill()
-                    ]),
+                        .RedrawAfter(2000)
+                    )
+                    .WithInputBindings(bindings =>
+                    {
+                        bindings.Drag(MouseButton.Left).Action((startX, startY) =>
+                        {
+                            int prevDx = 0, prevDy = 0;
+                            int dotW = lastSurfaceW * 2, dotH = lastSurfaceH * 4;
+                            double radius = Math.Min(dotW, dotH) * 0.65 * zoom;
+                            double radiansPerCell = 2.0 / radius;
+                            return DragHandler.Simple(
+                                onMove: (dx, dy) =>
+                                {
+                                    int ddx = dx - prevDx, ddy = dy - prevDy;
+                                    prevDx = dx; prevDy = dy;
+                                    if (ddx == 0 && ddy == 0) return;
+                                    var qYaw = Quaternion.CreateFromAxisAngle(Vector3.UnitY, (float)(ddx * radiansPerCell));
+                                    var qPitch = Quaternion.CreateFromAxisAngle(Vector3.UnitX, (float)(-ddy * radiansPerCell));
+                                    rotQ = Quaternion.Normalize(qYaw * qPitch * rotQ);
+                                },
+                                onEnd: () => { }
+                            );
+                        });
+
+                        bindings.Mouse(MouseButton.ScrollUp).Action(_ => zoom = Math.Min(5.0, zoom * 1.15));
+                        bindings.Mouse(MouseButton.ScrollDown).Action(_ => zoom = Math.Max(0.3, zoom * 0.87));
+
+                        // Right-click to select a POI and exit
+                        bindings.Mouse(MouseButton.Right).Action(actionCtx =>
+                        {
+                            int mx = actionCtx.MouseX, my = actionCtx.MouseY;
+                            if (mx < 0 || my < 0) return;
+
+                            double bestDist = double.MaxValue;
+                            int bestIdx = -1;
+                            for (int i = 0; i < poiScreenPositions.Count; i++)
+                            {
+                                var sp = poiScreenPositions[i];
+                                double dx2 = sp.cx - mx;
+                                double dy2 = sp.cy - my;
+                                double d = Math.Sqrt(dx2 * dx2 + dy2 * dy2);
+                                if (d < bestDist) { bestDist = d; bestIdx = i; }
+                            }
+
+                            if (bestIdx < 0 || bestDist > 8.0) return;
+                            var clicked = poiScreenPositions[bestIdx];
+                            selectedLocation = Pois[clicked.poiIndex].Name;
+                            step!.Complete(y => y.Text($"  ✓ Selected: {selectedLocation}"));
+                        });
+                    })
+                    .Fill()
+                ]),
                     options: opts => { opts.MaxHeight = globeHeight; opts.EnableMouse = true; }
                 );
+                await step;
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()
