@@ -57,8 +57,7 @@ internal static class AgentInitCommand
                 detecting = false;
                 detectStep.Invalidate();
                 await Task.Delay(300);
-                detectStep.Complete(y => y.Text($"  ✓ Detected {detected.Count} agents"));
-                await detectStep;
+                await detectStep.CompleteAsync(y => y.Text($"  ✓ Detected {detected.Count} agents"));
 
                 // Step 2: Agent selection with checkboxes
                 // Pre-select all agents
@@ -86,7 +85,7 @@ internal static class AgentInitCommand
                 ]),
                     options: opts => opts.MaxHeight = detected.Count + 5
                 );
-                await selectStep;
+                await selectStep.WaitForCompletionAsync();
 
                 // Step 3: Configuration spinner per agent
                 var configuring = true;
@@ -116,8 +115,7 @@ internal static class AgentInitCommand
                 configuring = false;
                 configStep.Invalidate();
                 await Task.Delay(300);
-                configStep.Complete(y => y.Text($"  ✓ Configured {configured.Count} agents"));
-                await configStep;
+                await configStep.CompleteAsync(y => y.Text($"  ✓ Configured {configured.Count} agents"));
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()

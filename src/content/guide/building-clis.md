@@ -17,7 +17,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 }),
             options: opts => opts.MaxHeight = 3
         );
-        await nameStep;
+        await nameStep.WaitForCompletionAsync();
 
         // Step 2: Pick a color
         var colors = new[] { "Red", "Green", "Blue" };
@@ -33,13 +33,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             options: opts => opts.MaxHeight = 6
         );
-        await colorStep;
+        await colorStep.WaitForCompletionAsync();
 
         // After all steps complete, write a final summary
         var summaryStep = flow.Step(ctx =>
             ctx.Text($"Hello {name}, you picked {color}!"));
-        summaryStep.Complete();
-        await summaryStep;
+        await summaryStep.CompleteAsync();
     })
     .Build();
 
@@ -68,7 +67,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             options: opts => opts.MaxHeight = 4
         );
-        await nameStep;
+        await nameStep.WaitForCompletionAsync();
 
         // Step 2: Framework
         var fwStep = flow.Step(ctx =>
@@ -85,7 +84,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             options: opts => opts.MaxHeight = 8
         );
-        await fwStep;
+        await fwStep.WaitForCompletionAsync();
 
         // Step 3: Confirm
         var confirmStep = flow.Step(ctx =>
@@ -106,7 +105,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             options: opts => opts.MaxHeight = 4
         );
-        await confirmStep;
+        await confirmStep.WaitForCompletionAsync();
     })
     .Build();
 
@@ -151,7 +150,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             options: opts => opts.MaxHeight = 4
         );
-        await step;
+        await step.WaitForCompletionAsync();
     })
     .Build();
 
@@ -198,8 +197,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         done = true;
         step.Invalidate();
         await Task.Delay(300);
-        step.Complete(y => y.Text("  ✓ All tasks complete!"));
-        await step;
+        await step.CompleteAsync(y => y.Text("  ✓ All tasks complete!"));
     })
     .Build();
 
@@ -267,12 +265,15 @@ Avoid using `Console.WriteLine` or writing directly to `stdout` while Hex1b is r
 
 | Method | Purpose |
 |--------|---------|
-| `Complete(builder)` | Sets frozen output and stops the step |
-| `Complete()` | Stops the step without frozen output |
+| `Complete(builder)` | Sets frozen output and stops the step (fire-and-forget) |
+| `Complete()` | Stops the step without frozen output (fire-and-forget) |
+| `CompleteAsync(builder)` | Completes and waits for cleanup |
+| `CompleteAsync()` | Completes without output and waits for cleanup |
+| `WaitForCompletionAsync()` | Waits for a step to finish (after user-driven `Complete()`) |
 | `Invalidate()` | Triggers a re-render (thread-safe) |
 | `RequestFocus(predicate)` | Moves focus to a matching node |
 
-The handle is also awaitable — `await step` completes after the step finishes, including yield widget rendering and cursor advancement.
+Use `Complete()` in event handlers (where you can't await), and `CompleteAsync()` or `WaitForCompletionAsync()` in the flow callback.
 
 ### Accessing the Step from Event Handlers
 
@@ -285,7 +286,7 @@ var step = flow.Step(ctx =>
         ctx.Step.Complete(y => y.Text($"  ✓ {e.Text}"));
     })
 );
-await step;
+await step.WaitForCompletionAsync();
 ```
 
 ### Sizing Information
@@ -340,8 +341,7 @@ The flow callback itself is the natural place for background work. Start a step,
 The pattern is:
 1. Call `flow.Step()` to start the UI — it returns a `FlowStep` handle immediately
 2. Do async work directly in the flow callback, calling `step.Invalidate()` after each state change
-3. Call `step.Complete(builder)` when the work finishes
-4. `await step` to wait for cleanup before starting the next step
+3. Call `await step.CompleteAsync(builder)` when the work finishes — this completes the step and waits for cleanup in one call
 
 ## Mixing Flow and Full-Screen
 

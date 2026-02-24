@@ -161,7 +161,7 @@ internal static class SizzleCommand
                 ]),
                     options: opts => { opts.MaxHeight = globeHeight; opts.EnableMouse = true; }
                 );
-                await step;
+                await step.WaitForCompletionAsync();
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()

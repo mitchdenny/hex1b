@@ -161,7 +161,7 @@ internal static class CopilotCommand
                 );
 
                 step.RequestFocus(n => n is TextBoxNode);
-                await step;
+                await step.WaitForCompletionAsync();
 
                 // Cleanup terminal if still running
                 if (state.TerminalCts != null)

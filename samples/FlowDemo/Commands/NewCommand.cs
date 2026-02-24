@@ -49,7 +49,7 @@ internal static class NewCommand
                 ]),
                     options: opts => opts.MaxHeight = Templates.Length + 3
                 );
-                await step;
+                await step.WaitForCompletionAsync();
 
                 // Step 2: Project name
                 if (string.IsNullOrEmpty(projectName))
@@ -67,7 +67,7 @@ internal static class NewCommand
                     ]),
                         options: opts => opts.MaxHeight = 4
                     );
-                    await nameStep;
+                    await nameStep.WaitForCompletionAsync();
                 }
 
                 // Step 3: Output directory
@@ -94,7 +94,7 @@ internal static class NewCommand
                     ]),
                         options: opts => opts.MaxHeight = 6
                     );
-                    await dirStep;
+                    await dirStep.WaitForCompletionAsync();
                 }
 
                 // Step 4: Language picker
@@ -111,7 +111,7 @@ internal static class NewCommand
                 ]),
                     options: opts => opts.MaxHeight = Languages.Length + 3
                 );
-                await langStep;
+                await langStep.WaitForCompletionAsync();
 
                 // Step 5: Creation spinner
                 var creating = true;
@@ -143,8 +143,7 @@ internal static class NewCommand
                 creating = false;
                 spinnerStep.Invalidate();
                 await Task.Delay(300);
-                spinnerStep.Complete(y => y.Text($"  ✓ Project created at {outputPath}"));
-                await spinnerStep;
+                await spinnerStep.CompleteAsync(y => y.Text($"  ✓ Project created at {outputPath}"));
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()
