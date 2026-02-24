@@ -92,8 +92,7 @@ internal static class SizzleCommand
                 int globeHeight = Math.Max(termHeight / 2, 10);
 
                 // Inline globe slice — right-click a location to select it
-                FlowStep? step = null;
-                step = flow.Step(ctx => ctx.VStack(vstack => [
+                var step = flow.Step(ctx => ctx.VStack(vstack => [
                     vstack.Text("🌍 Right-click a location to select it. Drag to rotate, scroll to zoom. Ctrl+C to cancel."),
                     vstack.Interactable(ic =>
                         ic.Surface(s =>
@@ -155,7 +154,7 @@ internal static class SizzleCommand
                             if (bestIdx < 0 || bestDist > 8.0) return;
                             var clicked = poiScreenPositions[bestIdx];
                             selectedLocation = Pois[clicked.poiIndex].Name;
-                            step!.Complete(y => y.Text($"  ✓ Selected: {selectedLocation}"));
+                            ctx.Step.Complete(y => y.Text($"  ✓ Selected: {selectedLocation}"));
                         });
                     })
                     .Fill()

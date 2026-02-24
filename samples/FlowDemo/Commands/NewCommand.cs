@@ -35,8 +35,7 @@ internal static class NewCommand
                 // Step 1: Template picker (skip if subcommand was provided directly)
                 var templateIndex = 0;
 
-                FlowStep? step = null;
-                step = flow.Step(ctx => ctx.VStack(v =>
+                var step = flow.Step(ctx => ctx.VStack(v =>
                 [
                     v.Text("Select a project template:"),
                     v.List(Templates.Select(t => t.Name).ToArray())
@@ -44,7 +43,7 @@ internal static class NewCommand
                         {
                             templateIndex = e.ActivatedIndex;
                             selectedTemplate = Templates[e.ActivatedIndex].Id;
-                            step!.Complete(y => y.Text($"  ✓ Template: {Templates[templateIndex].Name}"));
+                            ctx.Step.Complete(y => y.Text($"  ✓ Template: {Templates[templateIndex].Name}"));
                         })
                         .FixedHeight(Templates.Length + 1),
                 ]),
@@ -55,15 +54,14 @@ internal static class NewCommand
                 // Step 2: Project name
                 if (string.IsNullOrEmpty(projectName))
                 {
-                    FlowStep? nameStep = null;
-                    nameStep = flow.Step(ctx => ctx.VStack(v =>
+                    var nameStep = flow.Step(ctx => ctx.VStack(v =>
                     [
                         v.Text("Enter your project name:"),
                         v.TextBox(projectName)
                             .OnSubmit(e =>
                             {
                                 projectName = e.Text;
-                                nameStep!.Complete(y => y.Text($"  ✓ Project name: {projectName}"));
+                                ctx.Step.Complete(y => y.Text($"  ✓ Project name: {projectName}"));
                             })
                             .FillWidth(),
                     ]),
@@ -78,8 +76,7 @@ internal static class NewCommand
                     var defaultPath = $"./{projectName}";
                     outputPath = defaultPath;
 
-                    FlowStep? dirStep = null;
-                    dirStep = flow.Step(ctx => ctx.VStack(v =>
+                    var dirStep = flow.Step(ctx => ctx.VStack(v =>
                     [
                         v.Text("Select output directory:"),
                         v.List(new[]
@@ -91,7 +88,7 @@ internal static class NewCommand
                             .OnItemActivated(e =>
                             {
                                 outputPath = e.ActivatedText;
-                                dirStep!.Complete(y => y.Text($"  ✓ Output: {outputPath}"));
+                                ctx.Step.Complete(y => y.Text($"  ✓ Output: {outputPath}"));
                             })
                             .FixedHeight(4),
                     ]),
@@ -101,15 +98,14 @@ internal static class NewCommand
                 }
 
                 // Step 4: Language picker
-                FlowStep? langStep = null;
-                langStep = flow.Step(ctx => ctx.VStack(v =>
+                var langStep = flow.Step(ctx => ctx.VStack(v =>
                 [
                     v.Text("Select AppHost language:"),
                     v.List(Languages)
                         .OnItemActivated(e =>
                         {
                             language = e.ActivatedText;
-                            langStep!.Complete(y => y.Text($"  ✓ Language: {language}"));
+                            ctx.Step.Complete(y => y.Text($"  ✓ Language: {language}"));
                         })
                         .FixedHeight(Languages.Length + 1),
                 ]),

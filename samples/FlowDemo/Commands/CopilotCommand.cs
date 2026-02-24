@@ -51,8 +51,7 @@ internal static class CopilotCommand
             .WithScrollback()
             .WithHex1bFlow(async flow =>
             {
-                FlowStep? step = null;
-                step = flow.Step(ctx =>
+                var step = flow.Step(ctx =>
                 {
                     var modeColor = GetModeColor(state.CurrentMode);
 
@@ -129,7 +128,7 @@ internal static class CopilotCommand
                                     return;
                                 e.Node.Text = "";
                                 state.ShowCommands = false;
-                                HandleSubmit(text, step!, state);
+                                HandleSubmit(text, ctx.Step, state);
                             })
                             .WithInputBindings(bindings =>
                             {

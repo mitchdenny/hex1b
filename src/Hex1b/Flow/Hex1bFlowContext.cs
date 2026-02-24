@@ -55,12 +55,17 @@ public sealed class Hex1bFlowContext
     /// The returned handle is awaitable: <c>await step;</c> completes after the step
     /// finishes, including yield widget rendering and cursor advancement.
     /// </para>
+    /// <para>
+    /// The builder receives a <see cref="FlowStepContext"/> which exposes a
+    /// <see cref="FlowStepContext.Step"/> property, so event handlers can access the
+    /// step handle without needing a separate variable.
+    /// </para>
     /// </remarks>
     /// <param name="builder">Widget builder for the interactive TUI content.</param>
     /// <param name="options">Optional callback to configure step options.</param>
     /// <returns>A <see cref="FlowStep"/> handle for controlling the running step.</returns>
     public FlowStep Step(
-        Func<RootContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Hex1bWidget> builder,
         Action<Hex1bFlowStepOptions>? options = null)
     {
         return _runner.StartStep(builder, BuildOptions(options));

@@ -69,7 +69,7 @@ internal sealed class Hex1bFlowRunner
     /// invalidate, complete, and await the step.
     /// </summary>
     internal FlowStep StartStep(
-        Func<RootContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Hex1bWidget> builder,
         Hex1bFlowStepOptions? options)
     {
         if (_activeStep != null)
@@ -93,7 +93,7 @@ internal sealed class Hex1bFlowRunner
 
     private async Task RunStepLifecycleAsync(
         FlowStep step,
-        Func<RootContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Hex1bWidget> builder,
         Hex1bFlowStepOptions? options,
         int desiredHeight)
     {
@@ -172,7 +172,13 @@ internal sealed class Hex1bFlowRunner
 
             try
             {
-                await using var app = new Hex1bApp(builder, appOptions);
+                // Wrap the user's builder to inject the FlowStepContext
+                var stepCtx = new FlowStepContext(step);
+                await using var app = new Hex1bApp(rootCtx =>
+                {
+                    stepCtx.CancellationToken = rootCtx.CancellationToken;
+                    return builder(stepCtx);
+                }, appOptions);
                 step.SetApp(app);
                 await app.RunAsync(default);
             }

@@ -67,8 +67,7 @@ internal static class AgentInitCommand
                     selected.Add(agent.Name);
                 }
 
-                FlowStep? selectStep = null;
-                selectStep = flow.Step(ctx => ctx.VStack(v =>
+                var selectStep = flow.Step(ctx => ctx.VStack(v =>
                 [
                     v.Text("Select agents to configure:"),
                     .. detected.Select(agent =>
@@ -83,7 +82,7 @@ internal static class AgentInitCommand
                             })),
                     v.Text($"  {selected.Count} of {detected.Count} selected"),
                     v.Button("Configure selected").OnClick(e =>
-                        selectStep!.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
+                        ctx.Step.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
                 ]),
                     options: opts => opts.MaxHeight = detected.Count + 5
                 );

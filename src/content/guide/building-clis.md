@@ -8,13 +8,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         // Step 1: Ask for a name
         var name = "";
-        FlowStep? nameStep = null;
-        nameStep = flow.Step(ctx =>
+        var nameStep = flow.Step(ctx =>
             ctx.TextBox()
                 .OnSubmit(e =>
                 {
                     name = e.Text ?? "";
-                    nameStep!.Complete(y => y.Text($"  ✓ Name: {name}"));
+                    ctx.Step.Complete(y => y.Text($"  ✓ Name: {name}"));
                 }),
             options: opts => opts.MaxHeight = 3
         );
@@ -23,14 +22,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         // Step 2: Pick a color
         var colors = new[] { "Red", "Green", "Blue" };
         var color = "";
-        FlowStep? colorStep = null;
-        colorStep = flow.Step(ctx =>
+        var colorStep = flow.Step(ctx =>
             ctx.VStack(v => [
                 v.Text("Pick a color:"),
                 v.List(colors).OnItemActivated(e =>
                 {
                     color = colors[e.ActivatedIndex];
-                    colorStep!.Complete(y => y.Text($"  ✓ Color: {color}"));
+                    ctx.Step.Complete(y => y.Text($"  ✓ Color: {color}"));
                 })
             ]),
             options: opts => opts.MaxHeight = 6
@@ -56,15 +54,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bFlow(async flow =>
     {
         // Step 1: Project name
-        FlowStep? nameStep = null;
-        nameStep = flow.Step(ctx =>
+        var nameStep = flow.Step(ctx =>
             ctx.VStack(v => [
                 v.Text("Enter your project name:"),
                 v.TextBox(state.ProjectName)
                     .OnSubmit(e =>
                     {
                         state.ProjectName = e.Text ?? "";
-                        nameStep!.Complete(y =>
+                        ctx.Step.Complete(y =>
                             y.Text($"  ✓ Project: {state.ProjectName}"));
                     })
                     .FillWidth()
@@ -74,15 +71,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         await nameStep;
 
         // Step 2: Framework
-        FlowStep? fwStep = null;
-        fwStep = flow.Step(ctx =>
+        var fwStep = flow.Step(ctx =>
             ctx.VStack(v => [
                 v.Text("Select a framework:"),
                 v.List(SetupState.Frameworks)
                     .OnItemActivated(e =>
                     {
                         state.Framework = SetupState.Frameworks[e.ActivatedIndex];
-                        fwStep!.Complete(y =>
+                        ctx.Step.Complete(y =>
                             y.Text($"  ✓ Framework: {state.Framework}"));
                     })
                     .FixedHeight(SetupState.Frameworks.Length + 1)
@@ -92,20 +88,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         await fwStep;
 
         // Step 3: Confirm
-        FlowStep? confirmStep = null;
-        confirmStep = flow.Step(ctx =>
+        var confirmStep = flow.Step(ctx =>
             ctx.VStack(v => [
                 v.Text($"Create '{state.ProjectName}' with {state.Framework}?"),
                 v.HStack(h => [
                     h.Button("Yes").OnClick(_ =>
                     {
                         state.Confirmed = true;
-                        confirmStep!.Complete(y =>
+                        ctx.Step.Complete(y =>
                             y.Text($"  ✓ Created {state.ProjectName}!"));
                     }),
                     h.Button("No").OnClick(_ =>
                     {
-                        confirmStep!.Complete(y => y.Text("  ✗ Cancelled."));
+                        ctx.Step.Complete(y => y.Text("  ✗ Cancelled."));
                     })
                 ])
             ]),
@@ -138,20 +133,19 @@ var state = new CommandState();
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bFlow(async flow =>
     {
-        FlowStep? step = null;
-        step = flow.Step(ctx =>
+        var step = flow.Step(ctx =>
             ctx.VStack(v => [
                 v.Text("Delete all files in /tmp?"),
                 v.HStack(h => [
                     h.Button("Yes, delete").OnClick(_ =>
                     {
                         state.ExitCode = 0;
-                        step!.Complete(y => y.Text("  ✓ Deleted."));
+                        ctx.Step.Complete(y => y.Text("  ✓ Deleted."));
                     }),
                     h.Button("Cancel").OnClick(_ =>
                     {
                         state.ExitCode = 1;
-                        step!.Complete(y => y.Text("  ✗ Cancelled."));
+                        ctx.Step.Complete(y => y.Text("  ✗ Cancelled."));
                     })
                 ])
             ]),
@@ -279,6 +273,20 @@ Avoid using `Console.WriteLine` or writing directly to `stdout` while Hex1b is r
 | `RequestFocus(predicate)` | Moves focus to a matching node |
 
 The handle is also awaitable — `await step` completes after the step finishes, including yield widget rendering and cursor advancement.
+
+### Accessing the Step from Event Handlers
+
+The builder receives a `FlowStepContext` (which extends `RootContext`) with a `.Step` property. Use `ctx.Step` in event handlers to complete or invalidate the step without needing a separate variable:
+
+```csharp
+var step = flow.Step(ctx =>
+    ctx.TextBox().OnSubmit(e =>
+    {
+        ctx.Step.Complete(y => y.Text($"  ✓ {e.Text}"));
+    })
+);
+await step;
+```
 
 ### Sizing Information
 
