@@ -32,6 +32,14 @@ public sealed class IconNode : Hex1bNode
     /// </summary>
     public bool IsClickable => ClickCallback != null;
 
+    /// <summary>
+    /// Clickable icons must be focusable to receive mouse input via the focus ring.
+    /// </summary>
+    public override bool IsFocusable => IsClickable;
+
+    /// <inheritdoc />
+    public override Rect HitTestBounds => IsClickable ? Bounds : default;
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         if (ClickCallback != null)

@@ -27,6 +27,7 @@ public sealed class DraggableNode : Hex1bNode
     public DraggableWidget? SourceWidget { get; set; }
 
     private bool _isDragging;
+    private bool _isHovered;
 
     /// <summary>
     /// Whether this node is currently being dragged. Set by <see cref="Hex1bApp"/>.
@@ -39,6 +40,22 @@ public sealed class DraggableNode : Hex1bNode
             if (_isDragging != value)
             {
                 _isDragging = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>
+    /// Whether the mouse is currently hovering over this node.
+    /// </summary>
+    public override bool IsHovered
+    {
+        get => _isHovered;
+        set
+        {
+            if (_isHovered != value)
+            {
+                _isHovered = value;
                 MarkDirty();
             }
         }
