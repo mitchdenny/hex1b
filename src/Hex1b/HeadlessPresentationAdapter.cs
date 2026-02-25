@@ -117,6 +117,9 @@ public sealed class HeadlessPresentationAdapter : IHex1bTerminalPresentationAdap
     public ValueTask ExitRawModeAsync(CancellationToken ct = default)
         => ValueTask.CompletedTask;
 
+    /// <inheritdoc />
+    public (int Row, int Column) GetCursorPosition() => (0, 0);
+
     /// <summary>
     /// Configures the reflow strategy for this adapter and enables reflow.
     /// By default, reflow is disabled and resize uses standard crop behavior.

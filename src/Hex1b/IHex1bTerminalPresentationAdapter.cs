@@ -104,4 +104,11 @@ public interface IHex1bTerminalPresentationAdapter : IAsyncDisposable
     /// </summary>
     /// <param name="ct">Cancellation token.</param>
     ValueTask ExitRawModeAsync(CancellationToken ct = default);
+
+    /// <summary>
+    /// Gets the current cursor position in the terminal.
+    /// Returns (0, 0) if the position cannot be determined.
+    /// </summary>
+    /// <returns>A tuple of (Row, Column), both 0-based.</returns>
+    (int Row, int Column) GetCursorPosition();
 }

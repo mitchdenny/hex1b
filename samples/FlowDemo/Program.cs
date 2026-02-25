@@ -38,10 +38,17 @@ copilotCommand.SetAction(async (parseResult, ct) =>
     await CopilotCommand.RunAsync();
 });
 
+var handrolledCOmmand = new Command("handrolled", "A hand-rolled flow without using the FlowBuilder DSL.");
+handrolledCOmmand.SetAction(async (parseResult, ct) =>
+{
+    await HandrolledCommand.RunAsync();
+});
+
 var rootCommand = new RootCommand("FlowDemo — Mock Aspire CLI powered by Hex1b Flow");
 rootCommand.Subcommands.Add(newCommand);
 rootCommand.Subcommands.Add(agentCommand);
 rootCommand.Subcommands.Add(sizzleCommand);
 rootCommand.Subcommands.Add(copilotCommand);
+rootCommand.Subcommands.Add(handrolledCOmmand);
 
 return await rootCommand.Parse(args).InvokeAsync();

@@ -414,6 +414,7 @@ public class Hex1bTerminalChildProcessTests
         public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
         public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
     

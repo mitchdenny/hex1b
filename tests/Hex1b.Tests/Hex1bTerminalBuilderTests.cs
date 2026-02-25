@@ -881,6 +881,8 @@ public class Hex1bTerminalBuilderTests
         public ValueTask ExitRawModeAsync(CancellationToken ct = default)
             => ValueTask.CompletedTask;
 
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 

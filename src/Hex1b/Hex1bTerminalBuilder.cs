@@ -762,6 +762,10 @@ public sealed class Hex1bTerminalBuilder
             var options = new Flow.Hex1bFlowOptions();
             configureOptions?.Invoke(options);
 
+            // Auto-detect cursor position if not explicitly provided.
+            // This must happen before raw mode is entered (i.e., at Build() time).
+            options.InitialCursorRow ??= presentation?.GetCursorPosition().Row ?? 0;
+
             var runner = new Flow.Hex1bFlowRunner(flowCallback, options, workloadAdapter);
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
