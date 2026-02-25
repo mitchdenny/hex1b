@@ -75,6 +75,37 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
+    /// Renders a static widget as frozen terminal output and advances the cursor.
+    /// No interactive step is created — this is a fire-and-forget render.
+    /// </summary>
+    internal async Task RenderStaticAsync(Func<RootContext, Hex1bWidget> builder)
+    {
+        var terminalWidth = _parentAdapter.Width;
+        var terminalHeight = _parentAdapter.Height;
+
+        // Measure the content to determine how much space it needs
+        var contentHeight = MeasureYieldHeight(builder, terminalWidth, terminalHeight);
+        if (contentHeight < 1) contentHeight = 1;
+
+        // Scroll if needed to make room
+        var overflow = (_cursorRow + contentHeight) - terminalHeight;
+        if (overflow > 0)
+        {
+            _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
+            for (int i = 0; i < overflow; i++)
+            {
+                _parentAdapter.Write("\n");
+            }
+            _cursorRow -= overflow;
+        }
+
+        // Clear and render
+        ClearRegion(_cursorRow, contentHeight);
+        var renderedHeight = await RenderYieldWidgetAsync(builder, terminalWidth, contentHeight);
+        _cursorRow += renderedHeight;
+    }
+
+    /// <summary>
     /// Starts an inline step and returns a <see cref="FlowStep"/> handle for
     /// controlling it. The step runs on a background task; use the handle to
     /// invalidate, complete, and await the step.

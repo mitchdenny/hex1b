@@ -350,6 +350,20 @@ The pattern is:
 2. Do async work directly in the flow callback, calling `step.Invalidate()` after each state change
 3. Call `await step.CompleteAsync(builder)` when the work finishes — this completes the step and waits for cleanup in one call
 
+## Static Content with ShowAsync
+
+For non-interactive content like headers, dividers, or status lines, use `ShowAsync` instead of `Step` + `CompleteAsync`:
+
+```csharp
+await flow.ShowAsync(ctx => ctx.Text("═══ Project Setup ═══"));
+await flow.ShowAsync(ctx => ctx.Grid(grid => [
+    grid.Cell(c => c.Text("■")).Column(0),
+    grid.Cell(c => c.Text("CONFIGURATION")).Column(1),
+]));
+```
+
+`ShowAsync` renders the widget as frozen output and advances the cursor — no step lifecycle, no input handling.
+
 ## Mixing Flow and Full-Screen
 
 Flow supports `FullScreenStepAsync` for steps that need the alternate screen buffer. The flow saves inline state before entering full-screen and restores it after:

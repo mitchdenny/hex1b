@@ -78,6 +78,20 @@ public sealed class Hex1bFlowContext
     }
 
     /// <summary>
+    /// Renders a static widget as frozen terminal output and advances the cursor.
+    /// Use this for headers, dividers, status lines, or any content that doesn't
+    /// need interactivity. The widget is rendered once and scrolls naturally into
+    /// the scrollback buffer.
+    /// </summary>
+    /// <param name="builder">Widget builder for the static content.</param>
+    /// <returns>A task that completes when the content has been rendered.</returns>
+    public Task ShowAsync(Func<RootContext, Hex1bWidget> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return _runner.RenderStaticAsync(builder);
+    }
+
+    /// <summary>
     /// Runs a full-screen TUI application in the alternate screen buffer.
     /// Inline state is saved before entering and restored after exiting.
     /// </summary>
