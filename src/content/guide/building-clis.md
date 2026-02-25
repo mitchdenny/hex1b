@@ -275,6 +275,13 @@ Avoid using `Console.WriteLine` or writing directly to `stdout` while Hex1b is r
 
 Use `Complete()` in event handlers (where you can't await), and `CompleteAsync()` or `WaitForCompletionAsync()` in the flow callback.
 
+All async methods accept an optional `CancellationToken`. The flow context exposes `flow.CancellationToken` which is cancelled when the outer flow runner is stopped:
+
+```csharp
+await step.WaitForCompletionAsync(flow.CancellationToken);
+await step.CompleteAsync(y => y.Text("Done"), flow.CancellationToken);
+```
+
 ### Accessing the Step from Event Handlers
 
 The builder receives a `FlowStepContext` (which extends `RootContext`) with a `.Step` property. Use `ctx.Step` in event handlers to complete or invalidate the step without needing a separate variable:

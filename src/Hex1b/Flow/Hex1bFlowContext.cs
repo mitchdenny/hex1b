@@ -31,6 +31,14 @@ public sealed class Hex1bFlowContext
     /// </summary>
     public int AvailableHeight => _runner.AvailableHeight;
 
+    /// <summary>
+    /// Cancellation token for the flow. This token is cancelled when the outer
+    /// flow runner is stopped (e.g., via Ctrl+C). Pass this to
+    /// <see cref="FlowStep.WaitForCompletionAsync(CancellationToken)"/> or
+    /// <see cref="FlowStep.CompleteAsync(CancellationToken)"/> to make them cancellable.
+    /// </summary>
+    public CancellationToken CancellationToken => _runner.CancellationToken;
+
     private static Hex1bFlowStepOptions? BuildOptions(Action<Hex1bFlowStepOptions>? configure)
     {
         if (configure == null) return null;
@@ -43,17 +51,15 @@ public sealed class Hex1bFlowContext
     /// Starts an inline interactive step in the normal terminal buffer and returns
     /// a <see cref="FlowStep"/> handle for controlling it. The step renders immediately
     /// on a background task; use the handle to <see cref="FlowStep.Invalidate">invalidate</see>,
-    /// <see cref="FlowStep.Complete()">complete</see>, and <c>await</c> the step.
+    /// <see cref="FlowStep.Complete()">complete</see>, and
+    /// <see cref="FlowStep.WaitForCompletionAsync(CancellationToken)">wait for completion</see>.
     /// </summary>
     /// <remarks>
     /// <para>
     /// Only one step may be active at a time. Starting a new step while a previous
     /// step is still active throws <see cref="InvalidOperationException"/>. Call
-    /// <see cref="FlowStep.Complete()"/> and <c>await</c> the step before starting the next one.
-    /// </para>
-    /// <para>
-    /// The returned handle is awaitable: <c>await step;</c> completes after the step
-    /// finishes, including yield widget rendering and cursor advancement.
+    /// <see cref="FlowStep.CompleteAsync(CancellationToken)"/> or <see cref="FlowStep.Complete()"/>
+    /// followed by <see cref="FlowStep.WaitForCompletionAsync(CancellationToken)"/> before starting the next one.
     /// </para>
     /// <para>
     /// The builder receives a <see cref="FlowStepContext"/> which exposes a

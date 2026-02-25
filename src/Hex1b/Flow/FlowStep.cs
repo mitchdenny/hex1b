@@ -5,7 +5,7 @@ namespace Hex1b.Flow;
 /// <summary>
 /// Handle returned by <see cref="Hex1bFlowContext.Step"/> that controls a running
 /// inline step. Use <see cref="Invalidate"/> to trigger re-renders from background
-/// work, and <see cref="Complete()"/> or <see cref="CompleteAsync()"/> to finish the step.
+/// work, and <see cref="Complete()"/> or <see cref="CompleteAsync(CancellationToken)"/> to finish the step.
 /// </summary>
 public sealed class FlowStep
 {
@@ -68,7 +68,7 @@ public sealed class FlowStep
     /// </summary>
     /// <remarks>
     /// This is a fire-and-forget call suitable for use in event handlers.
-    /// Use <see cref="CompleteAsync()"/> from the flow callback to also wait
+    /// Use <see cref="CompleteAsync(CancellationToken)"/> from the flow callback to also wait
     /// for cleanup to finish.
     /// </remarks>
     public void Complete()
@@ -85,7 +85,7 @@ public sealed class FlowStep
     /// </summary>
     /// <remarks>
     /// This is a fire-and-forget call suitable for use in event handlers.
-    /// Use <see cref="CompleteAsync(Func{RootContext, Hex1bWidget})"/> from the
+    /// Use <see cref="CompleteAsync(Func{RootContext, Hex1bWidget}, CancellationToken)"/> from the
     /// flow callback to also wait for cleanup to finish.
     /// </remarks>
     /// <param name="builder">Widget builder for the frozen output.</param>
@@ -102,11 +102,12 @@ public sealed class FlowStep
     /// Completes the step without frozen output and waits for cleanup
     /// (yield widget rendering, cursor advancement) to finish.
     /// </summary>
+    /// <param name="cancellationToken">Optional token to cancel the wait.</param>
     /// <returns>A task that completes when the step is fully cleaned up.</returns>
-    public Task CompleteAsync()
+    public Task CompleteAsync(CancellationToken cancellationToken = default)
     {
         Complete();
-        return WaitForCompletionAsync();
+        return WaitForCompletionAsync(cancellationToken);
     }
 
     /// <summary>
@@ -114,11 +115,12 @@ public sealed class FlowStep
     /// (yield widget rendering, cursor advancement) to finish.
     /// </summary>
     /// <param name="builder">Widget builder for the frozen output.</param>
+    /// <param name="cancellationToken">Optional token to cancel the wait.</param>
     /// <returns>A task that completes when the step is fully cleaned up.</returns>
-    public Task CompleteAsync(Func<RootContext, Hex1bWidget> builder)
+    public Task CompleteAsync(Func<RootContext, Hex1bWidget> builder, CancellationToken cancellationToken = default)
     {
         Complete(builder);
-        return WaitForCompletionAsync();
+        return WaitForCompletionAsync(cancellationToken);
     }
 
     /// <summary>
@@ -127,8 +129,14 @@ public sealed class FlowStep
     /// the flow callback, or to wait for a step that is completed by user
     /// interaction (e.g., via <see cref="FlowStepContext.Step"/> in an event handler).
     /// </summary>
+    /// <param name="cancellationToken">Optional token to cancel the wait.</param>
     /// <returns>A task that completes when the step is fully cleaned up.</returns>
-    public Task WaitForCompletionAsync() => _tcs.Task;
+    public Task WaitForCompletionAsync(CancellationToken cancellationToken = default)
+    {
+        return cancellationToken.CanBeCanceled
+            ? _tcs.Task.WaitAsync(cancellationToken)
+            : _tcs.Task;
+    }
 
     /// <summary>
     /// Requests that focus be moved to a node matching the predicate.

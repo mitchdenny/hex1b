@@ -21,6 +21,9 @@ internal sealed class Hex1bFlowRunner
     // The currently active step, if any. Only one step may run at a time.
     private FlowStep? _activeStep;
 
+    // CancellationToken from RunAsync, surfaced to flow callbacks via Hex1bFlowContext.
+    private CancellationToken _cancellationToken;
+
     public Hex1bFlowRunner(
         Func<Hex1bFlowContext, Task> flowCallback,
         Hex1bFlowOptions options,
@@ -30,6 +33,11 @@ internal sealed class Hex1bFlowRunner
         _options = options;
         _parentAdapter = parentAdapter;
     }
+
+    /// <summary>
+    /// Gets the cancellation token from the outer flow runner.
+    /// </summary>
+    internal CancellationToken CancellationToken => _cancellationToken;
 
     /// <summary>
     /// Gets the terminal width in columns.
@@ -52,6 +60,8 @@ internal sealed class Hex1bFlowRunner
     /// </summary>
     public async Task RunAsync(CancellationToken ct)
     {
+        _cancellationToken = ct;
+
         // Query the current cursor position using DSR (Device Status Report)
         _cursorRow = await QueryCursorRowAsync(ct);
 
