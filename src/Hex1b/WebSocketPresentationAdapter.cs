@@ -202,6 +202,9 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     }
 
     /// <inheritdoc />
+    public (int Row, int Column) GetCursorPosition() => (0, 0);
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;

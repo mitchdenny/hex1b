@@ -203,6 +203,20 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     }
 
     /// <inheritdoc />
+    public (int Row, int Column) GetCursorPosition()
+    {
+        try
+        {
+            var (left, top) = Console.GetCursorPosition();
+            return (top, left);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    /// <inheritdoc />
     public async ValueTask DisposeAsync()
     {
         if (_disposed) return;

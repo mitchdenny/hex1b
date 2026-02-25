@@ -35,39 +35,39 @@ internal static class NewCommand
                 // Step 1: Template picker (skip if subcommand was provided directly)
                 var templateIndex = 0;
 
-                await flow.StepAsync(
-                    configure: step => ctx => ctx.VStack(v =>
-                    [
-                        v.Text("Select a project template:"),
-                        v.List(Templates.Select(t => t.Name).ToArray())
-                            .OnItemActivated(e =>
-                            {
-                                templateIndex = e.ActivatedIndex;
-                                selectedTemplate = Templates[e.ActivatedIndex].Id;
-                                step.Complete(y => y.Text($"  ✓ Template: {Templates[templateIndex].Name}"));
-                            })
-                            .FixedHeight(Templates.Length + 1),
-                    ]),
+                var step = flow.Step(ctx => ctx.VStack(v =>
+                [
+                    v.Text("Select a project template:"),
+                    v.List(Templates.Select(t => t.Name).ToArray())
+                        .OnItemActivated(e =>
+                        {
+                            templateIndex = e.ActivatedIndex;
+                            selectedTemplate = Templates[e.ActivatedIndex].Id;
+                            ctx.Step.Complete(y => y.Text($"  ✓ Template: {Templates[templateIndex].Name}"));
+                        })
+                        .FixedHeight(Templates.Length + 1),
+                ]),
                     options: opts => opts.MaxHeight = Templates.Length + 3
                 );
+                await step.WaitForCompletionAsync();
 
                 // Step 2: Project name
                 if (string.IsNullOrEmpty(projectName))
                 {
-                    await flow.StepAsync(
-                        configure: step => ctx => ctx.VStack(v =>
-                        [
-                            v.Text("Enter your project name:"),
-                            v.TextBox(projectName)
-                                .OnSubmit(e =>
-                                {
-                                    projectName = e.Text;
-                                    step.Complete(y => y.Text($"  ✓ Project name: {projectName}"));
-                                })
-                                .FillWidth(),
-                        ]),
+                    var nameStep = flow.Step(ctx => ctx.VStack(v =>
+                    [
+                        v.Text("Enter your project name:"),
+                        v.TextBox(projectName)
+                            .OnSubmit(e =>
+                            {
+                                projectName = e.Text;
+                                ctx.Step.Complete(y => y.Text($"  ✓ Project name: {projectName}"));
+                            })
+                            .FillWidth(),
+                    ]),
                         options: opts => opts.MaxHeight = 4
                     );
+                    await nameStep.WaitForCompletionAsync();
                 }
 
                 // Step 3: Output directory
@@ -76,81 +76,74 @@ internal static class NewCommand
                     var defaultPath = $"./{projectName}";
                     outputPath = defaultPath;
 
-                    await flow.StepAsync(
-                        configure: step => ctx => ctx.VStack(v =>
-                        [
-                            v.Text("Select output directory:"),
-                            v.List(new[]
+                    var dirStep = flow.Step(ctx => ctx.VStack(v =>
+                    [
+                        v.Text("Select output directory:"),
+                        v.List(new[]
+                        {
+                            defaultPath,
+                            $"./projects/{projectName}",
+                            $"./src/{projectName}",
+                        })
+                            .OnItemActivated(e =>
                             {
-                                defaultPath,
-                                $"./projects/{projectName}",
-                                $"./src/{projectName}",
+                                outputPath = e.ActivatedText;
+                                ctx.Step.Complete(y => y.Text($"  ✓ Output: {outputPath}"));
                             })
-                                .OnItemActivated(e =>
-                                {
-                                    outputPath = e.ActivatedText;
-                                    step.Complete(y => y.Text($"  ✓ Output: {outputPath}"));
-                                })
-                                .FixedHeight(4),
-                        ]),
+                            .FixedHeight(4),
+                    ]),
                         options: opts => opts.MaxHeight = 6
                     );
+                    await dirStep.WaitForCompletionAsync();
                 }
 
                 // Step 4: Language picker
-                await flow.StepAsync(
-                    configure: step => ctx => ctx.VStack(v =>
-                    [
-                        v.Text("Select AppHost language:"),
-                        v.List(Languages)
-                            .OnItemActivated(e =>
-                            {
-                                language = e.ActivatedText;
-                                step.Complete(y => y.Text($"  ✓ Language: {language}"));
-                            })
-                            .FixedHeight(Languages.Length + 1),
-                    ]),
+                var langStep = flow.Step(ctx => ctx.VStack(v =>
+                [
+                    v.Text("Select AppHost language:"),
+                    v.List(Languages)
+                        .OnItemActivated(e =>
+                        {
+                            language = e.ActivatedText;
+                            ctx.Step.Complete(y => y.Text($"  ✓ Language: {language}"));
+                        })
+                        .FixedHeight(Languages.Length + 1),
+                ]),
                     options: opts => opts.MaxHeight = Languages.Length + 3
                 );
+                await langStep.WaitForCompletionAsync();
 
                 // Step 5: Creation spinner
                 var creating = true;
-                var step = "";
+                var currentStep = "";
 
-                await flow.StepAsync(
-                    configure: ctx =>
-                    {
-                        _ = Task.Run(async () =>
-                        {
-                            var steps = new[]
-                            {
-                                "Creating project structure...",
-                                "Installing NuGet packages...",
-                                "Configuring AppHost...",
-                                "Generating solution file...",
-                            };
-
-                            foreach (var s in steps)
-                            {
-                                step = s;
-                                ctx.Invalidate();
-                                await Task.Delay(800);
-                            }
-
-                            creating = false;
-                            ctx.Invalidate();
-                            await Task.Delay(300);
-                            ctx.Complete(y => y.Text($"  ✓ Project created at {outputPath}"));
-                        });
-
-                        return ctx => ctx.HStack(h =>
-                        [
-                            creating ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
-                            h.Text(creating ? $" {step}" : " Project created successfully!"),
-                        ]);
-                    },
+                var spinnerStep = flow.Step(ctx => ctx.HStack(h =>
+                [
+                    creating ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
+                    h.Text(creating ? $" {currentStep}" : " Project created successfully!"),
+                ]),
                     options: opts => opts.MaxHeight = 1
                 );
+
+                var steps = new[]
+                {
+                    "Creating project structure...",
+                    "Installing NuGet packages...",
+                    "Configuring AppHost...",
+                    "Generating solution file...",
+                };
+
+                foreach (var s in steps)
+                {
+                    currentStep = s;
+                    spinnerStep.Invalidate();
+                    await Task.Delay(800);
+                }
+
+                creating = false;
+                spinnerStep.Invalidate();
+                await Task.Delay(300);
+                await spinnerStep.CompleteAsync(y => y.Text($"  ✓ Project created at {outputPath}"));
 
             }, options => options.InitialCursorRow = cursorRow)
             .Build()

@@ -742,7 +742,7 @@ public sealed class Hex1bTerminalBuilder
     /// and optional full-screen TUI applications in the normal terminal buffer.
     /// </summary>
     /// <param name="flowCallback">
-    /// Async callback that defines the flow steps. Use the flow context's StepAsync
+    /// Async callback that defines the flow steps. Use the flow context's <see cref="Flow.Hex1bFlowContext.Step"/>
     /// for inline micro-TUIs and <see cref="Flow.Hex1bFlowContext.FullScreenStepAsync"/> for full-screen apps.
     /// </param>
     /// <param name="configureOptions">Optional callback to configure flow options (theme, etc.).</param>
@@ -761,6 +761,10 @@ public sealed class Hex1bTerminalBuilder
 
             var options = new Flow.Hex1bFlowOptions();
             configureOptions?.Invoke(options);
+
+            // Auto-detect cursor position if not explicitly provided.
+            // This must happen before raw mode is entered (i.e., at Build() time).
+            options.InitialCursorRow ??= presentation?.GetCursorPosition().Row ?? 0;
 
             var runner = new Flow.Hex1bFlowRunner(flowCallback, options, workloadAdapter);
 

@@ -90,6 +90,8 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
     public ValueTask EnterRawModeAsync(CancellationToken ct) => ValueTask.CompletedTask;
     public ValueTask ExitRawModeAsync(CancellationToken ct) => ValueTask.CompletedTask;
 
+    public (int Row, int Column) GetCursorPosition() => (0, 0);
+
     public ValueTask DisposeAsync()
     {
         Disconnected?.Invoke();

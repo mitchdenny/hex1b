@@ -554,6 +554,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     
     /// <inheritdoc />
     public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+
+    /// <inheritdoc />
+    public (int Row, int Column) GetCursorPosition() => (0, 0);
     
     /// <summary>
     /// Resizes the terminal buffer.
