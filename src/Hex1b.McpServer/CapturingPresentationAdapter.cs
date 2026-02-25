@@ -56,6 +56,9 @@ internal sealed class CapturingPresentationAdapter : IHex1bTerminalPresentationA
     public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
     public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
 
+    /// <inheritdoc />
+    public (int Row, int Column) GetCursorPosition() => (0, 0);
+
     /// <summary>
     /// Updates the dimensions and triggers a resize event.
     /// </summary>
