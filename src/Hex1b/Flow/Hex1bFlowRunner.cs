@@ -1,5 +1,6 @@
 using System.Text;
 using Hex1b.Input;
+using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -89,16 +90,59 @@ internal sealed class Hex1bFlowRunner
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
 
-        var desiredHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
-        if (desiredHeight < 1) desiredHeight = 1;
+        var maxHeight = Math.Min(options?.MaxHeight ?? terminalHeight, terminalHeight);
+        if (maxHeight < 1) maxHeight = 1;
 
-        var step = new FlowStep(terminalWidth, terminalHeight, desiredHeight);
+        // Pre-measure the widget to determine actual content height
+        var step = new FlowStep(terminalWidth, terminalHeight, maxHeight);
+        var contentHeight = MeasureStepContent(builder, step, terminalWidth, maxHeight);
+        var desiredHeight = Math.Min(contentHeight, maxHeight);
+        if (desiredHeight < 1) desiredHeight = 1;
+        step.StepHeight = desiredHeight;
+
         _activeStep = step;
 
         // Start the step lifecycle on a background task
         _ = RunStepLifecycleAsync(step, builder, options, desiredHeight);
 
         return step;
+    }
+
+    /// <summary>
+    /// Measures the content height of a step's widget tree by building and measuring
+    /// the widget without rendering it.
+    /// </summary>
+    private int MeasureStepContent(
+        Func<FlowStepContext, Hex1bWidget> builder,
+        FlowStep step,
+        int width,
+        int maxHeight)
+    {
+        try
+        {
+            var stepCtx = new FlowStepContext(step);
+            var widget = builder(stepCtx);
+            if (widget == null) return maxHeight;
+
+            // Reconcile the widget into a node tree and measure it
+            var reconcileCtx = ReconcileContext.CreateRoot();
+            var nodeTask = widget.ReconcileAsync(null, reconcileCtx);
+            // ReconcileAsync should complete synchronously for simple widgets
+            if (!nodeTask.IsCompleted)
+                return maxHeight; // Can't measure async widgets, use max
+
+            var node = nodeTask.Result;
+            if (node == null) return maxHeight;
+
+            var constraints = new Layout.Constraints(0, width, 0, maxHeight);
+            var measured = node.Measure(constraints);
+            return Math.Max(1, measured.Height);
+        }
+        catch
+        {
+            // If measurement fails, fall back to maxHeight
+            return maxHeight;
+        }
     }
 
     private async Task RunStepLifecycleAsync(
@@ -210,10 +254,6 @@ internal sealed class Hex1bFlowRunner
             {
                 var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
                 _cursorRow += completedHeight;
-            }
-            else
-            {
-                _cursorRow += desiredHeight;
             }
 
             _activeStep = null;
@@ -336,16 +376,27 @@ internal sealed class Hex1bFlowRunner
     /// </summary>
     private int MeasureYieldHeight(Func<RootContext, Hex1bWidget> yieldBuilder, int width, int maxHeight)
     {
-        // Build the widget to count top-level VStack children (each is 1 row of text)
-        var rootCtx = new RootContext();
-        var widget = yieldBuilder(rootCtx);
+        try
+        {
+            var rootCtx = new RootContext();
+            var widget = yieldBuilder(rootCtx);
+            if (widget == null) return 1;
 
-        // If it's a VStack, count children
-        if (widget is VStackWidget vstack)
-            return vstack.Children.Count;
+            var reconcileCtx = ReconcileContext.CreateRoot();
+            var nodeTask = widget.ReconcileAsync(null, reconcileCtx);
+            if (!nodeTask.IsCompleted) return 1;
 
-        // Single widget = 1 row
-        return 1;
+            var node = nodeTask.Result;
+            if (node == null) return 1;
+
+            var constraints = new Constraints(0, width, 0, maxHeight);
+            var measured = node.Measure(constraints);
+            return Math.Max(1, measured.Height);
+        }
+        catch
+        {
+            return 1;
+        }
     }
 
     /// <summary>
