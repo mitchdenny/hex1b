@@ -2859,6 +2859,23 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             SetCell(_scrollBottom, x, TerminalCell.Empty, impacts);
         }
+
+        // Scroll KGP placements up within the scroll region
+        if (_kgpPlacements.Count > 0)
+        {
+            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            {
+                var p = _kgpPlacements[i];
+                if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
+                {
+                    p.Row--;
+                    if (p.Row < _scrollTop)
+                    {
+                        _kgpPlacements.RemoveAt(i);
+                    }
+                }
+            }
+        }
     }
     
     private void ScrollDown(List<CellImpact>? impacts = null)
@@ -2889,6 +2906,23 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         for (int x = leftCol; x <= rightCol; x++)
         {
             SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
+        }
+
+        // Scroll KGP placements down within the scroll region
+        if (_kgpPlacements.Count > 0)
+        {
+            for (int i = _kgpPlacements.Count - 1; i >= 0; i--)
+            {
+                var p = _kgpPlacements[i];
+                if (p.Row >= _scrollTop && p.Row <= _scrollBottom)
+                {
+                    p.Row++;
+                    if (p.Row > _scrollBottom)
+                    {
+                        _kgpPlacements.RemoveAt(i);
+                    }
+                }
+            }
         }
     }
     
