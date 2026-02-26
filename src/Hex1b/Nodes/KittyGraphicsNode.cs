@@ -109,8 +109,9 @@ public sealed class KittyGraphicsNode : Hex1bNode
         if (context is SurfaceRenderContext surfaceContext)
         {
             var surface = surfaceContext.Surface;
-            var x = Bounds.X;
-            var y = Bounds.Y;
+            // Use offset-adjusted coordinates (child surfaces are offset by container position)
+            var x = Bounds.X - surfaceContext.OffsetX;
+            var y = Bounds.Y - surfaceContext.OffsetY;
             if (x >= 0 && x < surface.Width && y >= 0 && y < surface.Height)
             {
                 surface[x, y] = new SurfaceCell(" ", null, null, KgpData: kgpData);
