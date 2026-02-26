@@ -116,8 +116,18 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         Supports256Colors = true,
         SupportsAlternateScreen = true,
         HandlesAlternateScreenNatively = true,  // Real upstream terminal handles buffer switching
-        SupportsBracketedPaste = true  // Raw mode can handle this
+        SupportsBracketedPaste = true,  // Raw mode can handle this
+        SupportsKgp = DetectKgpSupport()
     };
+
+    private static bool DetectKgpSupport()
+    {
+        var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM");
+        var term = Environment.GetEnvironmentVariable("TERM");
+
+        return termProgram is "kitty" or "WezTerm" or "ghostty"
+            || term is "xterm-kitty";
+    }
 
     /// <inheritdoc />
     public event Action<int, int>? Resized;

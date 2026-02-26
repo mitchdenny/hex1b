@@ -126,9 +126,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
     public override int Height => _surface.Height;
 
     /// <summary>
-    /// Gets terminal capabilities. For Surface rendering, reports modern capabilities.
+    /// Gets or sets terminal capabilities. Defaults to <see cref="TerminalCapabilities.Modern"/>
+    /// but should be set to the actual terminal capabilities when available.
     /// </summary>
-    public override TerminalCapabilities Capabilities => TerminalCapabilities.Modern;
+    public new TerminalCapabilities Capabilities { get; set; } = TerminalCapabilities.Modern;
 
     /// <summary>
     /// Gets the underlying surface being written to.
