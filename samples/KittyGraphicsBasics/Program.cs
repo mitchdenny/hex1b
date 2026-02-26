@@ -2,7 +2,35 @@ using Hex1b;
 using Hex1b.Kgp;
 using Hex1b.Widgets;
 
-// Generate a simple test pattern image (32x32 RGBA)
+// First, do a raw KGP test bypassing all Hex1b infrastructure
+// This proves the terminal supports KGP
+Console.WriteLine("=== Raw KGP Test (bypasses Hex1b) ===");
+Console.WriteLine($"TERM_PROGRAM={Environment.GetEnvironmentVariable("TERM_PROGRAM")}");
+Console.WriteLine($"TERM={Environment.GetEnvironmentVariable("TERM")}");
+Console.WriteLine();
+
+// Generate a tiny 4x4 RGBA test image (solid red)
+var rawPixels = new byte[4 * 4 * 4];
+for (int i = 0; i < rawPixels.Length; i += 4)
+{
+    rawPixels[i] = 255;     // R
+    rawPixels[i + 1] = 0;   // G
+    rawPixels[i + 2] = 0;   // B
+    rawPixels[i + 3] = 255; // A
+}
+var base64 = Convert.ToBase64String(rawPixels);
+
+Console.WriteLine("Sending raw KGP transmit+display (should show red square):");
+// Raw KGP: a=T (transmit+display), f=32 (RGBA), s=4 (width), v=4 (height), c=8 (display cols), r=4 (display rows)
+Console.Write($"\x1b_Ga=T,f=32,s=4,v=4,i=99,c=8,r=4,q=2;{base64}\x1b\\");
+Console.WriteLine();
+Console.WriteLine();
+
+Console.WriteLine("If you see a red square above, KGP works in your terminal.");
+Console.WriteLine("Press Enter to continue to Hex1b widget test...");
+Console.ReadLine();
+
+// Now test with Hex1b widget system
 const uint imageWidth = 32;
 const uint imageHeight = 32;
 var pixelData = GenerateTestPattern(imageWidth, imageHeight);
