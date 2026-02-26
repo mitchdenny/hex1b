@@ -1,100 +1,14 @@
 using Hex1b;
-using Hex1b.Kgp;
+using Hex1b.Input;
 using Hex1b.Widgets;
+using Hex1b.Automation;
 
-// First, do a raw KGP test bypassing all Hex1b infrastructure
-// This proves the terminal supports KGP
-Console.WriteLine("=== Raw KGP Test (bypasses Hex1b) ===");
-Console.WriteLine($"TERM_PROGRAM={Environment.GetEnvironmentVariable("TERM_PROGRAM")}");
-Console.WriteLine($"TERM={Environment.GetEnvironmentVariable("TERM")}");
-Console.WriteLine();
-
-// Generate a tiny 4x4 RGBA test image (solid red)
-var rawPixels = new byte[4 * 4 * 4];
-for (int i = 0; i < rawPixels.Length; i += 4)
-{
-    rawPixels[i] = 255;     // R
-    rawPixels[i + 1] = 0;   // G
-    rawPixels[i + 2] = 0;   // B
-    rawPixels[i + 3] = 255; // A
-}
-var base64 = Convert.ToBase64String(rawPixels);
-
-Console.WriteLine("Sending raw KGP transmit+display (should show red square):");
-// Raw KGP: a=T (transmit+display), f=32 (RGBA), s=4 (width), v=4 (height), c=8 (display cols), r=4 (display rows)
-Console.Write($"\x1b_Ga=T,f=32,s=4,v=4,i=99,c=8,r=4,q=2;{base64}\x1b\\");
-Console.WriteLine();
-Console.WriteLine();
-
-Console.WriteLine("If you see a red square above, KGP works in your terminal.");
-Console.WriteLine("Press Enter to continue to Hex1b passthrough test...");
-Console.ReadLine();
-
-// Test 2: Send KGP through Hex1bTerminal using a raw workload (no widgets/surfaces)
-// This tests the terminal output pump path only
-Console.WriteLine("=== Hex1b Terminal Passthrough Test ===");
-Console.WriteLine("Sending KGP through Hex1bTerminal via StreamWorkloadAdapter...");
-
-{
-    using var outputPipe = new System.IO.Pipes.AnonymousPipeServerStream(System.IO.Pipes.PipeDirection.Out);
-    using var outputReader = new System.IO.Pipes.AnonymousPipeClientStream(System.IO.Pipes.PipeDirection.In,
-        outputPipe.ClientSafePipeHandle);
-    using var inputSink = new MemoryStream();
-
-    var workload = new StreamWorkloadAdapter(outputReader, inputSink);
-    await using var passTerminal = Hex1bTerminal.CreateBuilder()
-        .WithWorkload(workload)
-        .WithDimensions(80, 24)
-        .Build();
-
-    using var cts = new CancellationTokenSource();
-    var pumpTask = passTerminal.RunAsync(cts.Token);
-
-    // Write the raw KGP sequence through the workload pipe
-    var kgpSeq = $"\x1b_Ga=T,f=32,s=4,v=4,i=98,c=8,r=4,q=2;{base64}\x1b\\";
-    var kgpBytes = System.Text.Encoding.UTF8.GetBytes(kgpSeq);
-    outputPipe.Write(kgpBytes);
-    outputPipe.Flush();
-
-    // Give pump time to forward to presentation
-    await Task.Delay(1000);
-
-    cts.Cancel();
-    try { await pumpTask; } catch (OperationCanceledException) { }
-}
-
-Console.WriteLine();
-Console.WriteLine("If you see a red square above, Hex1bTerminal passthrough works.");
-Console.WriteLine("Press Enter to continue to alt-buffer KGP test...");
-Console.ReadLine();
-
-// Test 2.5: Raw KGP in alternate screen buffer (no Hex1b app infrastructure)
-Console.WriteLine("=== Alt-Buffer KGP Test (raw Console.Write in alt screen) ===");
-Console.WriteLine("Switching to alt buffer and sending KGP...");
-Thread.Sleep(500);
-
-// Enter alt screen, clear, position cursor, send KGP
-Console.Write("\x1b[?1049h");    // Enter alternate screen
-Console.Write("\x1b[2J");        // Clear screen
-Console.Write("\x1b[1;1H");      // Cursor home
-Console.Write("Alt-buffer KGP test - you should see a red square below:");
-Console.Write("\x1b[3;1H");      // Move to row 3
-Console.Write($"\x1b_Ga=T,f=32,s=4,v=4,i=97,c=8,r=4,q=2;{base64}\x1b\\");
-Console.Write("\x1b[8;1H");      // Move below image
-Console.Write("Press Enter to exit alt buffer...");
-Console.Out.Flush();
-Console.ReadLine();
-Console.Write("\x1b[?1049l");    // Exit alternate screen
-
-Console.WriteLine("Back on main screen.");
-Console.WriteLine("Did you see the red square in the alt buffer? (Press Enter to continue to Hex1b widget test)");
-Console.ReadLine();
-
-// Test 3: Full Hex1b widget test
-// Now test with Hex1b widget system
 const uint imageWidth = 32;
 const uint imageHeight = 32;
 var pixelData = GenerateTestPattern(imageWidth, imageHeight);
+var statusText = "Press S to save SVG, Ctrl+C to exit";
+
+Hex1bTerminal? terminalRef = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
@@ -118,9 +32,22 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]),
         v.Text(""),
         v.Separator(),
-        v.Text("Press Ctrl+C to exit")
-    ]))
+        v.Text(statusText)
+    ]).WithInputBindings(bindings =>
+    {
+        bindings.Key(Hex1bKey.S).Action(() =>
+        {
+            if (terminalRef is null) return;
+            var snapshot = terminalRef.CreateSnapshot();
+            var svg = snapshot.ToSvg();
+            var path = Path.GetFullPath("kgp-demo.svg");
+            File.WriteAllText(path, svg);
+            statusText = $"Saved: {path}";
+        });
+    }))
     .Build();
+
+terminalRef = terminal;
 
 await terminal.RunAsync();
 

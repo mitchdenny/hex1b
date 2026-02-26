@@ -161,43 +161,25 @@ public static class TerminalRegionSvgExtensions
         // Sort by sequence number (ascending) so older writes render first, newer writes render on top
         cells.Sort((a, b) => a.Cell.Sequence.CompareTo(b.Cell.Sequence));
 
-        // Group for cells
-        sb.AppendLine("  <g class=\"terminal-text\">");
+        // === PASS 1: Backgrounds ===
+        // Render all cell backgrounds first (bottom layer)
+        sb.AppendLine("  <g class=\"terminal-bg\">");
 
-        // Render all cells in sequence order (backgrounds first, then text)
-        // This allows newer content to naturally overlap/obscure older wide characters
-        // Each cell is wrapped in a <g> element with data attributes for JavaScript interaction
         foreach (var (x, y, cell) in cells)
         {
             var attrs = cell.Attributes;
             var ch = cell.Character;
             var isReverse = (attrs & CellAttributes.Reverse) != 0;
-            
-            // Skip background rendering for continuation cells (empty string)
-            // These cells are visually "owned" by the wide character in the previous cell
-            // and should not render their own background
             var isContinuationCell = ch == "";
-            
-            // Determine cell group class (e.g., for hyperlink grouping)
-            var groupClass = "";
-            if (cell.TrackedHyperlink is { } trackedLink && hyperlinkGroups.TryGetValue(trackedLink, out var linkGroup))
-            {
-                groupClass = $" {linkGroup}";
-            }
-            
-            // Open cell group element with data attributes
-            sb.AppendLine($"""    <g class="cell{groupClass}" data-x="{x}" data-y="{y}">""");
             
             if (!isContinuationCell)
             {
-                // Render background for this cell - always opaque for proper clipping behavior
                 var rectX = x * cellWidth;
                 var rectY = y * cellHeight;
                 
                 string bgColor;
                 if (isReverse)
                 {
-                    // Reverse: use foreground as background (or default foreground)
                     bgColor = cell.Foreground.HasValue 
                         ? $"rgb({cell.Foreground.Value.R},{cell.Foreground.Value.G},{cell.Foreground.Value.B})"
                         : options.DefaultForeground;
@@ -209,17 +191,14 @@ public static class TerminalRegionSvgExtensions
                 }
                 else
                 {
-                    // Use default background for opaque cells
                     bgColor = options.DefaultBackground;
                 }
                 
-                // For wide characters, render a background that spans all owned cells
                 var bgCharWidth = string.IsNullOrEmpty(ch) || ch == "\0" ? 1 : DisplayWidth.GetGraphemeWidth(ch);
                 var bgWidth = cellWidth;
                 
                 if (bgCharWidth > 1)
                 {
-                    // Count how many continuation cells this character owns
                     var ownedCells = 1;
                     for (int i = 1; i < bgCharWidth && (x + i) < region.Width; i++)
                     {
@@ -232,13 +211,93 @@ public static class TerminalRegionSvgExtensions
                     bgWidth = ownedCells * cellWidth;
                 }
                 
-                sb.AppendLine($"""      <rect class="cell-bg" x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}"/>""");
+                sb.AppendLine($"""    <rect class="cell-bg" x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="{bgColor}" data-x="{x}" data-y="{y}"/>""");
                 
-                // Blink indicator: subtle border/glow around blinking cells
                 if ((attrs & CellAttributes.Blink) != 0)
                 {
-                    sb.AppendLine($"""      <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
+                    sb.AppendLine($"""    <rect x="{rectX}" y="{rectY}" width="{bgWidth}" height="{cellHeight}" fill="none" stroke="#ffcc00" stroke-width="1" stroke-dasharray="2,2" class="blink"/>""");
                 }
+            }
+        }
+
+        sb.AppendLine("  </g>");
+
+        // === PASS 2: Images (KGP + Sixel) ===
+        // Rendered above backgrounds, below text (matching Kitty z-order)
+        sb.AppendLine("  <g class=\"terminal-images\">");
+
+        // Render KGP images from snapshot placements
+        if (region is Hex1bTerminalSnapshot snapshot2)
+        {
+            var renderedKgpPlacements = new HashSet<(uint, uint)>();
+            foreach (var placement in snapshot2.KgpPlacements)
+            {
+                if (!renderedKgpPlacements.Add((placement.ImageId, placement.PlacementId)))
+                    continue;
+
+                if (snapshot2.KgpImages.TryGetValue(placement.ImageId, out var imageData))
+                {
+                    var imgX = placement.Column * cellWidth;
+                    var imgY = placement.Row * cellHeight;
+                    var imgWidth = (int)placement.DisplayColumns * cellWidth;
+                    var imgHeight = (int)placement.DisplayRows * cellHeight;
+
+                    var dataUri = EncodeRgbaToDataUri(imageData.Data, imageData.Width, imageData.Height, imageData.Format);
+                    if (dataUri is not null)
+                    {
+                        sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+                    }
+                }
+            }
+        }
+
+        // Render Sixel graphics
+        var renderedSixels = new HashSet<string>();
+        
+        for (int y = 0; y < region.Height; y++)
+        {
+            for (int x = 0; x < region.Width; x++)
+            {
+                var cell = region.GetCell(x, y);
+                var sixelData = cell.SixelData;
+                
+                if (sixelData == null || !cell.IsSixel)
+                    continue;
+                
+                if (!renderedSixels.Add(sixelData.Payload))
+                    continue;
+                
+                var image = SixelDecoder.Decode(sixelData.Payload, cellWidth, cellHeight);
+                if (image == null || image.Width == 0 || image.Height == 0)
+                    continue;
+                
+                var dataUri = BmpEncoder.ToDataUri(image);
+                
+                var imgX = x * cellWidth;
+                var imgY = y * cellHeight;
+                var imgWidth = sixelData.WidthInCells * cellWidth;
+                var imgHeight = sixelData.HeightInCells * cellHeight;
+                
+                sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
+            }
+        }
+
+        sb.AppendLine("  </g>");
+
+        // === PASS 3: Text ===
+        // Rendered above images (top layer for text content)
+        sb.AppendLine("  <g class=\"terminal-text\">");
+
+        foreach (var (x, y, cell) in cells)
+        {
+            var attrs = cell.Attributes;
+            var ch = cell.Character;
+            var isReverse = (attrs & CellAttributes.Reverse) != 0;
+            
+            var groupClass = "";
+            if (cell.TrackedHyperlink is { } trackedLink && hyperlinkGroups.TryGetValue(trackedLink, out var linkGroup))
+            {
+                groupClass = $" {linkGroup}";
             }
 
             // Render text content (skip for empty/continuation cells)
@@ -345,54 +404,14 @@ public static class TerminalRegionSvgExtensions
                         }
                     }
                     
-                    var textClass = string.IsNullOrEmpty(blinkClass) ? "" : $""" class="{blinkClass.Trim()}" """;
+                    var combinedClass = (blinkClass + groupClass).Trim();
+                    var textClass = string.IsNullOrEmpty(combinedClass) ? "" : $""" class="{combinedClass}" """;
                     sb.AppendLine($"""      <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{textClass}{clipAttr}>{escapedChar}</text>""");
                 }
             }
-            
-            // Close cell group
-            sb.AppendLine("    </g>");
         }
 
         sb.AppendLine("  </g>");
-
-        // Render Sixel graphics
-        // Track which sixel payloads we've already rendered to avoid duplicates
-        var renderedSixels = new HashSet<string>();
-        
-        for (int y = 0; y < region.Height; y++)
-        {
-            for (int x = 0; x < region.Width; x++)
-            {
-                var cell = region.GetCell(x, y);
-                var sixelData = cell.SixelData;
-                
-                // Only render from the origin cell (has IsSixel flag and actual data)
-                if (sixelData == null || !cell.IsSixel)
-                    continue;
-                
-                // Skip if we've already rendered this sixel (deduplication by payload reference)
-                if (!renderedSixels.Add(sixelData.Payload))
-                    continue;
-                
-                // Decode sixel to image
-                var image = SixelDecoder.Decode(sixelData.Payload, cellWidth, cellHeight);
-                if (image == null || image.Width == 0 || image.Height == 0)
-                    continue;
-                
-                // Encode to BMP data URI
-                var dataUri = BmpEncoder.ToDataUri(image);
-                
-                // Calculate position and size
-                var imgX = x * cellWidth;
-                var imgY = y * cellHeight;
-                var imgWidth = sixelData.WidthInCells * cellWidth;
-                var imgHeight = sixelData.HeightInCells * cellHeight;
-                
-                // Add image element with pixelated rendering to prevent antialiasing
-                sb.AppendLine($"""  <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
-            }
-        }
 
         // Render cursor if within bounds
         if (cursorX.HasValue && cursorY.HasValue &&
@@ -452,6 +471,65 @@ public static class TerminalRegionSvgExtensions
         sb.AppendLine("</svg>");
 
         return sb.ToString();
+    }
+
+    /// <summary>
+    /// Encodes raw RGBA/RGB pixel data as a BMP data URI for embedding in SVG.
+    /// </summary>
+    private static string? EncodeRgbaToDataUri(byte[] data, uint width, uint height, Kgp.KgpFormat format)
+    {
+        if (data.Length == 0 || width == 0 || height == 0)
+            return null;
+
+        int bytesPerPixel = format == Kgp.KgpFormat.Rgb24 ? 3 : 4;
+        var expectedSize = (long)width * height * bytesPerPixel;
+        if (data.Length < expectedSize)
+            return null;
+
+        // Build a 32-bit BMP (BGRA) with alpha support
+        int w = (int)width;
+        int h = (int)height;
+        int rowSize = w * 4; // 32-bit BMP rows are always 4-byte aligned per pixel
+        int imageSize = rowSize * h;
+        int headerSize = 14 + 40; // BMP file header + DIB header (BITMAPINFOHEADER)
+        int fileSize = headerSize + imageSize;
+
+        var bmp = new byte[fileSize];
+
+        // BMP file header (14 bytes)
+        bmp[0] = (byte)'B'; bmp[1] = (byte)'M';
+        BitConverter.TryWriteBytes(bmp.AsSpan(2), fileSize);
+        BitConverter.TryWriteBytes(bmp.AsSpan(10), headerSize);
+
+        // DIB header (BITMAPINFOHEADER, 40 bytes)
+        BitConverter.TryWriteBytes(bmp.AsSpan(14), 40);      // header size
+        BitConverter.TryWriteBytes(bmp.AsSpan(18), w);        // width
+        BitConverter.TryWriteBytes(bmp.AsSpan(22), -h);       // height (negative = top-down)
+        BitConverter.TryWriteBytes(bmp.AsSpan(26), (short)1); // planes
+        BitConverter.TryWriteBytes(bmp.AsSpan(28), (short)32);// bits per pixel
+        BitConverter.TryWriteBytes(bmp.AsSpan(34), imageSize);
+
+        // Pixel data: convert RGBA → BGRA (BMP byte order)
+        for (int y = 0; y < h; y++)
+        {
+            for (int x = 0; x < w; x++)
+            {
+                int srcOffset = (y * w + x) * bytesPerPixel;
+                int dstOffset = headerSize + (y * rowSize) + (x * 4);
+
+                byte r = data[srcOffset];
+                byte g = data[srcOffset + 1];
+                byte b = data[srcOffset + 2];
+                byte a = bytesPerPixel == 4 ? data[srcOffset + 3] : (byte)255;
+
+                bmp[dstOffset] = b;     // Blue
+                bmp[dstOffset + 1] = g; // Green
+                bmp[dstOffset + 2] = r; // Red
+                bmp[dstOffset + 3] = a; // Alpha
+            }
+        }
+
+        return "data:image/bmp;base64," + Convert.ToBase64String(bmp);
     }
 }
 

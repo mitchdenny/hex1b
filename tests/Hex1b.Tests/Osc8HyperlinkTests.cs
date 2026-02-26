@@ -1081,8 +1081,8 @@ public class Osc8HyperlinkTests
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
-        // Should contain cell groups with link-0 class (first hyperlink group)
-        Assert.Contains("class=\"cell link-0\"", svg);
+        // Should contain text elements with link-0 class (first hyperlink group)
+        Assert.Contains("link-0", svg);
     }
 
     [Fact]
@@ -1099,8 +1099,8 @@ public class Osc8HyperlinkTests
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
-        // Count how many cells have the link-0 class - should be 5 (for A, B, C, D, E)
-        var cellGroupCount = System.Text.RegularExpressions.Regex.Matches(svg, @"class=""cell link-0""").Count;
+        // Count how many text elements have the link-0 class - should be 5 (for A, B, C, D, E)
+        var cellGroupCount = System.Text.RegularExpressions.Regex.Matches(svg, @"class=""link-0""").Count;
         Assert.Equal(5, cellGroupCount);
     }
 
@@ -1135,8 +1135,7 @@ public class Osc8HyperlinkTests
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
         
-        // Cells should just have "cell" class, no link-* suffix
-        Assert.Contains("class=\"cell\"", svg);
+        // Text elements should have no link-* class suffix
         Assert.DoesNotContain("link-", svg);
     }
 

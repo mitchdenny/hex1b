@@ -1,3 +1,4 @@
+using Hex1b.Kgp;
 using Hex1b.Layout;
 
 namespace Hex1b.Automation;
@@ -15,6 +16,16 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Number of scrollback lines included in this snapshot (prepended above visible content).
     /// </summary>
     public int ScrollbackLineCount { get; }
+
+    /// <summary>
+    /// KGP image placements active at snapshot time.
+    /// </summary>
+    public IReadOnlyList<KgpPlacement> KgpPlacements { get; }
+
+    /// <summary>
+    /// KGP image data referenced by placements, keyed by image ID.
+    /// </summary>
+    public IReadOnlyDictionary<uint, KgpImageData> KgpImages { get; }
 
     internal Hex1bTerminalSnapshot(Hex1bTerminal terminal)
         : this(terminal, scrollbackLines: 0, scrollbackWidth: ScrollbackWidth.CurrentTerminal, voidCell: TerminalCell.Empty)
@@ -101,6 +112,21 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
 
         // Adjust cursor position to account for prepended scrollback rows
         CursorY += scrollbackRows.Length;
+
+        // Capture KGP placements and their image data
+        var placements = terminal.KgpPlacements;
+        KgpPlacements = placements;
+        var images = new Dictionary<uint, KgpImageData>();
+        foreach (var placement in placements)
+        {
+            if (!images.ContainsKey(placement.ImageId))
+            {
+                var imageData = terminal.KgpImageStore.GetImageById(placement.ImageId);
+                if (imageData is not null)
+                    images[placement.ImageId] = imageData;
+            }
+        }
+        KgpImages = images;
     }
 
     /// <summary>
