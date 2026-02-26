@@ -1,5 +1,4 @@
 using Hex1b;
-using Hex1b.Input;
 using Hex1b.Widgets;
 using Hex1b.Automation;
 using SkiaSharp;
@@ -8,9 +7,6 @@ using Svg.Skia;
 const uint imageWidth = 32;
 const uint imageHeight = 32;
 var pixelData = GenerateTestPattern(imageWidth, imageHeight);
-var statusText = "Press S to save SVG, Ctrl+C to exit";
-
-Hex1bTerminal? terminalRef = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
@@ -34,45 +30,44 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]),
         v.Text(""),
         v.Separator(),
-        v.Text(statusText)
-    ]).WithInputBindings(bindings =>
-    {
-        bindings.Key(Hex1bKey.S).Action(() =>
-        {
-            if (terminalRef is null) return;
-            var snapshot = terminalRef.CreateSnapshot();
-            var svg = snapshot.ToSvg();
-            
-            // Save SVG
-            var svgPath = Path.GetFullPath("kgp-demo.svg");
-            File.WriteAllText(svgPath, svg);
-            
-            // Save PNG via Svg.Skia
-            var pngPath = Path.GetFullPath("kgp-demo.png");
-            using var skSvg = new SKSvg();
-            skSvg.FromSvg(svg);
-            if (skSvg.Picture is not null)
-            {
-                var bounds = skSvg.Picture.CullRect;
-                var width = (int)bounds.Width;
-                var height = (int)bounds.Height;
-                using var surface = SKSurface.Create(new SKImageInfo(width, height));
-                surface.Canvas.Clear(SKColors.Black);
-                surface.Canvas.DrawPicture(skSvg.Picture);
-                using var image = surface.Snapshot();
-                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
-                using var stream = File.OpenWrite(pngPath);
-                data.SaveTo(stream);
-            }
-            
-            statusText = $"Saved: {svgPath} + {pngPath}";
-        });
-    }))
+        v.Text("Press Ctrl+C to exit (SVG+PNG saved on exit)")
+    ]))
     .Build();
 
-terminalRef = terminal;
-
 await terminal.RunAsync();
+
+// Save snapshot after app exits
+var snapshot = terminal.CreateSnapshot();
+var svg = snapshot.ToSvg();
+
+var svgPath = Path.GetFullPath("kgp-demo.svg");
+File.WriteAllText(svgPath, svg);
+Console.WriteLine($"Saved SVG: {svgPath}");
+
+var pngPath = Path.GetFullPath("kgp-demo.png");
+try
+{
+    using var skSvg = new SKSvg();
+    skSvg.FromSvg(svg);
+    if (skSvg.Picture is not null)
+    {
+        var bounds = skSvg.Picture.CullRect;
+        var w = (int)bounds.Width;
+        var h = (int)bounds.Height;
+        using var surface = SKSurface.Create(new SKImageInfo(w, h));
+        surface.Canvas.Clear(SKColors.Black);
+        surface.Canvas.DrawPicture(skSvg.Picture);
+        using var image = surface.Snapshot();
+        using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+        using var stream = File.OpenWrite(pngPath);
+        data.SaveTo(stream);
+        Console.WriteLine($"Saved PNG: {pngPath}");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"PNG conversion failed: {ex.Message}");
+}
 
 /// <summary>
 /// Generates a 32×32 RGBA test pattern with color gradients and blocks.
