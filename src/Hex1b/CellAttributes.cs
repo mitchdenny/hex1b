@@ -47,4 +47,6 @@ public enum CellAttributes : ushort
     /// Used by the reflow engine to identify logical lines that span multiple rows.
     /// </summary>
     SoftWrap = 1 << 10,
+    /// <summary>Cell contains Kitty Graphics Protocol (KGP) placement data.</summary>
+    Kgp = 1 << 11,
 }

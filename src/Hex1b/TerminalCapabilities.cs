@@ -18,6 +18,11 @@ public record TerminalCapabilities
     public bool SupportsSixel { get; init; }
     
     /// <summary>
+    /// Presentation supports Kitty Graphics Protocol (KGP).
+    /// </summary>
+    public bool SupportsKgp { get; init; }
+    
+    /// <summary>
     /// Presentation supports mouse tracking.
     /// </summary>
     public bool SupportsMouse { get; init; }

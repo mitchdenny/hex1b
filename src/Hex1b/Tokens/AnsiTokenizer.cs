@@ -34,8 +34,28 @@ public static class AnsiTokenizer
             else if (TryParseApcSequence(text, i, out var apcConsumed, out var apcContent))
             {
                 FlushTextToken(text, ref textStart, i, tokens);
-                // All APC content is treated as unrecognized
-                tokens.Add(new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\"));
+                // KGP (Kitty Graphics Protocol): APC content starts with 'G'
+                if (apcContent.Length > 0 && apcContent[0] == 'G')
+                {
+                    var semicolonIndex = apcContent.IndexOf(';');
+                    string controlData;
+                    string payload;
+                    if (semicolonIndex >= 0)
+                    {
+                        controlData = apcContent.Substring(1, semicolonIndex - 1);
+                        payload = apcContent.Substring(semicolonIndex + 1);
+                    }
+                    else
+                    {
+                        controlData = apcContent.Substring(1);
+                        payload = "";
+                    }
+                    tokens.Add(new KgpToken(controlData, payload));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken($"\x1b_{apcContent}\x1b\\"));
+                }
                 i += apcConsumed;
             }
             // Check for DCS sequence (ESC P or 0x90) - Sixel starts with ESC P q
