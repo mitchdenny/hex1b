@@ -443,7 +443,16 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
         int clickedRowIndex = (mouseY - dataStartY) / rowHeight + _scrollOffset;
         
-        if (clickedRowIndex < 0 || clickedRowIndex >= Data.Count) 
+        // Validate against total content row count, not cached Data count
+        if (clickedRowIndex < 0 || clickedRowIndex >= _contentRowCount) 
+            return;
+        
+        // Calculate offset for virtualized data access
+        int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+        int relativeIndex = clickedRowIndex - dataOffset;
+        
+        // Validate relative index is within cached data bounds
+        if (relativeIndex < 0 || relativeIndex >= Data.Count)
             return;
         
         // Check if click is on the selection column (checkbox area)
@@ -454,8 +463,8 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
             clickedCheckbox = mouseX >= Bounds.X + 1 && mouseX < checkboxEndX;
         }
         
-        // Update focus to clicked row
-        var key = RowKeySelector?.Invoke(Data[clickedRowIndex]) ?? clickedRowIndex;
+        // Update focus to clicked row - use relative index for Data access
+        var key = RowKeySelector?.Invoke(Data[relativeIndex]) ?? clickedRowIndex;
         if (!Equals(FocusedKey, key))
         {
             FocusedKey = key;
@@ -469,7 +478,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // If clicked on checkbox, toggle selection
         if (clickedCheckbox)
         {
-            ToggleSelectionForRow(Data[clickedRowIndex]);
+            ToggleSelectionForRow(Data[relativeIndex]);
         }
     }
     
@@ -651,6 +660,19 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         else if (rowIndex >= _scrollOffset + _viewportRowCount)
         {
             SetScrollOffset(rowIndex - _viewportRowCount + 1);
+        }
+    }
+
+    /// <summary>
+    /// Scrolls the viewport to make the currently focused row visible.
+    /// Called externally after focus is set programmatically.
+    /// </summary>
+    internal void ScrollToFocusedRow()
+    {
+        var index = GetFocusedRowIndex();
+        if (index >= 0)
+        {
+            EnsureRowVisible(index);
         }
     }
 

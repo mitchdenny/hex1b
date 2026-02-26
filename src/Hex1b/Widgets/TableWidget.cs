@@ -296,6 +296,9 @@ public record TableWidget<TRow> : Hex1bWidget
         if (!Equals(node.FocusedKey, FocusedKey))
         {
             node.FocusedKey = FocusedKey;
+
+            // Scroll to make the focused row visible when focus is set externally
+            node.ScrollToFocusedRow();
             needsDirty = true;
         }
 
