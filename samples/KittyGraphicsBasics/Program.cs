@@ -2,6 +2,8 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Widgets;
 using Hex1b.Automation;
+using SkiaSharp;
+using Svg.Skia;
 
 const uint imageWidth = 32;
 const uint imageHeight = 32;
@@ -40,9 +42,30 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             if (terminalRef is null) return;
             var snapshot = terminalRef.CreateSnapshot();
             var svg = snapshot.ToSvg();
-            var path = Path.GetFullPath("kgp-demo.svg");
-            File.WriteAllText(path, svg);
-            statusText = $"Saved: {path}";
+            
+            // Save SVG
+            var svgPath = Path.GetFullPath("kgp-demo.svg");
+            File.WriteAllText(svgPath, svg);
+            
+            // Save PNG via Svg.Skia
+            var pngPath = Path.GetFullPath("kgp-demo.png");
+            using var skSvg = new SKSvg();
+            skSvg.FromSvg(svg);
+            if (skSvg.Picture is not null)
+            {
+                var bounds = skSvg.Picture.CullRect;
+                var width = (int)bounds.Width;
+                var height = (int)bounds.Height;
+                using var surface = SKSurface.Create(new SKImageInfo(width, height));
+                surface.Canvas.Clear(SKColors.Black);
+                surface.Canvas.DrawPicture(skSvg.Picture);
+                using var image = surface.Snapshot();
+                using var data = image.Encode(SKEncodedImageFormat.Png, 100);
+                using var stream = File.OpenWrite(pngPath);
+                data.SaveTo(stream);
+            }
+            
+            statusText = $"Saved: {svgPath} + {pngPath}";
         });
     }))
     .Build();
