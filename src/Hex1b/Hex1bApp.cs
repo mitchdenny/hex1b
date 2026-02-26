@@ -862,8 +862,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             CachingEnabled = _enableRenderCaching,
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
             SurfacePool = _surfacePool,
-            Capabilities = _adapter.Capabilities
         };
+        surfaceContext.SetCapabilities(_adapter.Capabilities);
         
         if (_rootNode != null)
         {

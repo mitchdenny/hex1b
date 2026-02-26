@@ -129,7 +129,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// Gets or sets terminal capabilities. Defaults to <see cref="TerminalCapabilities.Modern"/>
     /// but should be set to the actual terminal capabilities when available.
     /// </summary>
-    public new TerminalCapabilities Capabilities { get; set; } = TerminalCapabilities.Modern;
+    private TerminalCapabilities _capabilities = TerminalCapabilities.Modern;
+
+    public override TerminalCapabilities Capabilities => _capabilities;
+
+    /// <summary>
+    /// Sets the terminal capabilities for this render context.
+    /// </summary>
+    public void SetCapabilities(TerminalCapabilities capabilities) => _capabilities = capabilities;
 
     /// <summary>
     /// Gets the underlying surface being written to.
