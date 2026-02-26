@@ -358,6 +358,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         Metrics = Metrics,
                         SurfacePool = pool
                     };
+                    childContext.SetCapabilities(Capabilities);
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                     RenderChildTimed(child, childContext);
 
@@ -465,6 +466,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 Metrics = Metrics
                 // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
             };
+            childContext.SetCapabilities(Capabilities);
             
             // Set cursor position to child's origin so Write() calls work correctly
             // (the offset will translate this to 0,0 on the child surface)
