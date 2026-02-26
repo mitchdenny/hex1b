@@ -116,4 +116,56 @@ public class KgpPipelineDiagnostic
         Assert.False(surface[1, 0].HasKgp, "(1,0) should not have KGP");
         Assert.False(surface[0, 1].HasKgp, "(0,1) should not have KGP");
     }
+
+    [Fact]
+    public void KgpRegion_CellsUnderImageAreSkippedInTokens()
+    {
+        // When text cells exist under the KGP display region,
+        // the comparer must skip them to avoid erasing the image overlay
+        var surface = new Surface(20, 10);
+        var ctx = new SurfaceRenderContext(surface, Theming.Hex1bThemes.Default);
+        ctx.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
+
+        var pixelData = new byte[16];
+        for (int i = 0; i < 4; i++) { pixelData[i * 4] = 255; pixelData[i * 4 + 3] = 255; }
+
+        var node = new KittyGraphicsNode
+        {
+            PixelData = pixelData, PixelWidth = 2, PixelHeight = 2,
+            DisplayColumns = 4, DisplayRows = 2,
+        };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Rect(0, 0, 4, 2));
+        node.Render(ctx);
+
+        // Manually write spaces into cells that are under the KGP display region
+        // This simulates what a parent container (VStack) might do
+        for (int y = 0; y < 2; y++)
+            for (int x = 0; x < 4; x++)
+                if (x != 0 || y != 0) // skip anchor
+                    surface[x, y] = new SurfaceCell(" ", null, null);
+
+        // Also write text OUTSIDE the KGP region
+        surface[5, 0] = new SurfaceCell("H", null, null);
+        surface[6, 0] = new SurfaceCell("i", null, null);
+
+        var diff = SurfaceComparer.CompareToEmpty(surface);
+        var tokens = SurfaceComparer.ToTokens(diff, surface);
+
+        // Count CursorPositionTokens that target the KGP region (excluding anchor)
+        var cursorsInRegion = tokens.OfType<CursorPositionToken>()
+            .Where(cp => cp.Row >= 1 && cp.Row <= 2 && cp.Column >= 1 && cp.Column <= 4)
+            .Where(cp => !(cp.Row == 1 && cp.Column == 1)) // exclude anchor position
+            .ToList();
+
+        // No cursor moves should target cells under the KGP image
+        Assert.Empty(cursorsInRegion);
+
+        // The "Hi" text outside the region should still be emitted
+        var serialized = AnsiTokenUtf8Serializer.Serialize(tokens);
+        var output = Encoding.UTF8.GetString(serialized.Span);
+        Assert.Contains("H", output);
+        Assert.Contains("i", output);
+        Assert.Contains("\x1b_G", output); // KGP still present
+    }
 }

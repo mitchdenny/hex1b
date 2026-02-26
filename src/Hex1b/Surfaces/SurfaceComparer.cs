@@ -140,6 +140,9 @@ public static class SurfaceComparer
         // Each entry is (x, y, width, height, cell) of a sixel region
         var sixelRegions = new List<(int X, int Y, int Width, int Height, SurfaceCell Cell)>();
         
+        // Track regions covered by KGP images (same concept as sixels - overlay regions)
+        var kgpRegions = new List<(int X, int Y, int Width, int Height)>();
+        
         // If we have the current surface, find sixels whose regions intersect with dirty cells
         // These sixels need to be re-emitted even if their anchor cell hasn't changed
         // We collect them here but emit them all BEFORE any text cells
@@ -293,6 +296,10 @@ public static class SurfaceComparer
             if (IsCoveredBySixelRegion(change.X, change.Y, change.Cell, sixelRegions))
                 continue;
 
+            // Skip cells that are covered by a KGP image overlay
+            if (IsCoveredByKgpRegion(change.X, change.Y, change.Cell, kgpRegions))
+                continue;
+
             // Position cursor if needed
             if (change.Y != cursorY || change.X != cursorX)
             {
@@ -376,6 +383,8 @@ public static class SurfaceComparer
             if (change.Cell.HasKgp)
             {
                 var kgpData = change.Cell.KgpData!;
+                // Track the region this KGP image covers so we skip cells underneath
+                kgpRegions.Add((change.X, change.Y, kgpData.WidthInCells, kgpData.HeightInCells));
                 // Emit the KGP APC sequence as raw
                 tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
                 // KGP with C=1 doesn't move cursor, but mark unknown to be safe
@@ -435,6 +444,24 @@ public static class SurfaceComparer
                 continue;
                 
             if (x >= sx && x < sx + sw && y >= sy && y < sy + sh)
+                return true;
+        }
+        return false;
+    }
+
+    private static bool IsCoveredByKgpRegion(int x, int y, SurfaceCell cell, List<(int X, int Y, int Width, int Height)> regions)
+    {
+        // If the cell has actual content (not blank), render it over the KGP image
+        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
+            return false;
+
+        foreach (var (kx, ky, kw, kh) in regions)
+        {
+            // Skip the anchor cell itself
+            if (x == kx && y == ky)
+                continue;
+
+            if (x >= kx && x < kx + kw && y >= ky && y < ky + kh)
                 return true;
         }
         return false;
