@@ -27,9 +27,48 @@ Console.WriteLine();
 Console.WriteLine();
 
 Console.WriteLine("If you see a red square above, KGP works in your terminal.");
+Console.WriteLine("Press Enter to continue to Hex1b passthrough test...");
+Console.ReadLine();
+
+// Test 2: Send KGP through Hex1bTerminal using a raw workload (no widgets/surfaces)
+// This tests the terminal output pump path only
+Console.WriteLine("=== Hex1b Terminal Passthrough Test ===");
+Console.WriteLine("Sending KGP through Hex1bTerminal via StreamWorkloadAdapter...");
+
+{
+    using var outputPipe = new System.IO.Pipes.AnonymousPipeServerStream(System.IO.Pipes.PipeDirection.Out);
+    using var outputReader = new System.IO.Pipes.AnonymousPipeClientStream(System.IO.Pipes.PipeDirection.In,
+        outputPipe.ClientSafePipeHandle);
+    using var inputSink = new MemoryStream();
+
+    var workload = new StreamWorkloadAdapter(outputReader, inputSink);
+    await using var passTerminal = Hex1bTerminal.CreateBuilder()
+        .WithWorkload(workload)
+        .WithDimensions(80, 24)
+        .Build();
+
+    using var cts = new CancellationTokenSource();
+    var pumpTask = passTerminal.RunAsync(cts.Token);
+
+    // Write the raw KGP sequence through the workload pipe
+    var kgpSeq = $"\x1b_Ga=T,f=32,s=4,v=4,i=98,c=8,r=4,q=2;{base64}\x1b\\";
+    var kgpBytes = System.Text.Encoding.UTF8.GetBytes(kgpSeq);
+    outputPipe.Write(kgpBytes);
+    outputPipe.Flush();
+
+    // Give pump time to forward to presentation
+    await Task.Delay(1000);
+
+    cts.Cancel();
+    try { await pumpTask; } catch (OperationCanceledException) { }
+}
+
+Console.WriteLine();
+Console.WriteLine("If you see a red square above, Hex1bTerminal passthrough works.");
 Console.WriteLine("Press Enter to continue to Hex1b widget test...");
 Console.ReadLine();
 
+// Test 3: Full Hex1b widget test
 // Now test with Hex1b widget system
 const uint imageWidth = 32;
 const uint imageHeight = 32;
