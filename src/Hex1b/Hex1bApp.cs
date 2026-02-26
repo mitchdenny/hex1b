@@ -890,6 +890,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
              var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
              _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
              
+             // KGP diagnostic: check if serialized output contains APC graphics
+             if (ansiOutput.Span.IndexOf("\x1b_G"u8) >= 0)
+             {
+                 System.IO.File.AppendAllText("/tmp/hex1b-kgp-diag.log",
+                     $"[{DateTime.Now:HH:mm:ss.fff}] Hex1bApp: KGP in serialized output ({ansiOutput.Length} bytes, {tokens.Count} tokens)\n");
+             }
+             else
+             {
+                 // Check if there's a KGP token that didn't serialize
+                 var hasKgpToken = tokens.Any(t => t is Tokens.UnrecognizedSequenceToken u && u.Sequence.Contains("\x1b_G"));
+                 System.IO.File.AppendAllText("/tmp/hex1b-kgp-diag.log",
+                     $"[{DateTime.Now:HH:mm:ss.fff}] Hex1bApp: NO KGP in output ({ansiOutput.Length} bytes, {tokens.Count} tokens, hasKgpToken={hasKgpToken}, diff={diff.Count} cells)\n");
+             }
+             
              if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
              {
                  workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);

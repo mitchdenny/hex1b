@@ -140,6 +140,13 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     {
         if (_disposed) return ValueTask.CompletedTask;
 
+        // KGP diagnostic: log if data contains APC graphics sequence
+        if (data.Span.IndexOf("\x1b_G"u8) >= 0)
+        {
+            System.IO.File.AppendAllText("/tmp/hex1b-kgp-diag.log",
+                $"[{DateTime.Now:HH:mm:ss.fff}] KGP data reached ConsolePresentationAdapter ({data.Length} bytes)\n");
+        }
+
         _driver.Write(data.Span);
         _driver.Flush();
         return ValueTask.CompletedTask;

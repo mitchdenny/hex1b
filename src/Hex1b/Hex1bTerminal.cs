@@ -1047,6 +1047,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // Still apply tokens to internal buffer so CreateSnapshot() works
                     ApplyTokens(tokens);
                     
+                    // KGP diagnostic: check if bytes contain APC graphics
+                    if (data.Span.IndexOf("\x1b_G"u8) >= 0)
+                    {
+                        System.IO.File.AppendAllText("/tmp/hex1b-kgp-diag.log",
+                            $"[{DateTime.Now:HH:mm:ss.fff}] FAST PATH forwarding KGP bytes ({data.Length} bytes) to presentation\n");
+                    }
+                    
                     // Forward raw bytes to presentation if present
                     if (_presentation != null)
                     {
