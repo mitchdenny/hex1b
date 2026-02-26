@@ -372,6 +372,18 @@ public static class SurfaceComparer
                 continue;
             }
 
+            // Check if this cell has KGP data
+            if (change.Cell.HasKgp)
+            {
+                var kgpData = change.Cell.KgpData!;
+                // Emit the KGP APC sequence as raw
+                tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                // KGP with C=1 doesn't move cursor, but mark unknown to be safe
+                cursorX = -1;
+                cursorY = -1;
+                continue;
+            }
+
             // Output the character (convert unwritten marker to space)
             var charToOutput = change.Cell.Character == SurfaceCells.UnwrittenMarker 
                 ? " " 
@@ -500,6 +512,10 @@ public static class SurfaceComparer
         if (!SixelsEqual(a.Sixel, b.Sixel))
             return false;
         
+        // Compare KGP graphics
+        if (!KgpsEqual(a.KgpData, b.KgpData))
+            return false;
+        
         // Compare hyperlinks by content (URI and parameters)
         return HyperlinksEqual(a.Hyperlink, b.Hyperlink);
     }
@@ -511,6 +527,14 @@ public static class SurfaceComparer
         
         // Compare by content hash
         return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+    }
+
+    private static bool KgpsEqual(Kgp.KgpCellData? a, Kgp.KgpCellData? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        
+        return Kgp.KgpCellData.HashEquals(a.ContentHash, b.ContentHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)

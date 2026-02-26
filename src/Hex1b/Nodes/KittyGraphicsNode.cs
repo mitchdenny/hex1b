@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Hex1b.Kgp;
 using Hex1b.Layout;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -13,12 +14,9 @@ namespace Hex1b;
 /// <remarks>
 /// <para>
 /// This node handles measuring, arranging, and rendering a KGP image.
-/// During render, it emits a KGP transmit+display (a=T) escape sequence
-/// that sends the pixel data and places the image at the node's position.
-/// </para>
-/// <para>
-/// The node tracks a content hash to detect when pixel data changes,
-/// and manages an internal image ID for the KGP protocol.
+/// During render, it builds a KGP transmit+display (a=T) escape sequence
+/// and places it on the surface cell at the node's position. The surface
+/// diff system then emits the sequence only when the image changes.
 /// </para>
 /// </remarks>
 /// <seealso cref="KittyGraphicsWidget"/>
@@ -61,7 +59,7 @@ public sealed class KittyGraphicsNode : Hex1bNode
     }
 
     /// <summary>
-    /// Renders the image by emitting a KGP transmit+display escape sequence.
+    /// Renders the image by placing KGP data on the surface cell at the node's position.
     /// </summary>
     public override void Render(Hex1bRenderContext context)
     {
@@ -84,50 +82,56 @@ public sealed class KittyGraphicsNode : Hex1bNode
         var cols = DisplayColumns > 0 ? DisplayColumns : (uint)EstimateCellColumns();
         var rows = DisplayRows > 0 ? DisplayRows : (uint)EstimateCellRows();
 
-        // Position cursor at the node's top-left corner
-        context.SetCursorPosition(Bounds.X, Bounds.Y);
-
+        // Build the KGP escape sequence
+        string payload;
         if (needsTransmit)
         {
-            // Transmit and display in one shot
-            var payload = Convert.ToBase64String(PixelData);
+            var base64 = Convert.ToBase64String(PixelData);
             var sb = new StringBuilder();
             sb.Append("\x1b_G");
             sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
             sb.Append($",i={_assignedImageId}");
             sb.Append($",c={cols},r={rows}");
-            sb.Append(",C=1"); // Do not move cursor
-            sb.Append(",q=2"); // Suppress responses
+            sb.Append(",C=1,q=2");
             sb.Append(';');
-            sb.Append(payload);
+            sb.Append(base64);
             sb.Append("\x1b\\");
-
-            context.Write(sb.ToString());
+            payload = sb.ToString();
         }
         else
         {
-            // Image already transmitted — just place it again
-            var sb = new StringBuilder();
-            sb.Append("\x1b_G");
-            sb.Append($"a=p,i={_assignedImageId}");
-            sb.Append($",c={cols},r={rows}");
-            sb.Append(",C=1");
-            sb.Append(",q=2");
-            sb.Append("\x1b\\");
+            payload = $"\x1b_Ga=p,i={_assignedImageId},c={cols},r={rows},C=1,q=2\x1b\\";
+        }
 
-            context.Write(sb.ToString());
+        var kgpData = new KgpCellData(payload, (int)cols, (int)rows);
+
+        // Place KGP data on the anchor cell via the surface
+        if (context is SurfaceRenderContext surfaceContext)
+        {
+            var surface = surfaceContext.Surface;
+            var x = Bounds.X;
+            var y = Bounds.Y;
+            if (x >= 0 && x < surface.Width && y >= 0 && y < surface.Height)
+            {
+                surface[x, y] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+            }
+        }
+        else
+        {
+            // Fallback: direct write (won't work through Surface pipeline but
+            // useful for non-surface render contexts)
+            context.SetCursorPosition(Bounds.X, Bounds.Y);
+            context.Write(payload);
         }
     }
 
     private int EstimateCellColumns()
     {
-        // Default: ~8 pixels per cell column (typical monospace)
         return Math.Max(1, (int)Math.Ceiling(PixelWidth / 8.0));
     }
 
     private int EstimateCellRows()
     {
-        // Default: ~16 pixels per cell row (typical monospace)
         return Math.Max(1, (int)Math.Ceiling(PixelHeight / 16.0));
     }
 }

@@ -24,6 +24,7 @@ namespace Hex1b.Surfaces;
 /// <param name="DisplayWidth">The number of terminal columns this cell occupies. 1 for normal, 2 for wide, 0 for continuation.</param>
 /// <param name="Sixel">Optional tracked reference to Sixel graphics data.</param>
 /// <param name="Hyperlink">Optional tracked reference to hyperlink data.</param>
+/// <param name="KgpData">Optional KGP (Kitty Graphics Protocol) placement data.</param>
 public readonly record struct SurfaceCell(
     string Character,
     Hex1bColor? Foreground,
@@ -31,7 +32,8 @@ public readonly record struct SurfaceCell(
     CellAttributes Attributes = CellAttributes.None,
     int DisplayWidth = 1,
     TrackedObject<SixelData>? Sixel = null,
-    TrackedObject<HyperlinkData>? Hyperlink = null)
+    TrackedObject<HyperlinkData>? Hyperlink = null,
+    Kgp.KgpCellData? KgpData = null)
 {
     /// <summary>
     /// Gets whether this cell is a continuation of a previous wide character.
@@ -70,6 +72,11 @@ public readonly record struct SurfaceCell(
     /// Gets whether this cell contains hyperlink data.
     /// </summary>
     public bool HasHyperlink => Hyperlink is not null;
+
+    /// <summary>
+    /// Gets whether this cell contains KGP (Kitty Graphics Protocol) data.
+    /// </summary>
+    public bool HasKgp => KgpData is not null;
 
     /// <summary>
     /// Creates a new cell with the specified foreground color.
