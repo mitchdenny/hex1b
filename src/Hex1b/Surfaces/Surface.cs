@@ -32,6 +32,9 @@ public sealed class Surface : ISurfaceSource
     // Track if any cells contain sixel graphics
     private int _sixelCount;
     
+    // Track if any cells contain KGP graphics
+    private int _kgpCount;
+    
     /// <summary>
     /// Gets the width of the surface in columns.
     /// </summary>
@@ -56,6 +59,11 @@ public sealed class Surface : ISurfaceSource
     /// Gets whether this surface contains any sixel graphics.
     /// </summary>
     public bool HasSixels => _sixelCount > 0;
+    
+    /// <summary>
+    /// Gets whether this surface contains any KGP graphics.
+    /// </summary>
+    public bool HasKgp => _kgpCount > 0;
     
     /// <summary>
     /// Gets the total number of cells in the surface.
@@ -121,6 +129,12 @@ public sealed class Surface : ISurfaceSource
             else if (!oldCell.HasSixel && value.HasSixel)
                 _sixelCount++;
             
+            // Track KGP count changes
+            if (oldCell.HasKgp && !value.HasKgp)
+                _kgpCount--;
+            else if (!oldCell.HasKgp && value.HasKgp)
+                _kgpCount++;
+            
             _cells[index] = value;
         }
     }
@@ -172,6 +186,12 @@ public sealed class Surface : ISurfaceSource
             else if (!oldCell.HasSixel && cell.HasSixel)
                 _sixelCount++;
             
+            // Track KGP count changes
+            if (oldCell.HasKgp && !cell.HasKgp)
+                _kgpCount--;
+            else if (!oldCell.HasKgp && cell.HasKgp)
+                _kgpCount++;
+            
             _cells[index] = cell;
             return true;
         }
@@ -194,6 +214,7 @@ public sealed class Surface : ISurfaceSource
     {
         Array.Fill(_cells, SurfaceCells.Empty);
         _sixelCount = 0;
+        _kgpCount = 0;
     }
 
     /// <summary>
@@ -215,6 +236,7 @@ public sealed class Surface : ISurfaceSource
         }
 
         _sixelCount = 0;
+        _kgpCount = 0;
     }
 
     /// <summary>
@@ -225,6 +247,7 @@ public sealed class Surface : ISurfaceSource
     {
         Array.Fill(_cells, cell);
         _sixelCount = cell.HasSixel ? CellCount : 0;
+        _kgpCount = cell.HasKgp ? CellCount : 0;
     }
 
     /// <summary>
@@ -254,6 +277,12 @@ public sealed class Surface : ISurfaceSource
                     _sixelCount--;
                 else if (!oldCell.HasSixel && cell.HasSixel)
                     _sixelCount++;
+                
+                // Track KGP count changes
+                if (oldCell.HasKgp && !cell.HasKgp)
+                    _kgpCount--;
+                else if (!oldCell.HasKgp && cell.HasKgp)
+                    _kgpCount++;
                 
                 _cells[index] = cell;
             }
@@ -523,6 +552,12 @@ public sealed class Surface : ISurfaceSource
                     _sixelCount--;
                 else if (!oldCell.HasSixel && srcCell.HasSixel)
                     _sixelCount++;
+                
+                // Track KGP count changes
+                if (oldCell.HasKgp && !srcCell.HasKgp)
+                    _kgpCount--;
+                else if (!oldCell.HasKgp && srcCell.HasKgp)
+                    _kgpCount++;
 
                 _cells[index] = srcCell;
             }
@@ -626,6 +661,7 @@ public sealed class Surface : ISurfaceSource
         var clone = new Surface(Width, Height, CellMetrics);
         _cells.AsSpan().CopyTo(clone._cells);
         clone._sixelCount = _sixelCount;
+        clone._kgpCount = _kgpCount;
         return clone;
     }
 

@@ -275,6 +275,57 @@ public static class SurfaceComparer
                 }
             }
         }
+        
+        // Pre-scan for KGP images whose regions intersect with dirty cells
+        // KGP images need to be re-emitted when cells in their region change,
+        // AND we need to track the regions to skip blank cells underneath
+        if (currentSurface != null && currentSurface.HasKgp)
+        {
+            // Build a set of dirty cell positions for fast lookup
+            var dirtyCells = new HashSet<(int, int)>();
+            foreach (var change in diff.ChangedCells)
+            {
+                dirtyCells.Add((change.X, change.Y));
+            }
+            
+            // Scan surface for KGP anchor cells
+            for (var y = 0; y < currentSurface.Height; y++)
+            {
+                for (var x = 0; x < currentSurface.Width; x++)
+                {
+                    var cell = currentSurface[x, y];
+                    if (cell.HasKgp && cell.KgpData is not null)
+                    {
+                        var kgpData = cell.KgpData;
+                        var regionHasDirtyCell = false;
+                        
+                        // Check if any cell in this KGP's region is dirty
+                        for (var ky = y; ky < y + kgpData.HeightInCells && ky < currentSurface.Height; ky++)
+                        {
+                            for (var kx = x; kx < x + kgpData.WidthInCells && kx < currentSurface.Width; kx++)
+                            {
+                                if (dirtyCells.Contains((kx, ky)))
+                                {
+                                    regionHasDirtyCell = true;
+                                    break;
+                                }
+                            }
+                            if (regionHasDirtyCell) break;
+                        }
+                        
+                        // Always track the region for cell skipping
+                        kgpRegions.Add((x, y, kgpData.WidthInCells, kgpData.HeightInCells));
+                        
+                        if (regionHasDirtyCell)
+                        {
+                            // Re-emit the KGP image (position cursor at anchor, then APC sequence)
+                            tokens.Add(new CursorPositionToken(y + 1, x + 1));
+                            tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                        }
+                    }
+                }
+            }
+        }
 
         // Track current state to minimize redundant tokens
         int cursorX = -1;
@@ -383,13 +434,28 @@ public static class SurfaceComparer
             if (change.Cell.HasKgp)
             {
                 var kgpData = change.Cell.KgpData!;
-                // Track the region this KGP image covers so we skip cells underneath
-                kgpRegions.Add((change.X, change.Y, kgpData.WidthInCells, kgpData.HeightInCells));
-                // Emit the KGP APC sequence as raw
-                tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
-                // KGP with C=1 doesn't move cursor, but mark unknown to be safe
-                cursorX = -1;
-                cursorY = -1;
+                
+                // Check if this KGP was already pre-emitted
+                bool alreadyEmitted = false;
+                foreach (var (kx, ky, _, _) in kgpRegions)
+                {
+                    if (kx == change.X && ky == change.Y)
+                    {
+                        alreadyEmitted = true;
+                        break;
+                    }
+                }
+                
+                if (!alreadyEmitted)
+                {
+                    // Track the region this KGP image covers so we skip cells underneath
+                    kgpRegions.Add((change.X, change.Y, kgpData.WidthInCells, kgpData.HeightInCells));
+                    // Emit the KGP APC sequence as raw
+                    tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                    // KGP with C=1 doesn't move cursor, but mark unknown to be safe
+                    cursorX = -1;
+                    cursorY = -1;
+                }
                 continue;
             }
 

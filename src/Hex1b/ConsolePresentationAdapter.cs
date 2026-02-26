@@ -140,19 +140,6 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     {
         if (_disposed) return ValueTask.CompletedTask;
 
-        // KGP diagnostic: dump full frame data containing KGP to file for inspection
-        if (data.Span.IndexOf("\x1b_G"u8) >= 0)
-        {
-            var text = System.Text.Encoding.UTF8.GetString(data.Span);
-            var visible = text
-                .Replace("\x1b", "<ESC>")
-                .Replace("\n", "<LF>")
-                .Replace("\r", "<CR>");
-            System.IO.File.WriteAllText("/tmp/hex1b-kgp-frame.txt", visible);
-            System.IO.File.AppendAllText("/tmp/hex1b-kgp-diag.log",
-                $"[{DateTime.Now:HH:mm:ss.fff}] KGP frame dumped to /tmp/hex1b-kgp-frame.txt ({data.Length} bytes)\n");
-        }
-
         _driver.Write(data.Span);
         _driver.Flush();
         return ValueTask.CompletedTask;

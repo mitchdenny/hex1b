@@ -65,7 +65,29 @@ Console.WriteLine("Sending KGP through Hex1bTerminal via StreamWorkloadAdapter..
 
 Console.WriteLine();
 Console.WriteLine("If you see a red square above, Hex1bTerminal passthrough works.");
-Console.WriteLine("Press Enter to continue to Hex1b widget test...");
+Console.WriteLine("Press Enter to continue to alt-buffer KGP test...");
+Console.ReadLine();
+
+// Test 2.5: Raw KGP in alternate screen buffer (no Hex1b app infrastructure)
+Console.WriteLine("=== Alt-Buffer KGP Test (raw Console.Write in alt screen) ===");
+Console.WriteLine("Switching to alt buffer and sending KGP...");
+Thread.Sleep(500);
+
+// Enter alt screen, clear, position cursor, send KGP
+Console.Write("\x1b[?1049h");    // Enter alternate screen
+Console.Write("\x1b[2J");        // Clear screen
+Console.Write("\x1b[1;1H");      // Cursor home
+Console.Write("Alt-buffer KGP test - you should see a red square below:");
+Console.Write("\x1b[3;1H");      // Move to row 3
+Console.Write($"\x1b_Ga=T,f=32,s=4,v=4,i=97,c=8,r=4,q=2;{base64}\x1b\\");
+Console.Write("\x1b[8;1H");      // Move below image
+Console.Write("Press Enter to exit alt buffer...");
+Console.Out.Flush();
+Console.ReadLine();
+Console.Write("\x1b[?1049l");    // Exit alternate screen
+
+Console.WriteLine("Back on main screen.");
+Console.WriteLine("Did you see the red square in the alt buffer? (Press Enter to continue to Hex1b widget test)");
 Console.ReadLine();
 
 // Test 3: Full Hex1b widget test

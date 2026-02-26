@@ -168,4 +168,80 @@ public class KgpPipelineDiagnostic
         Assert.Contains("i", output);
         Assert.Contains("\x1b_G", output); // KGP still present
     }
+
+    [Fact]
+    public void KgpPreScan_RegionTrackedEvenWhenAnchorUnchanged()
+    {
+        // Bug #5: On subsequent frames, if the KGP anchor cell is unchanged,
+        // kgpRegions was empty and blank cells in the image area were emitted,
+        // erasing the image. The fix pre-scans the surface for KGP regions.
+        var surface = new Surface(20, 10);
+        var ctx = new SurfaceRenderContext(surface, Theming.Hex1bThemes.Default);
+        ctx.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
+
+        var pixelData = new byte[16];
+        for (int i = 0; i < 4; i++) { pixelData[i * 4] = 255; pixelData[i * 4 + 3] = 255; }
+
+        var node = new KittyGraphicsNode
+        {
+            PixelData = pixelData, PixelWidth = 2, PixelHeight = 2,
+            DisplayColumns = 4, DisplayRows = 2,
+        };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Rect(0, 0, 4, 2));
+        node.Render(ctx);
+
+        // Save the surface state (frame 1 complete)
+        var oldSurface = surface.Clone();
+
+        // Now simulate frame 2: some cells OUTSIDE the KGP region changed,
+        // and some cells INSIDE the region also changed (e.g., blanks written by layout)
+        // But the KGP anchor cell (0,0) is UNCHANGED.
+        
+        // Create a new surface identical to old, then change cells in the KGP region
+        var newSurface = oldSurface.Clone();
+        // Re-render KGP (same data → same hash → same KGP cell data)
+        var ctx2 = new SurfaceRenderContext(newSurface, Theming.Hex1bThemes.Default);
+        ctx2.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
+        node.Render(ctx2);
+        
+        // Also change a cell INSIDE the KGP region (simulates layout writing a space)
+        newSurface[1, 0] = new SurfaceCell(" ", null, null);
+        // And change a cell OUTSIDE
+        newSurface[10, 5] = new SurfaceCell("X", null, null);
+
+        var diff = SurfaceComparer.Compare(oldSurface, newSurface);
+        var tokens = SurfaceComparer.ToTokens(diff, newSurface);
+        
+        var serialized = Encoding.UTF8.GetString(AnsiTokenUtf8Serializer.Serialize(tokens).Span);
+        
+        // The KGP should be re-emitted (because cells in its region are dirty)
+        Assert.Contains("\x1b_G", serialized);
+        
+        // The "X" at (10,5) should be emitted
+        Assert.Contains("X", serialized);
+        
+        // No blank cells should be emitted at positions within the KGP region
+        // (except the anchor which has KGP data)
+        var cursorTokens = tokens.OfType<CursorPositionToken>().ToList();
+        foreach (var cp in cursorTokens)
+        {
+            int row0 = cp.Row - 1;
+            int col0 = cp.Column - 1;
+            // If cursor targets inside KGP region (excluding anchor)
+            if (row0 >= 0 && row0 < 2 && col0 >= 0 && col0 < 4 && !(row0 == 0 && col0 == 0))
+            {
+                // This should NOT happen - the cell should be skipped
+                int idx = tokens.ToList().IndexOf(cp);
+                // Check if next non-SGR token is a text write
+                for (int j = idx + 1; j < tokens.Count; j++)
+                {
+                    if (tokens[j] is SgrToken) continue;
+                    if (tokens[j] is TextToken t && t.Text.Trim() == "")
+                        Assert.Fail($"Blank text written at ({col0},{row0}) inside KGP region on frame 2");
+                    break;
+                }
+            }
+        }
+    }
 }
