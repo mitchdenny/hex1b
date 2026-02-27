@@ -2,58 +2,69 @@ using Hex1b;
 using Hex1b.Widgets;
 
 // ─── Pre-alt-screen KGP source rectangle clipping test ───
-// Draw a green square 4 times, each showing only one corner via x,y,w,h
+// Draw a 4-quadrant image: red(TL), green(TR), blue(BL), yellow(BR)
+// Then use source rects to show each corner separately
 {
-    // 8x8 solid green image
-    var greenPixels = new byte[8 * 8 * 4];
-    for (int i = 0; i < greenPixels.Length; i += 4)
+    // 8x8 RGBA image with 4 colored quadrants
+    var pixels = new byte[8 * 8 * 4];
+    for (int y = 0; y < 8; y++)
     {
-        greenPixels[i] = 0;       // R
-        greenPixels[i + 1] = 200; // G
-        greenPixels[i + 2] = 0;   // B
-        greenPixels[i + 3] = 255; // A
+        for (int x = 0; x < 8; x++)
+        {
+            var i = (y * 8 + x) * 4;
+            if (x < 4 && y < 4)      { pixels[i] = 255; pixels[i+1] = 0;   pixels[i+2] = 0;   } // TL = red
+            else if (x >= 4 && y < 4) { pixels[i] = 0;   pixels[i+1] = 255; pixels[i+2] = 0;   } // TR = green
+            else if (x < 4 && y >= 4) { pixels[i] = 0;   pixels[i+1] = 0;   pixels[i+2] = 255; } // BL = blue
+            else                      { pixels[i] = 255; pixels[i+1] = 255; pixels[i+2] = 0;   } // BR = yellow
+            pixels[i+3] = 255;
+        }
     }
-    var b64 = Convert.ToBase64String(greenPixels);
+    var b64 = Convert.ToBase64String(pixels);
 
     Console.WriteLine("KGP Source Rectangle Clipping Test");
     Console.WriteLine("==================================");
+    Console.WriteLine("Image has 4 quadrants: Red(TL) Green(TR) Blue(BL) Yellow(BR)");
     Console.WriteLine();
 
     // Transmit the image (a=t, transmit only — no display)
     Console.Write($"\x1b_Ga=t,f=32,s=8,v=8,i=90,q=2;{b64}\x1b\\");
 
-    // Place 1: Full image (all 4 corners visible)
+    // Place 1: Full image (all 4 colors visible)
     Console.Write("Full:    ");
-    Console.Write("\x1b_Ga=p,i=90,c=4,r=2,q=2\x1b\\");
+    Console.Write("\x1b_Ga=p,i=90,c=8,r=4,q=2\x1b\\");
     Console.WriteLine();
     Console.WriteLine();
 
-    // Place 2: Top-left corner (x=0, y=0, w=4, h=4)
+    // Place 2: Top-left corner (x=0, y=0, w=4, h=4) — should be RED only
     Console.Write("Top-L:   ");
     Console.Write("\x1b_Ga=p,i=90,x=0,y=0,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.Write("  <- should be RED");
     Console.WriteLine();
     Console.WriteLine();
 
-    // Place 3: Top-right corner (x=4, y=0, w=4, h=4)
+    // Place 3: Top-right corner (x=4, y=0, w=4, h=4) — should be GREEN only
     Console.Write("Top-R:   ");
     Console.Write("\x1b_Ga=p,i=90,x=4,y=0,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.Write("  <- should be GREEN");
     Console.WriteLine();
     Console.WriteLine();
 
-    // Place 4: Bottom-left corner (x=0, y=4, w=4, h=4)
+    // Place 4: Bottom-left corner (x=0, y=4, w=4, h=4) — should be BLUE only
     Console.Write("Bot-L:   ");
     Console.Write("\x1b_Ga=p,i=90,x=0,y=4,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.Write("  <- should be BLUE");
     Console.WriteLine();
     Console.WriteLine();
 
-    // Place 5: Bottom-right corner (x=4, y=4, w=4, h=4)
+    // Place 5: Bottom-right corner (x=4, y=4, w=4, h=4) — should be YELLOW only
     Console.Write("Bot-R:   ");
     Console.Write("\x1b_Ga=p,i=90,x=4,y=4,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.Write("  <- should be YELLOW");
     Console.WriteLine();
     Console.WriteLine();
 
-    Console.WriteLine("Each placement above should show a quarter of the green square.");
-    Console.WriteLine("If they all show the FULL square, source rect clipping isn't working.");
+    Console.WriteLine("If each shows a different single color, source rect clipping works!");
+    Console.WriteLine("If they all show 4 colors, the terminal ignores x,y,w,h.");
     Console.WriteLine();
     Console.Write("Press Enter to continue to the app...");
     Console.ReadLine();
