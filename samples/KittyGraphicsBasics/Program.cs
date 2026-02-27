@@ -1,6 +1,69 @@
 using Hex1b;
 using Hex1b.Widgets;
 
+// ─── Pre-alt-screen KGP source rectangle clipping test ───
+// Draw a green square 4 times, each showing only one corner via x,y,w,h
+{
+    // 8x8 solid green image
+    var greenPixels = new byte[8 * 8 * 4];
+    for (int i = 0; i < greenPixels.Length; i += 4)
+    {
+        greenPixels[i] = 0;       // R
+        greenPixels[i + 1] = 200; // G
+        greenPixels[i + 2] = 0;   // B
+        greenPixels[i + 3] = 255; // A
+    }
+    var b64 = Convert.ToBase64String(greenPixels);
+
+    Console.WriteLine("KGP Source Rectangle Clipping Test");
+    Console.WriteLine("==================================");
+    Console.WriteLine();
+
+    // Transmit the image (a=t, transmit only — no display)
+    Console.Write($"\x1b_Ga=t,f=32,s=8,v=8,i=90,q=2;{b64}\x1b\\");
+
+    // Place 1: Full image (all 4 corners visible)
+    Console.Write("Full:    ");
+    Console.Write("\x1b_Ga=p,i=90,c=4,r=2,q=2\x1b\\");
+    Console.WriteLine();
+    Console.WriteLine();
+
+    // Place 2: Top-left corner (x=0, y=0, w=4, h=4)
+    Console.Write("Top-L:   ");
+    Console.Write("\x1b_Ga=p,i=90,x=0,y=0,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.WriteLine();
+    Console.WriteLine();
+
+    // Place 3: Top-right corner (x=4, y=0, w=4, h=4)
+    Console.Write("Top-R:   ");
+    Console.Write("\x1b_Ga=p,i=90,x=4,y=0,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.WriteLine();
+    Console.WriteLine();
+
+    // Place 4: Bottom-left corner (x=0, y=4, w=4, h=4)
+    Console.Write("Bot-L:   ");
+    Console.Write("\x1b_Ga=p,i=90,x=0,y=4,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.WriteLine();
+    Console.WriteLine();
+
+    // Place 5: Bottom-right corner (x=4, y=4, w=4, h=4)
+    Console.Write("Bot-R:   ");
+    Console.Write("\x1b_Ga=p,i=90,x=4,y=4,w=4,h=4,c=4,r=2,q=2\x1b\\");
+    Console.WriteLine();
+    Console.WriteLine();
+
+    Console.WriteLine("Each placement above should show a quarter of the green square.");
+    Console.WriteLine("If they all show the FULL square, source rect clipping isn't working.");
+    Console.WriteLine();
+    Console.Write("Press Enter to continue to the app...");
+    Console.ReadLine();
+
+    // Delete test images before entering alt screen
+    Console.Write("\x1b_Ga=d,d=A,q=2\x1b\\");
+}
+
+// ─── Main app ───
+
 // Generate test images
 var redGradient = GenerateGradientImage(64, 64, 255, 0, 0);
 var greenGradient = GenerateGradientImage(64, 64, 0, 255, 0);
