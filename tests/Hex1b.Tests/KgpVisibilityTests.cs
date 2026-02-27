@@ -495,4 +495,68 @@ public class KgpVisibilityTests
             Assert.Contains("c=5", p.Sequence); // 5 cols visible (8-3=5)
         }
     }
+
+    [Fact]
+    public void SurfaceComparer_OverlappingKgpImages_BackgroundIsFragmented()
+    {
+        // Two KGP images overlapping: background (image 1) at (0,0) 8x4,
+        // foreground (image 2) at (4,1) 4x3 — the foreground's cells are spaces
+        // but should still occlude the background image.
+        var surface = new Surface(20, 10, new CellMetrics(8, 16));
+
+        var bg = MakeKgp(64, 32, 8, 4, imageId: 1);
+        bg = new KgpCellData(
+            "\x1b_Ga=t,f=32,s=64,v=32,i=1,q=2;BGBG\x1b\\",
+            1, 8, 4, 64, 32, bg.ContentHash);
+        surface[0, 0] = new SurfaceCell(" ", null, null, KgpData: bg);
+
+        // Fill blank cells under background image
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 8; x++)
+                if (!(x == 0 && y == 0))
+                    surface[x, y] = new SurfaceCell(" ", null, null);
+
+        // Place foreground image overlapping the right side
+        var fg = MakeKgp(32, 24, 4, 3, imageId: 2);
+        fg = new KgpCellData(
+            "\x1b_Ga=t,f=32,s=32,v=24,i=2,q=2;FGFG\x1b\\",
+            2, 4, 3, 32, 24, fg.ContentHash);
+        surface[4, 1] = new SurfaceCell(" ", null, null, KgpData: fg);
+
+        // Fill blank cells under foreground image (overwrites bg spaces)
+        for (int y = 1; y < 4; y++)
+            for (int x = 4; x < 8; x++)
+                if (!(x == 4 && y == 1))
+                    surface[x, y] = new SurfaceCell(" ", null, null);
+
+        var diff = SurfaceComparer.CompareToEmpty(surface);
+        var tokens = SurfaceComparer.ToTokens(diff, surface);
+
+        var placements = tokens
+            .OfType<Hex1b.Tokens.UnrecognizedSequenceToken>()
+            .Where(t => t.Sequence.Contains("a=p"))
+            .ToList();
+
+        // Background image (id=1) should be fragmented — the overlap area with
+        // the foreground image should be excluded
+        var bgPlacements = placements.Where(p => p.Sequence.Contains("i=1")).ToList();
+        var fgPlacements = placements.Where(p => p.Sequence.Contains("i=2")).ToList();
+
+        // Foreground should have a single unclipped placement
+        Assert.Single(fgPlacements);
+
+        // Background should be fragmented (overlap area removed)
+        Assert.True(bgPlacements.Count > 1,
+            $"Expected background to be fragmented, got {bgPlacements.Count} placement(s)");
+
+        // No background fragment should cover the foreground's region (cols 4-7, rows 1-3)
+        // i.e., no fragment should have full width (c=8) spanning into the overlap area
+        foreach (var p in bgPlacements)
+        {
+            // Verify fragments have source rect clipping
+            Assert.True(
+                p.Sequence.Contains("w=") || p.Sequence.Contains("x=") || p.Sequence.Contains("y="),
+                $"Background fragment should be clipped: {p.Sequence}");
+        }
+    }
 }

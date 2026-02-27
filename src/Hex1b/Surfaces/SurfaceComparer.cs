@@ -509,7 +509,7 @@ public static class SurfaceComparer
 
                     // Compute visible cell region by scanning for occlusions
                     var clippedPlacements = ComputeKgpVisiblePlacements(
-                        ax, ay, data, currentSurface!);
+                        ax, ay, data, currentSurface!, kgpAnchors);
 
                     foreach (var (px, py, placement) in clippedPlacements)
                     {
@@ -579,7 +579,8 @@ public static class SurfaceComparer
     /// when partially occluded, with each fragment getting its own source rectangle.
     /// </summary>
     private static List<(int X, int Y, KgpCellData Data)> ComputeKgpVisiblePlacements(
-        int anchorX, int anchorY, KgpCellData data, Surface surface)
+        int anchorX, int anchorY, KgpCellData data, Surface surface,
+        List<(int X, int Y, KgpCellData Data)> allAnchors)
     {
         var result = new List<(int X, int Y, KgpCellData Data)>();
 
@@ -593,6 +594,28 @@ public static class SurfaceComparer
         var metrics = surface.CellMetrics;
         var visibility = new KgpVisibility(data, anchorX, anchorY);
 
+        // Build a set of cells covered by OTHER KGP images whose anchor is within
+        // our cell region. An anchor inside our region means the image was placed
+        // "on top of" us by a foreground surface, so it occludes us.
+        // Images whose anchors are outside our region are behind us.
+        HashSet<(int, int)>? otherKgpCells = null;
+        foreach (var (ox, oy, od) in allAnchors)
+        {
+            if (ox == anchorX && oy == anchorY)
+                continue; // Skip self
+
+            // Only occlude if the other image's anchor is within our cell region
+            if (ox < anchorX || ox >= regionRight || oy < anchorY || oy >= regionBottom)
+                continue;
+
+            var oRight = ox + od.WidthInCells;
+            var oBottom = oy + od.HeightInCells;
+            otherKgpCells ??= new HashSet<(int, int)>();
+            for (var ky = Math.Max(oy, anchorY); ky < Math.Min(oBottom, regionBottom); ky++)
+                for (var kx = Math.Max(ox, anchorX); kx < Math.Min(oRight, regionRight); kx++)
+                    otherKgpCells.Add((kx, ky));
+        }
+
         // Scan cells in the image region for occlusions.
         // Build contiguous horizontal runs of non-blank cells and apply as occlusions.
         for (var y = anchorY; y < regionBottom; y++)
@@ -604,9 +627,11 @@ public static class SurfaceComparer
                 if (x < regionRight)
                 {
                     var cell = surface[x, y];
-                    isOccluded = cell.Character != " "
+                    // A cell occludes if it has non-blank text OR is covered by another KGP image
+                    isOccluded = (cell.Character != " "
                         && cell.Character != string.Empty
-                        && cell.Character != SurfaceCells.UnwrittenMarker;
+                        && cell.Character != SurfaceCells.UnwrittenMarker)
+                        || (otherKgpCells != null && otherKgpCells.Contains((x, y)));
                 }
 
                 if (isOccluded)
