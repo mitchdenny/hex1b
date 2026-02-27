@@ -45,4 +45,18 @@ internal sealed class KittyGraphicsHostNode : Hex1bNode
             context.RenderChild(Child);
         }
     }
+
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (Child != null)
+        {
+            foreach (var focusable in Child.GetFocusableNodes())
+                yield return focusable;
+        }
+    }
+
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (Child != null) yield return Child;
+    }
 }
