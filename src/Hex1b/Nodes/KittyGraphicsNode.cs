@@ -166,9 +166,13 @@ public sealed class KittyGraphicsNode : Hex1bNode
                 msb.Append($",i={imageId}");
                 msb.Append($",c={cols},r={rows}");
                 msb.Append(",C=1,q=2");
+                msb.Append(isLast ? ",m=0" : ",m=1");
                 first = false;
             }
-            msb.Append(isLast ? ",m=0" : ",m=1");
+            else
+            {
+                msb.Append(isLast ? "m=0" : "m=1");
+            }
             msb.Append(';');
             msb.Append(base64.AsSpan(offset, chunkSize));
             msb.Append("\x1b\\");
