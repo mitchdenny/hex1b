@@ -837,15 +837,17 @@ public partial class KgpWindowRenderingTests
             .Where(t => t.Sequence.Contains("a=p"))
             .ToList();
 
-        Assert.Single(placements);
-        var placement = placements[0].Sequence;
+        // Right-side occlusion (2 cols on each of 4 rows) fragments the visible left
+        // portion into 4 horizontal row-strips, each 2 cols x 1 row
+        Assert.Equal(4, placements.Count);
 
-        // Should be clipped to 2 columns (left half only)
-        Assert.Contains("c=2", placement);
-        // Source width should be half of 32 = 16 pixels
-        Assert.Contains("w=16", placement);
-        // Height should remain 4 rows (no vertical occlusion)
-        Assert.Contains("r=4", placement);
+        // Each fragment should show 2 columns and 1 row with 16px source width
+        foreach (var p in placements)
+        {
+            Assert.Contains("c=2", p.Sequence);
+            Assert.Contains("r=1", p.Sequence);
+            Assert.Contains("w=16", p.Sequence);
+        }
     }
 
     [Fact]
