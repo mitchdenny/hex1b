@@ -193,6 +193,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private int _contentRowCount;
     private int _viewportRowCount;
     private Rect _contentViewport;
+    private int? _pendingScrollToIndex;
     
     // Virtualization buffer (rows above/below visible area to pre-render)
     private const int VirtualizationBuffer = 5;
@@ -549,27 +550,37 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     private int _selectionAnchorIndex = -1;
 
     /// <summary>
-    /// Gets the index of the currently focused row, or -1 if no row is focused.
+    /// Gets the index of the currently focused row, trying data source lookup if not in cache.
     /// </summary>
-    private int GetFocusedRowIndex()
+    private async ValueTask<int> GetFocusedRowIndexAsync(CancellationToken cancellationToken = default)
     {
-        if (FocusedKey == null || Data == null || Data.Count == 0)
+        if (FocusedKey == null)
             return -1;
-
-        // For async data sources, we need to add the data offset to get absolute index
-        int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
-
-        for (int i = 0; i < Data.Count; i++)
+        
+        // Check if focused row is in the cached data
+        if (Data is not null)
         {
-            var key = GetRowKey(Data[i], dataOffset + i);
-            if (Equals(key, FocusedKey))
-                return dataOffset + i; // Return absolute index
+            var dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+            for (int i = 0; i < Data.Count; i++)
+            {
+                var key = GetRowKey(Data[i], dataOffset + i);
+                if (Equals(key, FocusedKey))
+                    return dataOffset + i;
+            }
+        }
+
+        // Not in cache - try data source lookup if available
+        if (_dataSource is not null)
+        {
+            var index = await _dataSource.GetIndexForKeyAsync(FocusedKey, cancellationToken).ConfigureAwait(false);
+            if (index.HasValue)
+                return index.Value;
         }
         
-        // If focus key is an integer (index-based key from async navigation), return it directly
+        // If focus key is an integer (index-based key), return it directly
         if (FocusedKey is int focusedIndex)
             return focusedIndex;
-            
+
         return -1;
     }
 
@@ -667,18 +678,37 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// Scrolls the viewport to make the currently focused row visible.
     /// Called externally after focus is set programmatically.
     /// </summary>
-    internal void ScrollToFocusedRow()
+    internal async Task ScrollToFocusedRowAsync()
     {
-        var index = GetFocusedRowIndex();
+        var index = await GetFocusedRowIndexAsync();
         if (index >= 0)
         {
-            EnsureRowVisible(index);
+            if (_viewportRowCount > 0)
+            {
+                EnsureRowVisible(index);
+            }
+            else
+            {
+                _pendingScrollToIndex = index;
+            }
         }
     }
 
-    private void MoveFocusUp(InputBindingActionContext ctx)
+    /// <summary>
+    /// Applies any pending scroll after viewport is measured.
+    /// </summary>
+    internal void ApplyPendingScroll()
     {
-        var currentIndex = GetFocusedRowIndex();
+        if (_pendingScrollToIndex.HasValue)
+        {
+            EnsureRowVisible(_pendingScrollToIndex.Value);
+            _pendingScrollToIndex = null;
+        }
+    }
+
+    private async Task MoveFocusUp(InputBindingActionContext ctx)
+    {
+        var currentIndex = await GetFocusedRowIndexAsync();
         if (currentIndex < 0)
         {
             // No focus - focus the first visible row
@@ -691,9 +721,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         UserScrolledAway = true;
     }
 
-    private void MoveFocusDown(InputBindingActionContext ctx)
+    private async Task MoveFocusDown(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         var maxIndex = GetEffectiveItemCount() - 1;
         
         if (currentIndex < 0)
@@ -735,10 +765,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         UserScrolledAway = false;
     }
 
-    private void PageUp(InputBindingActionContext ctx)
+    private async Task PageUp(InputBindingActionContext ctx)
     {
         var pageSize = Math.Max(1, _viewportRowCount - 1);
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         
         if (currentIndex >= 0)
         {
@@ -753,10 +783,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         UserScrolledAway = true;
     }
 
-    private void PageDown(InputBindingActionContext ctx)
+    private async Task PageDown(InputBindingActionContext ctx)
     {
         var pageSize = Math.Max(1, _viewportRowCount - 1);
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         var maxIndex = GetEffectiveItemCount() - 1;
         
         if (currentIndex >= 0)
@@ -779,9 +809,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// <summary>
     /// Toggles selection on the currently focused row.
     /// </summary>
-    private void ToggleSelection(InputBindingActionContext ctx)
+    private async Task ToggleSelection(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         if (currentIndex < 0 || Data == null)
             return;
 
@@ -803,9 +833,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// <summary>
     /// Extends selection upward from anchor to current focus.
     /// </summary>
-    private void ExtendSelectionUp(InputBindingActionContext ctx)
+    private async Task ExtendSelectionUp(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         if (currentIndex <= 0)
             return;
 
@@ -823,9 +853,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// <summary>
     /// Extends selection downward from anchor to current focus.
     /// </summary>
-    private void ExtendSelectionDown(InputBindingActionContext ctx)
+    private async Task ExtendSelectionDown(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         var maxIndex = (Data?.Count ?? 0) - 1;
         
         if (currentIndex < 0 || currentIndex >= maxIndex)
@@ -845,9 +875,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// <summary>
     /// Extends selection from anchor to first row.
     /// </summary>
-    private void ExtendSelectionToFirst(InputBindingActionContext ctx)
+    private async Task ExtendSelectionToFirst(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         if (currentIndex < 0)
             return;
 
@@ -865,9 +895,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     /// <summary>
     /// Extends selection from anchor to last row.
     /// </summary>
-    private void ExtendSelectionToLast(InputBindingActionContext ctx)
+    private async Task ExtendSelectionToLast(InputBindingActionContext ctx)
     {
-        var currentIndex = GetFocusedRowIndex();
+        var currentIndex = await GetFocusedRowIndexAsync();
         var maxIndex = (Data?.Count ?? 0) - 1;
         
         if (currentIndex < 0 || maxIndex < 0)
@@ -1733,6 +1763,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         {
             _scrollOffset = MaxScrollOffset;
         }
+        
+        // Apply any pending scroll from initial focus
+        ApplyPendingScroll();
         
         // Recalculate column widths if scrollbar state changed after Arrange's viewport recalculation
         // This happens when Measure receives unbounded height but Arrange has bounded height

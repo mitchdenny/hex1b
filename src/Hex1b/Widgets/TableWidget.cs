@@ -293,12 +293,10 @@ public record TableWidget<TRow> : Hex1bWidget
             needsDirty = true;
         }
 
-        if (!Equals(node.FocusedKey, FocusedKey))
+        var focusChanged = !Equals(node.FocusedKey, FocusedKey);
+        if (focusChanged)
         {
             node.FocusedKey = FocusedKey;
-
-            // Scroll to make the focused row visible when focus is set externally
-            node.ScrollToFocusedRow();
             needsDirty = true;
         }
 
@@ -327,7 +325,7 @@ public record TableWidget<TRow> : Hex1bWidget
         node.RowActivatedHandler = RowActivatedHandler;
 
         // Build row widgets and reconcile them
-        await ReconcileRowWidgets(node, context);
+        await ReconcileRowWidgets(node, context, focusChanged);
 
         if (needsDirty)
         {
@@ -340,7 +338,7 @@ public record TableWidget<TRow> : Hex1bWidget
     /// <summary>
     /// Builds row widgets from cell data and reconciles them as children.
     /// </summary>
-    private async Task ReconcileRowWidgets(TableNode<TRow> node, ReconcileContext context)
+    private async Task ReconcileRowWidgets(TableNode<TRow> node, ReconcileContext context, bool focusChanged)
     {
         // Build header cells and column definitions
         var headerCells = HeaderBuilder?.Invoke(new TableHeaderContext());
@@ -403,6 +401,10 @@ public record TableWidget<TRow> : Hex1bWidget
             totalCount = Data.Count;
         }
         
+        // Scroll when focus changed
+        if (focusChanged)
+            await node.ScrollToFocusedRowAsync();
+        
         // Reconcile data rows (with lazy virtualization)
         if (effectiveData != null && effectiveData.Count > 0 && RowBuilder != null)
         {
@@ -454,6 +456,7 @@ public record TableWidget<TRow> : Hex1bWidget
             // When using DataSource, only build rows we have data for
             int dataOffset = DataSource is not null ? startRow : 0;
             
+            // for (int i = effectiveStartRow; i < effectiveEndRow; i++)
             for (int i = 0; i < totalCount; i++)
             {
                 // Skip rows outside the effective range

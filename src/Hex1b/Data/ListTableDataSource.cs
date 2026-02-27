@@ -73,6 +73,28 @@ public class ListTableDataSource<T> : ITableDataSource<T>, IDisposable
         
         return ValueTask.FromResult<IReadOnlyList<T>>(items);
     }
+
+    /// <inheritdoc />
+    public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+    {
+        switch (key)
+        {
+            case int intKey:
+                return ValueTask.FromResult<int?>(intKey);
+            case T typedKey:
+            {
+                for (var i = 0; i < _list.Count; i++)
+                {
+                    if (EqualityComparer<T>.Default.Equals(_list[i], typedKey))
+                        return ValueTask.FromResult<int?>(i);
+                }
+
+                break;
+            }
+        }
+
+        return ValueTask.FromResult<int?>(null);
+    }
     
     private void OnSourceCollectionChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {

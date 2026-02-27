@@ -54,7 +54,6 @@ int selectedScenario = 0;
 // Scenario 1: Products (Static) - Current demo with static list
 // ============================================================================
 
-const int MaxStock = 500;
 var categories = new[] { "Electronics", "Furniture", "Accessories" };
 
 var staticProducts = new List<Product>
@@ -362,7 +361,32 @@ Hex1bWidget BuildAsyncScenario<TParent>(
             .OnFocusChanged(key => setFocusedKey(key))
             .FillHeight(),
         v.Text(""),
-        v.Text($"Total items: {dataSource.TotalCount:N0} | Delay: {dataSource.DelayMs}ms")
+        v.Text($"Total items: {dataSource.TotalCount:N0} | Delay: {dataSource.DelayMs}ms"),
+        v.Text(""),
+        v.HStack(h => [
+            h.Button("[Start]").OnClick(_ => {
+                var firstItem = $"API Item 00001";
+                setFocusedKey(firstItem);
+            }),
+            h.Text(" "),
+            h.Button("[End]").OnClick(_ => {
+                var lastItemNum = dataSource.TotalCount;
+                var lastItem = $"API Item {lastItemNum:D5}";
+                setFocusedKey(lastItem);
+            }),
+            h.Text(" "),
+            h.Button("[Middle]").OnClick(_ => {
+                var middleItemNum = dataSource.TotalCount / 2;
+                var middleItem = $"API Item {middleItemNum:D5}";
+                setFocusedKey(middleItem);
+            }),
+            h.Text(" "),
+            h.Button("[Random]").OnClick(_ => {
+                var randomItem = Random.Shared.Next(1, dataSource.TotalCount + 1);
+                var randomItemKey = $"API Item {randomItem:D5}";
+                setFocusedKey(randomItemKey);
+            })
+        ])
     ]);
 }
 
@@ -548,7 +572,9 @@ class SimulatedAsyncDataSource : ITableDataSource<Product>
             .ToList();
     }
     
+#pragma warning disable CS0067 // Event is never used - required by interface
     public event NotifyCollectionChangedEventHandler? CollectionChanged;
+#pragma warning restore CS0067
     
     public async ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
     {
@@ -570,6 +596,19 @@ class SimulatedAsyncDataSource : ITableDataSource<Product>
         
         var actualCount = Math.Min(count, _allData.Count - startIndex);
         return _allData.Skip(startIndex).Take(actualCount).ToList();
+    }
+
+    public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+    {
+        if (key is string keyStr && keyStr.StartsWith("API Item "))
+        {
+            var indexStr = keyStr.Substring(9);
+            if (int.TryParse(indexStr, out int index) && index >= 1 && index <= _allData.Count)
+            {
+                return ValueTask.FromResult<int?>(index - 1);
+            }
+        }
+        return ValueTask.FromResult<int?>(null);
     }
 }
 

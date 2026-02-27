@@ -1653,6 +1653,176 @@ public class TableNodeTests
 
     #endregion
 
+    #region Virtualized Auto-Scroll with Index Lookup Tests
+
+    /// <summary>
+    /// Test data source with index lookup.
+    /// </summary>
+    private class TestDataSourceWithIndexLookup : ITableDataSource<string>
+    {
+        private readonly int _totalCount;
+        public List<string> IndexLookupKeys { get; } = [];
+
+#pragma warning disable CS0067 // Event is never used - required by interface
+        public event NotifyCollectionChangedEventHandler? CollectionChanged;
+#pragma warning restore CS0067
+
+        public TestDataSourceWithIndexLookup(int totalCount)
+        {
+            _totalCount = totalCount;
+        }
+
+        public ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(_totalCount);
+        }
+
+        public ValueTask<IReadOnlyList<string>> GetItemsAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+        {
+            var items = new List<string>();
+            for (int i = startIndex; i < startIndex + count && i < _totalCount; i++)
+            {
+                items.Add($"Row {i}");
+            }
+            return ValueTask.FromResult<IReadOnlyList<string>>(items);
+        }
+
+        public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+        {
+            if (key is string keyStr)
+            {
+                IndexLookupKeys.Add(keyStr);
+                if (keyStr.StartsWith("Row "))
+                {
+                    var indexStr = keyStr.Substring(4);
+                    if (int.TryParse(indexStr, out int index) && index >= 0 && index < _totalCount)
+                    {
+                        return ValueTask.FromResult<int?>(index);
+                    }
+                }
+            }
+            return ValueTask.FromResult<int?>(null);
+        }
+    }
+
+    /// <summary>
+    /// Test data source WITHOUT index lookup (for backward compatibility test).
+    /// </summary>
+    private class TestDataSourceWithoutIndexLookup : ITableDataSource<string>
+    {
+        private readonly int _totalCount;
+
+#pragma warning disable CS0067 // Event is never used - required by interface
+        public event NotifyCollectionChangedEventHandler? CollectionChanged;
+#pragma warning restore CS0067
+
+        public TestDataSourceWithoutIndexLookup(int totalCount)
+        {
+            _totalCount = totalCount;
+        }
+
+        public ValueTask<int> GetItemCountAsync(CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult(_totalCount);
+        }
+
+        public ValueTask<IReadOnlyList<string>> GetItemsAsync(int startIndex, int count, CancellationToken cancellationToken = default)
+        {
+            var items = new List<string>();
+            for (int i = startIndex; i < startIndex + count && i < _totalCount; i++)
+            {
+                items.Add($"Row {i}");
+            }
+            return ValueTask.FromResult<IReadOnlyList<string>>(items);
+        }
+    }
+
+    [Fact]
+    public async Task VirtualizedScroll_SetFocusToRowOutsideCache_UsesIndexLookup()
+    {
+        // Arrange
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 15)
+            .Build();
+
+        var dataSource = new TestDataSourceWithIndexLookup(1000);
+        var focusedKey = (object?)"Row 500"; // Focus a row far outside the initial cache
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Row 500"), TimeSpan.FromSeconds(3), "Wait for table to scroll to focused row")
+            .Wait(100)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Assert - the data source's GetIndexForKey should have been called
+        Assert.Contains("Row 500", dataSource.IndexLookupKeys);
+    }
+
+    [Fact]
+    public async Task VirtualizedScroll_DataSourceWithoutIndexLookup_DoesNotScrollToRowOutsideCache()
+    {
+        // Arrange - data source without GetIndexForKey should NOT scroll to out-of-cache row
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 15)
+            .Build();
+
+        var dataSource = new TestDataSourceWithoutIndexLookup(1000);
+        var focusedKey = (object?)"Row 500"; // Focus a row far outside the initial cache
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Table(dataSource)
+                .RowKey(s => s)
+                .Header(h => [h.Cell("Name")])
+                .Row((r, item, _) => [r.Cell(item)])
+                .Focus(focusedKey)
+                .OnFocusChanged(key => focusedKey = key)
+                .FillHeight(),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render - the row 500 should NOT be visible (not scrolled)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => !s.ContainsText("Row 500"), TimeSpan.FromSeconds(2), "Wait for table to render without scrolling to out-of-cache row")
+            .Wait(100)
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Assert - should still show the initial cache (rows 0-49), not row 500
+        var snapshot = terminal.CreateSnapshot();
+        var text = snapshot.GetScreenText();
+        Assert.DoesNotContain("Row 500", text);
+    }
+
+    #endregion
+
     #region Focus Scroll and Click Handler Bug Fixes
 
     [Fact]

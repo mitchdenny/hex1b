@@ -43,4 +43,28 @@ public interface ITableDataSource<T> : INotifyCollectionChanged
         int startIndex, 
         int count, 
         CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the index of an item by its key.
+    /// Implement this method to enable auto-scrolling to rows outside the cached viewport
+    /// when using virtualization.
+    /// </summary>
+    /// <param name="key">The key of the item to find. This is the same key type used when
+    /// setting focus on a table row, or the index if no key selector is provided.</param>
+    /// <param name="cancellationToken">Cancellation token.</param>
+    /// <returns>The index of the item if found, or null if not found.</returns>
+    /// <remarks>
+    /// <para>
+    /// This method is optional. If not implemented, auto-scrolling to rows outside
+    /// the current cache will not work - the table won't be able to determine
+    /// where to scroll.
+    /// </para>
+    /// <para>
+    /// For in-memory collections like <see cref="ListTableDataSource{T}"/>, this can
+    /// perform a linear search. For remote data sources, this can make an efficient
+    /// indexed lookup (e.g., database query by primary key).
+    /// </para>
+    /// </remarks>
+    ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+        => new ValueTask<int?>(result: null);
 }
