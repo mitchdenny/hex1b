@@ -306,10 +306,11 @@ public partial class KgpWindowRenderingTests
 public partial class KgpWindowRenderingTests
 {
     [Fact]
-    public void TokenOrder_KgpEmittedBeforeTextAndNotOverwritten()
+    public void TokenOrder_KgpEmittedAfterTextWithCleanTextLayer()
     {
-        // Verify that KGP tokens are emitted first, and subsequent text tokens
-        // don't write to cells covered by the KGP region
+        // Verify that text layer cells (including spaces under KGP region)
+        // are emitted BEFORE the KGP placement, and that the KGP placement
+        // is emitted last so it renders on top.
         var pixelData = MakePixelData();
         var surface = new Surface(20, 10, new CellMetrics(8, 16));
         
@@ -327,8 +328,7 @@ public partial class KgpWindowRenderingTests
         // Write text at row 3 (below KGP region)
         surface[0, 3] = new SurfaceCell("B", null, null);
         
-        // Also put spaces at cells COVERED by KGP (rows 1-2, cols 0-3)
-        // These should be skipped in the output
+        // Put spaces at cells COVERED by KGP (rows 1-2, cols 0-3)
         for (int y = 1; y <= 2; y++)
             for (int x = 0; x < 4; x++)
                 if (!(x == 0 && y == 1)) // skip anchor
@@ -337,7 +337,7 @@ public partial class KgpWindowRenderingTests
         var diff = SurfaceComparer.CompareToEmpty(surface);
         var tokens = SurfaceComparer.ToTokens(diff, surface);
         
-        // Find KGP token index
+        // Find the KGP transmit token
         int kgpTokenIdx = -1;
         for (int i = 0; i < tokens.Count; i++)
         {
@@ -349,30 +349,27 @@ public partial class KgpWindowRenderingTests
         }
         Assert.True(kgpTokenIdx >= 0, "KGP token not found");
         
-        // Verify there's a cursor position token right before the KGP
+        // KGP should be near the END (after text tokens)
+        // Find "Hi" text token — should be before KGP
+        int hiIdx = -1;
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            if (tokens[i] is Hex1b.Tokens.TextToken tt && tt.Text == "H")
+            {
+                hiIdx = i;
+                break;
+            }
+        }
+        Assert.True(hiIdx >= 0, "Text 'H' not found");
+        Assert.True(hiIdx < kgpTokenIdx, "Text should be emitted BEFORE KGP placement");
+        
+        // Verify there's a cursor position token right before the KGP transmit
         Assert.True(kgpTokenIdx > 0 && tokens[kgpTokenIdx - 1] is Hex1b.Tokens.CursorPositionToken,
             "Expected cursor position before KGP token");
         
         var cursorToken = (Hex1b.Tokens.CursorPositionToken)tokens[kgpTokenIdx - 1];
         Assert.Equal(2, cursorToken.Row);  // 1-based row 2 = 0-based row 1
         Assert.Equal(1, cursorToken.Column); // 1-based col 1 = 0-based col 0
-        
-        // Verify NO cursor position targets rows 1-2, cols 1-3 after the KGP token
-        // (those cells should be skipped as covered by KGP)
-        for (int i = kgpTokenIdx + 1; i < tokens.Count; i++)
-        {
-            if (tokens[i] is Hex1b.Tokens.CursorPositionToken cp)
-            {
-                var row0 = cp.Row - 1;
-                var col0 = cp.Column - 1;
-                // Check if this position is within the KGP region (rows 1-2, cols 0-3)
-                // but NOT the anchor (row 1, col 0)
-                bool inKgpRegion = row0 >= 1 && row0 <= 2 && col0 >= 0 && col0 < 4;
-                bool isAnchor = row0 == 1 && col0 == 0;
-                Assert.False(inKgpRegion && !isAnchor,
-                    $"Cursor positioned at ({col0},{row0}) which is inside KGP region but not anchor");
-            }
-        }
     }
 }
 

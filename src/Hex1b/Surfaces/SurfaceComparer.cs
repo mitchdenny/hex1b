@@ -271,6 +271,8 @@ public static class SurfaceComparer
         // AND we need to track the regions to skip blank cells underneath
         var previousHadKgp = previousSurface != null && previousSurface.HasKgp;
         var currentHasKgp = currentSurface != null && currentSurface.HasKgp;
+        var anyKgpDirty = false;
+        var kgpAnchors = new List<(int X, int Y, KgpCellData Data)>();
         
         if (currentHasKgp)
         {
@@ -282,8 +284,7 @@ public static class SurfaceComparer
             }
             
             // First pass: collect all KGP regions and check if any are dirty
-            var anyKgpDirty = previousHadKgp; // If previous had KGP, always re-emit to handle moves
-            var kgpAnchors = new List<(int X, int Y, KgpCellData Data)>();
+            anyKgpDirty = previousHadKgp; // If previous had KGP, always re-emit to handle moves
             
             for (var y = 0; y < currentSurface!.Height; y++)
             {
@@ -321,12 +322,9 @@ public static class SurfaceComparer
                 // when images move or are removed
                 tokens.Add(new UnrecognizedSequenceToken("\x1b_Ga=d,d=a,q=2\x1b\\"));
                 
-                // Re-emit ALL KGP images (not just dirty ones) since we deleted all
-                foreach (var (ax, ay, data) in kgpAnchors)
-                {
-                    tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
-                    tokens.Add(new UnrecognizedSequenceToken(data.Payload));
-                }
+                // KGP placements are emitted AFTER the main diff loop (below)
+                // so that the text layer is fully cleared before the image is drawn on top.
+                // This prevents ghost text appearing when the image moves/is deleted.
             }
         }
         else if (previousHadKgp)
@@ -355,9 +353,9 @@ public static class SurfaceComparer
             if (IsCoveredBySixelRegion(change.X, change.Y, change.Cell, sixelRegions))
                 continue;
 
-            // Skip cells that are covered by a KGP image overlay
-            if (IsCoveredByKgpRegion(change.X, change.Y, change.Cell, kgpRegions))
-                continue;
+            // Note: we intentionally do NOT skip cells covered by KGP image regions.
+            // The text layer must be cleared (spaces written) under KGP images so that
+            // when the image moves or is deleted, no stale text is revealed.
 
             // Position cursor if needed
             if (change.Y != cursorY || change.X != cursorX)
@@ -482,6 +480,19 @@ public static class SurfaceComparer
         if (currentHyperlink != null)
         {
             tokens.Add(new OscToken("8", "", "", UseEscBackslash: true));
+        }
+
+        // Emit KGP placements AFTER the main diff loop.
+        // This ensures the text layer is fully written (spaces under image regions)
+        // before the KGP image is drawn on top. When the image later moves or is deleted,
+        // the clean text layer prevents ghost artifacts.
+        if (currentHasKgp && anyKgpDirty)
+        {
+            foreach (var (ax, ay, data) in kgpAnchors)
+            {
+                tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
+                tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+            }
         }
 
         return tokens;

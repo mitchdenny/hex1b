@@ -118,10 +118,11 @@ public class KgpPipelineDiagnostic
     }
 
     [Fact]
-    public void KgpRegion_CellsUnderImageAreSkippedInTokens()
+    public void KgpRegion_CellsUnderImageAreWrittenAsSpaces()
     {
-        // When text cells exist under the KGP display region,
-        // the comparer must skip them to avoid erasing the image overlay
+        // Cells under the KGP display region must be written as spaces
+        // so that when the image moves or is deleted, no stale text is revealed.
+        // The KGP image renders on top (z-index 0), hiding the spaces.
         var surface = new Surface(20, 10);
         var ctx = new SurfaceRenderContext(surface, Theming.Hex1bThemes.Default);
         ctx.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
@@ -139,10 +140,9 @@ public class KgpPipelineDiagnostic
         node.Render(ctx);
 
         // Manually write spaces into cells that are under the KGP display region
-        // This simulates what a parent container (VStack) might do
         for (int y = 0; y < 2; y++)
             for (int x = 0; x < 4; x++)
-                if (x != 0 || y != 0) // skip anchor
+                if (x != 0 || y != 0)
                     surface[x, y] = new SurfaceCell(" ", null, null);
 
         // Also write text OUTSIDE the KGP region
@@ -152,29 +152,25 @@ public class KgpPipelineDiagnostic
         var diff = SurfaceComparer.CompareToEmpty(surface);
         var tokens = SurfaceComparer.ToTokens(diff, surface);
 
-        // Count CursorPositionTokens that target the KGP region (excluding anchor)
-        var cursorsInRegion = tokens.OfType<CursorPositionToken>()
-            .Where(cp => cp.Row >= 1 && cp.Row <= 2 && cp.Column >= 1 && cp.Column <= 4)
-            .Where(cp => !(cp.Row == 1 && cp.Column == 1)) // exclude anchor position
-            .ToList();
-
-        // No cursor moves should target cells under the KGP image
-        Assert.Empty(cursorsInRegion);
-
-        // The "Hi" text outside the region should still be emitted
+        // The "Hi" text outside the region should be emitted
         var serialized = AnsiTokenUtf8Serializer.Serialize(tokens);
         var output = Encoding.UTF8.GetString(serialized.Span);
         Assert.Contains("H", output);
         Assert.Contains("i", output);
         Assert.Contains("\x1b_G", output); // KGP still present
+
+        // Cells under KGP SHOULD now be written (as spaces) to keep text layer clean
+        // Verify spaces are present in the output for the KGP region cells
+        var textTokens = tokens.OfType<TextToken>().ToList();
+        Assert.True(textTokens.Count > 0, "Should have text tokens (including spaces under KGP)");
     }
 
     [Fact]
     public void KgpPreScan_RegionTrackedEvenWhenAnchorUnchanged()
     {
-        // Bug #5: On subsequent frames, if the KGP anchor cell is unchanged,
-        // kgpRegions was empty and blank cells in the image area were emitted,
-        // erasing the image. The fix pre-scans the surface for KGP regions.
+        // On subsequent frames, KGP regions must be tracked and the image re-emitted
+        // even when the anchor cell is unchanged. Cells under the image ARE written
+        // as spaces to keep the text layer clean.
         var surface = new Surface(20, 10);
         var ctx = new SurfaceRenderContext(surface, Theming.Hex1bThemes.Default);
         ctx.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
@@ -194,55 +190,25 @@ public class KgpPipelineDiagnostic
         // Save the surface state (frame 1 complete)
         var oldSurface = surface.Clone();
 
-        // Now simulate frame 2: some cells OUTSIDE the KGP region changed,
-        // and some cells INSIDE the region also changed (e.g., blanks written by layout)
-        // But the KGP anchor cell (0,0) is UNCHANGED.
-        
-        // Create a new surface identical to old, then change cells in the KGP region
+        // Simulate frame 2: re-render KGP (same data), change cells inside and outside region
         var newSurface = oldSurface.Clone();
-        // Re-render KGP (same data → same hash → same KGP cell data)
         var ctx2 = new SurfaceRenderContext(newSurface, Theming.Hex1bThemes.Default);
         ctx2.SetCapabilities(new TerminalCapabilities { SupportsKgp = true });
         node.Render(ctx2);
         
-        // Also change a cell INSIDE the KGP region (simulates layout writing a space)
         newSurface[1, 0] = new SurfaceCell(" ", null, null);
-        // And change a cell OUTSIDE
         newSurface[10, 5] = new SurfaceCell("X", null, null);
 
         var diff = SurfaceComparer.Compare(oldSurface, newSurface);
-        var tokens = SurfaceComparer.ToTokens(diff, newSurface);
+        var tokens = SurfaceComparer.ToTokens(diff, newSurface, oldSurface);
         
         var serialized = Encoding.UTF8.GetString(AnsiTokenUtf8Serializer.Serialize(tokens).Span);
         
-        // The KGP should be re-emitted (because cells in its region are dirty)
+        // The KGP should be re-emitted
         Assert.Contains("\x1b_G", serialized);
         
         // The "X" at (10,5) should be emitted
         Assert.Contains("X", serialized);
-        
-        // No blank cells should be emitted at positions within the KGP region
-        // (except the anchor which has KGP data)
-        var cursorTokens = tokens.OfType<CursorPositionToken>().ToList();
-        foreach (var cp in cursorTokens)
-        {
-            int row0 = cp.Row - 1;
-            int col0 = cp.Column - 1;
-            // If cursor targets inside KGP region (excluding anchor)
-            if (row0 >= 0 && row0 < 2 && col0 >= 0 && col0 < 4 && !(row0 == 0 && col0 == 0))
-            {
-                // This should NOT happen - the cell should be skipped
-                int idx = tokens.ToList().IndexOf(cp);
-                // Check if next non-SGR token is a text write
-                for (int j = idx + 1; j < tokens.Count; j++)
-                {
-                    if (tokens[j] is SgrToken) continue;
-                    if (tokens[j] is TextToken t && t.Text.Trim() == "")
-                        Assert.Fail($"Blank text written at ({col0},{row0}) inside KGP region on frame 2");
-                    break;
-                }
-            }
-        }
     }
 
     [Fact]

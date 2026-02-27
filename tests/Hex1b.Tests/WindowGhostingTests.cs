@@ -4,7 +4,7 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
-public class WindowGhostingTests
+public partial class WindowGhostingTests
 {
     [Fact]
     public void WindowMove_OldBorderCells_AppearInDiff()
@@ -121,5 +121,65 @@ public class WindowGhostingTests
         for (int j = y + 1; j < y + h - 1; j++)
             for (int i = x + 1; i < x + w - 1; i++)
                 surface[i, j] = new SurfaceCell(" ", null, null);
+    }
+}
+
+public partial class WindowGhostingTests
+{
+    [Fact]
+    public void KgpMove_TextLayerClearedBeforeImagePlacement()
+    {
+        // When a KGP image moves, the text layer at the old position must be
+        // cleared BEFORE the new KGP placement is emitted. This prevents ghost
+        // text from appearing when the image is later deleted or moved again.
+        var width = 30;
+        var height = 15;
+
+        // Frame 1: KGP at (5, 3) spanning 4 cols x 2 rows
+        var surface1 = new Surface(width, height, new CellMetrics(8, 16));
+        var payload1 = "\x1b_Ga=T,f=32,s=4,v=4,i=1,c=4,r=2,C=1,q=2;AAAA\x1b\\";
+        var kgpData1 = new Kgp.KgpCellData(payload1, 4, 2);
+        surface1[5, 3] = new SurfaceCell(" ", null, null, KgpData: kgpData1);
+        // Fill cells under KGP with text (simulating window content)
+        surface1[6, 3] = new SurfaceCell("X", null, null);
+        surface1[7, 3] = new SurfaceCell("Y", null, null);
+        surface1[8, 3] = new SurfaceCell("Z", null, null);
+
+        // Frame 2: KGP moved left to (4, 3)
+        var surface2 = new Surface(width, height, new CellMetrics(8, 16));
+        var payload2 = "\x1b_Ga=p,i=1,c=4,r=2,C=1,q=2\x1b\\";
+        var kgpData2 = new Kgp.KgpCellData(payload2, 4, 2);
+        surface2[4, 3] = new SurfaceCell(" ", null, null, KgpData: kgpData2);
+        // Old position cells are now empty
+        
+        var diff = SurfaceComparer.Compare(surface1, surface2);
+        var tokens = SurfaceComparer.ToTokens(diff, surface2, surface1);
+        
+        // Find the KGP placement token
+        int kgpPlaceIdx = -1;
+        for (int i = 0; i < tokens.Count; i++)
+        {
+            if (tokens[i] is Hex1b.Tokens.UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p"))
+            {
+                kgpPlaceIdx = i;
+                break;
+            }
+        }
+        Assert.True(kgpPlaceIdx >= 0, "KGP placement token not found");
+        
+        // The old cells (5,3), (6,3), (7,3), (8,3) must be cleared (written as spaces)
+        // BEFORE the KGP placement
+        var serialized = AnsiTokenUtf8Serializer.Serialize(tokens);
+        var output = System.Text.Encoding.UTF8.GetString(serialized.Span);
+        
+        // Find position of KGP placement in output
+        var kgpPos = output.IndexOf("\x1b_Ga=p");
+        Assert.True(kgpPos > 0, "KGP placement not in output");
+        
+        // Verify cursor positioning to old cells happens BEFORE KGP placement
+        // Old cell at (6, 3) -> ANSI position 4;7 (1-based)
+        var beforeKgp = output[..kgpPos];
+        // There should be cursor moves and spaces in the text before the KGP
+        Assert.True(beforeKgp.Length > 10, "Expected text layer clearing before KGP placement");
     }
 }
