@@ -127,6 +127,138 @@ public class KgpOutputProofTest
     }
 
     [Fact]
+    public async Task KgpSequence_IsWellFormed_AndFollowsAltScreen()
+    {
+        // This test verifies the EXACT byte ordering and KGP sequence structure
+        // that a real terminal would receive.
+        
+        var pixelData = new byte[4 * 4 * 4]; // 4x4 red image
+        for (int i = 0; i < pixelData.Length; i += 4)
+        {
+            pixelData[i] = 255;     // R
+            pixelData[i + 3] = 255; // A
+        }
+
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true
+        };
+
+        var workload = new Hex1bAppWorkloadAdapter(capabilities);
+        await workload.ResizeAsync(40, 20);
+
+        var allBytes = new List<byte>();
+        using var readCts = new CancellationTokenSource();
+        var readTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!readCts.Token.IsCancellationRequested)
+                {
+                    var item = await workload.ReadOutputItemAsync(readCts.Token);
+                    if (!item.Bytes.IsEmpty)
+                        allBytes.AddRange(item.Bytes.ToArray());
+                }
+            }
+            catch (OperationCanceledException) { }
+        });
+
+        var app = new Hex1bApp(ctx =>
+            ctx.VStack(v => [
+                v.Text("Test"),
+                v.KittyGraphics(pixelData, 4, 4).WithDisplaySize(4, 2)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = false });
+
+        using var appCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try { await app.RunAsync(appCts.Token); } catch (OperationCanceledException) { }
+        await app.DisposeAsync();
+        await Task.Delay(100);
+        readCts.Cancel();
+        try { await readTask; } catch { }
+
+        var text = Encoding.UTF8.GetString(allBytes.ToArray());
+        var sb = new StringBuilder();
+        sb.AppendLine($"Total bytes: {allBytes.Count}");
+
+        // Find key sequences and their positions
+        var altScreenPos = text.IndexOf("\x1b[?1049h");
+        var clearScreenPos = text.IndexOf("\x1b[2J");
+        sb.AppendLine($"Alt screen at byte offset: {altScreenPos}");
+        sb.AppendLine($"Clear screen at byte offset: {clearScreenPos}");
+
+        // Find all KGP sequences
+        var kgpPositions = new List<(int Position, string Header, int Length)>();
+        int pos = 0;
+        while ((pos = text.IndexOf("\x1b_G", pos)) >= 0)
+        {
+            var end = text.IndexOf("\x1b\\", pos);
+            if (end < 0) { sb.AppendLine($"KGP at {pos}: UNTERMINATED!"); break; }
+            var seq = text.Substring(pos, end - pos + 2);
+            var semiPos = seq.IndexOf(';');
+            var header = semiPos >= 0 ? seq[2..semiPos] : seq[2..^2];
+            kgpPositions.Add((pos, header, seq.Length));
+            sb.AppendLine($"KGP at byte {pos}: header=\"{header}\", seq_len={seq.Length}");
+            pos = end + 2;
+        }
+
+        // Check cursor position before KGP
+        foreach (var (kgpPos, header, _) in kgpPositions)
+        {
+            // Look backwards for the nearest CUP sequence (\x1b[row;colH)
+            var searchStart = Math.Max(0, kgpPos - 20);
+            var before = text.Substring(searchStart, kgpPos - searchStart);
+            var cupMatch = System.Text.RegularExpressions.Regex.Match(before, @"\x1b\[(\d+);(\d+)H");
+            if (cupMatch.Success)
+            {
+                sb.AppendLine($"  Cursor before KGP: row={cupMatch.Groups[1].Value}, col={cupMatch.Groups[2].Value}");
+            }
+            else
+            {
+                sb.AppendLine($"  WARNING: No cursor position found before KGP!");
+            }
+        }
+
+        var diagnostics = sb.ToString();
+        File.WriteAllText("/tmp/kgp-byte-analysis.txt", diagnostics);
+        
+        // Dump full escaped output for debugging
+        var escapedFull = new StringBuilder();
+        foreach (char c in text)
+        {
+            if (c == '\x1b') escapedFull.Append("ESC");
+            else if (c < 0x20 && c != '\n') escapedFull.Append($"<{(int)c:X2}>");
+            else escapedFull.Append(c);
+        }
+        // Truncate base64 data for readability
+        var escaped = escapedFull.ToString();
+        var dataStart = escaped.IndexOf(";/");
+        if (dataStart > 0)
+        {
+            var dataEnd = escaped.IndexOf("ESC\\", dataStart);
+            if (dataEnd > 0 && dataEnd - dataStart > 40)
+                escaped = escaped[..dataStart] + ";[BASE64_DATA]" + escaped[dataEnd..];
+        }
+        File.AppendAllText("/tmp/kgp-byte-analysis.txt", "\n\nFull output (escaped):\n" + escaped);
+
+        // Assertions
+        Assert.True(altScreenPos >= 0, "Alt screen sequence not found");
+        Assert.True(kgpPositions.Count > 0, $"No KGP sequences found!\n{diagnostics}");
+        Assert.True(kgpPositions[0].Position > altScreenPos,
+            $"KGP appears BEFORE alt screen!\n{diagnostics}");
+        
+        // Verify KGP header is well-formed
+        var firstHeader = kgpPositions[0].Header;
+        Assert.Contains("a=T", firstHeader); // transmit+display
+        Assert.Contains("f=32", firstHeader); // RGBA format
+        Assert.Contains("s=4", firstHeader);  // width
+        Assert.Contains("v=4", firstHeader);  // height
+        Assert.Contains("i=", firstHeader);   // image ID present
+    }
+
+    [Fact]
     public async Task FullTerminal_KgpWidget_KgpBytesReachPresentation()
     {
         // This test goes through the FULL Hex1bTerminal pipeline (WithHex1bApp path)

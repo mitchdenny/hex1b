@@ -4,6 +4,9 @@ using Hex1b.Automation;
 using SkiaSharp;
 using Svg.Skia;
 
+// Clear any previous trace log
+if (File.Exists("/tmp/kgp-output-trace.log")) File.Delete("/tmp/kgp-output-trace.log");
+
 // Quick terminal KGP support check
 Console.WriteLine("=== Kitty Graphics Protocol Demo ===");
 Console.WriteLine($"TERM_PROGRAM={Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "(not set)"}");
@@ -18,7 +21,25 @@ Console.Write($"\x1b_Ga=T,f=32,s=2,v=2,i=999,c=4,r=2,q=2;{probeBase64}\x1b\\");
 Console.WriteLine();
 Console.WriteLine();
 Console.WriteLine("If you see a colored square above, your terminal supports KGP.");
-Console.WriteLine("Press Enter to launch the full demo...");
+Console.WriteLine("Press Enter to test KGP in alternate screen...");
+Console.ReadLine();
+
+// Test KGP in alternate screen buffer (raw, no Hex1b)
+Console.Write("\x1b[?1049h");    // Enter alternate screen
+Console.Write("\x1b[2J");        // Clear screen  
+Console.Write("\x1b[1;1H");      // Cursor home
+Console.Write("Alt-screen KGP test - you should see a colored square below:");
+Console.Write("\x1b[3;1H");      // Move to row 3
+Console.Write($"\x1b_Ga=T,f=32,s=2,v=2,i=998,c=4,r=2,q=2;{probeBase64}\x1b\\");
+Console.Write("\x1b[8;1H");      // Move below
+Console.Write("Press Enter to continue to full demo...");
+Console.Out.Flush();
+Console.ReadLine();
+Console.Write("\x1b[?1049l");    // Exit alternate screen
+
+Console.WriteLine();
+Console.WriteLine("Did you see the colored square in the alt screen?");
+Console.WriteLine("Press Enter to continue to full Hex1b demo...");
 Console.ReadLine();
 
 const uint imageWidth = 32;
@@ -53,6 +74,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .Build();
 
 await terminal.RunAsync();
+
+// Show KGP trace log if it exists
+if (File.Exists("/tmp/kgp-output-trace.log"))
+{
+    Console.WriteLine("\n=== KGP Output Trace ===");
+    Console.WriteLine(File.ReadAllText("/tmp/kgp-output-trace.log"));
+}
+else
+{
+    Console.WriteLine("\nNo KGP sequences were detected in output!");
+}
 
 // Save snapshot after app exits
 var snapshot = terminal.CreateSnapshot();

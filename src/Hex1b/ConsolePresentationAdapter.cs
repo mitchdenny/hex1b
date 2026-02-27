@@ -145,6 +145,29 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     {
         if (_disposed) return ValueTask.CompletedTask;
 
+        // Temporary KGP diagnostic — log any writes containing KGP sequences
+        if (_forceKgp && data.Length > 0)
+        {
+            var span = data.Span;
+            for (int i = 0; i < span.Length - 1; i++)
+            {
+                if (span[i] == 0x1b && i + 1 < span.Length && span[i + 1] == '_')
+                {
+                    // Found ESC _ (APC start) — this is a KGP sequence
+                    try
+                    {
+                        var text = System.Text.Encoding.UTF8.GetString(span);
+                        var preview = text.Length > 200 ? text[..200] + "..." : text;
+                        File.AppendAllText("/tmp/kgp-output-trace.log",
+                            $"[{DateTime.Now:HH:mm:ss.fff}] WriteOutput: {data.Length} bytes, contains KGP\n" +
+                            $"  Preview (escaped): {preview.Replace("\x1b", "ESC").Replace("\n", "\\n").Replace("\r", "\\r")}\n");
+                    }
+                    catch { /* ignore logging errors */ }
+                    break;
+                }
+            }
+        }
+
         _driver.Write(data.Span);
         _driver.Flush();
         return ValueTask.CompletedTask;
