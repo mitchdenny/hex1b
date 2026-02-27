@@ -434,3 +434,249 @@ public partial class KgpWindowRenderingTests
         Assert.StartsWith("m=0", sequences[^1]);
     }
 }
+
+public partial class KgpWindowRenderingTests
+{
+    [Fact]
+    public async Task FullApp_KgpMinimal_DumpRawBytes()
+    {
+        // Captures the exact bytes sent by the app for a simple KGP image
+        // This is a diagnostic test to verify the KGP byte-level format
+        var pixelData = new byte[8 * 8 * 4]; // 8x8 RGBA
+        for (int i = 0; i < pixelData.Length; i += 4) { pixelData[i] = 255; pixelData[i + 3] = 255; }
+
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsKgp = true, SupportsTrueColor = true, Supports256Colors = true
+        };
+
+        var workload = new Hex1bAppWorkloadAdapter(capabilities);
+        await workload.ResizeAsync(30, 10);
+
+        var allBytes = new List<byte>();
+        using var readCts = new CancellationTokenSource();
+        var readTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!readCts.Token.IsCancellationRequested)
+                {
+                    var item = await workload.ReadOutputItemAsync(readCts.Token);
+                    if (!item.Bytes.IsEmpty) allBytes.AddRange(item.Bytes.ToArray());
+                }
+            }
+            catch (OperationCanceledException) { }
+        });
+
+        var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.KittyGraphics(pixelData, 8, 8).WithDisplaySize(4, 2)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = false }
+        );
+
+        using var appCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try { await app.RunAsync(appCts.Token); } catch (OperationCanceledException) { }
+        await app.DisposeAsync();
+        await Task.Delay(100);
+        readCts.Cancel();
+        try { await readTask; } catch { }
+
+        var text = Encoding.UTF8.GetString(allBytes.ToArray());
+
+        // Extract ALL KGP APC sequences
+        var kgpSequences = new List<string>();
+        for (int i = 0; i < text.Length - 2; i++)
+        {
+            if (text[i] == '\x1b' && text[i + 1] == '_' && i + 2 < text.Length && text[i + 2] == 'G')
+            {
+                var endIdx = text.IndexOf("\x1b\\", i + 3, StringComparison.Ordinal);
+                if (endIdx > 0)
+                {
+                    var fullSeq = text.Substring(i, endIdx + 2 - i);
+                    kgpSequences.Add(fullSeq);
+                    i = endIdx + 1;
+                }
+            }
+        }
+
+        Assert.True(kgpSequences.Count >= 2, $"Expected at least 2 KGP sequences (delete + transmit), got {kgpSequences.Count}");
+
+        // First should be delete all
+        Assert.Contains("a=d,d=a", kgpSequences[0]);
+
+        // Find the transmit sequence
+        var transmitSeq = kgpSequences.FirstOrDefault(s => s.Contains("a=T"));
+        Assert.NotNull(transmitSeq);
+
+        // Verify the transmit sequence is a valid APC
+        Assert.StartsWith("\x1b_G", transmitSeq);
+        Assert.EndsWith("\x1b\\", transmitSeq);
+
+        // Extract control data (between G and ;)
+        var innerStart = 3; // skip \x1b_G
+        var semicolonIdx = transmitSeq.IndexOf(';');
+        Assert.True(semicolonIdx > 0, "No semicolon in transmit sequence");
+        var controlData = transmitSeq.Substring(innerStart, semicolonIdx - innerStart);
+
+        // Verify all required params
+        var paramDict = controlData.Split(',')
+            .Select(p => p.Split('=', 2))
+            .Where(p => p.Length == 2)
+            .ToDictionary(p => p[0], p => p[1]);
+
+        Assert.Equal("T", paramDict["a"]);
+        Assert.Equal("32", paramDict["f"]); // RGBA format
+        Assert.Equal("8", paramDict["s"]);  // source width
+        Assert.Equal("8", paramDict["v"]);  // source height
+        Assert.True(paramDict.ContainsKey("i"), "Missing image ID");
+        Assert.Equal("4", paramDict["c"]);  // display columns
+        Assert.Equal("2", paramDict["r"]);  // display rows
+        Assert.Equal("1", paramDict["C"]);  // no cursor movement
+        Assert.Equal("2", paramDict["q"]);  // suppress responses
+
+        // Extract and validate base64 payload
+        var base64Data = transmitSeq.Substring(semicolonIdx + 1, transmitSeq.Length - semicolonIdx - 3); // remove \x1b\\
+        var decodedBytes = Convert.FromBase64String(base64Data);
+        Assert.Equal(8 * 8 * 4, decodedBytes.Length); // 8x8 RGBA
+
+        // Verify pixel data round-trips correctly
+        Assert.Equal(pixelData, decodedBytes);
+
+        // Verify a cursor position appears before the transmit
+        var transmitIdx = text.IndexOf(transmitSeq, StringComparison.Ordinal);
+        var beforeTransmit = text[..transmitIdx];
+        // Should have a CursorPosition (ESC [ row ; col H) near the end
+        var lastH = beforeTransmit.LastIndexOf('H');
+        Assert.True(lastH > 0, "No cursor position before transmit");
+    }
+}
+
+public partial class KgpWindowRenderingTests
+{
+    [Fact]
+    public async Task FullApp_KgpMultiChunk64x64_ProducesValidChunkedOutput()
+    {
+        // Test with a 64x64 image (21848 base64 chars = 6 chunks)
+        // This is the exact size used in the demo app
+        var pixelData = new byte[64 * 64 * 4];
+        for (int i = 0; i < pixelData.Length; i += 4)
+        {
+            pixelData[i] = 255;     // R
+            pixelData[i + 1] = 0;   // G
+            pixelData[i + 2] = 0;   // B
+            pixelData[i + 3] = 255; // A
+        }
+
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsKgp = true, SupportsTrueColor = true, Supports256Colors = true
+        };
+
+        var workload = new Hex1bAppWorkloadAdapter(capabilities);
+        await workload.ResizeAsync(40, 20);
+
+        var allBytes = new List<byte>();
+        using var readCts = new CancellationTokenSource();
+        var readTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!readCts.Token.IsCancellationRequested)
+                {
+                    var item = await workload.ReadOutputItemAsync(readCts.Token);
+                    if (!item.Bytes.IsEmpty) allBytes.AddRange(item.Bytes.ToArray());
+                }
+            }
+            catch (OperationCanceledException) { }
+        });
+
+        var app = new Hex1bApp(
+            ctx => ctx.VStack(v => [
+                v.KittyGraphics(pixelData, 64, 64).WithDisplaySize(16, 8)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = false }
+        );
+
+        using var appCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try { await app.RunAsync(appCts.Token); } catch (OperationCanceledException) { }
+        await app.DisposeAsync();
+        await Task.Delay(100);
+        readCts.Cancel();
+        try { await readTask; } catch { }
+
+        var text = Encoding.UTF8.GetString(allBytes.ToArray());
+
+        // Extract ALL KGP APC sequences
+        var kgpSequences = new List<string>();
+        for (int i = 0; i < text.Length - 2; i++)
+        {
+            if (text[i] == '\x1b' && text[i + 1] == '_' && i + 2 < text.Length && text[i + 2] == 'G')
+            {
+                var endIdx = text.IndexOf("\x1b\\", i + 3, StringComparison.Ordinal);
+                if (endIdx > 0)
+                {
+                    kgpSequences.Add(text.Substring(i, endIdx + 2 - i));
+                    i = endIdx + 1;
+                }
+            }
+        }
+
+        // Should have: 1 delete + 6 chunks (for 21848 base64 chars / 4096 = 6 chunks)
+        Assert.True(kgpSequences.Count >= 7, $"Expected at least 7 KGP sequences (1 delete + 6 chunks), got {kgpSequences.Count}");
+
+        // First is delete
+        Assert.Contains("a=d,d=a", kgpSequences[0]);
+
+        // Find all chunks (sequences with a=T or starting with m=)
+        var chunks = kgpSequences.Where(s => s.Contains("a=T") || s.Contains("Gm=")).ToList();
+        Assert.True(chunks.Count >= 6, $"Expected at least 6 chunks, got {chunks.Count}");
+
+        // First chunk has full metadata
+        var firstChunk = chunks[0];
+        Assert.Contains("a=T", firstChunk);
+        Assert.Contains("f=32", firstChunk);
+        Assert.Contains("s=64", firstChunk);
+        Assert.Contains("v=64", firstChunk);
+        Assert.Contains(",m=1", firstChunk);
+
+        // Middle chunks have only m=1
+        for (int i = 1; i < chunks.Count - 1; i++)
+        {
+            var chunk = chunks[i];
+            Assert.StartsWith("\x1b_Gm=1;", chunk);
+            Assert.DoesNotContain("a=T", chunk);
+        }
+
+        // Last chunk has m=0
+        var lastChunk = chunks[^1];
+        Assert.StartsWith("\x1b_Gm=0;", lastChunk);
+
+        // Verify all chunks are contiguous (no other tokens between chunks)
+        // Find the position of the first chunk in the full text
+        var firstChunkPos = text.IndexOf(firstChunk, StringComparison.Ordinal);
+        Assert.True(firstChunkPos >= 0);
+        
+        // All chunks should be immediately adjacent
+        var expectedPos = firstChunkPos;
+        foreach (var chunk in chunks)
+        {
+            var actualPos = text.IndexOf(chunk, expectedPos, StringComparison.Ordinal);
+            Assert.Equal(expectedPos, actualPos);
+            expectedPos = actualPos + chunk.Length;
+        }
+
+        // Reassemble and verify base64 data
+        var allBase64 = new StringBuilder();
+        foreach (var chunk in chunks)
+        {
+            var semi = chunk.IndexOf(';');
+            var end = chunk.Length - 2; // remove \x1b\\
+            allBase64.Append(chunk.AsSpan(semi + 1, end - semi - 1));
+        }
+
+        var decodedBytes = Convert.FromBase64String(allBase64.ToString());
+        Assert.Equal(64 * 64 * 4, decodedBytes.Length);
+        Assert.Equal(pixelData, decodedBytes);
+    }
+}
