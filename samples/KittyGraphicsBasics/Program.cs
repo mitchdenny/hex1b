@@ -4,6 +4,23 @@ using Hex1b.Automation;
 using SkiaSharp;
 using Svg.Skia;
 
+// Quick terminal KGP support check
+Console.WriteLine("=== Kitty Graphics Protocol Demo ===");
+Console.WriteLine($"TERM_PROGRAM={Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "(not set)"}");
+Console.WriteLine($"TERM={Environment.GetEnvironmentVariable("TERM") ?? "(not set)"}");
+Console.WriteLine();
+
+// Raw KGP probe: send a tiny 2x2 red square to verify terminal support
+var probePixels = new byte[] { 255, 0, 0, 255, 0, 255, 0, 255, 0, 0, 255, 255, 255, 255, 0, 255 };
+var probeBase64 = Convert.ToBase64String(probePixels);
+Console.Write("KGP probe (you should see a small colored square): ");
+Console.Write($"\x1b_Ga=T,f=32,s=2,v=2,i=999,c=4,r=2,q=2;{probeBase64}\x1b\\");
+Console.WriteLine();
+Console.WriteLine();
+Console.WriteLine("If you see a colored square above, your terminal supports KGP.");
+Console.WriteLine("Press Enter to launch the full demo...");
+Console.ReadLine();
+
 const uint imageWidth = 32;
 const uint imageHeight = 32;
 var pixelData = GenerateTestPattern(imageWidth, imageHeight);
@@ -31,7 +48,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]),
         v.Text(""),
         v.Separator(),
-        v.Text("Press Ctrl+C to exit (SVG+PNG saved on exit)")
+        v.Text("Press Ctrl+C to exit")
     ]))
     .Build();
 
