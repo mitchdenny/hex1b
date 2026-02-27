@@ -527,21 +527,7 @@ public sealed class Surface : ISurfaceSource
                 // Clip sixels that would extend beyond destination bounds
                 if (srcCell.HasSixel && srcCell.Sixel?.Data is not null)
                 {
-                    System.IO.File.AppendAllText("/tmp/composite-sixel.log",
-                        $"[{DateTime.Now:HH:mm:ss.fff}] Compositing sixel at src({srcX},{srcY}) -> dest({destX},{destY}), " +
-                        $"sixel span {srcCell.Sixel.Data.WidthInCells}x{srcCell.Sixel.Data.HeightInCells}, " +
-                        $"dest surface {Width}x{Height}\n");
                     srcCell = ClipSixelCell(srcCell, destX, destY);
-                    if (srcCell.HasSixel)
-                    {
-                        System.IO.File.AppendAllText("/tmp/composite-sixel.log",
-                            $"  After clip: span {srcCell.Sixel!.Data.WidthInCells}x{srcCell.Sixel.Data.HeightInCells}\n");
-                    }
-                    else
-                    {
-                        System.IO.File.AppendAllText("/tmp/composite-sixel.log",
-                            $"  After clip: REMOVED\n");
-                    }
                 }
 
                 var index = destRowStart + destX;
