@@ -16,6 +16,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private readonly IConsoleDriver _driver;
     private readonly bool _enableMouse;
     private readonly bool _preserveOPost;
+    private readonly bool _forceKgp;
     private readonly CancellationTokenSource _disposeCts = new();
     private ITerminalReflowProvider _reflowStrategy;
     private bool _reflowEnabled;
@@ -31,13 +32,17 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     /// This is useful for WithProcess scenarios where child programs expect normal output handling.
     /// Defaults to false for full raw mode (required for terminal emulators and Hex1bApp).
     /// </param>
+    /// <param name="forceKgp">
+    /// If true, force Kitty Graphics Protocol support regardless of terminal detection.
+    /// </param>
     /// <exception cref="PlatformNotSupportedException">
     /// Thrown if raw mode is not supported on the current platform.
     /// </exception>
-    public ConsolePresentationAdapter(bool enableMouse = false, bool preserveOPost = false)
+    public ConsolePresentationAdapter(bool enableMouse = false, bool preserveOPost = false, bool forceKgp = false)
     {
         _enableMouse = enableMouse;
         _preserveOPost = preserveOPost;
+        _forceKgp = forceKgp;
         
         // Create platform-specific driver
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
@@ -117,7 +122,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         SupportsAlternateScreen = true,
         HandlesAlternateScreenNatively = true,  // Real upstream terminal handles buffer switching
         SupportsBracketedPaste = true,  // Raw mode can handle this
-        SupportsKgp = DetectKgpSupport()
+        SupportsKgp = _forceKgp || DetectKgpSupport()
     };
 
     private static bool DetectKgpSupport()

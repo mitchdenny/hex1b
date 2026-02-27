@@ -9,6 +9,7 @@ const uint imageHeight = 32;
 var pixelData = GenerateTestPattern(imageWidth, imageHeight);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithKittyGraphicsSupport()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Kitty Graphics Protocol (KGP) Demo"),
         v.Separator(),

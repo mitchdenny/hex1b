@@ -40,11 +40,12 @@ public sealed class Hex1bTerminalBuilder
     private readonly List<IHex1bTerminalWorkloadFilter> _workloadFilters = [];
     private readonly List<IHex1bTerminalPresentationFilter> _presentationFilters = [];
     private Func<Hex1bTerminalBuilder, IHex1bTerminalPresentationAdapter> _presentationFactory = 
-        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost);
+        builder => new ConsolePresentationAdapter(enableMouse: builder._enableMouse, preserveOPost: builder._preserveOPost, forceKgp: builder._forceKgp);
     private int _width = 80;
     private int _height = 24;
     private TimeProvider? _timeProvider;
     private bool _enableMouse;
+    private bool _forceKgp;
     private bool _preserveOPost;
     private bool _diagnosticsEnabled;
     private Diagnostics.Hex1bMetrics? _metrics;
@@ -638,6 +639,20 @@ public sealed class Hex1bTerminalBuilder
     public Hex1bTerminalBuilder WithMouse(bool enable = true)
     {
         _enableMouse = enable;
+        return this;
+    }
+
+    /// <summary>
+    /// Forces Kitty Graphics Protocol (KGP) support, bypassing automatic terminal detection.
+    /// </summary>
+    /// <remarks>
+    /// By default, KGP support is auto-detected from TERM_PROGRAM and TERM environment variables.
+    /// Use this when your terminal supports KGP but is not auto-detected (e.g., custom terminal builds,
+    /// tmux sessions, or SSH connections that strip environment variables).
+    /// </remarks>
+    public Hex1bTerminalBuilder WithKittyGraphicsSupport(bool enable = true)
+    {
+        _forceKgp = enable;
         return this;
     }
 
