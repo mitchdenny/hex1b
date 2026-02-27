@@ -1,0 +1,12 @@
+# Elite (1984) - Escape Pod
+# Converted from bbcelite.com source code
+# https://github.com/markmoxon/elite-source-code-library
+o Escape Pod
+v -0.070000 0.000000 0.360000
+v -0.070000 -0.140000 -0.120000
+v -0.070000 0.140000 -0.120000
+v 0.210000 0.000000 0.000000
+f 2 3 4
+f 1 4 3
+f 1 2 4
+f 3 2 1

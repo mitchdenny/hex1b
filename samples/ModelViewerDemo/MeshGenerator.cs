@@ -16,7 +16,7 @@ internal static class MeshGenerator
         "male standing", "male running", "male walking", "male sitting",
         "female standing", "female running",
         // Classic CG test models
-        "teapot", "suzanne", "beetle", "cow", "spot", "alligator",
+        "teapot", "suzanne", "beetle", "cow", "spot",
         // Miscellaneous OBJ models
         "head", "goblet", "helix", "seashell", "epcot", "space shuttle",
         // Procedural spaceships
@@ -24,6 +24,17 @@ internal static class MeshGenerator
         // Primitives
         "cube", "sphere", "torus", "cylinder", "pyramid",
         "dodecahedron", "icosahedron", "octahedron",
+        // Elite (1984) ships — authentic low-poly models from the C64 version
+        "elite sidewinder", "elite viper", "elite mamba", "elite krait",
+        "elite adder", "elite gecko", "elite worm",
+        "elite cobra mk 1", "elite cobra mk 3",
+        "elite python", "elite boa", "elite anaconda",
+        "elite fer-de-lance", "elite moray", "elite asp mk 2",
+        "elite shuttle", "elite transporter",
+        "elite constrictor", "elite cougar",
+        "elite thargoid",
+        "elite coriolis station", "elite dodo station",
+        "elite missile", "elite escape pod",
     ];
 
     private static readonly Dictionary<string, string> EmbeddedModelMap = new()
@@ -39,13 +50,37 @@ internal static class MeshGenerator
         ["beetle"] = "beetle.obj",
         ["cow"] = "cow.obj",
         ["spot"] = "spot.obj",
-        ["alligator"] = "alligator.obj",
         ["head"] = "head.obj",
         ["goblet"] = "goblet.obj",
         ["helix"] = "helix2.obj",
         ["seashell"] = "seashell.obj",
         ["epcot"] = "epcot.obj",
         ["space shuttle"] = "space_shuttle.obj",
+        // Elite (1984) ships
+        ["elite sidewinder"] = "elite_sidewinder.obj",
+        ["elite viper"] = "elite_viper.obj",
+        ["elite mamba"] = "elite_mamba.obj",
+        ["elite krait"] = "elite_krait.obj",
+        ["elite adder"] = "elite_adder.obj",
+        ["elite gecko"] = "elite_gecko.obj",
+        ["elite worm"] = "elite_worm.obj",
+        ["elite cobra mk 1"] = "elite_cobra_mk_1.obj",
+        ["elite cobra mk 3"] = "elite_cobra_mk_3.obj",
+        ["elite python"] = "elite_python.obj",
+        ["elite boa"] = "elite_boa.obj",
+        ["elite anaconda"] = "elite_anaconda.obj",
+        ["elite fer-de-lance"] = "elite_fer_de_lance.obj",
+        ["elite moray"] = "elite_moray.obj",
+        ["elite asp mk 2"] = "elite_asp_mk_2.obj",
+        ["elite shuttle"] = "elite_shuttle.obj",
+        ["elite transporter"] = "elite_transporter.obj",
+        ["elite constrictor"] = "elite_constrictor.obj",
+        ["elite cougar"] = "elite_cougar.obj",
+        ["elite thargoid"] = "elite_thargoid.obj",
+        ["elite coriolis station"] = "elite_coriolis_station.obj",
+        ["elite dodo station"] = "elite_dodo_station.obj",
+        ["elite missile"] = "elite_missile.obj",
+        ["elite escape pod"] = "elite_escape_pod.obj",
     };
 
     public static Mesh Create(string name)
