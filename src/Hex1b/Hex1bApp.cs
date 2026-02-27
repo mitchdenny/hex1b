@@ -725,6 +725,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Note: widgetTree is always non-null here - either from _rootComponent or RescueWidget wrapping
         widgetTree = new ZStackWidget([widgetTree!]);
 
+        // Step 2.6: Wrap in KGP host when graphics protocol is enabled
+        // This injects a shared image cache for all descendant KittyGraphicsNodes
+        if (_adapter.Capabilities.SupportsKgp)
+        {
+            widgetTree = new KittyGraphicsHostWidget(widgetTree);
+        }
+
         // Step 3: Reconcile - update the node tree to match the widget tree
         long reconcileTicks;
         {

@@ -22,7 +22,8 @@ namespace Hex1b;
 /// <seealso cref="KittyGraphicsWidget"/>
 public sealed class KittyGraphicsNode : Hex1bNode
 {
-    private static uint _nextImageId = 1;
+    // Fallback ID counter used when no KgpImageCache is available (e.g., in tests)
+    private static uint _fallbackNextImageId = 1;
 
     /// <summary>Raw pixel data.</summary>
     public byte[] PixelData { get; set; } = [];
@@ -41,9 +42,6 @@ public sealed class KittyGraphicsNode : Hex1bNode
 
     /// <summary>Display height in terminal rows. 0 = auto.</summary>
     public uint DisplayRows { get; set; }
-
-    private byte[]? _lastContentHash;
-    private uint _assignedImageId;
 
     /// <summary>
     /// Measures the size needed to display the image.
@@ -70,13 +68,28 @@ public sealed class KittyGraphicsNode : Hex1bNode
             return;
 
         var contentHash = SHA256.HashData(PixelData);
-        var needsTransmit = _lastContentHash is null ||
-                            !contentHash.AsSpan().SequenceEqual(_lastContentHash);
+        var cache = context.KgpCache;
 
-        if (needsTransmit)
+        // Check the shared cache first — another node may have already transmitted this image
+        bool needsTransmit;
+        uint imageId;
+        if (cache != null)
         {
-            _assignedImageId = _nextImageId++;
-            _lastContentHash = contentHash;
+            if (cache.TryGetImageId(contentHash, out imageId))
+            {
+                needsTransmit = false;
+            }
+            else
+            {
+                imageId = cache.AllocateImageId();
+                needsTransmit = true;
+            }
+        }
+        else
+        {
+            // No cache available (e.g., tests without host widget) — fallback to static counter
+            imageId = _fallbackNextImageId++;
+            needsTransmit = true;
         }
 
         var cols = DisplayColumns > 0 ? DisplayColumns : (uint)EstimateCellColumns();
@@ -86,66 +99,12 @@ public sealed class KittyGraphicsNode : Hex1bNode
         string payload;
         if (needsTransmit)
         {
-            var base64 = Convert.ToBase64String(PixelData);
-            
-            // KGP spec requires chunks no larger than 4096 bytes of base64 data.
-            // For small images that fit in one chunk, use a=T directly.
-            // For larger images, chunk with m=1 (more follows) / m=0 (last).
-            const int maxChunkSize = 4096;
-            
-            if (base64.Length <= maxChunkSize)
-            {
-                // Single chunk — transmit+display in one sequence
-                var sb = new StringBuilder();
-                sb.Append("\x1b_G");
-                sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
-                sb.Append($",i={_assignedImageId}");
-                sb.Append($",c={cols},r={rows}");
-                sb.Append(",C=1,q=2");
-                sb.Append(';');
-                sb.Append(base64);
-                sb.Append("\x1b\\");
-                payload = sb.ToString();
-            }
-            else
-            {
-                // Multi-chunk transmission
-                var sb = new StringBuilder();
-                int offset = 0;
-                bool first = true;
-                
-                while (offset < base64.Length)
-                {
-                    var remaining = base64.Length - offset;
-                    var chunkSize = Math.Min(maxChunkSize, remaining);
-                    // All chunks except the last must have size that is a multiple of 4
-                    if (remaining > maxChunkSize && chunkSize % 4 != 0)
-                        chunkSize -= chunkSize % 4;
-                    var isLast = offset + chunkSize >= base64.Length;
-                    
-                    sb.Append("\x1b_G");
-                    if (first)
-                    {
-                        sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
-                        sb.Append($",i={_assignedImageId}");
-                        sb.Append($",c={cols},r={rows}");
-                        sb.Append(",C=1,q=2");
-                        first = false;
-                    }
-                    sb.Append(isLast ? ",m=0" : ",m=1");
-                    sb.Append(';');
-                    sb.Append(base64.AsSpan(offset, chunkSize));
-                    sb.Append("\x1b\\");
-                    
-                    offset += chunkSize;
-                }
-                
-                payload = sb.ToString();
-            }
+            payload = BuildTransmitPayload(imageId, cols, rows);
+            cache?.RegisterTransmission(contentHash, imageId);
         }
         else
         {
-            payload = $"\x1b_Ga=p,i={_assignedImageId},c={cols},r={rows},C=1,q=2\x1b\\";
+            payload = $"\x1b_Ga=p,i={imageId},c={cols},r={rows},C=1,q=2\x1b\\";
         }
 
         var kgpData = new KgpCellData(payload, (int)cols, (int)rows);
@@ -154,7 +113,6 @@ public sealed class KittyGraphicsNode : Hex1bNode
         if (context is SurfaceRenderContext surfaceContext)
         {
             var surface = surfaceContext.Surface;
-            // Use offset-adjusted coordinates (child surfaces are offset by container position)
             var x = Bounds.X - surfaceContext.OffsetX;
             var y = Bounds.Y - surfaceContext.OffsetY;
             if (x >= 0 && x < surface.Width && y >= 0 && y < surface.Height)
@@ -164,11 +122,61 @@ public sealed class KittyGraphicsNode : Hex1bNode
         }
         else
         {
-            // Fallback: direct write (won't work through Surface pipeline but
-            // useful for non-surface render contexts)
             context.SetCursorPosition(Bounds.X, Bounds.Y);
             context.Write(payload);
         }
+    }
+
+    private string BuildTransmitPayload(uint imageId, uint cols, uint rows)
+    {
+        var base64 = Convert.ToBase64String(PixelData);
+        const int maxChunkSize = 4096;
+
+        if (base64.Length <= maxChunkSize)
+        {
+            var sb = new StringBuilder();
+            sb.Append("\x1b_G");
+            sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+            sb.Append($",i={imageId}");
+            sb.Append($",c={cols},r={rows}");
+            sb.Append(",C=1,q=2");
+            sb.Append(';');
+            sb.Append(base64);
+            sb.Append("\x1b\\");
+            return sb.ToString();
+        }
+
+        // Multi-chunk transmission
+        var msb = new StringBuilder();
+        int offset = 0;
+        bool first = true;
+
+        while (offset < base64.Length)
+        {
+            var remaining = base64.Length - offset;
+            var chunkSize = Math.Min(maxChunkSize, remaining);
+            if (remaining > maxChunkSize && chunkSize % 4 != 0)
+                chunkSize -= chunkSize % 4;
+            var isLast = offset + chunkSize >= base64.Length;
+
+            msb.Append("\x1b_G");
+            if (first)
+            {
+                msb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+                msb.Append($",i={imageId}");
+                msb.Append($",c={cols},r={rows}");
+                msb.Append(",C=1,q=2");
+                first = false;
+            }
+            msb.Append(isLast ? ",m=0" : ",m=1");
+            msb.Append(';');
+            msb.Append(base64.AsSpan(offset, chunkSize));
+            msb.Append("\x1b\\");
+
+            offset += chunkSize;
+        }
+
+        return msb.ToString();
     }
 
     private int EstimateCellColumns()

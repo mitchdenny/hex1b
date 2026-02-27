@@ -359,6 +359,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         SurfacePool = pool
                     };
                     childContext.SetCapabilities(Capabilities);
+                    childContext.KgpCache = KgpCache;
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                     RenderChildTimed(child, childContext);
 
@@ -467,6 +468,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
             };
             childContext.SetCapabilities(Capabilities);
+            childContext.KgpCache = KgpCache;
             
             // Set cursor position to child's origin so Write() calls work correctly
             // (the offset will translate this to 0,0 on the child surface)

@@ -1,3 +1,4 @@
+using Hex1b.Kgp;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -64,6 +65,12 @@ public class Hex1bRenderContext
     /// Terminal capabilities (Sixel support, colors, etc.).
     /// </summary>
     public virtual TerminalCapabilities Capabilities => _adapter?.Capabilities ?? TerminalCapabilities.Modern;
+
+    /// <summary>
+    /// The shared KGP image cache for this session. Set by <c>KittyGraphicsHostNode</c>
+    /// so descendant <c>KittyGraphicsNode</c>s can share transmitted image IDs.
+    /// </summary>
+    internal KgpImageCache? KgpCache { get; set; }
     
     // Frame boundary tokens (APC format: ESC _ content ESC \)
     private const string FrameBeginSequence = "\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\";
