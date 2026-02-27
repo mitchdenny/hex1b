@@ -1,3 +1,4 @@
+using Hex1b.Kgp;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 
@@ -119,15 +120,16 @@ public static class SurfaceComparer
     /// <param name="diff">The surface diff to render.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
     public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff)
-        => ToTokens(diff, currentSurface: null);
+        => ToTokens(diff, currentSurface: null, previousSurface: null);
     
     /// <summary>
-    /// Generates a list of ANSI tokens to render the diff, with sixel awareness.
+    /// Generates a list of ANSI tokens to render the diff, with sixel and KGP awareness.
     /// </summary>
     /// <param name="diff">The surface diff to render.</param>
-    /// <param name="currentSurface">The current surface, used to find sixels that need re-rendering when their region is dirty.</param>
+    /// <param name="currentSurface">The current surface, used to find sixels/KGP that need re-rendering.</param>
+    /// <param name="previousSurface">The previous surface, used to detect removed KGP images for cleanup.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
-    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface)
+    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface = null)
     {
         ArgumentNullException.ThrowIfNull(diff);
 
@@ -279,7 +281,10 @@ public static class SurfaceComparer
         // Pre-scan for KGP images whose regions intersect with dirty cells
         // KGP images need to be re-emitted when cells in their region change,
         // AND we need to track the regions to skip blank cells underneath
-        if (currentSurface != null && currentSurface.HasKgp)
+        var previousHadKgp = previousSurface != null && previousSurface.HasKgp;
+        var currentHasKgp = currentSurface != null && currentSurface.HasKgp;
+        
+        if (currentHasKgp)
         {
             // Build a set of dirty cell positions for fast lookup
             var dirtyCells = new HashSet<(int, int)>();
@@ -288,8 +293,11 @@ public static class SurfaceComparer
                 dirtyCells.Add((change.X, change.Y));
             }
             
-            // Scan surface for KGP anchor cells
-            for (var y = 0; y < currentSurface.Height; y++)
+            // First pass: collect all KGP regions and check if any are dirty
+            var anyKgpDirty = previousHadKgp; // If previous had KGP, always re-emit to handle moves
+            var kgpAnchors = new List<(int X, int Y, KgpCellData Data)>();
+            
+            for (var y = 0; y < currentSurface!.Height; y++)
             {
                 for (var x = 0; x < currentSurface.Width; x++)
                 {
@@ -297,34 +305,46 @@ public static class SurfaceComparer
                     if (cell.HasKgp && cell.KgpData is not null)
                     {
                         var kgpData = cell.KgpData;
-                        var regionHasDirtyCell = false;
-                        
-                        // Check if any cell in this KGP's region is dirty
-                        for (var ky = y; ky < y + kgpData.HeightInCells && ky < currentSurface.Height; ky++)
-                        {
-                            for (var kx = x; kx < x + kgpData.WidthInCells && kx < currentSurface.Width; kx++)
-                            {
-                                if (dirtyCells.Contains((kx, ky)))
-                                {
-                                    regionHasDirtyCell = true;
-                                    break;
-                                }
-                            }
-                            if (regionHasDirtyCell) break;
-                        }
-                        
-                        // Always track the region for cell skipping
+                        kgpAnchors.Add((x, y, kgpData));
                         kgpRegions.Add((x, y, kgpData.WidthInCells, kgpData.HeightInCells));
                         
-                        if (regionHasDirtyCell)
+                        if (!anyKgpDirty)
                         {
-                            // Re-emit the KGP image (position cursor at anchor, then APC sequence)
-                            tokens.Add(new CursorPositionToken(y + 1, x + 1));
-                            tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                            for (var ky = y; ky < y + kgpData.HeightInCells && ky < currentSurface.Height; ky++)
+                            {
+                                for (var kx = x; kx < x + kgpData.WidthInCells && kx < currentSurface.Width; kx++)
+                                {
+                                    if (dirtyCells.Contains((kx, ky)))
+                                    {
+                                        anyKgpDirty = true;
+                                        break;
+                                    }
+                                }
+                                if (anyKgpDirty) break;
+                            }
                         }
                     }
                 }
             }
+            
+            if (anyKgpDirty)
+            {
+                // Delete all visible KGP placements first to prevent ghosting
+                // when images move or are removed
+                tokens.Add(new UnrecognizedSequenceToken("\x1b_Ga=d,d=a,q=2\x1b\\"));
+                
+                // Re-emit ALL KGP images (not just dirty ones) since we deleted all
+                foreach (var (ax, ay, data) in kgpAnchors)
+                {
+                    tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
+                    tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+                }
+            }
+        }
+        else if (previousHadKgp)
+        {
+            // Previous surface had KGP but current doesn't — delete all placements
+            tokens.Add(new UnrecognizedSequenceToken("\x1b_Ga=d,d=a,q=2\x1b\\"));
         }
 
         // Track current state to minimize redundant tokens

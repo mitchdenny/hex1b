@@ -250,13 +250,13 @@ public class KgpOutputProofTest
         Assert.True(kgpPositions[0].Position > altScreenPos,
             $"KGP appears BEFORE alt screen!\n{diagnostics}");
         
-        // Verify KGP header is well-formed
-        var firstHeader = kgpPositions[0].Header;
-        Assert.Contains("a=T", firstHeader); // transmit+display
-        Assert.Contains("f=32", firstHeader); // RGBA format
-        Assert.Contains("s=4", firstHeader);  // width
-        Assert.Contains("v=4", firstHeader);  // height
-        Assert.Contains("i=", firstHeader);   // image ID present
+        // Verify a KGP transmit header is well-formed (skip delete commands)
+        var transmitHeader = kgpPositions.FirstOrDefault(p => p.Header.Contains("a=T"));
+        Assert.True(transmitHeader != default, $"No KGP transmit (a=T) sequence found!\n{diagnostics}");
+        Assert.Contains("f=32", transmitHeader.Header); // RGBA format
+        Assert.Contains("s=4", transmitHeader.Header);  // width
+        Assert.Contains("v=4", transmitHeader.Header);  // height
+        Assert.Contains("i=", transmitHeader.Header);   // image ID present
     }
 
     [Fact]
