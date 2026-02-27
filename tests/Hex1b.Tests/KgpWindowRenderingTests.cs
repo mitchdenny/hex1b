@@ -797,4 +797,146 @@ public partial class KgpWindowRenderingTests
         Assert.Contains("h=32", placement); // source height
         Assert.Contains("z=-1", placement); // z-index
     }
+
+    [Fact]
+    public void KgpOcclusion_OverlappingText_ClipsPlacement()
+    {
+        // Simulate a KGP image at (1,1) spanning 4x4, with text overwriting the right 2 columns
+        var surface = new Surface(10, 10, new CellMetrics(8, 16));
+
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 });
+        var kgpData = new KgpCellData(
+            transmitPayload: "\x1b_Ga=t,f=32,s=32,v=32,i=1,q=2;AAAA\x1b\\",
+            imageId: 1,
+            widthInCells: 4,
+            heightInCells: 4,
+            sourcePixelWidth: 32,
+            sourcePixelHeight: 32,
+            contentHash: hash);
+        surface[1, 1] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+
+        // Fill blank cells under KGP
+        for (int y = 1; y <= 4; y++)
+            for (int x = 1; x <= 4; x++)
+                if (!(x == 1 && y == 1))
+                    surface[x, y] = new SurfaceCell(" ", null, null);
+
+        // Overlay text on the right 2 columns (cols 3-4) — simulates overlapping window
+        for (int y = 1; y <= 4; y++)
+        {
+            surface[3, y] = new SurfaceCell("X", null, null);
+            surface[4, y] = new SurfaceCell("Y", null, null);
+        }
+
+        var diff = SurfaceComparer.CompareToEmpty(surface);
+        var tokens = SurfaceComparer.ToTokens(diff, surface);
+
+        // Find all KGP placement tokens (a=p)
+        var placements = tokens
+            .OfType<Hex1b.Tokens.UnrecognizedSequenceToken>()
+            .Where(t => t.Sequence.Contains("a=p"))
+            .ToList();
+
+        Assert.Single(placements);
+        var placement = placements[0].Sequence;
+
+        // Should be clipped to 2 columns (left half only)
+        Assert.Contains("c=2", placement);
+        // Source width should be half of 32 = 16 pixels
+        Assert.Contains("w=16", placement);
+        // Height should remain 4 rows (no vertical occlusion)
+        Assert.Contains("r=4", placement);
+    }
+
+    [Fact]
+    public void KgpOcclusion_FullyOccluded_NoPlacement()
+    {
+        var surface = new Surface(10, 10, new CellMetrics(8, 16));
+
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1 });
+        var kgpData = new KgpCellData(
+            transmitPayload: "\x1b_Ga=t,f=32,s=16,v=16,i=1,q=2;AAAA\x1b\\",
+            imageId: 1,
+            widthInCells: 2,
+            heightInCells: 2,
+            sourcePixelWidth: 16,
+            sourcePixelHeight: 16,
+            contentHash: hash);
+        surface[0, 0] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+        surface[1, 0] = new SurfaceCell(" ", null, null);
+        surface[0, 1] = new SurfaceCell(" ", null, null);
+        surface[1, 1] = new SurfaceCell(" ", null, null);
+
+        // Overwrite ALL cells with text (fully occluded)
+        surface[0, 0] = new SurfaceCell("A", null, null, KgpData: kgpData);
+        surface[1, 0] = new SurfaceCell("B", null, null);
+        surface[0, 1] = new SurfaceCell("C", null, null);
+        surface[1, 1] = new SurfaceCell("D", null, null);
+
+        var diff = SurfaceComparer.CompareToEmpty(surface);
+        var tokens = SurfaceComparer.ToTokens(diff, surface);
+
+        // All cells have text — image is fully occluded, no placement emitted
+        var placements = tokens
+            .OfType<Hex1b.Tokens.UnrecognizedSequenceToken>()
+            .Where(t => t.Sequence.Contains("a=p"))
+            .ToList();
+
+        Assert.Empty(placements);
+    }
+
+    [Fact]
+    public void KgpOcclusion_TopOverlap_ClipsFromTop()
+    {
+        // KGP at (0,0) spanning 4x4, top 2 rows overwritten by text
+        var surface = new Surface(10, 10, new CellMetrics(8, 16));
+
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 5, 6 });
+        var kgpData = new KgpCellData(
+            transmitPayload: null,
+            imageId: 2,
+            widthInCells: 4,
+            heightInCells: 4,
+            sourcePixelWidth: 64,
+            sourcePixelHeight: 64,
+            contentHash: hash);
+        surface[0, 0] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+
+        // Fill all cells under KGP
+        for (int y = 0; y < 4; y++)
+            for (int x = 0; x < 4; x++)
+                if (!(x == 0 && y == 0))
+                    surface[x, y] = new SurfaceCell(" ", null, null);
+
+        // Overwrite top 2 rows with text
+        for (int y = 0; y < 2; y++)
+            for (int x = 0; x < 4; x++)
+                surface[x, y] = new SurfaceCell("T", null, null, KgpData: (x == 0 && y == 0) ? kgpData : null);
+
+        var diff = SurfaceComparer.CompareToEmpty(surface);
+        var tokens = SurfaceComparer.ToTokens(diff, surface);
+
+        var placements = tokens
+            .OfType<Hex1b.Tokens.UnrecognizedSequenceToken>()
+            .Where(t => t.Sequence.Contains("a=p"))
+            .ToList();
+
+        Assert.Single(placements);
+        var placement = placements[0].Sequence;
+
+        // Visible region is rows 2-3 (bottom half)
+        // Source Y should be half of 64 = 32
+        Assert.Contains("y=32", placement);
+        Assert.Contains("r=2", placement); // 2 visible rows
+        Assert.Contains("c=4", placement); // full width
+        Assert.Contains("h=32", placement); // bottom half of pixels
+
+        // Find the cursor position before the placement
+        var placementIdx = tokens.ToList().IndexOf(placements[0]);
+        Assert.True(placementIdx > 0);
+        var cursor = tokens[placementIdx - 1] as Hex1b.Tokens.CursorPositionToken;
+        Assert.NotNull(cursor);
+        Assert.Equal(3, cursor!.Row);  // 1-based row 3 = 0-based row 2 (first visible row)
+        Assert.Equal(1, cursor.Column); // col 0 (1-based = 1)
+    }
 }

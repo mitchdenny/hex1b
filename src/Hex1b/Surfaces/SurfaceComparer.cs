@@ -501,13 +501,21 @@ public static class SurfaceComparer
             {
                 if (data.SourcePixelWidth > 0)
                 {
-                    // Structured data: emit transmit and placement as separate tokens
+                    // Emit transmit payload if needed (only first time for this image)
                     if (data.TransmitPayload != null)
                     {
                         tokens.Add(new UnrecognizedSequenceToken(data.TransmitPayload));
                     }
-                    tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
-                    tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
+
+                    // Compute visible cell region by scanning for occlusions
+                    var clippedPlacements = ComputeKgpVisiblePlacements(
+                        ax, ay, data, currentSurface!);
+
+                    foreach (var (px, py, placement) in clippedPlacements)
+                    {
+                        tokens.Add(new CursorPositionToken(py + 1, px + 1));
+                        tokens.Add(new UnrecognizedSequenceToken(placement.BuildPlacementPayload()));
+                    }
                 }
                 else
                 {
@@ -562,6 +570,90 @@ public static class SurfaceComparer
                 return true;
         }
         return false;
+    }
+
+    /// <summary>
+    /// Computes the visible placements for a KGP image by scanning its cell region
+    /// for occlusions (non-blank cells that were written by overlapping content).
+    /// Returns one or more clipped placements with source rectangles.
+    /// </summary>
+    private static List<(int X, int Y, KgpCellData Data)> ComputeKgpVisiblePlacements(
+        int anchorX, int anchorY, KgpCellData data, Surface surface)
+    {
+        var result = new List<(int X, int Y, KgpCellData Data)>();
+
+        // Determine effective cell region (clamped to surface)
+        var regionRight = Math.Min(anchorX + data.WidthInCells, surface.Width);
+        var regionBottom = Math.Min(anchorY + data.HeightInCells, surface.Height);
+
+        if (anchorX >= regionRight || anchorY >= regionBottom)
+            return result; // Fully off-screen
+
+        // Scan cells to find the visible bounding rectangle.
+        // A cell is "owned" by the KGP image if it's blank (space/unwritten/empty)
+        // or is the anchor cell. Non-blank cells indicate overlapping content.
+        var minVisX = regionRight;
+        var minVisY = regionBottom;
+        var maxVisX = anchorX;
+        var maxVisY = anchorY;
+        var hasVisible = false;
+
+        for (var y = anchorY; y < regionBottom; y++)
+        {
+            for (var x = anchorX; x < regionRight; x++)
+            {
+                var cell = surface[x, y];
+
+                // A cell is "visible" for the KGP image if it's blank
+                var isBlank = cell.Character == " "
+                    || cell.Character == string.Empty
+                    || cell.Character == SurfaceCells.UnwrittenMarker;
+
+                if (isBlank)
+                {
+                    if (x < minVisX) minVisX = x;
+                    if (y < minVisY) minVisY = y;
+                    if (x >= maxVisX) maxVisX = x + 1;
+                    if (y >= maxVisY) maxVisY = y + 1;
+                    hasVisible = true;
+                }
+            }
+        }
+
+        if (!hasVisible)
+            return result; // Fully occluded
+
+        // Calculate the visible cell dimensions
+        var visCellWidth = maxVisX - minVisX;
+        var visCellHeight = maxVisY - minVisY;
+        var origCellWidth = data.WidthInCells;
+        var origCellHeight = data.HeightInCells;
+
+        // If fully visible (no clipping needed), emit as-is at the anchor position
+        if (minVisX == anchorX && minVisY == anchorY
+            && visCellWidth == origCellWidth && visCellHeight == origCellHeight
+            && !data.IsClipped)
+        {
+            result.Add((anchorX, anchorY, data));
+            return result;
+        }
+
+        // Compute source pixel rectangle for the visible portion.
+        // Map cell offsets to pixel offsets proportionally.
+        var effectivePixelW = data.ClipW > 0 ? data.ClipW : (int)data.SourcePixelWidth;
+        var effectivePixelH = data.ClipH > 0 ? data.ClipH : (int)data.SourcePixelHeight;
+
+        var cellOffsetX = minVisX - anchorX;
+        var cellOffsetY = minVisY - anchorY;
+
+        var clipX = data.ClipX + (int)(effectivePixelW * (long)cellOffsetX / origCellWidth);
+        var clipY = data.ClipY + (int)(effectivePixelH * (long)cellOffsetY / origCellHeight);
+        var clipW = (int)(effectivePixelW * (long)visCellWidth / origCellWidth);
+        var clipH = (int)(effectivePixelH * (long)visCellHeight / origCellHeight);
+
+        var clipped = data.WithClip(clipX, clipY, clipW, clipH, visCellWidth, visCellHeight);
+        result.Add((minVisX, minVisY, clipped));
+        return result;
     }
 
     /// <summary>
