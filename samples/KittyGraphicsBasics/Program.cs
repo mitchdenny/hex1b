@@ -27,59 +27,28 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         return ctx.VStack(outer => [
             // Menu bar
-            outer.HStack(h => [
-                h.Button("Add Window").OnClick(e =>
-                {
-                    var idx = windowCounter % imageConfigs.Length;
-                    var config = imageConfigs[idx];
-                    windowCounter++;
-                    var num = windowCounter;
-
-                    var window = e.Windows.Window(w => w.VStack(v => [
-                        v.Text($"  {config.Title} ({config.W}×{config.H}px)"),
-                        v.Text(""),
-                        v.KittyGraphics(config.Data, config.W, config.H)
-                            .WithDisplaySize(config.Cols, config.Rows),
-                        v.Text(""),
-                        v.HStack(bh => [
-                            bh.Text("  "),
-                            bh.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                        ])
-                    ]))
-                    .Title($"#{num}: {config.Title}")
-                    .Size((int)config.Cols + 6, (int)config.Rows + 7)
-                    .Position(new WindowPositionSpec(
-                        WindowPosition.Center,
-                        OffsetX: (num - 1) * 3,
-                        OffsetY: (num - 1) * 2))
-                    .Resizable(minWidth: 12, minHeight: 8)
-                    .OnClose(() => statusMessage = $"Closed window #{num}");
-
-                    e.Windows.Open(window);
-                    statusMessage = $"Opened window #{num}: {config.Title}";
-                }),
-                h.Text("  "),
-                h.Button("Add All").OnClick(e =>
-                {
-                    foreach (var config in imageConfigs)
+            outer.MenuBar(m => [
+                m.Menu("Windows", m => [
+                    m.MenuItem("Add Window").OnActivated(e =>
                     {
+                        var idx = windowCounter % imageConfigs.Length;
+                        var config = imageConfigs[idx];
                         windowCounter++;
                         var num = windowCounter;
-                        var c = config;
 
                         var window = e.Windows.Window(w => w.VStack(v => [
-                            v.Text($"  {c.Title} ({c.W}×{c.H}px)"),
+                            v.Text($"  {config.Title} ({config.W}×{config.H}px)"),
                             v.Text(""),
-                            v.KittyGraphics(c.Data, c.W, c.H)
-                                .WithDisplaySize(c.Cols, c.Rows),
+                            v.KittyGraphics(config.Data, config.W, config.H)
+                                .WithDisplaySize(config.Cols, config.Rows),
                             v.Text(""),
                             v.HStack(bh => [
                                 bh.Text("  "),
                                 bh.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
                             ])
                         ]))
-                        .Title($"#{num}: {c.Title}")
-                        .Size((int)c.Cols + 6, (int)c.Rows + 7)
+                        .Title($"#{num}: {config.Title}")
+                        .Size((int)config.Cols + 6, (int)config.Rows + 7)
                         .Position(new WindowPositionSpec(
                             WindowPosition.Center,
                             OffsetX: (num - 1) * 3,
@@ -88,16 +57,47 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .OnClose(() => statusMessage = $"Closed window #{num}");
 
                         e.Windows.Open(window);
-                    }
-                    statusMessage = $"Opened {imageConfigs.Length} windows";
-                }),
-                h.Text("  "),
-                h.Button("Close All").OnClick(e =>
-                {
-                    e.Windows.CloseAll();
-                    statusMessage = "All windows closed";
-                }),
-                h.Text("     KGP Window Demo — drag windows by title bar")
+                        statusMessage = $"Opened window #{num}: {config.Title}";
+                    }),
+                    m.MenuItem("Add All").OnActivated(e =>
+                    {
+                        foreach (var config in imageConfigs)
+                        {
+                            windowCounter++;
+                            var num = windowCounter;
+                            var c = config;
+
+                            var window = e.Windows.Window(w => w.VStack(v => [
+                                v.Text($"  {c.Title} ({c.W}×{c.H}px)"),
+                                v.Text(""),
+                                v.KittyGraphics(c.Data, c.W, c.H)
+                                    .WithDisplaySize(c.Cols, c.Rows),
+                                v.Text(""),
+                                v.HStack(bh => [
+                                    bh.Text("  "),
+                                    bh.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                ])
+                            ]))
+                            .Title($"#{num}: {c.Title}")
+                            .Size((int)c.Cols + 6, (int)c.Rows + 7)
+                            .Position(new WindowPositionSpec(
+                                WindowPosition.Center,
+                                OffsetX: (num - 1) * 3,
+                                OffsetY: (num - 1) * 2))
+                            .Resizable(minWidth: 12, minHeight: 8)
+                            .OnClose(() => statusMessage = $"Closed window #{num}");
+
+                            e.Windows.Open(window);
+                        }
+                        statusMessage = $"Opened {imageConfigs.Length} windows";
+                    }),
+                    m.MenuItem("Close All").OnActivated(e =>
+                    {
+                        e.Windows.CloseAll();
+                        statusMessage = "All windows closed";
+                    }),
+                    m.MenuItem("Exit").OnActivated(e => e.Context.RequestStop())
+                ])
             ]),
 
             outer.Separator(),
