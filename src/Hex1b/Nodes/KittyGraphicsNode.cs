@@ -95,19 +95,22 @@ public sealed class KittyGraphicsNode : Hex1bNode
         var cols = DisplayColumns > 0 ? DisplayColumns : (uint)EstimateCellColumns();
         var rows = DisplayRows > 0 ? DisplayRows : (uint)EstimateCellRows();
 
-        // Build the KGP escape sequence
-        string payload;
+        // Build transmit payload only if needed (first time for this image)
+        string? transmitPayload = null;
         if (needsTransmit)
         {
-            payload = BuildTransmitPayload(imageId, cols, rows);
+            transmitPayload = BuildTransmitPayload(imageId);
             cache?.RegisterTransmission(contentHash, imageId);
         }
-        else
-        {
-            payload = $"\x1b_Ga=p,i={imageId},c={cols},r={rows},C=1,q=2\x1b\\";
-        }
 
-        var kgpData = new KgpCellData(payload, (int)cols, (int)rows);
+        var kgpData = new KgpCellData(
+            transmitPayload,
+            imageId,
+            (int)cols,
+            (int)rows,
+            PixelWidth,
+            PixelHeight,
+            contentHash);
 
         // Place KGP data on the anchor cell via the surface
         if (context is SurfaceRenderContext surfaceContext)
@@ -123,11 +126,15 @@ public sealed class KittyGraphicsNode : Hex1bNode
         else
         {
             context.SetCursorPosition(Bounds.X, Bounds.Y);
-            context.Write(payload);
+            context.Write(kgpData.Payload);
         }
     }
 
-    private string BuildTransmitPayload(uint imageId, uint cols, uint rows)
+    /// <summary>
+    /// Builds the transmit-only payload (a=t). Does NOT include placement — that is
+    /// generated separately by <see cref="KgpCellData.BuildPlacementPayload"/>.
+    /// </summary>
+    private string BuildTransmitPayload(uint imageId)
     {
         var base64 = Convert.ToBase64String(PixelData);
         const int maxChunkSize = 4096;
@@ -136,10 +143,9 @@ public sealed class KittyGraphicsNode : Hex1bNode
         {
             var sb = new StringBuilder();
             sb.Append("\x1b_G");
-            sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+            sb.Append($"a=t,f={(int)Format},s={PixelWidth},v={PixelHeight}");
             sb.Append($",i={imageId}");
-            sb.Append($",c={cols},r={rows}");
-            sb.Append(",C=1,q=2");
+            sb.Append(",q=2");
             sb.Append(';');
             sb.Append(base64);
             sb.Append("\x1b\\");
@@ -162,10 +168,9 @@ public sealed class KittyGraphicsNode : Hex1bNode
             msb.Append("\x1b_G");
             if (first)
             {
-                msb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+                msb.Append($"a=t,f={(int)Format},s={PixelWidth},v={PixelHeight}");
                 msb.Append($",i={imageId}");
-                msb.Append($",c={cols},r={rows}");
-                msb.Append(",C=1,q=2");
+                msb.Append(",q=2");
                 msb.Append(isLast ? ",m=0" : ",m=1");
                 first = false;
             }

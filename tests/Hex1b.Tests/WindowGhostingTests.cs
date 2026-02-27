@@ -138,7 +138,7 @@ public partial class WindowGhostingTests
         // Frame 1: KGP at (5, 3) spanning 4 cols x 2 rows
         var surface1 = new Surface(width, height, new CellMetrics(8, 16));
         var payload1 = "\x1b_Ga=T,f=32,s=4,v=4,i=1,c=4,r=2,C=1,q=2;AAAA\x1b\\";
-        var kgpData1 = new Kgp.KgpCellData(payload1, 4, 2);
+        var kgpData1 = Kgp.KgpCellData.FromPayload(payload1, 4, 2);
         surface1[5, 3] = new SurfaceCell(" ", null, null, KgpData: kgpData1);
         // Fill cells under KGP with text (simulating window content)
         surface1[6, 3] = new SurfaceCell("X", null, null);
@@ -148,7 +148,7 @@ public partial class WindowGhostingTests
         // Frame 2: KGP moved left to (4, 3)
         var surface2 = new Surface(width, height, new CellMetrics(8, 16));
         var payload2 = "\x1b_Ga=p,i=1,c=4,r=2,C=1,q=2\x1b\\";
-        var kgpData2 = new Kgp.KgpCellData(payload2, 4, 2);
+        var kgpData2 = Kgp.KgpCellData.FromPayload(payload2, 4, 2);
         surface2[4, 3] = new SurfaceCell(" ", null, null, KgpData: kgpData2);
         // Old position cells are now empty
         

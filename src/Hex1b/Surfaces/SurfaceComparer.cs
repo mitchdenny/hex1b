@@ -456,8 +456,17 @@ public static class SurfaceComparer
                 {
                     // Track the region this KGP image covers so we skip cells underneath
                     kgpRegions.Add((change.X, change.Y, kgpData.WidthInCells, kgpData.HeightInCells));
-                    // Emit the KGP APC sequence as raw
-                    tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                    // Emit KGP tokens
+                    if (kgpData.SourcePixelWidth > 0)
+                    {
+                        if (kgpData.TransmitPayload != null)
+                            tokens.Add(new UnrecognizedSequenceToken(kgpData.TransmitPayload));
+                        tokens.Add(new UnrecognizedSequenceToken(kgpData.BuildPlacementPayload()));
+                    }
+                    else
+                    {
+                        tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                    }
                     // KGP with C=1 doesn't move cursor, but mark unknown to be safe
                     cursorX = -1;
                     cursorY = -1;
@@ -490,8 +499,22 @@ public static class SurfaceComparer
         {
             foreach (var (ax, ay, data) in kgpAnchors)
             {
-                tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
-                tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+                if (data.SourcePixelWidth > 0)
+                {
+                    // Structured data: emit transmit and placement as separate tokens
+                    if (data.TransmitPayload != null)
+                    {
+                        tokens.Add(new UnrecognizedSequenceToken(data.TransmitPayload));
+                    }
+                    tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
+                    tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
+                }
+                else
+                {
+                    // Legacy opaque payload (e.g. from FromPayload in tests)
+                    tokens.Add(new CursorPositionToken(ay + 1, ax + 1));
+                    tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+                }
             }
         }
 

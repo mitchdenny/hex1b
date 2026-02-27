@@ -230,17 +230,19 @@ public class KgpPipelineDiagnostic
             .WithDimensions(20, 10)
             .Build();
 
-        // Simulate what SurfaceComparer does: emit KGP as UnrecognizedSequenceToken
+        // Simulate what SurfaceComparer does: emit KGP as separate transmit + placement tokens
         var pixelData = new byte[4 * 4 * 4]; // 4x4 RGBA red
         for (int i = 0; i < pixelData.Length; i += 4) { pixelData[i] = 255; pixelData[i+3] = 255; }
         var base64 = Convert.ToBase64String(pixelData);
-        var kgpEsc = $"\x1b_Ga=T,f=32,s=4,v=4,i=1,c=4,r=2,q=2;{base64}\x1b\\";
+        var transmitEsc = $"\x1b_Ga=t,f=32,s=4,v=4,i=1,q=2;{base64}\x1b\\";
+        var placementEsc = "\x1b_Ga=p,i=1,c=4,r=2,C=1,q=2,z=-1\x1b\\";
 
         // This is exactly what SurfaceComparer.ToTokens() produces
         var tokens = new List<AnsiToken>
         {
+            new UnrecognizedSequenceToken(transmitEsc),
             new CursorPositionToken(1, 1),
-            new UnrecognizedSequenceToken(kgpEsc)
+            new UnrecognizedSequenceToken(placementEsc)
         };
 
         terminal.ApplyTokens(tokens);

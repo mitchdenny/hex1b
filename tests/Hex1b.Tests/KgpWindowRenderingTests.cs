@@ -133,7 +133,7 @@ public partial class KgpWindowRenderingTests
             }
         }
 
-        var transmits = kgpSequences.Where(s => s.StartsWith("a=T")).ToList();
+        var transmits = kgpSequences.Where(s => s.StartsWith("a=t")).ToList();
         var puts = kgpSequences.Where(s => s.StartsWith("a=p")).ToList();
 
         Assert.True(transmits.Count + puts.Count >= 1,
@@ -214,10 +214,10 @@ public partial class KgpWindowRenderingTests
         }
 
         // Must have at least one transmit
-        Assert.Contains(kgpParams, p => p.Contains("a=T"));
+        Assert.Contains(kgpParams, p => p.Contains("a=t"));
 
         // Verify the transmit has all required KGP fields
-        var transmitParams = kgpParams.First(p => p.Contains("a=T"));
+        var transmitParams = kgpParams.First(p => p.Contains("a=t"));
         
         // Parse params into dictionary
         var paramDict = transmitParams.Split(',')
@@ -225,14 +225,12 @@ public partial class KgpWindowRenderingTests
             .Where(p => p.Length == 2)
             .ToDictionary(p => p[0], p => p[1]);
 
-        // Required for transmit+display
-        Assert.True(paramDict.ContainsKey("a") && paramDict["a"] == "T", "action must be T");
+        // Required for transmit-only
+        Assert.True(paramDict.ContainsKey("a") && paramDict["a"] == "t", "action must be t");
         Assert.True(paramDict.ContainsKey("f"), $"format (f) missing. Params: {transmitParams}");
         Assert.True(paramDict.ContainsKey("s"), $"source width (s) missing. Params: {transmitParams}");
         Assert.True(paramDict.ContainsKey("v"), $"source height (v) missing. Params: {transmitParams}");
         Assert.True(paramDict.ContainsKey("i"), $"image id (i) missing. Params: {transmitParams}");
-        Assert.True(paramDict.ContainsKey("c"), $"columns (c) missing. Params: {transmitParams}");
-        Assert.True(paramDict.ContainsKey("r"), $"rows (r) missing. Params: {transmitParams}");
         
         // Verify cursor positioning before KGP
         // The KGP should be at row 2 (0-indexed), so ANSI row 2 (1-based)
@@ -291,7 +289,7 @@ public partial class KgpWindowRenderingTests
         var diff = SurfaceComparer.CompareToEmpty(rootSurface);
         var tokens = SurfaceComparer.ToTokens(diff, rootSurface);
         var kgpTokens = tokens.Where(t =>
-            t is Hex1b.Tokens.UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G") && ust.Sequence.Contains("a=T")).ToList();
+            t is Hex1b.Tokens.UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G") && ust.Sequence.Contains("a=t")).ToList();
         Assert.True(kgpTokens.Count >= 1, "Expected KGP transmit token after double composite");
     }
 
@@ -322,7 +320,7 @@ public partial class KgpWindowRenderingTests
         var cache = new KgpImageCache();
         var imageId = cache.AllocateImageId();
         var payload = $"\x1b_Ga=T,f=32,s=4,v=4,i={imageId},c=4,r=2,C=1,q=2;AAAA\x1b\\";
-        var kgpData = new KgpCellData(payload, 4, 2);
+        var kgpData = KgpCellData.FromPayload(payload, 4, 2);
         surface[0, 1] = new SurfaceCell(" ", null, null, KgpData: kgpData);
         
         // Write text at row 3 (below KGP region)
@@ -337,11 +335,13 @@ public partial class KgpWindowRenderingTests
         var diff = SurfaceComparer.CompareToEmpty(surface);
         var tokens = SurfaceComparer.ToTokens(diff, surface);
         
-        // Find the KGP transmit token
+        // Find the KGP payload token (not the delete command)
         int kgpTokenIdx = -1;
         for (int i = 0; i < tokens.Count; i++)
         {
-            if (tokens[i] is Hex1b.Tokens.UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=T"))
+            if (tokens[i] is Hex1b.Tokens.UnrecognizedSequenceToken ust 
+                && ust.Sequence.Contains("_G") 
+                && !ust.Sequence.Contains("a=d"))
             {
                 kgpTokenIdx = i;
                 break;
@@ -416,19 +416,24 @@ public partial class KgpWindowRenderingTests
         Assert.True(sequences.Count > 1, $"Expected multiple chunks, got {sequences.Count}");
 
         // First chunk should have full metadata + m=1
-        Assert.StartsWith("a=T,", sequences[0]);
+        Assert.StartsWith("a=t,", sequences[0]);
         Assert.Contains(",m=1", sequences[0]);
 
-        // Continuation chunks must NOT have a leading comma
-        for (int i = 1; i < sequences.Count; i++)
+        // Last sequence should be the placement (a=p) — separate from transmit chunks
+        Assert.StartsWith("a=p,", sequences[^1]);
+        Assert.Contains(",z=-1", sequences[^1]);
+
+        // Continuation chunks (between first and placement) must NOT have a leading comma
+        // The chunk before the placement is the last transmit chunk (m=0)
+        for (int i = 1; i < sequences.Count - 1; i++)
         {
             Assert.False(sequences[i].StartsWith(","),
                 $"Chunk {i} has leading comma: {sequences[i][..Math.Min(20, sequences[i].Length)]}");
             Assert.StartsWith("m=", sequences[i]);
         }
 
-        // Last chunk must have m=0
-        Assert.StartsWith("m=0", sequences[^1]);
+        // Second-to-last chunk (last transmit chunk) must have m=0
+        Assert.StartsWith("m=0", sequences[^2]);
     }
 }
 
@@ -503,7 +508,7 @@ public partial class KgpWindowRenderingTests
         Assert.Contains("a=d,d=a", kgpSequences[0]);
 
         // Find the transmit sequence
-        var transmitSeq = kgpSequences.FirstOrDefault(s => s.Contains("a=T"));
+        var transmitSeq = kgpSequences.FirstOrDefault(s => s.Contains("a=t"));
         Assert.NotNull(transmitSeq);
 
         // Verify the transmit sequence is a valid APC
@@ -522,14 +527,11 @@ public partial class KgpWindowRenderingTests
             .Where(p => p.Length == 2)
             .ToDictionary(p => p[0], p => p[1]);
 
-        Assert.Equal("T", paramDict["a"]);
+        Assert.Equal("t", paramDict["a"]);
         Assert.Equal("32", paramDict["f"]); // RGBA format
         Assert.Equal("8", paramDict["s"]);  // source width
         Assert.Equal("8", paramDict["v"]);  // source height
         Assert.True(paramDict.ContainsKey("i"), "Missing image ID");
-        Assert.Equal("4", paramDict["c"]);  // display columns
-        Assert.Equal("2", paramDict["r"]);  // display rows
-        Assert.Equal("1", paramDict["C"]);  // no cursor movement
         Assert.Equal("2", paramDict["q"]);  // suppress responses
 
         // Extract and validate base64 payload
@@ -625,13 +627,13 @@ public partial class KgpWindowRenderingTests
         // First is delete
         Assert.Contains("a=d,d=a", kgpSequences[0]);
 
-        // Find all chunks (sequences with a=T or starting with m=)
-        var chunks = kgpSequences.Where(s => s.Contains("a=T") || s.Contains("Gm=")).ToList();
+        // Find all chunks (sequences with a=t or starting with m=)
+        var chunks = kgpSequences.Where(s => s.Contains("a=t") || s.Contains("Gm=")).ToList();
         Assert.True(chunks.Count >= 6, $"Expected at least 6 chunks, got {chunks.Count}");
 
         // First chunk has full metadata
         var firstChunk = chunks[0];
-        Assert.Contains("a=T", firstChunk);
+        Assert.Contains("a=t", firstChunk);
         Assert.Contains("f=32", firstChunk);
         Assert.Contains("s=64", firstChunk);
         Assert.Contains("v=64", firstChunk);
@@ -642,7 +644,7 @@ public partial class KgpWindowRenderingTests
         {
             var chunk = chunks[i];
             Assert.StartsWith("\x1b_Gm=1;", chunk);
-            Assert.DoesNotContain("a=T", chunk);
+            Assert.DoesNotContain("a=t", chunk);
         }
 
         // Last chunk has m=0
@@ -675,5 +677,124 @@ public partial class KgpWindowRenderingTests
         var decodedBytes = Convert.FromBase64String(allBase64.ToString());
         Assert.Equal(64 * 64 * 4, decodedBytes.Length);
         Assert.Equal(pixelData, decodedBytes);
+    }
+}
+
+public partial class KgpWindowRenderingTests
+{
+    [Fact]
+    public void Composite_KgpExtendsRight_ClipsSourceRect()
+    {
+        // Parent surface is 10 wide, KGP is placed at col 8 spanning 4 cols
+        // Only 2 cols should be visible (cols 8-9)
+        var parent = new Surface(10, 10, new CellMetrics(8, 16));
+        var child = new Surface(12, 10, new CellMetrics(8, 16));
+        
+        // Create structured KGP data (not legacy FromPayload)
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 });
+        var kgpData = new KgpCellData(
+            transmitPayload: "\x1b_Ga=t,f=32,s=32,v=32,i=1,q=2;AAAA\x1b\\",
+            imageId: 1,
+            widthInCells: 4,
+            heightInCells: 4,
+            sourcePixelWidth: 32,
+            sourcePixelHeight: 32,
+            contentHash: hash);
+        child[8, 0] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+        
+        parent.Composite(child, 0, 0);
+        
+        // The KGP cell should be clipped
+        var clipped = parent[8, 0];
+        Assert.True(clipped.HasKgp, "KGP should survive compositing");
+        
+        var clippedData = clipped.KgpData!;
+        Assert.Equal(2, clippedData.WidthInCells); // 10 - 8 = 2 visible cols
+        Assert.Equal(4, clippedData.HeightInCells); // height unchanged
+        Assert.True(clippedData.IsClipped, "Should be clipped");
+        Assert.Equal(16, clippedData.ClipW); // 32 * 2/4 = 16 pixels visible
+        Assert.Equal(0, clippedData.ClipH); // full height, no clip needed (0 = full)
+    }
+
+    [Fact]
+    public void Composite_KgpExtendsDown_ClipsSourceRect()
+    {
+        var parent = new Surface(10, 5, new CellMetrics(8, 16));
+        var child = new Surface(10, 10, new CellMetrics(8, 16));
+        
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 });
+        var kgpData = new KgpCellData(
+            transmitPayload: null,
+            imageId: 2,
+            widthInCells: 4,
+            heightInCells: 4,
+            sourcePixelWidth: 32,
+            sourcePixelHeight: 64,
+            contentHash: hash);
+        child[0, 3] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+        
+        parent.Composite(child, 0, 0);
+        
+        var clipped = parent[0, 3];
+        Assert.True(clipped.HasKgp);
+        
+        var clippedData = clipped.KgpData!;
+        Assert.Equal(4, clippedData.WidthInCells); // width unchanged
+        Assert.Equal(2, clippedData.HeightInCells); // 5 - 3 = 2 visible rows
+        Assert.True(clippedData.IsClipped);
+        Assert.Equal(32, clippedData.ClipH); // 64 * 2/4 = 32 pixels visible
+    }
+
+    [Fact]
+    public void Composite_KgpFitsEntirely_NoClip()
+    {
+        var parent = new Surface(20, 20, new CellMetrics(8, 16));
+        var child = new Surface(10, 10, new CellMetrics(8, 16));
+        
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 });
+        var kgpData = new KgpCellData(
+            transmitPayload: "\x1b_Ga=t,f=32,s=16,v=16,i=3,q=2;AAAA\x1b\\",
+            imageId: 3,
+            widthInCells: 2,
+            heightInCells: 2,
+            sourcePixelWidth: 16,
+            sourcePixelHeight: 16,
+            contentHash: hash);
+        child[1, 1] = new SurfaceCell(" ", null, null, KgpData: kgpData);
+        
+        parent.Composite(child, 0, 0);
+        
+        var result = parent[1, 1];
+        Assert.True(result.HasKgp);
+        Assert.False(result.KgpData!.IsClipped, "Should not be clipped when it fits");
+        Assert.Equal(2, result.KgpData!.WidthInCells);
+        Assert.Equal(2, result.KgpData!.HeightInCells);
+    }
+
+    [Fact]
+    public void ClippedKgp_BuildPlacementPayload_IncludesSourceRect()
+    {
+        var hash = System.Security.Cryptography.SHA256.HashData(new byte[] { 1, 2, 3 });
+        var kgpData = new KgpCellData(
+            transmitPayload: null,
+            imageId: 5,
+            widthInCells: 4,
+            heightInCells: 4,
+            sourcePixelWidth: 64,
+            sourcePixelHeight: 64,
+            contentHash: hash);
+        
+        // Simulate a clip: show only right half (x=32, w=32) and top half (h=32)
+        var clipped = kgpData.WithClip(32, 0, 32, 32, 2, 2);
+        
+        var placement = clipped.BuildPlacementPayload();
+        Assert.Contains("a=p", placement);
+        Assert.Contains("i=5", placement);
+        Assert.Contains("c=2", placement); // clipped display cols
+        Assert.Contains("r=2", placement); // clipped display rows
+        Assert.Contains("x=32", placement); // source X offset
+        Assert.Contains("w=32", placement); // source width
+        Assert.Contains("h=32", placement); // source height
+        Assert.Contains("z=-1", placement); // z-index
     }
 }

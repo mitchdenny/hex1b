@@ -67,7 +67,7 @@ public class KgpImageCacheTests
     public async Task TwoKittyGraphicsWidgets_SameData_ShareTransmission()
     {
         // Two widgets with identical pixel data should result in:
-        // - First: a=T (transmit+display)
+        // - First: a=t (transmit only) + a=p (placement)
         // - Second: a=p (put only, using same image ID)
         var pixelData = new byte[4 * 4 * 4]; // 4x4 RGBA
         for (int i = 0; i < pixelData.Length; i += 4)
@@ -127,13 +127,13 @@ public class KgpImageCacheTests
             if (text[i] == '\x1b' && text[i + 1] == '_' && text[i + 2] == 'G')
             {
                 var rest = text[(i + 3)..Math.Min(i + 20, text.Length)];
-                if (rest.StartsWith("a=T")) transmitCount++;
+                if (rest.StartsWith("a=t")) transmitCount++;
                 else if (rest.StartsWith("a=p")) putCount++;
             }
         }
 
-        // First image should be transmitted (a=T), second should be a put (a=p)
-        Assert.True(transmitCount >= 1, $"Expected at least 1 transmit (a=T), got {transmitCount}. Total bytes={allBytes.Count}");
+        // First image should be transmitted (a=t), second should be a put (a=p)
+        Assert.True(transmitCount >= 1, $"Expected at least 1 transmit (a=t), got {transmitCount}. Total bytes={allBytes.Count}");
         Assert.True(putCount >= 1, $"Expected at least 1 put (a=p) for deduplicated image, got {putCount}");
     }
 }

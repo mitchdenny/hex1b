@@ -529,6 +529,12 @@ public sealed class Surface : ISurfaceSource
                 {
                     srcCell = ClipSixelCell(srcCell, destX, destY);
                 }
+                
+                // Clip KGP images that would extend beyond destination bounds
+                if (srcCell.HasKgp && srcCell.KgpData is not null)
+                {
+                    srcCell = ClipKgpCell(srcCell, destX, destY);
+                }
 
                 var index = destRowStart + destX;
                 
@@ -616,6 +622,41 @@ public sealed class Surface : ISurfaceSource
         var clippedTracked = new TrackedObject<SixelData>(clippedSixelData, _ => { });
         
         return cell with { Sixel = clippedTracked };
+    }
+
+    /// <summary>
+    /// Clips a KGP cell so it doesn't extend beyond the surface bounds.
+    /// Uses KGP source rectangle (x,y,w,h) parameters to crop the visible portion.
+    /// </summary>
+    private SurfaceCell ClipKgpCell(SurfaceCell cell, int destX, int destY)
+    {
+        var kgpData = cell.KgpData!;
+        var kgpWidth = kgpData.WidthInCells;
+        var kgpHeight = kgpData.HeightInCells;
+        
+        // Check if KGP image extends beyond bounds
+        var extendsRight = destX + kgpWidth > Width;
+        var extendsDown = destY + kgpHeight > Height;
+        
+        if (!extendsRight && !extendsDown)
+            return cell;
+        
+        // Calculate visible portion in cells
+        var visibleCellWidth = Math.Min(kgpWidth, Width - destX);
+        var visibleCellHeight = Math.Min(kgpHeight, Height - destY);
+        
+        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+            return cell with { KgpData = null };
+        
+        // Only set clip for dimensions that actually need clipping (0 = full extent)
+        var pixelW = extendsRight ? (int)(kgpData.SourcePixelWidth * visibleCellWidth / kgpWidth) : 0;
+        var pixelH = extendsDown ? (int)(kgpData.SourcePixelHeight * visibleCellHeight / kgpHeight) : 0;
+        
+        // Apply any existing clip offset
+        var clipX = kgpData.ClipX;
+        var clipY = kgpData.ClipY;
+        
+        return cell with { KgpData = kgpData.WithClip(clipX, clipY, pixelW, pixelH, visibleCellWidth, visibleCellHeight) };
     }
 
     /// <summary>

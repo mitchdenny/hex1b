@@ -150,6 +150,6 @@ public class KgpAppOutputTest
         var output = System.Text.Encoding.UTF8.GetString(allBytes);
 
         Assert.True(output.Contains("\x1b_G"), $"Output ({allBytes.Length} bytes) should contain KGP APC sequence");
-        Assert.Contains("a=T,f=32", output);
+        Assert.Contains("a=t,f=32", output);
     }
 }
