@@ -244,4 +244,43 @@ public class KgpPipelineDiagnostic
             }
         }
     }
+
+    [Fact]
+    public void NormalizePreTokenized_KgpUnrecognizedToken_ConvertedToKgpToken()
+    {
+        // When SurfaceComparer emits KGP as UnrecognizedSequenceToken,
+        // NormalizePreTokenizedTokens must convert it to KgpToken so
+        // Hex1bTerminal.ApplyToken processes it (tracks placements).
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        };
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(capabilities)
+            .WithDimensions(20, 10)
+            .Build();
+
+        // Simulate what SurfaceComparer does: emit KGP as UnrecognizedSequenceToken
+        var pixelData = new byte[4 * 4 * 4]; // 4x4 RGBA red
+        for (int i = 0; i < pixelData.Length; i += 4) { pixelData[i] = 255; pixelData[i+3] = 255; }
+        var base64 = Convert.ToBase64String(pixelData);
+        var kgpEsc = $"\x1b_Ga=T,f=32,s=4,v=4,i=1,c=4,r=2,q=2;{base64}\x1b\\";
+
+        // This is exactly what SurfaceComparer.ToTokens() produces
+        var tokens = new List<AnsiToken>
+        {
+            new CursorPositionToken(1, 1),
+            new UnrecognizedSequenceToken(kgpEsc)
+        };
+
+        terminal.ApplyTokens(tokens);
+
+        // Verify the terminal now has a KGP placement (meaning the token was normalized)
+        Assert.NotEmpty(terminal.KgpPlacements);
+        Assert.Equal(1u, terminal.KgpPlacements[0].ImageId);
+    }
 }

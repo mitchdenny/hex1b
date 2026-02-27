@@ -1120,19 +1120,33 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             var token = tokens[i];
 
-            if (token is UnrecognizedSequenceToken unrec && TryExtractDcsPayload(unrec.Sequence, out var dcsPayload))
+            if (token is UnrecognizedSequenceToken unrec)
             {
-                normalized ??= new List<AnsiToken>(tokens.Count);
-                if (normalized.Count == 0)
+                AnsiToken? replacement = null;
+                
+                if (TryExtractDcsPayload(unrec.Sequence, out var dcsPayload))
                 {
-                    for (int j = 0; j < i; j++)
-                    {
-                        normalized.Add(tokens[j]);
-                    }
+                    replacement = new DcsToken(dcsPayload);
                 }
+                else if (TryExtractKgpToken(unrec.Sequence, out var kgpControlData, out var kgpPayload))
+                {
+                    replacement = new KgpToken(kgpControlData, kgpPayload);
+                }
+                
+                if (replacement != null)
+                {
+                    normalized ??= new List<AnsiToken>(tokens.Count);
+                    if (normalized.Count == 0)
+                    {
+                        for (int j = 0; j < i; j++)
+                        {
+                            normalized.Add(tokens[j]);
+                        }
+                    }
 
-                normalized.Add(new DcsToken(dcsPayload));
-                continue;
+                    normalized.Add(replacement);
+                    continue;
+                }
             }
 
             if (normalized != null)
@@ -1142,6 +1156,70 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         return normalized ?? tokens;
+    }
+
+    /// <summary>
+    /// Extracts KGP control data and payload from an APC sequence string (ESC _ G ... ST).
+    /// </summary>
+    private static bool TryExtractKgpToken(string sequence, out string controlData, out string payload)
+    {
+        controlData = "";
+        payload = "";
+
+        // Check for APC start: ESC _ (0x1b 0x5f)
+        int dataStart;
+        if (sequence.Length >= 2 && sequence[0] == '\x1b' && sequence[1] == '_')
+        {
+            dataStart = 2;
+        }
+        else if (sequence.Length >= 1 && sequence[0] == '\x9f')
+        {
+            dataStart = 1;
+        }
+        else
+        {
+            return false;
+        }
+
+        // Must start with 'G' to be a KGP sequence
+        if (dataStart >= sequence.Length || sequence[dataStart] != 'G')
+            return false;
+
+        dataStart++; // Skip 'G'
+
+        // Find ST: ESC \ or 0x9C
+        int dataEnd = -1;
+        for (int i = dataStart; i < sequence.Length; i++)
+        {
+            if (i + 1 < sequence.Length && sequence[i] == '\x1b' && sequence[i + 1] == '\\')
+            {
+                dataEnd = i;
+                break;
+            }
+            if (sequence[i] == '\x9c')
+            {
+                dataEnd = i;
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false;
+
+        var content = sequence.Substring(dataStart, dataEnd - dataStart);
+        var semicolonIndex = content.IndexOf(';');
+        if (semicolonIndex >= 0)
+        {
+            controlData = content.Substring(0, semicolonIndex);
+            payload = content.Substring(semicolonIndex + 1);
+        }
+        else
+        {
+            controlData = content;
+            payload = "";
+        }
+
+        return true;
     }
 
     private static bool TryExtractDcsPayload(string sequence, out string payload)
@@ -1902,6 +1980,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <param name="tokens">The tokens to apply.</param>
     internal void ApplyTokens(IReadOnlyList<AnsiToken> tokens)
     {
+        tokens = NormalizePreTokenizedTokens(tokens);
         lock (_bufferLock)
         {
             foreach (var token in tokens)
@@ -1923,6 +2002,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <returns>A list of applied tokens with their cell impacts and cursor state changes.</returns>
     internal IReadOnlyList<AppliedToken> ApplyTokensWithImpacts(IReadOnlyList<AnsiToken> tokens)
     {
+        tokens = NormalizePreTokenizedTokens(tokens);
         lock (_bufferLock)
         {
             var result = new List<AppliedToken>(tokens.Count);
