@@ -87,16 +87,61 @@ public sealed class KittyGraphicsNode : Hex1bNode
         if (needsTransmit)
         {
             var base64 = Convert.ToBase64String(PixelData);
-            var sb = new StringBuilder();
-            sb.Append("\x1b_G");
-            sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
-            sb.Append($",i={_assignedImageId}");
-            sb.Append($",c={cols},r={rows}");
-            sb.Append(",C=1,q=2");
-            sb.Append(';');
-            sb.Append(base64);
-            sb.Append("\x1b\\");
-            payload = sb.ToString();
+            
+            // KGP spec requires chunks no larger than 4096 bytes of base64 data.
+            // For small images that fit in one chunk, use a=T directly.
+            // For larger images, chunk with m=1 (more follows) / m=0 (last).
+            const int maxChunkSize = 4096;
+            
+            if (base64.Length <= maxChunkSize)
+            {
+                // Single chunk — transmit+display in one sequence
+                var sb = new StringBuilder();
+                sb.Append("\x1b_G");
+                sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+                sb.Append($",i={_assignedImageId}");
+                sb.Append($",c={cols},r={rows}");
+                sb.Append(",C=1,q=2");
+                sb.Append(';');
+                sb.Append(base64);
+                sb.Append("\x1b\\");
+                payload = sb.ToString();
+            }
+            else
+            {
+                // Multi-chunk transmission
+                var sb = new StringBuilder();
+                int offset = 0;
+                bool first = true;
+                
+                while (offset < base64.Length)
+                {
+                    var remaining = base64.Length - offset;
+                    var chunkSize = Math.Min(maxChunkSize, remaining);
+                    // All chunks except the last must have size that is a multiple of 4
+                    if (remaining > maxChunkSize && chunkSize % 4 != 0)
+                        chunkSize -= chunkSize % 4;
+                    var isLast = offset + chunkSize >= base64.Length;
+                    
+                    sb.Append("\x1b_G");
+                    if (first)
+                    {
+                        sb.Append($"a=T,f={(int)Format},s={PixelWidth},v={PixelHeight}");
+                        sb.Append($",i={_assignedImageId}");
+                        sb.Append($",c={cols},r={rows}");
+                        sb.Append(",C=1,q=2");
+                        first = false;
+                    }
+                    sb.Append(isLast ? ",m=0" : ",m=1");
+                    sb.Append(';');
+                    sb.Append(base64.AsSpan(offset, chunkSize));
+                    sb.Append("\x1b\\");
+                    
+                    offset += chunkSize;
+                }
+                
+                payload = sb.ToString();
+            }
         }
         else
         {

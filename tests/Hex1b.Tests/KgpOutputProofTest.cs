@@ -210,10 +210,11 @@ public class KgpOutputProofTest
             // Look backwards for the nearest CUP sequence (\x1b[row;colH)
             var searchStart = Math.Max(0, kgpPos - 20);
             var before = text.Substring(searchStart, kgpPos - searchStart);
-            var cupMatch = System.Text.RegularExpressions.Regex.Match(before, @"\x1b\[(\d+);(\d+)H");
+            var cupMatch = System.Text.RegularExpressions.Regex.Match(before, @"\x1b\[(\d+)(?:;(\d+))?H");
             if (cupMatch.Success)
             {
-                sb.AppendLine($"  Cursor before KGP: row={cupMatch.Groups[1].Value}, col={cupMatch.Groups[2].Value}");
+                var col = cupMatch.Groups[2].Success ? cupMatch.Groups[2].Value : "1";
+                sb.AppendLine($"  Cursor before KGP: row={cupMatch.Groups[1].Value}, col={col}");
             }
             else
             {
@@ -256,6 +257,83 @@ public class KgpOutputProofTest
         Assert.Contains("s=4", firstHeader);  // width
         Assert.Contains("v=4", firstHeader);  // height
         Assert.Contains("i=", firstHeader);   // image ID present
+    }
+
+    [Fact]
+    public async Task KgpLargeImage_UsesChunkedTransmission()
+    {
+        // 32x32 RGBA = 4096 bytes = ~5464 base64 bytes, exceeding the 4096 byte chunk limit
+        var pixelData = new byte[32 * 32 * 4];
+        for (int i = 0; i < pixelData.Length; i += 4)
+        {
+            pixelData[i] = 255;     // R
+            pixelData[i + 3] = 255; // A
+        }
+
+        var capabilities = new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true
+        };
+
+        var workload = new Hex1bAppWorkloadAdapter(capabilities);
+        await workload.ResizeAsync(80, 24);
+
+        var allBytes = new List<byte>();
+        using var readCts = new CancellationTokenSource();
+        var readTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!readCts.Token.IsCancellationRequested)
+                {
+                    var item = await workload.ReadOutputItemAsync(readCts.Token);
+                    if (!item.Bytes.IsEmpty)
+                        allBytes.AddRange(item.Bytes.ToArray());
+                }
+            }
+            catch (OperationCanceledException) { }
+        });
+
+        var app = new Hex1bApp(ctx =>
+            ctx.VStack(v => [
+                v.Text("Test"),
+                v.KittyGraphics(pixelData, 32, 32).WithDisplaySize(16, 8)
+            ]),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = false });
+
+        using var appCts = new CancellationTokenSource(TimeSpan.FromMilliseconds(500));
+        try { await app.RunAsync(appCts.Token); } catch (OperationCanceledException) { }
+        await app.DisposeAsync();
+        await Task.Delay(100);
+        readCts.Cancel();
+        try { await readTask; } catch { }
+
+        var text = Encoding.UTF8.GetString(allBytes.ToArray());
+
+        // Count KGP sequences — should have multiple chunks (m=1 and m=0)
+        var kgpCount = 0;
+        var hasM1 = false;
+        var hasM0 = false;
+        int pos = 0;
+        while ((pos = text.IndexOf("\x1b_G", pos)) >= 0)
+        {
+            var end = text.IndexOf("\x1b\\", pos);
+            if (end < 0) break;
+            var seq = text.Substring(pos, end - pos + 2);
+            var semiPos = seq.IndexOf(';');
+            var header = semiPos >= 0 ? seq[2..semiPos] : seq[2..^2];
+            
+            if (header.Contains("m=1")) hasM1 = true;
+            if (header.Contains("m=0")) hasM0 = true;
+            kgpCount++;
+            pos = end + 2;
+        }
+
+        Assert.True(kgpCount >= 2, $"Expected at least 2 KGP chunks for 32x32 image, got {kgpCount}");
+        Assert.True(hasM1, "Expected m=1 (continuation) chunk");
+        Assert.True(hasM0, "Expected m=0 (final) chunk");
     }
 
     [Fact]
