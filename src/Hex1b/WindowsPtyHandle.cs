@@ -528,10 +528,17 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     private void ReadThreadProc()
     {
+        // Cache the token as a local. CancellationToken is a struct so the copy
+        // remains valid (and correctly signals cancellation) even after the
+        // CancellationTokenSource that created it is disposed. This avoids an
+        // ObjectDisposedException when DisposeAsync disposes _cts while this
+        // thread is still draining — see _cts.Token access after the 2-second
+        // join timeout in DisposeAsync.
+        var ct = _cts!.Token;
         var buffer = new byte[4096];
         try
         {
-            while (!_cts!.Token.IsCancellationRequested && _readStream != null)
+            while (!ct.IsCancellationRequested && _readStream != null)
             {
                 int bytesRead;
                 try
@@ -546,20 +553,20 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 {
                     break; // Stream disposed
                 }
-                
+
                 if (bytesRead == 0)
                     break; // EOF
-                
+
                 // Copy data and write to channel
                 var data = new byte[bytesRead];
                 Array.Copy(buffer, data, bytesRead);
-                
+
                 // Block until channel accepts the data (provides backpressure)
-                while (!_cts.Token.IsCancellationRequested)
+                while (!ct.IsCancellationRequested)
                 {
                     if (_outputChannel!.Writer.TryWrite(data))
                         break;
-                    
+
                     // Wait a bit and retry
                     Thread.Sleep(1);
                 }
@@ -573,9 +580,11 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     
     private void WriteThreadProc()
     {
+        // Cache the token — same rationale as ReadThreadProc (see comment there).
+        var ct = _cts!.Token;
         try
         {
-            while (!_cts!.Token.IsCancellationRequested && _writeStream != null)
+            while (!ct.IsCancellationRequested && _writeStream != null)
             {
                 // Blocking wait for data from channel
                 byte[]? data = null;
@@ -583,14 +592,14 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 {
                     // Use synchronous blocking read from channel
                     var reader = _inputChannel!.Reader;
-                    while (!_cts.Token.IsCancellationRequested)
+                    while (!ct.IsCancellationRequested)
                     {
                         if (reader.TryRead(out data))
                             break;
-                        
+
                         // Wait a bit and retry (simple polling approach)
                         Thread.Sleep(1);
-                        
+
                         // Check if channel is completed
                         if (reader.Completion.IsCompleted)
                             return;
@@ -600,10 +609,10 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 {
                     break;
                 }
-                
-                if (data == null || _cts.Token.IsCancellationRequested)
+
+                if (data == null || ct.IsCancellationRequested)
                     break;
-                
+
                 try
                 {
                     _writeStream.Write(data, 0, data.Length);
