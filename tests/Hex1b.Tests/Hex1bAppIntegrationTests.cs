@@ -447,16 +447,16 @@ public class Hex1bAppIntegrationTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var ctrlCPressed = false;
+        var ctrlCPressed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget(new Hex1bWidget[]
                 {
-                    new ButtonWidget("Test").OnClick(_ => { ctrlCPressed = true; return Task.CompletedTask; })
+                    new ButtonWidget("Test").OnClick(_ => Task.CompletedTask)
                 }).WithInputBindings(bindings =>
                 {
-                    bindings.Ctrl().Key(Hex1bKey.C).Action(_ => ctrlCPressed = true);
+                    bindings.Ctrl().Key(Hex1bKey.C).Action(_ => ctrlCPressed.TrySetResult());
                 })
             ),
             new Hex1bAppOptions 
@@ -469,19 +469,25 @@ public class Hex1bAppIntegrationTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
         
-        // Wait for initial render, send CTRL-C, and wait for processing
+        // Wait for initial render, then send CTRL-C
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.C, Hex1bModifiers.Control)
-            .WaitUntil(_ => ctrlCPressed, TimeSpan.FromSeconds(5), "ctrlCPressed to be true")
             .Build()
             .ApplyAsync(terminal);
         
-        // The custom binding should have been called
-        Assert.True(ctrlCPressed);
+        // Wait for the custom binding to fire
+        await ctrlCPressed.Task.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
-        // App should still be running (not exited)
-        Assert.False(runTask.IsCompleted);
+        // App should still be running (not exited) - use Task.WhenAny to verify
+        // the app doesn't exit within a brief window, avoiding a point-in-time race
+        var raceResult = await Task.WhenAny(runTask, Task.Delay(200));
+        if (raceResult == runTask)
+        {
+            // Surface the actual error if the app faulted
+            await runTask;
+            Assert.Fail("App exited unexpectedly after Ctrl+C with EnableDefaultCtrlCExit=false");
+        }
         
         cts.Cancel();
         await runTask;
