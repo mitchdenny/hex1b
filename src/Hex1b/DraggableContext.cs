@@ -22,6 +22,11 @@ public sealed class DraggableContext : WidgetContext<DraggableWidget>
     public bool IsDragging => _node.IsDragging;
 
     /// <summary>
+    /// Whether the mouse is currently hovering over this draggable item.
+    /// </summary>
+    public bool IsHovered => _node.IsHovered;
+
+    /// <summary>
     /// The reference data associated with this draggable item.
     /// </summary>
     public object DragData => _node.DragData;

@@ -41,8 +41,8 @@ public sealed record WindowPanelWidget(string? Name = null) : Hex1bWidget
     public bool AllowOutOfBounds { get; init; }
 
     /// <summary>
-    /// Optional background widget that renders behind all content and windows.
-    /// This widget is purely decorative and does not receive focus or input.
+    /// Optional background widget that renders behind all windows.
+    /// This widget participates in input routing and focus management.
     /// </summary>
     public Hex1bWidget? Background { get; init; }
 

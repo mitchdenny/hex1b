@@ -17,7 +17,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
     /// <summary>
     /// Optional background node that renders behind all windows.
-    /// This node is purely decorative and does not receive focus or input.
+    /// Participates in input routing and focus management.
     /// </summary>
     public Hex1bNode? BackgroundNode { get; set; }
 
@@ -528,6 +528,8 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     /// </summary>
     public override IEnumerable<Hex1bNode> GetChildren()
     {
+        // Background first = hit-tested last (lowest priority, behind windows)
+        if (BackgroundNode != null) yield return BackgroundNode;
         foreach (var windowNode in WindowNodes)
         {
             yield return windowNode;

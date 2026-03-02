@@ -1161,7 +1161,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             droppable.HoveredDragData = _dragDropManager.ActiveDragData;
             
             // Update drop target proximity
-            UpdateDropTargetProximity(droppable, y, _dragDropManager.ActiveDragData);
+            UpdateDropTargetProximity(droppable, x, y, _dragDropManager.ActiveDragData);
         }
         else
         {
@@ -1177,8 +1177,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     /// <summary>
     /// Finds the nearest DropTargetNode to the cursor within the given droppable and activates it.
+    /// Uses Manhattan distance so both horizontal and vertical layouts are supported.
     /// </summary>
-    private void UpdateDropTargetProximity(DroppableNode droppable, int cursorY, object dragData)
+    private void UpdateDropTargetProximity(DroppableNode droppable, int cursorX, int cursorY, object dragData)
     {
         var targets = droppable.FindDropTargets();
         if (targets.Count == 0)
@@ -1192,14 +1193,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             return;
         }
 
-        // Find nearest target by vertical distance to cursor
+        // Find nearest target by Manhattan distance to cursor
         DropTargetNode? nearest = null;
         int nearestDist = int.MaxValue;
 
         foreach (var target in targets)
         {
+            var centerX = target.Bounds.X + target.Bounds.Width / 2;
             var centerY = target.Bounds.Y + target.Bounds.Height / 2;
-            var dist = Math.Abs(cursorY - centerY);
+            var dist = Math.Abs(cursorX - centerX) + Math.Abs(cursorY - centerY);
             if (dist < nearestDist)
             {
                 nearestDist = dist;
