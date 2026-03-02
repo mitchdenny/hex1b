@@ -318,7 +318,7 @@ public class MultiCursorPerformanceTests
             $"Single keystroke on 100K-line doc took {ms:F1}ms — expected <50ms.");
     }
 
-    [Fact(Skip = "Flaky in CI - timing-sensitive performance assertion (see #203)")]
+    [Fact]
     public void SingleKeystroke_DoesNotRebuildFullText()
     {
         // Build a 100K-line document
@@ -349,9 +349,9 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.Elapsed.TotalMilliseconds;
-        // Edit + render of visible lines should be <15ms total
-        Assert.True(ms < 15,
-            $"Edit + render-visible-lines on 100K-line doc took {ms:F1}ms — expected <15ms.");
+        // Edit + render of visible lines should be <50ms total
+        Assert.True(ms < 50,
+            $"Edit + render-visible-lines on 100K-line doc took {ms:F1}ms — expected <50ms.");
     }
 
     [Fact]

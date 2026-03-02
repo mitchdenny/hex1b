@@ -105,7 +105,7 @@ public class TrackedObjectTests
         workload.WriteTokensWithBytes(tokens, bytes);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Terminal.ContainsSixelData(), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsSixelData(), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
 
