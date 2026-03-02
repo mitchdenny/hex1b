@@ -79,7 +79,7 @@ public class ListTableDataSource<T> : ITableDataSource<T>, IDisposable
     {
         switch (key)
         {
-            case int intKey:
+            case int intKey when intKey >= 0 && intKey < _list.Count:
                 return ValueTask.FromResult<int?>(intKey);
             case T typedKey:
             {

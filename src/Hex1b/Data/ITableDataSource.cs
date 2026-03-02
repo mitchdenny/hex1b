@@ -55,9 +55,9 @@ public interface ITableDataSource<T> : INotifyCollectionChanged
     /// <returns>The index of the item if found, or null if not found.</returns>
     /// <remarks>
     /// <para>
-    /// This method is optional. If not implemented, auto-scrolling to rows outside
-    /// the current cache will not work - the table won't be able to determine
-    /// where to scroll.
+    /// Return <c>null</c> if the key is not found or if this data source does not
+    /// support index lookup. When <c>null</c> is returned, auto-scrolling to rows
+    /// outside the current cache will not work.
     /// </para>
     /// <para>
     /// For in-memory collections like <see cref="ListTableDataSource{T}"/>, this can
@@ -65,6 +65,5 @@ public interface ITableDataSource<T> : INotifyCollectionChanged
     /// indexed lookup (e.g., database query by primary key).
     /// </para>
     /// </remarks>
-    ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
-        => new ValueTask<int?>(result: null);
+    ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default);
 }

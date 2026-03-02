@@ -31,6 +31,11 @@ internal sealed class Hex1bLogTableDataSource : ITableDataSource<Hex1bLogEntry>,
         return ValueTask.FromResult(_buffer.GetItems(startIndex, count));
     }
 
+    public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+    {
+        return ValueTask.FromResult<int?>(null);
+    }
+
     private void OnBufferChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         CollectionChanged?.Invoke(this, e);

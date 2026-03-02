@@ -1292,6 +1292,11 @@ public class TableNodeTests
             }
             return ValueTask.FromResult<IReadOnlyList<string>>(items);
         }
+
+        public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<int?>(null);
+        }
     }
 
     [Fact]
@@ -1734,6 +1739,11 @@ public class TableNodeTests
                 items.Add($"Row {i}");
             }
             return ValueTask.FromResult<IReadOnlyList<string>>(items);
+        }
+
+        public ValueTask<int?> GetIndexForKeyAsync(object? key, CancellationToken cancellationToken = default)
+        {
+            return ValueTask.FromResult<int?>(null);
         }
     }
 
