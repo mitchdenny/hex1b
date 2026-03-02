@@ -105,11 +105,19 @@ public class EditorScrollbarTests
         var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
 
-        // Wait for content and check scrollbar column (col 29)
+        // Wait for content AND scrollbar characters on col 29
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "content rendered")
+            .WaitUntil(s =>
+            {
+                if (!s.SearchPattern(pattern).HasMatches) return false;
+                for (var row = 0; row < 10; row++)
+                {
+                    var ch = s.GetCell(29, row).Character;
+                    if (ch == trackChar || ch == thumbChar) return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "content and scrollbar rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -158,10 +166,20 @@ public class EditorScrollbarTests
         var trackChar = theme.Get(ScrollTheme.HorizontalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.HorizontalThumbCharacter);
 
+        // Wait for content AND horizontal scrollbar on bottom row
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "content rendered")
+            .WaitUntil(s =>
+            {
+                if (!s.SearchPattern(pattern).HasMatches) return false;
+                var bottomRow = 9;
+                for (var col = 0; col < 30; col++)
+                {
+                    var ch = s.GetCell(col, bottomRow).Character;
+                    if (ch == trackChar || ch == thumbChar) return true;
+                }
+                return false;
+            }, TimeSpan.FromSeconds(2), "content and h-scrollbar rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -203,10 +221,28 @@ public class EditorScrollbarTests
         var hTrack = theme.Get(ScrollTheme.HorizontalTrackCharacter);
         var hThumb = theme.Get(ScrollTheme.HorizontalThumbCharacter);
 
+        // Wait for content AND both scrollbars to render
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "content rendered")
+            .WaitUntil(s =>
+            {
+                if (!s.SearchPattern(pattern).HasMatches) return false;
+                // Check vertical scrollbar on col 29
+                var hasV = false;
+                for (var row = 0; row < 9; row++)
+                {
+                    var ch = s.GetCell(29, row).Character;
+                    if (ch == vTrack || ch == vThumb) { hasV = true; break; }
+                }
+                // Check horizontal scrollbar on row 9
+                var hasH = false;
+                for (var col = 0; col < 29; col++)
+                {
+                    var ch = s.GetCell(col, 9).Character;
+                    if (ch == hTrack || ch == hThumb) { hasH = true; break; }
+                }
+                return hasV && hasH;
+            }, TimeSpan.FromSeconds(2), "content and both scrollbars rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

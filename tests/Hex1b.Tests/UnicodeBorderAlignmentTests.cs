@@ -210,12 +210,18 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(cancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for render, then snapshot BEFORE Ctrl+C to avoid post-exit buffer clearing
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("End line"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, cancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, cancellationToken);
+            .ApplyAsync(terminal, cancellationToken);
         
         await runTask;
         
@@ -594,12 +600,17 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
@@ -630,12 +641,17 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Plain line"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
@@ -666,12 +682,17 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Plain ASCII"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
@@ -705,12 +726,18 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        // Wait for render, then snapshot BEFORE Ctrl+C to avoid post-exit buffer clearing
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
@@ -740,12 +767,17 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Third line"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
@@ -776,12 +808,17 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+        await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("baseline"), TimeSpan.FromSeconds(2), "render complete")
-            .Capture()
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        
+        var snapshot = terminal.CreateSnapshot();
+        
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         await runTask;
         
