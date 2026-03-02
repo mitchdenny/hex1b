@@ -14,6 +14,7 @@ Widgets for organizing and positioning content.
 - **[Splitter](/guide/widgets/splitter)** — Resizable split views
 - **[DragBarPanel](/guide/widgets/dragbar)** — Panels with built-in resize handles
 - **[Float](/guide/widgets/float)** — Remove widgets from layout flow and position them absolutely or relative to siblings
+- **[WrapPanel](/guide/widgets/wrap-panel)** — Flow-based layout that wraps children to the next row or column
 - **[Responsive](/guide/widgets/responsive)** — Breakpoint-based adaptive layouts
 - **[Windows](/guide/widgets/windows)** — Floating, draggable window panels
 
