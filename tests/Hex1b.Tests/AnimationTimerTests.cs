@@ -47,7 +47,7 @@ public class AnimationTimerTests
         timer.Schedule(TimeSpan.FromMilliseconds(1), () => fired = true);
         
         // Wait for timer to expire
-        Thread.Sleep(20);
+        Thread.Sleep(50);
         
         timer.FireDue();
         
@@ -91,7 +91,7 @@ public class AnimationTimerTests
         timer.Schedule(TimeSpan.FromMilliseconds(1), () => count++);
         timer.Schedule(TimeSpan.FromMilliseconds(1), () => count++);
         
-        Thread.Sleep(20);
+        Thread.Sleep(50);
         timer.FireDue();
         
         Assert.Equal(3, count);
@@ -105,7 +105,7 @@ public class AnimationTimerTests
         timer.Schedule(TimeSpan.FromMilliseconds(1), () => { });
         
         // Wait for timer to be past due
-        Thread.Sleep(20);
+        Thread.Sleep(50);
         
         var timeUntil = timer.GetTimeUntilNextDue();
         

@@ -156,6 +156,22 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         return _cells[y, x];
     }
 
+    /// <summary>
+    /// Checks if any cell in the snapshot contains Sixel data.
+    /// </summary>
+    public bool ContainsSixelData()
+    {
+        for (int y = 0; y < Height; y++)
+        {
+            for (int x = 0; x < Width; x++)
+            {
+                if (_cells[y, x].TrackedSixel is not null)
+                    return true;
+            }
+        }
+        return false;
+    }
+
     /// <inheritdoc />
     public Hex1bTerminalSnapshotRegion GetRegion(Rect bounds)
     {
