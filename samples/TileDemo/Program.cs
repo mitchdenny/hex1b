@@ -1,93 +1,71 @@
 using Hex1b;
 using Hex1b.Data;
-using Hex1b.Layout;
-using Hex1b.Theming;
 using Hex1b.Widgets;
+using TileDemo;
 
-// Camera state
-var cameraX = 0.0;
-var cameraY = 0.0;
-var zoomLevel = 0;
-var selectedPoi = (TilePointOfInterest?)null;
+// Camera starts centered on Manhattan, zoom 12 for street-level detail
+var camera = new MapCamera(latitude: 40.7484, longitude: -73.9857, zoomLevel: 12);
 
-// Data source
-var dataSource = new CheckerboardTileDataSource();
+// Tile infrastructure
+using var tileClient = new RasterTileClient();
+var dataSource = new OsmTileDataSource(tileClient, camera);
 
-// Points of interest
-var pois = new List<TilePointOfInterest>
-{
-    new(0, 0, "🏠", "Home"),
-    new(5, 3, "📍", "Marker A"),
-    new(-3, 7, "⭐", "Star"),
-    new(10, -2, "🏔️", "Mountain"),
-    new(-8, -5, "🌊", "Ocean"),
-};
+// Landmarks as points of interest
+var pois = CreateLandmarks(camera);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
-    [
-        // HUD bar at top
-        v.HStack(h =>
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        var (cx, cy) = camera.CharCenter;
+        return ctx.VStack(v =>
         [
-            h.Text($" Camera: ({cameraX:F1}, {cameraY:F1})  Zoom: {zoomLevel} ({Math.Pow(2, zoomLevel):F1}x)  "),
-            h.Text(selectedPoi != null ? $"Selected: {selectedPoi.Label ?? selectedPoi.Icon}" : "Arrow keys: Pan  +/-: Zoom  Click POI for info"),
-        ]),
-
-        // Tile panel fills the rest
-        v.TilePanel(dataSource, cameraX, cameraY, zoomLevel)
-            .WithPointsOfInterest(pois)
-            .OnPan(e =>
-            {
-                cameraX += e.DeltaX;
-                cameraY += e.DeltaY;
-                selectedPoi = null;
-            })
-            .OnZoom(e =>
-            {
-                zoomLevel = e.NewZoomLevel;
-            })
-            .OnPoiClicked(e =>
-            {
-                selectedPoi = e.PointOfInterest;
-            }),
-    ]))
+            v.HStack(h =>
+            [
+                h.Text($" ({camera.Latitude:F4}, {camera.Longitude:F4})  z{camera.ZoomLevel}  "),
+                h.Text("↑↓←→ pan  +/- zoom  "),
+                h.Text("© OpenStreetMap contributors"),
+            ]),
+            v.TilePanel(dataSource, cx, cy, 0) // zoom=0: TilePanel doesn't scale, OSM zoom handles detail
+                .WithPointsOfInterest(pois)
+                .OnPan(e =>
+                {
+                    camera.Pan(e.DeltaX, e.DeltaY);
+                })
+                .OnZoom(e =>
+                {
+                    camera.Zoom(e.Delta);
+                    dataSource.ClearDecodedCache();
+                    pois = CreateLandmarks(camera);
+                }),
+        ]);
+    })
     .Build();
 
 await terminal.RunAsync();
 
 /// <summary>
-/// A simple checkerboard tile data source for demonstration.
-/// Alternates colors and shows tile coordinates as content.
+/// Creates POIs for well-known landmarks, converting lat/lon to character coordinates.
 /// </summary>
-internal class CheckerboardTileDataSource : ITileDataSource
+static List<TilePointOfInterest> CreateLandmarks(MapCamera camera)
 {
-    public Size TileSize => new(3, 1);
+    (string Icon, string Label, double Lat, double Lon)[] landmarks =
+    [
+        ("🗽", "Statue of Liberty", 40.6892, -74.0445),
+        ("🏙️", "Empire State", 40.7484, -73.9857),
+        ("🌉", "Brooklyn Bridge", 40.7061, -73.9969),
+        ("🌳", "Central Park", 40.7829, -73.9654),
+        ("⭐", "Times Square", 40.7580, -73.9855),
+    ];
 
-    public ValueTask<TileData[,]> GetTilesAsync(
-        int tileX, int tileY, int tilesWide, int tilesTall,
-        CancellationToken cancellationToken = default)
+    var pois = new List<TilePointOfInterest>();
+    foreach (var (icon, label, lat, lon) in landmarks)
     {
-        var tiles = new TileData[tilesWide, tilesTall];
-        for (int y = 0; y < tilesTall; y++)
-        {
-            for (int x = 0; x < tilesWide; x++)
-            {
-                var tx = tileX + x;
-                var ty = tileY + y;
-                var isEven = (tx + ty) % 2 == 0;
-
-                // Format coordinate string, truncated to tile width
-                var coord = $"{tx},{ty}";
-                if (coord.Length > 3) coord = coord[..3];
-                coord = coord.PadRight(3);
-
-                tiles[x, y] = new TileData(
-                    coord,
-                    isEven ? Hex1bColor.White : Hex1bColor.Gray,
-                    isEven ? Hex1bColor.FromRgb(30, 30, 80) : Hex1bColor.FromRgb(20, 60, 20));
-            }
-        }
-        return ValueTask.FromResult(tiles);
+        var (tileX, tileY) = TileCoordinates.LatLonToTile(lat, lon, camera.ZoomLevel);
+        var charX = tileX * 256;
+        var charY = tileY * 128;
+        pois.Add(new TilePointOfInterest(charX, charY, icon, label));
     }
+
+    return pois;
 }
