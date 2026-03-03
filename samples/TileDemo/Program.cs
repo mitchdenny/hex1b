@@ -34,8 +34,29 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 })
                 .OnZoom(e =>
                 {
+                    // Capture screen offset BEFORE zoom (both in old char-space)
+                    var (oldCamCharX, oldCamCharY) = camera.CharCenter;
+                    var screenOffsetX = e.PivotX - oldCamCharX;
+                    var screenOffsetY = e.PivotY - oldCamCharY;
+
+                    // Convert pivot to lat/lon (zoom-invariant geographic point)
+                    var (pivotLat, pivotLon) = TileCoordinates.TileToLatLon(
+                        e.PivotX / 256.0, e.PivotY / 128.0, camera.ZoomLevel);
+
                     camera.Zoom(e.Delta);
                     dataSource.ClearDecodedCache();
+
+                    // Recompute pivot in new char-space, keep screen offset constant
+                    var (newPivotTileX, newPivotTileY) = TileCoordinates.LatLonToTile(
+                        pivotLat, pivotLon, camera.ZoomLevel);
+                    var newCamCharX = newPivotTileX * 256.0 - screenOffsetX;
+                    var newCamCharY = newPivotTileY * 128.0 - screenOffsetY;
+
+                    var (newLat, newLon) = TileCoordinates.TileToLatLon(
+                        newCamCharX / 256.0, newCamCharY / 128.0, camera.ZoomLevel);
+                    camera.Latitude = Math.Clamp(newLat, -85.05, 85.05);
+                    camera.Longitude = ((newLon + 180) % 360 + 360) % 360 - 180;
+
                     pois = CreateLandmarks(camera);
                 }),
         ]);

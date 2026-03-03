@@ -148,9 +148,9 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
 
         if (ZoomHandler != null)
         {
-            node.ZoomCallback = async (delta, ctx) =>
+            node.ZoomCallback = async (delta, pivotX, pivotY, ctx) =>
             {
-                var args = new TilePanelZoomEventArgs(node.ZoomLevel + delta, delta, this, node, ctx);
+                var args = new TilePanelZoomEventArgs(node.ZoomLevel + delta, delta, pivotX, pivotY, this, node, ctx);
                 await ZoomHandler(args);
             };
         }

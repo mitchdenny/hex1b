@@ -46,9 +46,9 @@ public sealed class TilePanelNode : CompositeNode
     internal Func<double, double, InputBindingActionContext, Task>? PanCallback { get; set; }
 
     /// <summary>
-    /// Zoom callback, invoked by input bindings with (delta, context).
+    /// Zoom callback, invoked by input bindings with (delta, pivotX, pivotY, context).
     /// </summary>
-    internal Func<int, InputBindingActionContext, Task>? ZoomCallback { get; set; }
+    internal Func<int, double, double, InputBindingActionContext, Task>? ZoomCallback { get; set; }
 
     /// <summary>
     /// POI click callback.
@@ -347,7 +347,25 @@ public sealed class TilePanelNode : CompositeNode
     {
         if (ZoomCallback != null)
         {
-            return ZoomCallback(delta, ctx);
+            // Compute pivot point in tile-space
+            double pivotX = CameraX;
+            double pivotY = CameraY;
+
+            // If this is a mouse event, pivot at the cursor position
+            if (ctx.MouseX >= 0 && ctx.MouseY >= 0 && Bounds.Width > 0 && Bounds.Height > 0)
+            {
+                var localX = ctx.MouseX - Bounds.X;
+                var localY = ctx.MouseY - Bounds.Y;
+                var tileW = EffectiveTileWidth;
+                var tileH = EffectiveTileHeight;
+                if (tileW > 0 && tileH > 0)
+                {
+                    pivotX = CameraX + (localX - Bounds.Width / 2.0) / tileW;
+                    pivotY = CameraY + (localY - Bounds.Height / 2.0) / tileH;
+                }
+            }
+
+            return ZoomCallback(delta, pivotX, pivotY, ctx);
         }
         return Task.CompletedTask;
     }

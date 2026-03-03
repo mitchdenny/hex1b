@@ -18,9 +18,25 @@ public sealed class TilePanelZoomEventArgs : WidgetEventArgs<TilePanelWidget, Ti
     /// </summary>
     public int Delta { get; }
 
+    /// <summary>
+    /// The X coordinate in tile-space that the zoom should pivot around.
+    /// For mouse-initiated zooms, this is the tile-space position under the cursor.
+    /// For keyboard zooms, this equals <see cref="TilePanelNode.CameraX"/> (viewport center).
+    /// </summary>
+    public double PivotX { get; }
+
+    /// <summary>
+    /// The Y coordinate in tile-space that the zoom should pivot around.
+    /// For mouse-initiated zooms, this is the tile-space position under the cursor.
+    /// For keyboard zooms, this equals <see cref="TilePanelNode.CameraY"/> (viewport center).
+    /// </summary>
+    public double PivotY { get; }
+
     internal TilePanelZoomEventArgs(
         int newZoomLevel,
         int delta,
+        double pivotX,
+        double pivotY,
         TilePanelWidget widget,
         TilePanelNode node,
         InputBindingActionContext context)
@@ -28,5 +44,7 @@ public sealed class TilePanelZoomEventArgs : WidgetEventArgs<TilePanelWidget, Ti
     {
         NewZoomLevel = newZoomLevel;
         Delta = delta;
+        PivotX = pivotX;
+        PivotY = pivotY;
     }
 }
