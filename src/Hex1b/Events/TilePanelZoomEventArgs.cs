@@ -6,7 +6,7 @@ namespace Hex1b.Events;
 /// <summary>
 /// Event arguments for TilePanel zoom events.
 /// </summary>
-public sealed class TilePanelZoomEventArgs
+public sealed class TilePanelZoomEventArgs : WidgetEventArgs<TilePanelWidget, TilePanelNode>
 {
     /// <summary>
     /// The new zoom level after the zoom change.
@@ -18,32 +18,15 @@ public sealed class TilePanelZoomEventArgs
     /// </summary>
     public int Delta { get; }
 
-    /// <summary>
-    /// The widget that raised the event.
-    /// </summary>
-    public TilePanelWidget Widget { get; }
-
-    /// <summary>
-    /// The node that raised the event.
-    /// </summary>
-    public TilePanelNode Node { get; }
-
-    /// <summary>
-    /// The input binding context providing access to app services.
-    /// </summary>
-    public InputBindingActionContext Context { get; }
-
     internal TilePanelZoomEventArgs(
         int newZoomLevel,
         int delta,
         TilePanelWidget widget,
         TilePanelNode node,
         InputBindingActionContext context)
+        : base(widget, node, context)
     {
         NewZoomLevel = newZoomLevel;
         Delta = delta;
-        Widget = widget;
-        Node = node;
-        Context = context;
     }
 }

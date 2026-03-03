@@ -33,27 +33,27 @@ public sealed class TilePanelNode : CompositeNode
     /// <summary>
     /// The tile data source.
     /// </summary>
-    public ITileDataSource? DataSource { get; set; }
+    public ITileDataSource? DataSource { get; internal set; }
 
     /// <summary>
     /// Points of interest to display on the map.
     /// </summary>
-    public IReadOnlyList<TilePointOfInterest> PointsOfInterest { get; set; } = [];
+    public IReadOnlyList<TilePointOfInterest> PointsOfInterest { get; internal set; } = [];
 
     /// <summary>
     /// Pan callback, invoked by input bindings with (deltaX, deltaY, context).
     /// </summary>
-    public Func<double, double, InputBindingActionContext, Task>? PanCallback { get; set; }
+    internal Func<double, double, InputBindingActionContext, Task>? PanCallback { get; set; }
 
     /// <summary>
     /// Zoom callback, invoked by input bindings with (delta, context).
     /// </summary>
-    public Func<int, InputBindingActionContext, Task>? ZoomCallback { get; set; }
+    internal Func<int, InputBindingActionContext, Task>? ZoomCallback { get; set; }
 
     /// <summary>
     /// POI click callback.
     /// </summary>
-    public Func<TilePointOfInterest, InputBindingActionContext, Task>? PoiClickedCallback { get; set; }
+    internal Func<TilePointOfInterest, InputBindingActionContext, Task>? PoiClickedCallback { get; set; }
 
     // Cached tile data from last fetch
     private TileData[,]? _cachedTiles;
@@ -65,14 +65,14 @@ public sealed class TilePanelNode : CompositeNode
     /// <summary>
     /// Gets the effective tile render width at the current zoom level.
     /// </summary>
-    public int EffectiveTileWidth => DataSource != null
+    internal int EffectiveTileWidth => DataSource != null
         ? Math.Max(1, (int)(DataSource.TileSize.Width * Math.Pow(2, Math.Clamp(ZoomLevel, -4, 8))))
         : 1;
 
     /// <summary>
     /// Gets the effective tile render height at the current zoom level.
     /// </summary>
-    public int EffectiveTileHeight => DataSource != null
+    internal int EffectiveTileHeight => DataSource != null
         ? Math.Max(1, (int)(DataSource.TileSize.Height * Math.Pow(2, Math.Clamp(ZoomLevel, -4, 8))))
         : 1;
 
