@@ -333,9 +333,9 @@ public class AnsiTokenApplyTests
         // Act - Enter alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
         
-        // Verify cursor is reset to (0,0) in alternate screen
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        // Verify cursor position is preserved from primary screen
+        Assert.Equal(cursorXBeforeAltScreen, terminal.CursorX);
+        Assert.Equal(cursorYBeforeAltScreen, terminal.CursorY);
         
         // Move cursor in alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(3, 5) });
@@ -364,6 +364,8 @@ public class AnsiTokenApplyTests
         
         // Act - Enter alternate screen and write different text
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
+        // Alt screen preserves cursor from primary; reset to home for clean write
+        terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(1, 1) });
         terminal.ApplyTokens(new AnsiToken[] { new TextToken("Alt Screen") });
         
         // Verify alternate screen has alt text
@@ -427,9 +429,9 @@ public class AnsiTokenApplyTests
         // Enter alternate screen (should save y=5, x=14 in separate fields)
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
         
-        // Cursor should be reset to 0,0 on alternate screen
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        // Cursor position is preserved from primary screen on alt screen entry
+        Assert.Equal(14, terminal.CursorX);
+        Assert.Equal(5, terminal.CursorY);
         
         // Move cursor in alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(4, 10) }); // y=3, x=9

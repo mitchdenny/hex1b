@@ -2272,6 +2272,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 RepeatLastCharacter(repeatToken.Count, impacts);
                 break;
                 
+            case BackTabToken:
+                // CBT (CSI Z): Back tab — move cursor to previous tab stop
+                _pendingWrap = false;
+                if (_cursorX > 0)
+                {
+                    // Move left to previous tab stop (every 8 columns)
+                    int prevTab = (_cursorX - 1) / 8 * 8;
+                    _cursorX = prevTab;
+                }
+                break;
+                
             case IndexToken:
                 // Move cursor down one line, scroll if at bottom of scroll region
                 if (_cursorY == _scrollBottom)
@@ -2764,8 +2775,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             ClearBuffer(impacts);
         }
         
-        _cursorX = 0;
-        _cursorY = 0;
+        // Mode 1049 saves cursor position and copies it to the alt screen
+        // (cursor position is preserved, not reset to 0,0)
     }
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)

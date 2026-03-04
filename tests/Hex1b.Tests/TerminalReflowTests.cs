@@ -505,6 +505,8 @@ public class TerminalReflowTests
         // Write content, then enter alternate screen and write different content
         terminal.ApplyTokens([new TextToken("MAIN_BUFFER")]);
         terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
+        // Alt screen preserves cursor from primary; reset to home for clean test
+        terminal.ApplyTokens([new CursorPositionToken(1, 1)]);
         terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
 
         // Verify alt screen content before resize
