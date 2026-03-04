@@ -58,6 +58,66 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 await terminal.RunAsync();
 ```
 
+### Docker Container Integration
+
+Run commands inside isolated Docker containers using `WithDockerContainer()`. This wraps `WithPtyProcess` under the hood, so all terminal features (input sequences, pattern searching, recording) work unchanged:
+
+```csharp
+// Start a container with the default .NET SDK image
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDockerContainer()
+    .Build();
+
+await terminal.RunAsync();
+```
+
+```csharp
+// Configure the container with a specific image and environment
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDockerContainer(c =>
+    {
+        c.Image = "ubuntu:24.04";
+        c.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
+        c.Volumes.Add("/host/data:/container/data:ro");
+        c.WorkingDirectory = "/app";
+    })
+    .Build();
+
+await terminal.RunAsync();
+```
+
+```csharp
+// Build from a Dockerfile (automatically skips rebuild if unchanged)
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDockerContainer(c =>
+    {
+        c.DockerfilePath = "./test-env/Dockerfile";
+        c.BuildArgs["SDK_VERSION"] = "10.0";
+    })
+    .Build();
+
+await terminal.RunAsync();
+```
+
+The container runs interactively with `docker run -it` and is automatically removed on exit (`--rm`). Key options:
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `Image` | `mcr.microsoft.com/dotnet/sdk:10.0` | Docker image to use |
+| `DockerfilePath` | `null` | Build from a Dockerfile instead of pulling an image |
+| `Environment` | `{}` | Environment variables (`-e`) |
+| `Volumes` | `[]` | Volume mounts (`-v`) |
+| `MountDockerSocket` | `false` | Mount `/var/run/docker.sock` for Docker-in-Docker |
+| `Name` | auto-generated | Explicit container name |
+| `Shell` | `/bin/bash` | Shell to run inside the container |
+| `ShellArgs` | `["--norc"]` | Arguments passed to the shell |
+| `AutoRemove` | `true` | Remove container on exit (`--rm`) |
+| `Network` | `null` | Docker network to connect to |
+
+::: tip When to use WithDockerContainer vs WithPtyProcess
+Use `WithDockerContainer` when you need an isolated, reproducible environment—particularly for testing or running untrusted code. Use `WithPtyProcess` when you want to run a local command directly. Under the hood, `WithDockerContainer` simply builds the `docker run -it` arguments and calls `WithPtyProcess("docker", args)`.
+:::
+
 ### Programmatic Control
 
 Read and write to the terminal programmatically:

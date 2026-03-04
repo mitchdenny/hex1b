@@ -40,6 +40,28 @@ This enables:
 - Hosting other TUI programs
 - Building terminal multiplexers
 
+### Docker Containers
+
+Run processes inside Docker containers using `WithDockerContainer()`:
+
+```csharp
+var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDockerContainer(c =>
+    {
+        c.Image = "ubuntu:24.04";
+        c.Environment["MY_VAR"] = "value";
+    })
+    .Build();
+```
+
+This wraps `WithPtyProcess` with `docker run -it --rm`, providing:
+- Isolated, reproducible environments
+- Automatic Dockerfile builds with content-hash caching
+- Container cleanup on exit
+- Docker-in-Docker via `MountDockerSocket`
+
+See [Terminal Emulator — Docker Container Integration](/guide/terminal-emulator#docker-container-integration) for the full options reference.
+
 ## The IHex1bTerminalWorkloadAdapter Interface
 
 ```csharp
@@ -191,6 +213,7 @@ public class MultiplexerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 |---------|----------|
 | `Hex1bAppWorkloadAdapter` | Declarative TUI applications |
 | `Hex1bTerminalChildProcess` | Shell hosting, process management |
+| `WithDockerContainer` | Isolated containers for testing or sandboxed execution |
 | Custom remote adapter | SSH clients, remote terminals |
 | Custom multiplexer | tmux-like applications |
 

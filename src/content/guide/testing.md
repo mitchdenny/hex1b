@@ -570,3 +570,4 @@ public class CounterAppTests
 - [Input Handling](/guide/input) - Learn about keyboard bindings and focus
 - [Widgets & Nodes](/guide/widgets-and-nodes) - Understand the rendering model
 - [Layout System](/guide/layout) - Master the constraint-based layout
+- [Terminal Emulator](/guide/terminal-emulator#docker-container-integration) - Test inside Docker containers

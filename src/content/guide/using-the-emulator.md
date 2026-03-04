@@ -203,6 +203,23 @@ app.Map("/ws/asciiquarium", ctx => HandleTerminal(ctx, "docker", "run", "-it", "
 app.Run();
 ```
 
+::: tip Simplify with WithDockerContainer
+The Docker-based terminals above pass `docker run` arguments manually to `WithPtyProcess`. For more complex setups—where you need environment variables, volumes, or Dockerfile builds—use `WithDockerContainer()` instead:
+
+```csharp
+using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithPresentation(presentation)
+    .WithDockerContainer(c =>
+    {
+        c.Image = "willh/cmatrix";
+        c.Network = "none";
+    })
+    .Build();
+```
+
+See [Terminal Emulator — Docker Container Integration](/guide/terminal-emulator#docker-container-integration) for the full API.
+:::
+
 ### Update wwwroot/index.html
 
 Create a grid layout with four terminal panes:

@@ -325,5 +325,6 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
 ## Related
 
 - [Terminal Emulator Guide](/guide/terminal-emulator) — Learn about Hex1b's terminal emulation capabilities
+- [Docker Containers](/guide/terminal-emulator#docker-container-integration) — Run terminals inside isolated Docker containers
 - [Stacks](/guide/widgets/stacks) — Layout multiple terminals with HStack/VStack
 - [Border](/guide/widgets/containers) — Add borders and titles to terminal panes
