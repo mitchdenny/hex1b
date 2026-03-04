@@ -412,9 +412,20 @@ List<SavedImageInfo> ScanSavedImages()
 
 void CommitContainerImage(string containerName, string imageName, WindowManager windows)
 {
+    var imageTag = $"hex1b-demo:{imageName}";
+    var script = $"""
+        echo "Committing container '{containerName}' as '{imageTag}'..."
+        echo ""
+        echo "$ docker commit {containerName} {imageTag}"
+        echo ""
+        docker commit {containerName} {imageTag}
+        echo ""
+        echo "Done!"
+        """;
+
     var commitTerminal = Hex1bTerminal.CreateBuilder()
-        .WithDimensions(70, 8)
-        .WithPtyProcess("docker", ["commit", containerName, $"hex1b-demo:{imageName}"])
+        .WithDimensions(70, 12)
+        .WithPtyProcess("bash", ["-c", script])
         .WithTerminalWidget(out var commitHandle)
         .Build();
 
@@ -427,7 +438,7 @@ void CommitContainerImage(string containerName, string imageName, WindowManager 
             .Fill()
     )
     .Title($"Saving: {imageName}")
-    .Size(72, 10);
+    .Size(72, 14);
 
     windows.Open(commitWindow);
 
