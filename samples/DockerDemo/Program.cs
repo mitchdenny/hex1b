@@ -19,41 +19,27 @@ var images = new ImageDragData[]
     new("Debian Bookworm", "debian:bookworm-slim"),
 };
 
-// Available automation sequences
+// Available automation sequences (command strings — marker + completion detection added at runtime)
 var sequences = new SequenceDragData[]
 {
-    new("Install .NET 9.0", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 9.0").Enter()
-        .Build()),
-    new("Install .NET 8.0", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0").Enter()
-        .Build()),
-    new("Install .NET 10.0", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --quality preview").Enter()
-        .Build()),
-    new("Add dotnet to PATH", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("export PATH=$PATH:$HOME/.dotnet").Enter()
-        .Build()),
-    new("apt update", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("apt-get update -y").Enter()
-        .Build()),
-    new("apt install curl", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("apt-get install -y curl").Enter()
-        .Build()),
-    new("apt install nano", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("apt-get install -y nano").Enter()
-        .Build()),
-    new("Show system info", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("uname -a && cat /etc/os-release").Enter()
-        .Build()),
-    new("Install Node.js 22", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs").Enter()
-        .Build()),
+    new("Install .NET 9.0", "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 9.0"),
+    new("Install .NET 8.0", "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0"),
+    new("Install .NET 10.0", "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --quality preview"),
+    new("Add dotnet to PATH", "export PATH=$PATH:$HOME/.dotnet"),
+    new("apt update", "apt-get update -y"),
+    new("apt install curl", "apt-get install -y curl"),
+    new("apt install nano", "apt-get install -y nano"),
+    new("Show system info", "uname -a && cat /etc/os-release"),
+    new("Install Node.js 22", "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs"),
+    new("Aspire (GA)", "dotnet workload install aspire"),
+    new("Aspire (Dev)", "dotnet workload install aspire --skip-sign-check --source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet10/nuget/v3/index.json --source https://api.nuget.org/v3/index.json"),
+    new("Aspire (Staging)", "dotnet workload install aspire --skip-sign-check --source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet10-transport/nuget/v3/index.json --source https://api.nuget.org/v3/index.json"),
 };
 
 // Active terminal sessions — each gets its own floating window
 var sessions = new Dictionary<int, TerminalSession>();
 var nextId = 1;
+var nextMarkerId = 1;
 
 void AddTerminal(string image, WindowManager windows)
 {
@@ -141,7 +127,7 @@ void EnqueueSequence(TerminalSession session, SequenceDragData seq)
     bool shouldStartProcessing;
     lock (session.QueueLock)
     {
-        session.Queue.Add(new QueuedSequence(seq.Name, seq.Build, false));
+        session.Queue.Add(new QueuedSequence(seq.Name, seq.Command, false));
         shouldStartProcessing = !session.ProcessingActive;
         if (shouldStartProcessing)
             session.ProcessingActive = true;
@@ -156,7 +142,7 @@ async Task ProcessQueueAsync(TerminalSession session)
 {
     while (true)
     {
-        Func<Hex1bTerminalInputSequence> build;
+        string command;
         lock (session.QueueLock)
         {
             if (session.Queue.Count == 0)
@@ -165,20 +151,31 @@ async Task ProcessQueueAsync(TerminalSession session)
                 displayApp?.Invalidate();
                 return;
             }
-            // Mark the first item as running
             var first = session.Queue[0];
             session.Queue[0] = first with { IsRunning = true };
-            build = first.Build;
+            command = first.Command;
         }
         displayApp?.Invalidate();
 
         try
         {
-            var sequence = build();
+            // Append a colored echo marker to detect command completion.
+            // The typed command shows \033[32m as literal text (no color),
+            // but the echo output renders the marker in green. We use
+            // CellPatternSearcher to find the marker with a foreground
+            // color, which uniquely identifies the echo output.
+            var marker = $"SEQDONE_{nextMarkerId++}";
+            var fullCommand = $"{command} && printf '\\033[32m{marker}\\033[0m\\n'";
+
+            var searcher = BuildMarkerSearcher(marker);
+            var sequence = new Hex1bTerminalInputSequenceBuilder()
+                .Type(fullCommand).Enter()
+                .WaitUntil(s => searcher.SearchFirst(s) is not null, TimeSpan.FromMinutes(10))
+                .Build();
             await sequence.ApplyAsync(session.Terminal, cts.Token);
         }
         catch (OperationCanceledException) { return; }
-        catch { /* sequence failed, continue to next */ }
+        catch { /* sequence failed or timed out, continue to next */ }
 
         lock (session.QueueLock)
         {
@@ -187,6 +184,23 @@ async Task ProcessQueueAsync(TerminalSession session)
         }
         displayApp?.Invalidate();
     }
+}
+
+// Build a CellPatternSearcher that matches the marker text with a foreground
+// color set — this only matches the echo output, never the typed command.
+CellPatternSearcher BuildMarkerSearcher(string marker)
+{
+    var first = marker[0].ToString();
+    var searcher = new CellPatternSearcher()
+        .Find(ctx => ctx.Cell.Character == first && ctx.Cell.Foreground is not null);
+
+    for (var i = 1; i < marker.Length; i++)
+    {
+        var ch = marker[i].ToString();
+        searcher = searcher.Right(ctx => ctx.Cell.Character == ch);
+    }
+
+    return searcher;
 }
 
 // Build the TUI app
@@ -256,8 +270,8 @@ foreach (var s in sessions.Values)
 return exitCode;
 
 record ImageDragData(string Name, string Image);
-record SequenceDragData(string Name, Func<Hex1bTerminalInputSequence> Build);
-record QueuedSequence(string Name, Func<Hex1bTerminalInputSequence> Build, bool IsRunning);
+record SequenceDragData(string Name, string Command);
+record QueuedSequence(string Name, string Command, bool IsRunning);
 
 class TerminalSession(int id, string imageName, Hex1bTerminal terminal, TerminalWidgetHandle handle)
 {
