@@ -124,8 +124,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // (shifting existing content right) instead of overwriting.
     private bool _insertMode = false;
     
+    // Auto-wrap mode (DECAWM, DEC private mode 7): when true, cursor wraps to next line
+    // when writing past the right margin. Default is true (on).
+    private bool _wraparoundMode = true;
+    
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
+    private bool _hasLastPrintedCell = false;
     
     // Terminal title (OSC 0/2) and icon name (OSC 0/1)
     // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
@@ -2054,6 +2059,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _marginRight = _width - 1;
                     }
                 }
+                else if (privateModeToken.Mode == 7)
+                {
+                    // DECAWM - Auto-wrap Mode
+                    _wraparoundMode = privateModeToken.Enable;
+                }
                 break;
             
             case StandardModeToken stdModeToken:
@@ -2193,6 +2203,40 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
+            case RisToken:
+                // RIS (ESC c): Full terminal reset — clear screen, reset all state
+                _scrollTop = 0;
+                _scrollBottom = _height - 1;
+                _marginLeft = 0;
+                _marginRight = _width - 1;
+                _declrmm = false;
+                _cursorX = 0;
+                _cursorY = 0;
+                _pendingWrap = false;
+                _originMode = false;
+                _insertMode = false;
+                _newlineMode = false;
+                _savedCursorX = 0;
+                _savedCursorY = 0;
+                _savedPendingWrap = false;
+                _cursorSaved = false;
+                _currentForeground = null;
+                _currentBackground = null;
+                _currentAttributes = CellAttributes.None;
+                _currentUnderlineColor = null;
+                _lastPrintedCell = TerminalCell.Empty;
+                _hasLastPrintedCell = false;
+                _wraparoundMode = true;
+                // Clear screen
+                for (int row = 0; row < _height; row++)
+                {
+                    for (int col = 0; col < _width; col++)
+                    {
+                        SetCell(row, col, TerminalCell.Empty, impacts);
+                    }
+                }
+                break;
+                
             case DecalnToken:
                 // DECALN: Fill entire screen with 'E', reset margins and cursor
                 _scrollTop = 0;
@@ -2319,18 +2363,27 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
             // printable character is written, not when cursor reaches the margin.
+            // Only wrap if wraparound mode is enabled (DECAWM, mode 7)
             if (_pendingWrap)
             {
-                _pendingWrap = false;
+                if (_wraparoundMode)
+                {
+                    _pendingWrap = false;
                 
-                // Mark the last cell of the row being left as a soft-wrap point.
-                int wrapCol = _declrmm ? _marginRight : _width - 1;
-                ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
-                wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
+                    // Mark the last cell of the row being left as a soft-wrap point.
+                    int wrapCol = _declrmm ? _marginRight : _width - 1;
+                    ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
+                    wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
                 
-                // When DECLRMM is enabled, wrap to left margin, not column 0
-                _cursorX = _declrmm ? _marginLeft : 0;
-                _cursorY++;
+                    // When DECLRMM is enabled, wrap to left margin, not column 0
+                    _cursorX = _declrmm ? _marginLeft : 0;
+                    _cursorY++;
+                }
+                else
+                {
+                    // Wraparound disabled: stay at the last column, overwrite it
+                    _pendingWrap = false;
+                }
             }
             
             // Scroll if cursor is past the bottom of the screen BEFORE writing
@@ -2345,18 +2398,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             bool insideLRMargin = !_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight);
             int effectiveRightMargin = (_declrmm && insideLRMargin) ? _marginRight : _width - 1;
             
-            // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains),
-            // wrap to the next line first. The last cell is left blank (spacer head behavior).
-            // Exception: if terminal is narrower than grapheme width, don't wrap (char won't fit anywhere).
+            // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
             if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap
                 && effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1 >= graphemeWidth)
             {
-                _cursorX = _declrmm ? _marginLeft : 0;
-                _cursorY++;
-                if (_cursorY >= _height)
+                if (_wraparoundMode)
                 {
-                    ScrollUp(impacts);
-                    _cursorY = _height - 1;
+                    // Wrap to the next line first. The last cell is left blank (spacer head behavior).
+                    _cursorX = _declrmm ? _marginLeft : 0;
+                    _cursorY++;
+                    if (_cursorY >= _height)
+                    {
+                        ScrollUp(impacts);
+                        _cursorY = _height - 1;
+                    }
+                }
+                else
+                {
+                    // Wraparound disabled and wide char doesn't fit — skip it
+                    i += grapheme.Length;
+                    continue;
                 }
             }
             
@@ -2406,6 +2467,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 // Save last printed cell for CSI b (REP) command
                 _lastPrintedCell = cell;
+                _hasLastPrintedCell = true;
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
@@ -3451,7 +3513,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
     {
         // Repeat the last printed graphic character n times
-        if (string.IsNullOrEmpty(_lastPrintedCell.Character))
+        if (!_hasLastPrintedCell || string.IsNullOrEmpty(_lastPrintedCell.Character))
             return;
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);

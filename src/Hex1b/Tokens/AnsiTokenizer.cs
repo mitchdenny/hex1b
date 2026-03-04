@@ -58,6 +58,13 @@ public static class AnsiTokenizer
                 tokens.Add(new Ss3Token(text[i + 2]));
                 i += 3;
             }
+            // Check for RIS (ESC c) — full terminal reset
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'c')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(RisToken.Instance);
+                i += 2;
+            }
             // Check for DECALN (ESC # 8) — screen alignment test
             else if (text[i] == '\x1b' && i + 2 < text.Length && text[i + 1] == '#' && text[i + 2] == '8')
             {
