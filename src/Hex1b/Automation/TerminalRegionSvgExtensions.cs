@@ -297,9 +297,8 @@ public static class TerminalRegionSvgExtensions
                         styleBuilder.Append("font-style:italic;");
                     
                     // Text decorations (can be combined)
+                    // Underline is rendered as a separate <line> element for color control
                     var decorations = new List<string>();
-                    if ((attrs & CellAttributes.Underline) != 0)
-                        decorations.Add("underline");
                     if ((attrs & CellAttributes.Strikethrough) != 0)
                         decorations.Add("line-through");
                     if ((attrs & CellAttributes.Overline) != 0)
@@ -313,7 +312,8 @@ public static class TerminalRegionSvgExtensions
 
                     // Use non-breaking space for spaces with text decorations (underline, strikethrough, overline)
                     // Regular spaces don't receive text-decoration in SVG/HTML, but &nbsp; does
-                    var escapedChar = (displayCh == " " && decorations.Count > 0) 
+                    bool hasUnderline = (attrs & CellAttributes.Underline) != 0;
+                    var escapedChar = (displayCh == " " && (decorations.Count > 0 || hasUnderline)) 
                         ? "&#160;" 
                         : HttpUtility.HtmlEncode(displayCh);
                     
@@ -347,6 +347,21 @@ public static class TerminalRegionSvgExtensions
                     
                     var textClass = string.IsNullOrEmpty(blinkClass) ? "" : $""" class="{blinkClass.Trim()}" """;
                     sb.AppendLine($"""      <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{textClass}{clipAttr}>{escapedChar}</text>""");
+                    
+                    // Render underline as explicit <line> for color control
+                    // (CSS text-decoration-color doesn't work on SVG <text> elements)
+                    if (hasUnderline)
+                    {
+                        string ulColor;
+                        if (cell.UnderlineColor.HasValue)
+                            ulColor = $"rgb({cell.UnderlineColor.Value.R},{cell.UnderlineColor.Value.G},{cell.UnderlineColor.Value.B})";
+                        else
+                            ulColor = fgColor;
+                        var ulY = y * cellHeight + cellHeight * 0.9;
+                        var ulX1 = x * cellWidth;
+                        var ulX2 = (x + 1) * cellWidth;
+                        sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY:F1}" x2="{ulX2:F1}" y2="{ulY:F1}" stroke="{ulColor}" stroke-width="1"/>""");
+                    }
                 }
             }
             

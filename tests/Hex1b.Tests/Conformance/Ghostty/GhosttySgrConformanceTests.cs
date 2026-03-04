@@ -423,16 +423,19 @@ public class GhosttySgrConformanceTests
     }
 
     // Ghostty: test "sgr: underline color" — colon-separated 58:2:R:G:B
-    [Fact(Skip = "Underline color (SGR 58) not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_UnderlineColor_ColonSeparated()
     {
         using var terminal = CreateTerminal();
-        // ESC[58:2:1:2:3m = underline color RGB(1,2,3)
+        // ESC[4;58:2:1:2:3m = underline + underline color RGB(1,2,3)
         GhosttyTestFixture.Feed(terminal, "\x1b[4;58:2:1:2:3mX");
 
-        // Would need underline color support in TerminalCell
         var cell = GhosttyTestFixture.GetCell(terminal, 0, 0);
         Assert.True(cell.Attributes.HasFlag(CellAttributes.Underline));
+        Assert.NotNull(cell.UnderlineColor);
+        Assert.Equal(1, cell.UnderlineColor!.Value.R);
+        Assert.Equal(2, cell.UnderlineColor!.Value.G);
+        Assert.Equal(3, cell.UnderlineColor!.Value.B);
     }
 
     // Ghostty: test "sgr: 24-bit bg color" with colon separator

@@ -72,6 +72,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _cursorY;
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
+    private Hex1bColor? _currentUnderlineColor;
     private CellAttributes _currentAttributes;
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
@@ -1879,6 +1880,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         _currentForeground = null;
         _currentBackground = null;
+        _currentUnderlineColor = null;
     }
     
     /// <summary>
@@ -1899,6 +1901,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         _currentForeground = null;
         _currentBackground = null;
+        _currentUnderlineColor = null;
     }
 
     /// <summary>
@@ -2285,7 +2288,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 var cell = new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink);
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                    _currentUnderlineColor);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
                 // Save last printed cell for CSI b (REP) command
@@ -2296,7 +2300,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _currentHyperlink?.AddRef();
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                        _currentUnderlineColor), impacts);
                 }
                 
                 _cursorX += graphemeWidth;
@@ -2634,6 +2639,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             _currentForeground = null;
             _currentBackground = null;
+            _currentUnderlineColor = null;
             _currentAttributes = CellAttributes.None;
             return;
         }
@@ -2658,6 +2664,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 case 0:
                     _currentForeground = null;
                     _currentBackground = null;
+                    _currentUnderlineColor = null;
                     _currentAttributes = CellAttributes.None;
                     break;
 
@@ -2780,15 +2787,28 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     }
                     break;
                 case 58:
-                    // Underline color — not stored in TerminalCell yet, but skip params
-                    if (i + 1 < parts.Length && parts[i + 1] == "5")
+                    // Underline color (semicolon syntax)
+                    if (i + 2 < parts.Length && parts[i + 1] == "5")
                     {
+                        if (int.TryParse(parts[i + 2], out var colorIndex))
+                        {
+                            _currentUnderlineColor = Color256FromIndex(colorIndex);
+                        }
                         i += 2; // 58;5;N
                     }
-                    else if (i + 1 < parts.Length && parts[i + 1] == "2")
+                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
                     {
+                        if (int.TryParse(parts[i + 2], out var r) &&
+                            int.TryParse(parts[i + 3], out var g) &&
+                            int.TryParse(parts[i + 4], out var b))
+                        {
+                            _currentUnderlineColor = Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+                        }
                         i += 4; // 58;2;R;G;B
                     }
+                    break;
+                case 59: // Default underline color
+                    _currentUnderlineColor = null;
                     break;
             }
         }
@@ -2883,7 +2903,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _currentBackground = color;
                 break;
             case 58:
-                // Underline color — not yet stored in TerminalCell, ignored for now
+                _currentUnderlineColor = color;
                 break;
         }
     }
@@ -3267,7 +3287,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     sequence, 
                     writtenAt, 
                     TrackedSixel: null, 
-                    TrackedHyperlink: null);
+                    TrackedHyperlink: null,
+                    _lastPrintedCell.UnderlineColor);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
                 // Handle wide characters
@@ -3275,7 +3296,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
-                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null), impacts);
+                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null,
+                        _lastPrintedCell.UnderlineColor), impacts);
                 }
                 
                 _cursorX += graphemeWidth;
