@@ -27,6 +27,7 @@ var sequences = new SequenceDragData[]
     new("Install .NET 8.0", "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0"),
     new("Install .NET 10.0", "curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --quality preview"),
     new("Add dotnet to PATH", "export PATH=$PATH:$HOME/.dotnet"),
+    new("Source .bashrc", "source ~/.bashrc"),
     new("apt update", "apt-get update -y"),
     new("apt install curl", "apt-get install -y curl"),
     new("apt install nano", "apt-get install -y nano"),
