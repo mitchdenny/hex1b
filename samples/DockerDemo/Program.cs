@@ -30,6 +30,7 @@ var sequences = new SequenceDragData[]
     new("apt update", "apt-get update -y"),
     new("apt install curl", "apt-get install -y curl"),
     new("apt install nano", "apt-get install -y nano"),
+    new("apt install ICU", "apt-get install -y libicu-dev"),
     new("Show system info", "uname -a && cat /etc/os-release"),
     new("Install Node.js 22", "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs"),
     new("Aspire (GA)", "curl -sSL https://aspire.dev/install.sh | bash"),
