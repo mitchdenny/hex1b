@@ -58,6 +58,7 @@ public static class AnsiTokenSerializer
             SaveCursorToken save => save.UseDec ? "\x1b" + "7" : "\x1b[s",
             RestoreCursorToken restore => restore.UseDec ? "\x1b" + "8" : "\x1b[u",
             PrivateModeToken pm => SerializePrivateMode(pm),
+            StandardModeToken sm => $"\x1b[{sm.Mode}{(sm.Enable ? 'h' : 'l')}",
             OscToken osc => SerializeOsc(osc),
             DcsToken dcs => SerializeDcs(dcs),
             Ss3Token ss3 => $"\x1bO{ss3.Character}",

@@ -245,9 +245,14 @@ public static class AnsiTokenizer
                 {
                     tokens.Add(new PrivateModeToken(modeValue, command == 'h'));
                 }
+                else if (!isPrivateMode && int.TryParse(parameters, out var stdMode))
+                {
+                    // Standard (non-private) mode: CSI n h / CSI n l
+                    tokens.Add(new StandardModeToken(stdMode, command == 'h'));
+                }
                 else
                 {
-                    // Standard mode or invalid - treat as unrecognized
+                    // Invalid or unsupported mode
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
                 break;

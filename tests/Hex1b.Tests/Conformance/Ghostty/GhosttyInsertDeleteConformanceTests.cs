@@ -419,10 +419,10 @@ public class GhosttyInsertDeleteConformanceTests
 
     #endregion
 
-    #region Insert Mode (IRM / CSI 4h) — Hex1b does not implement IRM
+    #region Insert Mode (IRM / CSI 4h)
 
     // Ghostty: test "Terminal: insert mode with space"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_Basic()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -434,7 +434,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode doesn't wrap pushed characters"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_DoesNotWrapPushed()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -446,7 +446,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode with wide characters"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_WithWideChars()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -458,7 +458,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode pushing off wide character"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_PushingOffWideChar()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -471,7 +471,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode does nothing at the end of the line"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_AtEndOfLine_Wraps()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -484,7 +484,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode with wide characters at end"
-    [Fact(Skip = "MissingFeature: Hex1b does not implement IRM (Insert/Replace Mode)")]
+    [Fact]
     public void InsertMode_WideCharAtEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);

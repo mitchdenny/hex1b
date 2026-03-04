@@ -119,6 +119,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // When false (default), cursor positions are absolute (relative to full screen).
     private bool _originMode = false;
     
+    // Insert/Replace Mode (IRM, ECMA-48 mode 4): when true, printing inserts characters
+    // (shifting existing content right) instead of overwriting.
+    private bool _insertMode = false;
+    
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
     
@@ -2047,6 +2051,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
             
+            case StandardModeToken stdModeToken:
+                if (stdModeToken.Mode == 4)
+                {
+                    // IRM - Insert/Replace Mode
+                    _insertMode = stdModeToken.Enable;
+                }
+                break;
+            
             case LeftRightMarginToken lrmToken:
                 // DECSLRM - Set Left Right Margins
                 // Only effective when DECLRMM (mode 69) is enabled
@@ -2296,6 +2308,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             
             if (_cursorX < _width && _cursorY < _height)
             {
+                // IRM (Insert Mode): shift existing characters right before placing new one
+                if (_insertMode)
+                {
+                    InsertCharacters(graphemeWidth, impacts);
+                }
+                
                 var sequence = ++_writeSequence;
                 var writtenAt = _timeProvider.GetUtcNow();
                 
