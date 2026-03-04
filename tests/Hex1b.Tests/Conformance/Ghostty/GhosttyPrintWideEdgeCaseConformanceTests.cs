@@ -160,7 +160,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // Invalid VS16 (VS16 on non-emoji base)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact(Skip = "Hex1b clusters VS16 with non-emoji bases instead of discarding")]
+    [Fact]
     public void PrintInvalidVS16_NonGrapheme_RemainsNarrow()
     {
         // Ghostty: "Terminal: print invalid VS16 non-grapheme"
@@ -178,7 +178,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal("x", cell.Character);
     }
 
-    [Fact(Skip = "Hex1b clusters VS16 with non-emoji bases instead of discarding")]
+    [Fact]
     public void PrintInvalidVS16_Grapheme_RemainsNarrow()
     {
         // Ghostty: "Terminal: print invalid VS16 grapheme"
@@ -194,7 +194,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal("x", cell.Character);
     }
 
-    [Fact(Skip = "Hex1b clusters VS16 with non-emoji bases instead of discarding")]
+    [Fact]
     public void PrintInvalidVS16_WithSecondChar_TwoNarrowCells()
     {
         // Ghostty: "Terminal: print invalid VS16 with second char"
@@ -213,7 +213,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal("y", cell1.Character);
     }
 
-    [Fact(Skip = "Hex1b clusters VS16 with non-emoji bases instead of discarding")]
+    [Fact]
     public void PrintInvalidVS16_WithCombiningChar_CombinesWithBase()
     {
         // Ghostty: "Terminal: print invalid VS16 with second char (combining)"
@@ -234,7 +234,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // VS15 (text presentation selector — makes emoji narrow)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact(Skip = "Hex1b does not implement VS15 narrowing of wide emoji")]
+    [Fact]
     public void VS15_MakesNarrowCharacter()
     {
         // Ghostty: "Terminal: VS15 to make narrow character"
@@ -251,7 +251,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal(1, t.CursorX);
     }
 
-    [Fact(Skip = "Hex1b does not implement VS15 narrowing of wide emoji")]
+    [Fact]
     public void VS15_OnAlreadyNarrowEmoji()
     {
         // Ghostty: "Terminal: VS15 on already narrow emoji"
@@ -265,7 +265,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal(1, t.CursorX);
     }
 
-    [Fact(Skip = "Hex1b does not implement VS15 narrowing of wide emoji")]
+    [Fact]
     public void VS15_WithPendingWrap_ClearsPendingWrap()
     {
         // Ghostty: "Terminal: VS15 to make narrow character with pending wrap"
@@ -290,7 +290,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Equal("\U0001F34B", lemonCell.Character);
     }
 
-    [Fact(Skip = "Hex1b does not implement VS15 to prevent VS16 widening")]
+    [Fact]
     public void PrintInvalidVS15_FollowingEmoji_StaysWide()
     {
         // Ghostty: "Terminal: print invalid VS15 following emoji is wide"
@@ -310,7 +310,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // VS16 on next line (wrapping due to widening)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact(Skip = "Hex1b does not implement VS16 widening that triggers line wrap")]
+    [Fact]
     public void VS16_MakesWideOnNextLine()
     {
         // Ghostty: "Terminal: VS16 to make wide character on next line"
@@ -334,9 +334,9 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.True(spacerCell.Character == " " || spacerCell.Character == "",
             $"Expected spacer head, got '{spacerCell.Character}'");
 
-        // Row 1, col 0 should be '#' (wide)
+        // Row 1, col 0 should be '#' (wide, with emoji presentation)
         var hashCell = GhosttyTestFixture.GetCell(t, 1, 0);
-        Assert.Equal("#", hashCell.Character);
+        Assert.Contains("#", hashCell.Character);
     }
 
     // ═══════════════════════════════════════════════════════════════
@@ -360,7 +360,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         Assert.Contains("#", cell.Character);
     }
 
-    [Fact(Skip = "Hex1b does not implement VS16 widening of keypad symbols")]
+    [Fact]
     public void KeypadSequenceVS16_WidePresentation()
     {
         // Ghostty: "Terminal: keypad sequence VS16"

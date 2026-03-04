@@ -2618,6 +2618,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (string.IsNullOrEmpty(cell.Character))
             return;
         
+        // Check if the base character is a valid target for this variation selector.
+        // VS16 (emoji presentation) should only be applied to characters with the
+        // Unicode Emoji property. VS15 (text presentation) should only be applied to
+        // characters that have a text/emoji presentation variant.
+        // Non-emoji characters like 'x', 'n', etc. should completely ignore VS16.
+        // This matches Ghostty, kitty, and WezTerm behavior.
+        var baseRune = cell.Character.EnumerateRunes().FirstOrDefault();
+        if (selectorCodepoint == 0xFE0F) // VS16
+        {
+            if (!DisplayWidth.HasEmojiProperty(baseRune.Value) && !DisplayWidth.IsSmpEmoji(baseRune.Value))
+                return; // Not an emoji base — ignore VS16
+        }
+        
         // Compute the new grapheme by appending the variation selector
         var vs = char.ConvertFromUtf32(selectorCodepoint);
         var newGrapheme = cell.Character + vs;
@@ -2625,8 +2638,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         if (newWidth == oldWidth)
         {
-            // Width unchanged — just update the cell content to include the VS
-            cell = cell with { Character = newGrapheme };
+            // Width unchanged — the variation selector has no visible effect.
+            // Don't modify the cell content. For example, VS15 on always-wide
+            // SMP emoji (like 🧠) or VS16 on already-wide emoji should be
+            // silently discarded. This matches Ghostty behavior.
             return;
         }
         
@@ -2653,19 +2668,72 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         else
         {
             // Widening (VS16: narrow → wide). Need to check if there's room.
-            // If the cell is at the right edge, we can't widen — just update content.
+            // If the cell is at the right edge, wrap to the next line — the wide
+            // char can't fit in the remaining space. Replace the current position
+            // with a spacer and print the wide char at the start of the next line.
+            // This matches Ghostty behavior for VS16 widening at margins.
             if (cellX + newWidth > _width)
             {
-                cell = cell with { Character = newGrapheme };
+                if (!_wraparoundMode)
+                {
+                    // Wraparound disabled — can't widen beyond the right margin.
+                    // Discard the VS and keep the cell unchanged.
+                    return;
+                }
+                
+                // Widening (VS16: narrow → wide) with wrap. The wide char can't fit
+                // in the remaining space. Replace the current position with a spacer
+                // and print the wide char at the start of the next line.
+                // This matches Ghostty behavior for VS16 widening at margins.
+                
+                // Clear the cell at the current position (spacer/blank)
+                cell = TerminalCell.Empty;
+                
+                // Move to start of next line (scroll if needed)
+                int newRow = cellY + 1;
+                int scrollBottom = _scrollBottom;
+                if (newRow > scrollBottom)
+                {
+                    ScrollUp(null);
+                    newRow = scrollBottom;
+                }
+                _cursorY = newRow;
+                _cursorX = 0;
+                
+                // Write the wide character at the new position
+                ref var newCell = ref _screenBuffer[_cursorY, 0];
+                newCell = newCell with { Character = newGrapheme };
+                
+                // Add continuation cell (empty string marks it as wide char tail)
+                if (_width > 1)
+                {
+                    ref var contCell = ref _screenBuffer[_cursorY, 1];
+                    contCell = contCell with { Character = "" };
+                }
+                
+                // Position cursor after the wide char
+                _cursorX = newWidth;
+                if (_cursorX > _width - 1)
+                {
+                    _cursorX = _width - 1;
+                    _pendingWrap = true;
+                }
+                
+                // Update tracking
+                _lastPrintedCellX = 0;
+                _lastPrintedCellY = _cursorY;
+                _lastPrintedCell = newCell;
+                _lastPrintedCellWidth = newWidth;
                 return;
             }
             
             cell = cell with { Character = newGrapheme };
             
-            // Add continuation cell(s)
+            // Add continuation cell(s) (empty string marks as wide char tail)
             for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
             {
-                _screenBuffer[cellY, cellX + w] = TerminalCell.Empty;
+                ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                contCell = contCell with { Character = "" };
             }
             
             // Adjust cursor forward
@@ -3018,6 +3086,39 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         for (int s = 0; s < r; s++)
                             splitLen += runes[s].Utf16SequenceLength;
                         return grapheme[..splitLen];
+                    }
+                }
+                
+                // Terminal-specific variation selector splitting: .NET clusters
+                // VS15 (U+FE0E) and VS16 (U+FE0F) with any preceding character,
+                // but terminal emulators process variation selectors retroactively —
+                // first print the base character, then modify it when the VS arrives.
+                //
+                // Splitting rules for VS at position 1 (right after base):
+                // - VS16 on non-emoji base (e.g., 'x'+VS16, 'n'+VS16+combining):
+                //   Split so handler discards invalid VS16. Any subsequent runes
+                //   (like combining marks) will combine with the base naturally.
+                // - VS16 on emoji base (e.g., '#'+VS16+keycap, '☔'+VS16):
+                //   Keep intact — VS16 is part of a valid emoji sequence.
+                // - VS15 after any base: Split so handler can narrow emoji.
+                //   Non-emoji bases won't be affected (handler is a no-op).
+                if (runes.Length >= 2 && (runes[1].Value == 0xFE0E || runes[1].Value == 0xFE0F))
+                {
+                    bool isVS16 = runes[1].Value == 0xFE0F;
+                    
+                    if (isVS16)
+                    {
+                        // Only split VS16 from non-emoji bases
+                        if (!DisplayWidth.HasEmojiProperty(baseRune.Value) &&
+                            !DisplayWidth.IsSmpEmoji(baseRune.Value))
+                        {
+                            return grapheme[..baseRune.Utf16SequenceLength];
+                        }
+                    }
+                    else
+                    {
+                        // Always split VS15 for retroactive handling
+                        return grapheme[..baseRune.Utf16SequenceLength];
                     }
                 }
             }

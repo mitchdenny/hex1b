@@ -223,7 +223,7 @@ public static class DisplayWidth
     /// These characters default to emoji presentation (width 2).
     /// BMP characters (U+0000-U+FFFF) that can be emoji default to text presentation.
     /// </summary>
-    private static bool IsSmpEmoji(int codePoint)
+    internal static bool IsSmpEmoji(int codePoint)
     {
         // SMP Emoji Blocks (U+1F000 - U+1FFFF range)
         // These default to emoji presentation
@@ -275,7 +275,7 @@ public static class DisplayWidth
     /// ignore VS16 for width purposes.
     /// Source: https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
     /// </summary>
-    private static bool HasEmojiProperty(int codePoint)
+    internal static bool HasEmojiProperty(int codePoint)
     {
         // BMP characters with Emoji=Yes property in Unicode 16.0
         return codePoint switch
