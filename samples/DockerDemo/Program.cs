@@ -72,12 +72,47 @@ void AddTerminal(string image, WindowManager windows)
     handle.WindowTitleChanged += _ => displayApp?.Invalidate();
     handle.StateChanged += _ => displayApp?.Invalidate();
 
-    // Create a floating window for this terminal
+    // Create session first so window content can reference it
+    var session = new TerminalSession(id, image, terminal, handle);
+    sessions[id] = session;
+
+    // Create a floating window — terminal wrapped in a per-terminal Droppable
     var window = windows.Window(w =>
-        w.Terminal(handle)
-            .WhenNotRunning(args =>
-                w.Text($"Container exited (code {args.ExitCode ?? 0})"))
-            .Fill()
+        w.Droppable(dc =>
+        {
+            List<QueuedSequence> queue;
+            lock (session.QueueLock)
+                queue = [.. session.Queue];
+
+            var terminalWidget = dc.Terminal(handle)
+                .WhenNotRunning(args =>
+                    dc.Text($"Container exited (code {args.ExitCode ?? 0})"))
+                .Fill();
+
+            if (queue.Count > 0)
+            {
+                return dc.HStack(h =>
+                [
+                    terminalWidget,
+                    h.Border(
+                        h.VStack(v =>
+                            [.. queue.Select(q =>
+                                (Hex1bWidget)v.Text(q.IsRunning ? $" > {q.Name}" : $"   {q.Name}")
+                            )]
+                        ).Fill()
+                    ).Title("Queue").FixedWidth(24)
+                ]);
+            }
+
+            return terminalWidget;
+        })
+        .Accept(data => data is SequenceDragData)
+        .OnDrop(e =>
+        {
+            if (e.DragData is SequenceDragData seq)
+                EnqueueSequence(session, seq);
+        })
+        .Fill()
     )
     .Title($"#{id} {image}")
     .Size(TerminalWidth + 2, TerminalHeight + 2)
@@ -90,8 +125,7 @@ void AddTerminal(string image, WindowManager windows)
         displayApp?.Invalidate();
     });
 
-    var session = new TerminalSession(id, image, terminal, handle, window);
-    sessions[id] = session;
+    session.Window = window;
 
     _ = Task.Run(async () =>
     {
@@ -102,13 +136,57 @@ void AddTerminal(string image, WindowManager windows)
     windows.Open(window);
 }
 
-void RunSequence(Hex1bTerminal terminal, SequenceDragData seq)
+void EnqueueSequence(TerminalSession session, SequenceDragData seq)
 {
-    _ = Task.Run(async () =>
+    bool shouldStartProcessing;
+    lock (session.QueueLock)
     {
-        var sequence = seq.Build();
-        await sequence.ApplyAsync(terminal, cts.Token);
-    });
+        session.Queue.Add(new QueuedSequence(seq.Name, seq.Build, false));
+        shouldStartProcessing = !session.ProcessingActive;
+        if (shouldStartProcessing)
+            session.ProcessingActive = true;
+    }
+    displayApp?.Invalidate();
+
+    if (shouldStartProcessing)
+        _ = Task.Run(async () => await ProcessQueueAsync(session));
+}
+
+async Task ProcessQueueAsync(TerminalSession session)
+{
+    while (true)
+    {
+        Func<Hex1bTerminalInputSequence> build;
+        lock (session.QueueLock)
+        {
+            if (session.Queue.Count == 0)
+            {
+                session.ProcessingActive = false;
+                displayApp?.Invalidate();
+                return;
+            }
+            // Mark the first item as running
+            var first = session.Queue[0];
+            session.Queue[0] = first with { IsRunning = true };
+            build = first.Build;
+        }
+        displayApp?.Invalidate();
+
+        try
+        {
+            var sequence = build();
+            await sequence.ApplyAsync(session.Terminal, cts.Token);
+        }
+        catch (OperationCanceledException) { return; }
+        catch { /* sequence failed, continue to next */ }
+
+        lock (session.QueueLock)
+        {
+            if (session.Queue.Count > 0)
+                session.Queue.RemoveAt(0);
+        }
+        displayApp?.Invalidate();
+    }
 }
 
 // Build the TUI app
@@ -151,7 +229,7 @@ await using var app = Hex1bTerminal.CreateBuilder()
                     dc.WindowPanel()
                         .Background(bg =>
                             bg.Text(dc.IsHoveredByDrag && dc.CanAcceptDrag
-                                ? "\n\n    --> Drop here to start a container or run a sequence"
+                                ? "\n\n    --> Drop here to start a container"
                                 : sessions.Count == 0
                                     ? "\n\n    Drag an [img] image from the sidebar to start a container"
                                     : "")
@@ -159,18 +237,11 @@ await using var app = Hex1bTerminal.CreateBuilder()
                         )
                         .Fill()
                 )
-                .Accept(data => data is ImageDragData or SequenceDragData)
+                .Accept(data => data is ImageDragData)
                 .OnDrop(e =>
                 {
                     if (e.DragData is ImageDragData img)
                         AddTerminal(img.Image, e.Windows);
-                    else if (e.DragData is SequenceDragData seq)
-                    {
-                        // Apply sequence to the most recently created terminal
-                        var last = sessions.Values.LastOrDefault();
-                        if (last is not null)
-                            RunSequence(last.Terminal, seq);
-                    }
                 })
                 .Fill()
             ]);
@@ -186,4 +257,16 @@ return exitCode;
 
 record ImageDragData(string Name, string Image);
 record SequenceDragData(string Name, Func<Hex1bTerminalInputSequence> Build);
-record TerminalSession(int Id, string ImageName, Hex1bTerminal Terminal, TerminalWidgetHandle Handle, WindowHandle Window);
+record QueuedSequence(string Name, Func<Hex1bTerminalInputSequence> Build, bool IsRunning);
+
+class TerminalSession(int id, string imageName, Hex1bTerminal terminal, TerminalWidgetHandle handle)
+{
+    public int Id { get; } = id;
+    public string ImageName { get; } = imageName;
+    public Hex1bTerminal Terminal { get; } = terminal;
+    public TerminalWidgetHandle Handle { get; } = handle;
+    public WindowHandle? Window { get; set; }
+    public List<QueuedSequence> Queue { get; } = [];
+    public bool ProcessingActive { get; set; }
+    public object QueueLock { get; } = new();
+}
