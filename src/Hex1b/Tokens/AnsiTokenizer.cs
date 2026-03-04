@@ -666,17 +666,9 @@ public static class AnsiTokenizer
         }
 
         var parts = parameters.Split(';');
-        if (parts.Length >= 2 &&
-            int.TryParse(parts[0], out var top) &&
-            int.TryParse(parts[1], out var bottom))
-        {
-            tokens.Add(new ScrollRegionToken(top, bottom));
-        }
-        else
-        {
-            // Invalid - reset
-            tokens.Add(ScrollRegionToken.Reset);
-        }
+        var top = parts.Length > 0 && int.TryParse(parts[0], out var t) ? t : 0;
+        var bottom = parts.Length > 1 && int.TryParse(parts[1], out var b) ? b : 0;
+        tokens.Add(new ScrollRegionToken(top, bottom));
     }
 
     private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload, out bool useEscBackslash)

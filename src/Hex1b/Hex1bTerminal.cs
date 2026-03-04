@@ -2067,16 +2067,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ScrollRegionToken scrollRegionToken:
                 // Store scroll region for future scroll operations (DECSTBM)
                 // Top and Bottom are 1-based; we store as 0-based
-                if (scrollRegionToken.Bottom == 0)
+                // When bottom is 0 or omitted, default to last row
+                var sTop = scrollRegionToken.Top <= 0 ? 1 : scrollRegionToken.Top;
+                var sBottom = scrollRegionToken.Bottom <= 0 ? _height : scrollRegionToken.Bottom;
+                
+                if (sTop >= sBottom)
                 {
-                    // Reset to full screen
+                    // Equal or inverted margins = reset to full screen
                     _scrollTop = 0;
                     _scrollBottom = _height - 1;
                 }
                 else
                 {
-                    _scrollTop = Math.Clamp(scrollRegionToken.Top - 1, 0, _height - 1);
-                    _scrollBottom = Math.Clamp(scrollRegionToken.Bottom - 1, _scrollTop, _height - 1);
+                    _scrollTop = Math.Clamp(sTop - 1, 0, _height - 1);
+                    _scrollBottom = Math.Clamp(sBottom - 1, _scrollTop, _height - 1);
                 }
                 // DECSTBM also moves cursor to home position (1,1)
                 _pendingWrap = false; // Cursor movement clears pending wrap
@@ -2648,7 +2652,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
 
                 // Text attributes - reset
-                case 21: // Double underline OR bold off (varies by terminal)
+                case 21: // Double underline (ECMA-48)
+                    _currentAttributes |= CellAttributes.Underline;
+                    break;
                 case 22: // Normal intensity (not bold, not dim)
                     _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
                     break;
@@ -2904,6 +2910,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Insert blank lines at cursor position within scroll region
         // Lines pushed off the bottom of the scroll region are lost
         // When DECLRMM is enabled, only affect columns within left/right margins
+        
+        // IL resets pending wrap and moves cursor to left margin
+        _pendingWrap = false;
+        _cursorX = _declrmm ? _marginLeft : 0;
+        
+        // No-op if cursor is outside the scroll region
+        if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
+            return;
+        
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -2940,6 +2955,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Delete lines at cursor position within scroll region
         // Blank lines are inserted at the bottom of the scroll region
         // When DECLRMM is enabled, only affect columns within left/right margins
+        
+        // DL resets pending wrap and moves cursor to left margin
+        _pendingWrap = false;
+        _cursorX = _declrmm ? _marginLeft : 0;
+        
+        // No-op if cursor is outside the scroll region
+        if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
+            return;
+        
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -3016,6 +3040,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     private void EraseCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // ECH resets pending wrap per ECMA-48 / Ghostty conformance
+        _pendingWrap = false;
+        
         // Erase n characters from cursor without moving cursor or shifting
         // When DECLRMM is enabled, operations are bounded by right margin
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
