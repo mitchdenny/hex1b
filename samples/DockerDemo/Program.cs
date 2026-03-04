@@ -40,6 +40,9 @@ var sequences = new SequenceDragData[]
     new("apt install curl", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("apt-get install -y curl").Enter()
         .Build()),
+    new("apt install nano", () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("apt-get install -y nano").Enter()
+        .Build()),
     new("Show system info", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("uname -a && cat /etc/os-release").Enter()
         .Build()),
