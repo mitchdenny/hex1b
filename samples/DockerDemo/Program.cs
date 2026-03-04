@@ -373,7 +373,10 @@ void StopContainer(string name)
             UseShellExecute = false,
             CreateNoWindow = true
         });
-        proc?.WaitForExit(5000);
+        if (proc is null) return;
+        proc.StandardOutput.ReadToEnd();
+        proc.StandardError.ReadToEnd();
+        proc.WaitForExit(5000);
     }
     catch { }
 }
@@ -420,7 +423,11 @@ void CommitContainerImage(string containerName, string imageName)
             UseShellExecute = false,
             CreateNoWindow = true
         });
-        proc?.WaitForExit(30000);
+        if (proc is null) return;
+        // Must read streams before WaitForExit to avoid deadlock
+        proc.StandardOutput.ReadToEnd();
+        proc.StandardError.ReadToEnd();
+        proc.WaitForExit(60000);
 
         // Trigger immediate rescan
         var scanned = ScanSavedImages();
@@ -443,7 +450,10 @@ void DeleteSavedImage(string fullTag)
             UseShellExecute = false,
             CreateNoWindow = true
         });
-        proc?.WaitForExit(10000);
+        if (proc is null) return;
+        proc.StandardOutput.ReadToEnd();
+        proc.StandardError.ReadToEnd();
+        proc.WaitForExit(10000);
 
         var scanned = ScanSavedImages();
         lock (savedImagesLock) { savedImages = scanned; }
