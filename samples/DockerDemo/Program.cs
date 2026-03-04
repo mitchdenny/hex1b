@@ -104,16 +104,16 @@ await using var app = Hex1bTerminal.CreateBuilder()
                         a.Section("Images", s =>
                             images.Select(img =>
                                 (Hex1bWidget)s.Draggable(img, dc =>
-                                    dc.Text(dc.IsDragging ? $"  ┄ {img.Name}" : $"  📦 {img.Name}"))
-                                    .DragOverlay(dc => dc.Text($"📦 {img.Name}"))
+                                    dc.Text(dc.IsDragging ? $"  - {img.Name}" : $"  [img] {img.Name}"))
+                                    .DragOverlay(dc => dc.Text($"[img] {img.Name}"))
                             )
                         ).Expanded(),
 
                         a.Section("Sequences", s =>
                             sequences.Select(seq =>
                                 (Hex1bWidget)s.Draggable(seq, dc =>
-                                    dc.Text(dc.IsDragging ? $"  ┄ {seq.Name}" : $"  ⚡ {seq.Name}"))
-                                    .DragOverlay(dc => dc.Text($"⚡ {seq.Name}"))
+                                    dc.Text(dc.IsDragging ? $"  - {seq.Name}" : $"  [seq] {seq.Name}"))
+                                    .DragOverlay(dc => dc.Text($"[seq] {seq.Name}"))
                             )
                         ).Expanded()
                     ]).MultipleExpanded()
@@ -127,7 +127,7 @@ await using var app = Hex1bTerminal.CreateBuilder()
                     ? (Hex1bWidget)h.Droppable(dc =>
                         dc.Border(
                             dc.Text(dc.IsHoveredByDrag && dc.CanAcceptDrag
-                                ? "\n\n    ➡ Drop an image here to start a container"
+                                ? "\n\n    --> Drop an image here to start a container"
                                 : "\n\n    Drag a 📦 image from the sidebar to start")
                                 .Fill()
                         ).Title("No containers running").Fill()
@@ -145,9 +145,9 @@ await using var app = Hex1bTerminal.CreateBuilder()
                                         dc.IsHoveredByDrag && dc.CanAcceptDrag
                                             ? (Hex1bWidget)pane.Text(
                                                 dc.HoveredDragData is ImageDragData imgData
-                                                    ? $" ➡ Drop to start: {imgData.Name}"
+                                                    ? $" --> Drop to start: {imgData.Name}"
                                                     : dc.HoveredDragData is SequenceDragData seqData
-                                                        ? $" ⚡ Drop to run: {seqData.Name}"
+                                                        ? $" >> Drop to run: {seqData.Name}"
                                                         : " Drop here")
                                                 .ContentHeight()
                                             : (Hex1bWidget)pane.Text($" {s.ImageName}")
