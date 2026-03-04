@@ -105,18 +105,21 @@ public class EditorScrollbarTests
         var trackChar = theme.Get(ScrollTheme.VerticalTrackCharacter);
         var thumbChar = theme.Get(ScrollTheme.VerticalThumbCharacter);
 
-        // Wait for content AND scrollbar characters on col 29
+        // Wait for content AND both scrollbar characters on col 29
         var pattern = new CellPatternSearcher().Find("L001");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s =>
             {
                 if (!s.SearchPattern(pattern).HasMatches) return false;
+                var foundTrack = false;
+                var foundThumb = false;
                 for (var row = 0; row < 10; row++)
                 {
                     var ch = s.GetCell(29, row).Character;
-                    if (ch == trackChar || ch == thumbChar) return true;
+                    if (ch == trackChar) foundTrack = true;
+                    if (ch == thumbChar) foundThumb = true;
                 }
-                return false;
+                return foundTrack && foundThumb;
             }, TimeSpan.FromSeconds(2), "content and scrollbar rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
