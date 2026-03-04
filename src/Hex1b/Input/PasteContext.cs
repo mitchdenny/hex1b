@@ -22,7 +22,7 @@ public sealed class PasteContext : IAsyncDisposable
     /// </summary>
     /// <param name="invalidate">Action to request a UI re-render (safe to call from any thread).</param>
     /// <param name="boundedCapacity">Maximum number of buffered chunks before backpressure is applied.</param>
-    public PasteContext(Action? invalidate = null, int boundedCapacity = 64)
+    internal PasteContext(Action? invalidate = null, int boundedCapacity = 64)
     {
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(boundedCapacity)
         {
@@ -136,11 +136,11 @@ public sealed class PasteContext : IAsyncDisposable
     /// Read the entire paste content as a string. Best for small pastes.
     /// For large pastes, prefer <see cref="ReadChunksAsync"/> or <see cref="ReadLinesAsync"/>.
     /// </summary>
-    /// <param name="maxBytes">Maximum number of characters to read. Throws if exceeded.</param>
+    /// <param name="maxCharacters">Maximum number of characters to read. Throws if exceeded.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The complete paste text.</returns>
-    /// <exception cref="InvalidOperationException">Thrown when paste exceeds maxBytes.</exception>
-    public async Task<string> ReadToEndAsync(int maxBytes = 4 * 1024 * 1024, CancellationToken ct = default)
+    /// <exception cref="InvalidOperationException">Thrown when paste exceeds maxCharacters.</exception>
+    public async Task<string> ReadToEndAsync(int maxCharacters = 4 * 1024 * 1024, CancellationToken ct = default)
     {
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
         var sb = new StringBuilder();
@@ -150,10 +150,10 @@ public sealed class PasteContext : IAsyncDisposable
             await foreach (var chunk in _channel.Reader.ReadAllAsync(linked.Token))
             {
                 sb.Append(chunk);
-                if (sb.Length > maxBytes)
+                if (sb.Length > maxCharacters)
                 {
                     throw new InvalidOperationException(
-                        $"Paste content exceeds maximum size of {maxBytes} characters. " +
+                        $"Paste content exceeds maximum size of {maxCharacters} characters. " +
                         $"Use ReadChunksAsync() or CopyToAsync() for large pastes.");
                 }
             }

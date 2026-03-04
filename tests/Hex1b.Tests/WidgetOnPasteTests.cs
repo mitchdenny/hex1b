@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
@@ -24,9 +25,9 @@ public class WidgetOnPasteTests
         string? customReceived = null;
         var node = new TextBoxNode { Text = "original" };
         node.State.CursorPosition = 8;
-        node.CustomPasteAction = async paste =>
+        node.CustomPasteAction = async e =>
         {
-            customReceived = await paste.ReadToEndAsync();
+            customReceived = await e.Paste.ReadToEndAsync();
         };
         var paste = CreatePaste("custom");
 
@@ -44,9 +45,9 @@ public class WidgetOnPasteTests
     {
         PasteContext? receivedContext = null;
         var node = new TextBoxNode();
-        node.CustomPasteAction = paste =>
+        node.CustomPasteAction = e =>
         {
-            receivedContext = paste;
+            receivedContext = e.Paste;
             return Task.CompletedTask;
         };
         var paste = CreatePaste("test");
@@ -62,9 +63,9 @@ public class WidgetOnPasteTests
     {
         string? result = null;
         var node = new TextBoxNode();
-        node.CustomPasteAction = async paste =>
+        node.CustomPasteAction = async e =>
         {
-            result = await paste.ReadToEndAsync();
+            result = await e.Paste.ReadToEndAsync();
         };
         var paste = CreatePaste("hello world");
 
@@ -78,9 +79,9 @@ public class WidgetOnPasteTests
     public async Task OnPaste_CanCancel()
     {
         var node = new TextBoxNode();
-        node.CustomPasteAction = paste =>
+        node.CustomPasteAction = e =>
         {
-            paste.Cancel();
+            e.Paste.Cancel();
             return Task.CompletedTask;
         };
         // Don't call Complete() so Cancel() can fire
@@ -113,10 +114,10 @@ public class WidgetOnPasteTests
     {
         var widget = new TextBoxWidget("test");
 
-        var withPaste = widget.OnPaste(async paste => await paste.ReadToEndAsync());
+        var withPaste = widget.OnPaste(async e => await e.Paste.ReadToEndAsync());
         Assert.NotNull(withPaste.PasteHandler);
 
-        var withSyncPaste = widget.OnPaste(paste => { });
+        var withSyncPaste = widget.OnPaste(e => { });
         Assert.NotNull(withSyncPaste.PasteHandler);
     }
 
@@ -125,10 +126,10 @@ public class WidgetOnPasteTests
     {
         bool handlerCalled = false;
         var widget = new TextBoxWidget("test")
-            .OnPaste(async paste =>
+            .OnPaste(async e =>
             {
                 handlerCalled = true;
-                await paste.ReadToEndAsync();
+                await e.Paste.ReadToEndAsync();
             });
 
         // Reconcile to create node

@@ -271,7 +271,7 @@ public class PasteStreamingTests
         var events = await DispatchTokensAsync(tokens);
 
         var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
-        var text = await paste.Paste.ReadToEndAsync(maxBytes: 2 * 1024 * 1024);
+        var text = await paste.Paste.ReadToEndAsync(maxCharacters: 2 * 1024 * 1024);
         Assert.Equal(1024 * 1024, text.Length);
     }
 

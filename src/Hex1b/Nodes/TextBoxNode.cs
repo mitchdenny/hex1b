@@ -54,7 +54,7 @@ public sealed class TextBoxNode : Hex1bNode
     /// Custom paste handler that overrides the default text insertion behavior.
     /// When null, paste is handled by inserting text at cursor position.
     /// </summary>
-    internal Func<Input.PasteContext, Task>? CustomPasteAction { get; set; }
+    internal Func<Events.PasteEventArgs, Task>? CustomPasteAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused 
@@ -144,7 +144,7 @@ public sealed class TextBoxNode : Hex1bNode
         // Custom handler overrides default behavior
         if (CustomPasteAction != null)
         {
-            await CustomPasteAction(pasteEvent.Paste);
+            await CustomPasteAction(new Events.PasteEventArgs(pasteEvent.Paste));
             return InputResult.Handled;
         }
 

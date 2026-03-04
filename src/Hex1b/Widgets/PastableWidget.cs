@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Nodes;
 
@@ -30,7 +31,7 @@ public sealed record PastableWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// The async paste handler. Called when a bracketed paste event bubbles up to this container.
     /// </summary>
-    internal Func<PasteContext, Task>? PasteHandler { get; init; }
+    internal Func<PasteEventArgs, Task>? PasteHandler { get; init; }
 
     /// <summary>
     /// Maximum number of characters to accept. If exceeded, the paste is auto-cancelled.
@@ -47,14 +48,14 @@ public sealed record PastableWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// Sets the async paste handler that receives streaming paste data.
     /// </summary>
-    public PastableWidget OnPaste(Func<PasteContext, Task> handler)
+    public PastableWidget OnPaste(Func<PasteEventArgs, Task> handler)
         => this with { PasteHandler = handler };
 
     /// <summary>
     /// Sets the async paste handler using a synchronous action.
     /// </summary>
-    public PastableWidget OnPaste(Action<PasteContext> handler)
-        => this with { PasteHandler = paste => { handler(paste); return Task.CompletedTask; } };
+    public PastableWidget OnPaste(Action<PasteEventArgs> handler)
+        => this with { PasteHandler = e => { handler(e); return Task.CompletedTask; } };
 
     /// <summary>
     /// Sets the maximum paste size in characters. If exceeded, the paste is auto-cancelled.

@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -48,7 +49,7 @@ public class PastableWidgetTests
         var node = new PastableNode
         {
             Child = child,
-            PasteAction = async paste => { receivedText = await paste.ReadToEndAsync(); }
+            PasteAction = async e => { receivedText = await e.Paste.ReadToEndAsync(); }
         };
         child.Parent = node;
 
@@ -99,7 +100,7 @@ public class PastableWidgetTests
         var node = new PastableNode
         {
             Child = child,
-            PasteAction = async paste => { receivedText = await paste.ReadToEndAsync(); }
+            PasteAction = async e => { receivedText = await e.Paste.ReadToEndAsync(); }
         };
         child.Parent = node;
 
@@ -123,9 +124,9 @@ public class PastableWidgetTests
         var node = new PastableNode
         {
             Child = child,
-            PasteAction = async paste =>
+            PasteAction = async e =>
             {
-                await foreach (var chunk in paste.ReadChunksAsync())
+                await foreach (var chunk in e.Paste.ReadChunksAsync())
                     chunks.Add(chunk);
             }
         };
@@ -159,9 +160,9 @@ public class PastableWidgetTests
         var node = new PastableNode
         {
             Child = child,
-            PasteAction = async paste =>
+            PasteAction = async e =>
             {
-                await foreach (var line in paste.ReadLinesAsync())
+                await foreach (var line in e.Paste.ReadLinesAsync())
                     lines.Add(line);
             }
         };
@@ -216,7 +217,7 @@ public class PastableWidgetTests
         var inner = new PastableNode
         {
             Child = child,
-            PasteAction = async paste => { innerReceived = await paste.ReadToEndAsync(); }
+            PasteAction = async e => { innerReceived = await e.Paste.ReadToEndAsync(); }
         };
         child.Parent = inner;
 
@@ -249,17 +250,17 @@ public class PastableWidgetTests
         {
             Child = child,
             MaxSize = 10,
-            PasteAction = async paste =>
+            PasteAction = async e =>
             {
                 try
                 {
-                    await paste.ReadToEndAsync(maxBytes: int.MaxValue);
+                    await e.Paste.ReadToEndAsync(maxCharacters: int.MaxValue);
                 }
                 catch
                 {
                     // ReadToEndAsync may throw or return partial
                 }
-                wasCancelled = paste.IsCancelled;
+                wasCancelled = e.Paste.IsCancelled;
             }
         };
         child.Parent = node;
@@ -299,12 +300,12 @@ public class PastableWidgetTests
         {
             Child = child,
             PasteTimeout = TimeSpan.FromMilliseconds(100),
-            PasteAction = async paste =>
+            PasteAction = async e =>
             {
                 // Handler that takes a long time (simulate slow processing)
                 try
                 {
-                    await foreach (var chunk in paste.ReadChunksAsync())
+                    await foreach (var chunk in e.Paste.ReadChunksAsync())
                     {
                         // keep reading
                     }
@@ -313,7 +314,7 @@ public class PastableWidgetTests
                 {
                     // cancelled
                 }
-                wasCancelled = paste.IsCancelled;
+                wasCancelled = e.Paste.IsCancelled;
             }
         };
         child.Parent = node;
@@ -344,13 +345,13 @@ public class PastableWidgetTests
         var node = new PastableNode
         {
             Child = child,
-            PasteAction = async paste =>
+            PasteAction = async e =>
             {
-                await foreach (var chunk in paste.ReadChunksAsync())
+                await foreach (var chunk in e.Paste.ReadChunksAsync())
                 {
                     chunksRead.Add(chunk);
                     if (chunksRead.Count >= 2)
-                        paste.Cancel();
+                        e.Paste.Cancel();
                 }
             }
         };
@@ -407,7 +408,7 @@ public class PastableWidgetTests
         // Verify the widget creates the correct node type
         var childWidget = new TextBlockWidget("test");
         var widget = new PastableWidget(childWidget)
-            .OnPaste(async paste => await paste.ReadToEndAsync())
+            .OnPaste(async e => await e.Paste.ReadToEndAsync())
             .WithMaxSize(1000)
             .WithTimeout(TimeSpan.FromSeconds(30));
 
@@ -422,7 +423,7 @@ public class PastableWidgetTests
         // Verify fluent API methods return correct widget type
         var widget = new PastableWidget(new TextBlockWidget("test"));
         
-        var withPaste = widget.OnPaste(paste => { });
+        var withPaste = widget.OnPaste(e => { });
         Assert.NotNull(withPaste.PasteHandler);
 
         var withMax = widget.WithMaxSize(500);

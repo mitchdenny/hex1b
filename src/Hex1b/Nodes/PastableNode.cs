@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Layout;
 
@@ -13,22 +14,22 @@ public sealed class PastableNode : Hex1bNode
     /// <summary>
     /// The single child node.
     /// </summary>
-    public Hex1bNode? Child { get; set; }
+    public Hex1bNode? Child { get; internal set; }
 
     /// <summary>
     /// The async action to execute when paste data arrives.
     /// </summary>
-    public Func<PasteContext, Task>? PasteAction { get; set; }
+    public Func<PasteEventArgs, Task>? PasteAction { get; internal set; }
 
     /// <summary>
     /// Maximum paste size in characters. Null means unlimited.
     /// </summary>
-    public int? MaxSize { get; set; }
+    public int? MaxSize { get; internal set; }
 
     /// <summary>
     /// Timeout for the paste operation. Null means no timeout.
     /// </summary>
-    public TimeSpan? PasteTimeout { get; set; }
+    public TimeSpan? PasteTimeout { get; internal set; }
 
     public override bool IsFocusable => false;
 
@@ -84,7 +85,7 @@ public sealed class PastableNode : Hex1bNode
 
         try
         {
-            await PasteAction(paste);
+            await PasteAction(new PasteEventArgs(paste));
         }
         finally
         {

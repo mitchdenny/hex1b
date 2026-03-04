@@ -66,7 +66,7 @@ public class PasteContextTests
         ctx.Complete();
 
         await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ctx.ReadToEndAsync(maxBytes: 50));
+            () => ctx.ReadToEndAsync(maxCharacters: 50));
     }
 
     [Fact]

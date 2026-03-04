@@ -75,8 +75,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         : [v2.Text("          │ (nothing yet)")]),
                 ]))
             )
-            .OnPaste(async paste =>
+            .OnPaste(async e =>
             {
+                var paste = e.Paste;
                 // Reset state for new paste
                 totalChars = 0;
                 totalLines = 0;
