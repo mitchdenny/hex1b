@@ -2062,6 +2062,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // IRM - Insert/Replace Mode
                     _insertMode = stdModeToken.Enable;
                 }
+                else if (stdModeToken.Mode == 20)
+                {
+                    // LNM - Linefeed/New Line Mode
+                    _newlineMode = stdModeToken.Enable;
+                }
                 break;
             
             case LeftRightMarginToken lrmToken:
@@ -2336,7 +2341,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Determine effective right margin for wrapping
-            int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
+            // Only use margin boundary if cursor is within the L/R margin region
+            bool insideLRMargin = !_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight);
+            int effectiveRightMargin = (_declrmm && insideLRMargin) ? _marginRight : _width - 1;
             
             // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains),
             // wrap to the next line first. The last cell is left blank (spacer head behavior).
@@ -2466,7 +2473,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case '\t':
                 // Move to next tab stop (every 8 columns)
-                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                // When DECLRMM is enabled and cursor is within margins, clamp to right margin
+                int tabRight = (_declrmm && _cursorX <= _marginRight) ? _marginRight : _width - 1;
+                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, tabRight);
                 break;
                 
             case '\b':
