@@ -95,7 +95,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly DragDropManager _dragDropManager = new();
     
     // Active bracketed paste context (for Escape cancellation)
-    private PasteContext? _activePaste;
+    private volatile PasteContext? _activePaste;
     
     // Render optimization - track if this is the first frame (needs full clear)
     private bool _isFirstFrame = true;

@@ -75,7 +75,7 @@ public sealed class PasteContext : IAsyncDisposable
     {
         if (_isCancelled || _isCompleted) return;
         _isCancelled = true;
-        _cts.Cancel();
+        try { _cts.Cancel(); } catch (ObjectDisposedException) { }
         _channel.Writer.TryComplete();
         _completedTcs.TrySetResult();
     }
