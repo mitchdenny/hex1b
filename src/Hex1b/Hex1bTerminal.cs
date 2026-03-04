@@ -2392,6 +2392,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ApplyClearScreen(ClearMode mode, List<CellImpact>? impacts)
     {
+        // ED resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
         switch (mode)
         {
             case ClearMode.ToEnd:
@@ -2413,6 +2416,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
     {
+        // EL resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
         // When DECLRMM is enabled, clear operations respect left/right margins
         int effectiveLeft = _declrmm ? _marginLeft : 0;
         int effectiveRight = _declrmm ? _marginRight : _width - 1;
