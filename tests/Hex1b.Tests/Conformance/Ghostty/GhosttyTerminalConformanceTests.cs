@@ -714,5 +714,85 @@ public class GhosttyTerminalConformanceTests
         AssertPlainText(terminal, "A");
     }
 
+    /// <summary>
+    /// Ghostty: test "Terminal: deleteChars zero count"
+    /// In Ghostty's internal API, deleteChars(0) is a no-op.
+    /// However, ANSI CSI 0P typically normalizes to 1. This is an intentional divergence.
+    /// </summary>
+    [Fact(Skip = "IntentionalDivergence: CSI 0P normalizes to 1 per ANSI spec; Ghostty's internal API allows 0")]
+    public void DeleteChars_ZeroCount_IsNoOp()
+    {
+        using var terminal = CreateTerminal(cols: 5, rows: 5);
+        GhosttyTestFixture.Feed(terminal, "ABCDE");
+        GhosttyTestFixture.Feed(terminal, "\x1b[1;2H");   // CUP(1,2) → col 1
+        GhosttyTestFixture.Feed(terminal, "\x1b[0P");      // DCH(0) — no-op
+
+        AssertPlainText(terminal, "ABCDE");
+    }
+
+    /// <summary>
+    /// Ghostty: test "Terminal: deleteChars more than half"
+    /// Writes "ABCDE", CUP(1,2). DCH(3) deletes B,C,D. E shifts to col 1.
+    /// Result: "AE".
+    /// </summary>
+    [Fact]
+    public void DeleteChars_MoreThanHalf_ShiftsRemaining()
+    {
+        using var terminal = CreateTerminal(cols: 5, rows: 5);
+        GhosttyTestFixture.Feed(terminal, "ABCDE");
+        GhosttyTestFixture.Feed(terminal, "\x1b[1;2H");   // CUP(1,2) → col 1
+        GhosttyTestFixture.Feed(terminal, "\x1b[3P");      // DCH(3)
+
+        AssertPlainText(terminal, "AE");
+    }
+
+    /// <summary>
+    /// Ghostty: test "Terminal: deleteChars should shift left"
+    /// Writes "ABCDE", CUP(1,2). DCH(1) deletes B. C,D,E shift left.
+    /// Result: "ACDE".
+    /// </summary>
+    [Fact]
+    public void DeleteChars_ShiftsRemainingLeft()
+    {
+        using var terminal = CreateTerminal(cols: 5, rows: 5);
+        GhosttyTestFixture.Feed(terminal, "ABCDE");
+        GhosttyTestFixture.Feed(terminal, "\x1b[1;2H");   // CUP(1,2) → col 1
+        GhosttyTestFixture.Feed(terminal, "\x1b[1P");      // DCH(1)
+
+        AssertPlainText(terminal, "ACDE");
+    }
+
+    /// <summary>
+    /// Ghostty: test "Terminal: deleteChars resets pending wrap"
+    /// After filling 5-col line (pending wrap), DCH(1) resets wrap.
+    /// Write 'X' stays on same line.
+    /// </summary>
+    [Fact]
+    public void DeleteChars_ResetsPendingWrap()
+    {
+        using var terminal = CreateTerminal(cols: 5, rows: 5);
+        GhosttyTestFixture.Feed(terminal, "ABCDE");        // pending wrap
+        GhosttyTestFixture.Feed(terminal, "\x1b[1P");      // DCH(1) — resets wrap
+        GhosttyTestFixture.Feed(terminal, "X");
+
+        AssertPlainText(terminal, "ABCDX");
+    }
+
+    /// <summary>
+    /// Ghostty: test "Terminal: deleteChars simple operation" (10x10)
+    /// Writes "ABC123", CUP(1,3) → col 2. DCH(2) deletes C,1. 2,3 shift left.
+    /// Result: "AB23".
+    /// </summary>
+    [Fact]
+    public void DeleteChars_SimpleOperation_10x10()
+    {
+        using var terminal = CreateTerminal(cols: 10, rows: 10);
+        GhosttyTestFixture.Feed(terminal, "ABC123");
+        GhosttyTestFixture.Feed(terminal, "\x1b[1;3H");   // CUP(1,3) → col 2
+        GhosttyTestFixture.Feed(terminal, "\x1b[2P");      // DCH(2)
+
+        AssertPlainText(terminal, "AB23");
+    }
+
     #endregion
 }

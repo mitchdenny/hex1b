@@ -3003,6 +3003,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // DCH resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin
         // When DECLRMM is enabled, operations are bounded by left/right margins
@@ -3024,6 +3027,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     private void InsertCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // ICH resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
         // Insert n blank characters at cursor, shifting existing characters right
         // Characters pushed off the right margin are lost
         // When DECLRMM is enabled, operations are bounded by left/right margins
