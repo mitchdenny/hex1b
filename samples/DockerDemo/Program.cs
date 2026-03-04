@@ -142,7 +142,7 @@ void AddTerminal(string image, WindowManager windows)
                         .OnSubmit(e =>
                         {
                             if (dialog != null) e.Windows.Close(dialog);
-                            _ = Task.Run(() => CommitContainerImage(session.ContainerName, enteredName));
+                            CommitContainerImage(session.ContainerName, enteredName, e.Windows);
                         }),
                     v.Text(""),
                     v.HStack(h =>
@@ -150,7 +150,7 @@ void AddTerminal(string image, WindowManager windows)
                         h.Button("Save").OnClick(e =>
                         {
                             if (dialog != null) e.Windows.Close(dialog);
-                            _ = Task.Run(() => CommitContainerImage(session.ContainerName, enteredName));
+                            CommitContainerImage(session.ContainerName, enteredName, e.Windows);
                         }),
                         h.Text(" "),
                         h.Button("Cancel").OnClick(e =>
@@ -410,31 +410,43 @@ List<SavedImageInfo> ScanSavedImages()
     catch { return []; }
 }
 
-void CommitContainerImage(string containerName, string imageName)
+void CommitContainerImage(string containerName, string imageName, WindowManager windows)
 {
-    try
-    {
-        using var proc = Process.Start(new ProcessStartInfo
-        {
-            FileName = "docker",
-            ArgumentList = { "commit", containerName, $"hex1b-demo:{imageName}" },
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false,
-            CreateNoWindow = true
-        });
-        if (proc is null) return;
-        // Must read streams before WaitForExit to avoid deadlock
-        proc.StandardOutput.ReadToEnd();
-        proc.StandardError.ReadToEnd();
-        proc.WaitForExit(60000);
+    var commitTerminal = Hex1bTerminal.CreateBuilder()
+        .WithDimensions(70, 8)
+        .WithPtyProcess("docker", ["commit", containerName, $"hex1b-demo:{imageName}"])
+        .WithTerminalWidget(out var commitHandle)
+        .Build();
 
-        // Trigger immediate rescan
+    commitHandle.StateChanged += _ => displayApp?.Invalidate();
+
+    var commitWindow = windows.Window(w =>
+        w.Terminal(commitHandle)
+            .WhenNotRunning(args =>
+                w.Text(args.ExitCode == 0 ? "  Image saved!" : $"  Failed (code {args.ExitCode})"))
+            .Fill()
+    )
+    .Title($"Saving: {imageName}")
+    .Size(72, 10);
+
+    windows.Open(commitWindow);
+
+    _ = Task.Run(async () =>
+    {
+        try { await commitTerminal.RunAsync(cts.Token); }
+        catch (OperationCanceledException) { }
+
+        // Rescan immediately after commit completes
         var scanned = ScanSavedImages();
         lock (savedImagesLock) { savedImages = scanned; }
         displayApp?.Invalidate();
-    }
-    catch { }
+
+        // Auto-close after 2 seconds so user sees the result
+        await Task.Delay(2000);
+        windows.Close(commitWindow);
+        await commitTerminal.DisposeAsync();
+        displayApp?.Invalidate();
+    });
 }
 
 void DeleteSavedImage(string fullTag)
