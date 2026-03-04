@@ -440,6 +440,27 @@ public abstract class Hex1bNode
     public virtual InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent) => InputResult.NotHandled;
 
     /// <summary>
+    /// Handles a bracketed paste event asynchronously.
+    /// Override this in nodes that can consume pasted content (e.g., text editors, file drop zones).
+    /// </summary>
+    /// <param name="pasteEvent">The paste event containing a streaming <see cref="PasteContext"/>.</param>
+    /// <returns>
+    /// <see cref="InputResult.Handled"/> if the paste was consumed, 
+    /// <see cref="InputResult.NotHandled"/> to bubble the paste to ancestor nodes.
+    /// </returns>
+    /// <remarks>
+    /// <para>
+    /// When a node returns <see cref="InputResult.Handled"/>, the paste handler should consume 
+    /// the <see cref="PasteContext"/> by reading from it (e.g., via <see cref="PasteContext.ReadToEndAsync"/>).
+    /// The handler runs as a concurrent task — the render loop continues during paste processing.
+    /// </para>
+    /// <para>
+    /// If no node in the focus path handles the paste, the <see cref="PasteContext"/> is disposed.
+    /// </para>
+    /// </remarks>
+    public virtual Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent) => Task.FromResult(InputResult.NotHandled);
+
+    /// <summary>
     /// Returns true if this node can receive focus.
     /// </summary>
     public virtual bool IsFocusable => false;

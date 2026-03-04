@@ -44,6 +44,7 @@ public static class InputRouter
         {
             Hex1bKeyEvent keyEvent => await RouteKeyInputAsync(root, keyEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, invalidate, windowManagerRegistry),
             Hex1bMouseEvent mouseEvent => await RouteMouseInputAsync(root, mouseEvent, focusRing, state, requestStop, cancellationToken, copyToClipboard, windowManagerRegistry),
+            Hex1bPasteEvent pasteEvent => await RoutePasteInputAsync(root, pasteEvent, focusRing),
             _ => InputResult.NotHandled
         };
     }
@@ -198,7 +199,37 @@ public static class InputRouter
 
         return InputResult.NotHandled;
     }
-    
+
+    /// <summary>
+    /// Routes a paste event through the node tree.
+    /// Tries the focused node first, then bubbles up through ancestors.
+    /// </summary>
+    private static async Task<InputResult> RoutePasteInputAsync(
+        Hex1bNode root,
+        Hex1bPasteEvent pasteEvent,
+        FocusRing focusRing)
+    {
+        // Build path from root to focused node
+        var path = BuildPathToFocused(root);
+
+        if (path.Count == 0)
+        {
+            return InputResult.NotHandled;
+        }
+
+        // Try focused node first, then bubble up through ancestors
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            var result = await path[i].HandlePasteAsync(pasteEvent);
+            if (result == InputResult.Handled)
+            {
+                return InputResult.Handled;
+            }
+        }
+
+        return InputResult.NotHandled;
+    }
+
     private static async Task<InputResult> ContinueChordAsync(
         Hex1bKeyEvent keyEvent, 
         List<Hex1bNode> path, 

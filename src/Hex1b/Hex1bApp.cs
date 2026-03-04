@@ -94,6 +94,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // Drag-and-drop state for semantic drag operations (Draggable/Droppable widgets)
     private readonly DragDropManager _dragDropManager = new();
     
+    // Active bracketed paste context (for Escape cancellation)
+    private PasteContext? _activePaste;
+    
     // Render optimization - track if this is the first frame (needs full clear)
     private bool _isFirstFrame = true;
     
@@ -558,6 +561,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             Hex1bKeyEvent => "key",
             Hex1bMouseEvent => "mouse",
             Hex1bResizeEvent => "resize",
+            Hex1bPasteEvent => "paste",
             _ => "other"
         };
         
@@ -580,8 +584,41 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
             // Key events are routed to the focused node through the tree
             case Hex1bKeyEvent keyEvent when _rootNode != null:
+                // Escape during an active paste cancels the paste
+                if (keyEvent.Key == Hex1bKey.Escape && _activePaste is { IsCompleted: false, IsCancelled: false })
+                {
+                    _activePaste.Cancel();
+                    _activePaste = null;
+                    break;
+                }
                 // Use input routing system - routes to focused node, checks bindings, then calls HandleInput
                 await InputRouter.RouteInputAsync(_rootNode, keyEvent, _focusRing, _inputRouterState, RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                break;
+            
+            // Paste events: route to focused node with ancestor bubbling
+            case Hex1bPasteEvent pasteEvent when _rootNode != null:
+                // Track the active paste for Escape cancellation
+                _activePaste = pasteEvent.Paste;
+                
+                var pasteResult = await InputRouter.RouteInputAsync(
+                    _rootNode, pasteEvent, _focusRing, _inputRouterState,
+                    RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                
+                if (pasteResult == InputResult.NotHandled)
+                {
+                    // No node handled the paste — dispose to avoid leaking the channel
+                    await pasteEvent.Paste.DisposeAsync();
+                    _activePaste = null;
+                }
+                else
+                {
+                    // Handler accepted the paste — clear tracking when paste completes
+                    _ = pasteEvent.Paste.Completed.ContinueWith(_ =>
+                    {
+                        if (_activePaste == pasteEvent.Paste)
+                            _activePaste = null;
+                    }, TaskScheduler.Default);
+                }
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
