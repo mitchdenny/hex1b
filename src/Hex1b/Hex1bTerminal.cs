@@ -2696,7 +2696,40 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var enumerator = StringInfo.GetTextElementEnumerator(text, index);
         if (enumerator.MoveNext())
         {
-            return (string)enumerator.Current;
+            var grapheme = (string)enumerator.Current;
+            
+            // Terminal-specific grapheme splitting: .NET's Unicode grapheme clustering
+            // gives Fitzpatrick skin tone modifiers (U+1F3FB–1F3FF) the property
+            // Grapheme_Cluster_Break=Extend, which causes them to combine with ANY
+            // preceding character. However, terminal emulators must only combine them
+            // when the base character is a valid Emoji_Modifier_Base. When the base is
+            // not a modifier base (e.g., a quote mark, letter, or non-person emoji),
+            // the skin tone modifier should be treated as a standalone character.
+            // This matches Ghostty, kitty, and other conformant terminals.
+            if (grapheme.EnumerateRunes().Count() > 1)
+            {
+                var runes = grapheme.EnumerateRunes().ToArray();
+                var baseRune = runes[0];
+                
+                // Check if any subsequent rune is a Fitzpatrick modifier
+                // following a non-Emoji_Modifier_Base
+                for (int r = 1; r < runes.Length; r++)
+                {
+                    if (DisplayWidth.IsFitzpatrickModifier(runes[r].Value) &&
+                        !DisplayWidth.IsEmojiModifierBase(baseRune.Value))
+                    {
+                        // Split: return only the base character(s) before the modifier.
+                        // The modifier will be picked up as its own grapheme on the
+                        // next iteration.
+                        int splitLen = 0;
+                        for (int s = 0; s < r; s++)
+                            splitLen += runes[s].Utf16SequenceLength;
+                        return grapheme[..splitLen];
+                    }
+                }
+            }
+            
+            return grapheme;
         }
         return text[index].ToString();
     }

@@ -358,8 +358,9 @@ public class GhosttyBatch4ConformanceTests
     #region Fitzpatrick Skin Tone Modifiers
 
     // Ghostty: test "Terminal: Fitzpatrick skin tone next to non-base"
-    // .NET grapheme clustering combines modifier with non-base; needs terminal-specific splitting
-    [Fact(Skip = "Fitzpatrick skin tone with non-base needs terminal-specific grapheme splitting")]
+    // .NET grapheme clustering incorrectly combines modifier with non-base;
+    // GetGraphemeAt splits them for terminal-correct rendering.
+    [Fact]
     public void FitzpatrickSkinTone_NonBase()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);

@@ -760,9 +760,13 @@ public static class DisplayWidth
         // Variation selectors
         if (codePoint >= 0xFE00 && codePoint <= 0xFE0F)
             return true;
-        // Skin tone modifiers (Fitzpatrick modifiers)
-        if (codePoint >= 0x1F3FB && codePoint <= 0x1F3FF)
-            return true;
+        // Skin tone modifiers (Fitzpatrick modifiers U+1F3FB–1F3FF):
+        // NOT listed here. Unlike traditional combining marks, Fitzpatrick modifiers
+        // are handled by GetGraphemeAt's terminal-specific splitting logic. When they
+        // follow a valid Emoji_Modifier_Base, they are part of the grapheme cluster and
+        // the base emoji determines the width. When they are standalone (split off by
+        // GetGraphemeAt because the base was not Emoji_Modifier_Base), they render as
+        // independent wide characters (2 cells), matching Ghostty and other terminals.
             
         return false;
     }
@@ -935,5 +939,77 @@ public static class DisplayWidth
         // If they were listed here, they'd incorrectly be width 2 in text mode.
             
         return false;
+    }
+
+    /// <summary>
+    /// Checks if a code point is a Fitzpatrick skin tone modifier (U+1F3FB–U+1F3FF).
+    /// These are Unicode Emoji_Modifier characters used to change skin tone of emoji.
+    /// </summary>
+    internal static bool IsFitzpatrickModifier(int codePoint)
+    {
+        return codePoint >= 0x1F3FB && codePoint <= 0x1F3FF;
+    }
+
+    /// <summary>
+    /// Checks if a code point is a valid Emoji_Modifier_Base — a character that can
+    /// accept a Fitzpatrick skin tone modifier to form a combined emoji.
+    /// 
+    /// Terminal emulators need this because Unicode grapheme clustering rules give
+    /// Fitzpatrick modifiers the Grapheme_Cluster_Break=Extend property, which means
+    /// .NET's <see cref="StringInfo"/> groups them with ANY
+    /// preceding character. However, terminals must only combine them when the base
+    /// is a valid Emoji_Modifier_Base; otherwise the modifier is rendered as a
+    /// standalone wide character. This matches the behavior of Ghostty, kitty, and
+    /// other conformant terminal emulators.
+    /// 
+    /// Source: Unicode 16.0 emoji-data.txt, Emoji_Modifier_Base property.
+    /// </summary>
+    internal static bool IsEmojiModifierBase(int codePoint)
+    {
+        // BMP Emoji_Modifier_Base characters
+        if (codePoint == 0x261D) return true; // ☝ Index pointing up
+        if (codePoint == 0x26F9) return true; // ⛹ Person bouncing ball
+        if (codePoint >= 0x270A && codePoint <= 0x270D) return true; // ✊✋✌✍
+
+        // SMP Emoji_Modifier_Base characters (Unicode 16.0)
+        return codePoint switch
+        {
+            0x1F385 => true, // 🎅 Santa Claus
+            >= 0x1F3C2 and <= 0x1F3C4 => true, // 🏂🏃🏄
+            0x1F3C7 => true, // 🏇 Horse racing
+            >= 0x1F3CA and <= 0x1F3CC => true, // 🏊🏋🏌
+            >= 0x1F442 and <= 0x1F443 => true, // 👂👃
+            >= 0x1F446 and <= 0x1F450 => true, // 👆👇👈👉👊👋👌👍👎👏👐
+            >= 0x1F466 and <= 0x1F478 => true, // 👦-👸
+            0x1F47C => true, // 👼 Baby angel
+            >= 0x1F481 and <= 0x1F483 => true, // 💁💂💃
+            >= 0x1F485 and <= 0x1F487 => true, // 💅💆💇
+            0x1F4AA => true, // 💪 Flexed biceps
+            >= 0x1F574 and <= 0x1F575 => true, // 🕴🕵
+            0x1F57A => true, // 🕺 Man dancing
+            0x1F590 => true, // 🖐 Hand with fingers splayed
+            >= 0x1F595 and <= 0x1F596 => true, // 🖕🖖
+            >= 0x1F645 and <= 0x1F647 => true, // 🙅🙆🙇
+            >= 0x1F64B and <= 0x1F64F => true, // 🙋🙌🙍🙎🙏
+            0x1F6A3 => true, // 🚣 Person rowing boat
+            >= 0x1F6B4 and <= 0x1F6B6 => true, // 🚴🚵🚶
+            0x1F6C0 => true, // 🛀 Person taking bath
+            0x1F6CC => true, // 🛌 Person in bed
+            0x1F90C => true, // 🤌 Pinched fingers
+            0x1F90F => true, // 🤏 Pinching hand
+            >= 0x1F918 and <= 0x1F91F => true, // 🤘-🤟
+            0x1F926 => true, // 🤦 Person facepalming
+            >= 0x1F930 and <= 0x1F939 => true, // 🤰-🤹
+            >= 0x1F93C and <= 0x1F93E => true, // 🤼🤽🤾
+            0x1F977 => true, // 🥷 Ninja
+            >= 0x1F9B5 and <= 0x1F9B6 => true, // 🦵🦶
+            >= 0x1F9B8 and <= 0x1F9B9 => true, // 🦸🦹
+            0x1F9BB => true, // 🦻 Ear with hearing aid
+            >= 0x1F9CD and <= 0x1F9CF => true, // 🧍🧎🧏
+            >= 0x1F9D1 and <= 0x1F9DD => true, // 🧑-🧝
+            >= 0x1FAC3 and <= 0x1FAC5 => true, // 🫃🫄🫅
+            >= 0x1FAF0 and <= 0x1FAF8 => true, // 🫰-🫸
+            _ => false,
+        };
     }
 }
