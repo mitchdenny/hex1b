@@ -34,8 +34,11 @@ var sequences = new SequenceDragData[]
     new("Add dotnet to PATH", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("export PATH=$PATH:$HOME/.dotnet").Enter()
         .Build()),
-    new("Update apt packages", () => new Hex1bTerminalInputSequenceBuilder()
-        .Type("apt-get update -qq && apt-get install -y -qq curl").Enter()
+    new("apt update", () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("apt-get update -y").Enter()
+        .Build()),
+    new("apt install curl", () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("apt-get install -y curl").Enter()
         .Build()),
     new("Show system info", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("uname -a && cat /etc/os-release").Enter()
@@ -150,14 +153,13 @@ await using var app = Hex1bTerminal.CreateBuilder()
                                                         ? $" >> Drop to run: {seqData.Name}"
                                                         : " Drop here")
                                                 .ContentHeight()
-                                            : (Hex1bWidget)pane.Text($" {s.ImageName}")
-                                                .ContentHeight(),
+                                            : (Hex1bWidget)pane.Text("").FixedHeight(0),
                                         pane.Terminal(s.Handle)
                                             .WhenNotRunning(args =>
                                                 pane.Text($"Container exited (code {args.ExitCode ?? 0})"))
                                             .Fill()
                                     ])
-                                ).Title($"#{s.Id}")
+                                ).Title($"#{s.Id} {s.ImageName}")
                             )
                             .Accept(data => data is ImageDragData or SequenceDragData)
                             .OnDrop(e =>
