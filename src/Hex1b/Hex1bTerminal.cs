@@ -107,6 +107,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _marginRight; // Right margin (width-1 = last column), initialized in constructor
     private bool _declrmm; // DECLRMM mode (mode 69): when true, CSI s sets left/right margins instead of saving cursor
     
+    // Tab stops: a boolean array where true means a tab stop is set at that column.
+    // Initialized with default tab stops every 8 columns.
+    private bool[] _tabStops = Array.Empty<bool>();
+    
     // Deferred wrap (standard terminal behavior): when writing to the last column,
     // wrap is deferred until the next printable character. CR/LF clear the pending wrap.
     private bool _pendingWrap;
@@ -222,6 +226,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _screenBuffer = new TerminalCell[_height, _width];
         _scrollBottom = _height - 1; // Default scroll region is full screen
         _marginRight = _width - 1; // Default left/right margins are full screen
+        InitializeTabStops();
         
         ClearBuffer();
 
@@ -2058,7 +2063,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case PrivateModeToken privateModeToken:
-                if (privateModeToken.Mode == 1049)
+                if (privateModeToken.Mode == 1049 || privateModeToken.Mode == 47 || privateModeToken.Mode == 1047)
                 {
                     if (privateModeToken.Enable)
                         DoEnterAlternateScreen(impacts);
@@ -2261,6 +2266,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _lastPrintedCellY = 0;
                 _lastPrintedCellWidth = 0;
                 _wraparoundMode = true;
+                InitializeTabStops();
                 // Clear screen
                 for (int row = 0; row < _height; row++)
                 {
@@ -2315,9 +2321,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _pendingWrap = false;
                 if (_cursorX > 0)
                 {
-                    // Move left to previous tab stop (every 8 columns)
-                    int prevTab = (_cursorX - 1) / 8 * 8;
-                    _cursorX = prevTab;
+                    _cursorX = PrevTabStop(_cursorX, 0);
                 }
                 break;
                 
@@ -2362,6 +2366,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case UnrecognizedSequenceToken:
                 // Ignore unrecognized sequences
+                break;
+                
+            case TabClearToken tabClear:
+                // TBC (CSI Ps g): Tab Clear
+                if (tabClear.Mode == 0)
+                {
+                    // Clear tab stop at current cursor position
+                    if (_cursorX < _tabStops.Length)
+                        _tabStops[_cursorX] = false;
+                }
+                else if (tabClear.Mode == 3)
+                {
+                    // Clear all tab stops
+                    Array.Clear(_tabStops);
+                }
                 break;
                 
             case DeviceStatusReportToken dsr:
@@ -2703,6 +2722,46 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return (_screenBuffer[row, col].Attributes & CellAttributes.Protected) != 0;
     }
 
+    /// <summary>
+    /// Initializes tab stops at default positions (every 8 columns).
+    /// </summary>
+    private void InitializeTabStops()
+    {
+        _tabStops = new bool[_width];
+        for (int i = 0; i < _width; i++)
+        {
+            _tabStops[i] = (i % 8 == 0) && i > 0;
+        }
+    }
+
+    /// <summary>
+    /// Finds the next tab stop column after the current position.
+    /// Returns rightEdge if no tab stop is found.
+    /// </summary>
+    private int NextTabStop(int fromCol, int rightEdge)
+    {
+        for (int i = fromCol + 1; i <= rightEdge; i++)
+        {
+            if (i < _tabStops.Length && _tabStops[i])
+                return i;
+        }
+        return rightEdge;
+    }
+
+    /// <summary>
+    /// Finds the previous tab stop column before the current position.
+    /// Returns leftEdge if no tab stop is found.
+    /// </summary>
+    private int PrevTabStop(int fromCol, int leftEdge)
+    {
+        for (int i = fromCol - 1; i >= leftEdge; i--)
+        {
+            if (i < _tabStops.Length && _tabStops[i])
+                return i;
+        }
+        return leftEdge;
+    }
+
     private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
@@ -2744,10 +2803,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case '\t':
-                // Move to next tab stop (every 8 columns)
+                // HT: Move to next tab stop
                 // When DECLRMM is enabled and cursor is within margins, clamp to right margin
                 int tabRight = (_declrmm && _cursorX <= _marginRight) ? _marginRight : _width - 1;
-                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, tabRight);
+                _cursorX = NextTabStop(_cursorX, tabRight);
                 break;
                 
             case '\b':
@@ -3651,9 +3710,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // DCH resets pending wrap per ECMA-48
         _pendingWrap = false;
         
-        // DCH(0) is a no-op — delete zero characters
-        if (count == 0)
-            return;
+        // Per ECMA-48, DCH parameter defaults to 1 when 0 or omitted
+        if (count <= 0)
+            count = 1;
         
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin

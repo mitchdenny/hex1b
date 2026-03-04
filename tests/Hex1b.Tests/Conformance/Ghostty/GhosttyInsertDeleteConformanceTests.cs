@@ -143,14 +143,15 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars zero count"
+    // Ghostty's internal deleteChars(0) is a no-op, but CSI 0P defaults to 1 per ECMA-48.
     [Fact]
-    public void DeleteChars_ZeroCount_NoOp()
+    public void DeleteChars_ZeroCount_DefaultsToOne()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(terminal, "ABCDE");
         GhosttyTestFixture.Feed(terminal, "\x1b[1;2H"); // CUP(1,2) → col 1
-        GhosttyTestFixture.Feed(terminal, "\x1b[0P"); // DCH 0
-        AssertPlainText(terminal, 0, "ABCDE");
+        GhosttyTestFixture.Feed(terminal, "\x1b[0P"); // DCH 0 → DCH 1 per ECMA-48
+        AssertPlainText(terminal, 0, "ACDE");
     }
 
     // Ghostty: test "Terminal: deleteChars more than half"

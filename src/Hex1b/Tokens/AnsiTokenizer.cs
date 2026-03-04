@@ -242,6 +242,14 @@ public static class AnsiTokenizer
                 ParseCursorPosition(parameters, tokens);
                 break;
 
+            case 'g':
+                // Tab Clear (TBC): CSI Ps g
+                {
+                    var mode = string.IsNullOrEmpty(parameters) ? 0 : (int.TryParse(parameters, out var m) ? m : 0);
+                    tokens.Add(new TabClearToken(mode));
+                }
+                break;
+
             case 'J':
                 // Clear screen (ED) or Selective Erase in Display (DECSED)
                 ParseClearScreen(parameters, isPrivateMode, tokens);

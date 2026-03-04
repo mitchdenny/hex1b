@@ -15,7 +15,7 @@ public class GhosttyAltScreenWrapConformanceTests
 
     #region Alt Screen Modes (47, 1047, 1049)
 
-    [Fact(Skip = "Hex1b bug: modes 47/1047 not implemented (only 1049 supported)")]
+    [Fact]
     [Trait("FailureReason", "MissingFeature")]
     public void Mode47_AltScreenPlain()
     {
@@ -36,7 +36,7 @@ public class GhosttyAltScreenWrapConformanceTests
         Assert.Equal("1A", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact(Skip = "Hex1b bug: modes 47/1047 not implemented (only 1049 supported)")]
+    [Fact]
     [Trait("FailureReason", "MissingFeature")]
     public void Mode1047_AltScreenPlain()
     {
@@ -184,7 +184,7 @@ public class GhosttyAltScreenWrapConformanceTests
 
     #region DeleteChars Zero Count
 
-    [Fact(Skip = "Hex1b bug: DCH with count 0 should delete 1, but Hex1b treats it as no-op")]
+    [Fact]
     [Trait("FailureReason", "Bug")]
     public void DeleteChars_ZeroCount()
     {

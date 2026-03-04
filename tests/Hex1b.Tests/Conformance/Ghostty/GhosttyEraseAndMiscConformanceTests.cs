@@ -368,7 +368,7 @@ public class GhosttyEraseAndMiscConformanceTests
     // Horizontal tabs
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact(Skip = "Requires tab stop clear (CSI 0g/3g) investigation")]
+    [Fact]
     public void TabClear_Single()
     {
         // Ghostty: "Terminal: tabClear single"
@@ -377,21 +377,20 @@ public class GhosttyEraseAndMiscConformanceTests
         GhosttyTestFixture.Feed(t, "\t");  // Tab to position 8
         GhosttyTestFixture.Feed(t, "\u001b[0g"); // Clear this tab stop
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // Home
-        GhosttyTestFixture.Feed(t, "\t");  // Tab should now go to 16 (next tab stop)
-        GhosttyTestFixture.Feed(t, "X");
+        GhosttyTestFixture.Feed(t, "\t");  // Tab should now skip 8 and go to 16
 
-        Assert.Equal(16, t.CursorX); // After X prints at col 16
+        Assert.Equal(16, t.CursorX);
     }
 
-    [Fact(Skip = "Requires tab stop clear (CSI 3g) investigation")]
+    [Fact]
     public void TabClear_All()
     {
         // Ghostty: "Terminal: tabClear all"
         var t = GhosttyTestFixture.CreateTerminal(30, 5);
 
         GhosttyTestFixture.Feed(t, "\u001b[3g"); // Clear all tab stops
-        GhosttyTestFixture.Feed(t, "\t");          // Tab with no stops goes to end - 1
-        GhosttyTestFixture.Feed(t, "X");
+        GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // Home
+        GhosttyTestFixture.Feed(t, "\t");          // Tab with no stops goes to last col
 
         Assert.Equal(29, t.CursorX); // Last column (0-based)
     }
