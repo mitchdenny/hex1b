@@ -15,6 +15,7 @@ public sealed class PasteContext : IAsyncDisposable
     private readonly TaskCompletionSource _completedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private volatile bool _isCancelled;
     private volatile bool _isCompleted;
+    private long _totalCharactersWritten;
 
     /// <summary>
     /// Creates a new PasteContext with a bounded channel for streaming paste data.
@@ -62,6 +63,11 @@ public sealed class PasteContext : IAsyncDisposable
     public CancellationToken CancellationToken => _cts.Token;
 
     /// <summary>
+    /// Total number of characters written to the paste context so far.
+    /// </summary>
+    public long TotalCharactersWritten => Interlocked.Read(ref _totalCharactersWritten);
+
+    /// <summary>
     /// Cancel the paste. The handler's async enumerables will stop yielding.
     /// Remaining paste data from the terminal is drained and discarded until ESC[201~.
     /// </summary>
@@ -87,6 +93,7 @@ public sealed class PasteContext : IAsyncDisposable
         {
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(ct, _cts.Token);
             await _channel.Writer.WriteAsync(text, linked.Token);
+            Interlocked.Add(ref _totalCharactersWritten, text.Length);
             return true;
         }
         catch (OperationCanceledException)
@@ -106,7 +113,10 @@ public sealed class PasteContext : IAsyncDisposable
     internal bool TryWrite(string text)
     {
         if (_isCancelled || _isCompleted) return false;
-        return _channel.Writer.TryWrite(text);
+        var result = _channel.Writer.TryWrite(text);
+        if (result)
+            Interlocked.Add(ref _totalCharactersWritten, text.Length);
+        return result;
     }
 
     /// <summary>
