@@ -49,6 +49,12 @@ public sealed class TextBoxNode : Hex1bNode
     /// Internal action invoked when Enter is pressed.
     /// </summary>
     internal Func<InputBindingActionContext, Task>? SubmitAction { get; set; }
+
+    /// <summary>
+    /// Custom paste handler that overrides the default text insertion behavior.
+    /// When null, paste is handled by inserting text at cursor position.
+    /// </summary>
+    internal Func<Input.PasteContext, Task>? CustomPasteAction { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused 
@@ -128,11 +134,20 @@ public sealed class TextBoxNode : Hex1bNode
     }
 
     /// <summary>
-    /// Handles bracketed paste by reading the full paste content and inserting it at the cursor position.
+    /// Handles bracketed paste. If a custom paste handler is set via OnPaste(),
+    /// it is called instead of the default text insertion behavior.
+    /// For default behavior: reads full paste content and inserts at cursor position.
     /// For single-line text boxes, newlines are replaced with spaces.
     /// </summary>
     public override async Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent)
     {
+        // Custom handler overrides default behavior
+        if (CustomPasteAction != null)
+        {
+            await CustomPasteAction(pasteEvent.Paste);
+            return InputResult.Handled;
+        }
+
         var pastedText = await pasteEvent.Paste.ReadToEndAsync();
 
         if (string.IsNullOrEmpty(pastedText))
