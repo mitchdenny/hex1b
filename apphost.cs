@@ -111,6 +111,10 @@ var modelViewerDemo = builder.AddCSharpApp("model-viewer-demo", "./samples/Model
 var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionDemo")
     .ExcludeFromManifest();
 
+// Docker container demo
+var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
