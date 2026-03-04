@@ -44,6 +44,23 @@ var sessions = new Dictionary<int, TerminalSession>();
 var nextId = 1;
 var nextMarkerId = 1;
 
+// Saved container images (discovered by background scanner)
+var savedImages = new List<SavedImageInfo>();
+var savedImagesLock = new object();
+
+// Background scanner — discovers saved images every 3 seconds
+_ = Task.Run(async () =>
+{
+    while (!cts.Token.IsCancellationRequested)
+    {
+        var scanned = ScanSavedImages();
+        lock (savedImagesLock) { savedImages = scanned; }
+        displayApp?.Invalidate();
+        try { await Task.Delay(3000, cts.Token); }
+        catch (OperationCanceledException) { break; }
+    }
+});
+
 void AddTerminal(string image, WindowManager windows)
 {
     var id = nextId++;
@@ -108,7 +125,49 @@ void AddTerminal(string image, WindowManager windows)
     .Title($"#{id} {image}")
     .Size(TerminalWidth + 2, TerminalHeight + 2)
     .Resizable(minWidth: 40, minHeight: 12)
-    .RightTitleActions(t => [t.Close()])
+    .RightTitleActions(t =>
+    [
+        t.Action("S", ctx =>
+        {
+            var enteredName = SanitizeImageName(session.ImageName);
+            WindowHandle? dialog = null;
+
+            dialog = ctx.Windows.Window(w =>
+                w.VStack(v =>
+                [
+                    v.Text("  Save container as image:"),
+                    v.Text(""),
+                    v.TextBox(enteredName)
+                        .OnTextChanged(e => enteredName = e.NewText)
+                        .OnSubmit(e =>
+                        {
+                            if (dialog != null) e.Windows.Close(dialog);
+                            _ = Task.Run(() => CommitContainerImage(session.ContainerName, enteredName));
+                        }),
+                    v.Text(""),
+                    v.HStack(h =>
+                    [
+                        h.Button("Save").OnClick(e =>
+                        {
+                            if (dialog != null) e.Windows.Close(dialog);
+                            _ = Task.Run(() => CommitContainerImage(session.ContainerName, enteredName));
+                        }),
+                        h.Text(" "),
+                        h.Button("Cancel").OnClick(e =>
+                        {
+                            if (dialog != null) e.Windows.Close(dialog);
+                        })
+                    ])
+                ])
+            )
+            .Title("Save Image")
+            .Size(50, 7)
+            .RightTitleActions(t2 => [t2.Close()]);
+
+            ctx.Windows.Open(dialog);
+        }),
+        t.Close()
+    ])
     .OnClose(() =>
     {
         sessions.Remove(id);
@@ -237,7 +296,29 @@ await using var app = Hex1bTerminal.CreateBuilder()
                                     dc.Text(dc.IsDragging ? $"  - {seq.Name}" : $"  [seq] {seq.Name}"))
                                     .DragOverlay(dc => dc.Text($"[seq] {seq.Name}"))
                             )
-                        ).Expanded()
+                        ).Expanded(),
+
+                        a.Section("Saved", s =>
+                        {
+                            List<SavedImageInfo> currentSaved;
+                            lock (savedImagesLock)
+                                currentSaved = [.. savedImages];
+
+                            if (currentSaved.Count == 0)
+                                return new[] { (Hex1bWidget)s.Text("  (none)") }.AsEnumerable();
+
+                            return currentSaved.Select(img =>
+                                (Hex1bWidget)s.HStack(h =>
+                                [
+                                    h.Draggable(new ImageDragData(img.Name, img.FullTag), dc =>
+                                        dc.Text(dc.IsDragging ? $"  - {img.Name}" : $"  [img] {img.Name}"))
+                                        .DragOverlay(dc => dc.Text($"[img] {img.Name}"))
+                                        .FillWidth(),
+                                    h.Button("x").OnClick(btn =>
+                                        Task.Run(() => DeleteSavedImage(img.FullTag)))
+                                ])
+                            );
+                        }).Expanded()
                     ]).MultipleExpanded()
                 )
                 .InitialSize(28)
@@ -297,9 +378,87 @@ void StopContainer(string name)
     catch { }
 }
 
+List<SavedImageInfo> ScanSavedImages()
+{
+    try
+    {
+        using var proc = Process.Start(new ProcessStartInfo
+        {
+            FileName = "docker",
+            ArgumentList = { "images", "hex1b-demo", "--format", "{{.Repository}}:{{.Tag}}" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        if (proc is null) return [];
+        var output = proc.StandardOutput.ReadToEnd();
+        proc.WaitForExit(5000);
+
+        return output.Split('\n', StringSplitOptions.RemoveEmptyEntries)
+            .Where(line => !line.Contains("<none>"))
+            .Select(line =>
+            {
+                var tag = line.Contains(':') ? line[(line.IndexOf(':') + 1)..] : line;
+                return new SavedImageInfo(tag, line);
+            })
+            .ToList();
+    }
+    catch { return []; }
+}
+
+void CommitContainerImage(string containerName, string imageName)
+{
+    try
+    {
+        using var proc = Process.Start(new ProcessStartInfo
+        {
+            FileName = "docker",
+            ArgumentList = { "commit", containerName, $"hex1b-demo:{imageName}" },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        proc?.WaitForExit(30000);
+
+        // Trigger immediate rescan
+        var scanned = ScanSavedImages();
+        lock (savedImagesLock) { savedImages = scanned; }
+        displayApp?.Invalidate();
+    }
+    catch { }
+}
+
+void DeleteSavedImage(string fullTag)
+{
+    try
+    {
+        using var proc = Process.Start(new ProcessStartInfo
+        {
+            FileName = "docker",
+            ArgumentList = { "rmi", fullTag },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        proc?.WaitForExit(10000);
+
+        var scanned = ScanSavedImages();
+        lock (savedImagesLock) { savedImages = scanned; }
+        displayApp?.Invalidate();
+    }
+    catch { }
+}
+
+string SanitizeImageName(string image) =>
+    image.Replace(':', '-').Replace('/', '-').Replace('.', '-');
+
 record ImageDragData(string Name, string Image);
 record SequenceDragData(string Name, string Command);
 record QueuedSequence(string Name, string Command, bool IsRunning);
+record SavedImageInfo(string Name, string FullTag);
 
 class TerminalSession(int id, string imageName, Hex1bTerminal terminal, TerminalWidgetHandle handle, string containerName)
 {
