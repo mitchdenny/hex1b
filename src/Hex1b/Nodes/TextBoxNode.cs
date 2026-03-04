@@ -127,6 +127,41 @@ public sealed class TextBoxNode : Hex1bNode
         bindings.AnyCharacter().Action(InsertTextAsync, "Type text");
     }
 
+    /// <summary>
+    /// Handles bracketed paste by reading the full paste content and inserting it at the cursor position.
+    /// For single-line text boxes, newlines are replaced with spaces.
+    /// </summary>
+    public override async Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent)
+    {
+        var pastedText = await pasteEvent.Paste.ReadToEndAsync();
+
+        if (string.IsNullOrEmpty(pastedText))
+            return InputResult.Handled;
+
+        // Single-line text box: replace newlines with spaces
+        pastedText = pastedText.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+
+        var oldText = State.Text;
+
+        if (State.HasSelection)
+        {
+            DeleteSelection();
+        }
+
+        State.Text = State.Text.Insert(State.CursorPosition, pastedText);
+        State.CursorPosition += pastedText.Length;
+        MarkDirty();
+
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            // Create a minimal context for the paste callback
+            var ctx = new InputBindingActionContext(null!, null, default);
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
+
+        return InputResult.Handled;
+    }
+
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
         var oldText = State.Text;
