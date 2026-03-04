@@ -86,6 +86,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
     private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
+    private bool _savedPendingWrap; // Saved pending wrap state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
@@ -2001,7 +2002,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Origin mode: positions are relative to scroll region
                     _cursorY = Math.Clamp(_scrollTop + cursorToken.Row - 1, _scrollTop, _scrollBottom);
-                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                    // When DECLRMM is enabled, column is relative to left margin
+                    if (_declrmm)
+                        _cursorX = Math.Clamp(_marginLeft + cursorToken.Column - 1, _marginLeft, _marginRight);
+                    else
+                        _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
                 }
                 else
                 {
@@ -2064,17 +2069,25 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Only effective when DECLRMM (mode 69) is enabled
                 if (_declrmm)
                 {
-                    if (lrmToken.Right == 0)
+                    // 0 means "use default" — left=1, right=cols
+                    var left = lrmToken.Left <= 0 ? 1 : lrmToken.Left;
+                    var right = lrmToken.Right <= 0 ? _width : lrmToken.Right;
+                    
+                    var newLeft = Math.Clamp(left - 1, 0, _width - 1);
+                    var newRight = Math.Clamp(right - 1, newLeft, _width - 1);
+                    
+                    // If left >= right (after clamping), reset to full width
+                    if (newLeft >= newRight)
                     {
-                        // Reset to full screen width
                         _marginLeft = 0;
                         _marginRight = _width - 1;
                     }
                     else
                     {
-                        _marginLeft = Math.Clamp(lrmToken.Left - 1, 0, _width - 1);
-                        _marginRight = Math.Clamp(lrmToken.Right - 1, _marginLeft, _width - 1);
+                        _marginLeft = newLeft;
+                        _marginRight = newRight;
                     }
+                    
                     // DECSLRM also moves cursor to home position
                     _pendingWrap = false;
                     _cursorX = _marginLeft;
@@ -2117,6 +2130,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case SaveCursorToken:
                 _savedCursorX = _cursorX;
                 _savedCursorY = _cursorY;
+                _savedPendingWrap = _pendingWrap;
                 _cursorSaved = true;
                 break;
                 
@@ -2124,7 +2138,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Only restore if cursor was previously saved (matches GNOME Terminal behavior)
                 if (_cursorSaved)
                 {
-                    _pendingWrap = false; // Cursor restore clears pending wrap
+                    _pendingWrap = _savedPendingWrap;
                     _cursorX = _savedCursorX;
                     _cursorY = _savedCursorY;
                 }
@@ -2174,6 +2188,25 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
+            case DecalnToken:
+                // DECALN: Fill entire screen with 'E', reset margins and cursor
+                _scrollTop = 0;
+                _scrollBottom = _height - 1;
+                _marginLeft = 0;
+                _marginRight = _width - 1;
+                _cursorX = 0;
+                _cursorY = 0;
+                _pendingWrap = false;
+                for (int row = 0; row < _height; row++)
+                {
+                    for (int col = 0; col < _width; col++)
+                    {
+                        var cell = TerminalCell.Empty with { Character = "E" };
+                        SetCell(row, col, cell, impacts);
+                    }
+                }
+                break;
+                
             case DeleteCharacterToken deleteCharToken:
                 DeleteCharacters(deleteCharToken.Count, impacts);
                 break;
@@ -2192,18 +2225,32 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case IndexToken:
                 // Move cursor down one line, scroll if at bottom of scroll region
-                if (_cursorY >= _scrollBottom)
-                    ScrollUp(impacts);
-                else
+                if (_cursorY == _scrollBottom)
+                {
+                    // At bottom of scroll region — scroll if within L/R margins (or no L/R margins)
+                    if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
+                        ScrollUp(impacts);
+                    // else: cursor stays put (stuck at scroll bottom, outside L/R margin)
+                }
+                else if (_cursorY < _height - 1)
+                {
                     _cursorY++;
+                }
                 break;
                 
             case ReverseIndexToken:
                 // Move cursor up one line, scroll if at top of scroll region
-                if (_cursorY <= _scrollTop)
-                    ScrollDown(impacts);
-                else
+                if (_cursorY == _scrollTop)
+                {
+                    // At top of scroll region — scroll down if within L/R margins (or no L/R margins)
+                    if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
+                        ScrollDown(impacts);
+                    // else: cursor stays put (stuck at scroll top, outside L/R margin)
+                }
+                else if (_cursorY > 0)
+                {
                     _cursorY--;
+                }
                 break;
             
             case CharacterSetToken:
@@ -2409,8 +2456,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case '\r':
                 // CR clears pending wrap - moving to left margin cancels any pending wrap
                 _pendingWrap = false;
-                // When DECLRMM is enabled, CR moves to left margin, not column 0
-                _cursorX = _declrmm ? _marginLeft : 0;
+                // When DECLRMM is enabled and cursor is at or right of left margin,
+                // CR moves to left margin. If cursor is left of left margin, CR moves to col 0.
+                if (_declrmm && _cursorX >= _marginLeft)
+                    _cursorX = _marginLeft;
+                else
+                    _cursorX = 0;
                 break;
                 
             case '\t':
@@ -2437,15 +2488,29 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         switch (token.Direction)
         {
             case CursorMoveDirection.Up:
-                _cursorY = Math.Max(0, _cursorY - token.Count);
+                // If cursor is within or at the top scroll margin, clamp to top margin
+                // If cursor is above the scroll region, clamp to row 0
+                if (_cursorY >= _scrollTop)
+                    _cursorY = Math.Max(_scrollTop, _cursorY - token.Count);
+                else
+                    _cursorY = Math.Max(0, _cursorY - token.Count);
                 break;
                 
             case CursorMoveDirection.Down:
-                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                // If cursor is within or at the bottom scroll margin, clamp to bottom margin
+                // If cursor is below the scroll region, clamp to last row
+                if (_cursorY <= _scrollBottom)
+                    _cursorY = Math.Min(_scrollBottom, _cursorY + token.Count);
+                else
+                    _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
                 break;
                 
             case CursorMoveDirection.Forward:
-                _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
+                // If DECLRMM is enabled and cursor is within margin bounds, clamp to right margin
+                if (_declrmm && _cursorX <= _marginRight)
+                    _cursorX = Math.Min(_marginRight, _cursorX + token.Count);
+                else
+                    _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
                 break;
                 
             case CursorMoveDirection.Back:

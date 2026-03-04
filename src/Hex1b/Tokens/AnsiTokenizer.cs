@@ -58,6 +58,13 @@ public static class AnsiTokenizer
                 tokens.Add(new Ss3Token(text[i + 2]));
                 i += 3;
             }
+            // Check for DECALN (ESC # 8) — screen alignment test
+            else if (text[i] == '\x1b' && i + 2 < text.Length && text[i + 1] == '#' && text[i + 2] == '8')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(DecalnToken.Instance);
+                i += 3;
+            }
             // Check for DEC save cursor (ESC 7)
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '7')
             {
