@@ -596,29 +596,45 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 break;
             
             // Paste events: route to focused node with ancestor bubbling
+            // The handler runs as a fire-and-forget task so the render loop
+            // continues processing invalidation signals and input during paste.
             case Hex1bPasteEvent pasteEvent when _rootNode != null:
                 // Track the active paste for Escape cancellation
                 _activePaste = pasteEvent.Paste;
                 
-                var pasteResult = await InputRouter.RouteInputAsync(
-                    _rootNode, pasteEvent, _focusRing, _inputRouterState,
-                    RequestStop, cancellationToken, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                // Capture references needed for the background task
+                var pasteRootNode = _rootNode;
+                var pasteFocusRing = _focusRing;
+                var pasteRouterState = _inputRouterState;
+                var pasteWindowRegistry = _windowManagerRegistry;
                 
-                if (pasteResult == InputResult.NotHandled)
+                _ = Task.Run(async () =>
                 {
-                    // No node handled the paste — dispose to avoid leaking the channel
-                    await pasteEvent.Paste.DisposeAsync();
-                    _activePaste = null;
-                }
-                else
-                {
-                    // Handler accepted the paste — clear tracking when paste completes
-                    _ = pasteEvent.Paste.Completed.ContinueWith(_ =>
+                    try
                     {
-                        if (_activePaste == pasteEvent.Paste)
+                        var pasteResult = await InputRouter.RouteInputAsync(
+                            pasteRootNode, pasteEvent, pasteFocusRing, pasteRouterState,
+                            RequestStop, cancellationToken, CopyToClipboard, Invalidate, pasteWindowRegistry);
+                        
+                        if (pasteResult == InputResult.NotHandled)
+                        {
+                            await pasteEvent.Paste.DisposeAsync();
                             _activePaste = null;
-                    }, TaskScheduler.Default);
-                }
+                        }
+                        else
+                        {
+                            // Clear tracking when paste completes
+                            await pasteEvent.Paste.Completed;
+                            if (_activePaste == pasteEvent.Paste)
+                                _activePaste = null;
+                        }
+                    }
+                    catch (Exception)
+                    {
+                        // Don't crash the app if paste handler throws
+                        _activePaste = null;
+                    }
+                });
                 break;
             
             // Mouse events: update cursor position and handle clicks/drags
