@@ -51,11 +51,11 @@ var sequences = new SequenceDragData[]
         .Build()),
 };
 
-// Active terminal sessions (mutable, grows as images are dropped)
-var sessions = new List<TerminalSession>();
+// Active terminal sessions — each gets its own floating window
+var sessions = new Dictionary<int, TerminalSession>();
 var nextId = 1;
 
-void AddTerminal(string image)
+void AddTerminal(string image, WindowManager windows)
 {
     var id = nextId++;
     var terminal = Hex1bTerminal.CreateBuilder()
@@ -72,8 +72,26 @@ void AddTerminal(string image)
     handle.WindowTitleChanged += _ => displayApp?.Invalidate();
     handle.StateChanged += _ => displayApp?.Invalidate();
 
-    var session = new TerminalSession(id, image, terminal, handle);
-    sessions.Add(session);
+    // Create a floating window for this terminal
+    var window = windows.Window(w =>
+        w.Terminal(handle)
+            .WhenNotRunning(args =>
+                w.Text($"Container exited (code {args.ExitCode ?? 0})"))
+            .Fill()
+    )
+    .Title($"#{id} {image}")
+    .Size(TerminalWidth + 2, TerminalHeight + 2)
+    .Resizable(minWidth: 40, minHeight: 12)
+    .RightTitleActions(t => [t.Close()])
+    .OnClose(() =>
+    {
+        sessions.Remove(id);
+        _ = terminal.DisposeAsync();
+        displayApp?.Invalidate();
+    });
+
+    var session = new TerminalSession(id, image, terminal, handle, window);
+    sessions[id] = session;
 
     _ = Task.Run(async () =>
     {
@@ -81,7 +99,7 @@ void AddTerminal(string image)
         catch (OperationCanceledException) { }
     });
 
-    displayApp?.Invalidate();
+    windows.Open(window);
 }
 
 void RunSequence(Hex1bTerminal terminal, SequenceDragData seq)
@@ -128,65 +146,44 @@ await using var app = Hex1bTerminal.CreateBuilder()
                 .MinSize(20)
                 .MaxSize(40),
 
-                // Main area: terminals in horizontal scroll
-                sessions.Count == 0
-                    ? (Hex1bWidget)h.Droppable(dc =>
-                        dc.Border(
-                            dc.Text(dc.IsHoveredByDrag && dc.CanAcceptDrag
-                                ? "\n\n    --> Drop an image here to start a container"
-                                : "\n\n    Drag a 📦 image from the sidebar to start")
+                // Main area: WindowPanel with droppable surface
+                h.Droppable(dc =>
+                    dc.WindowPanel()
+                        .Background(bg =>
+                            bg.Text(dc.IsHoveredByDrag && dc.CanAcceptDrag
+                                ? "\n\n    --> Drop here to start a container or run a sequence"
+                                : sessions.Count == 0
+                                    ? "\n\n    Drag an [img] image from the sidebar to start a container"
+                                    : "")
                                 .Fill()
-                        ).Title("No containers running").Fill()
-                    )
-                    .Accept(data => data is ImageDragData)
-                    .OnDrop(e => AddTerminal(((ImageDragData)e.DragData).Image))
-                    .Fill()
-
-                    : (Hex1bWidget)h.HScrollPanel(sh =>
-                        sessions.Select(s =>
-                            (Hex1bWidget)sh.Droppable(dc =>
-                                dc.Border(
-                                    dc.VStack(pane =>
-                                    [
-                                        dc.IsHoveredByDrag && dc.CanAcceptDrag
-                                            ? (Hex1bWidget)pane.Text(
-                                                dc.HoveredDragData is ImageDragData imgData
-                                                    ? $" --> Drop to start: {imgData.Name}"
-                                                    : dc.HoveredDragData is SequenceDragData seqData
-                                                        ? $" >> Drop to run: {seqData.Name}"
-                                                        : " Drop here")
-                                                .ContentHeight()
-                                            : (Hex1bWidget)pane.Text("").FixedHeight(0),
-                                        pane.Terminal(s.Handle)
-                                            .WhenNotRunning(args =>
-                                                pane.Text($"Container exited (code {args.ExitCode ?? 0})"))
-                                            .Fill()
-                                    ])
-                                ).Title($"#{s.Id} {s.ImageName}")
-                            )
-                            .Accept(data => data is ImageDragData or SequenceDragData)
-                            .OnDrop(e =>
-                            {
-                                if (e.DragData is ImageDragData img)
-                                    AddTerminal(img.Image);
-                                else if (e.DragData is SequenceDragData seq)
-                                    RunSequence(s.Terminal, seq);
-                            })
-                            .FixedWidth(TerminalWidth + 2)
-                            .FillHeight()
-                        ).ToArray()
-                    ).Fill()
+                        )
+                        .Fill()
+                )
+                .Accept(data => data is ImageDragData or SequenceDragData)
+                .OnDrop(e =>
+                {
+                    if (e.DragData is ImageDragData img)
+                        AddTerminal(img.Image, e.Windows);
+                    else if (e.DragData is SequenceDragData seq)
+                    {
+                        // Apply sequence to the most recently created terminal
+                        var last = sessions.Values.LastOrDefault();
+                        if (last is not null)
+                            RunSequence(last.Terminal, seq);
+                    }
+                })
+                .Fill()
             ]);
     })
     .Build();
 
 var exitCode = await app.RunAsync(cts.Token);
 
-foreach (var s in sessions)
+foreach (var s in sessions.Values)
     await s.Terminal.DisposeAsync();
 
 return exitCode;
 
 record ImageDragData(string Name, string Image);
 record SequenceDragData(string Name, Func<Hex1bTerminalInputSequence> Build);
-record TerminalSession(int Id, string ImageName, Hex1bTerminal Terminal, TerminalWidgetHandle Handle);
+record TerminalSession(int Id, string ImageName, Hex1bTerminal Terminal, TerminalWidgetHandle Handle, WindowHandle Window);
