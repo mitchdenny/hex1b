@@ -224,14 +224,25 @@ var rewriteOptions = new RewriteOptions()
         var request = context.HttpContext.Request;
         var path = request.Path.Value ?? "";
         
-        // Skip if it's an API endpoint, WebSocket endpoint, or already has an extension
+        // Skip if it's an API endpoint or WebSocket endpoint
         if (path.StartsWith("/api") || 
             path.StartsWith("/apps") || 
             path.StartsWith("/examples") ||
-            path.StartsWith("/health") ||
-            Path.HasExtension(path))
+            path.StartsWith("/health"))
         {
             return;
+        }
+        
+        // Only skip rewriting if the path has an extension AND the file exists at that
+        // exact path. This prevents dotted namespace paths (e.g., /reference/Hex1b.Widgets)
+        // from being incorrectly treated as having a file extension and skipped.
+        if (Path.HasExtension(path))
+        {
+            var exactFile = app.Environment.WebRootFileProvider.GetFileInfo(path);
+            if (exactFile.Exists)
+            {
+                return;
+            }
         }
         
         // For clean URLs, try to find the corresponding .html file
