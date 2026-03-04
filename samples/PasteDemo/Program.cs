@@ -43,13 +43,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
             // Pastable container with streaming handler
             v.Text("Pastable zone (streams lines):"),
-            v.Pastable(v2 => [
-                v2.Border(v3 => [
+            v.Pastable(
+                v.Interactable(ic => ic.Border(v3 => [
                     .. pasteLines.Count > 0
                         ? pasteLines.TakeLast(5).Select(l => v3.Text($"  {l}")).ToArray()
                         : [v3.Text("  (paste multi-line text here)")],
-                ])
-            ])
+                ]))
+            )
             .OnPaste(async paste =>
             {
                 pasteCount++;
