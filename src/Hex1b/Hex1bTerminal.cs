@@ -132,6 +132,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
     private bool _hasLastPrintedCell = false;
     
+    // Position and width of last printed character for retroactive VS15/VS16 handling
+    private int _lastPrintedCellX = 0;
+    private int _lastPrintedCellY = 0;
+    private int _lastPrintedCellWidth = 0;
+    
     // Terminal title (OSC 0/2) and icon name (OSC 0/1)
     // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
     private string _windowTitle = "";
@@ -2226,6 +2231,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _currentUnderlineColor = null;
                 _lastPrintedCell = TerminalCell.Empty;
                 _hasLastPrintedCell = false;
+                _lastPrintedCellX = 0;
+                _lastPrintedCellY = 0;
+                _lastPrintedCellWidth = 0;
                 _wraparoundMode = true;
                 // Clear screen
                 for (int row = 0; row < _height; row++)
@@ -2371,6 +2379,25 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             var grapheme = GetGraphemeAt(text, i);
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
             
+            // Retroactive variation selector handling:
+            // When VS15 (U+FE0E) or VS16 (U+FE0F) arrives as a standalone character
+            // (not part of the same grapheme cluster as the base), modern terminals
+            // retroactively modify the width of the previously printed character.
+            // VS15 forces text presentation (narrow/1-cell), VS16 forces emoji
+            // presentation (wide/2-cell). This matches Ghostty, Kitty, WezTerm, iTerm2.
+            // Legacy terminals (xterm, Alacritty) only change the glyph, not the width.
+            if (graphemeWidth == 0 && grapheme.Length == 1 && _hasLastPrintedCell
+                && Capabilities.SupportsRetroactiveVariationSelectors)
+            {
+                var cp = (int)grapheme[0];
+                if (cp == 0xFE0E || cp == 0xFE0F)
+                {
+                    ApplyRetroactiveVariationSelector(cp, impacts);
+                    i += grapheme.Length;
+                    continue;
+                }
+            }
+            
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
             // printable character is written, not when cursor reaches the margin.
@@ -2476,9 +2503,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _currentUnderlineColor);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
-                // Save last printed cell for CSI b (REP) command
+                // Save last printed cell for CSI b (REP) command and VS15/VS16 handling
                 _lastPrintedCell = cell;
                 _hasLastPrintedCell = true;
+                _lastPrintedCellX = _cursorX;
+                _lastPrintedCellY = _cursorY;
+                _lastPrintedCellWidth = graphemeWidth;
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
@@ -2502,6 +2532,89 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             i += grapheme.Length;
         }
+    }
+
+    /// <summary>
+    /// Retroactively applies VS15 (U+FE0E) or VS16 (U+FE0F) to the last printed cell.
+    /// VS15 forces text presentation (1 cell wide), VS16 forces emoji presentation (2 cells wide).
+    /// When the width changes, the cursor position and screen buffer are adjusted.
+    /// </summary>
+    private void ApplyRetroactiveVariationSelector(int selectorCodepoint, List<CellImpact>? impacts)
+    {
+        int cellX = _lastPrintedCellX;
+        int cellY = _lastPrintedCellY;
+        int oldWidth = _lastPrintedCellWidth;
+        
+        // Validate the cell is still on screen
+        if (cellY < 0 || cellY >= _height || cellX < 0 || cellX >= _width)
+            return;
+        
+        ref var cell = ref _screenBuffer[cellY, cellX];
+        if (string.IsNullOrEmpty(cell.Character))
+            return;
+        
+        // Compute the new grapheme by appending the variation selector
+        var vs = char.ConvertFromUtf32(selectorCodepoint);
+        var newGrapheme = cell.Character + vs;
+        int newWidth = DisplayWidth.GetGraphemeWidth(newGrapheme);
+        
+        if (newWidth == oldWidth)
+        {
+            // Width unchanged — just update the cell content to include the VS
+            cell = cell with { Character = newGrapheme };
+            return;
+        }
+        
+        if (newWidth < oldWidth)
+        {
+            // Shrinking (VS15: wide → narrow). Clear the continuation cell(s) and
+            // move the cursor back.
+            cell = cell with { Character = newGrapheme };
+            
+            // Clear continuation cells
+            for (int w = newWidth; w < oldWidth && cellX + w < _width; w++)
+            {
+                _screenBuffer[cellY, cellX + w] = TerminalCell.Empty;
+            }
+            
+            // Adjust cursor: move back by the difference in width
+            _cursorX = cellX + newWidth;
+            
+            // If pending wrap was set because the wide char hit the margin,
+            // it should be cleared since the narrow char no longer fills it
+            if (_pendingWrap)
+                _pendingWrap = false;
+        }
+        else
+        {
+            // Widening (VS16: narrow → wide). Need to check if there's room.
+            // If the cell is at the right edge, we can't widen — just update content.
+            if (cellX + newWidth > _width)
+            {
+                cell = cell with { Character = newGrapheme };
+                return;
+            }
+            
+            cell = cell with { Character = newGrapheme };
+            
+            // Add continuation cell(s)
+            for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
+            {
+                _screenBuffer[cellY, cellX + w] = TerminalCell.Empty;
+            }
+            
+            // Adjust cursor forward
+            _cursorX = cellX + newWidth;
+            if (_cursorX > _width - 1)
+            {
+                _cursorX = _width - 1;
+                _pendingWrap = true;
+            }
+        }
+        
+        // Update tracking
+        _lastPrintedCell = cell;
+        _lastPrintedCellWidth = newWidth;
     }
 
     private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)

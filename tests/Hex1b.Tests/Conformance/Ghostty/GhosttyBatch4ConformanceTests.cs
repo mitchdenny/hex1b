@@ -194,7 +194,7 @@ public class GhosttyBatch4ConformanceTests
     // Ghostty: test "Terminal: VS15 to make narrow character"
     // VS15 (U+FE0E) converts wide emoji to text presentation (narrow)
     // Requires retroactive cell modification when VS15 arrives after base char
-    [Fact(Skip = "VS15 retroactive width change not yet implemented")]
+    [Fact]
     public void VS15_MakeNarrowCharacter()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -223,7 +223,7 @@ public class GhosttyBatch4ConformanceTests
 
     // Ghostty: test "Terminal: VS15 to make narrow character with pending wrap"
     // Requires retroactive cell modification when VS15 arrives after base char
-    [Fact(Skip = "VS15 retroactive width change not yet implemented")]
+    [Fact]
     public void VS15_WithPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 4, rows: 5);
