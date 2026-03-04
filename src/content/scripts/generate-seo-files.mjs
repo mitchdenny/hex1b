@@ -180,7 +180,61 @@ function scanMarkdownFiles(dir) {
     }
     
     scan(dir);
+    
+    // Ensure API reference namespace pages are always included, even when
+    // the DocGenerator hasn't run yet. These pages are listed in the VitePress
+    // sidebar config and are generated at build time by DocGenerator.
+    addSidebarReferencePages(pages, dir);
+    
     return pages;
+}
+
+/**
+ * Adds API reference namespace pages from the VitePress sidebar config
+ * if they weren't already discovered by the filesystem scan.
+ * This ensures llms.txt always includes the namespace pages regardless
+ * of whether the DocGenerator has run.
+ */
+function addSidebarReferencePages(pages, contentDir) {
+    const configPath = path.join(contentDir, '.vitepress', 'config.ts');
+    if (!fs.existsSync(configPath)) {
+        return;
+    }
+    
+    const configContent = fs.readFileSync(configPath, 'utf-8');
+    
+    // Extract sidebar links for /reference/ section
+    // Matches patterns like: { text: 'Hex1b.Widgets', link: '/reference/Hex1b.Widgets' }
+    const linkRegex = /\{\s*text:\s*['"]([^'"]+)['"]\s*,\s*link:\s*['"]\/reference\/([^'"]+)['"]\s*\}/g;
+    let match;
+    
+    // Build a set of existing reference page URLs for deduplication
+    const existingUrls = new Set(
+        pages
+            .filter(p => p.section === 'API Reference')
+            .map(p => p.url)
+    );
+    
+    while ((match = linkRegex.exec(configContent)) !== null) {
+        const title = match[1];
+        const slug = match[2];
+        const url = `${SITE_URL}/reference/${slug}`;
+        
+        if (!existingUrls.has(url)) {
+            // Try to read the generated file for a description
+            const mdPath = path.join(contentDir, 'reference', `${slug}.md`);
+            let description = '';
+            if (fs.existsSync(mdPath)) {
+                const content = fs.readFileSync(mdPath, 'utf-8');
+                description = extractDescription(content);
+            }
+            
+            // Create a synthetic page entry
+            const syntheticPath = mdPath;
+            pages.push(new DocPage(syntheticPath, title, description, 'API Reference'));
+            existingUrls.add(url);
+        }
+    }
 }
 
 /**
