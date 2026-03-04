@@ -9,25 +9,27 @@ long totalLines = 0;
 long totalChunks = 0;
 double charsPerSec = 0;
 string status = "idle";
-string lastLine = "";
 var recentLines = new List<string>();
 var stopwatch = new Stopwatch();
-bool pasteComplete = false;
 int pasteCount = 0;
 
-// Build a simple progress bar string
-static string ProgressBar(long current, long max, int width = 30)
+// Spinner frames for activity indicator
+var spinnerFrames = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
+
+// Format byte-like counts with K/M suffixes
+static string FormatCount(long n) => n switch
 {
-    if (max <= 0) return new string('░', width);
-    var ratio = Math.Min(1.0, (double)current / max);
-    var filled = (int)(ratio * width);
-    return new string('█', filled) + new string('░', width - filled);
-}
+    >= 1_000_000 => $"{n / 1_000_000.0:F1}M",
+    >= 1_000 => $"{n / 1_000.0:F1}K",
+    _ => n.ToString()
+};
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     {
         var elapsed = stopwatch.IsRunning ? stopwatch.Elapsed : TimeSpan.Zero;
+        var spinner = spinnerFrames[(int)(elapsed.TotalMilliseconds / 80) % spinnerFrames.Length];
+        var isStreaming = status == "streaming";
 
         return ctx.VStack(v => [
             v.Text("╔══════════════════════════════════════════════════════╗"),
@@ -35,24 +37,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text("╚══════════════════════════════════════════════════════╝"),
             v.Text(""),
             v.Text(" Tab into the paste zone below, then paste a huge file."),
-            v.Text(" The handler processes chunks with a simulated delay,"),
-            v.Text(" showing live stats as data streams in."),
             v.Text(" Press Escape to cancel a paste in progress."),
             v.Text(""),
             v.Separator(),
 
-            // Live stats
-            v.Text($"  Status:       {status}"),
-            v.Text($"  Pastes:       {pasteCount}"),
-            v.Text($"  Characters:   {totalChars:N0}"),
-            v.Text($"  Lines:        {totalLines:N0}"),
-            v.Text($"  Chunks:       {totalChunks:N0}"),
-            v.Text($"  Throughput:   {charsPerSec:N0} chars/sec"),
-            v.Text($"  Elapsed:      {elapsed.TotalSeconds:F1}s"),
-            v.Text(""),
-
-            // Progress indicator
-            v.Text($"  {ProgressBar(totalChars, totalChars > 0 ? totalChars + (status == "streaming..." ? 10000 : 0) : 0)}"),
+            // Live stats — spinner animates while streaming
+            v.Text(isStreaming
+                ? $"  {spinner} Status:       RECEIVING..."
+                : $"    Status:       {status}"),
+            v.Text($"    Pastes:       {pasteCount}"),
+            v.Text($"    Characters:   {FormatCount(totalChars)}"),
+            v.Text($"    Lines:        {FormatCount(totalLines)}"),
+            v.Text($"    Chunks:       {FormatCount(totalChunks)}"),
+            v.Text($"    Throughput:   {FormatCount((long)charsPerSec)}/sec"),
+            v.Text($"    Elapsed:      {elapsed.TotalSeconds:F1}s"),
             v.Text(""),
             v.Separator(),
 
@@ -60,20 +58,21 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text(" Paste zone (Tab here first):"),
             v.Pastable(
                 v.Interactable(ic => ic.Border(v2 => [
-                    v2.Text(status == "idle"
-                        ? "  Waiting for paste... (Tab here, then Ctrl+V)"
-                        : status == "streaming..."
-                            ? $"  ▶ Receiving: {totalChars:N0} chars | {totalLines:N0} lines | {totalChunks:N0} chunks"
-                            : $"  ✓ Complete: {totalChars:N0} chars, {totalLines:N0} lines in {elapsed.TotalSeconds:F1}s"),
+                    v2.Text(isStreaming
+                        ? $"  {spinner} Receiving: {FormatCount(totalChars)} chars │ {FormatCount(totalLines)} lines │ {FormatCount(totalChunks)} chunks │ {elapsed.TotalSeconds:F1}s"
+                        : status == "idle"
+                            ? "    Waiting for paste... (Tab here, then Ctrl+V)"
+                            : $"    {status}"),
                     v2.Text(""),
-                    v2.Text("  Last 8 lines received:"),
+                    v2.Text("  Recent lines:"),
                     .. (recentLines.Count > 0
                         ? recentLines.TakeLast(8).Select((l, i) =>
                         {
+                            var lineNum = totalLines - recentLines.Count + i + 1;
                             var display = l.Length > 60 ? l[..57] + "..." : l;
-                            return v2.Text($"    {totalLines - recentLines.Count + i + 1,6}: {display}");
+                            return v2.Text($"  {lineNum,7} │ {display}");
                         }).ToArray()
-                        : [v2.Text("    (nothing yet)")]),
+                        : [v2.Text("          │ (nothing yet)")]),
                 ]))
             )
             .OnPaste(async paste =>
@@ -83,12 +82,26 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 totalLines = 0;
                 totalChunks = 0;
                 charsPerSec = 0;
-                pasteComplete = false;
                 recentLines.Clear();
-                status = "streaming...";
+                status = "streaming";
                 pasteCount++;
                 stopwatch.Restart();
                 app.Invalidate();
+
+                // Periodic UI refresh so spinner animates between chunks
+                using var refreshCts = new CancellationTokenSource();
+                _ = Task.Run(async () =>
+                {
+                    try
+                    {
+                        while (!refreshCts.Token.IsCancellationRequested)
+                        {
+                            await Task.Delay(80, refreshCts.Token);
+                            app.Invalidate();
+                        }
+                    }
+                    catch (OperationCanceledException) { }
+                });
 
                 try
                 {
@@ -107,14 +120,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         var lines = chunk.Split('\n');
                         foreach (var line in lines)
                         {
-                            if (!string.IsNullOrEmpty(line))
-                            {
-                                var trimmed = line.TrimEnd('\r');
-                                if (trimmed.Length > 0)
-                                    recentLines.Add(trimmed);
-                            }
+                            var trimmed = line.TrimEnd('\r');
+                            if (trimmed.Length > 0)
+                                recentLines.Add(trimmed);
                         }
-                        // Keep only last 20 lines in memory
                         if (recentLines.Count > 20)
                             recentLines.RemoveRange(0, recentLines.Count - 20);
 
@@ -133,13 +142,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     // Paste was cancelled (Escape key)
                 }
 
+                refreshCts.Cancel();
+
                 stopwatch.Stop();
                 var finalSecs = stopwatch.Elapsed.TotalSeconds;
                 charsPerSec = finalSecs > 0 ? totalChars / finalSecs : 0;
-                pasteComplete = true;
                 status = paste.IsCancelled
-                    ? $"cancelled after {totalChars:N0} chars"
-                    : "done";
+                    ? $"✗ Cancelled after {FormatCount(totalChars)} chars in {finalSecs:F1}s"
+                    : $"✓ Done: {FormatCount(totalChars)} chars, {FormatCount(totalLines)} lines in {finalSecs:F1}s ({FormatCount((long)charsPerSec)}/sec)";
                 app.Invalidate();
             }),
 
