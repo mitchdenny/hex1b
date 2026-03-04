@@ -313,7 +313,7 @@ public class GhosttyWideCharConformanceTests
 
     // Ghostty: test "Terminal: VS16 to make wide character on next line"
     // At edge of terminal, VS16 causes character to wrap to next line as wide
-    [Fact(Skip = "BUG: VS16 at edge doesn't trigger wrap to next line")]
+    [Fact]
     public void VS16_AtEdge_WrapsToNextLine()
     {
         using var terminal = CreateTerminal(cols: 3, rows: 5);
@@ -369,7 +369,7 @@ public class GhosttyWideCharConformanceTests
 
     // Ghostty: test "Terminal: print invalid VS16 with second char (combining)"
     // n + invalid VS16 + combining tilde → single narrow cell
-    [Fact(Skip = "IntentionalDivergence: Hex1b's DisplayWidth treats VS16 as always-wide; Ghostty validates emoji base")]
+    [Fact]
     public void InvalidVS16_WithCombining_StaysNarrow()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
