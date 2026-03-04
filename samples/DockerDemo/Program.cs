@@ -3,46 +3,60 @@ using Hex1b.Automation;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
-const int TerminalCount = 5;
 const int TerminalWidth = 80;
 const int TerminalHeight = 24;
 
 using var cts = new CancellationTokenSource();
 Hex1bApp? displayApp = null;
 
-// Define automation sequences that can be applied to any container
-var sequences = new (string Label, Func<Hex1bTerminalInputSequence> Build)[]
+// Available Docker images
+var images = new ImageDragData[]
 {
-    ("Install .NET 9.0", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Ubuntu 24.04", "ubuntu:24.04"),
+    new("Alpine 3.21", "alpine:3.21"),
+    new(".NET SDK 10.0", "mcr.microsoft.com/dotnet/sdk:10.0"),
+    new(".NET SDK 9.0", "mcr.microsoft.com/dotnet/sdk:9.0"),
+    new("Debian Bookworm", "debian:bookworm-slim"),
+};
+
+// Available automation sequences
+var sequences = new SequenceDragData[]
+{
+    new("Install .NET 9.0", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 9.0").Enter()
         .Build()),
-    ("Install .NET 8.0", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Install .NET 8.0", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 8.0").Enter()
         .Build()),
-    ("Install .NET 10.0 (preview)", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Install .NET 10.0", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("curl -sSL https://dot.net/v1/dotnet-install.sh | bash -s -- --channel 10.0 --quality preview").Enter()
         .Build()),
-    ("Add dotnet to PATH", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Add dotnet to PATH", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("export PATH=$PATH:$HOME/.dotnet").Enter()
         .Build()),
-    ("Update apt packages", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Update apt packages", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("apt-get update -qq && apt-get install -y -qq curl").Enter()
         .Build()),
-    ("Show system info", () => new Hex1bTerminalInputSequenceBuilder()
+    new("Show system info", () => new Hex1bTerminalInputSequenceBuilder()
         .Type("uname -a && cat /etc/os-release").Enter()
+        .Build()),
+    new("Install Node.js 22", () => new Hex1bTerminalInputSequenceBuilder()
+        .Type("curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs").Enter()
         .Build()),
 };
 
-// Create 5 Docker container terminals
-var sessions = new List<(Hex1bTerminal Terminal, TerminalWidgetHandle Handle, int Id)>();
+// Active terminal sessions (mutable, grows as images are dropped)
+var sessions = new List<TerminalSession>();
+var nextId = 1;
 
-for (int i = 0; i < TerminalCount; i++)
+void AddTerminal(string image)
 {
+    var id = nextId++;
     var terminal = Hex1bTerminal.CreateBuilder()
         .WithDimensions(TerminalWidth, TerminalHeight)
         .WithDockerContainer(c =>
         {
-            c.Image = "ubuntu:24.04";
+            c.Image = image;
             c.Shell = "/bin/bash";
             c.ShellArgs = ["--norc"];
         })
@@ -50,20 +64,30 @@ for (int i = 0; i < TerminalCount; i++)
         .Build();
 
     handle.WindowTitleChanged += _ => displayApp?.Invalidate();
-    sessions.Add((terminal, handle, i + 1));
-}
+    handle.StateChanged += _ => displayApp?.Invalidate();
 
-// Start all containers in the background
-foreach (var (terminal, _, _) in sessions)
-{
+    var session = new TerminalSession(id, image, terminal, handle);
+    sessions.Add(session);
+
     _ = Task.Run(async () =>
     {
         try { await terminal.RunAsync(cts.Token); }
         catch (OperationCanceledException) { }
     });
+
+    displayApp?.Invalidate();
 }
 
-// Build the TUI app with mouse support
+void RunSequence(Hex1bTerminal terminal, SequenceDragData seq)
+{
+    _ = Task.Run(async () =>
+    {
+        var sequence = seq.Build();
+        await sequence.ApplyAsync(terminal, cts.Token);
+    });
+}
+
+// Build the TUI app
 await using var app = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((appRef, options) =>
@@ -71,55 +95,93 @@ await using var app = Hex1bTerminal.CreateBuilder()
         displayApp = appRef;
 
         return ctx =>
-            ctx.VStack(v =>
+            ctx.HStack(h =>
             [
-                v.Text(" Docker Demo — 5 Ubuntu containers (← → to scroll, Tab/click to switch, Ctrl+C to exit)")
-                    .ContentHeight(),
-                v.HScrollPanel(h =>
-                    sessions.Select(s =>
-                        (Hex1bWidget)h.Border(
-                            h.VStack(pane =>
-                            [
-                                pane.SplitButton()
-                                    .PrimaryAction($"▶ Run sequence on #{s.Id}", e =>
-                                        RunSequence(s.Terminal, 0))
-                                    .SecondaryAction(sequences[0].Label, e => RunSequence(s.Terminal, 0))
-                                    .SecondaryAction(sequences[1].Label, e => RunSequence(s.Terminal, 1))
-                                    .SecondaryAction(sequences[2].Label, e => RunSequence(s.Terminal, 2))
-                                    .SecondaryAction(sequences[3].Label, e => RunSequence(s.Terminal, 3))
-                                    .SecondaryAction(sequences[4].Label, e => RunSequence(s.Terminal, 4))
-                                    .SecondaryAction(sequences[5].Label, e => RunSequence(s.Terminal, 5))
-                                    .ContentHeight(),
-                                pane.Terminal(s.Handle)
-                                    .WhenNotRunning(args =>
-                                        pane.Text($"Container {s.Id} exited (code {args.ExitCode ?? 0})"))
-                                    .Fill()
-                            ])
-                        )
-                        .Title($"Container {s.Id}")
-                        .FixedWidth(TerminalWidth + 2)
-                        .FillHeight()
-                    ).ToArray()
-                ).Fill()
+                // Left sidebar: resizable drag bar panel with accordion
+                h.DragBarPanel(
+                    h.Accordion(a =>
+                    [
+                        a.Section("Images", s =>
+                            images.Select(img =>
+                                (Hex1bWidget)s.Draggable(img, dc =>
+                                    dc.Text(dc.IsDragging ? $"  ┄ {img.Name}" : $"  📦 {img.Name}"))
+                                    .DragOverlay(dc => dc.Text($"📦 {img.Name}"))
+                            )
+                        ).Expanded(),
+
+                        a.Section("Sequences", s =>
+                            sequences.Select(seq =>
+                                (Hex1bWidget)s.Draggable(seq, dc =>
+                                    dc.Text(dc.IsDragging ? $"  ┄ {seq.Name}" : $"  ⚡ {seq.Name}"))
+                                    .DragOverlay(dc => dc.Text($"⚡ {seq.Name}"))
+                            )
+                        ).Expanded()
+                    ]).MultipleExpanded()
+                )
+                .InitialSize(28)
+                .MinSize(20)
+                .MaxSize(40),
+
+                // Main area: terminals in horizontal scroll
+                sessions.Count == 0
+                    ? (Hex1bWidget)h.Droppable(dc =>
+                        dc.Border(
+                            dc.Text(dc.IsHoveredByDrag && dc.CanAcceptDrag
+                                ? "\n\n    ➡ Drop an image here to start a container"
+                                : "\n\n    Drag a 📦 image from the sidebar to start")
+                                .Fill()
+                        ).Title("No containers running").Fill()
+                    )
+                    .Accept(data => data is ImageDragData)
+                    .OnDrop(e => AddTerminal(((ImageDragData)e.DragData).Image))
+                    .Fill()
+
+                    : (Hex1bWidget)h.HScrollPanel(sh =>
+                        sessions.Select(s =>
+                            (Hex1bWidget)sh.Droppable(dc =>
+                                dc.Border(
+                                    dc.VStack(pane =>
+                                    [
+                                        dc.IsHoveredByDrag && dc.CanAcceptDrag
+                                            ? (Hex1bWidget)pane.Text(
+                                                dc.HoveredDragData is ImageDragData imgData
+                                                    ? $" ➡ Drop to start: {imgData.Name}"
+                                                    : dc.HoveredDragData is SequenceDragData seqData
+                                                        ? $" ⚡ Drop to run: {seqData.Name}"
+                                                        : " Drop here")
+                                                .ContentHeight()
+                                            : (Hex1bWidget)pane.Text($" {s.ImageName}")
+                                                .ContentHeight(),
+                                        pane.Terminal(s.Handle)
+                                            .WhenNotRunning(args =>
+                                                pane.Text($"Container exited (code {args.ExitCode ?? 0})"))
+                                            .Fill()
+                                    ])
+                                ).Title($"#{s.Id}")
+                            )
+                            .Accept(data => data is ImageDragData or SequenceDragData)
+                            .OnDrop(e =>
+                            {
+                                if (e.DragData is ImageDragData img)
+                                    AddTerminal(img.Image);
+                                else if (e.DragData is SequenceDragData seq)
+                                    RunSequence(s.Terminal, seq);
+                            })
+                            .FixedWidth(TerminalWidth + 2)
+                            .FillHeight()
+                        ).ToArray()
+                    ).Fill()
             ]);
     })
     .Build();
 
 var exitCode = await app.RunAsync(cts.Token);
 
-// Clean up all container terminals
-foreach (var (terminal, _, _) in sessions)
-{
-    await terminal.DisposeAsync();
-}
+foreach (var s in sessions)
+    await s.Terminal.DisposeAsync();
 
 return exitCode;
 
-void RunSequence(Hex1bTerminal terminal, int index)
-{
-    _ = Task.Run(async () =>
-    {
-        var seq = sequences[index].Build();
-        await seq.ApplyAsync(terminal, cts.Token);
-    });
-}
+record ImageDragData(string Name, string Image);
+record SequenceDragData(string Name, Func<Hex1bTerminalInputSequence> Build);
+record TerminalSession(int Id, string ImageName, Hex1bTerminal Terminal, TerminalWidgetHandle Handle);
