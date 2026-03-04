@@ -2317,11 +2317,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case BackTabToken:
-                // CBT (CSI Z): Back tab — move cursor to previous tab stop
+                // CBT (CSI Z): Back tab — move cursor to previous tab stop.
+                // When DECLRMM is enabled and cursor is at or right of the left margin,
+                // CBT clamps to the left margin instead of column 0.
                 _pendingWrap = false;
                 if (_cursorX > 0)
                 {
-                    _cursorX = PrevTabStop(_cursorX, 0);
+                    int cbtLeftEdge = (_declrmm && _cursorX >= _marginLeft) ? _marginLeft : 0;
+                    _cursorX = PrevTabStop(_cursorX, cbtLeftEdge);
                 }
                 break;
                 
@@ -2484,10 +2487,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Only use margin boundary if cursor is within the L/R margin region
             bool insideLRMargin = !_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight);
             int effectiveRightMargin = (_declrmm && insideLRMargin) ? _marginRight : _width - 1;
+            int availableWidth = effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1;
+            
+            // Wide char that can never fit (terminal too narrow): per Ghostty behavior,
+            // the character is silently dropped and pending wrap is set so that the next
+            // printable character triggers a line wrap.
+            if (graphemeWidth > 1 && availableWidth < graphemeWidth)
+            {
+                _pendingWrap = true;
+                i += grapheme.Length;
+                continue;
+            }
             
             // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
-            if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap
-                && effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1 >= graphemeWidth)
+            if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap)
             {
                 if (_wraparoundMode)
                 {
@@ -3703,6 +3716,60 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 SetCell(bottom, x, eraseCell, impacts);
             }
         }
+        
+        // Clean up wide char orphans at margin boundaries after line operations.
+        // When DECLRMM is enabled, lines are shifted within [leftCol..rightCol] only.
+        // Wide chars straddling these boundaries get split and must be replaced with blanks.
+        if (_declrmm)
+        {
+            var eraseCleanup = CreateEraseCell();
+            for (int y = _cursorY; y <= bottom; y++)
+            {
+                // Left boundary: if leftCol has a continuation cell (orphaned from
+                // a leading cell outside the margin), blank it.
+                if (leftCol > 0 && _screenBuffer[y, leftCol].Character == "")
+                {
+                    SetCell(y, leftCol, eraseCleanup, impacts);
+                }
+                
+                // Right boundary: if rightCol has a wide char whose continuation
+                // at rightCol+1 is NOT a continuation (was not shifted), the wide
+                // char is broken → blank the leading cell.
+                if (rightCol < _width - 1)
+                {
+                    var ch = _screenBuffer[y, rightCol].Character;
+                    if (ch.Length > 0 && ch != " " && ch != ""
+                        && DisplayWidth.GetGraphemeWidth(ch) > 1)
+                    {
+                        // Check if continuation cell is intact
+                        if (_screenBuffer[y, rightCol + 1].Character != "")
+                        {
+                            // Continuation was NOT preserved → broken wide char, blank it
+                            SetCell(y, rightCol, eraseCleanup, impacts);
+                        }
+                    }
+                    // Also clean orphaned continuation just past right margin
+                    if (_screenBuffer[y, rightCol + 1].Character == "")
+                    {
+                        SetCell(y, rightCol + 1, eraseCleanup, impacts);
+                    }
+                }
+                
+                // If cell just before leftCol is a wide char whose continuation
+                // (at leftCol) was overwritten by the shift, blank the orphaned leading cell.
+                if (leftCol > 0)
+                {
+                    var prevCh = _screenBuffer[y, leftCol - 1].Character;
+                    if (prevCh.Length > 0 && prevCh != " " && prevCh != ""
+                        && DisplayWidth.GetGraphemeWidth(prevCh) > 1
+                        && _screenBuffer[y, leftCol].Character != "")
+                    {
+                        // Leading cell's continuation was overwritten → blank it
+                        SetCell(y, leftCol - 1, eraseCleanup, impacts);
+                    }
+                }
+            }
+        }
     }
     
     private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
@@ -3751,6 +3818,29 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         for (int x = rightEdge - count; x < rightEdge; x++)
         {
             SetCell(_cursorY, x, eraseCell, impacts);
+        }
+        
+        // Clean up wide char orphans after shift and erasure:
+        // 1. If a wide char's leading cell was shifted into the last position before
+        //    the erased zone, its continuation was erased → blank the leading cell too.
+        int lastShifted = rightEdge - count - 1;
+        if (lastShifted >= _cursorX && lastShifted < _width)
+        {
+            var ch = _screenBuffer[_cursorY, lastShifted].Character;
+            if (ch.Length > 0 && ch != " " && ch != "" && DisplayWidth.GetGraphemeWidth(ch) > 1)
+            {
+                SetCell(_cursorY, lastShifted, eraseCell, impacts);
+            }
+        }
+        
+        // 2. If a wide char's continuation cell is just past the right edge boundary
+        //    (outside margin), it was orphaned by the leading cell being erased → clear it.
+        if (_declrmm && rightEdge < _width)
+        {
+            if (_screenBuffer[_cursorY, rightEdge].Character == "")
+            {
+                SetCell(_cursorY, rightEdge, eraseCell, impacts);
+            }
         }
     }
     

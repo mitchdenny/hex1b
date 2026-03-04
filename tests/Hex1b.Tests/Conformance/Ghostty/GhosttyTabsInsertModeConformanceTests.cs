@@ -102,7 +102,7 @@ public class GhosttyTabsInsertModeConformanceTests
         Assert.Equal("A       X", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact(Skip = "Hex1b CBT does not clamp to left margin in origin mode")]
+    [Fact]
     [Trait("FailureReason", "Bug")]
     public void HorizontalTabsBack_WithLeftMarginInOriginMode()
     {

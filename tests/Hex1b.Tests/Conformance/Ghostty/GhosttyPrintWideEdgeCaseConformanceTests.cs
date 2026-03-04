@@ -44,37 +44,39 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
             $"Expected continuation cell, got '{tailCell.Character}'");
     }
 
-    [Fact(Skip = "Hex1b bug: wide char in 1-col terminal not replaced with space")]
+    [Fact]
     public void PrintWideCharInSingleWidthTerminal_PrintsSpace()
     {
         // Ghostty: "Terminal: print wide char in single-width terminal"
-        // A wide char in a 1-column terminal can't fit, so it prints a space.
+        // A wide char in a 1-column terminal can't fit — it is silently dropped
+        // and pending wrap is set. The cell remains empty.
         var t = GhosttyTestFixture.CreateTerminal(1, 80);
 
         GhosttyTestFixture.Feed(t, "\U0001F600");  // 😀
 
-        // Cursor stays at row 0
+        // Cursor stays at row 0, col 0 (with pending wrap)
         Assert.Equal(0, t.CursorY);
+        Assert.Equal(0, t.CursorX);
 
-        // Cell should be empty (space), not the emoji
+        // Cell should be empty (wide char was dropped)
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
         Assert.True(cell.Character == " " || cell.Character == "" || cell.Character == "\0",
-            $"Expected space/empty in 1-col terminal, got '{cell.Character}'");
+            $"Expected empty cell in 1-col terminal, got '{cell.Character}'");
     }
 
-    [Fact(Skip = "Hex1b bug: wide char in 1-col terminal not replaced with space")]
+    [Fact]
     public void PrintWideCharWithOneColWidth_Truncated()
     {
         // Ghostty: "Terminal: print wide char with 1-column width"
-        // Similar to single-width: wide char that can't fit
+        // Same as above: wide char that can't fit is silently dropped.
         var t = GhosttyTestFixture.CreateTerminal(1, 2);
 
         GhosttyTestFixture.Feed(t, "\U0001F600");  // 😀
 
-        // The wide char should be replaced with a space since there's only 1 column
+        // Cell should be empty
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
         Assert.True(cell.Character == " " || cell.Character == "" || cell.Character == "\0",
-            $"Expected space/empty, got '{cell.Character}'");
+            $"Expected empty cell, got '{cell.Character}'");
     }
 
     // ═══════════════════════════════════════════════════════════════

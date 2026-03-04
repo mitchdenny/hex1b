@@ -179,7 +179,7 @@ public class GhosttyDeleteInsertLinesMarginConformanceTests
     }
 
     // Ghostty: "Terminal: deleteLines wide character spacer head left (< 2) and right scroll margin"
-    [Fact(Skip = "Hex1b bug: wide char split by left margin boundary not replaced with blank space")]
+    [Fact]
     [Trait("FailureReason", "Bug")]
     public void DeleteLines_WideCharSpacerHead_LeftLessThan2_AndRightScrollMargin()
     {
@@ -197,14 +197,20 @@ public class GhosttyDeleteInsertLinesMarginConformanceTests
     }
 
     // Ghostty: "Terminal: deleteLines wide characters split by left/right scroll region boundaries"
-    [Fact(Skip = "Hex1b bug: wide chars straddling scroll region boundaries not properly removed")]
+    [Fact]
     [Trait("FailureReason", "Bug")]
     public void DeleteLines_WideCharsSplitByScrollRegionBoundaries()
     {
         using var t = CreateTerminal(cols: 5, rows: 2);
-        GhosttyTestFixture.Feed(t, "AAAAA\n\U0001F600B\U0001F600");
+        // Set up content carefully to avoid unwanted scrolling:
+        // Row 0: AAAAA
+        GhosttyTestFixture.Feed(t, "AAAAA");
+        // Row 1: 😀B😀 (wide chars at cols 0-1 and 3-4)
+        GhosttyTestFixture.Feed(t, "\u001b[2;1H");  // CUP to row 1, col 0
+        GhosttyTestFixture.Feed(t, "\U0001F600B\U0001F600");
+        
         GhosttyTestFixture.Feed(t, "\u001b[?69h");  // enable left/right margin mode
-        GhosttyTestFixture.Feed(t, "\u001b[2;4s");   // left=1,right=3 (0-based) → left=2,right=4 (1-based)
+        GhosttyTestFixture.Feed(t, "\u001b[2;4s");   // left=1,right=3 (0-based)
         GhosttyTestFixture.Feed(t, "\u001b[1;2H");   // setCursorPos(1, 2)
         GhosttyTestFixture.Feed(t, "\u001b[1M");      // deleteLines(1)
 

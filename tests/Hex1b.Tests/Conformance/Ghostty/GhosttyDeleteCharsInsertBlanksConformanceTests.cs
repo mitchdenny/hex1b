@@ -260,7 +260,7 @@ public class GhosttyDeleteCharsInsertBlanksConformanceTests
         Assert.Equal("\U0001F600......", GetLine(t, 2));
     }
 
-    [Fact(Skip = "Hex1b bug: wide char straddling right scroll margin not destroyed during DCH")]
+    [Fact]
     [Trait("FailureReason", "Bug")]
     public void DeleteChars_WideCharAcrossRightMargin()
     {
