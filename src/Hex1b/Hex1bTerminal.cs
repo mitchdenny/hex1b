@@ -1336,6 +1336,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>Gets whether the terminal has a pending wrap (for testing).</summary>
+    internal bool PendingWrap => _pendingWrap;
+
     /// <summary>
     /// The scrollback buffer, if one was configured via <see cref="Hex1bTerminalOptions.ScrollbackCapacity"/>.
     /// </summary>
@@ -3413,6 +3416,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private void ClearFromCursor(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
         var eraseCell = CreateEraseCell();
+        // If cursor is on a wide char continuation cell, also clear the leading cell
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+                SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+        }
         for (int x = _cursorX; x < _width; x++)
         {
             if (respectProtection && IsProtectedCell(_cursorY, x))
@@ -3447,6 +3456,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             if (respectProtection && IsProtectedCell(_cursorY, x))
                 continue;
             SetCell(_cursorY, x, eraseCell, impacts);
+        }
+        // If the cell just past cursor is a continuation cell, its leading cell was erased —
+        // clear the orphaned continuation too.
+        if (_cursorX + 1 < _width && _screenBuffer[_cursorY, _cursorX + 1].Character == "")
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX + 1))
+                SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
         }
     }
 
@@ -3771,12 +3787,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Handle wide char splitting at the end of erase range:
-        // If the cell just past the erase range is a continuation cell, clear its leading cell
+        // If the cell just past the erase range is a continuation cell, its leading cell
+        // was erased, so clear the orphaned continuation cell too.
         int eraseEnd = _cursorX + count;
         if (eraseEnd < rightEdge && _screenBuffer[_cursorY, eraseEnd].Character == ""
             && eraseEnd > 0)
         {
-            // The leading cell is at eraseEnd - 1, which is within our erase range, so it will be cleared
+            if (!respectProtection || !IsProtectedCell(_cursorY, eraseEnd))
+            {
+                var orphanErase = CreateEraseCell();
+                SetCell(_cursorY, eraseEnd, orphanErase, impacts);
+            }
         }
         
         var eraseCell = CreateEraseCell();
