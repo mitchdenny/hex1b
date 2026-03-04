@@ -400,7 +400,7 @@ public class GhosttySgrConformanceTests
     // NOTE: Hex1b may not support colon-separated params yet.
     // Tests are included to identify this gap.
 
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_UnderlineStyle_Curly_ColonSeparated()
     {
         using var terminal = CreateTerminal();
@@ -411,7 +411,7 @@ public class GhosttySgrConformanceTests
         Assert.True(curlyCell.Attributes.HasFlag(CellAttributes.Underline));
     }
 
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_UnderlineStyle_None_ColonSeparated()
     {
         using var terminal = CreateTerminal();
@@ -436,7 +436,7 @@ public class GhosttySgrConformanceTests
     }
 
     // Ghostty: test "sgr: 24-bit bg color" with colon separator
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_DirectColorBg_ColonSeparated()
     {
         using var terminal = CreateTerminal();
@@ -452,7 +452,7 @@ public class GhosttySgrConformanceTests
 
     // Ghostty: test "sgr: direct fg/bg/underline ignore optional color space"
     // Colon version with colorspace: 38:2:Pi:R:G:B (6 values → skip Pi)
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_DirectColorFg_ColonWithColorspace()
     {
         using var terminal = CreateTerminal();
@@ -468,7 +468,7 @@ public class GhosttySgrConformanceTests
 
     // Ghostty: test "sgr: kakoune input" — complex real-world sequence from Kakoune editor
     // ESC[0;4:3;38;2;175;175;215;58:2:0:190:80:70m
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_KakouneInput_ComplexMixedSequence()
     {
         using var terminal = CreateTerminal();
@@ -486,7 +486,7 @@ public class GhosttySgrConformanceTests
 
     // Ghostty: test "sgr: kakoune input issue underline, fg, and bg"
     // ESC[4:3;38;2;51;51;51;48;2;170;170;170;58;2;255;97;136m
-    [Fact(Skip = "Colon-separated SGR sub-params not yet implemented in Hex1b")]
+    [Fact]
     public void Sgr_KakouneInput_UnderlineFgBgUnderlineColor()
     {
         using var terminal = CreateTerminal();

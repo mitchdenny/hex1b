@@ -719,7 +719,7 @@ public class GhosttyTerminalConformanceTests
     /// In Ghostty's internal API, deleteChars(0) is a no-op.
     /// However, ANSI CSI 0P typically normalizes to 1. This is an intentional divergence.
     /// </summary>
-    [Fact(Skip = "IntentionalDivergence: CSI 0P normalizes to 1 per ANSI spec; Ghostty's internal API allows 0")]
+    [Fact]
     public void DeleteChars_ZeroCount_IsNoOp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);

@@ -157,7 +157,7 @@ public class GhosttyEraseConformanceTests
 
     // Ghostty: test "eraseLine: erase right preserves background SGR"
     // BUG: Hex1b's EL doesn't apply current background SGR to erased cells
-    [Fact(Skip = "BUG: EL doesn't preserve current background SGR on erased cells")]
+    [Fact]
     public void EraseLine_EraseRight_PreservesBackgroundSgr()
     {
         using var terminal = CreateTerminal(10, 10);
@@ -179,7 +179,7 @@ public class GhosttyEraseConformanceTests
 
     // Ghostty: test "eraseLine: erase right with wide character"
     // BUG: When EL starts at a wide char spacer cell, the leading half should also be cleared
-    [Fact(Skip = "BUG: EL at wide char spacer doesn't clear the leading half")]
+    [Fact]
     public void EraseLine_EraseRight_WithWideCharacter()
     {
         using var terminal = CreateTerminal();
@@ -228,7 +228,7 @@ public class GhosttyEraseConformanceTests
     // ── Edge Cases ──────────────────────────────────────────────────────
 
     // Ghostty: test "eraseDisplay: scrollback (ED 3)"
-    [Fact(Skip = "ED 3 (clear scrollback) not implemented")]
+    [Fact]
     public void EraseDisplay_ClearScrollback_NotImplemented()
     {
         using var terminal = CreateTerminal();

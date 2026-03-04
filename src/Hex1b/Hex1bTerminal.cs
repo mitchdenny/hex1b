@@ -1857,13 +1857,24 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return false;
     }
 
+    /// <summary>
+    /// Creates a blank cell for erase operations, preserving the current background color per ECMA-48.
+    /// </summary>
+    private TerminalCell CreateEraseCell()
+    {
+        if (_currentBackground is null)
+            return TerminalCell.Empty;
+        return new TerminalCell(" ", null, _currentBackground, CellAttributes.None, 0, default);
+    }
+
     private void ClearBuffer(List<CellImpact>? impacts = null)
     {
+        var eraseCell = CreateEraseCell();
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                SetCell(y, x, eraseCell, impacts);
             }
         }
         _currentForeground = null;
@@ -2423,27 +2434,41 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int effectiveLeft = _declrmm ? _marginLeft : 0;
         int effectiveRight = _declrmm ? _marginRight : _width - 1;
         
+        var eraseCell = CreateEraseCell();
         int clearedCount = 0;
         switch (mode)
         {
             case ClearMode.ToEnd:
+                // If cursor is on a wide char continuation cell, also clear the leading cell
+                if (_cursorX > effectiveLeft && _screenBuffer[_cursorY, _cursorX].Character == "")
+                {
+                    SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+                    clearedCount++;
+                }
                 for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
                 break;
             case ClearMode.ToStart:
                 for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    SetCell(_cursorY, x, eraseCell, impacts);
+                    clearedCount++;
+                }
+                // If cursor stopped on the leading half of a wide char, also clear continuation
+                if (_cursorX + 1 <= effectiveRight && _cursorX + 1 < _width &&
+                    _screenBuffer[_cursorY, _cursorX + 1].Character == "")
+                {
+                    SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
                     clearedCount++;
                 }
                 break;
             case ClearMode.All:
                 for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
                 break;
@@ -2616,7 +2641,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var parts = parameters.Split(';');
         for (int i = 0; i < parts.Length; i++)
         {
-            if (!int.TryParse(parts[i], out var code))
+            var part = parts[i];
+            
+            // Check for colon-separated sub-parameters (e.g., "4:3", "38:2:0:1:2:3")
+            if (part.Contains(':'))
+            {
+                ProcessSgrWithSubParams(part);
+                continue;
+            }
+            
+            if (!int.TryParse(part, out var code))
                 continue;
 
             switch (code)
@@ -2745,7 +2779,112 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         i += 4;
                     }
                     break;
+                case 58:
+                    // Underline color — not stored in TerminalCell yet, but skip params
+                    if (i + 1 < parts.Length && parts[i + 1] == "5")
+                    {
+                        i += 2; // 58;5;N
+                    }
+                    else if (i + 1 < parts.Length && parts[i + 1] == "2")
+                    {
+                        i += 4; // 58;2;R;G;B
+                    }
+                    break;
             }
+        }
+    }
+    
+    /// <summary>
+    /// Processes an SGR parameter that contains colon-separated sub-parameters.
+    /// Examples: "4:3" (curly underline), "38:2:0:1:2:3" (RGB fg with colorspace),
+    /// "48:2::1:2:3" (RGB bg, empty colorspace), "58:2:1:2:3" (underline color).
+    /// </summary>
+    private void ProcessSgrWithSubParams(string part)
+    {
+        var subs = part.Split(':');
+        if (subs.Length < 1 || !int.TryParse(subs[0], out var code))
+            return;
+        
+        switch (code)
+        {
+            case 4: // Underline with style sub-parameter
+                if (subs.Length >= 2 && int.TryParse(subs[1], out var underlineStyle))
+                {
+                    if (underlineStyle == 0)
+                        _currentAttributes &= ~CellAttributes.Underline;
+                    else
+                        _currentAttributes |= CellAttributes.Underline;
+                    // Style 1=single, 2=double, 3=curly, 4=dotted, 5=dashed
+                    // Hex1b doesn't distinguish styles yet, so all non-zero → Underline
+                }
+                break;
+                
+            case 38: // Foreground extended color (colon syntax)
+            case 48: // Background extended color (colon syntax)
+            case 58: // Underline color (colon syntax)
+                ProcessExtendedColorColon(code, subs);
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Processes extended color with colon sub-parameters.
+    /// Formats: code:2:colorspace:R:G:B or code:2::R:G:B or code:2:R:G:B or code:5:N
+    /// </summary>
+    private void ProcessExtendedColorColon(int code, string[] subs)
+    {
+        if (subs.Length < 2)
+            return;
+            
+        if (!int.TryParse(subs[1], out var colorType))
+            return;
+            
+        if (colorType == 5 && subs.Length >= 3)
+        {
+            // 256-color: code:5:N
+            if (int.TryParse(subs[2], out var idx))
+            {
+                var color = Color256FromIndex(idx);
+                ApplyExtendedColor(code, color);
+            }
+        }
+        else if (colorType == 2)
+        {
+            // RGB: code:2:R:G:B or code:2:colorspace:R:G:B or code:2::R:G:B
+            // Try to find R,G,B — they're the last 3 numeric values
+            int r, g, b;
+            if (subs.Length >= 6 && 
+                int.TryParse(subs[3], out r) && 
+                int.TryParse(subs[4], out g) && 
+                int.TryParse(subs[5], out b))
+            {
+                // code:2:colorspace:R:G:B (6 sub-params)
+                ApplyExtendedColor(code, Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b));
+            }
+            else if (subs.Length >= 5 && 
+                     int.TryParse(subs[2], out r) && 
+                     int.TryParse(subs[3], out g) && 
+                     int.TryParse(subs[4], out b))
+            {
+                // code:2:R:G:B (5 sub-params, no colorspace)
+                ApplyExtendedColor(code, Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b));
+            }
+        }
+    }
+    
+    private void ApplyExtendedColor(int code, Hex1bColor color)
+    {
+        switch (code)
+        {
+            case 38:
+                _currentForeground = color;
+                break;
+            case 48:
+                _currentBackground = color;
+                break;
+            case 58:
+                // Underline color — not yet stored in TerminalCell, ignored for now
+                break;
         }
     }
 
@@ -2797,31 +2936,33 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ClearFromCursor(List<CellImpact>? impacts = null)
     {
+        var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                SetCell(y, x, eraseCell, impacts);
             }
         }
     }
 
     private void ClearToCursor(List<CellImpact>? impacts = null)
     {
+        var eraseCell = CreateEraseCell();
         for (int y = 0; y < _cursorY; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                SetCell(y, x, eraseCell, impacts);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
 
@@ -2861,9 +3002,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Clear the bottom row of the scroll region (within margins)
+        var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollBottom, x, TerminalCell.Empty, impacts);
+            SetCell(_scrollBottom, x, eraseCell, impacts);
         }
     }
     
@@ -2892,9 +3034,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Clear the top row of the scroll region (within margins)
+        var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
+            SetCell(_scrollTop, x, eraseCell, impacts);
         }
     }
     
@@ -2949,9 +3092,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Clear the line at cursor position (within margins)
+            var eraseCell = CreateEraseCell();
             for (int x = leftCol; x <= rightCol; x++)
             {
-                SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                SetCell(_cursorY, x, eraseCell, impacts);
             }
         }
     }
@@ -2994,9 +3138,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Clear the bottom line of the scroll region (within margins)
+            var eraseCell = CreateEraseCell();
             for (int x = leftCol; x <= rightCol; x++)
             {
-                SetCell(bottom, x, TerminalCell.Empty, impacts);
+                SetCell(bottom, x, eraseCell, impacts);
             }
         }
     }
@@ -3005,6 +3150,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         // DCH resets pending wrap per ECMA-48
         _pendingWrap = false;
+        
+        // DCH(0) is a no-op — delete zero characters
+        if (count == 0)
+            return;
         
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin
@@ -3019,9 +3168,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Fill the right edge with blanks
+        var eraseCell = CreateEraseCell();
         for (int x = rightEdge - count; x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
     
@@ -3044,9 +3194,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Insert blanks at cursor position
+        var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
     
@@ -3060,9 +3211,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
         
+        var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
     

@@ -381,7 +381,8 @@ public static class AnsiTokenizer
                 
             case 'P':
                 // Delete Character (DCH) - delete n characters at cursor
-                tokens.Add(new DeleteCharacterToken(ParseMoveCount(parameters)));
+                // Preserve 0 so downstream can decide if DCH(0) is no-op
+                tokens.Add(new DeleteCharacterToken(ParseMoveCountAllowZero(parameters)));
                 break;
                 
             case '@':
@@ -517,6 +518,13 @@ public static class AnsiTokenizer
         if (string.IsNullOrEmpty(parameters))
             return 1;
         return int.TryParse(parameters, out var count) && count > 0 ? count : 1;
+    }
+    
+    private static int ParseMoveCountAllowZero(string parameters)
+    {
+        if (string.IsNullOrEmpty(parameters))
+            return 1;
+        return int.TryParse(parameters, out var count) && count >= 0 ? count : 1;
     }
 
     /// <summary>
