@@ -87,6 +87,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
     private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
     private bool _savedPendingWrap; // Saved pending wrap state for DECSC/DECRC
+    private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
@@ -136,6 +137,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _lastPrintedCellX = 0;
     private int _lastPrintedCellY = 0;
     private int _lastPrintedCellWidth = 0;
+    
+    // DECSCA character protection mode. Tracks whether newly printed characters
+    // are marked as protected (immune to selective erase DECSED/DECSEL).
+    // _protectedMode tracks the MOST RECENT protection mode set (iso or dec) and
+    // is never reset to Off — this is intentional: erase operations need to know
+    // the most recent mode to decide whether ISO protection applies.
+    // _cursorProtected tracks whether the cursor is currently in protected mode.
+    private ProtectedMode _protectedMode = ProtectedMode.Off;
+    private bool _cursorProtected = false;
+    
+    /// <summary>Gets whether the cursor is currently in protected mode (for testing).</summary>
+    internal bool CursorProtected => _cursorProtected;
     
     // Terminal title (OSC 0/2) and icon name (OSC 0/1)
     // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
@@ -1883,19 +1896,24 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return new TerminalCell(" ", null, _currentBackground, CellAttributes.None, 0, default);
     }
 
-    private void ClearBuffer(List<CellImpact>? impacts = null)
+    private void ClearBuffer(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
         var eraseCell = CreateEraseCell();
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
                 SetCell(y, x, eraseCell, impacts);
             }
         }
-        _currentForeground = null;
-        _currentBackground = null;
-        _currentUnderlineColor = null;
+        if (!respectProtection)
+        {
+            _currentForeground = null;
+            _currentBackground = null;
+            _currentUnderlineColor = null;
+        }
     }
     
     /// <summary>
@@ -2029,11 +2047,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case ClearScreenToken clearToken:
-                ApplyClearScreen(clearToken.Mode, impacts);
+                ApplyClearScreen(clearToken.Mode, clearToken.Selective, impacts);
                 break;
                 
             case ClearLineToken clearLineToken:
-                ApplyClearLine(clearLineToken.Mode, impacts);
+                ApplyClearLine(clearLineToken.Mode, clearLineToken.Selective, impacts);
                 break;
                 
             case PrivateModeToken privateModeToken:
@@ -2151,6 +2169,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _savedCursorX = _cursorX;
                 _savedCursorY = _cursorY;
                 _savedPendingWrap = _pendingWrap;
+                _savedCursorProtected = _cursorProtected;
                 _cursorSaved = true;
                 break;
                 
@@ -2161,6 +2180,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _pendingWrap = _savedPendingWrap;
                     _cursorX = _savedCursorX;
                     _cursorY = _savedCursorY;
+                    _cursorProtected = _savedCursorProtected;
                 }
                 break;
                 
@@ -2224,7 +2244,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _savedCursorX = 0;
                 _savedCursorY = 0;
                 _savedPendingWrap = false;
+                _savedCursorProtected = false;
                 _cursorSaved = false;
+                _cursorProtected = false;
+                _protectedMode = ProtectedMode.Off;
                 _currentForeground = null;
                 _currentBackground = null;
                 _currentAttributes = CellAttributes.None;
@@ -2274,6 +2297,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case EraseCharacterToken eraseCharToken:
                 EraseCharacters(eraseCharToken.Count, impacts);
+                break;
+                
+            case DecscaToken decscaToken:
+                ApplyDecsca(decscaToken.Mode);
                 break;
                 
             case RepeatCharacterToken repeatToken:
@@ -2497,8 +2524,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 _currentHyperlink?.AddRef();
                 
+                var effectiveAttributes = _cursorProtected
+                    ? _currentAttributes | CellAttributes.Protected
+                    : _currentAttributes;
                 var cell = new TerminalCell(
-                    grapheme, _currentForeground, _currentBackground, _currentAttributes,
+                    grapheme, _currentForeground, _currentBackground, effectiveAttributes,
                     sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
                     _currentUnderlineColor);
                 SetCell(_cursorY, _cursorX, cell, impacts);
@@ -2617,6 +2647,59 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _lastPrintedCellWidth = newWidth;
     }
 
+    /// <summary>
+    /// Applies DECSCA (Select Character Protection Attribute).
+    /// Mode 1 = protected, mode 0/2 = unprotected.
+    /// </summary>
+    private void ApplyDecsca(int mode)
+    {
+        switch (mode)
+        {
+            case 0:
+            case 2:
+                // Turn off protection. Note: _protectedMode is intentionally NOT
+                // reset to Off — erase operations need to know the most recent mode.
+                _cursorProtected = false;
+                break;
+            case 1:
+                _cursorProtected = true;
+                // DECSCA 1 sets DEC protection mode
+                _protectedMode = ProtectedMode.Dec;
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Sets the protected mode directly (used by conformance tests via escape sequences).
+    /// ISO mode is set via SPA (ESC V), DEC mode via DECSCA.
+    /// </summary>
+    internal void SetProtectedMode(ProtectedMode mode)
+    {
+        switch (mode)
+        {
+            case ProtectedMode.Off:
+                _cursorProtected = false;
+                // _protectedMode is never reset — this matches Ghostty behavior
+                break;
+            case ProtectedMode.Iso:
+                _cursorProtected = true;
+                _protectedMode = ProtectedMode.Iso;
+                break;
+            case ProtectedMode.Dec:
+                _cursorProtected = true;
+                _protectedMode = ProtectedMode.Dec;
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Checks if a cell at the given position has the Protected attribute.
+    /// </summary>
+    private bool IsProtectedCell(int row, int col)
+    {
+        return (_screenBuffer[row, col].Attributes & CellAttributes.Protected) != 0;
+    }
+
     private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
     {
         switch (token.Character)
@@ -2724,22 +2807,27 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyClearScreen(ClearMode mode, List<CellImpact>? impacts)
+    private void ApplyClearScreen(ClearMode mode, bool selective, List<CellImpact>? impacts)
     {
         // ED resets pending wrap per ECMA-48
         _pendingWrap = false;
         
+        // Determine if we should respect protection:
+        // - If selective (DECSED / CSI ? J): always respect protection
+        // - If not selective (normal ED / CSI J): respect only if ISO mode was last set
+        bool respectProtection = selective || _protectedMode == ProtectedMode.Iso;
+        
         switch (mode)
         {
             case ClearMode.ToEnd:
-                ClearFromCursor(impacts);
+                ClearFromCursor(respectProtection, impacts);
                 break;
             case ClearMode.ToStart:
-                ClearToCursor(impacts);
+                ClearToCursor(respectProtection, impacts);
                 break;
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
-                ClearBuffer(impacts);
+                ClearBuffer(respectProtection, impacts);
                 if (mode == ClearMode.AllAndScrollback)
                 {
                     _scrollbackBuffer?.Clear();
@@ -2748,10 +2836,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
+    private void ApplyClearLine(ClearMode mode, bool selective, List<CellImpact>? impacts)
     {
         // EL resets pending wrap per ECMA-48
         _pendingWrap = false;
+        
+        // Determine if we should respect protection:
+        // - If selective (DECSEL / CSI ? K): always respect protection
+        // - If not selective (normal EL / CSI K): respect only if ISO mode was last set
+        bool respectProtection = selective || _protectedMode == ProtectedMode.Iso;
         
         // When DECLRMM is enabled, clear operations respect left/right margins
         int effectiveLeft = _declrmm ? _marginLeft : 0;
@@ -2765,11 +2858,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // If cursor is on a wide char continuation cell, also clear the leading cell
                 if (_cursorX > effectiveLeft && _screenBuffer[_cursorY, _cursorX].Character == "")
                 {
-                    SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
-                    clearedCount++;
+                    if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+                    {
+                        SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+                        clearedCount++;
+                    }
                 }
                 for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
                 {
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
                     SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
@@ -2777,6 +2875,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ClearMode.ToStart:
                 for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
                 {
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
                     SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
@@ -2784,13 +2884,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_cursorX + 1 <= effectiveRight && _cursorX + 1 < _width &&
                     _screenBuffer[_cursorY, _cursorX + 1].Character == "")
                 {
-                    SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
-                    clearedCount++;
+                    if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX + 1))
+                    {
+                        SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
+                        clearedCount++;
+                    }
                 }
                 break;
             case ClearMode.All:
                 for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
                 {
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
                     SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
@@ -2918,7 +3023,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         else
         {
             // Clear with impacts for presentation adapters that need them
-            ClearBuffer(impacts);
+            ClearBuffer(respectProtection: false, impacts);
         }
         
         // Mode 1049 saves cursor position and copies it to the alt screen
@@ -3305,34 +3410,42 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ClearFromCursor(List<CellImpact>? impacts = null)
+    private void ClearFromCursor(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
         var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _width; x++)
         {
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
             SetCell(_cursorY, x, eraseCell, impacts);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
                 SetCell(y, x, eraseCell, impacts);
             }
         }
     }
 
-    private void ClearToCursor(List<CellImpact>? impacts = null)
+    private void ClearToCursor(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
         var eraseCell = CreateEraseCell();
         for (int y = 0; y < _cursorY; y++)
         {
             for (int x = 0; x < _width; x++)
             {
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
                 SetCell(y, x, eraseCell, impacts);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
             SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
@@ -3639,6 +3752,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // ECH resets pending wrap per ECMA-48 / Ghostty conformance
         _pendingWrap = false;
         
+        // ECH respects ISO protection mode (same as ED/EL)
+        bool respectProtection = _protectedMode == ProtectedMode.Iso;
+        
         // Erase n characters from cursor without moving cursor or shifting
         // When DECLRMM is enabled, operations are bounded by right margin
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
@@ -3647,8 +3763,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Handle wide char splitting: if cursor is on a continuation cell, clear leading too
         if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
         {
-            var erase = CreateEraseCell();
-            SetCell(_cursorY, _cursorX - 1, erase, impacts);
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+            {
+                var erase = CreateEraseCell();
+                SetCell(_cursorY, _cursorX - 1, erase, impacts);
+            }
         }
         
         // Handle wide char splitting at the end of erase range:
@@ -3663,6 +3782,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count; x++)
         {
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
             SetCell(_cursorY, x, eraseCell, impacts);
         }
     }

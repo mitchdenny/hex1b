@@ -2,8 +2,10 @@ namespace Hex1b.Tokens;
 
 /// <summary>
 /// Represents a CSI Erase in Line command (EL): ESC [ mode K
+/// or Selective Erase in Line (DECSEL): ESC [ ? mode K
 /// </summary>
 /// <param name="Mode">What portion of the line to clear.</param>
+/// <param name="Selective">When true, this is a DECSEL (selective erase) that only erases unprotected cells.</param>
 /// <remarks>
 /// <para>
 /// Clears part or all of the current line without affecting other lines.
@@ -11,4 +13,4 @@ namespace Hex1b.Tokens;
 /// but <see cref="ClearMode.AllAndScrollback"/> is not applicable here.
 /// </para>
 /// </remarks>
-public sealed record ClearLineToken(ClearMode Mode = ClearMode.ToEnd) : AnsiToken;
+public sealed record ClearLineToken(ClearMode Mode = ClearMode.ToEnd, bool Selective = false) : AnsiToken;

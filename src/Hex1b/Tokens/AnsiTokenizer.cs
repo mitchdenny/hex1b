@@ -243,13 +243,13 @@ public static class AnsiTokenizer
                 break;
 
             case 'J':
-                // Clear screen
-                ParseClearScreen(parameters, tokens);
+                // Clear screen (ED) or Selective Erase in Display (DECSED)
+                ParseClearScreen(parameters, isPrivateMode, tokens);
                 break;
 
             case 'K':
-                // Clear line
-                ParseClearLine(parameters, tokens);
+                // Clear line (EL) or Selective Erase in Line (DECSEL)
+                ParseClearLine(parameters, isPrivateMode, tokens);
                 break;
 
             case 'h':
@@ -285,10 +285,17 @@ public static class AnsiTokenizer
                 break;
 
             case 'q':
-                // Cursor shape (DECSCUSR)
-                if (isPrivateMode || parameters.Contains(' '))
+                // DECSCA (CSI Ps " q) or DECSCUSR (CSI Ps SP q)
+                if (parameters.Contains('"'))
                 {
-                    // ESC [ n SP q format
+                    // DECSCA — Select Character Protection Attribute
+                    var decscaParam = parameters.Replace("\"", "").Trim();
+                    var decscaMode = string.IsNullOrEmpty(decscaParam) ? 0 : int.TryParse(decscaParam, out var dp) ? dp : 0;
+                    tokens.Add(new DecscaToken(decscaMode));
+                }
+                else if (isPrivateMode || parameters.Contains(' '))
+                {
+                    // DECSCUSR — ESC [ n SP q format
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
                 else
@@ -619,7 +626,7 @@ public static class AnsiTokenizer
         tokens.Add(new CursorPositionToken(row, col, parameters));
     }
 
-    private static void ParseClearScreen(string parameters, List<AnsiToken> tokens)
+    private static void ParseClearScreen(string parameters, bool selective, List<AnsiToken> tokens)
     {
         var mode = string.IsNullOrEmpty(parameters) ? 0 :
                    int.TryParse(parameters, out var m) ? m : 0;
@@ -633,10 +640,10 @@ public static class AnsiTokenizer
             _ => ClearMode.ToEnd
         };
 
-        tokens.Add(new ClearScreenToken(clearMode));
+        tokens.Add(new ClearScreenToken(clearMode, selective));
     }
 
-    private static void ParseClearLine(string parameters, List<AnsiToken> tokens)
+    private static void ParseClearLine(string parameters, bool selective, List<AnsiToken> tokens)
     {
         var mode = string.IsNullOrEmpty(parameters) ? 0 :
                    int.TryParse(parameters, out var m) ? m : 0;
@@ -649,7 +656,7 @@ public static class AnsiTokenizer
             _ => ClearMode.ToEnd
         };
 
-        tokens.Add(new ClearLineToken(clearMode));
+        tokens.Add(new ClearLineToken(clearMode, selective));
     }
 
     private static void ParseCursorShape(string parameters, List<AnsiToken> tokens, string text, int start, int end)
