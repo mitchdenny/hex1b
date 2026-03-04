@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Hex1b;
 using Hex1b.Automation;
 using Hex1b.Layout;
@@ -44,11 +45,13 @@ var nextMarkerId = 1;
 void AddTerminal(string image, WindowManager windows)
 {
     var id = nextId++;
+    var containerName = $"hex1b-demo-{id}";
     var terminal = Hex1bTerminal.CreateBuilder()
         .WithDimensions(TerminalWidth, TerminalHeight)
         .WithDockerContainer(c =>
         {
             c.Image = image;
+            c.Name = containerName;
             c.Shell = "/bin/bash";
             c.ShellArgs = ["--norc"];
         })
@@ -59,7 +62,7 @@ void AddTerminal(string image, WindowManager windows)
     handle.StateChanged += _ => displayApp?.Invalidate();
 
     // Create session first so window content can reference it
-    var session = new TerminalSession(id, image, terminal, handle);
+    var session = new TerminalSession(id, image, terminal, handle, containerName);
     sessions[id] = session;
 
     // Create a floating window — terminal wrapped in a per-terminal Droppable
@@ -107,6 +110,7 @@ void AddTerminal(string image, WindowManager windows)
     .OnClose(() =>
     {
         sessions.Remove(id);
+        StopContainer(containerName);
         _ = terminal.DisposeAsync();
         displayApp?.Invalidate();
     });
@@ -264,21 +268,44 @@ await using var app = Hex1bTerminal.CreateBuilder()
 
 var exitCode = await app.RunAsync(cts.Token);
 
+// Ensure all remaining containers are stopped on exit
 foreach (var s in sessions.Values)
+{
+    StopContainer(s.ContainerName);
     await s.Terminal.DisposeAsync();
+}
 
 return exitCode;
+
+void StopContainer(string name)
+{
+    try
+    {
+        using var proc = Process.Start(new ProcessStartInfo
+        {
+            FileName = "docker",
+            ArgumentList = { "kill", name },
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false,
+            CreateNoWindow = true
+        });
+        proc?.WaitForExit(5000);
+    }
+    catch { }
+}
 
 record ImageDragData(string Name, string Image);
 record SequenceDragData(string Name, string Command);
 record QueuedSequence(string Name, string Command, bool IsRunning);
 
-class TerminalSession(int id, string imageName, Hex1bTerminal terminal, TerminalWidgetHandle handle)
+class TerminalSession(int id, string imageName, Hex1bTerminal terminal, TerminalWidgetHandle handle, string containerName)
 {
     public int Id { get; } = id;
     public string ImageName { get; } = imageName;
     public Hex1bTerminal Terminal { get; } = terminal;
     public TerminalWidgetHandle Handle { get; } = handle;
+    public string ContainerName { get; } = containerName;
     public WindowHandle? Window { get; set; }
     public List<QueuedSequence> Queue { get; } = [];
     public bool ProcessingActive { get; set; }
