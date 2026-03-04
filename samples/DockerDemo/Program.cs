@@ -31,9 +31,9 @@ var sequences = new SequenceDragData[]
     new("apt install nano", "apt-get install -y nano"),
     new("Show system info", "uname -a && cat /etc/os-release"),
     new("Install Node.js 22", "curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && apt-get install -y nodejs"),
-    new("Aspire (GA)", "dotnet workload install aspire"),
-    new("Aspire (Dev)", "dotnet workload install aspire --skip-sign-check --source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet10/nuget/v3/index.json --source https://api.nuget.org/v3/index.json"),
-    new("Aspire (Staging)", "dotnet workload install aspire --skip-sign-check --source https://pkgs.dev.azure.com/dnceng/public/_packaging/dotnet10-transport/nuget/v3/index.json --source https://api.nuget.org/v3/index.json"),
+    new("Aspire (GA)", "curl -sSL https://aspire.dev/install.sh | bash"),
+    new("Aspire (Dev)", "curl -sSL https://aspire.dev/install.sh | bash -s -- --quality dev"),
+    new("Aspire (Staging)", "curl -sSL https://aspire.dev/install.sh | bash -s -- --quality staging"),
 };
 
 // Active terminal sessions — each gets its own floating window
