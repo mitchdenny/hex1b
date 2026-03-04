@@ -165,7 +165,7 @@ public class GhosttyPrintOverwriteConformanceTests
     #region Print Charset
 
     [Trait("FailureReason", "Bug")]
-    [Fact(Skip = "Hex1b does not implement DEC special graphics charset designation (ESC ( 0)")]
+    [Fact]
     public void PrintCharset_DecSpecialGraphics()
     {
         // Ghostty: "Terminal: print charset"
@@ -197,7 +197,7 @@ public class GhosttyPrintOverwriteConformanceTests
     }
 
     [Trait("FailureReason", "Bug")]
-    [Fact(Skip = "Hex1b does not implement DEC special graphics charset designation (ESC ( 0)")]
+    [Fact]
     public void PrintCharset_OutsideAscii()
     {
         // Ghostty: "Terminal: print charset outside of ASCII"
@@ -226,7 +226,7 @@ public class GhosttyPrintOverwriteConformanceTests
     }
 
     [Trait("FailureReason", "Bug")]
-    [Fact(Skip = "Hex1b does not implement SO/SI charset invocation for DEC special graphics")]
+    [Fact]
     public void PrintInvokeCharset_ShiftInOut()
     {
         // Ghostty: "Terminal: print invoke charset"

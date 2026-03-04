@@ -143,6 +143,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _lastPrintedCellWidth = 0;
     
     // DECSCA character protection mode. Tracks whether newly printed characters
+    
+    // Character set designation (VT100/VT220):
+    // G0-G3 are the four character set slots. Each can be designated as ASCII ('B'),
+    // DEC special graphics ('0'), or other charsets.
+    // GL (Graphics Left) is the active character set for normal printing.
+    // SO (0x0E) invokes G1 into GL, SI (0x0F) invokes G0 into GL.
+    private char _charsetG0 = 'B'; // G0 = ASCII by default
+    private char _charsetG1 = 'B'; // G1 = ASCII by default
+    private char _charsetG2 = 'B'; // G2 = ASCII by default
+    private char _charsetG3 = 'B'; // G3 = ASCII by default
+    private int _activeCharsetSlot = 0; // Which Gn is active in GL (0=G0, 1=G1, etc.)
     // are marked as protected (immune to selective erase DECSED/DECSEL).
     // _protectedMode tracks the MOST RECENT protection mode set (iso or dec) and
     // is never reset to Off — this is intentional: erase operations need to know
@@ -2266,6 +2277,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _lastPrintedCellY = 0;
                 _lastPrintedCellWidth = 0;
                 _wraparoundMode = true;
+                _charsetG0 = 'B';
+                _charsetG1 = 'B';
+                _charsetG2 = 'B';
+                _charsetG3 = 'B';
+                _activeCharsetSlot = 0;
                 InitializeTabStops();
                 // Clear screen
                 for (int row = 0; row < _height; row++)
@@ -2358,9 +2374,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
             
-            case CharacterSetToken:
-                // Character set selection - we pass through to presentation
-                // but don't need to track state for buffer purposes
+            case CharacterSetToken csToken:
+                // Designate a character set to one of the G0-G3 slots.
+                // ESC ( X → G0, ESC ) X → G1, ESC * X → G2, ESC + X → G3
+                // X = 'B' for ASCII/UTF-8, '0' for DEC special graphics
+                switch (csToken.Target)
+                {
+                    case 0: _charsetG0 = csToken.Charset; break;
+                    case 1: _charsetG1 = csToken.Charset; break;
+                    case 2: _charsetG2 = csToken.Charset; break;
+                    case 3: _charsetG3 = csToken.Charset; break;
+                }
                 break;
             
             case KeypadModeToken:
@@ -2429,6 +2453,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         while (i < text.Length)
         {
             var grapheme = GetGraphemeAt(text, i);
+            
+            // Apply character set mapping (DEC special graphics, etc.)
+            // Only applies to single ASCII characters; multi-byte/emoji pass through.
+            var activeCharset = GetActiveCharset();
+            if (activeCharset == '0' && grapheme.Length == 1 && grapheme[0] >= 0x60 && grapheme[0] <= 0x7E)
+            {
+                grapheme = MapDecSpecialGraphics(grapheme[0]).ToString();
+            }
+            
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
             
             // Retroactive variation selector handling:
@@ -2898,6 +2931,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorX--;
                 }
                 break;
+                
+            case '\x0E': // SO (Shift Out) — invoke G1 into GL
+                _activeCharsetSlot = 1;
+                break;
+                
+            case '\x0F': // SI (Shift In) — invoke G0 into GL
+                _activeCharsetSlot = 0;
+                break;
         }
     }
 
@@ -3046,6 +3087,65 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Gets the active character set designation character for the currently invoked GL charset.
+    /// </summary>
+    private char GetActiveCharset()
+    {
+        return _activeCharsetSlot switch
+        {
+            0 => _charsetG0,
+            1 => _charsetG1,
+            2 => _charsetG2,
+            3 => _charsetG3,
+            _ => 'B'
+        };
+    }
+    
+    /// <summary>
+    /// Maps a character through the DEC special graphics charset (charset '0').
+    /// Only maps characters in the ASCII range 0x60-0x7E. Characters outside
+    /// this range are passed through unchanged.
+    /// </summary>
+    private static char MapDecSpecialGraphics(char c)
+    {
+        return c switch
+        {
+            '`' => '\u25C6', // ◆ Diamond
+            'a' => '\u2592', // ▒ Checkerboard
+            'b' => '\u2409', // ␉ HT
+            'c' => '\u240C', // ␌ FF
+            'd' => '\u240D', // ␍ CR
+            'e' => '\u240A', // ␊ LF
+            'f' => '\u00B0', // ° Degree
+            'g' => '\u00B1', // ± Plus/Minus
+            'h' => '\u2424', // ␤ NL
+            'i' => '\u240B', // ␋ VT
+            'j' => '\u2518', // ┘ Lower Right
+            'k' => '\u2510', // ┐ Upper Right
+            'l' => '\u250C', // ┌ Upper Left
+            'm' => '\u2514', // └ Lower Left
+            'n' => '\u253C', // ┼ Crossing
+            'o' => '\u23BA', // ⎺ Horizontal 1
+            'p' => '\u23BB', // ⎻ Horizontal 2
+            'q' => '\u2500', // ─ Horizontal 3
+            'r' => '\u23BC', // ⎼ Horizontal 4
+            's' => '\u23BD', // ⎽ Horizontal 5
+            't' => '\u251C', // ├ Left T
+            'u' => '\u2524', // ┤ Right T
+            'v' => '\u2534', // ┴ Bottom T
+            'w' => '\u252C', // ┬ Top T
+            'x' => '\u2502', // │ Vertical
+            'y' => '\u2264', // ≤ Less/Equal
+            'z' => '\u2265', // ≥ Greater/Equal
+            '{' => '\u03C0', // π Pi
+            '|' => '\u2260', // ≠ Not Equal
+            '}' => '\u00A3', // £ Pound
+            '~' => '\u00B7', // · Middle Dot
+            _ => c
+        };
+    }
+    
     /// <summary>
     /// Gets the grapheme cluster starting at the given position in the text.
     /// </summary>

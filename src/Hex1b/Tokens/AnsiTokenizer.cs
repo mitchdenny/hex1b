@@ -114,6 +114,20 @@ public static class AnsiTokenizer
                 tokens.Add(new CharacterSetToken(1, text[i + 2]));
                 i += 3;
             }
+            // Check for G2 character set designation (ESC * X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '*' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(2, text[i + 2]));
+                i += 3;
+            }
+            // Check for G3 character set designation (ESC + X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '+' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(3, text[i + 2]));
+                i += 3;
+            }
             // Check for Application Keypad Mode (ESC =)
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '=')
             {
@@ -152,6 +166,20 @@ public static class AnsiTokenizer
                 // Backspace (0x08) - moves cursor left
                 FlushTextToken(text, ref textStart, i, tokens);
                 tokens.Add(ControlCharacterToken.Backspace);
+                i++;
+            }
+            else if (text[i] == '\x0E')
+            {
+                // SO (Shift Out) — invoke G1 into GL
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new ControlCharacterToken('\x0E'));
+                i++;
+            }
+            else if (text[i] == '\x0F')
+            {
+                // SI (Shift In) — invoke G0 into GL
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new ControlCharacterToken('\x0F'));
                 i++;
             }
             else if (text[i] == '\x1b')
