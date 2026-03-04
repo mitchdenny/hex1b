@@ -38,6 +38,15 @@ public static class DockerContainerExtensions
     /// await terminal.RunAsync();
     /// </code>
     /// </example>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when <paramref name="builder"/> or <paramref name="configure"/> is null.
+    /// </exception>
+    /// <exception cref="InvalidOperationException">
+    /// Thrown when the configured options are invalid (e.g., both Image and DockerfilePath are set).
+    /// </exception>
+    /// <exception cref="FileNotFoundException">
+    /// Thrown when <see cref="DockerContainerOptions.DockerfilePath"/> is set but the file does not exist.
+    /// </exception>
     public static Hex1bTerminalBuilder WithDockerContainer(
         this Hex1bTerminalBuilder builder,
         Action<DockerContainerOptions> configure)
@@ -121,11 +130,13 @@ public static class DockerContainerExtensions
         using var process = Process.Start(startInfo)
             ?? throw new InvalidOperationException("Failed to start docker build process.");
 
+        // Read streams before WaitForExit to avoid deadlock when buffers fill
+        var stdout = process.StandardOutput.ReadToEnd();
+        var stderr = process.StandardError.ReadToEnd();
         process.WaitForExit();
 
         if (process.ExitCode != 0)
         {
-            var stderr = process.StandardError.ReadToEnd();
             throw new InvalidOperationException(
                 $"docker build failed with exit code {process.ExitCode}: {stderr}");
         }

@@ -6,7 +6,7 @@ public class DockerContainerOptionsTests
     public void DefaultImage_IsDotnetSdk()
     {
         var options = new DockerContainerOptions();
-        Assert.Equal("mcr.microsoft.com/dotnet/sdk:10.0", options.Image);
+        Assert.Equal(DockerContainerArgBuilder.DefaultImage, options.Image);
     }
 
     [Fact]

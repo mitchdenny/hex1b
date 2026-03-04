@@ -38,7 +38,7 @@ public sealed class DockerContainerOptions
     /// Mutually exclusive with <see cref="DockerfilePath"/>. If both are set
     /// to non-default values, validation will throw <see cref="InvalidOperationException"/>.
     /// </remarks>
-    public string Image { get; set; } = "mcr.microsoft.com/dotnet/sdk:10.0";
+    public string Image { get; set; } = DockerContainerArgBuilder.DefaultImage;
 
     /// <summary>
     /// Gets or sets the path to a Dockerfile to build before starting the container.
