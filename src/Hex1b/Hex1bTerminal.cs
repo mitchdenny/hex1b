@@ -2279,10 +2279,50 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Determine effective right margin for wrapping
             int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
             
+            // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains),
+            // wrap to the next line first. The last cell is left blank (spacer head behavior).
+            // Exception: if terminal is narrower than grapheme width, don't wrap (char won't fit anywhere).
+            if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap
+                && effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1 >= graphemeWidth)
+            {
+                _cursorX = _declrmm ? _marginLeft : 0;
+                _cursorY++;
+                if (_cursorY >= _height)
+                {
+                    ScrollUp(impacts);
+                    _cursorY = _height - 1;
+                }
+            }
+            
             if (_cursorX < _width && _cursorY < _height)
             {
                 var sequence = ++_writeSequence;
                 var writtenAt = _timeProvider.GetUtcNow();
+                
+                // If overwriting a continuation cell (tail of a wide char), clear the leading cell
+                if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+                {
+                    ref var leadingCell = ref _screenBuffer[_cursorY, _cursorX - 1];
+                    if (leadingCell.Character.Length > 0 && leadingCell.Character != " ")
+                    {
+                        leadingCell.TrackedSixel?.Release();
+                        leadingCell.TrackedHyperlink?.Release();
+                        leadingCell = TerminalCell.Empty;
+                    }
+                }
+                
+                // If overwriting the leading cell of a wide char, clear the continuation cell
+                if (_cursorX + 1 < _width && graphemeWidth == 1)
+                {
+                    ref var nextCell = ref _screenBuffer[_cursorY, _cursorX + 1];
+                    if (nextCell.Character == "" && _screenBuffer[_cursorY, _cursorX].Character.Length > 0
+                        && DisplayWidth.GetGraphemeWidth(_screenBuffer[_cursorY, _cursorX].Character) > 1)
+                    {
+                        nextCell.TrackedSixel?.Release();
+                        nextCell.TrackedHyperlink?.Release();
+                        nextCell = TerminalCell.Empty;
+                    }
+                }
                 
                 _currentHyperlink?.AddRef();
                 
@@ -3181,6 +3221,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
         
+        // Handle wide char splitting at cursor position:
+        // If cursor is on a continuation cell, clear the leading cell
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            var erase = CreateEraseCell();
+            SetCell(_cursorY, _cursorX - 1, erase, impacts);
+            SetCell(_cursorY, _cursorX, erase, impacts);
+        }
+        
+        // Handle wide char splitting at the boundary after deletion:
+        // If the cell at _cursorX + count is a continuation cell, clear its leading cell
+        int shiftStart = _cursorX + count;
+        if (shiftStart < rightEdge && _screenBuffer[_cursorY, shiftStart].Character == ""
+            && shiftStart > 0)
+        {
+            var erase = CreateEraseCell();
+            SetCell(_cursorY, shiftStart - 1, erase, impacts);
+            SetCell(_cursorY, shiftStart, erase, impacts);
+        }
+        
         for (int x = _cursorX; x < rightEdge - count; x++)
         {
             var cellFromRight = _screenBuffer[_cursorY, x + count];
@@ -3200,11 +3260,53 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // ICH resets pending wrap per ECMA-48
         _pendingWrap = false;
         
+        if (count == 0)
+            return;
+        
         // Insert n blank characters at cursor, shifting existing characters right
         // Characters pushed off the right margin are lost
         // When DECLRMM is enabled, operations are bounded by left/right margins
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
+        
+        if (count <= 0)
+            return;
+        
+        // Handle wide char splitting at cursor position:
+        // If cursor is on a continuation cell, clear both the leading cell and the continuation
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            var eraseCell = CreateEraseCell();
+            SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+            SetCell(_cursorY, _cursorX, eraseCell, impacts);
+        }
+        
+        // Handle wide char splitting at the right edge:
+        // If the cell being pushed off is the leading half of a wide char,
+        // its continuation cell (now orphaned) should be cleared
+        int shiftBoundary = rightEdge - count;
+        if (shiftBoundary >= 0 && shiftBoundary < rightEdge)
+        {
+            var cellAtBoundary = _screenBuffer[_cursorY, shiftBoundary];
+            if (cellAtBoundary.Character.Length > 0 && cellAtBoundary.Character != " " 
+                && DisplayWidth.GetGraphemeWidth(cellAtBoundary.Character) > 1
+                && shiftBoundary + 1 < rightEdge)
+            {
+                // Wide char at boundary — continuation will be orphaned, clear the wide char
+                var eraseCell = CreateEraseCell();
+                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
+                SetCell(_cursorY, shiftBoundary + 1, eraseCell, impacts);
+            }
+            // Check if boundary is on a continuation cell — its leading half stays, clear continuation
+            if (shiftBoundary > 0 && _screenBuffer[_cursorY, shiftBoundary].Character == ""
+                && _screenBuffer[_cursorY, shiftBoundary - 1].Character.Length > 0
+                && _screenBuffer[_cursorY, shiftBoundary - 1].Character != " ")
+            {
+                var eraseCell = CreateEraseCell();
+                SetCell(_cursorY, shiftBoundary - 1, eraseCell, impacts);
+                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
+            }
+        }
         
         // Shift characters right
         for (int x = rightEdge - 1; x >= _cursorX + count; x--)
@@ -3214,10 +3316,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Insert blanks at cursor position
-        var eraseCell = CreateEraseCell();
+        var eraseCell2 = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, eraseCell, impacts);
+            SetCell(_cursorY, x, eraseCell2, impacts);
         }
     }
     
@@ -3230,6 +3332,22 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // When DECLRMM is enabled, operations are bounded by right margin
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
+        
+        // Handle wide char splitting: if cursor is on a continuation cell, clear leading too
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            var erase = CreateEraseCell();
+            SetCell(_cursorY, _cursorX - 1, erase, impacts);
+        }
+        
+        // Handle wide char splitting at the end of erase range:
+        // If the cell just past the erase range is a continuation cell, clear its leading cell
+        int eraseEnd = _cursorX + count;
+        if (eraseEnd < rightEdge && _screenBuffer[_cursorY, eraseEnd].Character == ""
+            && eraseEnd > 0)
+        {
+            // The leading cell is at eraseEnd - 1, which is within our erase range, so it will be cleared
+        }
         
         var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count; x++)

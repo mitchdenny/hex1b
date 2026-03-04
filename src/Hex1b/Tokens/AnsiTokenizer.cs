@@ -198,8 +198,8 @@ public static class AnsiTokenizer
         if (isPrivateMode)
             end++;
 
-        // Read parameters until we hit a letter or ~ (for special keys like ESC [ 3 ~)
-        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~')
+        // Read parameters until we hit a final byte (CSI final bytes are 0x40-0x7E: @ through ~)
+        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~' && text[end] != '@')
         {
             end++;
         }
@@ -387,7 +387,8 @@ public static class AnsiTokenizer
                 
             case '@':
                 // Insert Character (ICH) - insert n blank characters at cursor
-                tokens.Add(new InsertCharacterToken(ParseMoveCount(parameters)));
+                // ICH 0 is a no-op (unlike most CSI commands where 0 = 1)
+                tokens.Add(new InsertCharacterToken(ParseMoveCountAllowZero(parameters)));
                 break;
                 
             case 'X':
