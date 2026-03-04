@@ -133,6 +133,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // when writing past the right margin. Default is true (on).
     private bool _wraparoundMode = true;
     
+    // Grapheme clustering mode (mode 2027): when true, multi-codepoint grapheme
+    // clusters (like ZWJ emoji sequences, Devanagari ligatures) are combined into
+    // single cells. When false, each codepoint is treated individually.
+    // Default is true — Hex1b always clusters graphemes like modern terminals.
+    // Applications can disable with CSI ? 2027 l for per-codepoint handling.
+    private bool _graphemeClusterMode = true;
+    
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
     private bool _hasLastPrintedCell = false;
@@ -141,6 +148,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _lastPrintedCellX = 0;
     private int _lastPrintedCellY = 0;
     private int _lastPrintedCellWidth = 0;
+    
+    // When true, the last printed cell ends with a ZWJ (U+200D) or combining mark,
+    // meaning the next emoji/character should combine with it rather than printing
+    // in a new cell. Used for building ZWJ sequences across separate Feed() calls.
+    private bool _pendingGraphemeCombine = false;
     
     // DECSCA character protection mode. Tracks whether newly printed characters
     
@@ -2106,6 +2118,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // DECAWM - Auto-wrap Mode
                     _wraparoundMode = privateModeToken.Enable;
                 }
+                else if (privateModeToken.Mode == 2027)
+                {
+                    // Grapheme cluster mode — when enabled, multi-codepoint graphemes
+                    // (ZWJ sequences, Devanagari ligatures) are combined into single cells.
+                    // When disabled, each codepoint is treated individually.
+                    _graphemeClusterMode = privateModeToken.Enable;
+                }
                 break;
             
             case StandardModeToken stdModeToken:
@@ -2276,7 +2295,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _lastPrintedCellX = 0;
                 _lastPrintedCellY = 0;
                 _lastPrintedCellWidth = 0;
+                _pendingGraphemeCombine = false;
                 _wraparoundMode = true;
+                _graphemeClusterMode = true;
                 _charsetG0 = 'B';
                 _charsetG1 = 'B';
                 _charsetG2 = 'B';
@@ -2452,7 +2473,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         while (i < text.Length)
         {
-            var grapheme = GetGraphemeAt(text, i);
+            string grapheme;
+            if (_graphemeClusterMode)
+            {
+                grapheme = GetGraphemeAt(text, i);
+            }
+            else
+            {
+                // Mode 2027 disabled: process one rune at a time instead of
+                // clustering graphemes. Each codepoint is treated individually.
+                var rune = Rune.GetRuneAt(text, i);
+                grapheme = rune.ToString();
+            }
             
             // Apply character set mapping (DEC special graphics, etc.)
             // Only applies to single ASCII characters; multi-byte/emoji pass through.
@@ -2464,6 +2496,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
             
+            // Apply mode 2027 multi-codepoint width adjustment
+            graphemeWidth = AdjustGraphemeWidth(grapheme, graphemeWidth);
+            
             // Retroactive variation selector handling:
             // When VS15 (U+FE0E) or VS16 (U+FE0F) arrives as a standalone character
             // (not part of the same grapheme cluster as the base), modern terminals
@@ -2471,10 +2506,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // VS15 forces text presentation (narrow/1-cell), VS16 forces emoji
             // presentation (wide/2-cell). This matches Ghostty, Kitty, WezTerm, iTerm2.
             // Legacy terminals (xterm, Alacritty) only change the glyph, not the width.
-            if (graphemeWidth == 0 && grapheme.Length == 1 && _hasLastPrintedCell
+            if (graphemeWidth == 0 && grapheme.Length <= 2 && _hasLastPrintedCell
                 && Capabilities.SupportsRetroactiveVariationSelectors)
             {
-                var cp = (int)grapheme[0];
+                var cp = grapheme.EnumerateRunes().First().Value;
                 if (cp == 0xFE0E || cp == 0xFE0F)
                 {
                     ApplyRetroactiveVariationSelector(cp, impacts);
@@ -2482,6 +2517,155 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     continue;
                 }
             }
+            
+            // Zero-width characters (combining marks, ZWJ) that aren't VS:
+            // Retroactively combine with the previously printed cell by appending
+            // to its grapheme content. This handles ZWJ sequences sent as separate
+            // Feed() calls and combining marks arriving after the base character.
+            if (graphemeWidth == 0 && _hasLastPrintedCell && grapheme.Length >= 1)
+            {
+                var cp = grapheme.EnumerateRunes().First().Value;
+                // Don't re-handle VS (already handled above)
+                if (cp != 0xFE0E && cp != 0xFE0F)
+                {
+                    int cellX = _lastPrintedCellX;
+                    int cellY = _lastPrintedCellY;
+                    if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                    {
+                        ref var cell = ref _screenBuffer[cellY, cellX];
+                        if (!string.IsNullOrEmpty(cell.Character))
+                        {
+                            var newContent = cell.Character + grapheme;
+                            int newWidth = DisplayWidth.GetGraphemeWidth(newContent);
+                            
+                            if (newWidth > _lastPrintedCellWidth)
+                            {
+                                cell = cell with { Character = newContent };
+                                for (int w = _lastPrintedCellWidth; w < newWidth && cellX + w < _width; w++)
+                                {
+                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                                    contCell = contCell with { Character = "" };
+                                }
+                                _cursorX = Math.Min(cellX + newWidth, _width - 1);
+                                if (cellX + newWidth > _width)
+                                    _pendingWrap = true;
+                                _lastPrintedCellWidth = newWidth;
+                                _lastPrintedCell = cell;
+                            }
+                            else
+                            {
+                                cell = cell with { Character = newContent };
+                                _lastPrintedCell = cell;
+                            }
+                            
+                            // If a ZWJ was appended, the next printable character should
+                            // also combine with this cell (building a ZWJ sequence).
+                            _pendingGraphemeCombine = (cp == 0x200D);
+                        }
+                    }
+                    i += grapheme.Length;
+                    continue;
+                }
+            }
+            
+            // If the previous cell ended with a ZWJ and mode 2027 is enabled,
+            // combine the next printable character with it instead of printing new.
+            // This builds ZWJ sequences like 👩‍👦 across separate Feed() calls.
+            if (_pendingGraphemeCombine && _graphemeClusterMode && _hasLastPrintedCell)
+            {
+                _pendingGraphemeCombine = false;
+                int cellX = _lastPrintedCellX;
+                int cellY = _lastPrintedCellY;
+                if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                {
+                    ref var cell = ref _screenBuffer[cellY, cellX];
+                    if (!string.IsNullOrEmpty(cell.Character))
+                    {
+                        var newContent = cell.Character + grapheme;
+                        int newWidth = DisplayWidth.GetGraphemeWidth(newContent);
+                        
+                        // Apply mode 2027 multi-codepoint width adjustment
+                        newWidth = AdjustGraphemeWidth(newContent, newWidth);
+                        
+                        int oldWidth = _lastPrintedCellWidth;
+                        
+                        // Handle width changes
+                        if (newWidth > oldWidth && cellX + newWidth > _width)
+                        {
+                            // Wide char doesn't fit at current position → wrap to next line
+                            // Clear the original cell first
+                            cell = cell with { Character = " " };
+                            
+                            if (_wraparoundMode)
+                            {
+                                _pendingWrap = false; // Clear pending wrap from original print
+                                // Mark soft wrap
+                                int wrapCol = _declrmm ? _marginRight : _width - 1;
+                                ref var wrapCell2 = ref _screenBuffer[cellY, wrapCol];
+                                wrapCell2 = wrapCell2 with { Attributes = wrapCell2.Attributes | CellAttributes.SoftWrap };
+                                
+                                int newX = _declrmm ? _marginLeft : 0;
+                                int newY = cellY + 1;
+                                
+                                if (newY > _scrollBottom)
+                                {
+                                    ScrollUp(null);
+                                    newY = _scrollBottom;
+                                }
+                                
+                                // Print the combined wide char on the new line
+                                ref var newCell = ref _screenBuffer[newY, newX];
+                                newCell = newCell with { Character = newContent };
+                                
+                                // Add continuation cell
+                                if (newX + 1 < _width)
+                                {
+                                    ref var contCell2 = ref _screenBuffer[newY, newX + 1];
+                                    contCell2 = contCell2 with { Character = "" };
+                                }
+                                
+                                _cursorX = Math.Min(newX + newWidth, _width - 1);
+                                _cursorY = newY;
+                                if (newX + newWidth >= _width)
+                                    _pendingWrap = true;
+                                _lastPrintedCellX = newX;
+                                _lastPrintedCellY = newY;
+                                _lastPrintedCellWidth = newWidth;
+                                _lastPrintedCell = newCell;
+                            }
+                            // else: no wraparound → discard (don't print)
+                        }
+                        else
+                        {
+                            // Update the cell with the combined grapheme
+                            cell = cell with { Character = newContent };
+                            
+                            if (newWidth > oldWidth)
+                            {
+                                for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
+                                {
+                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                                    contCell = contCell with { Character = "" };
+                                }
+                            }
+                            
+                            _cursorX = Math.Min(cellX + newWidth, _width - 1);
+                            if (cellX + newWidth > _width)
+                                _pendingWrap = true;
+                            _lastPrintedCellWidth = newWidth;
+                            _lastPrintedCell = cell;
+                        }
+                        
+                        // Check if the combined content still ends with ZWJ
+                        var lastCombinedRune = newContent.EnumerateRunes().Last();
+                        _pendingGraphemeCombine = (lastCombinedRune.Value == 0x200D);
+                        
+                        i += grapheme.Length;
+                        continue;
+                    }
+                }
+            }
+            _pendingGraphemeCombine = false;
             
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
@@ -2627,11 +2811,47 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorX = effectiveRightMargin; // Cursor stays at last column within margin
                     _pendingWrap = true;
                 }
+                
+                // If grapheme ends with ZWJ and mode 2027 is on, the next character
+                // should combine with this cell (building ZWJ/Devanagari sequences).
+                if (_graphemeClusterMode && grapheme.Length > 0)
+                {
+                    var lastRune = grapheme.EnumerateRunes().Last();
+                    _pendingGraphemeCombine = (lastRune.Value == 0x200D);
+                }
             }
             i += grapheme.Length;
         }
     }
 
+    /// <summary>
+    /// Adjusts grapheme width for mode 2027 multi-codepoint clusters.
+    /// When grapheme clustering is enabled and a grapheme has multiple visible
+    /// codepoints with a total width > 1 (e.g., Devanagari ligatures like क्‍ष),
+    /// the grapheme is treated as wide (2 cells). This matches Ghostty behavior
+    /// for Indic scripts and other complex scripts.
+    /// </summary>
+    private int AdjustGraphemeWidth(string grapheme, int baseWidth)
+    {
+        if (!_graphemeClusterMode || baseWidth != 1)
+            return baseWidth;
+        
+        int runeCount = 0;
+        int totalVisibleWidth = 0;
+        foreach (var rune in grapheme.EnumerateRunes())
+        {
+            runeCount++;
+            int runeWidth = DisplayWidth.GetRuneWidth(rune);
+            if (runeWidth > 0)
+                totalVisibleWidth += runeWidth;
+        }
+        
+        if (runeCount > 1 && totalVisibleWidth > 1)
+            return 2;
+        
+        return baseWidth;
+    }
+    
     /// <summary>
     /// Retroactively applies VS15 (U+FE0E) or VS16 (U+FE0F) to the last printed cell.
     /// VS15 forces text presentation (1 cell wide), VS16 forces emoji presentation (2 cells wide).

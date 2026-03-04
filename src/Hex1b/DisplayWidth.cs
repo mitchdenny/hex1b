@@ -767,6 +767,17 @@ public static class DisplayWidth
         // the base emoji determines the width. When they are standalone (split off by
         // GetGraphemeAt because the base was not Emoji_Modifier_Base), they render as
         // independent wide characters (2 cells), matching Ghostty and other terminals.
+        
+        // Fallback: use Unicode general category for nonspacing marks (Mn) and
+        // enclosing marks (Me). This covers combining marks in all scripts
+        // (Devanagari virama U+094D, Arabic marks, Hebrew points, etc.)
+        if (Rune.IsValid(codePoint))
+        {
+            var category = Rune.GetUnicodeCategory(new Rune(codePoint));
+            if (category == System.Globalization.UnicodeCategory.NonSpacingMark ||
+                category == System.Globalization.UnicodeCategory.EnclosingMark)
+                return true;
+        }
             
         return false;
     }

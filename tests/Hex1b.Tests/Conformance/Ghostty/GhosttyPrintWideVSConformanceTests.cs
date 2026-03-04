@@ -113,7 +113,7 @@ public class GhosttyPrintWideVSConformanceTests
     #region Devanagari Grapheme Clustering
 
     // Ghostty: "Terminal: print Devanagari grapheme should be wide"
-    [Fact(Skip = "Hex1b bug: Devanagari grapheme clusters not treated as wide")]
+    [Fact]
     public void PrintDevanagariGrapheme_ShouldBeWide()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -136,7 +136,7 @@ public class GhosttyPrintWideVSConformanceTests
     }
 
     // Ghostty: "Terminal: print Devanagari grapheme should be wide on next line"
-    [Fact(Skip = "Hex1b bug: Devanagari grapheme clusters not treated as wide")]
+    [Fact]
     public void PrintDevanagariGrapheme_ShouldBeWideOnNextLine()
     {
         using var t = CreateTerminal(cols: 3, rows: 5);
@@ -176,7 +176,7 @@ public class GhosttyPrintWideVSConformanceTests
     }
 
     // Ghostty: "Terminal: print Devanagari grapheme should be wide on next page"
-    [Fact(Skip = "Hex1b bug: Devanagari grapheme clusters not treated as wide")]
+    [Fact]
     public void PrintDevanagariGrapheme_ShouldBeWideOnNextPage()
     {
         // Simplified from Ghostty's page-boundary test: tests wrapping at bottom-right
@@ -245,7 +245,7 @@ public class GhosttyPrintWideVSConformanceTests
     }
 
     // Ghostty: "Terminal: print invalid VS15 in emoji ZWJ sequence"
-    [Fact(Skip = "Hex1b bug: ZWJ sequences not combined into single grapheme cluster")]
+    [Fact]
     public void PrintInvalidVS15InEmojiZWJSequence_RemainsWide()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -346,7 +346,7 @@ public class GhosttyPrintWideVSConformanceTests
     #region Mode 2027 Grapheme Clustering
 
     // Ghostty: "Terminal: print multicodepoint grapheme, mode 2027"
-    [Fact(Skip = "Hex1b bug: mode 2027 grapheme clustering not implemented for ZWJ sequences")]
+    [Fact]
     public void PrintMulticodepointGrapheme_Mode2027_SingleWideCluster()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
