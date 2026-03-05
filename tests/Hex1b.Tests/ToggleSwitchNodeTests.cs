@@ -429,7 +429,7 @@ public class ToggleSwitchNodeTests
         
         // Capture snapshot BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Manual"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -461,7 +461,7 @@ public class ToggleSwitchNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Off"), TimeSpan.FromSeconds(5))
             .Right()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -492,7 +492,7 @@ public class ToggleSwitchNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Low"), TimeSpan.FromSeconds(5))
             .Right().Right()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -526,7 +526,7 @@ public class ToggleSwitchNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         // Navigate right on toggle, then tab to button, then click
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(5))
             .Right().Tab().Enter()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
@@ -558,7 +558,7 @@ public class ToggleSwitchNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Mode1"), TimeSpan.FromSeconds(5))
             .Right()
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)

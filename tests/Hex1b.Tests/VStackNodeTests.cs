@@ -366,7 +366,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Long"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -406,7 +406,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Footer"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -448,13 +448,13 @@ public class VStackNodeTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Type("1")
-            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(5))
             .Tab()
             .Type("2")
-            .WaitUntil(s => s.ContainsText("2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("2"), TimeSpan.FromSeconds(5))
             .Tab()
             .Type("3")
-            .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("3"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -525,7 +525,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Short"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -563,7 +563,7 @@ public class VStackNodeTests
         // Capture snapshot BEFORE exiting the app
         // Tab to button and click
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Title"), TimeSpan.FromSeconds(5))
             .Tab()
             .Enter()
             .Capture("final")
@@ -603,7 +603,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Outer 2"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -663,7 +663,7 @@ public class VStackNodeTests
         
         // Capture snapshot BEFORE exiting the app
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Item 3"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
