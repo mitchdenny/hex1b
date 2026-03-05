@@ -73,6 +73,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
     private Hex1bColor? _currentUnderlineColor;
+    private UnderlineStyle _currentUnderlineStyle;
     private CellAttributes _currentAttributes;
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
@@ -1954,6 +1955,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _currentForeground = null;
             _currentBackground = null;
             _currentUnderlineColor = null;
+            _currentUnderlineStyle = UnderlineStyle.None;
         }
     }
     
@@ -1976,6 +1978,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _currentForeground = null;
         _currentBackground = null;
         _currentUnderlineColor = null;
+        _currentUnderlineStyle = UnderlineStyle.None;
     }
 
     /// <summary>
@@ -2312,6 +2315,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _currentBackground = null;
                 _currentAttributes = CellAttributes.None;
                 _currentUnderlineColor = null;
+                _currentUnderlineStyle = UnderlineStyle.None;
                 _lastPrintedCell = TerminalCell.Empty;
                 _hasLastPrintedCell = false;
                 _lastPrintedCellX = 0;
@@ -2832,7 +2836,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var cell = new TerminalCell(
                     grapheme, _currentForeground, _currentBackground, effectiveAttributes,
                     sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
-                    _currentUnderlineColor);
+                    _currentUnderlineColor, _currentUnderlineStyle);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
                 // Save last printed cell for CSI b (REP) command and VS15/VS16 handling
@@ -2848,7 +2852,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _currentForeground, _currentBackground, _currentAttributes,
                         sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
-                        _currentUnderlineColor), impacts);
+                        _currentUnderlineColor, _currentUnderlineStyle), impacts);
                 }
                 
                 _cursorX += graphemeWidth;
@@ -3736,6 +3740,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _currentForeground = null;
             _currentBackground = null;
             _currentUnderlineColor = null;
+            _currentUnderlineStyle = UnderlineStyle.None;
             _currentAttributes = CellAttributes.None;
             return;
         }
@@ -3761,6 +3766,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _currentForeground = null;
                     _currentBackground = null;
                     _currentUnderlineColor = null;
+                    _currentUnderlineStyle = UnderlineStyle.None;
                     _currentAttributes = CellAttributes.None;
                     break;
 
@@ -3776,6 +3782,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 case 4:
                     _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Single;
                     break;
                 case 5:
                 case 6: // Rapid blink treated same as slow blink
@@ -3797,6 +3804,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Text attributes - reset
                 case 21: // Double underline (ECMA-48)
                     _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Double;
                     break;
                 case 22: // Normal intensity (not bold, not dim)
                     _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
@@ -3806,6 +3814,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 case 24:
                     _currentAttributes &= ~CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.None;
                     break;
                 case 25:
                     _currentAttributes &= ~CellAttributes.Blink;
@@ -3927,11 +3936,23 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (subs.Length >= 2 && int.TryParse(subs[1], out var underlineStyle))
                 {
                     if (underlineStyle == 0)
+                    {
                         _currentAttributes &= ~CellAttributes.Underline;
+                        _currentUnderlineStyle = UnderlineStyle.None;
+                    }
                     else
+                    {
                         _currentAttributes |= CellAttributes.Underline;
-                    // Style 1=single, 2=double, 3=curly, 4=dotted, 5=dashed
-                    // Hex1b doesn't distinguish styles yet, so all non-zero → Underline
+                        _currentUnderlineStyle = underlineStyle switch
+                        {
+                            1 => UnderlineStyle.Single,
+                            2 => UnderlineStyle.Double,
+                            3 => UnderlineStyle.Curly,
+                            4 => UnderlineStyle.Dotted,
+                            5 => UnderlineStyle.Dashed,
+                            _ => UnderlineStyle.Single, // Unknown style defaults to single
+                        };
+                    }
                 }
                 break;
                 
@@ -4573,7 +4594,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     writtenAt, 
                     TrackedSixel: null, 
                     TrackedHyperlink: null,
-                    _lastPrintedCell.UnderlineColor);
+                    _lastPrintedCell.UnderlineColor,
+                    _lastPrintedCell.UnderlineStyle);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
                 // Handle wide characters
@@ -4582,7 +4604,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
                         sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null,
-                        _lastPrintedCell.UnderlineColor), impacts);
+                        _lastPrintedCell.UnderlineColor, _lastPrintedCell.UnderlineStyle), impacts);
                 }
                 
                 _cursorX += graphemeWidth;

@@ -14,6 +14,7 @@ namespace Hex1b;
 /// <param name="TrackedSixel">Optional tracked reference to Sixel graphics data associated with this cell.</param>
 /// <param name="TrackedHyperlink">Optional tracked reference to hyperlink data associated with this cell.</param>
 /// <param name="UnderlineColor">The underline color (SGR 58), or null to use the foreground color.</param>
+/// <param name="UnderlineStyle">The underline style (SGR 4:x). Defaults to <see cref="Hex1b.UnderlineStyle.None"/>.</param>
 public readonly record struct TerminalCell(
     string Character,
     Hex1bColor? Foreground,
@@ -23,7 +24,8 @@ public readonly record struct TerminalCell(
     DateTimeOffset WrittenAt = default,
     TrackedObject<SixelData>? TrackedSixel = null,
     TrackedObject<HyperlinkData>? TrackedHyperlink = null,
-    Hex1bColor? UnderlineColor = null)
+    Hex1bColor? UnderlineColor = null,
+    UnderlineStyle UnderlineStyle = UnderlineStyle.None)
 {
     /// <summary>An empty cell with default attributes.</summary>
     public static readonly TerminalCell Empty = new(" ", null, null, CellAttributes.None, 0, default);

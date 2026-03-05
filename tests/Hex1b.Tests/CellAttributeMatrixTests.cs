@@ -459,6 +459,32 @@ public class CellAttributeMatrixTests
         Assert.True(resetCell.IsUnderline);
         Assert.Null(resetCell.UnderlineColor); // SGR 59 clears underline color
 
+        // Verify underline styles are stored correctly
+        // Row 3: default underline via SGR 4 → Single style
+        var defaultUlCell = snapshot.GetCell(0, 3);
+        Assert.Equal(UnderlineStyle.Single, defaultUlCell.UnderlineStyle);
+
+        // Row 12 (after empty line): "Single (4:1)  Double (4:2)  Curly (4:3)"
+        var singleCell = snapshot.GetCell(0, 13);
+        Assert.Equal(UnderlineStyle.Single, singleCell.UnderlineStyle);
+
+        var doubleCell = snapshot.GetCell(14, 13); // "Double (4:2)" starts after "Single (4:1)  "
+        Assert.Equal(UnderlineStyle.Double, doubleCell.UnderlineStyle);
+
+        var curlyCell = snapshot.GetCell(28, 13); // "Curly (4:3)" starts after "Double (4:2)  "
+        Assert.Equal(UnderlineStyle.Curly, curlyCell.UnderlineStyle);
+
+        // Row 14: "Dotted (4:4)  Dashed (4:5)"
+        var dottedCell = snapshot.GetCell(0, 14);
+        Assert.Equal(UnderlineStyle.Dotted, dottedCell.UnderlineStyle);
+
+        var dashedCell = snapshot.GetCell(14, 14); // "Dashed (4:5)" starts after "Dotted (4:4)  "
+        Assert.Equal(UnderlineStyle.Dashed, dashedCell.UnderlineStyle);
+
+        // Row 16: Kakoune curly (4:3)
+        var kakouneCell = snapshot.GetCell(0, 16);
+        Assert.Equal(UnderlineStyle.Curly, kakouneCell.UnderlineStyle);
+
         TestCaptureHelper.Capture(test.Terminal, "colored-underlines");
     }
 }

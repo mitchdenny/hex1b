@@ -405,7 +405,12 @@ public sealed class TerminalNode : Hex1bNode
                     if (cell.Attributes.HasFlag(CellAttributes.Italic))
                         lineBuilder.Append("\x1b[3m");
                     if (cell.Attributes.HasFlag(CellAttributes.Underline))
-                        lineBuilder.Append("\x1b[4m");
+                    {
+                        if (cell.UnderlineStyle != UnderlineStyle.None && cell.UnderlineStyle != UnderlineStyle.Single)
+                            lineBuilder.Append($"\x1b[4:{(int)cell.UnderlineStyle}m");
+                        else
+                            lineBuilder.Append("\x1b[4m");
+                    }
                     if (cell.Attributes.HasFlag(CellAttributes.Reverse))
                         lineBuilder.Append("\x1b[7m");
                     if (cell.Attributes.HasFlag(CellAttributes.Strikethrough))

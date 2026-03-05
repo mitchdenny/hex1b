@@ -909,7 +909,9 @@ public static class TerminalRegionHtmlExtensions
                     ? $"{{\"r\":{cell.UnderlineColor.Value.R},\"g\":{cell.UnderlineColor.Value.G},\"b\":{cell.UnderlineColor.Value.B}}}"
                     : "null";
 
-                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"uc\":{uc},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
+                var us = (int)cell.UnderlineStyle;
+
+                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"uc\":{uc},\"us\":{us},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
             }
             rows.Add($"[{string.Join(",", cells)}]");
         }
