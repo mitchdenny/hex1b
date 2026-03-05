@@ -2747,23 +2747,37 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 if (_wraparoundMode)
                 {
-                    // Wrap to the next line first. The last cell is left blank (spacer head behavior).
-                    // Mark the right edge cell as a spacer head with the active hyperlink and soft wrap.
-                    ref var spacerCell = ref _screenBuffer[_cursorY, effectiveRightMargin];
-                    spacerCell = spacerCell with
+                    if (_declrmm)
                     {
-                        Character = " ",
-                        TrackedHyperlink = _currentHyperlink,
-                        Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
-                    };
-                    _currentHyperlink?.AddRef();
-                    
-                    _cursorX = _declrmm ? _marginLeft : 0;
-                    _cursorY++;
-                    if (_cursorY >= _height)
+                        // DECLRMM margin wrap: no spacer head, no soft wrap flag.
+                        // Just move cursor to left margin on the next row.
+                        _cursorX = _marginLeft;
+                        _cursorY++;
+                        if (_cursorY >= _height)
+                        {
+                            ScrollUp(impacts);
+                            _cursorY = _height - 1;
+                        }
+                    }
+                    else
                     {
-                        ScrollUp(impacts);
-                        _cursorY = _height - 1;
+                        // Screen-edge wrap: mark right edge as spacer head with soft wrap.
+                        ref var spacerCell = ref _screenBuffer[_cursorY, effectiveRightMargin];
+                        spacerCell = spacerCell with
+                        {
+                            Character = " ",
+                            TrackedHyperlink = _currentHyperlink,
+                            Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
+                        };
+                        _currentHyperlink?.AddRef();
+                        
+                        _cursorX = 0;
+                        _cursorY++;
+                        if (_cursorY >= _height)
+                        {
+                            ScrollUp(impacts);
+                            _cursorY = _height - 1;
+                        }
                     }
                 }
                 else
