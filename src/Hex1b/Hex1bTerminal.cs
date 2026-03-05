@@ -2322,6 +2322,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _reverseWrapMode = false;
                 _reverseWrapExtendedMode = false;
                 _graphemeClusterMode = true;
+                _currentHyperlink?.Release();
+                _currentHyperlink = null;
                 _charsetG0 = 'B';
                 _charsetG1 = 'B';
                 _charsetG2 = 'B';
@@ -2746,6 +2748,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (_wraparoundMode)
                 {
                     // Wrap to the next line first. The last cell is left blank (spacer head behavior).
+                    // Mark the right edge cell as a spacer head with the active hyperlink and soft wrap.
+                    ref var spacerCell = ref _screenBuffer[_cursorY, effectiveRightMargin];
+                    spacerCell = spacerCell with
+                    {
+                        Character = " ",
+                        TrackedHyperlink = _currentHyperlink,
+                        Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
+                    };
+                    _currentHyperlink?.AddRef();
+                    
                     _cursorX = _declrmm ? _marginLeft : 0;
                     _cursorY++;
                     if (_cursorY >= _height)
