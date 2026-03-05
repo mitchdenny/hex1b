@@ -133,6 +133,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // when writing past the right margin. Default is true (on).
     private bool _wraparoundMode = true;
     
+    // Reverse wrap mode (DEC private mode 45): when true, cursor can wrap backwards
+    // to the end of the previous line when moving left past column 0, but only if
+    // the previous line was soft-wrapped. Default is false (off).
+    private bool _reverseWrapMode = false;
+    
+    // Extended reverse wrap mode (xterm private mode 1045): like reverse wrap but
+    // also wraps across hard line boundaries, and wraps from top to bottom.
+    // Takes priority over mode 45 when both are set. Default is false (off).
+    private bool _reverseWrapExtendedMode = false;
+    
     // Grapheme clustering mode (mode 2027): when true, multi-codepoint grapheme
     // clusters (like ZWJ emoji sequences, Devanagari ligatures) are combined into
     // single cells. When false, each codepoint is treated individually.
@@ -2118,6 +2128,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // DECAWM - Auto-wrap Mode
                     _wraparoundMode = privateModeToken.Enable;
                 }
+                else if (privateModeToken.Mode == 45)
+                {
+                    // Reverse Wraparound Mode — cursor can wrap backwards past column 0
+                    // to the end of the previous line (only if soft-wrapped)
+                    _reverseWrapMode = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1045)
+                {
+                    // Extended Reverse Wraparound Mode (xterm XTREVWRAP2) — like mode 45
+                    // but wraps across hard line boundaries and wraps from top to bottom
+                    _reverseWrapExtendedMode = privateModeToken.Enable;
+                }
                 else if (privateModeToken.Mode == 2027)
                 {
                     // Grapheme cluster mode — when enabled, multi-codepoint graphemes
@@ -2297,6 +2319,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _lastPrintedCellWidth = 0;
                 _pendingGraphemeCombine = false;
                 _wraparoundMode = true;
+                _reverseWrapMode = false;
+                _reverseWrapExtendedMode = false;
                 _graphemeClusterMode = true;
                 _charsetG0 = 'B';
                 _charsetG1 = 'B';
@@ -3145,11 +3169,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case '\b':
                 // Backspace - move cursor left (non-destructive)
-                _pendingWrap = false;
-                if (_cursorX > 0)
-                {
-                    _cursorX--;
-                }
+                // Applies reverse wrap logic (same as CUB 1)
+                ApplyCursorLeftWithReverseWrap(1);
                 break;
                 
             case '\x0E': // SO (Shift Out) — invoke G1 into GL
@@ -3164,7 +3185,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private void ApplyCursorMove(CursorMoveToken token)
     {
-        // Any explicit cursor movement clears pending wrap
+        // CUB (Back) has its own pending wrap handling for reverse wrap
+        if (token.Direction == CursorMoveDirection.Back)
+        {
+            ApplyCursorLeftWithReverseWrap(token.Count);
+            return;
+        }
+        
+        // Any other explicit cursor movement clears pending wrap
         _pendingWrap = false;
         
         switch (token.Direction)
@@ -3195,10 +3223,6 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
                 break;
                 
-            case CursorMoveDirection.Back:
-                _cursorX = Math.Max(0, _cursorX - token.Count);
-                break;
-                
             case CursorMoveDirection.NextLine:
                 _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
                 _cursorX = 0;
@@ -3208,6 +3232,100 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _cursorY = Math.Max(0, _cursorY - token.Count);
                 _cursorX = 0;
                 break;
+        }
+    }
+    
+    /// <summary>
+    /// Moves cursor left with reverse wraparound support (modes 45 and 1045).
+    /// When reverse wrap is enabled and the cursor is at the left margin, the cursor
+    /// wraps to the right margin of the previous line. Mode 45 only wraps across
+    /// soft-wrapped lines; mode 1045 (extended) also wraps across hard breaks and
+    /// from the top row to the bottom row.
+    /// </summary>
+    private void ApplyCursorLeftWithReverseWrap(int count)
+    {
+        // Determine wrap mode — both require DECAWM to be enabled
+        bool isExtended = _wraparoundMode && _reverseWrapExtendedMode;
+        bool isReverse = _wraparoundMode && _reverseWrapMode;
+        
+        if (!isExtended && !isReverse)
+        {
+            // No reverse wrap — simple left movement, clear pending wrap
+            _pendingWrap = false;
+            _cursorX = Math.Max(0, _cursorX - count);
+            return;
+        }
+        
+        // When pending wrap is set, decrement count by one to match xterm behavior.
+        // CUB 1 with pending wrap just clears the wrap flag without moving.
+        if (_pendingWrap)
+        {
+            count--;
+            _pendingWrap = false;
+        }
+        
+        if (count <= 0)
+            return;
+        
+        int leftMargin = (_cursorX < (_declrmm ? _marginLeft : 0)) ? 0 : (_declrmm ? _marginLeft : 0);
+        int rightMargin = _declrmm ? _marginRight : _width - 1;
+        int top = _scrollTop;
+        int bottom = _scrollBottom;
+        
+        // Pre-loop edge case: cursor is already at left margin
+        if (_cursorX == leftMargin)
+        {
+            if (!isExtended && _cursorY <= top)
+            {
+                // Mode 45: at/above scroll top → move to (leftMargin, top) and stop
+                _cursorX = leftMargin;
+                _cursorY = top;
+                return;
+            }
+        }
+        
+        while (count > 0)
+        {
+            int maxLeft = _cursorX - leftMargin;
+            int move = Math.Min(maxLeft, count);
+            _cursorX -= move;
+            count -= move;
+            
+            if (count == 0)
+                break;
+            
+            // At left margin with more to move — need to wrap up
+            if (_cursorY == top)
+            {
+                if (!isExtended)
+                {
+                    // Mode 45: stop at top of scroll region
+                    _cursorX = leftMargin;
+                    break;
+                }
+                
+                // Extended: wrap from top to bottom
+                _cursorX = rightMargin;
+                _cursorY = bottom;
+                count--;
+                continue;
+            }
+            
+            // Stop at absolute row 0 regardless of mode
+            if (_cursorY == 0)
+                break;
+            
+            if (!isExtended)
+            {
+                // Mode 45: only wrap across soft-wrapped lines
+                ref var lastCellPrevRow = ref _screenBuffer[_cursorY - 1, rightMargin];
+                if ((lastCellPrevRow.Attributes & CellAttributes.SoftWrap) == 0)
+                    break;
+            }
+            
+            _cursorX = rightMargin;
+            _cursorY--;
+            count--;
         }
     }
 
