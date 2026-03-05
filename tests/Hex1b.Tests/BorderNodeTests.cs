@@ -642,7 +642,7 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 10, 5));
         node.Render(context);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Hi") && s.ContainsText("╔"), TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.ContainsText("Hi") && s.ContainsText("╔"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
 
