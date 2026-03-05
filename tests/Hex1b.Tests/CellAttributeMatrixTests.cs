@@ -383,4 +383,82 @@ public class CellAttributeMatrixTests
 
         TestCaptureHelper.Capture(test.Terminal, "common-power-set");
     }
+
+    /// <summary>
+    /// Renders underlines with colors distinct from the foreground text.
+    /// Verifies that SGR 58 (underline color) is stored in cells and rendered in SVG/HTML.
+    /// </summary>
+    [Fact]
+    public void ColoredUnderlines_RendersCorrectly()
+    {
+        using var test = new TestTerminal(60, 20);
+
+        test.Write("Colored Underlines\n");
+        test.Write("==================\n\n");
+
+        // Default underline (uses foreground color)
+        test.Write("\x1b[4;37mDefault underline (white fg)\x1b[0m\n");
+
+        // Underline color via SGR 58;2;R;G;B (semicolon syntax)
+        test.Write("\x1b[4;37;58;2;255;0;0mWhite text, red underline\x1b[0m\n");
+        test.Write("\x1b[4;32;58;2;255;165;0mGreen text, orange underline\x1b[0m\n");
+        test.Write("\x1b[4;34;58;2;255;255;0mBlue text, yellow underline\x1b[0m\n");
+
+        // Underline color via 256-color (SGR 58;5;idx)
+        test.Write("\x1b[4;33;58;5;201mYellow text, magenta256 underline\x1b[0m\n");
+
+        // Underline color via colon syntax (58:2:R:G:B)
+        test.Write("\x1b[4;36;58:2:255:100:50mCyan text, coral underline (colon)\x1b[0m\n");
+
+        // With background color too
+        test.Write("\x1b[4;97;44;58;2;0;255;0mWhite on blue, green underline\x1b[0m\n");
+
+        // Underline color reset (SGR 59)
+        test.Write("\x1b[4;31;58;2;0;0;255mRed text blue ul \x1b[59mred text default ul\x1b[0m\n");
+
+        // Bold + italic + colored underline
+        test.Write("\x1b[1;3;4;35;58;2;0;255;255mBold italic magenta, cyan ul\x1b[0m\n");
+
+        // Underline styles via colon sub-params (4:style)
+        test.Write("\n");
+        test.Write("\x1b[4:1;58;2;255;0;0mSingle (4:1)\x1b[0m  ");
+        test.Write("\x1b[4:2;58;2;0;255;0mDouble (4:2)\x1b[0m  ");
+        test.Write("\x1b[4:3;58;2;0;0;255mCurly (4:3)\x1b[0m\n");
+        test.Write("\x1b[4:4;58;2;255;165;0mDotted (4:4)\x1b[0m  ");
+        test.Write("\x1b[4:5;58;2;128;0;255mDashed (4:5)\x1b[0m\n");
+
+        // Kakoune-style complex sequence (real-world)
+        test.Write("\n");
+        test.Write("\x1b[0;4:3;38;2;175;175;215;58:2:0:190:80:70mKakoune curly\x1b[0m\n");
+
+        // Verify cell properties
+        var snapshot = test.Terminal.CreateSnapshot(0);
+
+        // Row 4 (0-indexed): "White text, red underline" — SGR 58;2;255;0;0
+        var redUlCell = snapshot.GetCell(0, 4);
+        Assert.True(redUlCell.IsUnderline);
+        Assert.NotNull(redUlCell.UnderlineColor);
+        Assert.Equal(255, redUlCell.UnderlineColor!.Value.R);
+        Assert.Equal(0, redUlCell.UnderlineColor!.Value.G);
+        Assert.Equal(0, redUlCell.UnderlineColor!.Value.B);
+        // Foreground is white (37)
+        Assert.NotNull(redUlCell.Foreground);
+
+        // Row 8 (colon syntax): cyan text, coral underline
+        var colonCell = snapshot.GetCell(0, 8);
+        Assert.True(colonCell.IsUnderline);
+        Assert.NotNull(colonCell.UnderlineColor);
+        Assert.Equal(255, colonCell.UnderlineColor!.Value.R);
+        Assert.Equal(100, colonCell.UnderlineColor!.Value.G);
+        Assert.Equal(50, colonCell.UnderlineColor!.Value.B);
+
+        // Row 10: after SGR 59 reset, the second half should have no underline color
+        // "Red text blue ul " then SGR 59 "red text default ul"
+        // Find the cell after reset — at position 18 ("red text default ul" starts there)
+        var resetCell = snapshot.GetCell(18, 10);
+        Assert.True(resetCell.IsUnderline);
+        Assert.Null(resetCell.UnderlineColor); // SGR 59 clears underline color
+
+        TestCaptureHelper.Capture(test.Terminal, "colored-underlines");
+    }
 }
