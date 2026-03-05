@@ -61,6 +61,27 @@ public record TerminalCapabilities
     public bool SupportsBracketedPaste { get; init; }
     
     /// <summary>
+    /// Whether the terminal supports retroactive variation selector width changes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When true, VS15 (U+FE0E) arriving after a wide emoji retroactively shrinks
+    /// it to 1 cell, and VS16 (U+FE0F) arriving after a narrow emoji widens it to 2 cells.
+    /// The cursor position is adjusted accordingly.
+    /// </para>
+    /// <para>
+    /// Modern terminals (Ghostty, Kitty, WezTerm, iTerm2) support this behavior.
+    /// Legacy terminals (xterm, Alacritty, macOS Terminal) do not — VS15/VS16 only
+    /// affect the glyph appearance, not the column width.
+    /// </para>
+    /// <para>
+    /// Default is true to match modern terminal behavior. Set to false for legacy
+    /// terminal compatibility.
+    /// </para>
+    /// </remarks>
+    public bool SupportsRetroactiveVariationSelectors { get; init; } = true;
+    
+    /// <summary>
     /// Width of a terminal character cell in pixels.
     /// Used for Sixel graphics scaling. Default is 10 pixels.
     /// </summary>
@@ -127,5 +148,8 @@ public record TerminalCapabilities
     /// <summary>
     /// Minimal capabilities (dumb terminal).
     /// </summary>
-    public static TerminalCapabilities Minimal => new();
+    public static TerminalCapabilities Minimal => new()
+    {
+        SupportsRetroactiveVariationSelectors = false
+    };
 }

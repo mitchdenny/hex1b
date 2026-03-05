@@ -239,6 +239,12 @@ public static class AnsiTokenUtf8Serializer
                 WriteByte(writer, (byte)(pm.Enable ? 'h' : 'l'));
                 return;
 
+            case StandardModeToken sm:
+                WriteEscLeftBracket(writer);
+                WriteInt(writer, sm.Mode);
+                WriteByte(writer, (byte)(sm.Enable ? 'h' : 'l'));
+                return;
+
             case OscToken osc:
                 WriteOsc(writer, osc);
                 return;

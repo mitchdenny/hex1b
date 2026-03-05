@@ -72,6 +72,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _cursorY;
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
+    private Hex1bColor? _currentUnderlineColor;
+    private UnderlineStyle _currentUnderlineStyle;
     private CellAttributes _currentAttributes;
     private TrackedObject<HyperlinkData>? _currentHyperlink; // Active hyperlink from OSC 8
     private bool _disposed;
@@ -85,6 +87,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
     private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
+    private bool _savedPendingWrap; // Saved pending wrap state for DECSC/DECRC
+    private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
     
@@ -104,6 +108,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _marginRight; // Right margin (width-1 = last column), initialized in constructor
     private bool _declrmm; // DECLRMM mode (mode 69): when true, CSI s sets left/right margins instead of saving cursor
     
+    // Tab stops: a boolean array where true means a tab stop is set at that column.
+    // Initialized with default tab stops every 8 columns.
+    private bool[] _tabStops = Array.Empty<bool>();
+    
     // Deferred wrap (standard terminal behavior): when writing to the last column,
     // wrap is deferred until the next printable character. CR/LF clear the pending wrap.
     private bool _pendingWrap;
@@ -118,8 +126,67 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // When false (default), cursor positions are absolute (relative to full screen).
     private bool _originMode = false;
     
+    // Insert/Replace Mode (IRM, ECMA-48 mode 4): when true, printing inserts characters
+    // (shifting existing content right) instead of overwriting.
+    private bool _insertMode = false;
+    
+    // Auto-wrap mode (DECAWM, DEC private mode 7): when true, cursor wraps to next line
+    // when writing past the right margin. Default is true (on).
+    private bool _wraparoundMode = true;
+    
+    // Reverse wrap mode (DEC private mode 45): when true, cursor can wrap backwards
+    // to the end of the previous line when moving left past column 0, but only if
+    // the previous line was soft-wrapped. Default is false (off).
+    private bool _reverseWrapMode = false;
+    
+    // Extended reverse wrap mode (xterm private mode 1045): like reverse wrap but
+    // also wraps across hard line boundaries, and wraps from top to bottom.
+    // Takes priority over mode 45 when both are set. Default is false (off).
+    private bool _reverseWrapExtendedMode = false;
+    
+    // Grapheme clustering mode (mode 2027): when true, multi-codepoint grapheme
+    // clusters (like ZWJ emoji sequences, Devanagari ligatures) are combined into
+    // single cells. When false, each codepoint is treated individually.
+    // Default is true — Hex1b always clusters graphemes like modern terminals.
+    // Applications can disable with CSI ? 2027 l for per-codepoint handling.
+    private bool _graphemeClusterMode = true;
+    
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
+    private bool _hasLastPrintedCell = false;
+    
+    // Position and width of last printed character for retroactive VS15/VS16 handling
+    private int _lastPrintedCellX = 0;
+    private int _lastPrintedCellY = 0;
+    private int _lastPrintedCellWidth = 0;
+    
+    // When true, the last printed cell ends with a ZWJ (U+200D) or combining mark,
+    // meaning the next emoji/character should combine with it rather than printing
+    // in a new cell. Used for building ZWJ sequences across separate Feed() calls.
+    private bool _pendingGraphemeCombine = false;
+    
+    // DECSCA character protection mode. Tracks whether newly printed characters
+    
+    // Character set designation (VT100/VT220):
+    // G0-G3 are the four character set slots. Each can be designated as ASCII ('B'),
+    // DEC special graphics ('0'), or other charsets.
+    // GL (Graphics Left) is the active character set for normal printing.
+    // SO (0x0E) invokes G1 into GL, SI (0x0F) invokes G0 into GL.
+    private char _charsetG0 = 'B'; // G0 = ASCII by default
+    private char _charsetG1 = 'B'; // G1 = ASCII by default
+    private char _charsetG2 = 'B'; // G2 = ASCII by default
+    private char _charsetG3 = 'B'; // G3 = ASCII by default
+    private int _activeCharsetSlot = 0; // Which Gn is active in GL (0=G0, 1=G1, etc.)
+    // are marked as protected (immune to selective erase DECSED/DECSEL).
+    // _protectedMode tracks the MOST RECENT protection mode set (iso or dec) and
+    // is never reset to Off — this is intentional: erase operations need to know
+    // the most recent mode to decide whether ISO protection applies.
+    // _cursorProtected tracks whether the cursor is currently in protected mode.
+    private ProtectedMode _protectedMode = ProtectedMode.Off;
+    private bool _cursorProtected = false;
+    
+    /// <summary>Gets whether the cursor is currently in protected mode (for testing).</summary>
+    internal bool CursorProtected => _cursorProtected;
     
     // Terminal title (OSC 0/2) and icon name (OSC 0/1)
     // OSC 0 sets both, OSC 1 sets icon only, OSC 2 sets title only
@@ -193,6 +260,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _screenBuffer = new TerminalCell[_height, _width];
         _scrollBottom = _height - 1; // Default scroll region is full screen
         _marginRight = _width - 1; // Default left/right margins are full screen
+        InitializeTabStops();
         
         ClearBuffer();
 
@@ -1307,6 +1375,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    /// <summary>Gets whether the terminal has a pending wrap (for testing).</summary>
+    internal bool PendingWrap => _pendingWrap;
+
     /// <summary>
     /// The scrollback buffer, if one was configured via <see cref="Hex1bTerminalOptions.ScrollbackCapacity"/>.
     /// </summary>
@@ -1857,17 +1928,35 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         return false;
     }
 
-    private void ClearBuffer(List<CellImpact>? impacts = null)
+    /// <summary>
+    /// Creates a blank cell for erase operations, preserving the current background color per ECMA-48.
+    /// </summary>
+    private TerminalCell CreateEraseCell()
     {
+        if (_currentBackground is null)
+            return TerminalCell.Empty;
+        return new TerminalCell(" ", null, _currentBackground, CellAttributes.None, 0, default);
+    }
+
+    private void ClearBuffer(bool respectProtection = false, List<CellImpact>? impacts = null)
+    {
+        var eraseCell = CreateEraseCell();
         for (int y = 0; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
+                SetCell(y, x, eraseCell, impacts);
             }
         }
-        _currentForeground = null;
-        _currentBackground = null;
+        if (!respectProtection)
+        {
+            _currentForeground = null;
+            _currentBackground = null;
+            _currentUnderlineColor = null;
+            _currentUnderlineStyle = UnderlineStyle.None;
+        }
     }
     
     /// <summary>
@@ -1888,6 +1977,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         _currentForeground = null;
         _currentBackground = null;
+        _currentUnderlineColor = null;
+        _currentUnderlineStyle = UnderlineStyle.None;
     }
 
     /// <summary>
@@ -1983,7 +2074,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Origin mode: positions are relative to scroll region
                     _cursorY = Math.Clamp(_scrollTop + cursorToken.Row - 1, _scrollTop, _scrollBottom);
-                    _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
+                    // When DECLRMM is enabled, column is relative to left margin
+                    if (_declrmm)
+                        _cursorX = Math.Clamp(_marginLeft + cursorToken.Column - 1, _marginLeft, _marginRight);
+                    else
+                        _cursorX = Math.Clamp(cursorToken.Column - 1, 0, _width - 1);
                 }
                 else
                 {
@@ -1996,15 +2091,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
                 
             case ClearScreenToken clearToken:
-                ApplyClearScreen(clearToken.Mode, impacts);
+                ApplyClearScreen(clearToken.Mode, clearToken.Selective, impacts);
                 break;
                 
             case ClearLineToken clearLineToken:
-                ApplyClearLine(clearLineToken.Mode, impacts);
+                ApplyClearLine(clearLineToken.Mode, clearLineToken.Selective, impacts);
                 break;
                 
             case PrivateModeToken privateModeToken:
-                if (privateModeToken.Mode == 1049)
+                if (privateModeToken.Mode == 1049 || privateModeToken.Mode == 47 || privateModeToken.Mode == 1047)
                 {
                     if (privateModeToken.Enable)
                         DoEnterAlternateScreen(impacts);
@@ -2031,6 +2126,43 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _marginRight = _width - 1;
                     }
                 }
+                else if (privateModeToken.Mode == 7)
+                {
+                    // DECAWM - Auto-wrap Mode
+                    _wraparoundMode = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 45)
+                {
+                    // Reverse Wraparound Mode — cursor can wrap backwards past column 0
+                    // to the end of the previous line (only if soft-wrapped)
+                    _reverseWrapMode = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1045)
+                {
+                    // Extended Reverse Wraparound Mode (xterm XTREVWRAP2) — like mode 45
+                    // but wraps across hard line boundaries and wraps from top to bottom
+                    _reverseWrapExtendedMode = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 2027)
+                {
+                    // Grapheme cluster mode — when enabled, multi-codepoint graphemes
+                    // (ZWJ sequences, Devanagari ligatures) are combined into single cells.
+                    // When disabled, each codepoint is treated individually.
+                    _graphemeClusterMode = privateModeToken.Enable;
+                }
+                break;
+            
+            case StandardModeToken stdModeToken:
+                if (stdModeToken.Mode == 4)
+                {
+                    // IRM - Insert/Replace Mode
+                    _insertMode = stdModeToken.Enable;
+                }
+                else if (stdModeToken.Mode == 20)
+                {
+                    // LNM - Linefeed/New Line Mode
+                    _newlineMode = stdModeToken.Enable;
+                }
                 break;
             
             case LeftRightMarginToken lrmToken:
@@ -2038,17 +2170,25 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Only effective when DECLRMM (mode 69) is enabled
                 if (_declrmm)
                 {
-                    if (lrmToken.Right == 0)
+                    // 0 means "use default" — left=1, right=cols
+                    var left = lrmToken.Left <= 0 ? 1 : lrmToken.Left;
+                    var right = lrmToken.Right <= 0 ? _width : lrmToken.Right;
+                    
+                    var newLeft = Math.Clamp(left - 1, 0, _width - 1);
+                    var newRight = Math.Clamp(right - 1, newLeft, _width - 1);
+                    
+                    // If left >= right (after clamping), reset to full width
+                    if (newLeft >= newRight)
                     {
-                        // Reset to full screen width
                         _marginLeft = 0;
                         _marginRight = _width - 1;
                     }
                     else
                     {
-                        _marginLeft = Math.Clamp(lrmToken.Left - 1, 0, _width - 1);
-                        _marginRight = Math.Clamp(lrmToken.Right - 1, _marginLeft, _width - 1);
+                        _marginLeft = newLeft;
+                        _marginRight = newRight;
                     }
+                    
                     // DECSLRM also moves cursor to home position
                     _pendingWrap = false;
                     _cursorX = _marginLeft;
@@ -2067,16 +2207,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case ScrollRegionToken scrollRegionToken:
                 // Store scroll region for future scroll operations (DECSTBM)
                 // Top and Bottom are 1-based; we store as 0-based
-                if (scrollRegionToken.Bottom == 0)
+                // When bottom is 0 or omitted, default to last row
+                var sTop = scrollRegionToken.Top <= 0 ? 1 : scrollRegionToken.Top;
+                var sBottom = scrollRegionToken.Bottom <= 0 ? _height : scrollRegionToken.Bottom;
+                
+                if (sTop >= sBottom)
                 {
-                    // Reset to full screen
+                    // Equal or inverted margins = reset to full screen
                     _scrollTop = 0;
                     _scrollBottom = _height - 1;
                 }
                 else
                 {
-                    _scrollTop = Math.Clamp(scrollRegionToken.Top - 1, 0, _height - 1);
-                    _scrollBottom = Math.Clamp(scrollRegionToken.Bottom - 1, _scrollTop, _height - 1);
+                    _scrollTop = Math.Clamp(sTop - 1, 0, _height - 1);
+                    _scrollBottom = Math.Clamp(sBottom - 1, _scrollTop, _height - 1);
                 }
                 // DECSTBM also moves cursor to home position (1,1)
                 _pendingWrap = false; // Cursor movement clears pending wrap
@@ -2087,6 +2231,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case SaveCursorToken:
                 _savedCursorX = _cursorX;
                 _savedCursorY = _cursorY;
+                _savedPendingWrap = _pendingWrap;
+                _savedCursorProtected = _cursorProtected;
                 _cursorSaved = true;
                 break;
                 
@@ -2094,9 +2240,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // Only restore if cursor was previously saved (matches GNOME Terminal behavior)
                 if (_cursorSaved)
                 {
-                    _pendingWrap = false; // Cursor restore clears pending wrap
+                    _pendingWrap = _savedPendingWrap;
                     _cursorX = _savedCursorX;
                     _cursorY = _savedCursorY;
+                    _cursorProtected = _savedCursorProtected;
                 }
                 break;
                 
@@ -2144,6 +2291,78 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 DeleteLines(deleteLinesToken.Count, impacts);
                 break;
                 
+            case RisToken:
+                // RIS (ESC c): Full terminal reset — clear screen, reset all state
+                _scrollTop = 0;
+                _scrollBottom = _height - 1;
+                _marginLeft = 0;
+                _marginRight = _width - 1;
+                _declrmm = false;
+                _cursorX = 0;
+                _cursorY = 0;
+                _pendingWrap = false;
+                _originMode = false;
+                _insertMode = false;
+                _newlineMode = false;
+                _savedCursorX = 0;
+                _savedCursorY = 0;
+                _savedPendingWrap = false;
+                _savedCursorProtected = false;
+                _cursorSaved = false;
+                _cursorProtected = false;
+                _protectedMode = ProtectedMode.Off;
+                _currentForeground = null;
+                _currentBackground = null;
+                _currentAttributes = CellAttributes.None;
+                _currentUnderlineColor = null;
+                _currentUnderlineStyle = UnderlineStyle.None;
+                _lastPrintedCell = TerminalCell.Empty;
+                _hasLastPrintedCell = false;
+                _lastPrintedCellX = 0;
+                _lastPrintedCellY = 0;
+                _lastPrintedCellWidth = 0;
+                _pendingGraphemeCombine = false;
+                _wraparoundMode = true;
+                _reverseWrapMode = false;
+                _reverseWrapExtendedMode = false;
+                _graphemeClusterMode = true;
+                _currentHyperlink?.Release();
+                _currentHyperlink = null;
+                _charsetG0 = 'B';
+                _charsetG1 = 'B';
+                _charsetG2 = 'B';
+                _charsetG3 = 'B';
+                _activeCharsetSlot = 0;
+                InitializeTabStops();
+                // Clear screen
+                for (int row = 0; row < _height; row++)
+                {
+                    for (int col = 0; col < _width; col++)
+                    {
+                        SetCell(row, col, TerminalCell.Empty, impacts);
+                    }
+                }
+                break;
+                
+            case DecalnToken:
+                // DECALN: Fill entire screen with 'E', reset margins and cursor
+                _scrollTop = 0;
+                _scrollBottom = _height - 1;
+                _marginLeft = 0;
+                _marginRight = _width - 1;
+                _cursorX = 0;
+                _cursorY = 0;
+                _pendingWrap = false;
+                for (int row = 0; row < _height; row++)
+                {
+                    for (int col = 0; col < _width; col++)
+                    {
+                        var cell = TerminalCell.Empty with { Character = "E" };
+                        SetCell(row, col, cell, impacts);
+                    }
+                }
+                break;
+                
             case DeleteCharacterToken deleteCharToken:
                 DeleteCharacters(deleteCharToken.Count, impacts);
                 break;
@@ -2156,29 +2375,67 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 EraseCharacters(eraseCharToken.Count, impacts);
                 break;
                 
+            case DecscaToken decscaToken:
+                ApplyDecsca(decscaToken.Mode);
+                break;
+                
             case RepeatCharacterToken repeatToken:
                 RepeatLastCharacter(repeatToken.Count, impacts);
                 break;
                 
+            case BackTabToken:
+                // CBT (CSI Z): Back tab — move cursor to previous tab stop.
+                // When DECLRMM is enabled and cursor is at or right of the left margin,
+                // CBT clamps to the left margin instead of column 0.
+                _pendingWrap = false;
+                if (_cursorX > 0)
+                {
+                    int cbtLeftEdge = (_declrmm && _cursorX >= _marginLeft) ? _marginLeft : 0;
+                    _cursorX = PrevTabStop(_cursorX, cbtLeftEdge);
+                }
+                break;
+                
             case IndexToken:
                 // Move cursor down one line, scroll if at bottom of scroll region
-                if (_cursorY >= _scrollBottom)
-                    ScrollUp(impacts);
-                else
+                if (_cursorY == _scrollBottom)
+                {
+                    // At bottom of scroll region — scroll if within L/R margins (or no L/R margins)
+                    if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
+                        ScrollUp(impacts);
+                    // else: cursor stays put (stuck at scroll bottom, outside L/R margin)
+                }
+                else if (_cursorY < _height - 1)
+                {
                     _cursorY++;
+                }
                 break;
                 
             case ReverseIndexToken:
                 // Move cursor up one line, scroll if at top of scroll region
-                if (_cursorY <= _scrollTop)
-                    ScrollDown(impacts);
-                else
+                if (_cursorY == _scrollTop)
+                {
+                    // At top of scroll region — scroll down if within L/R margins (or no L/R margins)
+                    if (!_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight))
+                        ScrollDown(impacts);
+                    // else: cursor stays put (stuck at scroll top, outside L/R margin)
+                }
+                else if (_cursorY > 0)
+                {
                     _cursorY--;
+                }
                 break;
             
-            case CharacterSetToken:
-                // Character set selection - we pass through to presentation
-                // but don't need to track state for buffer purposes
+            case CharacterSetToken csToken:
+                // Designate a character set to one of the G0-G3 slots.
+                // ESC ( X → G0, ESC ) X → G1, ESC * X → G2, ESC + X → G3
+                // X = 'B' for ASCII/UTF-8, '0' for DEC special graphics
+                switch (csToken.Target)
+                {
+                    case 0: _charsetG0 = csToken.Charset; break;
+                    case 1: _charsetG1 = csToken.Charset; break;
+                    case 2: _charsetG2 = csToken.Charset; break;
+                    case 3: _charsetG3 = csToken.Charset; break;
+                }
                 break;
             
             case KeypadModeToken:
@@ -2187,6 +2444,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case UnrecognizedSequenceToken:
                 // Ignore unrecognized sequences
+                break;
+                
+            case TabClearToken tabClear:
+                // TBC (CSI Ps g): Tab Clear
+                if (tabClear.Mode == 0)
+                {
+                    // Clear tab stop at current cursor position
+                    if (_cursorX < _tabStops.Length)
+                        _tabStops[_cursorX] = false;
+                }
+                else if (tabClear.Mode == 3)
+                {
+                    // Clear all tab stops
+                    Array.Clear(_tabStops);
+                }
                 break;
                 
             case DeviceStatusReportToken dsr:
@@ -2231,24 +2503,224 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         while (i < text.Length)
         {
-            var grapheme = GetGraphemeAt(text, i);
+            string grapheme;
+            if (_graphemeClusterMode)
+            {
+                grapheme = GetGraphemeAt(text, i);
+            }
+            else
+            {
+                // Mode 2027 disabled: process one rune at a time instead of
+                // clustering graphemes. Each codepoint is treated individually.
+                var rune = Rune.GetRuneAt(text, i);
+                grapheme = rune.ToString();
+            }
+            
+            // Apply character set mapping (DEC special graphics, etc.)
+            // Only applies to single ASCII characters; multi-byte/emoji pass through.
+            var activeCharset = GetActiveCharset();
+            if (activeCharset == '0' && grapheme.Length == 1 && grapheme[0] >= 0x60 && grapheme[0] <= 0x7E)
+            {
+                grapheme = MapDecSpecialGraphics(grapheme[0]).ToString();
+            }
+            
             var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            
+            // Apply mode 2027 multi-codepoint width adjustment
+            graphemeWidth = AdjustGraphemeWidth(grapheme, graphemeWidth);
+            
+            // Retroactive variation selector handling:
+            // When VS15 (U+FE0E) or VS16 (U+FE0F) arrives as a standalone character
+            // (not part of the same grapheme cluster as the base), modern terminals
+            // retroactively modify the width of the previously printed character.
+            // VS15 forces text presentation (narrow/1-cell), VS16 forces emoji
+            // presentation (wide/2-cell). This matches Ghostty, Kitty, WezTerm, iTerm2.
+            // Legacy terminals (xterm, Alacritty) only change the glyph, not the width.
+            if (graphemeWidth == 0 && grapheme.Length <= 2 && _hasLastPrintedCell
+                && Capabilities.SupportsRetroactiveVariationSelectors)
+            {
+                var cp = grapheme.EnumerateRunes().First().Value;
+                if (cp == 0xFE0E || cp == 0xFE0F)
+                {
+                    ApplyRetroactiveVariationSelector(cp, impacts);
+                    i += grapheme.Length;
+                    continue;
+                }
+            }
+            
+            // Zero-width characters (combining marks, ZWJ) that aren't VS:
+            // Retroactively combine with the previously printed cell by appending
+            // to its grapheme content. This handles ZWJ sequences sent as separate
+            // Feed() calls and combining marks arriving after the base character.
+            if (graphemeWidth == 0 && _hasLastPrintedCell && grapheme.Length >= 1)
+            {
+                var cp = grapheme.EnumerateRunes().First().Value;
+                // Don't re-handle VS (already handled above)
+                if (cp != 0xFE0E && cp != 0xFE0F)
+                {
+                    int cellX = _lastPrintedCellX;
+                    int cellY = _lastPrintedCellY;
+                    if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                    {
+                        ref var cell = ref _screenBuffer[cellY, cellX];
+                        if (!string.IsNullOrEmpty(cell.Character))
+                        {
+                            var newContent = cell.Character + grapheme;
+                            int newWidth = DisplayWidth.GetGraphemeWidth(newContent);
+                            
+                            if (newWidth > _lastPrintedCellWidth)
+                            {
+                                cell = cell with { Character = newContent };
+                                for (int w = _lastPrintedCellWidth; w < newWidth && cellX + w < _width; w++)
+                                {
+                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                                    contCell = contCell with { Character = "" };
+                                }
+                                _cursorX = Math.Min(cellX + newWidth, _width - 1);
+                                if (cellX + newWidth > _width)
+                                    _pendingWrap = true;
+                                _lastPrintedCellWidth = newWidth;
+                                _lastPrintedCell = cell;
+                            }
+                            else
+                            {
+                                cell = cell with { Character = newContent };
+                                _lastPrintedCell = cell;
+                            }
+                            
+                            // If a ZWJ was appended, the next printable character should
+                            // also combine with this cell (building a ZWJ sequence).
+                            _pendingGraphemeCombine = (cp == 0x200D);
+                        }
+                    }
+                    i += grapheme.Length;
+                    continue;
+                }
+            }
+            
+            // If the previous cell ended with a ZWJ and mode 2027 is enabled,
+            // combine the next printable character with it instead of printing new.
+            // This builds ZWJ sequences like 👩‍👦 across separate Feed() calls.
+            if (_pendingGraphemeCombine && _graphemeClusterMode && _hasLastPrintedCell)
+            {
+                _pendingGraphemeCombine = false;
+                int cellX = _lastPrintedCellX;
+                int cellY = _lastPrintedCellY;
+                if (cellY >= 0 && cellY < _height && cellX >= 0 && cellX < _width)
+                {
+                    ref var cell = ref _screenBuffer[cellY, cellX];
+                    if (!string.IsNullOrEmpty(cell.Character))
+                    {
+                        var newContent = cell.Character + grapheme;
+                        int newWidth = DisplayWidth.GetGraphemeWidth(newContent);
+                        
+                        // Apply mode 2027 multi-codepoint width adjustment
+                        newWidth = AdjustGraphemeWidth(newContent, newWidth);
+                        
+                        int oldWidth = _lastPrintedCellWidth;
+                        
+                        // Handle width changes
+                        if (newWidth > oldWidth && cellX + newWidth > _width)
+                        {
+                            // Wide char doesn't fit at current position → wrap to next line
+                            // Clear the original cell first
+                            cell = cell with { Character = " " };
+                            
+                            if (_wraparoundMode)
+                            {
+                                _pendingWrap = false; // Clear pending wrap from original print
+                                // Mark soft wrap
+                                int wrapCol = _declrmm ? _marginRight : _width - 1;
+                                ref var wrapCell2 = ref _screenBuffer[cellY, wrapCol];
+                                wrapCell2 = wrapCell2 with { Attributes = wrapCell2.Attributes | CellAttributes.SoftWrap };
+                                
+                                int newX = _declrmm ? _marginLeft : 0;
+                                int newY = cellY + 1;
+                                
+                                if (newY > _scrollBottom)
+                                {
+                                    ScrollUp(null);
+                                    newY = _scrollBottom;
+                                }
+                                
+                                // Print the combined wide char on the new line
+                                ref var newCell = ref _screenBuffer[newY, newX];
+                                newCell = newCell with { Character = newContent };
+                                
+                                // Add continuation cell
+                                if (newX + 1 < _width)
+                                {
+                                    ref var contCell2 = ref _screenBuffer[newY, newX + 1];
+                                    contCell2 = contCell2 with { Character = "" };
+                                }
+                                
+                                _cursorX = Math.Min(newX + newWidth, _width - 1);
+                                _cursorY = newY;
+                                if (newX + newWidth >= _width)
+                                    _pendingWrap = true;
+                                _lastPrintedCellX = newX;
+                                _lastPrintedCellY = newY;
+                                _lastPrintedCellWidth = newWidth;
+                                _lastPrintedCell = newCell;
+                            }
+                            // else: no wraparound → discard (don't print)
+                        }
+                        else
+                        {
+                            // Update the cell with the combined grapheme
+                            cell = cell with { Character = newContent };
+                            
+                            if (newWidth > oldWidth)
+                            {
+                                for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
+                                {
+                                    ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                                    contCell = contCell with { Character = "" };
+                                }
+                            }
+                            
+                            _cursorX = Math.Min(cellX + newWidth, _width - 1);
+                            if (cellX + newWidth > _width)
+                                _pendingWrap = true;
+                            _lastPrintedCellWidth = newWidth;
+                            _lastPrintedCell = cell;
+                        }
+                        
+                        // Check if the combined content still ends with ZWJ
+                        var lastCombinedRune = newContent.EnumerateRunes().Last();
+                        _pendingGraphemeCombine = (lastCombinedRune.Value == 0x200D);
+                        
+                        i += grapheme.Length;
+                        continue;
+                    }
+                }
+            }
+            _pendingGraphemeCombine = false;
             
             // Deferred wrap: If a wrap was pending from a previous character, perform it now
             // This is standard VT100/xterm behavior - wrap only happens when the NEXT
             // printable character is written, not when cursor reaches the margin.
+            // Only wrap if wraparound mode is enabled (DECAWM, mode 7)
             if (_pendingWrap)
             {
-                _pendingWrap = false;
+                if (_wraparoundMode)
+                {
+                    _pendingWrap = false;
                 
-                // Mark the last cell of the row being left as a soft-wrap point.
-                int wrapCol = _declrmm ? _marginRight : _width - 1;
-                ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
-                wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
+                    // Mark the last cell of the row being left as a soft-wrap point.
+                    int wrapCol = _declrmm ? _marginRight : _width - 1;
+                    ref var wrapCell = ref _screenBuffer[_cursorY, wrapCol];
+                    wrapCell = wrapCell with { Attributes = wrapCell.Attributes | CellAttributes.SoftWrap };
                 
-                // When DECLRMM is enabled, wrap to left margin, not column 0
-                _cursorX = _declrmm ? _marginLeft : 0;
-                _cursorY++;
+                    // When DECLRMM is enabled, wrap to left margin, not column 0
+                    _cursorX = _declrmm ? _marginLeft : 0;
+                    _cursorY++;
+                }
+                else
+                {
+                    // Wraparound disabled: stay at the last column, overwrite it
+                    _pendingWrap = false;
+                }
             }
             
             // Scroll if cursor is past the bottom of the screen BEFORE writing
@@ -2259,29 +2731,128 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Determine effective right margin for wrapping
-            int effectiveRightMargin = _declrmm ? _marginRight : _width - 1;
+            // Only use margin boundary if cursor is within the L/R margin region
+            bool insideLRMargin = !_declrmm || (_cursorX >= _marginLeft && _cursorX <= _marginRight);
+            int effectiveRightMargin = (_declrmm && insideLRMargin) ? _marginRight : _width - 1;
+            int availableWidth = effectiveRightMargin - (_declrmm ? _marginLeft : 0) + 1;
+            
+            // Wide char that can never fit (terminal too narrow): per Ghostty behavior,
+            // the character is silently dropped and pending wrap is set so that the next
+            // printable character triggers a line wrap.
+            if (graphemeWidth > 1 && availableWidth < graphemeWidth)
+            {
+                _pendingWrap = true;
+                i += grapheme.Length;
+                continue;
+            }
+            
+            // Wide char at edge: if the character won't fit (needs 2+ cells but only 1 remains)
+            if (graphemeWidth > 1 && _cursorX + graphemeWidth - 1 > effectiveRightMargin && !_pendingWrap)
+            {
+                if (_wraparoundMode)
+                {
+                    if (_declrmm)
+                    {
+                        // DECLRMM margin wrap: no spacer head, no soft wrap flag.
+                        // Just move cursor to left margin on the next row.
+                        _cursorX = _marginLeft;
+                        _cursorY++;
+                        if (_cursorY >= _height)
+                        {
+                            ScrollUp(impacts);
+                            _cursorY = _height - 1;
+                        }
+                    }
+                    else
+                    {
+                        // Screen-edge wrap: mark right edge as spacer head with soft wrap.
+                        ref var spacerCell = ref _screenBuffer[_cursorY, effectiveRightMargin];
+                        spacerCell = spacerCell with
+                        {
+                            Character = " ",
+                            TrackedHyperlink = _currentHyperlink,
+                            Attributes = spacerCell.Attributes | CellAttributes.SoftWrap
+                        };
+                        _currentHyperlink?.AddRef();
+                        
+                        _cursorX = 0;
+                        _cursorY++;
+                        if (_cursorY >= _height)
+                        {
+                            ScrollUp(impacts);
+                            _cursorY = _height - 1;
+                        }
+                    }
+                }
+                else
+                {
+                    // Wraparound disabled and wide char doesn't fit — skip it
+                    i += grapheme.Length;
+                    continue;
+                }
+            }
             
             if (_cursorX < _width && _cursorY < _height)
             {
+                // IRM (Insert Mode): shift existing characters right before placing new one
+                if (_insertMode)
+                {
+                    InsertCharacters(graphemeWidth, impacts);
+                }
+                
                 var sequence = ++_writeSequence;
                 var writtenAt = _timeProvider.GetUtcNow();
                 
+                // If overwriting a continuation cell (tail of a wide char), clear the leading cell
+                if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+                {
+                    ref var leadingCell = ref _screenBuffer[_cursorY, _cursorX - 1];
+                    if (leadingCell.Character.Length > 0 && leadingCell.Character != " ")
+                    {
+                        leadingCell.TrackedSixel?.Release();
+                        leadingCell.TrackedHyperlink?.Release();
+                        leadingCell = TerminalCell.Empty;
+                    }
+                }
+                
+                // If overwriting the leading cell of a wide char, clear the continuation cell
+                if (_cursorX + 1 < _width && graphemeWidth == 1)
+                {
+                    ref var nextCell = ref _screenBuffer[_cursorY, _cursorX + 1];
+                    if (nextCell.Character == "" && _screenBuffer[_cursorY, _cursorX].Character.Length > 0
+                        && DisplayWidth.GetGraphemeWidth(_screenBuffer[_cursorY, _cursorX].Character) > 1)
+                    {
+                        nextCell.TrackedSixel?.Release();
+                        nextCell.TrackedHyperlink?.Release();
+                        nextCell = TerminalCell.Empty;
+                    }
+                }
+                
                 _currentHyperlink?.AddRef();
                 
+                var effectiveAttributes = _cursorProtected
+                    ? _currentAttributes | CellAttributes.Protected
+                    : _currentAttributes;
                 var cell = new TerminalCell(
-                    grapheme, _currentForeground, _currentBackground, _currentAttributes,
-                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink);
+                    grapheme, _currentForeground, _currentBackground, effectiveAttributes,
+                    sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                    _currentUnderlineColor, _currentUnderlineStyle);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
-                // Save last printed cell for CSI b (REP) command
+                // Save last printed cell for CSI b (REP) command and VS15/VS16 handling
                 _lastPrintedCell = cell;
+                _hasLastPrintedCell = true;
+                _lastPrintedCellX = _cursorX;
+                _lastPrintedCellY = _cursorY;
+                _lastPrintedCellWidth = graphemeWidth;
                 
                 for (int w = 1; w < graphemeWidth && _cursorX + w < _width; w++)
                 {
                     _currentHyperlink?.AddRef();
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _currentForeground, _currentBackground, _currentAttributes,
-                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink), impacts);
+                        sequence, writtenAt, TrackedSixel: null, _currentHyperlink,
+                        _currentUnderlineColor, _currentUnderlineStyle), impacts);
                 }
                 
                 _cursorX += graphemeWidth;
@@ -2294,9 +2865,289 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _cursorX = effectiveRightMargin; // Cursor stays at last column within margin
                     _pendingWrap = true;
                 }
+                
+                // If grapheme ends with ZWJ and mode 2027 is on, the next character
+                // should combine with this cell (building ZWJ/Devanagari sequences).
+                if (_graphemeClusterMode && grapheme.Length > 0)
+                {
+                    var lastRune = grapheme.EnumerateRunes().Last();
+                    _pendingGraphemeCombine = (lastRune.Value == 0x200D);
+                }
             }
             i += grapheme.Length;
         }
+    }
+
+    /// <summary>
+    /// Adjusts grapheme width for mode 2027 multi-codepoint clusters.
+    /// When grapheme clustering is enabled and a grapheme has multiple visible
+    /// codepoints with a total width > 1 (e.g., Devanagari ligatures like क्‍ष),
+    /// the grapheme is treated as wide (2 cells). This matches Ghostty behavior
+    /// for Indic scripts and other complex scripts.
+    /// </summary>
+    private int AdjustGraphemeWidth(string grapheme, int baseWidth)
+    {
+        if (!_graphemeClusterMode || baseWidth != 1)
+            return baseWidth;
+        
+        int runeCount = 0;
+        int totalVisibleWidth = 0;
+        foreach (var rune in grapheme.EnumerateRunes())
+        {
+            runeCount++;
+            int runeWidth = DisplayWidth.GetRuneWidth(rune);
+            if (runeWidth > 0)
+                totalVisibleWidth += runeWidth;
+        }
+        
+        if (runeCount > 1 && totalVisibleWidth > 1)
+            return 2;
+        
+        return baseWidth;
+    }
+    
+    /// <summary>
+    /// Retroactively applies VS15 (U+FE0E) or VS16 (U+FE0F) to the last printed cell.
+    /// VS15 forces text presentation (1 cell wide), VS16 forces emoji presentation (2 cells wide).
+    /// When the width changes, the cursor position and screen buffer are adjusted.
+    /// </summary>
+    private void ApplyRetroactiveVariationSelector(int selectorCodepoint, List<CellImpact>? impacts)
+    {
+        int cellX = _lastPrintedCellX;
+        int cellY = _lastPrintedCellY;
+        int oldWidth = _lastPrintedCellWidth;
+        
+        // Validate the cell is still on screen
+        if (cellY < 0 || cellY >= _height || cellX < 0 || cellX >= _width)
+            return;
+        
+        ref var cell = ref _screenBuffer[cellY, cellX];
+        if (string.IsNullOrEmpty(cell.Character))
+            return;
+        
+        // Check if the base character is a valid target for this variation selector.
+        // VS16 (emoji presentation) should only be applied to characters with the
+        // Unicode Emoji property. VS15 (text presentation) should only be applied to
+        // characters that have a text/emoji presentation variant.
+        // Non-emoji characters like 'x', 'n', etc. should completely ignore VS16.
+        // This matches Ghostty, kitty, and WezTerm behavior.
+        var baseRune = cell.Character.EnumerateRunes().FirstOrDefault();
+        if (selectorCodepoint == 0xFE0F) // VS16
+        {
+            if (!DisplayWidth.HasEmojiProperty(baseRune.Value) && !DisplayWidth.IsSmpEmoji(baseRune.Value))
+                return; // Not an emoji base — ignore VS16
+        }
+        
+        // Compute the new grapheme by appending the variation selector
+        var vs = char.ConvertFromUtf32(selectorCodepoint);
+        var newGrapheme = cell.Character + vs;
+        int newWidth = DisplayWidth.GetGraphemeWidth(newGrapheme);
+        
+        if (newWidth == oldWidth)
+        {
+            // Width unchanged — the variation selector has no visible effect.
+            // Don't modify the cell content. For example, VS15 on always-wide
+            // SMP emoji (like 🧠) or VS16 on already-wide emoji should be
+            // silently discarded. This matches Ghostty behavior.
+            return;
+        }
+        
+        if (newWidth < oldWidth)
+        {
+            // Shrinking (VS15: wide → narrow). Clear the continuation cell(s) and
+            // move the cursor back.
+            cell = cell with { Character = newGrapheme };
+            
+            // Clear continuation cells
+            for (int w = newWidth; w < oldWidth && cellX + w < _width; w++)
+            {
+                _screenBuffer[cellY, cellX + w] = TerminalCell.Empty;
+            }
+            
+            // Adjust cursor: move back by the difference in width
+            _cursorX = cellX + newWidth;
+            
+            // If pending wrap was set because the wide char hit the margin,
+            // it should be cleared since the narrow char no longer fills it
+            if (_pendingWrap)
+                _pendingWrap = false;
+        }
+        else
+        {
+            // Widening (VS16: narrow → wide). Need to check if there's room.
+            // If the cell is at the right edge, wrap to the next line — the wide
+            // char can't fit in the remaining space. Replace the current position
+            // with a spacer and print the wide char at the start of the next line.
+            // This matches Ghostty behavior for VS16 widening at margins.
+            if (cellX + newWidth > _width)
+            {
+                if (!_wraparoundMode)
+                {
+                    // Wraparound disabled — can't widen beyond the right margin.
+                    // Discard the VS and keep the cell unchanged.
+                    return;
+                }
+                
+                // Widening (VS16: narrow → wide) with wrap. The wide char can't fit
+                // in the remaining space. Replace the current position with a spacer
+                // and print the wide char at the start of the next line.
+                // This matches Ghostty behavior for VS16 widening at margins.
+                
+                // Clear the cell at the current position (spacer/blank)
+                cell = TerminalCell.Empty;
+                
+                // Move to start of next line (scroll if needed)
+                int newRow = cellY + 1;
+                int scrollBottom = _scrollBottom;
+                if (newRow > scrollBottom)
+                {
+                    ScrollUp(null);
+                    newRow = scrollBottom;
+                }
+                _cursorY = newRow;
+                _cursorX = 0;
+                
+                // Write the wide character at the new position
+                ref var newCell = ref _screenBuffer[_cursorY, 0];
+                newCell = newCell with { Character = newGrapheme };
+                
+                // Add continuation cell (empty string marks it as wide char tail)
+                if (_width > 1)
+                {
+                    ref var contCell = ref _screenBuffer[_cursorY, 1];
+                    contCell = contCell with { Character = "" };
+                }
+                
+                // Position cursor after the wide char
+                _cursorX = newWidth;
+                if (_cursorX > _width - 1)
+                {
+                    _cursorX = _width - 1;
+                    _pendingWrap = true;
+                }
+                
+                // Update tracking
+                _lastPrintedCellX = 0;
+                _lastPrintedCellY = _cursorY;
+                _lastPrintedCell = newCell;
+                _lastPrintedCellWidth = newWidth;
+                return;
+            }
+            
+            cell = cell with { Character = newGrapheme };
+            
+            // Add continuation cell(s) (empty string marks as wide char tail)
+            for (int w = oldWidth; w < newWidth && cellX + w < _width; w++)
+            {
+                ref var contCell = ref _screenBuffer[cellY, cellX + w];
+                contCell = contCell with { Character = "" };
+            }
+            
+            // Adjust cursor forward
+            _cursorX = cellX + newWidth;
+            if (_cursorX > _width - 1)
+            {
+                _cursorX = _width - 1;
+                _pendingWrap = true;
+            }
+        }
+        
+        // Update tracking
+        _lastPrintedCell = cell;
+        _lastPrintedCellWidth = newWidth;
+    }
+
+    /// <summary>
+    /// Applies DECSCA (Select Character Protection Attribute).
+    /// Mode 1 = protected, mode 0/2 = unprotected.
+    /// </summary>
+    private void ApplyDecsca(int mode)
+    {
+        switch (mode)
+        {
+            case 0:
+            case 2:
+                // Turn off protection. Note: _protectedMode is intentionally NOT
+                // reset to Off — erase operations need to know the most recent mode.
+                _cursorProtected = false;
+                break;
+            case 1:
+                _cursorProtected = true;
+                // DECSCA 1 sets DEC protection mode
+                _protectedMode = ProtectedMode.Dec;
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Sets the protected mode directly (used by conformance tests via escape sequences).
+    /// ISO mode is set via SPA (ESC V), DEC mode via DECSCA.
+    /// </summary>
+    internal void SetProtectedMode(ProtectedMode mode)
+    {
+        switch (mode)
+        {
+            case ProtectedMode.Off:
+                _cursorProtected = false;
+                // _protectedMode is never reset — this matches Ghostty behavior
+                break;
+            case ProtectedMode.Iso:
+                _cursorProtected = true;
+                _protectedMode = ProtectedMode.Iso;
+                break;
+            case ProtectedMode.Dec:
+                _cursorProtected = true;
+                _protectedMode = ProtectedMode.Dec;
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Checks if a cell at the given position has the Protected attribute.
+    /// </summary>
+    private bool IsProtectedCell(int row, int col)
+    {
+        return (_screenBuffer[row, col].Attributes & CellAttributes.Protected) != 0;
+    }
+
+    /// <summary>
+    /// Initializes tab stops at default positions (every 8 columns).
+    /// </summary>
+    private void InitializeTabStops()
+    {
+        _tabStops = new bool[_width];
+        for (int i = 0; i < _width; i++)
+        {
+            _tabStops[i] = (i % 8 == 0) && i > 0;
+        }
+    }
+
+    /// <summary>
+    /// Finds the next tab stop column after the current position.
+    /// Returns rightEdge if no tab stop is found.
+    /// </summary>
+    private int NextTabStop(int fromCol, int rightEdge)
+    {
+        for (int i = fromCol + 1; i <= rightEdge; i++)
+        {
+            if (i < _tabStops.Length && _tabStops[i])
+                return i;
+        }
+        return rightEdge;
+    }
+
+    /// <summary>
+    /// Finds the previous tab stop column before the current position.
+    /// Returns leftEdge if no tab stop is found.
+    /// </summary>
+    private int PrevTabStop(int fromCol, int leftEdge)
+    {
+        for (int i = fromCol - 1; i >= leftEdge; i--)
+        {
+            if (i < _tabStops.Length && _tabStops[i])
+                return i;
+        }
+        return leftEdge;
     }
 
     private void ApplyControlCharacter(ControlCharacterToken token, List<CellImpact>? impacts)
@@ -2331,47 +3182,75 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case '\r':
                 // CR clears pending wrap - moving to left margin cancels any pending wrap
                 _pendingWrap = false;
-                // When DECLRMM is enabled, CR moves to left margin, not column 0
-                _cursorX = _declrmm ? _marginLeft : 0;
+                // When DECLRMM is enabled and cursor is at or right of left margin,
+                // CR moves to left margin. If cursor is left of left margin, CR moves to col 0.
+                if (_declrmm && _cursorX >= _marginLeft)
+                    _cursorX = _marginLeft;
+                else
+                    _cursorX = 0;
                 break;
                 
             case '\t':
-                // Move to next tab stop (every 8 columns)
-                _cursorX = Math.Min((_cursorX / 8 + 1) * 8, _width - 1);
+                // HT: Move to next tab stop
+                // When DECLRMM is enabled and cursor is within margins, clamp to right margin
+                int tabRight = (_declrmm && _cursorX <= _marginRight) ? _marginRight : _width - 1;
+                _cursorX = NextTabStop(_cursorX, tabRight);
                 break;
                 
             case '\b':
                 // Backspace - move cursor left (non-destructive)
-                _pendingWrap = false;
-                if (_cursorX > 0)
-                {
-                    _cursorX--;
-                }
+                // Applies reverse wrap logic (same as CUB 1)
+                ApplyCursorLeftWithReverseWrap(1);
+                break;
+                
+            case '\x0E': // SO (Shift Out) — invoke G1 into GL
+                _activeCharsetSlot = 1;
+                break;
+                
+            case '\x0F': // SI (Shift In) — invoke G0 into GL
+                _activeCharsetSlot = 0;
                 break;
         }
     }
 
     private void ApplyCursorMove(CursorMoveToken token)
     {
-        // Any explicit cursor movement clears pending wrap
+        // CUB (Back) has its own pending wrap handling for reverse wrap
+        if (token.Direction == CursorMoveDirection.Back)
+        {
+            ApplyCursorLeftWithReverseWrap(token.Count);
+            return;
+        }
+        
+        // Any other explicit cursor movement clears pending wrap
         _pendingWrap = false;
         
         switch (token.Direction)
         {
             case CursorMoveDirection.Up:
-                _cursorY = Math.Max(0, _cursorY - token.Count);
+                // If cursor is within or at the top scroll margin, clamp to top margin
+                // If cursor is above the scroll region, clamp to row 0
+                if (_cursorY >= _scrollTop)
+                    _cursorY = Math.Max(_scrollTop, _cursorY - token.Count);
+                else
+                    _cursorY = Math.Max(0, _cursorY - token.Count);
                 break;
                 
             case CursorMoveDirection.Down:
-                _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
+                // If cursor is within or at the bottom scroll margin, clamp to bottom margin
+                // If cursor is below the scroll region, clamp to last row
+                if (_cursorY <= _scrollBottom)
+                    _cursorY = Math.Min(_scrollBottom, _cursorY + token.Count);
+                else
+                    _cursorY = Math.Min(_height - 1, _cursorY + token.Count);
                 break;
                 
             case CursorMoveDirection.Forward:
-                _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
-                break;
-                
-            case CursorMoveDirection.Back:
-                _cursorX = Math.Max(0, _cursorX - token.Count);
+                // If DECLRMM is enabled and cursor is within margin bounds, clamp to right margin
+                if (_declrmm && _cursorX <= _marginRight)
+                    _cursorX = Math.Min(_marginRight, _cursorX + token.Count);
+                else
+                    _cursorX = Math.Min(_width - 1, _cursorX + token.Count);
                 break;
                 
             case CursorMoveDirection.NextLine:
@@ -2385,20 +3264,122 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 break;
         }
     }
-
-    private void ApplyClearScreen(ClearMode mode, List<CellImpact>? impacts)
+    
+    /// <summary>
+    /// Moves cursor left with reverse wraparound support (modes 45 and 1045).
+    /// When reverse wrap is enabled and the cursor is at the left margin, the cursor
+    /// wraps to the right margin of the previous line. Mode 45 only wraps across
+    /// soft-wrapped lines; mode 1045 (extended) also wraps across hard breaks and
+    /// from the top row to the bottom row.
+    /// </summary>
+    private void ApplyCursorLeftWithReverseWrap(int count)
     {
+        // Determine wrap mode — both require DECAWM to be enabled
+        bool isExtended = _wraparoundMode && _reverseWrapExtendedMode;
+        bool isReverse = _wraparoundMode && _reverseWrapMode;
+        
+        if (!isExtended && !isReverse)
+        {
+            // No reverse wrap — simple left movement, clear pending wrap
+            _pendingWrap = false;
+            _cursorX = Math.Max(0, _cursorX - count);
+            return;
+        }
+        
+        // When pending wrap is set, decrement count by one to match xterm behavior.
+        // CUB 1 with pending wrap just clears the wrap flag without moving.
+        if (_pendingWrap)
+        {
+            count--;
+            _pendingWrap = false;
+        }
+        
+        if (count <= 0)
+            return;
+        
+        int leftMargin = (_cursorX < (_declrmm ? _marginLeft : 0)) ? 0 : (_declrmm ? _marginLeft : 0);
+        int rightMargin = _declrmm ? _marginRight : _width - 1;
+        int top = _scrollTop;
+        int bottom = _scrollBottom;
+        
+        // Pre-loop edge case: cursor is already at left margin
+        if (_cursorX == leftMargin)
+        {
+            if (!isExtended && _cursorY <= top)
+            {
+                // Mode 45: at/above scroll top → move to (leftMargin, top) and stop
+                _cursorX = leftMargin;
+                _cursorY = top;
+                return;
+            }
+        }
+        
+        while (count > 0)
+        {
+            int maxLeft = _cursorX - leftMargin;
+            int move = Math.Min(maxLeft, count);
+            _cursorX -= move;
+            count -= move;
+            
+            if (count == 0)
+                break;
+            
+            // At left margin with more to move — need to wrap up
+            if (_cursorY == top)
+            {
+                if (!isExtended)
+                {
+                    // Mode 45: stop at top of scroll region
+                    _cursorX = leftMargin;
+                    break;
+                }
+                
+                // Extended: wrap from top to bottom
+                _cursorX = rightMargin;
+                _cursorY = bottom;
+                count--;
+                continue;
+            }
+            
+            // Stop at absolute row 0 regardless of mode
+            if (_cursorY == 0)
+                break;
+            
+            if (!isExtended)
+            {
+                // Mode 45: only wrap across soft-wrapped lines
+                ref var lastCellPrevRow = ref _screenBuffer[_cursorY - 1, rightMargin];
+                if ((lastCellPrevRow.Attributes & CellAttributes.SoftWrap) == 0)
+                    break;
+            }
+            
+            _cursorX = rightMargin;
+            _cursorY--;
+            count--;
+        }
+    }
+
+    private void ApplyClearScreen(ClearMode mode, bool selective, List<CellImpact>? impacts)
+    {
+        // ED resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
+        // Determine if we should respect protection:
+        // - If selective (DECSED / CSI ? J): always respect protection
+        // - If not selective (normal ED / CSI J): respect only if ISO mode was last set
+        bool respectProtection = selective || _protectedMode == ProtectedMode.Iso;
+        
         switch (mode)
         {
             case ClearMode.ToEnd:
-                ClearFromCursor(impacts);
+                ClearFromCursor(respectProtection, impacts);
                 break;
             case ClearMode.ToStart:
-                ClearToCursor(impacts);
+                ClearToCursor(respectProtection, impacts);
                 break;
             case ClearMode.All:
             case ClearMode.AllAndScrollback:
-                ClearBuffer(impacts);
+                ClearBuffer(respectProtection, impacts);
                 if (mode == ClearMode.AllAndScrollback)
                 {
                     _scrollbackBuffer?.Clear();
@@ -2407,39 +3388,132 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ApplyClearLine(ClearMode mode, List<CellImpact>? impacts)
+    private void ApplyClearLine(ClearMode mode, bool selective, List<CellImpact>? impacts)
     {
+        // EL resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
+        // Determine if we should respect protection:
+        // - If selective (DECSEL / CSI ? K): always respect protection
+        // - If not selective (normal EL / CSI K): respect only if ISO mode was last set
+        bool respectProtection = selective || _protectedMode == ProtectedMode.Iso;
+        
         // When DECLRMM is enabled, clear operations respect left/right margins
         int effectiveLeft = _declrmm ? _marginLeft : 0;
         int effectiveRight = _declrmm ? _marginRight : _width - 1;
         
+        var eraseCell = CreateEraseCell();
         int clearedCount = 0;
         switch (mode)
         {
             case ClearMode.ToEnd:
+                // If cursor is on a wide char continuation cell, also clear the leading cell
+                if (_cursorX > effectiveLeft && _screenBuffer[_cursorY, _cursorX].Character == "")
+                {
+                    if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+                    {
+                        SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+                        clearedCount++;
+                    }
+                }
                 for (int x = _cursorX; x <= effectiveRight && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
+                    SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
                 break;
             case ClearMode.ToStart:
                 for (int x = effectiveLeft; x <= _cursorX && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
+                    SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
+                }
+                // If cursor stopped on the leading half of a wide char, also clear continuation
+                if (_cursorX + 1 <= effectiveRight && _cursorX + 1 < _width &&
+                    _screenBuffer[_cursorY, _cursorX + 1].Character == "")
+                {
+                    if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX + 1))
+                    {
+                        SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
+                        clearedCount++;
+                    }
                 }
                 break;
             case ClearMode.All:
                 for (int x = effectiveLeft; x <= effectiveRight && x < _width; x++)
                 {
-                    SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                    if (respectProtection && IsProtectedCell(_cursorY, x))
+                        continue;
+                    SetCell(_cursorY, x, eraseCell, impacts);
                     clearedCount++;
                 }
                 break;
         }
     }
 
+    /// <summary>
+    /// Gets the active character set designation character for the currently invoked GL charset.
+    /// </summary>
+    private char GetActiveCharset()
+    {
+        return _activeCharsetSlot switch
+        {
+            0 => _charsetG0,
+            1 => _charsetG1,
+            2 => _charsetG2,
+            3 => _charsetG3,
+            _ => 'B'
+        };
+    }
+    
+    /// <summary>
+    /// Maps a character through the DEC special graphics charset (charset '0').
+    /// Only maps characters in the ASCII range 0x60-0x7E. Characters outside
+    /// this range are passed through unchanged.
+    /// </summary>
+    private static char MapDecSpecialGraphics(char c)
+    {
+        return c switch
+        {
+            '`' => '\u25C6', // ◆ Diamond
+            'a' => '\u2592', // ▒ Checkerboard
+            'b' => '\u2409', // ␉ HT
+            'c' => '\u240C', // ␌ FF
+            'd' => '\u240D', // ␍ CR
+            'e' => '\u240A', // ␊ LF
+            'f' => '\u00B0', // ° Degree
+            'g' => '\u00B1', // ± Plus/Minus
+            'h' => '\u2424', // ␤ NL
+            'i' => '\u240B', // ␋ VT
+            'j' => '\u2518', // ┘ Lower Right
+            'k' => '\u2510', // ┐ Upper Right
+            'l' => '\u250C', // ┌ Upper Left
+            'm' => '\u2514', // └ Lower Left
+            'n' => '\u253C', // ┼ Crossing
+            'o' => '\u23BA', // ⎺ Horizontal 1
+            'p' => '\u23BB', // ⎻ Horizontal 2
+            'q' => '\u2500', // ─ Horizontal 3
+            'r' => '\u23BC', // ⎼ Horizontal 4
+            's' => '\u23BD', // ⎽ Horizontal 5
+            't' => '\u251C', // ├ Left T
+            'u' => '\u2524', // ┤ Right T
+            'v' => '\u2534', // ┴ Bottom T
+            'w' => '\u252C', // ┬ Top T
+            'x' => '\u2502', // │ Vertical
+            'y' => '\u2264', // ≤ Less/Equal
+            'z' => '\u2265', // ≥ Greater/Equal
+            '{' => '\u03C0', // π Pi
+            '|' => '\u2260', // ≠ Not Equal
+            '}' => '\u00A3', // £ Pound
+            '~' => '\u00B7', // · Middle Dot
+            _ => c
+        };
+    }
+    
     /// <summary>
     /// Gets the grapheme cluster starting at the given position in the text.
     /// </summary>
@@ -2451,7 +3525,73 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var enumerator = StringInfo.GetTextElementEnumerator(text, index);
         if (enumerator.MoveNext())
         {
-            return (string)enumerator.Current;
+            var grapheme = (string)enumerator.Current;
+            
+            // Terminal-specific grapheme splitting: .NET's Unicode grapheme clustering
+            // gives Fitzpatrick skin tone modifiers (U+1F3FB–1F3FF) the property
+            // Grapheme_Cluster_Break=Extend, which causes them to combine with ANY
+            // preceding character. However, terminal emulators must only combine them
+            // when the base character is a valid Emoji_Modifier_Base. When the base is
+            // not a modifier base (e.g., a quote mark, letter, or non-person emoji),
+            // the skin tone modifier should be treated as a standalone character.
+            // This matches Ghostty, kitty, and other conformant terminals.
+            if (grapheme.EnumerateRunes().Count() > 1)
+            {
+                var runes = grapheme.EnumerateRunes().ToArray();
+                var baseRune = runes[0];
+                
+                // Check if any subsequent rune is a Fitzpatrick modifier
+                // following a non-Emoji_Modifier_Base
+                for (int r = 1; r < runes.Length; r++)
+                {
+                    if (DisplayWidth.IsFitzpatrickModifier(runes[r].Value) &&
+                        !DisplayWidth.IsEmojiModifierBase(baseRune.Value))
+                    {
+                        // Split: return only the base character(s) before the modifier.
+                        // The modifier will be picked up as its own grapheme on the
+                        // next iteration.
+                        int splitLen = 0;
+                        for (int s = 0; s < r; s++)
+                            splitLen += runes[s].Utf16SequenceLength;
+                        return grapheme[..splitLen];
+                    }
+                }
+                
+                // Terminal-specific variation selector splitting: .NET clusters
+                // VS15 (U+FE0E) and VS16 (U+FE0F) with any preceding character,
+                // but terminal emulators process variation selectors retroactively —
+                // first print the base character, then modify it when the VS arrives.
+                //
+                // Splitting rules for VS at position 1 (right after base):
+                // - VS16 on non-emoji base (e.g., 'x'+VS16, 'n'+VS16+combining):
+                //   Split so handler discards invalid VS16. Any subsequent runes
+                //   (like combining marks) will combine with the base naturally.
+                // - VS16 on emoji base (e.g., '#'+VS16+keycap, '☔'+VS16):
+                //   Keep intact — VS16 is part of a valid emoji sequence.
+                // - VS15 after any base: Split so handler can narrow emoji.
+                //   Non-emoji bases won't be affected (handler is a no-op).
+                if (runes.Length >= 2 && (runes[1].Value == 0xFE0E || runes[1].Value == 0xFE0F))
+                {
+                    bool isVS16 = runes[1].Value == 0xFE0F;
+                    
+                    if (isVS16)
+                    {
+                        // Only split VS16 from non-emoji bases
+                        if (!DisplayWidth.HasEmojiProperty(baseRune.Value) &&
+                            !DisplayWidth.IsSmpEmoji(baseRune.Value))
+                        {
+                            return grapheme[..baseRune.Utf16SequenceLength];
+                        }
+                    }
+                    else
+                    {
+                        // Always split VS15 for retroactive handling
+                        return grapheme[..baseRune.Utf16SequenceLength];
+                    }
+                }
+            }
+            
+            return grapheme;
         }
         return text[index].ToString();
     }
@@ -2527,11 +3667,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         else
         {
             // Clear with impacts for presentation adapters that need them
-            ClearBuffer(impacts);
+            ClearBuffer(respectProtection: false, impacts);
         }
         
-        _cursorX = 0;
-        _cursorY = 0;
+        // Mode 1049 saves cursor position and copies it to the alt screen
+        // (cursor position is preserved, not reset to 0,0)
     }
 
     private void DoExitAlternateScreen(List<CellImpact>? impacts = null)
@@ -2599,6 +3739,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             _currentForeground = null;
             _currentBackground = null;
+            _currentUnderlineColor = null;
+            _currentUnderlineStyle = UnderlineStyle.None;
             _currentAttributes = CellAttributes.None;
             return;
         }
@@ -2606,7 +3748,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         var parts = parameters.Split(';');
         for (int i = 0; i < parts.Length; i++)
         {
-            if (!int.TryParse(parts[i], out var code))
+            var part = parts[i];
+            
+            // Check for colon-separated sub-parameters (e.g., "4:3", "38:2:0:1:2:3")
+            if (part.Contains(':'))
+            {
+                ProcessSgrWithSubParams(part);
+                continue;
+            }
+            
+            if (!int.TryParse(part, out var code))
                 continue;
 
             switch (code)
@@ -2614,6 +3765,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 case 0:
                     _currentForeground = null;
                     _currentBackground = null;
+                    _currentUnderlineColor = null;
+                    _currentUnderlineStyle = UnderlineStyle.None;
                     _currentAttributes = CellAttributes.None;
                     break;
 
@@ -2629,6 +3782,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 case 4:
                     _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Single;
                     break;
                 case 5:
                 case 6: // Rapid blink treated same as slow blink
@@ -2648,7 +3802,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
 
                 // Text attributes - reset
-                case 21: // Double underline OR bold off (varies by terminal)
+                case 21: // Double underline (ECMA-48)
+                    _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Double;
+                    break;
                 case 22: // Normal intensity (not bold, not dim)
                     _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
                     break;
@@ -2657,6 +3814,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     break;
                 case 24:
                     _currentAttributes &= ~CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.None;
                     break;
                 case 25:
                     _currentAttributes &= ~CellAttributes.Blink;
@@ -2733,7 +3891,137 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         i += 4;
                     }
                     break;
+                case 58:
+                    // Underline color (semicolon syntax)
+                    if (i + 2 < parts.Length && parts[i + 1] == "5")
+                    {
+                        if (int.TryParse(parts[i + 2], out var colorIndex))
+                        {
+                            _currentUnderlineColor = Color256FromIndex(colorIndex);
+                        }
+                        i += 2; // 58;5;N
+                    }
+                    else if (i + 4 < parts.Length && parts[i + 1] == "2")
+                    {
+                        if (int.TryParse(parts[i + 2], out var r) &&
+                            int.TryParse(parts[i + 3], out var g) &&
+                            int.TryParse(parts[i + 4], out var b))
+                        {
+                            _currentUnderlineColor = Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+                        }
+                        i += 4; // 58;2;R;G;B
+                    }
+                    break;
+                case 59: // Default underline color
+                    _currentUnderlineColor = null;
+                    break;
             }
+        }
+    }
+    
+    /// <summary>
+    /// Processes an SGR parameter that contains colon-separated sub-parameters.
+    /// Examples: "4:3" (curly underline), "38:2:0:1:2:3" (RGB fg with colorspace),
+    /// "48:2::1:2:3" (RGB bg, empty colorspace), "58:2:1:2:3" (underline color).
+    /// </summary>
+    private void ProcessSgrWithSubParams(string part)
+    {
+        var subs = part.Split(':');
+        if (subs.Length < 1 || !int.TryParse(subs[0], out var code))
+            return;
+        
+        switch (code)
+        {
+            case 4: // Underline with style sub-parameter
+                if (subs.Length >= 2 && int.TryParse(subs[1], out var underlineStyle))
+                {
+                    if (underlineStyle == 0)
+                    {
+                        _currentAttributes &= ~CellAttributes.Underline;
+                        _currentUnderlineStyle = UnderlineStyle.None;
+                    }
+                    else
+                    {
+                        _currentAttributes |= CellAttributes.Underline;
+                        _currentUnderlineStyle = underlineStyle switch
+                        {
+                            1 => UnderlineStyle.Single,
+                            2 => UnderlineStyle.Double,
+                            3 => UnderlineStyle.Curly,
+                            4 => UnderlineStyle.Dotted,
+                            5 => UnderlineStyle.Dashed,
+                            _ => UnderlineStyle.Single, // Unknown style defaults to single
+                        };
+                    }
+                }
+                break;
+                
+            case 38: // Foreground extended color (colon syntax)
+            case 48: // Background extended color (colon syntax)
+            case 58: // Underline color (colon syntax)
+                ProcessExtendedColorColon(code, subs);
+                break;
+        }
+    }
+    
+    /// <summary>
+    /// Processes extended color with colon sub-parameters.
+    /// Formats: code:2:colorspace:R:G:B or code:2::R:G:B or code:2:R:G:B or code:5:N
+    /// </summary>
+    private void ProcessExtendedColorColon(int code, string[] subs)
+    {
+        if (subs.Length < 2)
+            return;
+            
+        if (!int.TryParse(subs[1], out var colorType))
+            return;
+            
+        if (colorType == 5 && subs.Length >= 3)
+        {
+            // 256-color: code:5:N
+            if (int.TryParse(subs[2], out var idx))
+            {
+                var color = Color256FromIndex(idx);
+                ApplyExtendedColor(code, color);
+            }
+        }
+        else if (colorType == 2)
+        {
+            // RGB: code:2:R:G:B or code:2:colorspace:R:G:B or code:2::R:G:B
+            // Try to find R,G,B — they're the last 3 numeric values
+            int r, g, b;
+            if (subs.Length >= 6 && 
+                int.TryParse(subs[3], out r) && 
+                int.TryParse(subs[4], out g) && 
+                int.TryParse(subs[5], out b))
+            {
+                // code:2:colorspace:R:G:B (6 sub-params)
+                ApplyExtendedColor(code, Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b));
+            }
+            else if (subs.Length >= 5 && 
+                     int.TryParse(subs[2], out r) && 
+                     int.TryParse(subs[3], out g) && 
+                     int.TryParse(subs[4], out b))
+            {
+                // code:2:R:G:B (5 sub-params, no colorspace)
+                ApplyExtendedColor(code, Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b));
+            }
+        }
+    }
+    
+    private void ApplyExtendedColor(int code, Hex1bColor color)
+    {
+        switch (code)
+        {
+            case 38:
+                _currentForeground = color;
+                break;
+            case 48:
+                _currentBackground = color;
+                break;
+            case 58:
+                _currentUnderlineColor = color;
+                break;
         }
     }
 
@@ -2783,33 +4071,56 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ClearFromCursor(List<CellImpact>? impacts = null)
+    private void ClearFromCursor(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
+        var eraseCell = CreateEraseCell();
+        // If cursor is on a wide char continuation cell, also clear the leading cell
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+                SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+        }
         for (int x = _cursorX; x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
         for (int y = _cursorY + 1; y < _height; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
+                SetCell(y, x, eraseCell, impacts);
             }
         }
     }
 
-    private void ClearToCursor(List<CellImpact>? impacts = null)
+    private void ClearToCursor(bool respectProtection = false, List<CellImpact>? impacts = null)
     {
+        var eraseCell = CreateEraseCell();
         for (int y = 0; y < _cursorY; y++)
         {
             for (int x = 0; x < _width; x++)
             {
-                SetCell(y, x, TerminalCell.Empty, impacts);
+                if (respectProtection && IsProtectedCell(y, x))
+                    continue;
+                SetCell(y, x, eraseCell, impacts);
             }
         }
         for (int x = 0; x <= _cursorX && x < _width; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
+            SetCell(_cursorY, x, eraseCell, impacts);
+        }
+        // If the cell just past cursor is a continuation cell, its leading cell was erased —
+        // clear the orphaned continuation too.
+        if (_cursorX + 1 < _width && _screenBuffer[_cursorY, _cursorX + 1].Character == "")
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX + 1))
+                SetCell(_cursorY, _cursorX + 1, eraseCell, impacts);
         }
     }
 
@@ -2849,9 +4160,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Clear the bottom row of the scroll region (within margins)
+        var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollBottom, x, TerminalCell.Empty, impacts);
+            SetCell(_scrollBottom, x, eraseCell, impacts);
         }
     }
     
@@ -2880,9 +4192,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Clear the top row of the scroll region (within margins)
+        var eraseCell = CreateEraseCell();
         for (int x = leftCol; x <= rightCol; x++)
         {
-            SetCell(_scrollTop, x, TerminalCell.Empty, impacts);
+            SetCell(_scrollTop, x, eraseCell, impacts);
         }
     }
     
@@ -2904,6 +4217,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Insert blank lines at cursor position within scroll region
         // Lines pushed off the bottom of the scroll region are lost
         // When DECLRMM is enabled, only affect columns within left/right margins
+        
+        // IL resets pending wrap and moves cursor to left margin
+        _pendingWrap = false;
+        _cursorX = _declrmm ? _marginLeft : 0;
+        
+        // No-op if cursor is outside the scroll region
+        if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
+            return;
+        
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -2928,9 +4250,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Clear the line at cursor position (within margins)
+            var eraseCell = CreateEraseCell();
             for (int x = leftCol; x <= rightCol; x++)
             {
-                SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+                SetCell(_cursorY, x, eraseCell, impacts);
             }
         }
     }
@@ -2940,6 +4263,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // Delete lines at cursor position within scroll region
         // Blank lines are inserted at the bottom of the scroll region
         // When DECLRMM is enabled, only affect columns within left/right margins
+        
+        // DL resets pending wrap and moves cursor to left margin
+        _pendingWrap = false;
+        _cursorX = _declrmm ? _marginLeft : 0;
+        
+        // No-op if cursor is outside the scroll region
+        if (_cursorY < _scrollTop || _cursorY > _scrollBottom)
+            return;
+        
         var bottom = _scrollBottom;
         count = Math.Min(count, bottom - _cursorY + 1);
         int leftCol = _declrmm ? _marginLeft : 0;
@@ -2964,20 +4296,102 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
             
             // Clear the bottom line of the scroll region (within margins)
+            var eraseCell = CreateEraseCell();
             for (int x = leftCol; x <= rightCol; x++)
             {
-                SetCell(bottom, x, TerminalCell.Empty, impacts);
+                SetCell(bottom, x, eraseCell, impacts);
+            }
+        }
+        
+        // Clean up wide char orphans at margin boundaries after line operations.
+        // When DECLRMM is enabled, lines are shifted within [leftCol..rightCol] only.
+        // Wide chars straddling these boundaries get split and must be replaced with blanks.
+        if (_declrmm)
+        {
+            var eraseCleanup = CreateEraseCell();
+            for (int y = _cursorY; y <= bottom; y++)
+            {
+                // Left boundary: if leftCol has a continuation cell (orphaned from
+                // a leading cell outside the margin), blank it.
+                if (leftCol > 0 && _screenBuffer[y, leftCol].Character == "")
+                {
+                    SetCell(y, leftCol, eraseCleanup, impacts);
+                }
+                
+                // Right boundary: if rightCol has a wide char whose continuation
+                // at rightCol+1 is NOT a continuation (was not shifted), the wide
+                // char is broken → blank the leading cell.
+                if (rightCol < _width - 1)
+                {
+                    var ch = _screenBuffer[y, rightCol].Character;
+                    if (ch.Length > 0 && ch != " " && ch != ""
+                        && DisplayWidth.GetGraphemeWidth(ch) > 1)
+                    {
+                        // Check if continuation cell is intact
+                        if (_screenBuffer[y, rightCol + 1].Character != "")
+                        {
+                            // Continuation was NOT preserved → broken wide char, blank it
+                            SetCell(y, rightCol, eraseCleanup, impacts);
+                        }
+                    }
+                    // Also clean orphaned continuation just past right margin
+                    if (_screenBuffer[y, rightCol + 1].Character == "")
+                    {
+                        SetCell(y, rightCol + 1, eraseCleanup, impacts);
+                    }
+                }
+                
+                // If cell just before leftCol is a wide char whose continuation
+                // (at leftCol) was overwritten by the shift, blank the orphaned leading cell.
+                if (leftCol > 0)
+                {
+                    var prevCh = _screenBuffer[y, leftCol - 1].Character;
+                    if (prevCh.Length > 0 && prevCh != " " && prevCh != ""
+                        && DisplayWidth.GetGraphemeWidth(prevCh) > 1
+                        && _screenBuffer[y, leftCol].Character != "")
+                    {
+                        // Leading cell's continuation was overwritten → blank it
+                        SetCell(y, leftCol - 1, eraseCleanup, impacts);
+                    }
+                }
             }
         }
     }
     
     private void DeleteCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // DCH resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
+        // Per ECMA-48, DCH parameter defaults to 1 when 0 or omitted
+        if (count <= 0)
+            count = 1;
+        
         // Delete n characters at cursor, shifting remaining characters left
         // Blank characters are inserted at the right margin
         // When DECLRMM is enabled, operations are bounded by left/right margins
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
+        
+        // Handle wide char splitting at cursor position:
+        // If cursor is on a continuation cell, clear the leading cell
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            var erase = CreateEraseCell();
+            SetCell(_cursorY, _cursorX - 1, erase, impacts);
+            SetCell(_cursorY, _cursorX, erase, impacts);
+        }
+        
+        // Handle wide char splitting at the boundary after deletion:
+        // If the cell at _cursorX + count is a continuation cell, clear its leading cell
+        int shiftStart = _cursorX + count;
+        if (shiftStart < rightEdge && _screenBuffer[_cursorY, shiftStart].Character == ""
+            && shiftStart > 0)
+        {
+            var erase = CreateEraseCell();
+            SetCell(_cursorY, shiftStart - 1, erase, impacts);
+            SetCell(_cursorY, shiftStart, erase, impacts);
+        }
         
         for (int x = _cursorX; x < rightEdge - count; x++)
         {
@@ -2986,19 +4400,88 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Fill the right edge with blanks
+        var eraseCell = CreateEraseCell();
         for (int x = rightEdge - count; x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell, impacts);
+        }
+        
+        // Clean up wide char orphans after shift and erasure:
+        // 1. If a wide char's leading cell was shifted into the last position before
+        //    the erased zone, its continuation was erased → blank the leading cell too.
+        int lastShifted = rightEdge - count - 1;
+        if (lastShifted >= _cursorX && lastShifted < _width)
+        {
+            var ch = _screenBuffer[_cursorY, lastShifted].Character;
+            if (ch.Length > 0 && ch != " " && ch != "" && DisplayWidth.GetGraphemeWidth(ch) > 1)
+            {
+                SetCell(_cursorY, lastShifted, eraseCell, impacts);
+            }
+        }
+        
+        // 2. If a wide char's continuation cell is just past the right edge boundary
+        //    (outside margin), it was orphaned by the leading cell being erased → clear it.
+        if (_declrmm && rightEdge < _width)
+        {
+            if (_screenBuffer[_cursorY, rightEdge].Character == "")
+            {
+                SetCell(_cursorY, rightEdge, eraseCell, impacts);
+            }
         }
     }
     
     private void InsertCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // ICH resets pending wrap per ECMA-48
+        _pendingWrap = false;
+        
+        if (count == 0)
+            return;
+        
         // Insert n blank characters at cursor, shifting existing characters right
         // Characters pushed off the right margin are lost
         // When DECLRMM is enabled, operations are bounded by left/right margins
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
+        
+        if (count <= 0)
+            return;
+        
+        // Handle wide char splitting at cursor position:
+        // If cursor is on a continuation cell, clear both the leading cell and the continuation
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            var eraseCell = CreateEraseCell();
+            SetCell(_cursorY, _cursorX - 1, eraseCell, impacts);
+            SetCell(_cursorY, _cursorX, eraseCell, impacts);
+        }
+        
+        // Handle wide char splitting at the right edge:
+        // If the cell being pushed off is the leading half of a wide char,
+        // its continuation cell (now orphaned) should be cleared
+        int shiftBoundary = rightEdge - count;
+        if (shiftBoundary >= 0 && shiftBoundary < rightEdge)
+        {
+            var cellAtBoundary = _screenBuffer[_cursorY, shiftBoundary];
+            if (cellAtBoundary.Character.Length > 0 && cellAtBoundary.Character != " " 
+                && DisplayWidth.GetGraphemeWidth(cellAtBoundary.Character) > 1
+                && shiftBoundary + 1 < rightEdge)
+            {
+                // Wide char at boundary — continuation will be orphaned, clear the wide char
+                var eraseCell = CreateEraseCell();
+                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
+                SetCell(_cursorY, shiftBoundary + 1, eraseCell, impacts);
+            }
+            // Check if boundary is on a continuation cell — its leading half stays, clear continuation
+            if (shiftBoundary > 0 && _screenBuffer[_cursorY, shiftBoundary].Character == ""
+                && _screenBuffer[_cursorY, shiftBoundary - 1].Character.Length > 0
+                && _screenBuffer[_cursorY, shiftBoundary - 1].Character != " ")
+            {
+                var eraseCell = CreateEraseCell();
+                SetCell(_cursorY, shiftBoundary - 1, eraseCell, impacts);
+                SetCell(_cursorY, shiftBoundary, eraseCell, impacts);
+            }
+        }
         
         // Shift characters right
         for (int x = rightEdge - 1; x >= _cursorX + count; x--)
@@ -3008,29 +4491,63 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         // Insert blanks at cursor position
+        var eraseCell2 = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count && x < rightEdge; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            SetCell(_cursorY, x, eraseCell2, impacts);
         }
     }
     
     private void EraseCharacters(int count, List<CellImpact>? impacts = null)
     {
+        // ECH resets pending wrap per ECMA-48 / Ghostty conformance
+        _pendingWrap = false;
+        
+        // ECH respects ISO protection mode (same as ED/EL)
+        bool respectProtection = _protectedMode == ProtectedMode.Iso;
+        
         // Erase n characters from cursor without moving cursor or shifting
         // When DECLRMM is enabled, operations are bounded by right margin
         int rightEdge = _declrmm ? _marginRight + 1 : _width;
         count = Math.Min(count, rightEdge - _cursorX);
         
+        // Handle wide char splitting: if cursor is on a continuation cell, clear leading too
+        if (_cursorX > 0 && _screenBuffer[_cursorY, _cursorX].Character == "")
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, _cursorX - 1))
+            {
+                var erase = CreateEraseCell();
+                SetCell(_cursorY, _cursorX - 1, erase, impacts);
+            }
+        }
+        
+        // Handle wide char splitting at the end of erase range:
+        // If the cell just past the erase range is a continuation cell, its leading cell
+        // was erased, so clear the orphaned continuation cell too.
+        int eraseEnd = _cursorX + count;
+        if (eraseEnd < rightEdge && _screenBuffer[_cursorY, eraseEnd].Character == ""
+            && eraseEnd > 0)
+        {
+            if (!respectProtection || !IsProtectedCell(_cursorY, eraseEnd))
+            {
+                var orphanErase = CreateEraseCell();
+                SetCell(_cursorY, eraseEnd, orphanErase, impacts);
+            }
+        }
+        
+        var eraseCell = CreateEraseCell();
         for (int x = _cursorX; x < _cursorX + count; x++)
         {
-            SetCell(_cursorY, x, TerminalCell.Empty, impacts);
+            if (respectProtection && IsProtectedCell(_cursorY, x))
+                continue;
+            SetCell(_cursorY, x, eraseCell, impacts);
         }
     }
     
     private void RepeatLastCharacter(int count, List<CellImpact>? impacts)
     {
         // Repeat the last printed graphic character n times
-        if (string.IsNullOrEmpty(_lastPrintedCell.Character))
+        if (!_hasLastPrintedCell || string.IsNullOrEmpty(_lastPrintedCell.Character))
             return;
             
         var graphemeWidth = DisplayWidth.GetGraphemeWidth(_lastPrintedCell.Character);
@@ -3076,7 +4593,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     sequence, 
                     writtenAt, 
                     TrackedSixel: null, 
-                    TrackedHyperlink: null);
+                    TrackedHyperlink: null,
+                    _lastPrintedCell.UnderlineColor,
+                    _lastPrintedCell.UnderlineStyle);
                 SetCell(_cursorY, _cursorX, cell, impacts);
                 
                 // Handle wide characters
@@ -3084,7 +4603,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     SetCell(_cursorY, _cursorX + w, new TerminalCell(
                         "", _lastPrintedCell.Foreground, _lastPrintedCell.Background, _lastPrintedCell.Attributes,
-                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null), impacts);
+                        sequence, writtenAt, TrackedSixel: null, TrackedHyperlink: null,
+                        _lastPrintedCell.UnderlineColor, _lastPrintedCell.UnderlineStyle), impacts);
                 }
                 
                 _cursorX += graphemeWidth;

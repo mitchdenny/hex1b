@@ -388,10 +388,10 @@ public class DisplayWidthTests
     
     [Theory]
     [InlineData("✓", 1)]  // Check Mark U+2713 - NO Emoji_Presentation, defaults to text
-    [InlineData("✔", 2)]  // Heavy Check Mark U+2714 - HAS Emoji_Presentation
+    [InlineData("✔", 1)]  // Heavy Check Mark U+2714 - Emoji=Yes but Emoji_Presentation=No (needs VS16 for wide)
     [InlineData("○", 1)]  // White Circle U+25CB - NO Emoji_Presentation
     [InlineData("●", 1)]  // Black Circle U+25CF - NO Emoji_Presentation
-    [InlineData("☑", 2)]  // Ballot Box with Check U+2611 - HAS Emoji_Presentation
+    [InlineData("☑", 1)]  // Ballot Box with Check U+2611 - Emoji=Yes but Emoji_Presentation=No (needs VS16 for wide)
     [InlineData("☐", 1)]  // Ballot Box U+2610 - NO Emoji_Presentation
     public void GetGraphemeWidth_CheckboxSymbols_ReturnsExpected(string symbol, int expectedWidth)
     {

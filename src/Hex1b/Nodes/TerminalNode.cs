@@ -371,6 +371,7 @@ public sealed class TerminalNode : Hex1bNode
             var lineBuilder = new System.Text.StringBuilder();
             Hex1b.Theming.Hex1bColor? lastFg = null;
             Hex1b.Theming.Hex1bColor? lastBg = null;
+            Hex1b.Theming.Hex1bColor? lastUc = null;
             CellAttributes lastAttrs = CellAttributes.None;
             
             for (int x = 0; x < Math.Min(Bounds.Width, handleWidth); x++)
@@ -387,7 +388,7 @@ public sealed class TerminalNode : Hex1bNode
                 }
                 
                 // Check if colors changed (nullable struct comparison)
-                if (!Nullable.Equals(cell.Foreground, lastFg) || !Nullable.Equals(cell.Background, lastBg))
+                if (!Nullable.Equals(cell.Foreground, lastFg) || !Nullable.Equals(cell.Background, lastBg) || !Nullable.Equals(cell.UnderlineColor, lastUc))
                 {
                     needsReset = true;
                 }
@@ -404,7 +405,12 @@ public sealed class TerminalNode : Hex1bNode
                     if (cell.Attributes.HasFlag(CellAttributes.Italic))
                         lineBuilder.Append("\x1b[3m");
                     if (cell.Attributes.HasFlag(CellAttributes.Underline))
-                        lineBuilder.Append("\x1b[4m");
+                    {
+                        if (cell.UnderlineStyle != UnderlineStyle.None && cell.UnderlineStyle != UnderlineStyle.Single)
+                            lineBuilder.Append($"\x1b[4:{(int)cell.UnderlineStyle}m");
+                        else
+                            lineBuilder.Append("\x1b[4m");
+                    }
                     if (cell.Attributes.HasFlag(CellAttributes.Reverse))
                         lineBuilder.Append("\x1b[7m");
                     if (cell.Attributes.HasFlag(CellAttributes.Strikethrough))
@@ -416,8 +422,12 @@ public sealed class TerminalNode : Hex1bNode
                     if (cell.Background != null)
                         lineBuilder.Append(cell.Background.Value.ToBackgroundAnsi());
                     
+                    if (cell.UnderlineColor != null)
+                        lineBuilder.Append(cell.UnderlineColor.Value.ToUnderlineColorAnsi());
+                    
                     lastFg = cell.Foreground;
                     lastBg = cell.Background;
+                    lastUc = cell.UnderlineColor;
                     lastAttrs = cell.Attributes;
                 }
                 

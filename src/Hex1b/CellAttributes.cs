@@ -47,4 +47,10 @@ public enum CellAttributes : ushort
     /// Used by the reflow engine to identify logical lines that span multiple rows.
     /// </summary>
     SoftWrap = 1 << 10,
+
+    /// <summary>
+    /// Cell is protected (DECSCA). Protected cells are immune to selective erase
+    /// operations (DECSED/DECSEL) but can still be erased by normal ED/EL.
+    /// </summary>
+    Protected = 1 << 11,
 }

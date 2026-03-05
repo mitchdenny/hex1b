@@ -58,6 +58,20 @@ public static class AnsiTokenizer
                 tokens.Add(new Ss3Token(text[i + 2]));
                 i += 3;
             }
+            // Check for RIS (ESC c) — full terminal reset
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == 'c')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(RisToken.Instance);
+                i += 2;
+            }
+            // Check for DECALN (ESC # 8) — screen alignment test
+            else if (text[i] == '\x1b' && i + 2 < text.Length && text[i + 1] == '#' && text[i + 2] == '8')
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(DecalnToken.Instance);
+                i += 3;
+            }
             // Check for DEC save cursor (ESC 7)
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '7')
             {
@@ -100,6 +114,20 @@ public static class AnsiTokenizer
                 tokens.Add(new CharacterSetToken(1, text[i + 2]));
                 i += 3;
             }
+            // Check for G2 character set designation (ESC * X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '*' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(2, text[i + 2]));
+                i += 3;
+            }
+            // Check for G3 character set designation (ESC + X)
+            else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '+' && i + 2 < text.Length)
+            {
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new CharacterSetToken(3, text[i + 2]));
+                i += 3;
+            }
             // Check for Application Keypad Mode (ESC =)
             else if (text[i] == '\x1b' && i + 1 < text.Length && text[i + 1] == '=')
             {
@@ -138,6 +166,20 @@ public static class AnsiTokenizer
                 // Backspace (0x08) - moves cursor left
                 FlushTextToken(text, ref textStart, i, tokens);
                 tokens.Add(ControlCharacterToken.Backspace);
+                i++;
+            }
+            else if (text[i] == '\x0E')
+            {
+                // SO (Shift Out) — invoke G1 into GL
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new ControlCharacterToken('\x0E'));
+                i++;
+            }
+            else if (text[i] == '\x0F')
+            {
+                // SI (Shift In) — invoke G0 into GL
+                FlushTextToken(text, ref textStart, i, tokens);
+                tokens.Add(new ControlCharacterToken('\x0F'));
                 i++;
             }
             else if (text[i] == '\x1b')
@@ -198,8 +240,8 @@ public static class AnsiTokenizer
         if (isPrivateMode)
             end++;
 
-        // Read parameters until we hit a letter or ~ (for special keys like ESC [ 3 ~)
-        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~')
+        // Read parameters until we hit a final byte (CSI final bytes are 0x40-0x7E: @ through ~)
+        while (end < text.Length && !char.IsLetter(text[end]) && text[end] != '~' && text[end] != '@')
         {
             end++;
         }
@@ -228,14 +270,22 @@ public static class AnsiTokenizer
                 ParseCursorPosition(parameters, tokens);
                 break;
 
+            case 'g':
+                // Tab Clear (TBC): CSI Ps g
+                {
+                    var mode = string.IsNullOrEmpty(parameters) ? 0 : (int.TryParse(parameters, out var m) ? m : 0);
+                    tokens.Add(new TabClearToken(mode));
+                }
+                break;
+
             case 'J':
-                // Clear screen
-                ParseClearScreen(parameters, tokens);
+                // Clear screen (ED) or Selective Erase in Display (DECSED)
+                ParseClearScreen(parameters, isPrivateMode, tokens);
                 break;
 
             case 'K':
-                // Clear line
-                ParseClearLine(parameters, tokens);
+                // Clear line (EL) or Selective Erase in Line (DECSEL)
+                ParseClearLine(parameters, isPrivateMode, tokens);
                 break;
 
             case 'h':
@@ -245,9 +295,14 @@ public static class AnsiTokenizer
                 {
                     tokens.Add(new PrivateModeToken(modeValue, command == 'h'));
                 }
+                else if (!isPrivateMode && int.TryParse(parameters, out var stdMode))
+                {
+                    // Standard (non-private) mode: CSI n h / CSI n l
+                    tokens.Add(new StandardModeToken(stdMode, command == 'h'));
+                }
                 else
                 {
-                    // Standard mode or invalid - treat as unrecognized
+                    // Invalid or unsupported mode
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
                 break;
@@ -266,10 +321,17 @@ public static class AnsiTokenizer
                 break;
 
             case 'q':
-                // Cursor shape (DECSCUSR)
-                if (isPrivateMode || parameters.Contains(' '))
+                // DECSCA (CSI Ps " q) or DECSCUSR (CSI Ps SP q)
+                if (parameters.Contains('"'))
                 {
-                    // ESC [ n SP q format
+                    // DECSCA — Select Character Protection Attribute
+                    var decscaParam = parameters.Replace("\"", "").Trim();
+                    var decscaMode = string.IsNullOrEmpty(decscaParam) ? 0 : int.TryParse(decscaParam, out var dp) ? dp : 0;
+                    tokens.Add(new DecscaToken(decscaMode));
+                }
+                else if (isPrivateMode || parameters.Contains(' '))
+                {
+                    // DECSCUSR — ESC [ n SP q format
                     tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
                 }
                 else
@@ -381,12 +443,14 @@ public static class AnsiTokenizer
                 
             case 'P':
                 // Delete Character (DCH) - delete n characters at cursor
-                tokens.Add(new DeleteCharacterToken(ParseMoveCount(parameters)));
+                // Preserve 0 so downstream can decide if DCH(0) is no-op
+                tokens.Add(new DeleteCharacterToken(ParseMoveCountAllowZero(parameters)));
                 break;
                 
             case '@':
                 // Insert Character (ICH) - insert n blank characters at cursor
-                tokens.Add(new InsertCharacterToken(ParseMoveCount(parameters)));
+                // ICH 0 is a no-op (unlike most CSI commands where 0 = 1)
+                tokens.Add(new InsertCharacterToken(ParseMoveCountAllowZero(parameters)));
                 break;
                 
             case 'X':
@@ -518,6 +582,13 @@ public static class AnsiTokenizer
             return 1;
         return int.TryParse(parameters, out var count) && count > 0 ? count : 1;
     }
+    
+    private static int ParseMoveCountAllowZero(string parameters)
+    {
+        if (string.IsNullOrEmpty(parameters))
+            return 1;
+        return int.TryParse(parameters, out var count) && count >= 0 ? count : 1;
+    }
 
     /// <summary>
     /// Parses arrow key parameters, distinguishing between cursor moves and arrow key inputs with modifiers.
@@ -591,7 +662,7 @@ public static class AnsiTokenizer
         tokens.Add(new CursorPositionToken(row, col, parameters));
     }
 
-    private static void ParseClearScreen(string parameters, List<AnsiToken> tokens)
+    private static void ParseClearScreen(string parameters, bool selective, List<AnsiToken> tokens)
     {
         var mode = string.IsNullOrEmpty(parameters) ? 0 :
                    int.TryParse(parameters, out var m) ? m : 0;
@@ -605,10 +676,10 @@ public static class AnsiTokenizer
             _ => ClearMode.ToEnd
         };
 
-        tokens.Add(new ClearScreenToken(clearMode));
+        tokens.Add(new ClearScreenToken(clearMode, selective));
     }
 
-    private static void ParseClearLine(string parameters, List<AnsiToken> tokens)
+    private static void ParseClearLine(string parameters, bool selective, List<AnsiToken> tokens)
     {
         var mode = string.IsNullOrEmpty(parameters) ? 0 :
                    int.TryParse(parameters, out var m) ? m : 0;
@@ -621,7 +692,7 @@ public static class AnsiTokenizer
             _ => ClearMode.ToEnd
         };
 
-        tokens.Add(new ClearLineToken(clearMode));
+        tokens.Add(new ClearLineToken(clearMode, selective));
     }
 
     private static void ParseCursorShape(string parameters, List<AnsiToken> tokens, string text, int start, int end)
@@ -666,17 +737,9 @@ public static class AnsiTokenizer
         }
 
         var parts = parameters.Split(';');
-        if (parts.Length >= 2 &&
-            int.TryParse(parts[0], out var top) &&
-            int.TryParse(parts[1], out var bottom))
-        {
-            tokens.Add(new ScrollRegionToken(top, bottom));
-        }
-        else
-        {
-            // Invalid - reset
-            tokens.Add(ScrollRegionToken.Reset);
-        }
+        var top = parts.Length > 0 && int.TryParse(parts[0], out var t) ? t : 0;
+        var bottom = parts.Length > 1 && int.TryParse(parts[1], out var b) ? b : 0;
+        tokens.Add(new ScrollRegionToken(top, bottom));
     }
 
     private static bool TryParseOscSequence(string text, int start, out int consumed, out string command, out string parameters, out string payload, out bool useEscBackslash)

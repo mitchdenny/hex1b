@@ -933,8 +933,8 @@ public class EditorNodeRenderingTests
     [Fact]
     public async Task Render_MultipleWideChars_CorrectDisplayLayout()
     {
-        // "♠♣" — both 2-wide, should occupy 4 display columns
-        var (node, workload, terminal, context, theme) = CreateEditor("♠♣X", 20, 3);
+        // "⌚⌛" — both 2-wide (Emoji_Presentation=Yes), should occupy 4 display columns
+        var (node, workload, terminal, context, theme) = CreateEditor("⌚⌛X", 20, 3);
 
         node.Render(context);
 
@@ -947,11 +947,11 @@ public class EditorNodeRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        // Col 0: ♠ main (2-wide)
-        Assert.Equal("♠", snapshot.GetCell(0, 0).Character);
+        // Col 0: ⌚ main (2-wide)
+        Assert.Equal("⌚", snapshot.GetCell(0, 0).Character);
         // Col 1: continuation
-        // Col 2: ♣ main (2-wide)
-        Assert.Equal("♣", snapshot.GetCell(2, 0).Character);
+        // Col 2: ⌛ main (2-wide)
+        Assert.Equal("⌛", snapshot.GetCell(2, 0).Character);
         // Col 3: continuation
         // Col 4: X (1-wide)
         Assert.Equal("X", snapshot.GetCell(4, 0).Character);

@@ -297,9 +297,8 @@ public static class TerminalRegionSvgExtensions
                         styleBuilder.Append("font-style:italic;");
                     
                     // Text decorations (can be combined)
+                    // Underline is rendered as a separate <line> element for color control
                     var decorations = new List<string>();
-                    if ((attrs & CellAttributes.Underline) != 0)
-                        decorations.Add("underline");
                     if ((attrs & CellAttributes.Strikethrough) != 0)
                         decorations.Add("line-through");
                     if ((attrs & CellAttributes.Overline) != 0)
@@ -313,7 +312,8 @@ public static class TerminalRegionSvgExtensions
 
                     // Use non-breaking space for spaces with text decorations (underline, strikethrough, overline)
                     // Regular spaces don't receive text-decoration in SVG/HTML, but &nbsp; does
-                    var escapedChar = (displayCh == " " && decorations.Count > 0) 
+                    bool hasUnderline = (attrs & CellAttributes.Underline) != 0;
+                    var escapedChar = (displayCh == " " && (decorations.Count > 0 || hasUnderline)) 
                         ? "&#160;" 
                         : HttpUtility.HtmlEncode(displayCh);
                     
@@ -347,6 +347,54 @@ public static class TerminalRegionSvgExtensions
                     
                     var textClass = string.IsNullOrEmpty(blinkClass) ? "" : $""" class="{blinkClass.Trim()}" """;
                     sb.AppendLine($"""      <text x="{textX:F1}" y="{textY:F1}" fill="{fgColor}" text-anchor="start"{style}{textClass}{clipAttr}>{escapedChar}</text>""");
+                    
+                    // Render underline as explicit SVG elements for color and style control
+                    // (CSS text-decoration-color doesn't work on SVG <text> elements)
+                    if (hasUnderline)
+                    {
+                        string ulColor;
+                        if (cell.UnderlineColor.HasValue)
+                            ulColor = $"rgb({cell.UnderlineColor.Value.R},{cell.UnderlineColor.Value.G},{cell.UnderlineColor.Value.B})";
+                        else
+                            ulColor = fgColor;
+                        var ulY = y * cellHeight + cellHeight * 0.9;
+                        var ulX1 = x * cellWidth;
+                        var ulX2 = (x + 1) * cellWidth;
+                        
+                        var ulStyle = cell.UnderlineStyle == UnderlineStyle.None 
+                            ? UnderlineStyle.Single 
+                            : cell.UnderlineStyle;
+                        
+                        switch (ulStyle)
+                        {
+                            case UnderlineStyle.Double:
+                                // Two parallel lines, offset above and below the baseline
+                                var ulY1 = ulY - 1.5;
+                                var ulY2 = ulY + 1.5;
+                                sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY1:F1}" x2="{ulX2:F1}" y2="{ulY1:F1}" stroke="{ulColor}" stroke-width="0.8"/>""");
+                                sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY2:F1}" x2="{ulX2:F1}" y2="{ulY2:F1}" stroke="{ulColor}" stroke-width="0.8"/>""");
+                                break;
+                                
+                            case UnderlineStyle.Curly:
+                                // Wavy/sine curve using SVG path with cubic beziers
+                                var amplitude = cellHeight * 0.08;
+                                var halfW = (ulX2 - ulX1) / 2.0;
+                                sb.AppendLine($"""      <path d="M {ulX1:F1} {ulY:F1} C {ulX1 + halfW * 0.5:F1} {ulY - amplitude:F1}, {ulX1 + halfW * 0.5:F1} {ulY - amplitude:F1}, {ulX1 + halfW:F1} {ulY:F1} S {ulX2 - halfW * 0.5:F1} {ulY + amplitude:F1}, {ulX2:F1} {ulY:F1}" fill="none" stroke="{ulColor}" stroke-width="1"/>""");
+                                break;
+                                
+                            case UnderlineStyle.Dotted:
+                                sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY:F1}" x2="{ulX2:F1}" y2="{ulY:F1}" stroke="{ulColor}" stroke-width="1" stroke-dasharray="1.5,1.5"/>""");
+                                break;
+                                
+                            case UnderlineStyle.Dashed:
+                                sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY:F1}" x2="{ulX2:F1}" y2="{ulY:F1}" stroke="{ulColor}" stroke-width="1" stroke-dasharray="3,2"/>""");
+                                break;
+                                
+                            default: // Single
+                                sb.AppendLine($"""      <line x1="{ulX1:F1}" y1="{ulY:F1}" x2="{ulX2:F1}" y2="{ulY:F1}" stroke="{ulColor}" stroke-width="1"/>""");
+                                break;
+                        }
+                    }
                 }
             }
             

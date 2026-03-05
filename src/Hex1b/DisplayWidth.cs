@@ -76,9 +76,21 @@ public static class DisplayWidth
         if (hasKeycap)
             return 2;
         
-        // VS16 forces emoji presentation (2 cells)
+        // VS16 forces emoji presentation (2 cells) — but ONLY if the base character
+        // has the Unicode Emoji property. VS16 on non-emoji characters (like 'n') is
+        // ignored per Unicode spec and all major terminals (kitty, WezTerm, xterm, Ghostty).
         if (hasVS16)
-            return 2;
+        {
+            // Find the base (first non-combining, non-VS) codepoint
+            foreach (var rune in grapheme.EnumerateRunes())
+            {
+                if (rune.Value == 0xFE0F || rune.Value == 0xFE0E || IsCombiningCharacter(rune.Value))
+                    continue;
+                if (HasEmojiProperty(rune.Value) || IsSmpEmoji(rune.Value))
+                    return 2;
+                break; // Base is not emoji — ignore VS16
+            }
+        }
         
         // VS15 forces text presentation - use GetRuneWidth for the base character
         // (fall through to normal width calculation)
@@ -118,53 +130,31 @@ public static class DisplayWidth
     /// </summary>
     private static bool HasDefaultEmojiPresentation(int codePoint)
     {
-        // These are BMP characters with Emoji_Presentation=Yes in Unicode data
-        // They render as emoji (width 2) by default in terminals
-        // See: https://unicode.org/Public/emoji/latest/emoji-data.txt
+        // Characters with Emoji_Presentation=Yes in Unicode 16.0 emoji-data.txt.
+        // These render as emoji (width 2) by default, without needing VS16.
+        // Characters with Emoji=Yes but Emoji_Presentation=No (like ❤ U+2764)
+        // only become wide with VS16 — they are NOT listed here.
+        // See: https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
         
-        // Misc Symbols with default emoji presentation
         return codePoint switch
         {
-            // Dingbats with Emoji_Presentation
-            0x2705 => true,  // ✅ White Heavy Check Mark
-            0x2714 => true,  // ✔ Heavy Check Mark (note: some terminals differ)
-            0x2716 => true,  // ✖ Heavy Multiplication X
-            0x274C => true,  // ❌ Cross Mark
-            0x274E => true,  // ❎ Negative Squared Cross Mark
-            0x2753 => true,  // ❓ Question Mark Ornament
-            0x2754 => true,  // ❔ White Question Mark Ornament
-            0x2755 => true,  // ❕ White Exclamation Mark Ornament
-            0x2757 => true,  // ❗ Exclamation Mark
-            0x2763 => true,  // ❣ Heavy Heart Exclamation Mark Ornament
-            0x2764 => true,  // ❤ Heavy Black Heart
-            0x2795 => true,  // ➕ Heavy Plus Sign
-            0x2796 => true,  // ➖ Heavy Minus Sign
-            0x2797 => true,  // ➗ Heavy Division Sign
-            0x27A1 => true,  // ➡ Black Rightwards Arrow
-            0x27B0 => true,  // ➰ Curly Loop
-            0x27BF => true,  // ➿ Double Curly Loop
+            // Miscellaneous Technical
+            0x231A => true,  // ⌚ Watch
+            0x231B => true,  // ⌛ Hourglass Done
+            0x23E9 => true,  // ⏩ Fast-Forward
+            0x23EA => true,  // ⏪ Rewind
+            0x23EB => true,  // ⏫ Fast Up
+            0x23EC => true,  // ⏬ Fast Down
+            0x23F0 => true,  // ⏰ Alarm Clock
+            0x23F3 => true,  // ⏳ Hourglass Not Done
             
-            // Miscellaneous Symbols with Emoji_Presentation
-            0x2600 => true,  // ☀ Black Sun With Rays
-            0x2601 => true,  // ☁ Cloud
-            0x260E => true,  // ☎ Black Telephone
-            0x2611 => true,  // ☑ Ballot Box With Check
+            // Geometric Shapes
+            0x25FD => true,  // ◽ White Medium-Small Square
+            0x25FE => true,  // ◾ Black Medium-Small Square
+            
+            // Miscellaneous Symbols
             0x2614 => true,  // ☔ Umbrella With Rain Drops
             0x2615 => true,  // ☕ Hot Beverage
-            0x2618 => true,  // ☘ Shamrock
-            0x261D => true,  // ☝ White Up Pointing Index
-            0x2620 => true,  // ☠ Skull and Crossbones
-            0x2622 => true,  // ☢ Radioactive Sign
-            0x2623 => true,  // ☣ Biohazard Sign
-            0x2626 => true,  // ☦ Orthodox Cross
-            0x262A => true,  // ☪ Star and Crescent
-            0x262E => true,  // ☮ Peace Symbol
-            0x262F => true,  // ☯ Yin Yang
-            0x2638 => true,  // ☸ Wheel of Dharma
-            0x2639 => true,  // ☹ White Frowning Face
-            0x263A => true,  // ☺ White Smiling Face
-            0x2640 => true,  // ♀ Female Sign
-            0x2642 => true,  // ♂ Male Sign
             0x2648 => true,  // ♈ Aries
             0x2649 => true,  // ♉ Taurus
             0x264A => true,  // ♊ Gemini
@@ -177,30 +167,11 @@ public static class DisplayWidth
             0x2651 => true,  // ♑ Capricorn
             0x2652 => true,  // ♒ Aquarius
             0x2653 => true,  // ♓ Pisces
-            0x265F => true,  // ♟ Black Chess Pawn
-            0x2660 => true,  // ♠ Black Spade Suit
-            0x2663 => true,  // ♣ Black Club Suit
-            0x2665 => true,  // ♥ Black Heart Suit
-            0x2666 => true,  // ♦ Black Diamond Suit
-            0x2668 => true,  // ♨ Hot Springs
-            0x267B => true,  // ♻ Black Universal Recycling Symbol
-            0x267E => true,  // ♾ Permanent Paper Sign
             0x267F => true,  // ♿ Wheelchair Symbol
-            0x2692 => true,  // ⚒ Hammer and Pick
             0x2693 => true,  // ⚓ Anchor
-            0x2694 => true,  // ⚔ Crossed Swords
-            0x2695 => true,  // ⚕ Staff of Aesculapius
-            0x2696 => true,  // ⚖ Scales
-            0x2697 => true,  // ⚗ Alembic
-            0x2699 => true,  // ⚙ Gear
-            0x269B => true,  // ⚛ Atom Symbol
-            0x269C => true,  // ⚜ Fleur-de-lis
-            0x26A0 => true,  // ⚠ Warning Sign
-            0x26A1 => true,  // ⚡ High Voltage Sign
-            0x26AA => true,  // ⚪ Medium White Circle
-            0x26AB => true,  // ⚫ Medium Black Circle
-            0x26B0 => true,  // ⚰ Coffin
-            0x26B1 => true,  // ⚱ Funeral Urn
+            0x26A1 => true,  // ⚡ High Voltage
+            0x26AA => true,  // ⚪ White Circle
+            0x26AB => true,  // ⚫ Black Circle
             0x26BD => true,  // ⚽ Soccer Ball
             0x26BE => true,  // ⚾ Baseball
             0x26C4 => true,  // ⛄ Snowman Without Snow
@@ -214,24 +185,34 @@ public static class DisplayWidth
             0x26FA => true,  // ⛺ Tent
             0x26FD => true,  // ⛽ Fuel Pump
             
-            // Geometric shapes
-            0x2B05 => true,  // ⬅ Leftwards Black Arrow
-            0x2B06 => true,  // ⬆ Upwards Black Arrow
-            0x2B07 => true,  // ⬇ Downwards Black Arrow
+            // Dingbats
+            0x2705 => true,  // ✅ Check Mark Button
+            0x270A => true,  // ✊ Raised Fist
+            0x270B => true,  // ✋ Raised Hand
+            0x2728 => true,  // ✨ Sparkles
+            0x274C => true,  // ❌ Cross Mark
+            0x274E => true,  // ❎ Cross Mark Button
+            0x2753 => true,  // ❓ Red Question Mark
+            0x2754 => true,  // ❔ White Question Mark
+            0x2755 => true,  // ❕ White Exclamation Mark
+            0x2757 => true,  // ❗ Red Exclamation Mark
+            0x2795 => true,  // ➕ Plus
+            0x2796 => true,  // ➖ Minus
+            0x2797 => true,  // ➗ Divide
+            0x27B0 => true,  // ➰ Curly Loop
+            0x27BF => true,  // ➿ Double Curly Loop
+            
+            // Geometric Shapes (arrows and squares)
             0x2B1B => true,  // ⬛ Black Large Square
             0x2B1C => true,  // ⬜ White Large Square
-            0x2B50 => true,  // ⭐ White Medium Star
+            0x2B50 => true,  // ⭐ Star
             0x2B55 => true,  // ⭕ Heavy Large Circle
             
-            // Miscellaneous Technical
-            0x231A => true,  // ⌚ Watch
-            0x231B => true,  // ⌛ Hourglass
-            0x23E9 => true,  // ⏩ Fast-forward
-            0x23EA => true,  // ⏪ Rewind
-            0x23EB => true,  // ⏫ Fast Up
-            0x23EC => true,  // ⏬ Fast Down
-            0x23F0 => true,  // ⏰ Alarm Clock
-            0x23F3 => true,  // ⏳ Hourglass Not Done
+            // CJK Symbols
+            0x3030 => true,  // 〰 Wavy Dash
+            0x303D => true,  // 〽 Part Alternation Mark
+            0x3297 => true,  // ㊗ Japanese "Congratulations"
+            0x3299 => true,  // ㊙ Japanese "Secret"
             
             _ => false
         };
@@ -242,7 +223,7 @@ public static class DisplayWidth
     /// These characters default to emoji presentation (width 2).
     /// BMP characters (U+0000-U+FFFF) that can be emoji default to text presentation.
     /// </summary>
-    private static bool IsSmpEmoji(int codePoint)
+    internal static bool IsSmpEmoji(int codePoint)
     {
         // SMP Emoji Blocks (U+1F000 - U+1FFFF range)
         // These default to emoji presentation
@@ -285,6 +266,149 @@ public static class DisplayWidth
             return true;
             
         return false;
+    }
+
+    /// <summary>
+    /// Checks if a codepoint has the Unicode Emoji property (Emoji=Yes).
+    /// This is the broader set of characters that can be followed by VS16 (U+FE0F)
+    /// to switch to emoji presentation. Characters without this property should
+    /// ignore VS16 for width purposes.
+    /// Source: https://www.unicode.org/Public/16.0.0/ucd/emoji/emoji-data.txt
+    /// </summary>
+    internal static bool HasEmojiProperty(int codePoint)
+    {
+        // BMP characters with Emoji=Yes property in Unicode 16.0
+        return codePoint switch
+        {
+            0x0023 => true,  // # Hash Sign
+            0x002A => true,  // * Asterisk
+            >= 0x0030 and <= 0x0039 => true,  // 0-9 Digits
+            0x00A9 => true,  // © Copyright
+            0x00AE => true,  // ® Registered
+            0x203C => true,  // ‼ Double Exclamation Mark
+            0x2049 => true,  // ⁉ Exclamation Question Mark
+            0x2122 => true,  // ™ Trade Mark
+            0x2139 => true,  // ℹ Information
+            >= 0x2194 and <= 0x2199 => true,  // ↔..↙ Arrows
+            0x21A9 => true,  // ↩ Right Arrow Curving Left
+            0x21AA => true,  // ↪ Left Arrow Curving Right
+            0x231A => true,  // ⌚ Watch
+            0x231B => true,  // ⌛ Hourglass
+            0x2328 => true,  // ⌨ Keyboard
+            0x23CF => true,  // ⏏ Eject
+            >= 0x23E9 and <= 0x23F3 => true,  // ⏩..⏳ Media controls/timers
+            >= 0x23F8 and <= 0x23FA => true,  // ⏸..⏺ Media buttons
+            0x24C2 => true,  // Ⓜ Circled M
+            0x25AA => true,  // ▪ Black Small Square
+            0x25AB => true,  // ▫ White Small Square
+            0x25B6 => true,  // ▶ Play
+            0x25C0 => true,  // ◀ Reverse
+            >= 0x25FB and <= 0x25FE => true,  // ◻..◾ Medium squares
+            >= 0x2600 and <= 0x2604 => true,  // ☀..☄ Weather/sky
+            0x260E => true,  // ☎ Telephone
+            0x2611 => true,  // ☑ Check Box
+            0x2614 => true,  // ☔ Umbrella With Rain
+            0x2615 => true,  // ☕ Hot Beverage
+            0x2618 => true,  // ☘ Shamrock
+            0x261D => true,  // ☝ Index Pointing Up
+            0x2620 => true,  // ☠ Skull and Crossbones
+            0x2622 => true,  // ☢ Radioactive
+            0x2623 => true,  // ☣ Biohazard
+            0x2626 => true,  // ☦ Orthodox Cross
+            0x262A => true,  // ☪ Star and Crescent
+            0x262E => true,  // ☮ Peace Symbol
+            0x262F => true,  // ☯ Yin Yang
+            0x2638 => true,  // ☸ Wheel of Dharma
+            0x2639 => true,  // ☹ Frowning Face
+            0x263A => true,  // ☺ Smiling Face
+            0x2640 => true,  // ♀ Female Sign
+            0x2642 => true,  // ♂ Male Sign
+            >= 0x2648 and <= 0x2653 => true,  // ♈..♓ Zodiac
+            0x265F => true,  // ♟ Chess Pawn
+            0x2660 => true,  // ♠ Spade Suit
+            0x2663 => true,  // ♣ Club Suit
+            0x2665 => true,  // ♥ Heart Suit
+            0x2666 => true,  // ♦ Diamond Suit
+            0x2668 => true,  // ♨ Hot Springs
+            0x267B => true,  // ♻ Recycling
+            0x267E => true,  // ♾ Infinity
+            0x267F => true,  // ♿ Wheelchair
+            0x2692 => true,  // ⚒ Hammer and Pick
+            0x2693 => true,  // ⚓ Anchor
+            0x2694 => true,  // ⚔ Crossed Swords
+            0x2695 => true,  // ⚕ Medical Symbol
+            0x2696 => true,  // ⚖ Balance Scale
+            0x2697 => true,  // ⚗ Alembic
+            0x2699 => true,  // ⚙ Gear
+            0x269B => true,  // ⚛ Atom Symbol
+            0x269C => true,  // ⚜ Fleur-de-lis
+            0x26A0 => true,  // ⚠ Warning
+            0x26A1 => true,  // ⚡ High Voltage
+            0x26A7 => true,  // ⚧ Transgender Symbol
+            0x26AA => true,  // ⚪ White Circle
+            0x26AB => true,  // ⚫ Black Circle
+            0x26B0 => true,  // ⚰ Coffin
+            0x26B1 => true,  // ⚱ Funeral Urn
+            0x26BD => true,  // ⚽ Soccer Ball
+            0x26BE => true,  // ⚾ Baseball
+            0x26C4 => true,  // ⛄ Snowman
+            0x26C5 => true,  // ⛅ Sun Behind Cloud
+            0x26C8 => true,  // ⛈ Cloud With Lightning
+            0x26CE => true,  // ⛎ Ophiuchus
+            0x26CF => true,  // ⛏ Pick
+            0x26D1 => true,  // ⛑ Rescue Worker's Helmet
+            0x26D3 => true,  // ⛓ Chains
+            0x26D4 => true,  // ⛔ No Entry
+            0x26E9 => true,  // ⛩ Shinto Shrine
+            0x26EA => true,  // ⛪ Church
+            0x26F0 => true,  // ⛰ Mountain
+            0x26F1 => true,  // ⛱ Umbrella on Ground
+            0x26F2 => true,  // ⛲ Fountain
+            0x26F3 => true,  // ⛳ Flag in Hole
+            0x26F4 => true,  // ⛴ Ferry
+            0x26F5 => true,  // ⛵ Sailboat
+            0x26F7 => true,  // ⛷ Skier
+            0x26F8 => true,  // ⛸ Ice Skate
+            0x26F9 => true,  // ⛹ Person Bouncing Ball
+            0x26FA => true,  // ⛺ Tent
+            0x26FD => true,  // ⛽ Fuel Pump
+            0x2702 => true,  // ✂ Scissors
+            0x2705 => true,  // ✅ Check Mark Button
+            >= 0x2708 and <= 0x270D => true,  // ✈..✍ Airplane..Writing Hand
+            0x270F => true,  // ✏ Pencil
+            0x2712 => true,  // ✒ Black Nib
+            0x2714 => true,  // ✔ Check Mark
+            0x2716 => true,  // ✖ Multiply
+            0x271D => true,  // ✝ Latin Cross
+            0x2721 => true,  // ✡ Star of David
+            0x2728 => true,  // ✨ Sparkles
+            0x2733 => true,  // ✳ Eight-Spoked Asterisk
+            0x2734 => true,  // ✴ Eight-Pointed Star
+            0x2744 => true,  // ❄ Snowflake
+            0x2747 => true,  // ❇ Sparkle
+            0x274C => true,  // ❌ Cross Mark
+            0x274E => true,  // ❎ Cross Mark Button
+            >= 0x2753 and <= 0x2755 => true,  // ❓..❕ Question/Exclamation
+            0x2757 => true,  // ❗ Red Exclamation Mark
+            0x2763 => true,  // ❣ Heart Exclamation
+            0x2764 => true,  // ❤ Red Heart
+            >= 0x2795 and <= 0x2797 => true,  // ➕..➗ Plus/Minus/Divide
+            0x27A1 => true,  // ➡ Right Arrow
+            0x27B0 => true,  // ➰ Curly Loop
+            0x27BF => true,  // ➿ Double Curly Loop
+            0x2934 => true,  // ⤴ Right Arrow Curving Up
+            0x2935 => true,  // ⤵ Right Arrow Curving Down
+            >= 0x2B05 and <= 0x2B07 => true,  // ⬅..⬇ Arrows
+            0x2B1B => true,  // ⬛ Black Large Square
+            0x2B1C => true,  // ⬜ White Large Square
+            0x2B50 => true,  // ⭐ Star
+            0x2B55 => true,  // ⭕ Heavy Large Circle
+            0x3030 => true,  // 〰 Wavy Dash
+            0x303D => true,  // 〽 Part Alternation Mark
+            0x3297 => true,  // ㊗ Japanese "Congratulations"
+            0x3299 => true,  // ㊙ Japanese "Secret"
+            _ => false
+        };
     }
 
     /// <summary>
@@ -636,9 +760,24 @@ public static class DisplayWidth
         // Variation selectors
         if (codePoint >= 0xFE00 && codePoint <= 0xFE0F)
             return true;
-        // Skin tone modifiers (Fitzpatrick modifiers)
-        if (codePoint >= 0x1F3FB && codePoint <= 0x1F3FF)
-            return true;
+        // Skin tone modifiers (Fitzpatrick modifiers U+1F3FB–1F3FF):
+        // NOT listed here. Unlike traditional combining marks, Fitzpatrick modifiers
+        // are handled by GetGraphemeAt's terminal-specific splitting logic. When they
+        // follow a valid Emoji_Modifier_Base, they are part of the grapheme cluster and
+        // the base emoji determines the width. When they are standalone (split off by
+        // GetGraphemeAt because the base was not Emoji_Modifier_Base), they render as
+        // independent wide characters (2 cells), matching Ghostty and other terminals.
+        
+        // Fallback: use Unicode general category for nonspacing marks (Mn) and
+        // enclosing marks (Me). This covers combining marks in all scripts
+        // (Devanagari virama U+094D, Arabic marks, Hebrew points, etc.)
+        if (Rune.IsValid(codePoint))
+        {
+            var category = Rune.GetUnicodeCategory(new Rune(codePoint));
+            if (category == System.Globalization.UnicodeCategory.NonSpacingMark ||
+                category == System.Globalization.UnicodeCategory.EnclosingMark)
+                return true;
+        }
             
         return false;
     }
@@ -811,5 +950,77 @@ public static class DisplayWidth
         // If they were listed here, they'd incorrectly be width 2 in text mode.
             
         return false;
+    }
+
+    /// <summary>
+    /// Checks if a code point is a Fitzpatrick skin tone modifier (U+1F3FB–U+1F3FF).
+    /// These are Unicode Emoji_Modifier characters used to change skin tone of emoji.
+    /// </summary>
+    internal static bool IsFitzpatrickModifier(int codePoint)
+    {
+        return codePoint >= 0x1F3FB && codePoint <= 0x1F3FF;
+    }
+
+    /// <summary>
+    /// Checks if a code point is a valid Emoji_Modifier_Base — a character that can
+    /// accept a Fitzpatrick skin tone modifier to form a combined emoji.
+    /// 
+    /// Terminal emulators need this because Unicode grapheme clustering rules give
+    /// Fitzpatrick modifiers the Grapheme_Cluster_Break=Extend property, which means
+    /// .NET's <see cref="StringInfo"/> groups them with ANY
+    /// preceding character. However, terminals must only combine them when the base
+    /// is a valid Emoji_Modifier_Base; otherwise the modifier is rendered as a
+    /// standalone wide character. This matches the behavior of Ghostty, kitty, and
+    /// other conformant terminal emulators.
+    /// 
+    /// Source: Unicode 16.0 emoji-data.txt, Emoji_Modifier_Base property.
+    /// </summary>
+    internal static bool IsEmojiModifierBase(int codePoint)
+    {
+        // BMP Emoji_Modifier_Base characters
+        if (codePoint == 0x261D) return true; // ☝ Index pointing up
+        if (codePoint == 0x26F9) return true; // ⛹ Person bouncing ball
+        if (codePoint >= 0x270A && codePoint <= 0x270D) return true; // ✊✋✌✍
+
+        // SMP Emoji_Modifier_Base characters (Unicode 16.0)
+        return codePoint switch
+        {
+            0x1F385 => true, // 🎅 Santa Claus
+            >= 0x1F3C2 and <= 0x1F3C4 => true, // 🏂🏃🏄
+            0x1F3C7 => true, // 🏇 Horse racing
+            >= 0x1F3CA and <= 0x1F3CC => true, // 🏊🏋🏌
+            >= 0x1F442 and <= 0x1F443 => true, // 👂👃
+            >= 0x1F446 and <= 0x1F450 => true, // 👆👇👈👉👊👋👌👍👎👏👐
+            >= 0x1F466 and <= 0x1F478 => true, // 👦-👸
+            0x1F47C => true, // 👼 Baby angel
+            >= 0x1F481 and <= 0x1F483 => true, // 💁💂💃
+            >= 0x1F485 and <= 0x1F487 => true, // 💅💆💇
+            0x1F4AA => true, // 💪 Flexed biceps
+            >= 0x1F574 and <= 0x1F575 => true, // 🕴🕵
+            0x1F57A => true, // 🕺 Man dancing
+            0x1F590 => true, // 🖐 Hand with fingers splayed
+            >= 0x1F595 and <= 0x1F596 => true, // 🖕🖖
+            >= 0x1F645 and <= 0x1F647 => true, // 🙅🙆🙇
+            >= 0x1F64B and <= 0x1F64F => true, // 🙋🙌🙍🙎🙏
+            0x1F6A3 => true, // 🚣 Person rowing boat
+            >= 0x1F6B4 and <= 0x1F6B6 => true, // 🚴🚵🚶
+            0x1F6C0 => true, // 🛀 Person taking bath
+            0x1F6CC => true, // 🛌 Person in bed
+            0x1F90C => true, // 🤌 Pinched fingers
+            0x1F90F => true, // 🤏 Pinching hand
+            >= 0x1F918 and <= 0x1F91F => true, // 🤘-🤟
+            0x1F926 => true, // 🤦 Person facepalming
+            >= 0x1F930 and <= 0x1F939 => true, // 🤰-🤹
+            >= 0x1F93C and <= 0x1F93E => true, // 🤼🤽🤾
+            0x1F977 => true, // 🥷 Ninja
+            >= 0x1F9B5 and <= 0x1F9B6 => true, // 🦵🦶
+            >= 0x1F9B8 and <= 0x1F9B9 => true, // 🦸🦹
+            0x1F9BB => true, // 🦻 Ear with hearing aid
+            >= 0x1F9CD and <= 0x1F9CF => true, // 🧍🧎🧏
+            >= 0x1F9D1 and <= 0x1F9DD => true, // 🧑-🧝
+            >= 0x1FAC3 and <= 0x1FAC5 => true, // 🫃🫄🫅
+            >= 0x1FAF0 and <= 0x1FAF8 => true, // 🫰-🫸
+            _ => false,
+        };
     }
 }

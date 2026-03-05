@@ -569,6 +569,10 @@ public static class TerminalRegionHtmlExtensions
         sb.AppendLine("            <div class=\"tooltip-label\">Background</div>");
         sb.AppendLine("            <div class=\"tooltip-value\">${formatColorInfo(cell.bg, 'bg')}</div>");
         sb.AppendLine("          </div>");
+        sb.AppendLine("          ${cell.uc ? `<div class=\"tooltip-section\">");
+        sb.AppendLine("            <div class=\"tooltip-label\">Underline Color</div>");
+        sb.AppendLine("            <div class=\"tooltip-value\">${formatColorInfo(cell.uc, 'uc')}</div>");
+        sb.AppendLine("          </div>` : ''}");
         sb.AppendLine("        </div>");
         sb.AppendLine("        <div class=\"tooltip-section\">");
         sb.AppendLine("          <div class=\"tooltip-label\">Attributes (${cell.a})</div>");
@@ -901,7 +905,13 @@ public static class TerminalRegionHtmlExtensions
                     hyperlink = "null";
                 }
 
-                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
+                var uc = cell.UnderlineColor.HasValue
+                    ? $"{{\"r\":{cell.UnderlineColor.Value.R},\"g\":{cell.UnderlineColor.Value.G},\"b\":{cell.UnderlineColor.Value.B}}}"
+                    : "null";
+
+                var us = (int)cell.UnderlineStyle;
+
+                cells.Add($"{{\"c\":\"{escapedChar}\",\"fg\":{fg},\"bg\":{bg},\"uc\":{uc},\"us\":{us},\"a\":{attrs},\"seq\":{seq},\"t\":{writtenAt},\"sixel\":{sixel},\"link\":{hyperlink}}}");
             }
             rows.Add($"[{string.Join(",", cells)}]");
         }

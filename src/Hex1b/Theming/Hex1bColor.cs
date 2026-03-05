@@ -50,4 +50,9 @@ public readonly struct Hex1bColor
     /// Gets the ANSI escape code for setting this as the background color.
     /// </summary>
     public string ToBackgroundAnsi() => IsDefault ? "\x1b[49m" : $"\x1b[48;2;{R};{G};{B}m";
+
+    /// <summary>
+    /// Gets the ANSI escape code for setting this as the underline color (SGR 58).
+    /// </summary>
+    public string ToUnderlineColorAnsi() => IsDefault ? "\x1b[59m" : $"\x1b[58;2;{R};{G};{B}m";
 }
