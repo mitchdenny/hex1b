@@ -11,4 +11,8 @@
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="workspace\**\*" CopyToOutputDirectory="PreserveNewest" LinkBase="workspace" />
+  </ItemGroup>
+
 </Project>

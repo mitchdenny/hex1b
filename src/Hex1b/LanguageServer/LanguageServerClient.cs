@@ -65,6 +65,9 @@ internal sealed class LanguageServerClient : IAsyncDisposable
                 CreateNoWindow = true,
             };
 
+            if (_config.WorkingDirectory != null)
+                psi.WorkingDirectory = _config.WorkingDirectory;
+
             if (_config.ServerArguments != null)
             {
                 foreach (var arg in _config.ServerArguments)

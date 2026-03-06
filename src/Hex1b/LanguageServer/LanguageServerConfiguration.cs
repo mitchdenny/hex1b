@@ -17,6 +17,9 @@ public sealed class LanguageServerConfiguration
     /// <summary>Unix domain socket path for connecting to an existing server.</summary>
     public string? SocketPath { get; set; }
 
+    /// <summary>Working directory for the server process.</summary>
+    public string? WorkingDirectory { get; set; }
+
     /// <summary>LSP language identifier (e.g., "csharp", "cpp", "python").</summary>
     public string? LanguageId { get; set; }
 
@@ -45,6 +48,13 @@ public sealed class LanguageServerConfiguration
     {
         ServerCommand = command;
         ServerArguments = args;
+        return this;
+    }
+
+    /// <summary>Sets the working directory for the server process.</summary>
+    public LanguageServerConfiguration WithWorkingDirectory(string path)
+    {
+        WorkingDirectory = path;
         return this;
     }
 

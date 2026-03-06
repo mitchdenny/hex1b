@@ -153,63 +153,257 @@ internal sealed class InProcessLanguageServer : IAsyncDisposable
         var keywords = new HashSet<string>
         {
             "using", "namespace", "class", "public", "private", "protected", "internal",
-            "sealed", "static", "void", "int", "string", "var", "return", "new", "if",
+            "sealed", "static", "void", "var", "return", "new", "if",
             "else", "for", "foreach", "while", "async", "await", "throw", "try", "catch",
             "readonly", "const", "override", "virtual", "abstract", "interface", "record",
             "struct", "enum", "true", "false", "null", "this", "base", "in", "out", "ref",
-            "bool", "byte", "char", "double", "float", "long", "short", "object", "Task",
+            "finally", "do", "switch", "case", "default", "break", "continue", "goto",
+            "yield", "when", "delegate", "event", "partial", "unsafe", "fixed",
+            "is", "as", "params", "typeof", "sizeof", "nameof", "stackalloc",
+            "checked", "unchecked", "from", "select", "where", "let", "orderby",
+            "ascending", "descending", "group", "by", "into", "join", "on", "equals",
+            "get", "set", "init", "value", "required", "with", "not", "and", "or",
+            "dynamic", "nint", "nuint", "global", "scoped", "file",
+        };
+        var builtInTypes = new HashSet<string>
+        {
+            "int", "uint", "long", "ulong", "short", "ushort", "byte", "sbyte",
+            "float", "double", "decimal", "bool", "char", "string", "object",
+        };
+        var knownTypes = new HashSet<string>
+        {
+            "Console", "String", "Int32", "Int64", "Boolean", "Char", "Byte",
+            "Double", "Single", "Decimal", "Object", "Type", "Attribute",
+            "Task", "ValueTask", "List", "Dictionary", "HashSet", "Queue", "Stack",
+            "IEnumerable", "IReadOnlyList", "IReadOnlyCollection", "IList", "ICollection",
+            "IDisposable", "IAsyncDisposable",
+            "Action", "Func", "Predicate", "Comparison",
+            "Exception", "ArgumentException", "ArgumentNullException",
+            "InvalidOperationException", "NotSupportedException", "NotImplementedException",
+            "StringBuilder", "StringComparison", "CancellationToken", "CancellationTokenSource",
+            "Stream", "MemoryStream", "FileStream", "StreamReader", "StreamWriter",
+            "Math", "Convert", "Encoding", "Guid", "DateTime", "TimeSpan",
+            "Array", "Span", "ReadOnlySpan", "Memory", "ReadOnlyMemory",
+            "File", "Path", "Directory", "Environment",
+            "EventArgs", "EventHandler",
+        };
+        var typeDeclarators = new HashSet<string>
+        {
+            "class", "struct", "interface", "enum", "record", "namespace",
         };
 
+        // Token type indices in the legend:
+        // 0=keyword, 1=type, 2=string, 3=comment, 4=number, 5=function, 6=variable, 7=namespace
         int prevLine = 0, prevChar = 0;
+        var inBlockComment = false;
 
         for (var li = 0; li < lines.Length; li++)
         {
             var line = lines[li];
             var col = 0;
+            string? previousWord = null;
+
+            if (inBlockComment)
+            {
+                var end = line.IndexOf("*/", StringComparison.Ordinal);
+                if (end >= 0)
+                {
+                    AddToken(tokens, li, 0, end + 2, 3, ref prevLine, ref prevChar);
+                    col = end + 2;
+                    inBlockComment = false;
+                }
+                else
+                {
+                    AddToken(tokens, li, 0, line.Length, 3, ref prevLine, ref prevChar);
+                    continue;
+                }
+            }
+
             while (col < line.Length)
             {
                 if (char.IsWhiteSpace(line[col])) { col++; continue; }
 
-                if (line[col] == '"')
+                // Block comments
+                if (col + 1 < line.Length && line[col] == '/' && line[col + 1] == '*')
                 {
-                    var start = col++;
-                    while (col < line.Length && line[col] != '"') col++;
-                    if (col < line.Length) col++;
-                    AddToken(tokens, li, start, col - start, 2, ref prevLine, ref prevChar);
+                    var start = col;
+                    var end = line.IndexOf("*/", col + 2, StringComparison.Ordinal);
+                    if (end >= 0)
+                    {
+                        AddToken(tokens, li, start, end + 2 - start, 3, ref prevLine, ref prevChar);
+                        col = end + 2;
+                    }
+                    else
+                    {
+                        AddToken(tokens, li, start, line.Length - start, 3, ref prevLine, ref prevChar);
+                        inBlockComment = true;
+                        col = line.Length;
+                    }
+                    previousWord = null;
                     continue;
                 }
 
+                // Line comments
                 if (col + 1 < line.Length && line[col] == '/' && line[col + 1] == '/')
                 {
-                    var start = col;
-                    AddToken(tokens, li, start, line.Length - col, 3, ref prevLine, ref prevChar);
+                    AddToken(tokens, li, col, line.Length - col, 3, ref prevLine, ref prevChar);
+                    col = line.Length;
+                    previousWord = null;
+                    continue;
+                }
+
+                // Preprocessor
+                if (line[col] == '#' && line[..col].Trim().Length == 0)
+                {
+                    AddToken(tokens, li, col, line.Length - col, 3, ref prevLine, ref prevChar);
                     col = line.Length;
                     continue;
                 }
 
+                // Verbatim strings @"..."
+                if (line[col] == '@' && col + 1 < line.Length && line[col + 1] == '"')
+                {
+                    var start = col;
+                    col += 2;
+                    while (col < line.Length)
+                    {
+                        if (line[col] == '"')
+                        {
+                            if (col + 1 < line.Length && line[col + 1] == '"')
+                                col += 2;
+                            else { col++; break; }
+                        }
+                        else col++;
+                    }
+                    AddToken(tokens, li, start, col - start, 2, ref prevLine, ref prevChar);
+                    previousWord = null;
+                    continue;
+                }
+
+                // Interpolated strings $"..."
+                if (line[col] == '$' && col + 1 < line.Length && line[col + 1] == '"')
+                {
+                    var start = col;
+                    col += 2;
+                    while (col < line.Length && line[col] != '"')
+                    {
+                        if (line[col] == '\\' && col + 1 < line.Length) col++;
+                        col++;
+                    }
+                    if (col < line.Length) col++;
+                    AddToken(tokens, li, start, col - start, 2, ref prevLine, ref prevChar);
+                    previousWord = null;
+                    continue;
+                }
+
+                // String literals
+                if (line[col] == '"')
+                {
+                    var start = col++;
+                    while (col < line.Length && line[col] != '"')
+                    {
+                        if (line[col] == '\\' && col + 1 < line.Length) col++;
+                        col++;
+                    }
+                    if (col < line.Length) col++;
+                    AddToken(tokens, li, start, col - start, 2, ref prevLine, ref prevChar);
+                    previousWord = null;
+                    continue;
+                }
+
+                // Character literals
+                if (line[col] == '\'')
+                {
+                    var start = col++;
+                    if (col < line.Length && line[col] == '\\') col++;
+                    if (col < line.Length) col++;
+                    if (col < line.Length && line[col] == '\'') col++;
+                    AddToken(tokens, li, start, col - start, 2, ref prevLine, ref prevChar);
+                    previousWord = null;
+                    continue;
+                }
+
+                // Identifiers
                 if (char.IsLetter(line[col]) || line[col] == '_')
                 {
                     var start = col;
                     while (col < line.Length && (char.IsLetterOrDigit(line[col]) || line[col] == '_')) col++;
-                    if (keywords.Contains(line[start..col]))
+                    var word = line[start..col];
+
+                    // Look ahead past whitespace
+                    var next = col;
+                    while (next < line.Length && line[next] == ' ') next++;
+                    var nextChar = next < line.Length ? line[next] : '\0';
+                    var afterDot = start > 0 && line[start - 1] == '.';
+
+                    if (builtInTypes.Contains(word))
+                    {
                         AddToken(tokens, li, start, col - start, 0, ref prevLine, ref prevChar);
+                    }
+                    else if (keywords.Contains(word))
+                    {
+                        AddToken(tokens, li, start, col - start, 0, ref prevLine, ref prevChar);
+                    }
+                    else if (previousWord != null && typeDeclarators.Contains(previousWord))
+                    {
+                        AddToken(tokens, li, start, col - start, 1, ref prevLine, ref prevChar);
+                    }
+                    else if (knownTypes.Contains(word))
+                    {
+                        AddToken(tokens, li, start, col - start, 1, ref prevLine, ref prevChar);
+                    }
+                    else if (word.Length > 1 && word[0] == 'I' && char.IsUpper(word[1]))
+                    {
+                        AddToken(tokens, li, start, col - start, 1, ref prevLine, ref prevChar);
+                    }
+                    else if (nextChar == '<' && !afterDot)
+                    {
+                        AddToken(tokens, li, start, col - start, 1, ref prevLine, ref prevChar);
+                    }
+                    else if (nextChar == '(')
+                    {
+                        AddToken(tokens, li, start, col - start, 5, ref prevLine, ref prevChar);
+                    }
+
+                    previousWord = word;
                     continue;
                 }
 
+                // Numbers
                 if (char.IsDigit(line[col]))
                 {
                     var start = col;
-                    while (col < line.Length && (char.IsDigit(line[col]) || line[col] == '.')) col++;
+                    if (line[col] == '0' && col + 1 < line.Length && (line[col + 1] == 'x' || line[col + 1] == 'X'))
+                    {
+                        col += 2;
+                        while (col < line.Length && IsHexDigit(line[col])) col++;
+                    }
+                    else
+                    {
+                        while (col < line.Length && (char.IsDigit(line[col]) || line[col] == '.' || line[col] == '_')) col++;
+                        if (col < line.Length && (line[col] == 'e' || line[col] == 'E'))
+                        {
+                            col++;
+                            if (col < line.Length && (line[col] == '+' || line[col] == '-')) col++;
+                            while (col < line.Length && char.IsDigit(line[col])) col++;
+                        }
+                    }
+                    while (col < line.Length && "fFdDmMuUlL".Contains(line[col])) col++;
                     AddToken(tokens, li, start, col - start, 4, ref prevLine, ref prevChar);
+                    previousWord = null;
                     continue;
                 }
 
+                previousWord = null;
                 col++;
             }
         }
 
         return tokens.ToArray();
     }
+
+    private static bool IsHexDigit(char c) =>
+        char.IsDigit(c) || (c >= 'a' && c <= 'f') || (c >= 'A' && c <= 'F');
 
     private static void AddToken(List<int> tokens, int line, int col, int len, int type,
         ref int prevLine, ref int prevChar)
