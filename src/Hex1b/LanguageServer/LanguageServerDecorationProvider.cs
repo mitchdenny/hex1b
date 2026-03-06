@@ -257,7 +257,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
         if (client == null || _session == null) return;
 
         // LSP positions are 0-based
-        var result = await client.RequestCompletionAsync(_documentUri, line - 1, column - 1, ct).ConfigureAwait(false);
+        var result = await client.RequestCompletionAsync(_documentUri, line - 1, column - 1, ct: ct).ConfigureAwait(false);
         if (result?.Items == null || result.Items.Length == 0)
         {
             _session.DismissOverlay("lsp-completion");

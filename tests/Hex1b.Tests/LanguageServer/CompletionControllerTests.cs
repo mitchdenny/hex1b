@@ -92,6 +92,76 @@ public class CompletionControllerTests
     }
 
     [Fact]
+    public void Filter_NarrowsItems()
+    {
+        var items = MakeItems("forEach", "find", "filter", "map", "reduce");
+        _controller.Show(items, new DocumentPosition(1, 5));
+        Assert.True(_controller.IsActive);
+
+        _controller.Filter("fi");
+
+        Assert.True(_controller.IsActive);
+        var overlay = _session.Overlays[0];
+        Assert.Equal(2, overlay.Content.Count); // "find" and "filter"
+    }
+
+    [Fact]
+    public void Filter_DismissesWhenNoMatch()
+    {
+        var items = MakeItems("forEach", "find", "filter");
+        _controller.Show(items, new DocumentPosition(1, 5));
+
+        _controller.Filter("xyz");
+
+        Assert.False(_controller.IsActive);
+        Assert.Empty(_session.Overlays);
+    }
+
+    [Fact]
+    public void Filter_IsCaseInsensitive()
+    {
+        var items = MakeItems("forEach", "Find", "FILTER");
+        _controller.Show(items, new DocumentPosition(1, 5));
+
+        _controller.Filter("f");
+
+        Assert.True(_controller.IsActive);
+        var overlay = _session.Overlays[0];
+        Assert.Equal(3, overlay.Content.Count); // All match case-insensitively
+    }
+
+    [Fact]
+    public void Accept_AfterFilter_StripsPrefix()
+    {
+        var items = MakeItems("forEach", "find", "filter");
+        _controller.Show(items, new DocumentPosition(1, 5));
+
+        _controller.Filter("fi");
+        var text = _controller.Accept();
+
+        // "find" minus the "fi" prefix already typed
+        Assert.Equal("nd", text);
+    }
+
+    [Fact]
+    public void Filter_UsesFilterTextWhenAvailable()
+    {
+        var items = new[]
+        {
+            new CompletionItem { Label = "display()", FilterText = "display" },
+            new CompletionItem { Label = "dispose()", FilterText = "dispose" },
+            new CompletionItem { Label = "map()", FilterText = "map" },
+        };
+        _controller.Show(items, new DocumentPosition(1, 1));
+
+        _controller.Filter("dis");
+
+        Assert.True(_controller.IsActive);
+        var overlay = _session.Overlays[0];
+        Assert.Equal(2, overlay.Content.Count); // display() and dispose()
+    }
+
+    [Fact]
     public void Dismiss_ClearsOverlay()
     {
         var items = MakeItems("foo", "bar");
