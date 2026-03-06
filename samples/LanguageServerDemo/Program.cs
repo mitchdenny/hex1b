@@ -3,318 +3,585 @@ using Hex1b.Documents;
 using Hex1b.LanguageServer;
 using Hex1b.Layout;
 using Hex1b.Widgets;
-using LanguageServerDemo;
 
 // =============================================================================
 // Language Server Demo - IDE-like editor with real LSP integration
 // =============================================================================
 
-// ── Create a temporary workspace with properly configured TS/JS project ──────
+// ── Create a temporary workspace that looks like a real TypeScript project ────
 var tempWorkspace = Path.Combine(Path.GetTempPath(), "hex1b-lsp-demo-" + Guid.NewGuid().ToString("N")[..8]);
 Directory.CreateDirectory(tempWorkspace);
+Directory.CreateDirectory(Path.Combine(tempWorkspace, "src"));
+Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "models"));
+Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "services"));
+Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "utils"));
 
-// Write package.json so typescript-language-server scopes completions properly
+// ── Root config files ────────────────────────────────────────────────────────
+
 File.WriteAllText(Path.Combine(tempWorkspace, "package.json"), """
 {
-  "name": "hex1b-lsp-demo",
-  "version": "1.0.0",
+  "name": "@hex1b/demo-app",
+  "version": "0.1.0",
   "private": true,
-  "description": "TypeScript workspace for Hex1b language server demo"
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint src/"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0"
+  }
 }
 """);
 
-// Write tsconfig.json
 File.WriteAllText(Path.Combine(tempWorkspace, "tsconfig.json"), """
 {
   "compilerOptions": {
     "target": "ES2022",
     "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
     "outDir": "./dist",
+    "rootDir": "./src",
     "noEmit": true
   },
-  "include": ["*.ts"]
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
 }
 """);
 
-// Write sample TypeScript files
-File.WriteAllText(Path.Combine(tempWorkspace, "TaskManager.ts"), """
+// ── src/models/ — Domain types ───────────────────────────────────────────────
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "models", "task.ts"), """
 /**
- * A simple task manager demonstrating TypeScript syntax.
+ * Core domain model for a task in the system.
  */
-interface Task {
-    id: number;
+export type Priority = "low" | "medium" | "high" | "critical";
+
+export type TaskStatus = "pending" | "in_progress" | "completed" | "cancelled";
+
+export interface Task {
+    readonly id: string;
     title: string;
-    completed: boolean;
-    priority: "low" | "medium" | "high";
+    description: string;
+    status: TaskStatus;
+    priority: Priority;
     tags: string[];
+    assignee?: string;
+    createdAt: Date;
+    updatedAt: Date;
+    completedAt?: Date;
 }
 
-class TaskManager {
-    private tasks: Map<number, Task> = new Map();
-    private nextId = 1;
-
-    /** Creates a new task and returns its ID. */
-    add(title: string, priority: Task["priority"] = "medium"): number {
-        const id = this.nextId++;
-        const task: Task = { id, title, completed: false, priority, tags: [] };
-        this.tasks.set(id, task);
-        return id;
-    }
-
-    /** Marks a task as completed. */
-    complete(id: number): boolean {
-        const task = this.tasks.get(id);
-        if (!task) return false;
-        task.completed = true;
-        return true;
-    }
-
-    /** Gets all pending tasks, optionally filtered by priority. */
-    getPending(priority?: Task["priority"]): Task[] {
-        const result: Task[] = [];
-        for (const task of this.tasks.values()) {
-            if (!task.completed) {
-                if (!priority || task.priority === priority) {
-                    result.push(task);
-                }
-            }
-        }
-        return result;
-    }
-
-    /** Adds a tag to a task. */
-    addTag(id: number, tag: string): void {
-        const task = this.tasks.get(id);
-        if (task && !task.tags.includes(tag)) {
-            task.tags.push(tag);
-        }
-    }
-
-    /** Returns a summary of tasks by status. */
-    summary(): { total: number; completed: number; pending: number } {
-        let completed = 0;
-        let pending = 0;
-        for (const task of this.tasks.values()) {
-            if (task.completed) completed++;
-            else pending++;
-        }
-        return { total: this.tasks.size, completed, pending };
-    }
+export interface CreateTaskInput {
+    title: string;
+    description?: string;
+    priority?: Priority;
+    tags?: string[];
+    assignee?: string;
 }
 
-// Usage
-const manager = new TaskManager();
-manager.add("Write documentation", "high");
-manager.add("Fix bug #42", "medium");
-manager.add("Update dependencies", "low");
+export interface UpdateTaskInput {
+    title?: string;
+    description?: string;
+    priority?: Priority;
+    tags?: string[];
+    assignee?: string;
+}
 
-manager.complete(1);
-manager.addTag(2, "bugfix");
+export interface TaskFilter {
+    status?: TaskStatus | TaskStatus[];
+    priority?: Priority | Priority[];
+    assignee?: string;
+    tags?: string[];
+    search?: string;
+}
 
-const stats = manager.summary();
-console.log(`Tasks: ${stats.total} total, ${stats.completed} done, ${stats.pending} pending`);
+export interface TaskStats {
+    total: number;
+    byStatus: Record<TaskStatus, number>;
+    byPriority: Record<Priority, number>;
+    overdue: number;
+    completedThisWeek: number;
+}
 """);
 
-File.WriteAllText(Path.Combine(tempWorkspace, "HttpClient.ts"), """
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "models", "user.ts"), """
 /**
- * A typed HTTP client wrapper with interceptors.
+ * User and authentication types.
  */
-type HttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
-
-interface RequestConfig {
-    url: string;
-    method: HttpMethod;
-    headers?: Record<string, string>;
-    body?: unknown;
-    timeout?: number;
+export interface User {
+    readonly id: string;
+    email: string;
+    name: string;
+    role: UserRole;
+    avatarUrl?: string;
+    createdAt: Date;
+    lastLoginAt?: Date;
 }
 
-interface Response<T> {
-    status: number;
-    data: T;
-    headers: Record<string, string>;
-    ok: boolean;
+export type UserRole = "admin" | "member" | "viewer";
+
+export interface AuthToken {
+    accessToken: string;
+    refreshToken: string;
+    expiresAt: Date;
 }
 
-type Interceptor = (config: RequestConfig) => RequestConfig | Promise<RequestConfig>;
-
-class HttpClient {
-    private baseUrl: string;
-    private defaultHeaders: Record<string, string>;
-    private interceptors: Interceptor[] = [];
-
-    constructor(baseUrl: string, headers: Record<string, string> = {}) {
-        this.baseUrl = baseUrl.replace(/\/$/, "");
-        this.defaultHeaders = {
-            "Content-Type": "application/json",
-            ...headers,
-        };
-    }
-
-    /** Adds a request interceptor. */
-    use(interceptor: Interceptor): void {
-        this.interceptors.push(interceptor);
-    }
-
-    /** Sends a GET request. */
-    async get<T>(path: string, headers?: Record<string, string>): Promise<Response<T>> {
-        return this.request<T>({ url: path, method: "GET", headers });
-    }
-
-    /** Sends a POST request. */
-    async post<T>(path: string, body: unknown, headers?: Record<string, string>): Promise<Response<T>> {
-        return this.request<T>({ url: path, method: "POST", body, headers });
-    }
-
-    /** Sends a PUT request. */
-    async put<T>(path: string, body: unknown): Promise<Response<T>> {
-        return this.request<T>({ url: path, method: "PUT", body });
-    }
-
-    /** Sends a DELETE request. */
-    async delete<T>(path: string): Promise<Response<T>> {
-        return this.request<T>({ url: path, method: "DELETE" });
-    }
-
-    private async request<T>(config: RequestConfig): Promise<Response<T>> {
-        let finalConfig = { ...config, url: `${this.baseUrl}${config.url}` };
-        finalConfig.headers = { ...this.defaultHeaders, ...config.headers };
-
-        for (const interceptor of this.interceptors) {
-            finalConfig = await interceptor(finalConfig);
-        }
-
-        const response = await fetch(finalConfig.url, {
-            method: finalConfig.method,
-            headers: finalConfig.headers,
-            body: finalConfig.body ? JSON.stringify(finalConfig.body) : undefined,
-        });
-
-        const data = await response.json() as T;
-        return {
-            status: response.status,
-            data,
-            headers: Object.fromEntries(response.headers.entries()),
-            ok: response.ok,
-        };
-    }
+export interface LoginCredentials {
+    email: string;
+    password: string;
 }
 
-// Usage
-const api = new HttpClient("https://api.example.com", {
-    Authorization: "Bearer token123",
-});
-
-api.use((config) => {
-    console.log(`[${config.method}] ${config.url}`);
-    return config;
-});
-""");
-
-File.WriteAllText(Path.Combine(tempWorkspace, "utils.js"), """
-// @ts-check
-
-/**
- * Utility functions for data transformation.
- */
-
-/**
- * Groups an array of items by a key function.
- * @template T
- * @param {T[]} items
- * @param {(item: T) => string} keyFn
- * @returns {Record<string, T[]>}
- */
-function groupBy(items, keyFn) {
-    const result = {};
-    for (const item of items) {
-        const key = keyFn(item);
-        if (!result[key]) result[key] = [];
-        result[key].push(item);
-    }
-    return result;
-}
-
-/**
- * Debounces a function call.
- * @param {Function} fn
- * @param {number} delay
- * @returns {Function}
- */
-function debounce(fn, delay) {
-    let timer;
-    return function (...args) {
-        clearTimeout(timer);
-        timer = setTimeout(() => fn.apply(this, args), delay);
+export interface UserPreferences {
+    theme: "light" | "dark" | "system";
+    language: string;
+    notifications: {
+        email: boolean;
+        push: boolean;
+        digest: "none" | "daily" | "weekly";
     };
 }
-
-/**
- * Deep clones an object using structured clone.
- * @template T
- * @param {T} obj
- * @returns {T}
- */
-function deepClone(obj) {
-    return structuredClone(obj);
-}
-
-/**
- * Formats a number as a currency string.
- * @param {number} amount
- * @param {string} currency
- * @returns {string}
- */
-function formatCurrency(amount, currency = "USD") {
-    return new Intl.NumberFormat("en-US", {
-        style: "currency",
-        currency,
-    }).format(amount);
-}
-
-module.exports = { groupBy, debounce, deepClone, formatCurrency };
 """);
 
-// Also copy the C# sample from the shipped workspace (for static highlighting)
-var shippedWorkspace = FindShippedWorkspace();
-string csharpSample;
-if (shippedWorkspace != null && File.Exists(Path.Combine(shippedWorkspace, "Greeter.cs")))
-{
-    csharpSample = File.ReadAllText(Path.Combine(shippedWorkspace, "Greeter.cs"));
-}
-else
-{
-    csharpSample = """
-    using System;
-    namespace Demo;
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "models", "index.ts"), """
+export type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter, TaskStats, Priority, TaskStatus } from "./task.js";
+export type { User, UserRole, AuthToken, LoginCredentials, UserPreferences } from "./user.js";
+""");
 
-    public class Greeter
-    {
-        public string Greet(string name) => $"Hello, {name}!";
+// ── src/services/ — Business logic ──────────────────────────────────────────
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "services", "task-service.ts"), """
+import type { Task, CreateTaskInput, UpdateTaskInput, TaskFilter, TaskStats, Priority, TaskStatus } from "../models/index.js";
+import { generateId, matchesFilter } from "../utils/helpers.js";
+import { EventEmitter } from "../utils/events.js";
+
+export type TaskEvent =
+    | { type: "created"; task: Task }
+    | { type: "updated"; task: Task; changes: Partial<Task> }
+    | { type: "deleted"; taskId: string }
+    | { type: "statusChanged"; task: Task; from: TaskStatus; to: TaskStatus };
+
+/**
+ * Manages the lifecycle of tasks with event-driven notifications.
+ */
+export class TaskService {
+    private tasks = new Map<string, Task>();
+    private events = new EventEmitter<TaskEvent>();
+
+    /** Subscribe to task lifecycle events. */
+    on(handler: (event: TaskEvent) => void): () => void {
+        return this.events.on(handler);
     }
-    """;
-}
 
-File.WriteAllText(Path.Combine(tempWorkspace, "Greeter.cs"), csharpSample);
+    /** Create a new task with sensible defaults. */
+    create(input: CreateTaskInput): Task {
+        const now = new Date();
+        const task: Task = {
+            id: generateId(),
+            title: input.title,
+            description: input.description ?? "",
+            status: "pending",
+            priority: input.priority ?? "medium",
+            tags: input.tags ?? [],
+            assignee: input.assignee,
+            createdAt: now,
+            updatedAt: now,
+        };
 
-static string? FindShippedWorkspace()
-{
-    var binDir = AppContext.BaseDirectory;
-    var candidate = Path.Combine(binDir, "workspace");
-    if (Directory.Exists(candidate)) return Path.GetFullPath(candidate);
-    var dir = new DirectoryInfo(binDir);
-    while (dir != null)
-    {
-        candidate = Path.Combine(dir.FullName, "workspace");
-        if (Directory.Exists(candidate) &&
-            File.Exists(Path.Combine(dir.FullName, "LanguageServerDemo.csproj")))
-            return Path.GetFullPath(candidate);
-        dir = dir.Parent;
+        this.tasks.set(task.id, task);
+        this.events.emit({ type: "created", task });
+        return task;
     }
-    return null;
+
+    /** Update an existing task. Returns the updated task or undefined. */
+    update(id: string, input: UpdateTaskInput): Task | undefined {
+        const task = this.tasks.get(id);
+        if (!task) return undefined;
+
+        const changes: Partial<Task> = {};
+        if (input.title !== undefined) { changes.title = input.title; task.title = input.title; }
+        if (input.description !== undefined) { changes.description = input.description; task.description = input.description; }
+        if (input.priority !== undefined) { changes.priority = input.priority; task.priority = input.priority; }
+        if (input.tags !== undefined) { changes.tags = input.tags; task.tags = [...input.tags]; }
+        if (input.assignee !== undefined) { changes.assignee = input.assignee; task.assignee = input.assignee; }
+
+        task.updatedAt = new Date();
+        this.events.emit({ type: "updated", task, changes });
+        return task;
+    }
+
+    /** Transition a task to a new status. */
+    setStatus(id: string, status: TaskStatus): Task | undefined {
+        const task = this.tasks.get(id);
+        if (!task || task.status === status) return task;
+
+        const from = task.status;
+        task.status = status;
+        task.updatedAt = new Date();
+
+        if (status === "completed") {
+            task.completedAt = new Date();
+        }
+
+        this.events.emit({ type: "statusChanged", task, from, to: status });
+        return task;
+    }
+
+    /** Delete a task by ID. Returns true if it existed. */
+    delete(id: string): boolean {
+        const existed = this.tasks.delete(id);
+        if (existed) {
+            this.events.emit({ type: "deleted", taskId: id });
+        }
+        return existed;
+    }
+
+    /** Get a single task by ID. */
+    get(id: string): Task | undefined {
+        return this.tasks.get(id);
+    }
+
+    /** List tasks with optional filtering. */
+    list(filter?: TaskFilter): Task[] {
+        const results: Task[] = [];
+        for (const task of this.tasks.values()) {
+            if (!filter || matchesFilter(task, filter)) {
+                results.push(task);
+            }
+        }
+        return results.sort((a, b) => {
+            const priorityOrder: Record<Priority, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+            return priorityOrder[a.priority] - priorityOrder[b.priority];
+        });
+    }
+
+    /** Compute aggregate statistics across all tasks. */
+    stats(): TaskStats {
+        const byStatus: Record<TaskStatus, number> = { pending: 0, in_progress: 0, completed: 0, cancelled: 0 };
+        const byPriority: Record<Priority, number> = { low: 0, medium: 0, high: 0, critical: 0 };
+
+        const weekAgo = new Date();
+        weekAgo.setDate(weekAgo.getDate() - 7);
+        let completedThisWeek = 0;
+
+        for (const task of this.tasks.values()) {
+            byStatus[task.status]++;
+            byPriority[task.priority]++;
+
+            if (task.status === "completed" && task.completedAt && task.completedAt >= weekAgo) {
+                completedThisWeek++;
+            }
+        }
+
+        return {
+            total: this.tasks.size,
+            byStatus,
+            byPriority,
+            overdue: 0,
+            completedThisWeek,
+        };
+    }
 }
+""");
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "services", "auth-service.ts"), """
+import type { User, AuthToken, LoginCredentials, UserRole } from "../models/index.js";
+import { generateId } from "../utils/helpers.js";
+
+/**
+ * Handles user authentication and session management.
+ */
+export class AuthService {
+    private users = new Map<string, User & { passwordHash: string }>();
+    private sessions = new Map<string, { userId: string; expiresAt: Date }>();
+    private currentUser: User | null = null;
+
+    /** Register a new user account. */
+    async register(email: string, password: string, name: string, role: UserRole = "member"): Promise<User> {
+        for (const existing of this.users.values()) {
+            if (existing.email === email) {
+                throw new Error(`User with email ${email} already exists`);
+            }
+        }
+
+        const user: User & { passwordHash: string } = {
+            id: generateId(),
+            email,
+            name,
+            role,
+            passwordHash: await this.hashPassword(password),
+            createdAt: new Date(),
+        };
+
+        this.users.set(user.id, user);
+        return this.sanitize(user);
+    }
+
+    /** Authenticate with email and password. */
+    async login(credentials: LoginCredentials): Promise<AuthToken> {
+        const user = this.findByEmail(credentials.email);
+        if (!user) {
+            throw new Error("Invalid credentials");
+        }
+
+        const valid = await this.verifyPassword(credentials.password, user.passwordHash);
+        if (!valid) {
+            throw new Error("Invalid credentials");
+        }
+
+        user.lastLoginAt = new Date();
+        this.currentUser = this.sanitize(user);
+
+        return this.createToken(user.id);
+    }
+
+    /** Validate a token and return the associated user. */
+    validate(token: string): User | null {
+        const session = this.sessions.get(token);
+        if (!session || session.expiresAt < new Date()) {
+            if (session) this.sessions.delete(token);
+            return null;
+        }
+
+        const user = this.users.get(session.userId);
+        return user ? this.sanitize(user) : null;
+    }
+
+    /** Revoke a session token. */
+    logout(token: string): void {
+        this.sessions.delete(token);
+        this.currentUser = null;
+    }
+
+    /** Get the currently authenticated user. */
+    getCurrentUser(): User | null {
+        return this.currentUser;
+    }
+
+    private findByEmail(email: string) {
+        for (const user of this.users.values()) {
+            if (user.email === email) return user;
+        }
+        return undefined;
+    }
+
+    private createToken(userId: string): AuthToken {
+        const accessToken = generateId() + generateId();
+        const refreshToken = generateId() + generateId();
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 24);
+
+        this.sessions.set(accessToken, { userId, expiresAt });
+        return { accessToken, refreshToken, expiresAt };
+    }
+
+    private sanitize(user: User & { passwordHash: string }): User {
+        const { passwordHash: _, ...safe } = user;
+        return safe;
+    }
+
+    private async hashPassword(password: string): Promise<string> {
+        const encoder = new TextEncoder();
+        const data = encoder.encode(password + "salt");
+        const hash = await crypto.subtle.digest("SHA-256", data);
+        return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
+    }
+
+    private async verifyPassword(password: string, hash: string): Promise<boolean> {
+        return await this.hashPassword(password) === hash;
+    }
+}
+""");
+
+// ── src/utils/ — Shared utilities ───────────────────────────────────────────
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "utils", "helpers.ts"), """
+import type { Task, TaskFilter } from "../models/index.js";
+
+let counter = 0;
+
+/** Generates a unique ID string. */
+export function generateId(): string {
+    const timestamp = Date.now().toString(36);
+    const random = Math.random().toString(36).substring(2, 8);
+    return `${timestamp}-${random}-${++counter}`;
+}
+
+/** Checks whether a task matches the given filter criteria. */
+export function matchesFilter(task: Task, filter: TaskFilter): boolean {
+    if (filter.status) {
+        const statuses = Array.isArray(filter.status) ? filter.status : [filter.status];
+        if (!statuses.includes(task.status)) return false;
+    }
+
+    if (filter.priority) {
+        const priorities = Array.isArray(filter.priority) ? filter.priority : [filter.priority];
+        if (!priorities.includes(task.priority)) return false;
+    }
+
+    if (filter.assignee && task.assignee !== filter.assignee) {
+        return false;
+    }
+
+    if (filter.tags && filter.tags.length > 0) {
+        const hasAllTags = filter.tags.every(tag => task.tags.includes(tag));
+        if (!hasAllTags) return false;
+    }
+
+    if (filter.search) {
+        const query = filter.search.toLowerCase();
+        const searchable = `${task.title} ${task.description}`.toLowerCase();
+        if (!searchable.includes(query)) return false;
+    }
+
+    return true;
+}
+
+/** Formats a date as a relative time string (e.g. "2 hours ago"). */
+export function timeAgo(date: Date): string {
+    const seconds = Math.floor((Date.now() - date.getTime()) / 1000);
+
+    const intervals: [number, string][] = [
+        [31536000, "year"],
+        [2592000, "month"],
+        [86400, "day"],
+        [3600, "hour"],
+        [60, "minute"],
+        [1, "second"],
+    ];
+
+    for (const [secs, label] of intervals) {
+        const count = Math.floor(seconds / secs);
+        if (count >= 1) {
+            return `${count} ${label}${count > 1 ? "s" : ""} ago`;
+        }
+    }
+
+    return "just now";
+}
+
+/** Truncates a string to the given length, adding "…" if needed. */
+export function truncate(text: string, maxLength: number): string {
+    if (text.length <= maxLength) return text;
+    return text.slice(0, maxLength - 1) + "…";
+}
+""");
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "utils", "events.ts"), """
+/**
+ * A simple typed event emitter.
+ */
+export class EventEmitter<T> {
+    private handlers: Array<(event: T) => void> = [];
+
+    /** Subscribe to events. Returns an unsubscribe function. */
+    on(handler: (event: T) => void): () => void {
+        this.handlers.push(handler);
+        return () => {
+            const idx = this.handlers.indexOf(handler);
+            if (idx >= 0) this.handlers.splice(idx, 1);
+        };
+    }
+
+    /** Emit an event to all subscribers. */
+    emit(event: T): void {
+        for (const handler of this.handlers) {
+            try {
+                handler(event);
+            } catch (err) {
+                console.error("Event handler error:", err);
+            }
+        }
+    }
+
+    /** Remove all subscribers. */
+    clear(): void {
+        this.handlers = [];
+    }
+
+    /** Returns the number of active subscribers. */
+    get listenerCount(): number {
+        return this.handlers.length;
+    }
+}
+""");
+
+// ── src/index.ts — Application entry point ──────────────────────────────────
+
+File.WriteAllText(Path.Combine(tempWorkspace, "src", "index.ts"), """
+import { TaskService } from "./services/task-service.js";
+import { AuthService } from "./services/auth-service.js";
+import { timeAgo } from "./utils/helpers.js";
+
+/**
+ * Demo application entry point.
+ * Sets up services and runs through a sample workflow.
+ */
+async function main(): Promise<void> {
+    const auth = new AuthService();
+    const tasks = new TaskService();
+
+    // Subscribe to task events
+    tasks.on((event) => {
+        switch (event.type) {
+            case "created":
+                console.log(`[Task Created] ${event.task.title} (${event.task.priority})`);
+                break;
+            case "statusChanged":
+                console.log(`[Status] ${event.task.title}: ${event.from} → ${event.to}`);
+                break;
+            case "deleted":
+                console.log(`[Deleted] Task ${event.taskId}`);
+                break;
+        }
+    });
+
+    // Register and login
+    const user = await auth.register("alice@example.com", "secret123", "Alice");
+    const token = await auth.login({ email: "alice@example.com", password: "secret123" });
+    console.log(`Logged in as ${user.name}, token expires ${timeAgo(token.expiresAt)}`);
+
+    // Create some tasks
+    const t1 = tasks.create({ title: "Set up CI pipeline", priority: "high", tags: ["devops"] });
+    const t2 = tasks.create({ title: "Write API documentation", priority: "medium", assignee: user.id });
+    const t3 = tasks.create({ title: "Fix login redirect bug", priority: "critical", tags: ["bug", "auth"] });
+    tasks.create({ title: "Update dependencies", priority: "low" });
+    tasks.create({ title: "Add dark mode support", priority: "medium", tags: ["ui"] });
+
+    // Work on tasks
+    tasks.setStatus(t1.id, "in_progress");
+    tasks.setStatus(t3.id, "in_progress");
+    tasks.setStatus(t3.id, "completed");
+
+    tasks.update(t2.id, { tags: ["docs", "api"], description: "Write OpenAPI spec and usage examples" });
+
+    // Query
+    const pending = tasks.list({ status: ["pending", "in_progress"] });
+    console.log(`\\nPending tasks (${pending.length}):`);
+    for (const task of pending) {
+        console.log(`  [${task.priority}] ${task.title} — ${task.status}`);
+    }
+
+    // Stats
+    const stats = tasks.stats();
+    console.log(`\\nStats: ${stats.total} total, ${stats.byStatus.completed} completed, ${stats.completedThisWeek} this week`);
+
+    // Validate session
+    const validUser = auth.validate(token.accessToken);
+    console.log(`\\nSession valid: ${validUser?.name ?? "expired"}`);
+}
+
+main().catch(console.error);
+""");
 
 // ── Set up the document workspace ────────────────────────────────────────────
 await using var workspace = new Hex1bDocumentWorkspace(tempWorkspace);
@@ -330,30 +597,41 @@ workspace.MapLanguageServer("*.js", "ts-ls");
 // ── Application state ────────────────────────────────────────────────────────
 var ideState = new IdeState();
 var statusMessage = "Ready — Ctrl+Space for completions, '.' to trigger, Esc to dismiss";
-var csHighlighter = new CSharpSyntaxHighlighter();
 
-// Discover workspace files and build file tree entries
-foreach (var file in Directory.GetFiles(tempWorkspace).OrderBy(f => f))
+// Build file tree from workspace — walk directories recursively
+BuildFileTree(tempWorkspace, "", ideState.Files);
+
+static void BuildFileTree(string rootPath, string relativePath, List<WorkspaceFile> files)
 {
-    var name = Path.GetFileName(file);
-    var ext = Path.GetExtension(name).ToLowerInvariant();
-    var icon = ext switch
+    var dirPath = string.IsNullOrEmpty(relativePath)
+        ? rootPath
+        : Path.Combine(rootPath, relativePath);
+
+    // Add files in this directory
+    foreach (var file in Directory.GetFiles(dirPath).OrderBy(f => f))
     {
-        ".ts" => "🟦",
-        ".js" => "🟨",
-        ".cs" => "🟪",
-        ".json" => "⚙️",
-        _ => "📄",
-    };
-    var category = ext switch
+        var name = Path.GetFileName(file);
+        var relFile = string.IsNullOrEmpty(relativePath) ? name : Path.Combine(relativePath, name);
+        var ext = Path.GetExtension(name).ToLowerInvariant();
+        var icon = ext switch
+        {
+            ".ts" => "🟦",
+            ".js" => "🟨",
+            ".json" => "⚙️",
+            _ => "📄",
+        };
+        files.Add(new WorkspaceFile(name, relFile, icon, ext));
+    }
+
+    // Recurse into subdirectories (skip node_modules, dist, etc.)
+    foreach (var dir in Directory.GetDirectories(dirPath).OrderBy(d => d))
     {
-        ".ts" or ".tsx" => "TypeScript",
-        ".js" or ".jsx" => "JavaScript",
-        ".cs" => "C#",
-        ".json" => "Config",
-        _ => "Other",
-    };
-    ideState.Files.Add(new WorkspaceFile(name, icon, category, ext));
+        var dirName = Path.GetFileName(dir);
+        if (dirName is "node_modules" or "dist" or ".git") continue;
+
+        var relDir = string.IsNullOrEmpty(relativePath) ? dirName : Path.Combine(relativePath, dirName);
+        BuildFileTree(rootPath, relDir, files);
+    }
 }
 
 // ── Build the terminal UI ────────────────────────────────────────────────────
@@ -432,27 +710,39 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 left.VScrollPanel(scroll => [
                     scroll.Tree(t =>
                     {
-                        var categories = ideState.Files
-                            .GroupBy(f => f.Category)
-                            .OrderBy(g => g.Key);
+                        // Build tree reflecting the actual directory structure
+                        var tree = new Dictionary<string, List<WorkspaceFile>>();
+                        var rootFiles = new List<WorkspaceFile>();
 
-                        return categories.Select(group =>
-                            t.Item(group.Key, items =>
-                                group.Select(f => t.Item(f.Name)
-                                    .Icon(f.Icon)
-                                    .OnClicked(e =>
-                                    {
-                                        OpenFile(f, keepOpen: false);
-                                        statusMessage = $"Preview: {f.Name}";
-                                    })
-                                    .OnActivated(e =>
-                                    {
-                                        OpenFile(f, keepOpen: true);
-                                        statusMessage = $"Opened: {f.Name}";
-                                    })
-                                )
-                            ).Icon("📁").Expanded()
-                        );
+                        foreach (var f in ideState.Files)
+                        {
+                            var dir = Path.GetDirectoryName(f.RelativePath)?.Replace('\\', '/');
+                            if (string.IsNullOrEmpty(dir))
+                            {
+                                rootFiles.Add(f);
+                            }
+                            else
+                            {
+                                if (!tree.ContainsKey(dir)) tree[dir] = [];
+                                tree[dir].Add(f);
+                            }
+                        }
+
+                        var items = new List<TreeItemWidget>();
+
+                        // Add directories as nested tree items
+                        foreach (var dir in tree.Keys.OrderBy(d => d))
+                        {
+                            items.Add(BuildDirItem(t, dir, tree[dir]));
+                        }
+
+                        // Add root-level files
+                        foreach (var f in rootFiles)
+                        {
+                            items.Add(BuildFileItem(t, f));
+                        }
+
+                        return items;
                     })
                 ]).Fill()
             ],
@@ -493,11 +783,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     if (tab.Extension is ".ts" or ".tsx" or ".js" or ".jsx")
                                     {
                                         editor = editor.LanguageServer(workspace);
-                                    }
-                                    // Apply static C# highlighting
-                                    else if (tab.Extension == ".cs")
-                                    {
-                                        editor = editor.Decorations(csHighlighter);
                                     }
 
                                     return [editor];
@@ -549,7 +834,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ".ts" => "TypeScript",
                     ".tsx" => "TypeScript React",
                     ".js" => "JavaScript",
-                    ".cs" => "C#",
                     ".json" => "JSON",
                     _ => "Plain Text",
                 };
@@ -580,7 +864,7 @@ try { Directory.Delete(tempWorkspace, recursive: true); } catch { }
 void OpenFile(WorkspaceFile file, bool keepOpen)
 {
     // Check if already open
-    var existingIdx = ideState.OpenTabs.FindIndex(t => t.FileName == file.Name);
+    var existingIdx = ideState.OpenTabs.FindIndex(t => t.RelativePath == file.RelativePath);
     if (existingIdx >= 0)
     {
         if (keepOpen && !ideState.OpenTabs[existingIdx].KeepOpen)
@@ -613,9 +897,33 @@ void OpenFile(WorkspaceFile file, bool keepOpen)
 OpenTab CreateTab(WorkspaceFile file, bool keepOpen)
 {
     // Open through workspace so LSP can find it
-    var doc = workspace.OpenDocumentAsync(file.Name).GetAwaiter().GetResult();
+    var doc = workspace.OpenDocumentAsync(file.RelativePath).GetAwaiter().GetResult();
     var state = new EditorState(doc);
-    return new OpenTab(file.Name, file.Extension, doc, state, keepOpen);
+    return new OpenTab(file.Name, file.RelativePath, file.Extension, doc, state, keepOpen);
+}
+
+TreeItemWidget BuildDirItem(TreeContext t, string dirPath, List<WorkspaceFile> files)
+{
+    var dirName = Path.GetFileName(dirPath);
+    return t.Item(dirName, items =>
+        files.Select(f => BuildFileItem(t, f))
+    ).Icon("📁").Expanded();
+}
+
+TreeItemWidget BuildFileItem(TreeContext t, WorkspaceFile f)
+{
+    return t.Item(f.Name)
+        .Icon(f.Icon)
+        .OnClicked(e =>
+        {
+            OpenFile(f, keepOpen: false);
+            statusMessage = $"Preview: {f.RelativePath}";
+        })
+        .OnActivated(e =>
+        {
+            OpenFile(f, keepOpen: true);
+            statusMessage = $"Opened: {f.RelativePath}";
+        });
 }
 
 // =============================================================================
@@ -649,10 +957,11 @@ class IdeState
     }
 }
 
-record WorkspaceFile(string Name, string Icon, string Category, string Extension);
+record WorkspaceFile(string Name, string RelativePath, string Icon, string Extension);
 
 record OpenTab(
     string FileName,
+    string RelativePath,
     string Extension,
     Hex1bDocument Document,
     EditorState EditorState,
