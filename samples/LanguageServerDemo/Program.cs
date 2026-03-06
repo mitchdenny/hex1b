@@ -895,19 +895,36 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     .OnFocusChanged(key => ideState.FocusedDiagnosticKey = key as string)
                                     .OnRowActivated((key, diag) =>
                                     {
-                                        var file = ideState.Files.FirstOrDefault(f => diag.FileName.EndsWith(f.Name));
+                                        // Extract relative path from the diagnostic URI
+                                        var uriPath = diag.DocumentUri.StartsWith("file://", StringComparison.Ordinal)
+                                            ? diag.DocumentUri["file://".Length..]
+                                            : diag.DocumentUri;
+                                        var rootPrefix = workspace.RootPath.TrimEnd('/') + "/";
+                                        var relativePath = uriPath.StartsWith(rootPrefix, StringComparison.Ordinal)
+                                            ? uriPath[rootPrefix.Length..]
+                                            : Path.GetFileName(uriPath);
+
+                                        var file = ideState.Files.FirstOrDefault(f =>
+                                            string.Equals(f.RelativePath, relativePath, StringComparison.OrdinalIgnoreCase));
                                         if (file != null)
                                         {
                                             OpenFile(file, keepOpen: true);
-                                            var tab = ideState.ActiveDocument;
-                                            if (tab != null)
+                                        }
+
+                                        // Set cursor on the active document (might already have been open)
+                                        var tab = ideState.ActiveDocument;
+                                        if (tab != null)
+                                        {
+                                            try
                                             {
                                                 var offset = tab.Document.PositionToOffset(diag.Start);
                                                 tab.EditorState.SetCursorPosition(offset);
                                             }
-                                            statusMessage = $"{diag.FileName}:{diag.Start.Line}:{diag.Start.Column} — {diag.Message}";
-                                            displayApp?.RequestFocus(node => node is EditorNode);
+                                            catch { }
                                         }
+                                        statusMessage = $"{diag.FileName}:{diag.Start.Line}:{diag.Start.Column} — {diag.Message}";
+                                        displayApp?.RequestFocus(node => node is EditorNode);
+                                        displayApp?.Invalidate();
                                     })
                                     .Compact()
                                     .Fill()
