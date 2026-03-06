@@ -91,18 +91,18 @@ public class EditorIntegrationTests
             .Find(ctx => ctx.X == 1 && ctx.Y == 0
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("a")
             .WaitUntil(s => s.SearchPattern(cursorAtCol1).HasMatches,
                 TimeSpan.FromSeconds(5), "cursor moved to col 1 after typing 'a'")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         Assert.Equal("a", snapshot.GetCell(0, 0).Character);
     }
 
@@ -131,18 +131,18 @@ public class EditorIntegrationTests
             .Find(ctx => ctx.X == 5 && ctx.Y == 0
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5), "editor visible")
             .Type("hello")
             .WaitUntil(s => s.SearchPattern(cursorAtCol5).HasMatches,
                 TimeSpan.FromSeconds(5), "cursor at col 5 after typing hello")
+            .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
 
-        var snapshot = terminal.CreateSnapshot();
         Assert.Equal("h", snapshot.GetCell(0, 0).Character);
         Assert.Equal("e", snapshot.GetCell(1, 0).Character);
         Assert.Equal("l", snapshot.GetCell(2, 0).Character);
