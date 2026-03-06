@@ -111,6 +111,10 @@ var modelViewerDemo = builder.AddCSharpApp("model-viewer-demo", "./samples/Model
 var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionDemo")
     .ExcludeFromManifest();
 
+// Language Server demo
+var languageServerDemo = builder.AddCSharpApp("language-server-demo", "./samples/LanguageServerDemo")
+    .ExcludeFromManifest();
+
 // Docker container demo
 var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
     .ExcludeFromManifest();
@@ -121,7 +125,6 @@ var pasteDemo = builder.AddCSharpApp("paste-demo", "./samples/PasteDemo")
 // Tile panel demo
 var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
     .ExcludeFromManifest();
-
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

@@ -22,7 +22,8 @@ public interface IEditorViewRenderer
     /// <param name="horizontalScrollOffset">First visible column (0-based).</param>
     /// <param name="isFocused">Whether the editor is currently focused.</param>
     /// <param name="pendingNibble">For hex renderers, the first nibble of a partially-entered byte (null if none).</param>
-    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null);
+    /// <param name="decorationProviders">Optional text decoration providers for syntax highlighting and diagnostics.</param>
+    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null);
 
     /// <summary>
     /// Converts screen-local coordinates (relative to viewport origin) to a document offset.
