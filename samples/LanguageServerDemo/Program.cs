@@ -890,23 +890,30 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                         r.Cell(diag.Start.Line.ToString()),
                                         r.Cell(diag.Start.Column.ToString()),
                                     ])
+                                    .Focus(ideState.FocusedDiagnosticKey)
+                                    .OnFocusChanged(key => ideState.FocusedDiagnosticKey = key as string)
                                     .OnRowActivated((key, row) =>
                                     {
-                                        // Navigate to the diagnostic location
                                         var diag = diagnostics.FirstOrDefault(d =>
-                                            $"{d.DocumentUri}:{d.Start.Line}:{d.Start.Column}:{d.Message}" == key);
+                                            $"{d.DocumentUri}:{d.Start.Line}:{d.Start.Column}:{d.Message}" == key as string);
                                         if (diag != null)
                                         {
                                             var file = ideState.Files.FirstOrDefault(f => diag.FileName.EndsWith(f.Name));
                                             if (file != null)
                                             {
                                                 OpenFile(file, keepOpen: true);
-                                                statusMessage = $"Go to {diag.FileName}:{diag.Start.Line}:{diag.Start.Column}";
+                                                var tab = ideState.ActiveDocument;
+                                                if (tab != null)
+                                                {
+                                                    var offset = tab.Document.PositionToOffset(diag.Start);
+                                                    tab.EditorState.SetCursorPosition(offset);
+                                                }
+                                                statusMessage = $"{diag.FileName}:{diag.Start.Line}:{diag.Start.Column} — {diag.Message}";
                                             }
                                         }
                                     })
                                     .Compact()
-                                    .FillHeight()
+                                    .Fill()
                             ])
                         .Selected(ideState.BottomPanelTabIndex == 1),
                     ];
@@ -1054,6 +1061,7 @@ class IdeState
     public List<OpenTab> OpenTabs { get; } = [];
     public int SelectedTabIndex { get; set; }
     public int BottomPanelTabIndex { get; set; }
+    public string? FocusedDiagnosticKey { get; set; }
 
     public OpenTab? ActiveDocument =>
         SelectedTabIndex >= 0 && SelectedTabIndex < OpenTabs.Count
