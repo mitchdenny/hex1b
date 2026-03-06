@@ -5991,11 +5991,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         switch (command.DeleteTarget)
         {
             case Kgp.KgpDeleteTarget.All:
+                _kgpPlacements.Clear();
+                break;
             case Kgp.KgpDeleteTarget.AllFreeData:
                 _kgpPlacements.Clear();
                 _kgpImageStore.Clear();
                 break;
             case Kgp.KgpDeleteTarget.ById:
+                if (command.ImageId > 0)
+                {
+                    if (command.PlacementId > 0)
+                        _kgpPlacements.RemoveAll(p => p.ImageId == command.ImageId && p.PlacementId == command.PlacementId);
+                    else
+                        _kgpPlacements.RemoveAll(p => p.ImageId == command.ImageId);
+                }
+                break;
             case Kgp.KgpDeleteTarget.ByIdFreeData:
                 if (command.ImageId > 0)
                 {
@@ -6036,6 +6046,31 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             case Kgp.KgpDeleteTarget.ByZIndexFreeData:
                 _kgpPlacements.RemoveAll(p => p.ZIndex == command.ZIndex);
                 break;
+            case Kgp.KgpDeleteTarget.ByRange:
+            case Kgp.KgpDeleteTarget.ByRangeFreeData:
+            {
+                var lo = command.SourceX;
+                var hi = command.SourceY;
+                if (lo > 0 && hi > 0 && lo <= hi)
+                {
+                    _kgpPlacements.RemoveAll(p => p.ImageId >= lo && p.ImageId <= hi);
+                    if (command.DeleteTarget == Kgp.KgpDeleteTarget.ByRangeFreeData)
+                    {
+                        for (uint id = lo; id <= hi; id++)
+                            _kgpImageStore.RemoveImage(id);
+                    }
+                }
+                break;
+            }
+            case Kgp.KgpDeleteTarget.AtCellWithZIndex:
+            case Kgp.KgpDeleteTarget.AtCellWithZIndexFreeData:
+            {
+                var cellRow = (int)command.SourceY - 1;
+                var cellCol = (int)command.SourceX - 1;
+                var targetZ = command.ZIndex;
+                _kgpPlacements.RemoveAll(p => p.IntersectsCell(cellRow, cellCol) && p.ZIndex == targetZ);
+                break;
+            }
         }
 
         // Delete aborts any in-progress chunked transfer

@@ -157,7 +157,7 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 1, 1));
         Assert.Equal(2, terminal.KgpImageStore.ImageCount);
 
-        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('a'));
+        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('A'));
 
         Assert.Equal(0, terminal.KgpImageStore.ImageCount);
     }
@@ -171,7 +171,7 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 1, 1));
 
-        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('i', imageId: 1));
+        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('I', imageId: 1));
 
         Assert.Equal(1, terminal.KgpImageStore.ImageCount);
         Assert.Null(terminal.KgpImageStore.GetImageById(1));

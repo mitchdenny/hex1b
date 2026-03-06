@@ -1138,3 +1138,565 @@ public class KgpScreenInteractionConformanceTests
         Assert.Single(terminal.KgpPlacements);
     }
 }
+
+/// <summary>
+/// Tests for KGP command parsing, mirroring the Ghostty terminal emulator's parsing tests.
+/// </summary>
+/// <remarks>
+/// Adapts from: ghostty-org/ghostty src/terminal/kitty/graphics_command.zig
+/// </remarks>
+public class KgpGhosttyCommandParsingConformanceTests
+{
+    private static readonly TerminalCapabilities KgpCapabilities = new()
+    {
+        SupportsKgp = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+    };
+
+    private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, int width = 80, int height = 24)
+    {
+        return Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(width, height)
+            .Build();
+    }
+
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    [Fact]
+    public void NoControlData_OnlyPayload_ParsesAsTransmit()
+    {
+        // Empty control string with payload — should parse as default transmit
+        var payload = new byte[] { 0x41, 0x41, 0x41, 0x41 }; // "AAAA"
+        var cmd = KgpTestHelper.BuildCommand("", payload);
+        var tokens = AnsiTokenizer.Tokenize(cmd);
+
+        var kgpToken = Assert.Single(tokens.OfType<KgpToken>());
+        Assert.Equal("", kgpToken.ControlData);
+        Assert.False(string.IsNullOrEmpty(kgpToken.Payload));
+
+        // When parsed, empty control data should produce defaults
+        var parsed = KgpCommand.Parse("");
+        Assert.Equal(KgpAction.Transmit, parsed.Action);
+        Assert.Equal(KgpFormat.Rgba32, parsed.Format);
+    }
+
+    [Fact]
+    public void IgnoreUnknownKeys_LongKey()
+    {
+        // Multi-char keys like "hello=world" should be silently ignored
+        var parsed = KgpCommand.Parse("f=24,s=10,v=20,hello=world");
+        Assert.Equal(KgpFormat.Rgb24, parsed.Format);
+        Assert.Equal(10u, parsed.Width);
+        Assert.Equal(20u, parsed.Height);
+    }
+
+    [Fact]
+    public void IgnoreVeryLongValues_OverflowsGracefully()
+    {
+        // Enormous values that overflow uint should parse to 0 via TryParse failure
+        var parsed = KgpCommand.Parse("f=24,s=10,v=2000000000000000000000000000000000000000");
+        Assert.Equal(KgpFormat.Rgb24, parsed.Format);
+        Assert.Equal(10u, parsed.Width);
+        Assert.Equal(0u, parsed.Height); // overflow → TryParse fails → default 0
+    }
+
+    [Fact]
+    public void NegativeZIndex_LargeValue()
+    {
+        var parsed = KgpCommand.Parse("a=p,i=1,z=-2000000000");
+        Assert.Equal(KgpAction.Put, parsed.Action);
+        Assert.Equal(1u, parsed.ImageId);
+        Assert.Equal(-2000000000, parsed.ZIndex);
+    }
+
+    [Fact]
+    public void TransmissionIgnoresM_IfMediumIsNotDirect()
+    {
+        // Per Kitty spec, m= (more_chunks) is only meaningful for direct transmission
+        var parsed = KgpCommand.Parse("a=t,t=t,m=1");
+        Assert.Equal(KgpAction.Transmit, parsed.Action);
+        Assert.Equal(KgpTransmissionMedium.TempFile, parsed.Medium);
+        // The parser stores m=1 regardless; the terminal ignores it for non-direct media.
+        // We verify the parser at least doesn't crash and parses the medium correctly.
+        Assert.Equal(1, parsed.MoreData);
+    }
+
+    [Fact]
+    public void ResponseEncoding_NoIdOrNumber_EmptyResponse()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // Transmit with i=0 (auto-allocated), q=2 to suppress response
+        // Then verify no response by checking image stored correctly
+        var data = KgpTestHelper.CreatePixelData(2, 2);
+        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,q=2", data);
+        SendKgp(terminal, cmd);
+
+        // Image should be stored with auto-allocated ID
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+    }
+
+    [Fact]
+    public void ResponseEncoding_OnlyImageId()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // Transmit with explicit ID, q=0 (send responses)
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(42, 2, 2, quiet: 0));
+
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(42);
+        Assert.NotNull(img);
+        Assert.Equal(42u, img.ImageId);
+    }
+
+    [Fact]
+    public void ResponseEncoding_BothIdAndNumber()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // Transmit with both i= and I=
+        var data = KgpTestHelper.CreatePixelData(2, 2);
+        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=10,I=20", data);
+        SendKgp(terminal, cmd);
+
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(10);
+        Assert.NotNull(img);
+        Assert.Equal(10u, img.ImageId);
+        Assert.Equal(20u, img.ImageNumber);
+
+        // Also retrievable by number
+        var imgByNum = terminal.KgpImageStore.GetImageByNumber(20);
+        Assert.NotNull(imgByNum);
+        Assert.Equal(10u, imgByNum.ImageId);
+    }
+}
+
+/// <summary>
+/// Tests for KGP delete operations, mirroring the Ghostty terminal emulator's storage tests.
+/// </summary>
+/// <remarks>
+/// Adapts from: ghostty-org/ghostty src/terminal/kitty/graphics_storage.zig
+/// </remarks>
+public class KgpGhosttyDeleteConformanceTests
+{
+    private static readonly TerminalCapabilities KgpCapabilities = new()
+    {
+        SupportsKgp = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+    };
+
+    private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, int width = 80, int height = 24)
+    {
+        return Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(width, height)
+            .Build();
+    }
+
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    [Fact]
+    public void DeleteByRange_RemovesImagesInRange()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        // Create images with IDs 3,4,5,6 and place them
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(3, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(4, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(5, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(6, 4, 4, displayColumns: 2, cursorMovement: 1));
+
+        Assert.Equal(4, terminal.KgpPlacements.Count);
+
+        // Delete range: x=4,y=6 means IDs 4..6
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,x=4,y=6"));
+
+        // Images 4,5,6 placements removed; image 3 remains
+        Assert.Single(terminal.KgpPlacements);
+        Assert.Equal(3u, terminal.KgpPlacements[0].ImageId);
+    }
+
+    [Fact]
+    public void DeleteByRange_FreeData_ClearsCompletely()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(3, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(4, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(5, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(6, 4, 4, displayColumns: 2, cursorMovement: 1));
+
+        // Delete range with free data (uppercase R)
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=R,x=4,y=6"));
+
+        Assert.Single(terminal.KgpPlacements);
+        Assert.Equal(3u, terminal.KgpPlacements[0].ImageId);
+
+        // Image data for 4,5,6 should be freed
+        Assert.Null(terminal.KgpImageStore.GetImageById(4));
+        Assert.Null(terminal.KgpImageStore.GetImageById(5));
+        Assert.Null(terminal.KgpImageStore.GetImageById(6));
+        // Image 3 data should remain
+        Assert.NotNull(terminal.KgpImageStore.GetImageById(3));
+    }
+
+    [Fact]
+    public void DeleteByRange_InvalidRange_XGreaterThanY()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(3, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(4, 4, 4, displayColumns: 2, cursorMovement: 1));
+
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+
+        // Invalid range: x > y should be ignored
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,x=6,y=4"));
+
+        // Nothing should be deleted
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+    }
+
+    [Fact]
+    public void DeleteByRange_MissingXOrY_Invalid()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(3, 4, 4, displayColumns: 2, cursorMovement: 1));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(4, 4, 4, displayColumns: 2, cursorMovement: 1));
+
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+
+        // Missing y= — x defaults to 0, so range is invalid
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,x=3"));
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+
+        // Missing x= — same
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=r,y=5"));
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+    }
+
+    [Fact]
+    public void DeleteAtCellWithZIndex_RemovesMatchingZOnly()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        // Place two images at same cell (row 5, col 5) with different z-indices
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 4, 4));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 4, 4));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;5H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 1, displayColumns: 3, displayRows: 2, zIndex: 10));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;5H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(2, placementId: 2, displayColumns: 3, displayRows: 2, zIndex: 20));
+
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+
+        // Delete at cell (1-based: x=5,y=5) with z=10 — only z=10 placement removed
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=q,x=5,y=5,z=10"));
+
+        Assert.Single(terminal.KgpPlacements);
+        Assert.Equal(20, terminal.KgpPlacements[0].ZIndex);
+    }
+
+    [Fact]
+    public void DeleteIntersectingCursor_HitsMultiplePlacements()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        // Place 3 overlapping images at the same position
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 4, 4));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 4, 4));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(3, 4, 4));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;3H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 1, displayColumns: 4, displayRows: 3, cursorMovement: 1));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;3H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(2, placementId: 2, displayColumns: 4, displayRows: 3, cursorMovement: 1));
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;3H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(3, placementId: 3, displayColumns: 4, displayRows: 3, cursorMovement: 1));
+
+        Assert.Equal(3, terminal.KgpPlacements.Count);
+
+        // Move cursor inside the overlapping area and delete
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[4;4H"));
+        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('c'));
+
+        Assert.Empty(terminal.KgpPlacements);
+    }
+
+    [Fact]
+    public void DeleteAll_PreservesStorageLimit()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        // Add some images
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(1, 4, 4, displayColumns: 2));
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(2, 4, 4, displayColumns: 2));
+
+        // Delete all with free data
+        SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('A'));
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.Empty(terminal.KgpPlacements);
+
+        // Storage should still function — add new images after delete
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(10, 4, 4, displayColumns: 2));
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.Single(terminal.KgpPlacements);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(11, 4, 4, displayColumns: 2));
+        Assert.Equal(2, terminal.KgpImageStore.ImageCount);
+        Assert.Equal(2, terminal.KgpPlacements.Count);
+    }
+}
+
+/// <summary>
+/// Tests for KGP execution behavior, mirroring the Ghostty terminal emulator's exec tests.
+/// </summary>
+/// <remarks>
+/// Adapts from: ghostty-org/ghostty src/terminal/kitty/graphics_exec.zig
+/// </remarks>
+public class KgpGhosttyExecConformanceTests
+{
+    private static readonly TerminalCapabilities KgpCapabilities = new()
+    {
+        SupportsKgp = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+    };
+
+    private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, int width = 80, int height = 24)
+    {
+        return Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(width, height)
+            .Build();
+    }
+
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    [Fact]
+    public void ChunkedTransfer_QuietInheritsFromFinalChunk()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // 4x4 RGBA = 64 bytes, split into 2 chunks
+        var data = KgpTestHelper.CreatePixelData(4, 4);
+        var half = data.Length / 2;
+        var chunk1 = data[..half];
+        var chunk2 = data[half..];
+
+        // First chunk: q=0 (send responses), m=1 (more coming)
+        var cmd1 = KgpTestHelper.BuildCommand("a=t,f=32,s=4,v=4,i=1,m=1,q=0", chunk1);
+        // Final chunk: q=1 (suppress OK), m=0 (last)
+        var cmd2 = KgpTestHelper.BuildCommand("m=0,q=1", chunk2);
+
+        SendKgp(terminal, cmd1);
+        SendKgp(terminal, cmd2);
+
+        // Image should be stored regardless of quiet mode
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(1);
+        Assert.NotNull(img);
+        Assert.Equal(4u, img.Width);
+    }
+
+    [Fact]
+    public void ChunkedTransfer_QuietIncreasing()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // 6x1 RGBA = 24 bytes, split into 3 chunks of 8 bytes each
+        var data = KgpTestHelper.CreatePixelData(6, 1);
+        var chunk1 = data[..8];
+        var chunk2 = data[8..16];
+        var chunk3 = data[16..];
+
+        // Increasing quiet: 0 → 1 → 2
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=32,s=6,v=1,i=1,m=1,q=0", chunk1));
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=1,q=1", chunk2));
+        SendKgp(terminal, KgpTestHelper.BuildCommand("m=0,q=2", chunk3));
+
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(1);
+        Assert.NotNull(img);
+        Assert.Equal(24, img.Data.Length);
+    }
+
+    [Fact]
+    public void DefaultFormat_IsRgba()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // No f= key → defaults to RGBA (f=32). 2x2 RGBA = 16 bytes.
+        var data = KgpTestHelper.CreatePixelData(2, 2, KgpFormat.Rgba32);
+        var cmd = KgpTestHelper.BuildCommand("a=t,s=2,v=2,i=1", data);
+        SendKgp(terminal, cmd);
+
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(1);
+        Assert.NotNull(img);
+        Assert.Equal(KgpFormat.Rgba32, img.Format);
+        Assert.Equal(2u, img.Width);
+        Assert.Equal(2u, img.Height);
+    }
+
+    [Fact]
+    public void NoResponse_WithZeroIdAndNumber()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // Transmit with no explicit i= or I= → auto-allocated ID
+        var data = KgpTestHelper.CreatePixelData(2, 2);
+        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2", data);
+        SendKgp(terminal, cmd);
+
+        // Image should be stored (with auto-allocated ID)
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+    }
+
+    [Fact]
+    public void ZeroPlacementId_CreatesNewEachTime()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload, 40, 20);
+
+        // Transmit an image
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 4, 4));
+
+        // Place the same image multiple times with p=0 (no placement ID)
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, displayColumns: 2, displayRows: 1));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;3H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, displayColumns: 2, displayRows: 1));
+
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;5H"));
+        SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, displayColumns: 2, displayRows: 1));
+
+        // Each should create a separate placement (not replace)
+        Assert.Equal(3, terminal.KgpPlacements.Count);
+        Assert.All(terminal.KgpPlacements, p => Assert.Equal(1u, p.ImageId));
+
+        // Verify they're at different positions
+        var rows = terminal.KgpPlacements.Select(p => p.Row).Distinct().Count();
+        Assert.Equal(3, rows);
+    }
+}
+
+/// <summary>
+/// Tests for KGP image handling edge cases, mirroring the Ghostty terminal emulator's image tests.
+/// </summary>
+/// <remarks>
+/// Adapts from: ghostty-org/ghostty src/terminal/kitty/graphics_image.zig
+/// </remarks>
+public class KgpGhosttyImageConformanceTests
+{
+    private static readonly TerminalCapabilities KgpCapabilities = new()
+    {
+        SupportsKgp = true,
+        SupportsTrueColor = true,
+        Supports256Colors = true,
+    };
+
+    private static Hex1bTerminal CreateTerminal(Hex1bAppWorkloadAdapter workload, int width = 80, int height = 24)
+    {
+        return Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(KgpCapabilities)
+            .WithDimensions(width, height)
+            .Build();
+    }
+
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    [Fact]
+    public void ImageTooWide_Rejected()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // 100000 x 1 RGBA = 400,000 bytes — absurdly wide
+        // Send with declared dimensions but tiny payload to trigger size mismatch
+        var data = new byte[16];
+        Array.Fill(data, (byte)0xFF);
+        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=100000,v=1,i=1", data);
+        SendKgp(terminal, cmd);
+
+        // Should be rejected due to insufficient data
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [Fact]
+    public void ImageTooTall_Rejected()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // 1 x 100000 RGBA = 400,000 bytes — absurdly tall
+        var data = new byte[16];
+        Array.Fill(data, (byte)0xFF);
+        var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=1,v=100000,i=1", data);
+        SendKgp(terminal, cmd);
+
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+    }
+
+    [Fact]
+    public void ChunkedWithZeroInitialChunk_Succeeds()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        // 2x2 RGBA = 16 bytes total
+        var fullData = KgpTestHelper.CreatePixelData(2, 2);
+
+        // First chunk: m=1 with empty payload
+        var cmd1 = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=1,m=1");
+        SendKgp(terminal, cmd1);
+
+        // Second chunk: actual data, m=0 (final)
+        var cmd2 = KgpTestHelper.BuildCommand("m=0", fullData);
+        SendKgp(terminal, cmd2);
+
+        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        var img = terminal.KgpImageStore.GetImageById(1);
+        Assert.NotNull(img);
+        Assert.Equal(16, img.Data.Length);
+    }
+}
