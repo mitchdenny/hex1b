@@ -225,6 +225,10 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             sb.Append("\x1b[?1003h");  // Enable mouse tracking
             sb.Append("\x1b[?1006h");  // SGR mouse mode
         }
+        if (Capabilities.SupportsBracketedPaste)
+        {
+            sb.Append("\x1b[?2004h");  // Enable bracketed paste mode
+        }
         Write(sb.ToString());
     }
 
@@ -237,6 +241,10 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         _inTuiMode = false;
 
         var sb = new StringBuilder();
+        if (Capabilities.SupportsBracketedPaste)
+        {
+            sb.Append("\x1b[?2004l");  // Disable bracketed paste mode
+        }
         if (Capabilities.SupportsMouse)
         {
             sb.Append("\x1b[?1006l");  // Disable SGR mouse mode

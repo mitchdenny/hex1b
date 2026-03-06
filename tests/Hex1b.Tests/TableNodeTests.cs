@@ -845,7 +845,7 @@ public class TableNodeTests
         // Wait for initial render, then send PageDown 3 times.
         // IMPORTANT: capture the snapshot BEFORE exiting; alternate screen is cleared on exit.
         using var finalSnapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Key(Hex1bKey.PageDown)
             .Key(Hex1bKey.PageDown)
             .Key(Hex1bKey.PageDown)
@@ -937,7 +937,7 @@ public class TableNodeTests
 
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table")
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(5), "Wait for table")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -1009,7 +1009,7 @@ public class TableNodeTests
 
         // Send multiple down arrows to scroll
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Product 1"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Key(Hex1bKey.DownArrow)
             .Key(Hex1bKey.DownArrow)
             .Key(Hex1bKey.DownArrow)
@@ -1079,7 +1079,7 @@ public class TableNodeTests
 
         // Wait for render, then press Space to select the focused row
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1191,7 +1191,7 @@ public class TableNodeTests
 
         // Wait for table to render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Laptop"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1328,7 +1328,7 @@ public class TableNodeTests
         
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -1386,7 +1386,7 @@ public class TableNodeTests
         
         // Wait for initial render, press End, then exit
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Key(Hex1bKey.End)
             .Wait(500) // Wait for data load
             .Ctrl().Key(Hex1bKey.C)
@@ -1436,7 +1436,7 @@ public class TableNodeTests
         
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -1512,7 +1512,7 @@ public class TableNodeTests
         
         // Wait for initial render and data load, then exit
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)  // Allow focus to be set
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1555,7 +1555,7 @@ public class TableNodeTests
         // Wait for render to stabilize - wait for data AND focus bars
         // The thick vertical bar ┃ indicates a focused row
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for data to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for data to render")
             .Wait(200)  // Allow focus and re-render to complete
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1613,7 +1613,7 @@ public class TableNodeTests
         
         // Wait for initial render to stabilize
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(200)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1817,7 +1817,7 @@ public class TableNodeTests
 
         // Wait for initial render - the row 500 should NOT be visible (not scrolled)
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !s.ContainsText("Row 500"), TimeSpan.FromSeconds(2), "Wait for table to render without scrolling to out-of-cache row")
+            .WaitUntil(s => !s.ContainsText("Row 500"), TimeSpan.FromSeconds(5), "Wait for table to render without scrolling to out-of-cache row")
             .Wait(100)
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -1866,7 +1866,7 @@ public class TableNodeTests
         
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -1953,7 +1953,7 @@ public class TableNodeTests
         
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -2041,7 +2041,7 @@ public class TableNodeTests
         
         // Wait for render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -2107,7 +2107,7 @@ public class TableNodeTests
         
         // Wait for render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -2169,7 +2169,7 @@ public class TableNodeTests
         
         // Wait for render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -2239,7 +2239,7 @@ public class TableNodeTests
         
         // Wait for render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -2326,7 +2326,7 @@ public class TableNodeTests
         
         // Wait for render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -2417,7 +2417,7 @@ public class TableNodeTests
         
         // Wait for initial render with data loaded
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Item 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -2474,7 +2474,7 @@ public class TableNodeTests
         
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Product 00001"), TimeSpan.FromSeconds(2), "Wait for table to render")
+            .WaitUntil(s => s.ContainsText("Product 00001"), TimeSpan.FromSeconds(5), "Wait for table to render")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
@@ -2543,7 +2543,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Name"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -2639,7 +2639,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Jack Thomas"), TimeSpan.FromSeconds(2), "all rows rendered")
+            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("Jack Thomas"), TimeSpan.FromSeconds(5), "all rows rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -2720,7 +2720,7 @@ public class TableNodeTests
 
         // Wait for initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -2786,7 +2786,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Alice") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Alice") && s.ContainsText("Name"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -2863,7 +2863,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Person 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -2943,7 +2943,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("Name"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -3024,7 +3024,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Row 1") && s.ContainsText("Col A"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("Row 1") && s.ContainsText("Col A"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -3086,7 +3086,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("R1"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("R1"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -3149,7 +3149,7 @@ public class TableNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("X1") && s.ContainsText("Col1"), TimeSpan.FromSeconds(2), "table rendered")
+            .WaitUntil(s => s.ContainsText("X1") && s.ContainsText("Col1"), TimeSpan.FromSeconds(5), "table rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

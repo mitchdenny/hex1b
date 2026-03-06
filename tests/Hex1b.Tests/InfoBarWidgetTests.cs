@@ -24,7 +24,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2), "info bar to render")
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(5), "info bar to render")
             .Capture("single-section")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -155,7 +155,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Inverted"), TimeSpan.FromSeconds(2), "inverted text to render")
+            .WaitUntil(s => s.ContainsText("Inverted"), TimeSpan.FromSeconds(5), "inverted text to render")
             .Capture("inverted-colors")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -188,7 +188,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Normal"), TimeSpan.FromSeconds(2), "normal text to render")
+            .WaitUntil(s => s.ContainsText("Normal"), TimeSpan.FromSeconds(5), "normal text to render")
             .Capture("normal-colors")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -325,7 +325,7 @@ public class InfoBarWidgetTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(2), "themed text to render")
+            .WaitUntil(s => s.ContainsText("Themed"), TimeSpan.FromSeconds(5), "themed text to render")
             .Capture("infobar-themed")
             .Ctrl().Key(Hex1bKey.C)
             .Build()

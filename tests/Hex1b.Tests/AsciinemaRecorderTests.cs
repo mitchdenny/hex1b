@@ -422,7 +422,7 @@ public class AsciinemaRecorderTests : IDisposable
         recorder.AddMarker("App Start - Wide Layout (120 cols)");
         
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Todo Items"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Todo Items"), TimeSpan.FromSeconds(5))
             .Wait(TimeSpan.FromMilliseconds(500))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);

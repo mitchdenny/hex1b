@@ -39,6 +39,26 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public TextBoxWidget OnSubmit(Func<TextSubmittedEventArgs, Task> handler)
         => this with { SubmitHandler = handler };
 
+    /// <summary>
+    /// Internal handler for paste events. When set, replaces the default paste behavior
+    /// (which inserts text at cursor position).
+    /// </summary>
+    internal Func<PasteEventArgs, Task>? PasteHandler { get; init; }
+
+    /// <summary>
+    /// Sets an asynchronous handler called when paste data is received.
+    /// Overrides the default behavior of inserting pasted text at the cursor position.
+    /// </summary>
+    public TextBoxWidget OnPaste(Func<PasteEventArgs, Task> handler)
+        => this with { PasteHandler = handler };
+
+    /// <summary>
+    /// Sets a synchronous handler called when paste data is received.
+    /// Overrides the default behavior of inserting pasted text at the cursor position.
+    /// </summary>
+    public TextBoxWidget OnPaste(Action<PasteEventArgs> handler)
+        => this with { PasteHandler = e => { handler(e); return Task.CompletedTask; } };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
@@ -99,6 +119,9 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
         {
             node.SubmitAction = null;
         }
+
+        // Wire paste handler
+        node.CustomPasteAction = PasteHandler;
         
         return Task.FromResult<Hex1bNode>(node);
     }

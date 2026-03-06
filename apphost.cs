@@ -115,6 +115,9 @@ var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionD
 var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
     .ExcludeFromManifest();
 
+var pasteDemo = builder.AddCSharpApp("paste-demo", "./samples/PasteDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

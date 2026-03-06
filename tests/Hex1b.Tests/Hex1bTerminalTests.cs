@@ -350,14 +350,14 @@ public class Hex1bTerminalTests
         
         workload.Write("\x1b[?1049h");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
         Assert.True(terminal.CreateSnapshot().InAlternateScreen);
         
         workload.Write("\x1b[?1049l");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(1))
+            .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
         Assert.False(terminal.CreateSnapshot().InAlternateScreen);

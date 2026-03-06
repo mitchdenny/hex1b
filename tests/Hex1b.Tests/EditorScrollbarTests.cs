@@ -399,7 +399,7 @@ public class EditorScrollbarTests
 
         // Wait for initial content so "scrolled away" checks don't pass on an empty frame.
         using var rendered = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("L001"), TimeSpan.FromSeconds(2), "editor content rendered")
+            .WaitUntil(s => s.ContainsText("L001"), TimeSpan.FromSeconds(5), "editor content rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

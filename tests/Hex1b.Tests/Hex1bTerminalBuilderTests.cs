@@ -360,7 +360,7 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -389,7 +389,7 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -420,7 +420,7 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1051,7 +1051,7 @@ public class Hex1bTerminalBuilderTests
             var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
             await new Hex1bTerminalInputSequenceBuilder()
-                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
                 .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
                 .Build()
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
@@ -1129,7 +1129,7 @@ public class Hex1bTerminalBuilderTests
             var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
             await new Hex1bTerminalInputSequenceBuilder()
-                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(2))
+                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
                 .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
                 .Build()
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);

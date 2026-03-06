@@ -115,6 +115,10 @@ internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapt
             sb.Append("\x1b[?1003h"); // Enable mouse tracking (all motion)
             sb.Append("\x1b[?1006h"); // SGR mouse mode
         }
+        if (_capabilities.SupportsBracketedPaste)
+        {
+            sb.Append("\x1b[?2004h"); // Enable bracketed paste mode
+        }
         WriteRaw(sb.ToString());
     }
 
@@ -127,6 +131,10 @@ internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapt
         _inTuiMode = false;
 
         var sb = new StringBuilder();
+        if (_capabilities.SupportsBracketedPaste)
+        {
+            sb.Append("\x1b[?2004l"); // Disable bracketed paste mode
+        }
         if (_capabilities.SupportsMouse)
         {
             sb.Append("\x1b[?1006l"); // Disable SGR mouse mode

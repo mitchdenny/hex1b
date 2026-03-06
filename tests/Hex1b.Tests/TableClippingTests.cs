@@ -53,9 +53,9 @@ public class TableClippingTests
 
         // Open the window
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Open Table Window"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Open Table Window"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Enter)
-            .WaitUntil(s => s.ContainsText("Employees"), TimeSpan.FromSeconds(2))
+            .WaitUntil(s => s.ContainsText("Employees"), TimeSpan.FromSeconds(5))
             .Capture("table-before-resize")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);

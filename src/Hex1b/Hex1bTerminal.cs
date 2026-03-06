@@ -99,6 +99,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // Metrics instrumentation
     private readonly Diagnostics.Hex1bMetrics _metrics;
     
+    // Bracketed paste state
+    private bool _inBracketedPaste;
+    private PasteContext? _activePasteContext;
+    
     // Scroll region (DECSTBM) - 0-based indices
     private int _scrollTop; // Top margin (0 = first row)
     private int _scrollBottom; // Bottom margin (height-1 = last row), initialized in constructor
@@ -566,12 +570,54 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     
     /// <summary>
     /// Dispatches tokenized input as high-level events to the Hex1bApp workload.
+    /// Handles bracketed paste accumulation: detects ESC[200~ (start) and ESC[201~ (end)
+    /// markers, streaming paste data through a PasteContext instead of individual key events.
     /// </summary>
     private async Task DispatchTokensAsEventsAsync(IReadOnlyList<AnsiToken> tokens, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
     {
         foreach (var token in tokens)
         {
             ct.ThrowIfCancellationRequested();
+            
+            // Check for bracketed paste start/end markers
+            if (token is SpecialKeyToken { KeyCode: 200 })
+            {
+                // Paste start marker — create PasteContext and emit event
+                _inBracketedPaste = true;
+                _activePasteContext = new PasteContext();
+                var pasteEvent = new Hex1bPasteEvent(_activePasteContext);
+                await workload.WriteInputEventAsync(pasteEvent, ct);
+                _metrics.TerminalInputEvents.Add(1, new KeyValuePair<string, object?>("type", "paste"));
+                continue;
+            }
+            
+            if (token is SpecialKeyToken { KeyCode: 201 })
+            {
+                // Paste end marker — complete the PasteContext stream
+                if (_inBracketedPaste && _activePasteContext != null)
+                {
+                    _activePasteContext.Complete();
+                    _activePasteContext = null;
+                    _inBracketedPaste = false;
+                }
+                continue;
+            }
+            
+            // While in bracketed paste, route text data to PasteContext stream
+            if (_inBracketedPaste && _activePasteContext != null)
+            {
+                var pasteText = ExtractPasteText(token);
+                if (pasteText != null)
+                {
+                    if (!_activePasteContext.IsCancelled)
+                    {
+                        await _activePasteContext.WriteAsync(pasteText, ct);
+                    }
+                    // If cancelled, we still consume the token (drain) but don't write to context
+                    continue;
+                }
+                // Non-text tokens during paste (mouse, special keys) fall through to normal dispatch
+            }
             
             var evt = TokenToEvent(token);
             if (evt != null)
@@ -588,6 +634,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 _metrics.TerminalInputEvents.Add(1, new KeyValuePair<string, object?>("type", eventType));
             }
         }
+    }
+    
+    /// <summary>
+    /// Extracts text content from a token for paste accumulation.
+    /// Returns null for non-text tokens (which should be dispatched normally during paste).
+    /// </summary>
+    private static string? ExtractPasteText(AnsiToken token)
+    {
+        return token switch
+        {
+            TextToken text => text.Text,
+            ControlCharacterToken ctrl => ctrl.Character switch
+            {
+                '\r' => "\r",
+                '\n' => "\n",
+                '\t' => "\t",
+                _ => ctrl.Character.ToString()
+            },
+            _ => null
+        };
     }
     
     /// <summary>
@@ -5323,6 +5389,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // Complete any active paste context
+        if (_activePasteContext != null)
+        {
+            _activePasteContext.Complete();
+            _activePasteContext = null;
+            _inBracketedPaste = false;
+        }
+
         // Release all scrollback buffer tracked object references
         _scrollbackBuffer?.Clear();
 
@@ -5336,6 +5410,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // Write mouse disable sequences and screen restore DIRECTLY to presentation
             // This ensures they're written before raw mode is exited, avoiding race conditions
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen
             _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
@@ -5356,6 +5431,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (_disposed) return;
         _disposed = true;
 
+        // Complete any active paste context
+        if (_activePasteContext != null)
+        {
+            _activePasteContext.Complete();
+            _activePasteContext = null;
+            _inBracketedPaste = false;
+        }
+
         // Release all scrollback buffer tracked object references
         _scrollbackBuffer?.Clear();
 
@@ -5370,6 +5453,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // This ensures they're written before raw mode is exited, avoiding race conditions
             // where mouse events could leak to the shell after app exit
             var exitSequences = Input.MouseParser.DisableMouseTracking + 
+                "\x1b[?2004l" + // Disable bracketed paste mode
                 "\x1b[0m" +     // Reset text attributes (prevents inverted text from leaking)
                 "\x1b[?25h" +   // Show cursor
                 "\x1b[?1049l";  // Exit alternate screen

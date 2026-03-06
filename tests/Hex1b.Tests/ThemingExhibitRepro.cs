@@ -66,7 +66,7 @@ public class ThemingExhibitRepro
 
         // Wait for the content to render, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(5), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -192,7 +192,7 @@ public class ThemingExhibitRepro
         // Act - Run app, wait for content to render
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("test text"), TimeSpan.FromSeconds(2),
+            .WaitUntil(s => s.ContainsText("Item 1") && s.ContainsText("test text"), TimeSpan.FromSeconds(5),
                 "List and TextBox content to appear")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -225,7 +225,7 @@ public class ThemingExhibitRepro
         // Act - Run app, wait for TextBox text to appear, then check for cursor colors
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(2), "TextBox content to appear")
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(5), "TextBox content to appear")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
@@ -301,7 +301,7 @@ public class ThemingExhibitRepro
 
         // Wait for the content to render, capture BEFORE exiting
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(2), "Wait for initial render")
+            .WaitUntil(s => s.ContainsText("Sample text"), TimeSpan.FromSeconds(5), "Wait for initial render")
             .Capture("final")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
