@@ -13,7 +13,7 @@
 
   <ItemGroup>
     <Compile Remove="workspace\**" />
-    <None Include="workspace\**\*" Exclude="workspace\**\*.csproj;workspace\**\*.sln;workspace\obj\**;workspace\bin\**" CopyToOutputDirectory="PreserveNewest" LinkBase="workspace" />
+    <None Remove="workspace\**" />
   </ItemGroup>
 
 </Project>
