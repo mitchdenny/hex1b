@@ -12,6 +12,7 @@ namespace Hex1b.LanguageServer;
 internal sealed class LanguageServerClient : IAsyncDisposable
 {
     private readonly LanguageServerConfiguration _config;
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private JsonRpcTransport? _transport;
     private Process? _process;
     private Socket? _socket;
@@ -31,6 +32,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
     /// <summary>Raised when the server sends a notification (e.g., diagnostics).</summary>
     public event Action<JsonRpcResponse>? NotificationReceived;
+
+    /// <summary>
+    /// Waits until the client has completed the initialize/initialized handshake.
+    /// Safe to call concurrently — returns immediately if already ready.
+    /// </summary>
+    public Task WaitUntilReadyAsync(CancellationToken ct = default) =>
+        _ready.Task.WaitAsync(ct);
 
     /// <summary>
     /// Starts the language server and performs the initialize/initialized handshake.
@@ -109,6 +117,8 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         // Start notification listener
         _notificationCts = new CancellationTokenSource();
         _notificationLoop = Task.Run(() => _transport.RunNotificationLoopAsync(_notificationCts.Token));
+
+        _ready.TrySetResult();
     }
 
     /// <summary>Sends textDocument/didOpen notification.</summary>
