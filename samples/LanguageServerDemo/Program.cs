@@ -584,6 +584,59 @@ async function main(): Promise<void> {
 main().catch(console.error);
 """);
 
+// ── Sample diff file ─────────────────────────────────────────────────────────
+File.WriteAllText(Path.Combine(tempWorkspace, "recent-changes.diff"), """
+diff --git a/src/services/auth-service.ts b/src/services/auth-service.ts
+index 3a2f1b7..c8d4e9a 100644
+--- a/src/services/auth-service.ts
++++ b/src/services/auth-service.ts
+@@ -12,6 +12,8 @@ interface TokenPair {
+ export class AuthService {
+     private users: Map<string, User> = new Map();
+     private tokens: Map<string, { userId: string; expiresAt: Date }> = new Map();
++    private refreshTokens: Map<string, string> = new Map();
++    private maxLoginAttempts = 5;
+ 
+     /**
+      * Register a new user account.
+@@ -45,7 +47,15 @@ export class AuthService {
+         const token = crypto.randomUUID();
+         const expiresAt = new Date(Date.now() + 3600_000);
+         this.tokens.set(token, { userId: user.id, expiresAt });
+-        return { accessToken: token, expiresAt };
++
++        // Generate refresh token for session persistence
++        const refreshToken = crypto.randomUUID();
++        this.refreshTokens.set(refreshToken, user.id);
++
++        return {
++            accessToken: token,
++            refreshToken,
++            expiresAt,
++        };
+     }
+ 
+     /**
+diff --git a/src/models/task.ts b/src/models/task.ts
+index 7e9c3d2..1a5b8f0 100644
+--- a/src/models/task.ts
++++ b/src/models/task.ts
+@@ -8,6 +8,7 @@ export interface Task {
+     tags: string[];
+     assignee?: string;
+     description?: string;
++    dueDate?: Date;
+     createdAt: Date;
+     updatedAt: Date;
+ }
+@@ -18,4 +19,5 @@ export interface CreateTaskInput {
+     tags?: string[];
+     assignee?: string;
+     description?: string;
++    dueDate?: Date;
+ }
+""");
+
 // ── Set up the document workspace ────────────────────────────────────────────
 await using var workspace = new Hex1bDocumentWorkspace(tempWorkspace);
 
@@ -594,6 +647,11 @@ workspace.AddLanguageServer("ts-ls", lsp => lsp
 workspace.MapLanguageServer("*.ts", "ts-ls");
 workspace.MapLanguageServer("*.tsx", "ts-ls");
 workspace.MapLanguageServer("*.js", "ts-ls");
+
+// Register in-process git diff highlighter
+workspace.AddDecorationProvider("git-diff", () => new GitDiffDecorationProvider());
+workspace.MapDecorationProvider("*.diff", "git-diff");
+workspace.MapDecorationProvider("*.patch", "git-diff");
 
 // ── Application state ────────────────────────────────────────────────────────
 var ideState = new IdeState();
@@ -619,6 +677,7 @@ static void BuildFileTree(string rootPath, string relativePath, List<WorkspaceFi
             ".ts" => "🟦",
             ".js" => "🟨",
             ".json" => "⚙️",
+            ".diff" or ".patch" => "📝",
             _ => "📄",
         };
         files.Add(new WorkspaceFile(name, relFile, icon, ext));
@@ -816,11 +875,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                         .LineNumbers()
                                         .Fill();
 
-                                    // Apply LSP for TS/JS files via workspace
-                                    if (tab.Extension is ".ts" or ".tsx" or ".js" or ".jsx")
-                                    {
-                                        editor = editor.LanguageServer(workspace);
-                                    }
+                                    // Apply decorations via workspace (LSP or in-process)
+                                    editor = editor.LanguageServer(workspace);
 
                                     return [editor];
                                 }).Fill()
@@ -963,6 +1019,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ".tsx" => "TypeScript React",
                     ".js" => "JavaScript",
                     ".json" => "JSON",
+                    ".diff" or ".patch" => "Diff",
                     _ => "Plain Text",
                 };
                 items.Add(s.Section(lang));

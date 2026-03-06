@@ -46,8 +46,11 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
     private readonly Dictionary<string, LanguageServerClient> _activeClients = new();
     private readonly Dictionary<string, string[]> _tokenLegends = new();
     private readonly List<(string Glob, string ServerId)> _serverMappings = [];
+    private readonly Dictionary<string, Func<Documents.ITextDecorationProvider>> _inProcessProviderFactories = new();
+    private readonly List<(string Glob, string ProviderId)> _inProcessMappings = [];
     private readonly Dictionary<string, Documents.Hex1bDocument> _openDocuments = new();
     private readonly Dictionary<string, LanguageServerDecorationProvider> _documentProviders = new();
+    private readonly Dictionary<string, Documents.ITextDecorationProvider> _inProcessDocumentProviders = new();
 
     /// <summary>
     /// Creates a workspace rooted at the specified directory path.
@@ -212,6 +215,39 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
         _serverMappings.Add((glob, serverId));
     }
 
+    // ── In-process decoration providers ──────────────────────
+
+    /// <summary>
+    /// Registers an in-process decoration provider factory with a logical name.
+    /// In-process providers run without an external language server process — ideal
+    /// for simple syntax highlighting (e.g., diff files, log files, config files).
+    /// </summary>
+    /// <param name="providerId">A logical name for this provider (e.g., "git-diff", "log-highlighter").</param>
+    /// <param name="factory">A factory that creates a new provider instance per document.</param>
+    public void AddDecorationProvider(string providerId, Func<Documents.ITextDecorationProvider> factory)
+    {
+        _inProcessProviderFactories[providerId] = factory;
+    }
+
+    /// <summary>
+    /// Maps a file glob pattern to a registered in-process decoration provider.
+    /// In-process mappings are checked before language server mappings.
+    /// </summary>
+    /// <param name="glob">
+    /// A glob pattern to match document file names (e.g., "*.diff", "*.patch", "*.log").
+    /// Matched against the file name only, not the full path.
+    /// </param>
+    /// <param name="providerId">The provider ID registered with <see cref="AddDecorationProvider"/>.</param>
+    public void MapDecorationProvider(string glob, string providerId)
+    {
+        if (!_inProcessProviderFactories.ContainsKey(providerId))
+            throw new InvalidOperationException(
+                $"No decoration provider registered with ID '{providerId}'. " +
+                $"Call AddDecorationProvider(\"{providerId}\", ...) first.");
+
+        _inProcessMappings.Add((glob, providerId));
+    }
+
     /// <summary>
     /// Gets a decoration provider for a document, using the workspace's
     /// language server mappings to resolve the appropriate server.
@@ -240,6 +276,39 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
         var provider = new LanguageServerDecorationProvider(client, uri, languageId, legend);
         _documentProviders[uri] = provider;
         return provider;
+    }
+
+    /// <summary>
+    /// Gets a decoration provider for a document, checking in-process providers first,
+    /// then falling back to language server providers.
+    /// Returns null if no provider is mapped for this document type.
+    /// </summary>
+    /// <param name="document">The document to get a provider for.</param>
+    /// <returns>A decoration provider, or null if no provider matches.</returns>
+    public Documents.ITextDecorationProvider? GetDecorationProvider(Documents.IHex1bDocument document)
+    {
+        var filePath = document.FilePath;
+        if (filePath == null) return null;
+
+        var uri = PathToUri(filePath);
+
+        // Check in-process providers first
+        if (_inProcessDocumentProviders.TryGetValue(uri, out var inProcess))
+            return inProcess;
+
+        var fileName = Path.GetFileName(filePath);
+        foreach (var (glob, providerId) in _inProcessMappings)
+        {
+            if (GlobMatch(fileName, glob) && _inProcessProviderFactories.TryGetValue(providerId, out var factory))
+            {
+                var provider = factory();
+                _inProcessDocumentProviders[uri] = provider;
+                return provider;
+            }
+        }
+
+        // Fall back to language server providers
+        return GetProvider(document);
     }
 
     private string? ResolveServer(string filePath)
