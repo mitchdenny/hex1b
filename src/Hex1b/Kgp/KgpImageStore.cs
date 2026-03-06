@@ -1,4 +1,4 @@
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Central store for KGP images. Manages image IDs, image numbers,

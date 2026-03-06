@@ -61,8 +61,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
     private readonly TimeProvider _timeProvider;
-    private readonly Kgp.KgpImageStore _kgpImageStore = new();
-    private readonly List<Kgp.KgpPlacement> _kgpPlacements = new();
+    private readonly KgpImageStore _kgpImageStore = new();
+    private readonly List<KgpPlacement> _kgpPlacements = new();
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -5811,12 +5811,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>
     /// Gets the KGP image store for testing and inspection.
     /// </summary>
-    internal Kgp.KgpImageStore KgpImageStore => _kgpImageStore;
+    internal KgpImageStore KgpImageStore => _kgpImageStore;
 
     /// <summary>
     /// Gets the active KGP placements for testing and inspection.
     /// </summary>
-    internal IReadOnlyList<Kgp.KgpPlacement> KgpPlacements
+    internal IReadOnlyList<KgpPlacement> KgpPlacements
     {
         get { lock (_bufferLock) return _kgpPlacements.ToList(); }
     }
@@ -5829,29 +5829,29 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (!Capabilities.SupportsKgp)
             return;
 
-        var command = Kgp.KgpCommand.Parse(token.ControlData);
+        var command = KgpCommand.Parse(token.ControlData);
 
         switch (command.Action)
         {
-            case Kgp.KgpAction.Transmit:
+            case KgpAction.Transmit:
                 ProcessKgpTransmit(command, token.Payload);
                 break;
-            case Kgp.KgpAction.TransmitAndDisplay:
+            case KgpAction.TransmitAndDisplay:
                 ProcessKgpTransmitAndDisplay(command, token.Payload);
                 break;
-            case Kgp.KgpAction.Query:
+            case KgpAction.Query:
                 ProcessKgpQuery(command, token.Payload);
                 break;
-            case Kgp.KgpAction.Put:
+            case KgpAction.Put:
                 ProcessKgpPut(command);
                 break;
-            case Kgp.KgpAction.Delete:
+            case KgpAction.Delete:
                 ProcessKgpDelete(command);
                 break;
         }
     }
 
-    private void ProcessKgpTransmit(Kgp.KgpCommand command, string base64Payload)
+    private void ProcessKgpTransmit(KgpCommand command, string base64Payload)
     {
         var decodedData = DecodeKgpPayload(base64Payload);
 
@@ -5888,16 +5888,16 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             return;
         }
 
-        var newImage = new Kgp.KgpImageData(imageId, imageNumber, decodedData,
+        var newImage = new KgpImageData(imageId, imageNumber, decodedData,
             command.Width, command.Height, command.Format);
         _kgpImageStore.StoreImage(newImage);
         SendKgpResponse(imageId, imageNumber, "OK", command.Quiet);
     }
 
-    private void ProcessKgpTransmitAndDisplay(Kgp.KgpCommand command, string base64Payload)
+    private void ProcessKgpTransmitAndDisplay(KgpCommand command, string base64Payload)
     {
         // First transmit (create a modified command with Transmit action)
-        var transmitCmd = Kgp.KgpCommand.Parse(
+        var transmitCmd = KgpCommand.Parse(
             $"a=t,f={(int)command.Format},s={command.Width},v={command.Height}," +
             $"i={command.ImageId},I={command.ImageNumber},m={command.MoreData}," +
             $"q={command.Quiet}" +
@@ -5933,7 +5933,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private void ProcessKgpQuery(Kgp.KgpCommand command, string base64Payload)
+    private void ProcessKgpQuery(KgpCommand command, string base64Payload)
     {
         var decodedData = DecodeKgpPayload(base64Payload);
         var expectedSize = GetExpectedKgpDataSize(command);
@@ -5950,10 +5950,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         SendKgpResponse(command.ImageId, command.ImageNumber, "OK", command.Quiet);
     }
 
-    private void ProcessKgpPut(Kgp.KgpCommand command)
+    private void ProcessKgpPut(KgpCommand command)
     {
         var imageId = command.ImageId;
-        Kgp.KgpImageData? image = null;
+        KgpImageData? image = null;
 
         if (imageId > 0)
             image = _kgpImageStore.GetImageById(imageId);
@@ -5986,18 +5986,18 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         SendKgpResponse(image.ImageId, image.ImageNumber, "OK", command.Quiet);
     }
 
-    private void ProcessKgpDelete(Kgp.KgpCommand command)
+    private void ProcessKgpDelete(KgpCommand command)
     {
         switch (command.DeleteTarget)
         {
-            case Kgp.KgpDeleteTarget.All:
+            case KgpDeleteTarget.All:
                 _kgpPlacements.Clear();
                 break;
-            case Kgp.KgpDeleteTarget.AllFreeData:
+            case KgpDeleteTarget.AllFreeData:
                 _kgpPlacements.Clear();
                 _kgpImageStore.Clear();
                 break;
-            case Kgp.KgpDeleteTarget.ById:
+            case KgpDeleteTarget.ById:
                 if (command.ImageId > 0)
                 {
                     if (command.PlacementId > 0)
@@ -6006,7 +6006,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                         _kgpPlacements.RemoveAll(p => p.ImageId == command.ImageId);
                 }
                 break;
-            case Kgp.KgpDeleteTarget.ByIdFreeData:
+            case KgpDeleteTarget.ByIdFreeData:
                 if (command.ImageId > 0)
                 {
                     if (command.PlacementId > 0)
@@ -6016,8 +6016,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _kgpImageStore.RemoveImage(command.ImageId);
                 }
                 break;
-            case Kgp.KgpDeleteTarget.ByNumber:
-            case Kgp.KgpDeleteTarget.ByNumberFreeData:
+            case KgpDeleteTarget.ByNumber:
+            case KgpDeleteTarget.ByNumberFreeData:
                 if (command.ImageNumber > 0)
                 {
                     var img = _kgpImageStore.GetImageByNumber(command.ImageNumber);
@@ -6026,35 +6026,35 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     _kgpImageStore.RemoveImageByNumber(command.ImageNumber);
                 }
                 break;
-            case Kgp.KgpDeleteTarget.AtCursor:
-            case Kgp.KgpDeleteTarget.AtCursorFreeData:
+            case KgpDeleteTarget.AtCursor:
+            case KgpDeleteTarget.AtCursorFreeData:
                 _kgpPlacements.RemoveAll(p => p.IntersectsCell(_cursorY, _cursorX));
                 break;
-            case Kgp.KgpDeleteTarget.AtCell:
-            case Kgp.KgpDeleteTarget.AtCellFreeData:
+            case KgpDeleteTarget.AtCell:
+            case KgpDeleteTarget.AtCellFreeData:
                 _kgpPlacements.RemoveAll(p => p.IntersectsCell((int)command.SourceY - 1, (int)command.SourceX - 1));
                 break;
-            case Kgp.KgpDeleteTarget.ByColumn:
-            case Kgp.KgpDeleteTarget.ByColumnFreeData:
+            case KgpDeleteTarget.ByColumn:
+            case KgpDeleteTarget.ByColumnFreeData:
                 _kgpPlacements.RemoveAll(p => p.IntersectsColumn((int)command.SourceX - 1));
                 break;
-            case Kgp.KgpDeleteTarget.ByRow:
-            case Kgp.KgpDeleteTarget.ByRowFreeData:
+            case KgpDeleteTarget.ByRow:
+            case KgpDeleteTarget.ByRowFreeData:
                 _kgpPlacements.RemoveAll(p => p.IntersectsRow((int)command.SourceY - 1));
                 break;
-            case Kgp.KgpDeleteTarget.ByZIndex:
-            case Kgp.KgpDeleteTarget.ByZIndexFreeData:
+            case KgpDeleteTarget.ByZIndex:
+            case KgpDeleteTarget.ByZIndexFreeData:
                 _kgpPlacements.RemoveAll(p => p.ZIndex == command.ZIndex);
                 break;
-            case Kgp.KgpDeleteTarget.ByRange:
-            case Kgp.KgpDeleteTarget.ByRangeFreeData:
+            case KgpDeleteTarget.ByRange:
+            case KgpDeleteTarget.ByRangeFreeData:
             {
                 var lo = command.SourceX;
                 var hi = command.SourceY;
                 if (lo > 0 && hi > 0 && lo <= hi)
                 {
                     _kgpPlacements.RemoveAll(p => p.ImageId >= lo && p.ImageId <= hi);
-                    if (command.DeleteTarget == Kgp.KgpDeleteTarget.ByRangeFreeData)
+                    if (command.DeleteTarget == KgpDeleteTarget.ByRangeFreeData)
                     {
                         for (uint id = lo; id <= hi; id++)
                             _kgpImageStore.RemoveImage(id);
@@ -6062,8 +6062,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
             }
-            case Kgp.KgpDeleteTarget.AtCellWithZIndex:
-            case Kgp.KgpDeleteTarget.AtCellWithZIndexFreeData:
+            case KgpDeleteTarget.AtCellWithZIndex:
+            case KgpDeleteTarget.AtCellWithZIndexFreeData:
             {
                 var cellRow = (int)command.SourceY - 1;
                 var cellCol = (int)command.SourceX - 1;
@@ -6077,7 +6077,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _kgpImageStore.AbortChunkedTransfer();
     }
 
-    private void CreateKgpPlacement(uint imageId, uint placementId, uint cols, uint rows, Kgp.KgpCommand command)
+    private void CreateKgpPlacement(uint imageId, uint placementId, uint cols, uint rows, KgpCommand command)
     {
         // If same image+placement combo exists, replace it
         if (placementId > 0)
@@ -6085,7 +6085,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _kgpPlacements.RemoveAll(p => p.ImageId == imageId && p.PlacementId == placementId);
         }
 
-        var placement = new Kgp.KgpPlacement(
+        var placement = new KgpPlacement(
             imageId, placementId,
             _cursorY, _cursorX,
             cols, rows,
@@ -6150,15 +6150,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
-    private static long GetExpectedKgpDataSize(Kgp.KgpCommand command)
+    private static long GetExpectedKgpDataSize(KgpCommand command)
     {
-        if (command.Format == Kgp.KgpFormat.Png)
+        if (command.Format == KgpFormat.Png)
             return 0; // PNG size is variable
 
         if (command.Width == 0 || command.Height == 0)
             return 0;
 
-        var bytesPerPixel = command.Format == Kgp.KgpFormat.Rgb24 ? 3 : 4;
+        var bytesPerPixel = command.Format == KgpFormat.Rgb24 ? 3 : 4;
         return (long)command.Width * command.Height * bytesPerPixel;
     }
 }

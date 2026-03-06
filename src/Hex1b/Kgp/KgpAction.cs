@@ -1,4 +1,4 @@
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// The action type for a KGP (Kitty Graphics Protocol) command.

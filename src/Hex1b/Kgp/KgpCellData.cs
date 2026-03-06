@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Immutable data for a KGP (Kitty Graphics Protocol) image placement on a surface cell.

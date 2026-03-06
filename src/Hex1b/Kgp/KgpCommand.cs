@@ -1,4 +1,4 @@
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// The pixel data format for KGP image transmission.

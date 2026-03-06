@@ -1,4 +1,3 @@
-using Hex1b.Kgp;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;

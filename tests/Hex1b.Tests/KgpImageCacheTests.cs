@@ -1,6 +1,5 @@
 using System.Security.Cryptography;
 using System.Text;
-using Hex1b.Kgp;
 
 namespace Hex1b.Tests;
 

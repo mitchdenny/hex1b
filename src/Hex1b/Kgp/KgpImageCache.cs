@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Tracks which images have been transmitted to the terminal in the current session.

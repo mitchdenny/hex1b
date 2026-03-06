@@ -2,7 +2,6 @@
 // Tests are based on expected behaviors from the KGP specification at:
 // https://sw.kovidgoyal.net/kitty/graphics-protocol/
 
-using Hex1b.Kgp;
 using Hex1b.Tokens;
 
 namespace Hex1b.Tests;

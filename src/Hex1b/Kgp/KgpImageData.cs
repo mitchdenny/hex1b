@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Stores transmitted image data for the Kitty Graphics Protocol.

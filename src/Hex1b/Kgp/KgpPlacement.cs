@@ -1,4 +1,4 @@
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Represents a displayed instance of a KGP image at a specific position.

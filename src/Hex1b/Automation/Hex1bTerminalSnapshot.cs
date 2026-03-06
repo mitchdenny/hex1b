@@ -1,4 +1,3 @@
-using Hex1b.Kgp;
 using Hex1b.Layout;
 
 namespace Hex1b.Automation;
@@ -37,7 +36,7 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         // Capture KGP placements and their image data
         var placements = terminal.KgpPlacements;
         KgpPlacements = placements;
-        var images = new Dictionary<uint, Kgp.KgpImageData>();
+        var images = new Dictionary<uint, KgpImageData>();
         foreach (var placement in placements)
         {
             if (!images.ContainsKey(placement.ImageId))
@@ -167,12 +166,12 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// <summary>
     /// KGP image placements active at snapshot time.
     /// </summary>
-    public IReadOnlyList<Kgp.KgpPlacement> KgpPlacements { get; }
+    public IReadOnlyList<KgpPlacement> KgpPlacements { get; }
 
     /// <summary>
     /// KGP image data referenced by placements, keyed by image ID.
     /// </summary>
-    public IReadOnlyDictionary<uint, Kgp.KgpImageData> KgpImages { get; }
+    public IReadOnlyDictionary<uint, KgpImageData> KgpImages { get; }
 
     /// <inheritdoc />
     public TerminalCell GetCell(int x, int y)

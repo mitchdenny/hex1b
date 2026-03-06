@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace Hex1b.Kgp;
+namespace Hex1b;
 
 /// <summary>
 /// Helper for constructing KGP escape sequences in tests.
