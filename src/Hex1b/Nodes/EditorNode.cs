@@ -1,6 +1,7 @@
 using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.LanguageServer;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -25,6 +26,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
     private IHex1bDocument? _subscribedDocument;
     private readonly List<EditorOverlay> _activeOverlays = [];
     private Hex1bRenderContext? _lastRenderContext; // For IEditorSession.Capabilities
+    private CompletionController? _completionController;
 
     /// <summary>
     /// Marks that the cursor has changed and scroll should adjust to keep it visible
@@ -186,6 +188,10 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
         // ── Escape to collapse multi-cursor ─────────────────────
         // Note: Escape is only handled when we have multiple cursors
+        bindings.Key(Hex1bKey.Escape).Action(HandleEscape, "Escape");
+
+        // ── Completion trigger ──────────────────────────────────
+        bindings.Ctrl().Key(Hex1bKey.Spacebar).Action(TriggerCompletionAsync, "Trigger completion");
 
         // ── Editing ─────────────────────────────────────────────
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
@@ -622,6 +628,12 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
+        // Dismiss active completion if typing continues (unless it's a trigger char)
+        if (_completionController is { IsActive: true } && text != ".")
+        {
+            _completionController.Dismiss();
+        }
+
         // Let the view renderer intercept character input (e.g., hex byte editing)
         if (text.Length == 1 && ViewRenderer.HandlesCharInput)
         {
@@ -648,10 +660,21 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         State.InsertText(text);
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
+
+        // Trigger completion after typing '.'
+        if (text == ".")
+        {
+            await RequestCompletionAtCursorAsync();
+        }
     }
 
     private async Task InsertNewlineAsync(InputBindingActionContext ctx)
     {
+        if (_completionController is { IsActive: true })
+        {
+            AcceptCompletion();
+            return;
+        }
         State.InsertText("\n");
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
@@ -699,10 +722,106 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
+    // --- Input handlers: completion ---
+
+    private void HandleEscape()
+    {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.Dismiss();
+            MarkDirty();
+            return;
+        }
+
+        // Collapse multi-cursor back to single cursor
+        if (State.Cursors.Count > 1)
+        {
+            State.CollapseToSingleCursor();
+            AfterMove();
+        }
+    }
+
+    private async Task TriggerCompletionAsync(InputBindingActionContext ctx)
+    {
+        await RequestCompletionAtCursorAsync();
+    }
+
+    private async Task RequestCompletionAtCursorAsync()
+    {
+        var provider = FindLspProvider();
+        if (provider == null) return;
+
+        var pos = State.Document.OffsetToPosition(State.Cursor.Position);
+        var line = pos.Line;
+        var column = pos.Column;
+
+        // Ensure controller exists and is attached
+        _completionController ??= new CompletionController();
+        _completionController.Attach(this);
+
+        try
+        {
+            var client = GetLspClient(provider);
+            if (client == null) return;
+
+            var docUri = GetDocumentUri(provider);
+            var result = await client.RequestCompletionAsync(docUri, line - 1, column - 1);
+
+            if (result?.Items is { Length: > 0 })
+            {
+                _completionController.Show(result.Items, new DocumentPosition(line, column));
+                MarkDirty();
+            }
+            else
+            {
+                _completionController.Dismiss();
+            }
+        }
+        catch
+        {
+            _completionController.Dismiss();
+        }
+    }
+
+    private void AcceptCompletion()
+    {
+        if (_completionController == null) return;
+
+        var insertText = _completionController.Accept();
+        if (insertText != null)
+        {
+            State.InsertText(insertText);
+            AfterEdit();
+        }
+    }
+
+    private LanguageServerDecorationProvider? FindLspProvider()
+    {
+        if (DecorationProviders == null) return null;
+        foreach (var p in DecorationProviders)
+        {
+            if (p is LanguageServerDecorationProvider lsp)
+                return lsp;
+        }
+        return null;
+    }
+
+    private static LanguageServerClient? GetLspClient(LanguageServerDecorationProvider provider)
+    {
+        // Access the active client via the provider's internal property
+        return provider.ActiveClientForCompletion;
+    }
+
+    private static string GetDocumentUri(LanguageServerDecorationProvider provider)
+    {
+        return provider.DocumentUriForCompletion;
+    }
+
     // --- Input handlers: navigation ---
 
     private void MoveLeft()
     {
+        _completionController?.Dismiss();
         if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Left);
         AfterMove();
@@ -710,6 +829,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private void MoveRight()
     {
+        _completionController?.Dismiss();
         if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Right);
         AfterMove();
@@ -717,6 +837,12 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private void MoveUp()
     {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.SelectPrev();
+            MarkDirty();
+            return;
+        }
         if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Up);
         AfterMove();
@@ -724,6 +850,12 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private void MoveDown()
     {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.SelectNext();
+            MarkDirty();
+            return;
+        }
         if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Down);
         AfterMove();
