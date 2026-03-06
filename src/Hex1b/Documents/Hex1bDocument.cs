@@ -28,6 +28,9 @@ public sealed class Hex1bDocument : IHex1bDocument
     private long _batchVersionStart; // Version before batch began
     private List<EditOperation>? _batchApplied; // Accumulated ops during batch
     private List<EditOperation>? _batchInverse;
+    private string? _filePath;
+    private bool _isDirty;
+    private long _savedVersion; // Version at last save
 
     public int Length
     {
@@ -246,6 +249,7 @@ public sealed class Hex1bDocument : IHex1bDocument
         }
 
         _version++;
+        MarkDirty();
 
         if (_batchDepth == 0)
         {
@@ -300,6 +304,7 @@ public sealed class Hex1bDocument : IHex1bDocument
         }
 
         _version++;
+        MarkDirty();
         RebuildCaches();
 
         // Build character-level edit operations for undo/event compatibility
@@ -683,6 +688,51 @@ public sealed class Hex1bDocument : IHex1bDocument
 
     /// <summary>Validates internal piece tree consistency. Throws if corrupt.</summary>
     internal void VerifyIntegrity() => _pieceTree.VerifyIntegrity();
+
+    // ── File-backed document support ─────────────────────────
+
+    /// <summary>
+    /// The file path this document is associated with, or null for in-memory documents.
+    /// </summary>
+    public string? FilePath
+    {
+        get => _filePath;
+        internal set
+        {
+            _filePath = value;
+            _savedVersion = _version;
+            _isDirty = false;
+        }
+    }
+
+    /// <summary>
+    /// Whether the document has unsaved changes since the last save or load.
+    /// Always false for documents without a <see cref="FilePath"/>.
+    /// </summary>
+    public bool IsDirty => _filePath != null && _isDirty;
+
+    /// <summary>
+    /// Saves the document content to its <see cref="FilePath"/>.
+    /// </summary>
+    public async Task SaveAsync(CancellationToken ct = default)
+    {
+        if (_filePath == null)
+            throw new InvalidOperationException("Document has no associated file path.");
+
+        var bytes = GetBytes();
+        await File.WriteAllBytesAsync(_filePath, bytes.ToArray(), ct).ConfigureAwait(false);
+        _savedVersion = _version;
+        _isDirty = false;
+    }
+
+    /// <summary>
+    /// Marks the document as dirty. Called internally when edits occur on a file-backed document.
+    /// </summary>
+    internal void MarkDirty()
+    {
+        if (_filePath != null && _version != _savedVersion)
+            _isDirty = true;
+    }
 
     public DocumentDiagnosticInfo GetDiagnosticInfo()
     {
