@@ -410,6 +410,9 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Mouse click on rows
         bindings.Mouse(MouseButton.Left).Action(HandleRowClick, "Click row");
+
+        // Row activation (Enter or double-click)
+        bindings.Key(Hex1bKey.Enter).Action(ActivateFocusedRow, "Activate row");
     }
 
     /// <summary>
@@ -493,6 +496,24 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var currentlySelected = IsSelectedSelector?.Invoke(row) ?? false;
         SelectionChangedCallback(row, !currentlySelected);
         MarkDirty();
+    }
+
+    /// <summary>
+    /// Activates the currently focused row by invoking the RowActivatedHandler.
+    /// </summary>
+    private async Task ActivateFocusedRow(InputBindingActionContext ctx)
+    {
+        if (RowActivatedHandler is null || Data is null || FocusedKey is null) return;
+
+        foreach (var row in Data)
+        {
+            var key = RowKeySelector?.Invoke(row);
+            if (Equals(key, FocusedKey))
+            {
+                await RowActivatedHandler(FocusedKey, row);
+                return;
+            }
+        }
     }
     
     /// <summary>
