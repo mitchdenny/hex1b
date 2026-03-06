@@ -40,9 +40,46 @@ var sampleCode = """
     }
     """;
 
+// Sample code with diagnostic patterns for underline demo
+var diagnosticCode = """
+    using System;
+
+    namespace MyApp;
+
+    public class Calculator
+    {
+        public int Add(int a, int b)
+        {
+            var unusedResult = a * b; // Warning: unused variable
+            return a + b;
+        }
+
+        public int Divide(int a, int b)
+        {
+            // TODO: handle division by zero
+            return a / b;
+        }
+
+        public void Legacy()
+        {
+            DeprecatedMethod(); // Hint: deprecated API
+        }
+
+        public void Broken()
+        {
+            var x = undefinedVar + 1; // Error: undefined identifier
+        }
+    }
+    """;
+
 var syntaxDoc = new Hex1bDocument(sampleCode);
 var syntaxState = new EditorState(syntaxDoc);
 var syntaxHighlighter = new CSharpSyntaxHighlighter();
+
+var diagDoc = new Hex1bDocument(diagnosticCode);
+var diagState = new EditorState(diagDoc);
+var diagSyntaxHighlighter = new CSharpSyntaxHighlighter();
+var diagHighlighter = new DiagnosticHighlighter();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
@@ -56,6 +93,18 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Text("C# Syntax Highlighting via ITextDecorationProvider"),
                     v.Separator(),
                     v.Editor(syntaxState).Decorations(syntaxHighlighter).Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("Diagnostics", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("Diagnostic Underlines — error (curly red), warning (curly yellow), info (dotted blue), hint (dashed gray)"),
+                    v.Separator(),
+                    v.Editor(diagState)
+                        .Decorations(diagSyntaxHighlighter)
+                        .Decorations(diagHighlighter)
+                        .Fill()
                 ]).Fill()
             ])
         ]).Fill();

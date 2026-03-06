@@ -319,10 +319,15 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         Hex1bColor Foreground,
         Hex1bColor Background,
         bool Bold,
-        bool Italic)
+        bool Italic,
+        UnderlineStyle UnderlineStyle,
+        Hex1bColor UnderlineColor)
     {
         public bool HasForeground => !Foreground.IsDefault;
         public bool HasBackground => !Background.IsDefault;
+        public bool HasUnderline => UnderlineStyle != UnderlineStyle.None;
+        public bool HasUnderlineColor => !UnderlineColor.IsDefault;
+        public bool HasAnyDecoration => HasForeground || HasBackground || Bold || Italic || HasUnderline;
     }
 
     /// <summary>
@@ -357,18 +362,20 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         // Initialize with Default colors so HasForeground/HasBackground return false
         // for unset cells (default(Hex1bColor) is RGB(0,0,0) with IsDefault=false,
         // which would incorrectly appear as "has black foreground/background").
-        var empty = new ResolvedDecoration(Hex1bColor.Default, Hex1bColor.Default, false, false);
+        var empty = new ResolvedDecoration(Hex1bColor.Default, Hex1bColor.Default, false, false, UnderlineStyle.None, Hex1bColor.Default);
         Array.Fill(result, empty);
         // Track priority per attribute per column
         var fgPriority = new int[displayWidth];
         var bgPriority = new int[displayWidth];
         var boldPriority = new int[displayWidth];
         var italicPriority = new int[displayWidth];
+        var underlinePriority = new int[displayWidth];
         // Initialize priorities to int.MinValue so any decoration wins
         Array.Fill(fgPriority, int.MinValue);
         Array.Fill(bgPriority, int.MinValue);
         Array.Fill(boldPriority, int.MinValue);
         Array.Fill(italicPriority, int.MinValue);
+        Array.Fill(underlinePriority, int.MinValue);
 
         foreach (var span in lineSpans)
         {
@@ -414,6 +421,17 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 {
                     result[col] = result[col] with { Italic = true };
                     italicPriority[col] = span.Priority;
+                }
+
+                if (dec.UnderlineStyle is not null and not UnderlineStyle.None && span.Priority >= underlinePriority[col])
+                {
+                    var ulColor = dec.ResolveUnderlineColor(theme) ?? Hex1bColor.Default;
+                    result[col] = result[col] with
+                    {
+                        UnderlineStyle = dec.UnderlineStyle.Value,
+                        UnderlineColor = ulColor
+                    };
+                    underlinePriority[col] = span.Priority;
                 }
             }
         }
@@ -514,6 +532,28 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                     if (dec.HasBackground) sb.Append(dec.Background.ToBackgroundAnsi());
                     if (dec.Bold) sb.Append("\x1b[1m");
                     if (dec.Italic) sb.Append("\x1b[3m");
+                    if (dec.HasUnderline)
+                    {
+                        var caps = context.Capabilities;
+                        var style = dec.UnderlineStyle;
+                        // Fallback: styled underlines → single if unsupported
+                        if (!caps.SupportsStyledUnderlines && style is not UnderlineStyle.Single and not UnderlineStyle.None)
+                            style = UnderlineStyle.Single;
+
+                        sb.Append(style switch
+                        {
+                            UnderlineStyle.Single => "\x1b[4m",
+                            UnderlineStyle.Double => "\x1b[21m",
+                            UnderlineStyle.Curly => "\x1b[4:3m",
+                            UnderlineStyle.Dotted => "\x1b[4:4m",
+                            UnderlineStyle.Dashed => "\x1b[4:5m",
+                            _ => ""
+                        });
+
+                        // Underline color (SGR 58) — only if supported
+                        if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
+                            sb.Append(dec.UnderlineColor.ToUnderlineColorAnsi());
+                    }
                 }
 
                 sb.Append(text[i]);
@@ -522,7 +562,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 if (lineDecorations != null && cellType == CellType.Normal && i < lineDecorations.Length)
                 {
                     var dec = lineDecorations[i];
-                    if (dec.HasForeground || dec.HasBackground || dec.Bold || dec.Italic)
+                    if (dec.HasAnyDecoration)
                     {
                         // Check if next char has a different decoration to decide reset
                         var nextI = i + 1;
@@ -534,6 +574,9 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                             // to avoid clobbering the terminal's color state
                             if (dec.Bold) sb.Append("\x1b[22m");
                             if (dec.Italic) sb.Append("\x1b[23m");
+                            if (dec.HasUnderline) sb.Append("\x1b[24m"); // SGR 24: underline off
+                            if (dec.HasUnderlineColor && context.Capabilities.SupportsUnderlineColor)
+                                sb.Append("\x1b[59m"); // SGR 59: default underline color
                             sb.Append(fg.ToForegroundAnsi());
                             sb.Append(bg.ToBackgroundAnsi());
                         }

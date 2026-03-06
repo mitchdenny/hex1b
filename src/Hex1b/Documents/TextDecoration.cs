@@ -39,6 +39,12 @@ public record TextDecoration
     public Hex1bThemeElement<Hex1bColor>? BackgroundThemeElement { get; init; }
 
     /// <summary>
+    /// Theme element to resolve underline color from. Takes precedence over <see cref="UnderlineColor"/>
+    /// when both are specified.
+    /// </summary>
+    public Hex1bThemeElement<Hex1bColor>? UnderlineColorThemeElement { get; init; }
+
+    /// <summary>
     /// Resolves the effective foreground color, preferring the theme element if set.
     /// </summary>
     public Hex1bColor? ResolveForeground(Hex1bTheme theme) =>
@@ -49,4 +55,10 @@ public record TextDecoration
     /// </summary>
     public Hex1bColor? ResolveBackground(Hex1bTheme theme) =>
         BackgroundThemeElement is not null ? theme.Get(BackgroundThemeElement) : Background;
+
+    /// <summary>
+    /// Resolves the effective underline color, preferring the theme element if set.
+    /// </summary>
+    public Hex1bColor? ResolveUnderlineColor(Hex1bTheme theme) =>
+        UnderlineColorThemeElement is not null ? theme.Get(UnderlineColorThemeElement) : UnderlineColor;
 }

@@ -131,6 +131,19 @@ public record TerminalCapabilities
     public int DefaultBackground { get; init; } = 0x000000;
     
     /// <summary>
+    /// Presentation supports styled underlines (SGR 4:x — curly, dotted, dashed).
+    /// Modern terminals like kitty, WezTerm, iTerm2 support this.
+    /// When false, curly/dotted/dashed underlines fall back to single underline.
+    /// </summary>
+    public bool SupportsStyledUnderlines { get; init; }
+
+    /// <summary>
+    /// Presentation supports colored underlines (SGR 58).
+    /// When false, underlines use the foreground color.
+    /// </summary>
+    public bool SupportsUnderlineColor { get; init; }
+
+    /// <summary>
     /// Default capabilities for a modern terminal.
     /// </summary>
     public static TerminalCapabilities Modern => new()
@@ -141,6 +154,8 @@ public record TerminalCapabilities
         SupportsAlternateScreen = true,
         HandlesAlternateScreenNatively = true,  // Real terminals handle buffer switching
         SupportsBracketedPaste = true,
+        SupportsStyledUnderlines = true,
+        SupportsUnderlineColor = true,
         CellPixelWidth = 10,
         CellPixelHeight = 20
     };
