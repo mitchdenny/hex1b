@@ -795,13 +795,19 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
             var client = GetLspClient(provider);
             if (client == null) return;
 
+            var docUri = GetDocumentUri(provider);
+
+            // Sync the latest document content to the LS before requesting completions.
+            // Without this, the LS still has the old content (before the trigger char)
+            // and returns completions for the wrong context.
+            await client.ChangeDocumentAsync(docUri, State.Document.GetText());
+
             var context = new CompletionContext
             {
                 TriggerKind = triggerCharacter != null ? 2 : 1, // 2=TriggerCharacter, 1=Invoked
                 TriggerCharacter = triggerCharacter,
             };
 
-            var docUri = GetDocumentUri(provider);
             var result = await client.RequestCompletionAsync(docUri, line - 1, column - 1, context);
 
             if (result?.Items is { Length: > 0 })

@@ -634,10 +634,35 @@ static void BuildFileTree(string rootPath, string relativePath, List<WorkspaceFi
     }
 }
 
+// ── Embedded terminal (bash in workspace directory) ──────────────────────────
+using var terminalCts = new CancellationTokenSource();
+Hex1bApp? displayApp = null;
+
+var embeddedTerminal = Hex1bTerminal.CreateBuilder()
+    .WithPtyProcess(opts =>
+    {
+        opts.FileName = "bash";
+        opts.Arguments = ["--norc", "--noprofile"];
+        opts.WorkingDirectory = tempWorkspace;
+    })
+    .WithTerminalWidget(out var shellHandle)
+    .Build();
+
+shellHandle.WindowTitleChanged += _ => displayApp?.Invalidate();
+
+_ = Task.Run(async () =>
+{
+    try { await embeddedTerminal.RunAsync(terminalCts.Token); }
+    catch (OperationCanceledException) { }
+});
+
 // ── Build the terminal UI ────────────────────────────────────────────────────
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp((app, options) =>
+    {
+        displayApp = app;
+        return ctx =>
     ctx.VStack(main => [
         // ═══════════════════════════════════════════════════════════════════
         // MENU BAR
@@ -700,10 +725,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         ]),
 
         // ═══════════════════════════════════════════════════════════════════
-        // MAIN CONTENT — HSplitter with Explorer + Editor
+        // MAIN CONTENT — VSplitter with editor area on top, terminal on bottom
         // ═══════════════════════════════════════════════════════════════════
-        main.HSplitter(
-            // ─── LEFT PANE: File Explorer ─────────────────────────────────
+        main.VSplitter(
+            // ─── TOP: HSplitter with Explorer + Editor ─────────────────────
+            top => [
+                top.HSplitter(
+                    // ─── LEFT PANE: File Explorer ─────────────────────────────
             left => [
                 left.Text(" EXPLORER"),
                 left.Separator(),
@@ -808,7 +836,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     .Selector()
                     .Fill()
                 ],
-            leftWidth: 25
+                leftWidth: 25
+            ).Fill()
+            ],
+            // ─── BOTTOM: Embedded Terminal ────────────────────────────────
+            bottom => [
+                bottom.Text(" TERMINAL"),
+                bottom.Separator(),
+                bottom.Terminal(shellHandle)
+                    .WhenNotRunning(args => bottom.VStack(v => [
+                        v.Text($"  Shell exited (code {args.ExitCode ?? 0}). Restart the demo to get a new terminal.")
+                    ]))
+                    .Fill()
+            ],
+            topHeight: 20
         ).Fill(),
 
         // ═══════════════════════════════════════════════════════════════════
@@ -850,12 +891,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
             return items;
         })
-    ]))
+    ]);
+    })
     .Build();
 
 await terminal.RunAsync();
 
-// ── Cleanup temp workspace ───────────────────────────────────────────────────
+// ── Cleanup ──────────────────────────────────────────────────────────────────
+terminalCts.Cancel();
+await embeddedTerminal.DisposeAsync();
 try { Directory.Delete(tempWorkspace, recursive: true); } catch { }
 
 // =============================================================================
