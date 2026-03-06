@@ -73,7 +73,9 @@ public static class LanguageServerExtensions
     /// <summary>
     /// Connects this editor to a language server managed by a <see cref="Hex1bDocumentWorkspace"/>.
     /// The workspace resolves the appropriate server based on the document's file path
-    /// and glob mappings registered with <see cref="Hex1bDocumentWorkspace.MapLanguageServer"/>.
+    /// and glob mappings registered with <see cref="Hex1bDocumentWorkspace.MapLanguageServer"/>
+    /// or <see cref="Hex1bDocumentWorkspace.MapDecorationProvider"/>.
+    /// In-process decoration providers are checked first, then language server providers.
     /// </summary>
     /// <param name="editor">The editor widget to enhance.</param>
     /// <param name="workspace">The document workspace that manages servers.</param>
@@ -82,7 +84,7 @@ public static class LanguageServerExtensions
         this EditorWidget editor,
         Hex1bDocumentWorkspace workspace)
     {
-        var provider = workspace.GetProvider(editor.State.Document);
+        var provider = workspace.GetDecorationProvider(editor.State.Document);
         return provider != null ? editor.Decorations(provider) : editor;
     }
 }
