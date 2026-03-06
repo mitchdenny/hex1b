@@ -16,7 +16,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     public static TextEditorViewRenderer Instance { get; } = new();
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null)
     {
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
@@ -55,6 +55,21 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             }
         }
 
+        // Collect decorations from all providers for the visible range
+        List<TextDecorationSpan>? allDecorations = null;
+        if (decorationProviders is { Count: > 0 })
+        {
+            var startLine = scrollOffset;
+            var endLine = Math.Min(scrollOffset + viewportLines - 1, doc.LineCount);
+            allDecorations = [];
+            foreach (var provider in decorationProviders)
+            {
+                var spans = provider.GetDecorations(startLine, endLine, doc);
+                if (spans.Count > 0)
+                    allDecorations.AddRange(spans);
+            }
+        }
+
         for (var viewLine = 0; viewLine < viewportLines; viewLine++)
         {
             var docLine = scrollOffset + viewLine;
@@ -64,7 +79,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             if (docLine > doc.LineCount)
             {
                 var emptyLine = "~".PadRight(viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
             }
 
@@ -73,7 +88,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             if (docLine > lineCount)
             {
                 var emptyLine = "~".PadRight(viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
             }
 
@@ -86,7 +101,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             {
                 // Document was mutated concurrently — treat as empty line
                 var emptyLine = "~".PadRight(viewportColumns);
-                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
             }
 
@@ -115,14 +130,17 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             catch (ArgumentOutOfRangeException)
             {
                 // Document mutated concurrently — render what we have without cursor/selection highlighting
-                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, null);
+                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
             }
             var lineEndOffset = lineStartOffset + lineText.Length;
             var cellTypes = BuildCellTypes(displayText, docLine, lineStartOffset, lineEndOffset,
                 cursorPositions, selectionRanges, horizontalScrollOffset);
 
-            RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes);
+            // Build per-column decoration map for this line
+            var lineDecorations = BuildLineDecorations(allDecorations, docLine, horizontalScrollOffset, displayText.Length, theme);
+
+            RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes, lineDecorations);
         }
     }
 
@@ -294,6 +312,133 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         return types;
     }
 
+    /// <summary>
+    /// Resolved per-character decoration for a single cell.
+    /// </summary>
+    private readonly record struct ResolvedDecoration(
+        Hex1bColor Foreground,
+        Hex1bColor Background,
+        bool Bold,
+        bool Italic,
+        UnderlineStyle UnderlineStyle,
+        Hex1bColor UnderlineColor)
+    {
+        public bool HasForeground => !Foreground.IsDefault;
+        public bool HasBackground => !Background.IsDefault;
+        public bool HasUnderline => UnderlineStyle != UnderlineStyle.None;
+        public bool HasUnderlineColor => !UnderlineColor.IsDefault;
+        public bool HasAnyDecoration => HasForeground || HasBackground || Bold || Italic || HasUnderline;
+    }
+
+    /// <summary>
+    /// Builds a per-column resolved decoration array for a single line by merging
+    /// all applicable decoration spans. Higher-priority decorations win per attribute.
+    /// </summary>
+    private static ResolvedDecoration[]? BuildLineDecorations(
+        List<TextDecorationSpan>? allDecorations,
+        int docLine,
+        int horizontalScrollOffset,
+        int displayWidth,
+        Hex1bTheme theme)
+    {
+        if (allDecorations is null or { Count: 0 })
+            return null;
+
+        // Collect spans that touch this line
+        List<TextDecorationSpan>? lineSpans = null;
+        foreach (var span in allDecorations)
+        {
+            if (span.Start.Line <= docLine && span.End.Line >= docLine)
+            {
+                lineSpans ??= [];
+                lineSpans.Add(span);
+            }
+        }
+
+        if (lineSpans is null)
+            return null;
+
+        var result = new ResolvedDecoration[displayWidth];
+        // Initialize with Default colors so HasForeground/HasBackground return false
+        // for unset cells (default(Hex1bColor) is RGB(0,0,0) with IsDefault=false,
+        // which would incorrectly appear as "has black foreground/background").
+        var empty = new ResolvedDecoration(Hex1bColor.Default, Hex1bColor.Default, false, false, UnderlineStyle.None, Hex1bColor.Default);
+        Array.Fill(result, empty);
+        // Track priority per attribute per column
+        var fgPriority = new int[displayWidth];
+        var bgPriority = new int[displayWidth];
+        var boldPriority = new int[displayWidth];
+        var italicPriority = new int[displayWidth];
+        var underlinePriority = new int[displayWidth];
+        // Initialize priorities to int.MinValue so any decoration wins
+        Array.Fill(fgPriority, int.MinValue);
+        Array.Fill(bgPriority, int.MinValue);
+        Array.Fill(boldPriority, int.MinValue);
+        Array.Fill(italicPriority, int.MinValue);
+        Array.Fill(underlinePriority, int.MinValue);
+
+        foreach (var span in lineSpans)
+        {
+            // Determine the column range this span covers on this line
+            var startCol = span.Start.Line == docLine
+                ? span.Start.Column - 1 - horizontalScrollOffset
+                : 0;
+            var endCol = span.End.Line == docLine
+                ? span.End.Column - 1 - horizontalScrollOffset
+                : displayWidth;
+
+            startCol = Math.Max(0, startCol);
+            endCol = Math.Min(displayWidth, endCol);
+
+            if (startCol >= endCol)
+                continue;
+
+            var dec = span.Decoration;
+            var resolvedFg = dec.ResolveForeground(theme) ?? Hex1bColor.Default;
+            var resolvedBg = dec.ResolveBackground(theme) ?? Hex1bColor.Default;
+
+            for (var col = startCol; col < endCol; col++)
+            {
+                if (!resolvedFg.IsDefault && span.Priority >= fgPriority[col])
+                {
+                    result[col] = result[col] with { Foreground = resolvedFg };
+                    fgPriority[col] = span.Priority;
+                }
+
+                if (!resolvedBg.IsDefault && span.Priority >= bgPriority[col])
+                {
+                    result[col] = result[col] with { Background = resolvedBg };
+                    bgPriority[col] = span.Priority;
+                }
+
+                if (dec.Bold is true && span.Priority >= boldPriority[col])
+                {
+                    result[col] = result[col] with { Bold = true };
+                    boldPriority[col] = span.Priority;
+                }
+
+                if (dec.Italic is true && span.Priority >= italicPriority[col])
+                {
+                    result[col] = result[col] with { Italic = true };
+                    italicPriority[col] = span.Priority;
+                }
+
+                if (dec.UnderlineStyle is not null and not UnderlineStyle.None && span.Priority >= underlinePriority[col])
+                {
+                    var ulColor = dec.ResolveUnderlineColor(theme) ?? Hex1bColor.Default;
+                    result[col] = result[col] with
+                    {
+                        UnderlineStyle = dec.UnderlineStyle.Value,
+                        UnderlineColor = ulColor
+                    };
+                    underlinePriority[col] = span.Priority;
+                }
+            }
+        }
+
+        return result;
+    }
+
     private static void RenderLine(
         Hex1bRenderContext context,
         int x, int y,
@@ -301,8 +446,15 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         Hex1bColor fg, Hex1bColor bg,
         Hex1bColor cursorFg, Hex1bColor cursorBg,
         Hex1bColor selFg, Hex1bColor selBg,
-        CellType[]? cellTypes)
+        CellType[]? cellTypes,
+        ResolvedDecoration[]? lineDecorations)
     {
+        // When decorations are present without cellTypes, create a dummy cellTypes array
+        if (cellTypes == null && lineDecorations != null)
+        {
+            cellTypes = new CellType[text.Length]; // All Normal
+        }
+
         string output;
 
         if (cellTypes != null)
@@ -313,6 +465,8 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             sb.Append(globalColors);
 
             var prevType = CellType.Normal;
+            ResolvedDecoration prevDec = default;
+            var hasActiveDec = false;
             sb.Append(fg.ToForegroundAnsi());
             sb.Append(bg.ToBackgroundAnsi());
 
@@ -323,6 +477,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 // For surrogate pairs, use the cell type of the first char for both
                 if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
                 {
+                    // Reset decorations before type transition on surrogate pairs
+                    if (cellType != prevType && hasActiveDec)
+                    {
+                        ResetDecoration(sb, prevDec, context.Capabilities);
+                        hasActiveDec = false;
+                    }
+
                     if (cellType != prevType)
                     {
                         switch (cellType)
@@ -351,6 +512,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                     continue;
                 }
 
+                // Reset decorations before type transition
+                if (cellType != prevType && hasActiveDec)
+                {
+                    ResetDecoration(sb, prevDec, context.Capabilities);
+                    hasActiveDec = false;
+                }
+
                 if (cellType != prevType)
                 {
                     switch (cellType)
@@ -372,7 +540,76 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                     prevType = cellType;
                 }
 
+                // Apply decoration for Normal cells
+                if (lineDecorations != null && cellType == CellType.Normal && i < lineDecorations.Length)
+                {
+                    var dec = lineDecorations[i];
+
+                    // Only re-emit ANSI if decoration changed from previous
+                    if (!hasActiveDec || !dec.Equals(prevDec))
+                    {
+                        // Reset previous decoration if active
+                        if (hasActiveDec)
+                        {
+                            ResetDecoration(sb, prevDec, context.Capabilities);
+                            // Re-apply base colors after reset
+                            sb.Append(fg.ToForegroundAnsi());
+                            sb.Append(bg.ToBackgroundAnsi());
+                        }
+
+                        if (dec.HasAnyDecoration)
+                        {
+                            if (dec.HasForeground) sb.Append(dec.Foreground.ToForegroundAnsi());
+                            if (dec.HasBackground) sb.Append(dec.Background.ToBackgroundAnsi());
+                            if (dec.Bold) sb.Append("\x1b[1m");
+                            if (dec.Italic) sb.Append("\x1b[3m");
+                            if (dec.HasUnderline)
+                            {
+                                var caps = context.Capabilities;
+                                var style = dec.UnderlineStyle;
+                                if (!caps.SupportsStyledUnderlines && style is not UnderlineStyle.Single and not UnderlineStyle.None)
+                                    style = UnderlineStyle.Single;
+
+                                sb.Append(style switch
+                                {
+                                    UnderlineStyle.Single => "\x1b[4m",
+                                    UnderlineStyle.Double => "\x1b[21m",
+                                    UnderlineStyle.Curly => "\x1b[4:3m",
+                                    UnderlineStyle.Dotted => "\x1b[4:4m",
+                                    UnderlineStyle.Dashed => "\x1b[4:5m",
+                                    _ => ""
+                                });
+
+                                if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
+                                    sb.Append(dec.UnderlineColor.ToUnderlineColorAnsi());
+                            }
+                            hasActiveDec = true;
+                            prevDec = dec;
+                        }
+                        else
+                        {
+                            hasActiveDec = false;
+                        }
+                    }
+                }
+                else if (hasActiveDec)
+                {
+                    // Moved out of Normal cell range while decoration was active
+                    ResetDecoration(sb, prevDec, context.Capabilities);
+                    sb.Append(fg.ToForegroundAnsi());
+                    sb.Append(bg.ToBackgroundAnsi());
+                    hasActiveDec = false;
+                }
+
                 sb.Append(text[i]);
+            }
+
+            // Clean up any trailing decoration state
+            if (hasActiveDec)
+            {
+                ResetDecoration(sb, prevDec, context.Capabilities);
+                sb.Append(fg.ToForegroundAnsi());
+                sb.Append(bg.ToBackgroundAnsi());
             }
 
             if (prevType != CellType.Normal)
@@ -390,5 +627,26 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         }
 
         context.WriteClipped(x, y, output);
+    }
+
+    private static void EmitDecorationStart(System.Text.StringBuilder sb, ResolvedDecoration dec, Hex1bColor defaultFg, Hex1bColor defaultBg)
+    {
+        sb.Append(dec.HasForeground ? dec.Foreground.ToForegroundAnsi() : defaultFg.ToForegroundAnsi());
+        sb.Append(dec.HasBackground ? dec.Background.ToBackgroundAnsi() : defaultBg.ToBackgroundAnsi());
+        if (dec.Bold) sb.Append("\x1b[1m");
+        if (dec.Italic) sb.Append("\x1b[3m");
+    }
+
+    /// <summary>
+    /// Resets individual SGR attributes that were set by a decoration,
+    /// without using a full SGR reset that would clobber the terminal's global state.
+    /// </summary>
+    private static void ResetDecoration(System.Text.StringBuilder sb, ResolvedDecoration dec, TerminalCapabilities caps)
+    {
+        if (dec.Bold) sb.Append("\x1b[22m");
+        if (dec.Italic) sb.Append("\x1b[23m");
+        if (dec.HasUnderline) sb.Append("\x1b[24m");
+        if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
+            sb.Append("\x1b[59m");
     }
 }

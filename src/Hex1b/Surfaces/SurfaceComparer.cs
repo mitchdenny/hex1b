@@ -279,6 +279,8 @@ public static class SurfaceComparer
         Hex1bColor? currentFg = null;
         Hex1bColor? currentBg = null;
         CellAttributes currentAttrs = CellAttributes.None;
+        UnderlineStyle currentUnderlineStyle = UnderlineStyle.None;
+        Hex1bColor? currentUnderlineColor = null;
         bool stateUnknown = true;
         TrackedObject<HyperlinkData>? currentHyperlink = null;
 
@@ -324,7 +326,9 @@ public static class SurfaceComparer
             var needsSgr = stateUnknown ||
                            !ColorsEqual(change.Cell.Foreground, currentFg) ||
                            !ColorsEqual(change.Cell.Background, currentBg) ||
-                           change.Cell.Attributes != currentAttrs;
+                           change.Cell.Attributes != currentAttrs ||
+                           change.Cell.UnderlineStyle != currentUnderlineStyle ||
+                           !ColorsEqual(change.Cell.UnderlineColor, currentUnderlineColor);
 
             if (needsSgr)
             {
@@ -333,7 +337,9 @@ public static class SurfaceComparer
                     stateUnknown,
                     ref currentFg,
                     ref currentBg,
-                    ref currentAttrs);
+                    ref currentAttrs,
+                    ref currentUnderlineStyle,
+                    ref currentUnderlineColor);
                 
                 if (!string.IsNullOrEmpty(sgrParams))
                 {
@@ -536,7 +542,9 @@ public static class SurfaceComparer
         bool stateUnknown,
         ref Hex1bColor? currentFg,
         ref Hex1bColor? currentBg,
-        ref CellAttributes currentAttrs)
+        ref CellAttributes currentAttrs,
+        ref UnderlineStyle currentUnderlineStyle,
+        ref Hex1bColor? currentUnderlineColor)
     {
         var parts = new List<string>();
 
@@ -554,6 +562,8 @@ public static class SurfaceComparer
             currentAttrs = CellAttributes.None;
             currentFg = null;
             currentBg = null;
+            currentUnderlineStyle = UnderlineStyle.None;
+            currentUnderlineColor = null;
         }
 
         // Add attributes that need to be turned on
@@ -566,7 +576,33 @@ public static class SurfaceComparer
         if ((toTurnOn & CellAttributes.Italic) != 0)
             parts.Add("3");
         if ((toTurnOn & CellAttributes.Underline) != 0)
-            parts.Add("4");
+        {
+            // Emit styled underline using colon sub-parameter syntax
+            var style = targetCell.UnderlineStyle;
+            parts.Add(style switch
+            {
+                UnderlineStyle.Double => "21",
+                UnderlineStyle.Curly => "4:3",
+                UnderlineStyle.Dotted => "4:4",
+                UnderlineStyle.Dashed => "4:5",
+                _ => "4", // Single or default
+            });
+        }
+        else if ((currentAttrs & CellAttributes.Underline) != 0 &&
+                 (targetCell.Attributes & CellAttributes.Underline) != 0 &&
+                 targetCell.UnderlineStyle != currentUnderlineStyle)
+        {
+            // Underline is already on but style changed — re-emit with new style
+            var style = targetCell.UnderlineStyle;
+            parts.Add(style switch
+            {
+                UnderlineStyle.Double => "21",
+                UnderlineStyle.Curly => "4:3",
+                UnderlineStyle.Dotted => "4:4",
+                UnderlineStyle.Dashed => "4:5",
+                _ => "4",
+            });
+        }
         if ((toTurnOn & CellAttributes.Blink) != 0)
             parts.Add("5");
         if ((toTurnOn & CellAttributes.Reverse) != 0)
@@ -590,10 +626,26 @@ public static class SurfaceComparer
             parts.Add(BuildColorSgr(targetCell.Background.Value, isForeground: false));
         }
 
+        // Underline color (SGR 58;2;R;G;B)
+        if (!ColorsEqual(targetCell.UnderlineColor, currentUnderlineColor))
+        {
+            if (targetCell.UnderlineColor is not null)
+            {
+                var ulc = targetCell.UnderlineColor.Value;
+                parts.Add($"58;2;{ulc.R};{ulc.G};{ulc.B}");
+            }
+            else if (currentUnderlineColor is not null)
+            {
+                parts.Add("59"); // Default underline color
+            }
+        }
+
         // Update tracked state
         currentAttrs = targetCell.Attributes;
         currentFg = targetCell.Foreground;
         currentBg = targetCell.Background;
+        currentUnderlineStyle = targetCell.UnderlineStyle;
+        currentUnderlineColor = targetCell.UnderlineColor;
 
         return string.Join(";", parts);
     }

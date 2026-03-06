@@ -1,6 +1,8 @@
 using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.LanguageServer;
+using Hex1b.LanguageServer.Protocol;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -12,7 +14,7 @@ namespace Hex1b;
 /// Scrollbars are rendered and handled internally (not composed) because their
 /// behavior is tightly coupled to the active IEditorViewRenderer.
 /// </summary>
-public sealed class EditorNode : Hex1bNode
+public sealed class EditorNode : Hex1bNode, IEditorSession
 {
     private int _scrollOffset; // First visible line (1-based)
     private int _horizontalScrollOffset; // First visible column (0-based)
@@ -23,13 +25,22 @@ public sealed class EditorNode : Hex1bNode
     private bool _cursorDirty; // Set when cursor changes; cleared after Arrange adjusts scroll
     private char? _pendingNibble; // For hex renderers: first nibble of partially-entered byte
     private IHex1bDocument? _subscribedDocument;
+    private readonly List<EditorOverlay> _activeOverlays = [];
+    private Hex1bRenderContext? _lastRenderContext; // For IEditorSession.Capabilities
+    private CompletionController? _completionController;
+    private string _completionFilterPrefix = "";
 
     /// <summary>
     /// Marks that the cursor has changed and scroll should adjust to keep it visible
     /// on the next Arrange pass. Called automatically by input handlers; exposed for
     /// testing scenarios that modify EditorState directly.
     /// </summary>
-    internal void NotifyCursorChanged() => _cursorDirty = true;
+    internal void NotifyCursorChanged()
+    {
+        _cursorDirty = true;
+        // Dismiss overlays that should close on cursor move
+        _activeOverlays.RemoveAll(o => o.DismissOnCursorMove);
+    }
 
     /// <summary>The source widget that was reconciled into this node.</summary>
     public EditorWidget? SourceWidget { get; set; }
@@ -39,6 +50,42 @@ public sealed class EditorNode : Hex1bNode
 
     /// <summary>The view renderer that controls how document content is displayed.</summary>
     public IEditorViewRenderer ViewRenderer { get; set; } = TextEditorViewRenderer.Instance;
+
+    /// <summary>Text decoration providers for syntax highlighting, diagnostics, etc.</summary>
+    public IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; internal set; }
+
+    /// <summary>
+    /// Updates the decoration providers, activating new ones and deactivating removed ones.
+    /// </summary>
+    internal void UpdateDecorationProviders(IReadOnlyList<ITextDecorationProvider>? newProviders)
+    {
+        var oldProviders = DecorationProviders;
+
+        // Deactivate providers that are no longer present
+        if (oldProviders != null)
+        {
+            foreach (var old in oldProviders)
+            {
+                if (newProviders == null || !newProviders.Contains(old))
+                    old.Deactivate();
+            }
+        }
+
+        // Activate providers that are newly added
+        if (newProviders != null)
+        {
+            foreach (var p in newProviders)
+            {
+                if (oldProviders == null || !oldProviders.Contains(p))
+                    p.Activate(this);
+            }
+        }
+
+        DecorationProviders = newProviders;
+    }
+
+    /// <summary>Whether to show line numbers in a gutter on the left side.</summary>
+    public bool ShowLineNumbers { get; set; }
 
     /// <summary>
     /// Internal action invoked when text content changes.
@@ -143,6 +190,10 @@ public sealed class EditorNode : Hex1bNode
 
         // ── Escape to collapse multi-cursor ─────────────────────
         // Note: Escape is only handled when we have multiple cursors
+        bindings.Key(Hex1bKey.Escape).Action(HandleEscape, "Escape");
+
+        // ── Completion trigger ──────────────────────────────────
+        bindings.Ctrl().Key(Hex1bKey.Spacebar).Action(TriggerCompletionAsync, "Trigger completion");
 
         // ── Editing ─────────────────────────────────────────────
         bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
@@ -205,15 +256,15 @@ public sealed class EditorNode : Hex1bNode
         _showHorizontalScrollbar = maxLineWidth > bounds.Width - (_showVerticalScrollbar ? 1 : 0)
             && bounds.Height > 1;
 
-        // Content area excludes scrollbar space
+        // Content area excludes scrollbar space and line number gutter
         _viewportLines = bounds.Height - (_showHorizontalScrollbar ? 1 : 0);
-        _viewportColumns = bounds.Width - (_showVerticalScrollbar ? 1 : 0);
+        _viewportColumns = bounds.Width - (_showVerticalScrollbar ? 1 : 0) - GetGutterWidth();
 
         // Re-check vertical after adjusting for horizontal scrollbar
         if (!_showVerticalScrollbar && totalLines > _viewportLines && _viewportColumns > 0)
         {
             _showVerticalScrollbar = true;
-            _viewportColumns = bounds.Width - 1;
+            _viewportColumns = bounds.Width - 1 - GetGutterWidth();
         }
 
         // Subscribe to document changes if not already
@@ -233,8 +284,39 @@ public sealed class EditorNode : Hex1bNode
     {
         if (State == null) return;
 
-        // Render text content at full bounds width — scrollbars render on top
-        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble);
+        var contentBounds = Bounds;
+
+        if (ShowLineNumbers)
+        {
+            var gutterWidth = GetGutterWidth();
+
+            var theme = context.Theme;
+            var gutterFg = theme.Get(EditorTheme.LineNumberForegroundColor);
+            var editorBg = theme.Get(EditorTheme.BackgroundColor);
+            var totalLines = State.Document.LineCount;
+            var digitCount = gutterWidth - 1;
+
+            for (var viewLine = 0; viewLine < Bounds.Height; viewLine++)
+            {
+                var docLine = _scrollOffset + viewLine;
+                var screenY = Bounds.Y + viewLine;
+                string gutterText;
+
+                if (docLine <= totalLines)
+                    gutterText = docLine.ToString().PadLeft(digitCount) + " ";
+                else
+                    gutterText = new string(' ', gutterWidth);
+
+                context.WriteClipped(Bounds.X, screenY,
+                    $"{gutterFg.ToForegroundAnsi()}{editorBg.ToBackgroundAnsi()}{gutterText}");
+            }
+
+            contentBounds = new Rect(Bounds.X + gutterWidth, Bounds.Y,
+                Math.Max(1, Bounds.Width - gutterWidth), Bounds.Height);
+        }
+
+        // Render text content
+        ViewRenderer.Render(context, State, contentBounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, DecorationProviders);
 
         // Render scrollbars (self-rendered, not composed)
         if (_showVerticalScrollbar)
@@ -249,6 +331,143 @@ public sealed class EditorNode : Hex1bNode
             context.WriteClipped(Bounds.X + Bounds.Width - 1, Bounds.Y + Bounds.Height - 1,
                 $"{bg.ToBackgroundAnsi()} ");
         }
+
+        // Render overlays on top of content
+        if (_activeOverlays.Count > 0)
+            RenderOverlays(context, contentBounds);
+
+        _lastRenderContext = context;
+    }
+
+    // ── Overlay rendering ─────────────────────────────────────
+
+    private void RenderOverlays(Hex1bRenderContext context, Rect contentBounds)
+    {
+        foreach (var overlay in _activeOverlays)
+        {
+            var screenPos = DocumentToScreen(overlay.AnchorPosition, contentBounds);
+            if (screenPos is null) continue;
+
+            var (anchorX, anchorY) = screenPos.Value;
+            var contentLines = overlay.Content;
+            if (contentLines.Count == 0) continue;
+
+            // Calculate overlay dimensions
+            var maxWidth = 0;
+            foreach (var line in contentLines)
+                maxWidth = Math.Max(maxWidth, line.Text.Length);
+            maxWidth = Math.Min(maxWidth + 2, contentBounds.Width); // +2 for border padding
+
+            var overlayHeight = contentLines.Count + 2; // +2 for top/bottom border
+
+            // Position based on placement
+            int overlayX = Math.Max(contentBounds.X, Math.Min(anchorX, contentBounds.Right - maxWidth));
+            int overlayY;
+
+            if (overlay.Placement == OverlayPlacement.Above)
+            {
+                overlayY = anchorY - overlayHeight;
+                if (overlayY < contentBounds.Y)
+                    overlayY = anchorY + 1; // Fall back to below
+            }
+            else
+            {
+                overlayY = anchorY + 1;
+                if (overlayY + overlayHeight > contentBounds.Bottom)
+                    overlayY = anchorY - overlayHeight; // Fall back to above
+            }
+
+            // Clamp to screen
+            overlayY = Math.Max(contentBounds.Y, overlayY);
+
+            // Draw overlay box
+            var borderFg = Hex1bColor.FromRgb(100, 100, 100);
+            var overlayBg = Hex1bColor.FromRgb(30, 30, 30);
+            var resetAnsi = "\x1b[0m";
+
+            // Top border
+            var topBorder = "┌" + new string('─', maxWidth - 2) + "┐";
+            context.WriteClipped(overlayX, overlayY,
+                $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{topBorder}{resetAnsi}");
+
+            // Content lines
+            for (var i = 0; i < contentLines.Count && overlayY + 1 + i < contentBounds.Bottom; i++)
+            {
+                var line = contentLines[i];
+                var lineFg = line.Foreground ?? Hex1bColor.FromRgb(200, 200, 200);
+                var lineBg = line.Background ?? overlayBg;
+                var paddedText = line.Text.PadRight(maxWidth - 2)[..(maxWidth - 2)];
+
+                context.WriteClipped(overlayX, overlayY + 1 + i,
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│" +
+                    $"{lineFg.ToForegroundAnsi()}{lineBg.ToBackgroundAnsi()}{paddedText}" +
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│{resetAnsi}");
+            }
+
+            // Bottom border
+            var bottomY = overlayY + 1 + contentLines.Count;
+            if (bottomY < contentBounds.Bottom)
+            {
+                var bottomBorder = "└" + new string('─', maxWidth - 2) + "┘";
+                context.WriteClipped(overlayX, bottomY,
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{bottomBorder}{resetAnsi}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Maps a document position to screen coordinates relative to the current viewport.
+    /// Returns null if the position is outside the visible area.
+    /// </summary>
+    private (int X, int Y)? DocumentToScreen(DocumentPosition docPos, Rect contentBounds)
+    {
+        // Check if the line is visible
+        var viewLine = docPos.Line - _scrollOffset;
+        if (viewLine < 0 || viewLine >= _viewportLines)
+            return null;
+
+        // Calculate screen column (accounting for horizontal scroll)
+        var screenCol = docPos.Column - 1 - _horizontalScrollOffset;
+        if (screenCol < 0)
+            screenCol = 0;
+
+        return (contentBounds.X + screenCol, contentBounds.Y + viewLine);
+    }
+
+    // ── IEditorSession implementation ─────────────────────────
+
+    EditorState IEditorSession.State => State;
+
+    TerminalCapabilities IEditorSession.Capabilities =>
+        _lastRenderContext?.Capabilities ?? TerminalCapabilities.Modern;
+
+    void IEditorSession.Invalidate()
+    {
+        MarkDirty();
+    }
+
+    void IEditorSession.PushOverlay(EditorOverlay overlay)
+    {
+        // Replace if same ID exists
+        _activeOverlays.RemoveAll(o => o.Id == overlay.Id);
+        _activeOverlays.Add(overlay);
+    }
+
+    void IEditorSession.DismissOverlay(string overlayId)
+    {
+        _activeOverlays.RemoveAll(o => o.Id == overlayId);
+    }
+
+    IReadOnlyList<EditorOverlay> IEditorSession.ActiveOverlays => _activeOverlays;
+
+    // ── Line number gutter ────────────────────────────────────
+
+    private int GetGutterWidth()
+    {
+        if (!ShowLineNumbers || State == null) return 0;
+        var totalLines = State.Document.LineCount;
+        var digitCount = Math.Max(2, (int)Math.Floor(Math.Log10(Math.Max(1, totalLines))) + 1);
+        return digitCount + 1; // digits + 1 space separator
     }
 
     // ── Scrollbar rendering ─────────────────────────────────────
@@ -411,6 +630,31 @@ public sealed class EditorNode : Hex1bNode
 
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
+        // If completion is active and user types a non-trigger character, filter the list
+        if (_completionController is { IsActive: true } && text != ".")
+        {
+            // Let the text be inserted first, then filter
+            if (text.Length == 1 && char.IsLetterOrDigit(text[0]))
+            {
+                _completionFilterPrefix += text;
+                // Insert the text
+                _pendingNibble = null;
+                State.InsertText(text);
+                AfterEdit();
+                if (TextChangedAction != null) await TextChangedAction(ctx);
+
+                // Now filter the completion list
+                _completionController.Filter(_completionFilterPrefix);
+                MarkDirty();
+                return;
+            }
+            else
+            {
+                _completionController.Dismiss();
+                _completionFilterPrefix = "";
+            }
+        }
+
         // Let the view renderer intercept character input (e.g., hex byte editing)
         if (text.Length == 1 && ViewRenderer.HandlesCharInput)
         {
@@ -437,10 +681,21 @@ public sealed class EditorNode : Hex1bNode
         State.InsertText(text);
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
+
+        // Trigger completion after typing '.'
+        if (text == ".")
+        {
+            await RequestCompletionAtCursorAsync(triggerCharacter: ".");
+        }
     }
 
     private async Task InsertNewlineAsync(InputBindingActionContext ctx)
     {
+        if (_completionController is { IsActive: true })
+        {
+            AcceptCompletion();
+            return;
+        }
         State.InsertText("\n");
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
@@ -488,10 +743,121 @@ public sealed class EditorNode : Hex1bNode
         if (TextChangedAction != null) await TextChangedAction(ctx);
     }
 
+    // --- Input handlers: completion ---
+
+    private void HandleEscape()
+    {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.Dismiss();
+            _completionFilterPrefix = "";
+            MarkDirty();
+            return;
+        }
+
+        // Collapse multi-cursor back to single cursor
+        if (State.Cursors.Count > 1)
+        {
+            State.CollapseToSingleCursor();
+            AfterMove();
+        }
+    }
+
+    private async Task TriggerCompletionAsync(InputBindingActionContext ctx)
+    {
+        await RequestCompletionAtCursorAsync();
+    }
+
+    private async Task RequestCompletionAtCursorAsync(string? triggerCharacter = null)
+    {
+        var provider = FindLspProvider();
+        if (provider == null) return;
+
+        var pos = State.Document.OffsetToPosition(State.Cursor.Position);
+        var line = pos.Line;
+        var column = pos.Column;
+
+        // Ensure controller exists and is attached
+        _completionController ??= new CompletionController();
+        _completionController.Attach(this);
+        _completionFilterPrefix = "";
+
+        try
+        {
+            var client = GetLspClient(provider);
+            if (client == null) return;
+
+            var docUri = GetDocumentUri(provider);
+
+            // Sync the latest document content to the LS before requesting completions.
+            // Without this, the LS still has the old content (before the trigger char)
+            // and returns completions for the wrong context.
+            await client.ChangeDocumentAsync(docUri, State.Document.GetText());
+
+            var context = new CompletionContext
+            {
+                TriggerKind = triggerCharacter != null ? 2 : 1, // 2=TriggerCharacter, 1=Invoked
+                TriggerCharacter = triggerCharacter,
+            };
+
+            var result = await client.RequestCompletionAsync(docUri, line - 1, column - 1, context);
+
+            if (result?.Items is { Length: > 0 })
+            {
+                _completionController.Show(result.Items, new DocumentPosition(line, column));
+                MarkDirty();
+            }
+            else
+            {
+                _completionController.Dismiss();
+            }
+        }
+        catch
+        {
+            _completionController.Dismiss();
+        }
+    }
+
+    private void AcceptCompletion()
+    {
+        if (_completionController == null) return;
+
+        var insertText = _completionController.Accept();
+        _completionFilterPrefix = "";
+        if (insertText != null)
+        {
+            State.InsertText(insertText);
+            AfterEdit();
+        }
+    }
+
+    private LanguageServerDecorationProvider? FindLspProvider()
+    {
+        if (DecorationProviders == null) return null;
+        foreach (var p in DecorationProviders)
+        {
+            if (p is LanguageServerDecorationProvider lsp)
+                return lsp;
+        }
+        return null;
+    }
+
+    private static LanguageServerClient? GetLspClient(LanguageServerDecorationProvider provider)
+    {
+        // Access the active client via the provider's internal property
+        return provider.ActiveClientForCompletion;
+    }
+
+    private static string GetDocumentUri(LanguageServerDecorationProvider provider)
+    {
+        return provider.DocumentUriForCompletion;
+    }
+
     // --- Input handlers: navigation ---
 
     private void MoveLeft()
     {
+        _completionController?.Dismiss();
         if (!ViewRenderer.HandleNavigation(CursorDirection.Left, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Left);
         AfterMove();
@@ -499,6 +865,7 @@ public sealed class EditorNode : Hex1bNode
 
     private void MoveRight()
     {
+        _completionController?.Dismiss();
         if (!ViewRenderer.HandleNavigation(CursorDirection.Right, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Right);
         AfterMove();
@@ -506,6 +873,12 @@ public sealed class EditorNode : Hex1bNode
 
     private void MoveUp()
     {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.SelectPrev();
+            MarkDirty();
+            return;
+        }
         if (!ViewRenderer.HandleNavigation(CursorDirection.Up, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Up);
         AfterMove();
@@ -513,6 +886,12 @@ public sealed class EditorNode : Hex1bNode
 
     private void MoveDown()
     {
+        if (_completionController is { IsActive: true })
+        {
+            _completionController.SelectNext();
+            MarkDirty();
+            return;
+        }
         if (!ViewRenderer.HandleNavigation(CursorDirection.Down, State, extend: false, ViewportColumns))
             State.MoveCursor(CursorDirection.Down);
         AfterMove();
@@ -620,6 +999,14 @@ public sealed class EditorNode : Hex1bNode
         var localY = absY - Bounds.Y;
 
         if (GetHitZone(localX, localY) != HitZone.Content) return null;
+
+        // Adjust for line number gutter
+        if (ShowLineNumbers)
+        {
+            var gutterWidth = GetGutterWidth();
+            localX -= gutterWidth;
+            if (localX < 0) return null; // Click in gutter area
+        }
 
         return ViewRenderer.HitTest(localX, localY, State, _viewportColumns, _viewportLines, _scrollOffset, _horizontalScrollOffset);
     }

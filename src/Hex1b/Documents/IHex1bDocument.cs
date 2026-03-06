@@ -75,6 +75,25 @@ public interface IHex1bDocument
     event EventHandler<DocumentChangedEventArgs>? Changed;
 
     /// <summary>
+    /// The file path this document is associated with, or null for in-memory documents.
+    /// Set when a document is opened from or saved to a file via a workspace.
+    /// </summary>
+    string? FilePath => null;
+
+    /// <summary>
+    /// Whether the document has unsaved changes. Always false for documents without a
+    /// <see cref="FilePath"/>. Set to true on any edit after the last save.
+    /// </summary>
+    bool IsDirty => false;
+
+    /// <summary>
+    /// Saves the document to its <see cref="FilePath"/>.
+    /// Throws <see cref="InvalidOperationException"/> if <see cref="FilePath"/> is null.
+    /// </summary>
+    Task SaveAsync(CancellationToken ct = default) =>
+        throw new InvalidOperationException("Document has no associated file path.");
+
+    /// <summary>
     /// Returns a diagnostic snapshot of the document's internal structure.
     /// Returns null if the implementation does not support diagnostics.
     /// </summary>

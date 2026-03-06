@@ -52,6 +52,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private Hex1bColor? _currentForeground;
     private Hex1bColor? _currentBackground;
     private CellAttributes _currentAttributes;
+    private UnderlineStyle _currentUnderlineStyle;
+    private Hex1bColor? _currentUnderlineColor;
     
     // Current hyperlink state (from parsed OSC 8 sequences)
     private TrackedObject<HyperlinkData>? _currentHyperlink;
@@ -262,6 +264,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
         _currentForeground = null;
         _currentBackground = null;
         _currentAttributes = CellAttributes.None;
+        _currentUnderlineStyle = UnderlineStyle.None;
+        _currentUnderlineColor = null;
         // Note: We don't reset hyperlink here - OSC 8 reset is explicit with empty URI
     }
     
@@ -562,7 +566,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
-                        Hyperlink: _currentHyperlink);
+                        Hyperlink: _currentHyperlink,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor);
 
                     // Write continuation cell if space allows
                     if (writeX + 1 < _surface.Width)
@@ -580,7 +586,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _currentBackground,
                         _currentAttributes,
                         displayWidth,
-                        Hyperlink: _currentHyperlink);
+                        Hyperlink: _currentHyperlink,
+                        UnderlineStyle: _currentUnderlineStyle,
+                        UnderlineColor: _currentUnderlineColor);
                     writeX++;
                 }
                 else
@@ -747,7 +755,17 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         while (i < parts.Length)
         {
-            if (!int.TryParse(parts[i], out var code))
+            var part = parts[i];
+
+            // Handle colon-separated sub-parameters (e.g., "4:3" for curly underline)
+            if (part.Contains(':'))
+            {
+                ParseSgrColonSubParams(part);
+                i++;
+                continue;
+            }
+
+            if (!int.TryParse(part, out var code))
             {
                 i++;
                 continue;
@@ -767,8 +785,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 case 3: // Italic
                     _currentAttributes |= CellAttributes.Italic;
                     break;
-                case 4: // Underline
+                case 4: // Underline (basic — single)
                     _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Single;
                     break;
                 case 5: // Blink
                     _currentAttributes |= CellAttributes.Blink;
@@ -782,6 +801,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 case 9: // Strikethrough
                     _currentAttributes |= CellAttributes.Strikethrough;
                     break;
+                case 21: // Double underline (ECMA-48)
+                    _currentAttributes |= CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.Double;
+                    break;
                 case 22: // Normal intensity (not bold, not dim)
                     _currentAttributes &= ~(CellAttributes.Bold | CellAttributes.Dim);
                     break;
@@ -790,6 +813,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     break;
                 case 24: // Not underlined
                     _currentAttributes &= ~CellAttributes.Underline;
+                    _currentUnderlineStyle = UnderlineStyle.None;
+                    _currentUnderlineColor = null;
                     break;
                 case 25: // Not blinking
                     _currentAttributes &= ~CellAttributes.Blink;
@@ -821,6 +846,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 case 55: // Not overlined
                     _currentAttributes &= ~CellAttributes.Overline;
                     break;
+                case 58: // Underline color (extended — semicolon syntax)
+                    i = ParseUnderlineColor(parts, i);
+                    break;
+                case 59: // Default underline color
+                    _currentUnderlineColor = null;
+                    break;
                 default:
                     // Handle basic 16 colors (30-37 fg, 40-47 bg, 90-97 bright fg, 100-107 bright bg)
                     if (code >= 30 && code <= 37)
@@ -844,6 +875,117 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
             i++;
         }
+    }
+
+    /// <summary>
+    /// Handles SGR parameters with colon-separated sub-parameters (e.g., "4:3" for curly underline,
+    /// "58:2:R:G:B" for underline color).
+    /// </summary>
+    private void ParseSgrColonSubParams(string part)
+    {
+        var subs = part.Split(':');
+        if (subs.Length < 1 || !int.TryParse(subs[0], out var code))
+            return;
+
+        switch (code)
+        {
+            case 4: // Underline with style sub-parameter
+                if (subs.Length >= 2 && int.TryParse(subs[1], out var underlineStyle))
+                {
+                    if (underlineStyle == 0)
+                    {
+                        _currentAttributes &= ~CellAttributes.Underline;
+                        _currentUnderlineStyle = UnderlineStyle.None;
+                    }
+                    else
+                    {
+                        _currentAttributes |= CellAttributes.Underline;
+                        _currentUnderlineStyle = underlineStyle switch
+                        {
+                            1 => UnderlineStyle.Single,
+                            2 => UnderlineStyle.Double,
+                            3 => UnderlineStyle.Curly,
+                            4 => UnderlineStyle.Dotted,
+                            5 => UnderlineStyle.Dashed,
+                            _ => UnderlineStyle.Single,
+                        };
+                    }
+                }
+                break;
+
+            case 58: // Underline color (colon syntax: 58:2:R:G:B or 58:2:CS:R:G:B)
+                ParseColonUnderlineColor(subs);
+                break;
+        }
+    }
+
+    /// <summary>
+    /// Parses underline color from colon-separated sub-parameters (58:2:R:G:B or 58:2:CS:R:G:B).
+    /// </summary>
+    private void ParseColonUnderlineColor(string[] subs)
+    {
+        if (subs.Length < 3) return;
+        if (!int.TryParse(subs[1], out var colorType)) return;
+
+        if (colorType == 2) // RGB
+        {
+            // Format: 58:2:R:G:B or 58:2:CS:R:G:B (CS = colorspace, optional)
+            int r, g, b;
+            if (subs.Length >= 5 &&
+                int.TryParse(subs[2], out r) &&
+                int.TryParse(subs[3], out g) &&
+                int.TryParse(subs[4], out b) &&
+                r is >= 0 and <= 255 && g is >= 0 and <= 255 && b is >= 0 and <= 255)
+            {
+                _currentUnderlineColor = Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+            }
+            else if (subs.Length >= 6 &&
+                int.TryParse(subs[3], out r) &&
+                int.TryParse(subs[4], out g) &&
+                int.TryParse(subs[5], out b) &&
+                r is >= 0 and <= 255 && g is >= 0 and <= 255 && b is >= 0 and <= 255)
+            {
+                // 58:2:CS:R:G:B — skip colorspace index
+                _currentUnderlineColor = Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+            }
+        }
+        else if (colorType == 5 && subs.Length >= 3) // 256-color
+        {
+            // 256-color underline is rare; store as-is would require palette lookup.
+            // Skip for now — RGB (type 2) is the common path.
+        }
+    }
+
+    /// <summary>
+    /// Parses underline color from semicolon-separated parameters (58;2;R;G;B or 58;5;N).
+    /// </summary>
+    private int ParseUnderlineColor(string[] parts, int index)
+    {
+        if (index + 1 >= parts.Length)
+            return index;
+
+        if (!int.TryParse(parts[index + 1], out var colorType))
+            return index;
+
+        if (colorType == 2 && index + 4 < parts.Length)
+        {
+            // 58;2;R;G;B
+            if (int.TryParse(parts[index + 2], out var r) &&
+                int.TryParse(parts[index + 3], out var g) &&
+                int.TryParse(parts[index + 4], out var b) &&
+                r is >= 0 and <= 255 && g is >= 0 and <= 255 && b is >= 0 and <= 255)
+            {
+                _currentUnderlineColor = Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+            }
+            return index + 4;
+        }
+        else if (colorType == 5 && index + 2 < parts.Length)
+        {
+            // 256-color underline — rare, skip for now
+            return index + 2;
+        }
+
+        return index;
     }
 
     /// <summary>

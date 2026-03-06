@@ -410,6 +410,10 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         
         // Mouse click on rows
         bindings.Mouse(MouseButton.Left).Action(HandleRowClick, "Click row");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleRowDoubleClick, "Activate row");
+
+        // Row activation (Enter or double-click)
+        bindings.Key(Hex1bKey.Enter).Action(ActivateFocusedRow, "Activate row");
     }
 
     /// <summary>
@@ -493,6 +497,48 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         var currentlySelected = IsSelectedSelector?.Invoke(row) ?? false;
         SelectionChangedCallback(row, !currentlySelected);
         MarkDirty();
+    }
+
+    /// <summary>
+    /// Activates the currently focused row by invoking the RowActivatedHandler.
+    /// </summary>
+    private async Task ActivateFocusedRow(InputBindingActionContext ctx)
+    {
+        if (RowActivatedHandler is null || Data is null || FocusedKey is null) return;
+
+        foreach (var row in Data)
+        {
+            var key = RowKeySelector?.Invoke(row);
+            if (Equals(key, FocusedKey))
+            {
+                await RowActivatedHandler(FocusedKey, row);
+                return;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Handles double-click on a table row to activate it.
+    /// </summary>
+    private async Task HandleRowDoubleClick(InputBindingActionContext ctx)
+    {
+        if (RowActivatedHandler is null || Data is null || Data.Count == 0) return;
+
+        var mouseY = ctx.MouseY;
+        int headerHeight = _headerRowNode is not null ? 2 : 0;
+        int dataStartY = Bounds.Y + 1 + headerHeight;
+        int rowHeight = RenderMode == TableRenderMode.Full ? 2 : 1;
+        int clickedRowIndex = (mouseY - dataStartY) / rowHeight + _scrollOffset;
+
+        if (clickedRowIndex < 0 || clickedRowIndex >= _contentRowCount) return;
+
+        int dataOffset = _dataSource is not null && _cachedRange.HasValue ? _cachedRange.Value.Start : 0;
+        int relativeIndex = clickedRowIndex - dataOffset;
+        if (relativeIndex < 0 || relativeIndex >= Data.Count) return;
+
+        var row = Data[relativeIndex];
+        var key = RowKeySelector?.Invoke(row) ?? (object)clickedRowIndex;
+        await RowActivatedHandler(key, row);
     }
     
     /// <summary>
