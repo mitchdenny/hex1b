@@ -10,7 +10,7 @@ namespace Hex1b.LanguageServer;
 /// and bridges semantic tokens, diagnostics, and completions to the editor's
 /// decoration and overlay APIs.
 /// </summary>
-internal sealed class LanguageServerDecorationProvider : ITextDecorationProvider, IAsyncDisposable
+public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, IAsyncDisposable
 {
     private readonly LanguageServerConfiguration _config;
     private LanguageServerClient? _client;

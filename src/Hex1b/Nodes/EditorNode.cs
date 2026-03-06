@@ -443,8 +443,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     void IEditorSession.Invalidate()
     {
-        // Request a re-render by marking the node dirty
-        // The app's render loop will pick this up
+        MarkDirty();
     }
 
     void IEditorSession.PushOverlay(EditorOverlay overlay)
