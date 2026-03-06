@@ -52,6 +52,12 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     /// <summary>The active client (owned or shared).</summary>
     private LanguageServerClient? ActiveClient => _sharedClient ?? _client;
 
+    /// <summary>The active client, exposed for completion requests from EditorNode.</summary>
+    internal LanguageServerClient? ActiveClientForCompletion => ActiveClient;
+
+    /// <summary>The document URI, exposed for completion requests from EditorNode.</summary>
+    internal string DocumentUriForCompletion => _documentUri;
+
     // ── ITextDecorationProvider ──────────────────────────────
 
     public void Activate(IEditorSession session)

@@ -134,6 +134,66 @@ public class RealLanguageServerTests : IAsyncLifetime
         provider.Deactivate();
     }
 
+    [Fact]
+    public async Task TypeScriptLs_ReturnsCompletions()
+    {
+        if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
+            return;
+
+        var config = new LanguageServerConfiguration();
+        config.WithServerCommand("typescript-language-server", "--stdio");
+        config.WithWorkingDirectory(_workspacePath);
+        config.RootUri = "file://" + _workspacePath;
+        config.LanguageId = "typescript";
+
+        var client = new LanguageServerClient(config);
+        var cts = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+
+        try
+        {
+            await client.StartAsync(cts.Token);
+
+            var filePath = Path.Combine(_workspacePath, "TaskManager.ts");
+            var fileUri = "file://" + filePath;
+            var text = File.ReadAllText(filePath);
+
+            await client.OpenDocumentAsync(fileUri, "typescript", text, cts.Token);
+            await Task.Delay(2000, cts.Token);
+
+            // Request completions after "this." on line that has it
+            // Find a line with "this." and request at its position
+            var lines = text.Split('\n');
+            var line = -1;
+            var col = -1;
+            for (var i = 0; i < lines.Length; i++)
+            {
+                var idx = lines[i].IndexOf("this.", StringComparison.Ordinal);
+                if (idx >= 0)
+                {
+                    line = i; // 0-based
+                    col = idx + 5; // After "this."
+                    break;
+                }
+            }
+
+            Assert.True(line >= 0, "Expected 'this.' in TaskManager.ts");
+
+            var completions = await client.RequestCompletionAsync(fileUri, line, col, cts.Token);
+            Assert.NotNull(completions);
+            Assert.True(completions!.Items.Length > 0, "Expected completions after 'this.'");
+
+            // Should contain class members
+            var labels = completions.Items.Select(i => i.Label).ToList();
+            Assert.Contains(labels, l => !string.IsNullOrEmpty(l));
+
+            await client.StopAsync();
+        }
+        finally
+        {
+            await client.DisposeAsync();
+        }
+    }
+
     private sealed class TestEditorSession : IEditorSession
     {
         public TestEditorSession(EditorState state) => State = state;
