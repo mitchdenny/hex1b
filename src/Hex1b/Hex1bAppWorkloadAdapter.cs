@@ -76,6 +76,8 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SupportsMouse = true,
             Supports256Colors = true,
             SupportsTrueColor = true,
+            SupportsStyledUnderlines = true,
+            SupportsUnderlineColor = true,
         };
 
         _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
