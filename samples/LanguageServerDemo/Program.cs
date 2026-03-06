@@ -82,6 +82,7 @@ var diagSyntaxHighlighter = new CSharpSyntaxHighlighter();
 var diagHighlighter = new DiagnosticHighlighter();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
     {
         return ctx.TabPanel(tp =>
