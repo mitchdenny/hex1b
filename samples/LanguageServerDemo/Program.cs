@@ -4,116 +4,85 @@ using Hex1b.LanguageServer;
 using Hex1b.Widgets;
 using LanguageServerDemo;
 
-// Sample C# code to display with syntax highlighting
-var sampleCode = """
-    using System;
-    using System.Collections.Generic;
+// ── Resolve the workspace directory (shipped alongside the demo) ─────
+// When running via `dotnet run --project ...`, the binary is in bin/Debug/net10.0/
+// and the workspace is copied alongside it. When running the project directly,
+// look relative to the project directory.
+var workspacePath = FindWorkspace();
+if (workspacePath == null)
+    throw new DirectoryNotFoundException(
+        "Workspace directory not found. Expected 'workspace/' alongside the project or output binary.");
 
-    namespace MyApp;
+static string? FindWorkspace()
+{
+    // 1. Next to the output binary (dotnet run / published)
+    var binDir = AppContext.BaseDirectory;
+    var candidate = Path.Combine(binDir, "workspace");
+    if (Directory.Exists(candidate)) return Path.GetFullPath(candidate);
 
-    // A simple greeter service
-    public sealed class Greeter
+    // 2. Walk up from binary to find the project directory
+    var dir = new DirectoryInfo(binDir);
+    while (dir != null)
     {
-        private readonly string _name;
-
-        public Greeter(string name)
-        {
-            _name = name ?? throw new ArgumentException("Name required");
-        }
-
-        public string Greet()
-        {
-            var greeting = $"Hello, {_name}!";
-            Console.WriteLine(greeting);
-            return greeting;
-        }
-
-        public async Task<List<string>> GetHistory(int count)
-        {
-            var results = new List<string>();
-            for (var i = 0; i < count; i++)
-            {
-                results.Add(Greet());
-                await Task.Delay(100);
-            }
-            return results;
-        }
+        candidate = Path.Combine(dir.FullName, "workspace");
+        if (Directory.Exists(candidate) &&
+            File.Exists(Path.Combine(dir.FullName, "LanguageServerDemo.csproj")))
+            return Path.GetFullPath(candidate);
+        dir = dir.Parent;
     }
-    """;
 
-// Sample code with diagnostic patterns for underline demo
-var diagnosticCode = """
-    using System;
+    return null;
+}
 
-    namespace MyApp;
+// ── Static highlighter demos (Syntax, Diagnostics, Hover) ───────────
 
-    public class Calculator
-    {
-        public int Add(int a, int b)
-        {
-            var unusedResult = a * b; // Warning: unused variable
-            return a + b;
-        }
+var sampleCsPath = Path.Combine(workspacePath, "Greeter.cs");
+var sampleCsCode = File.ReadAllText(sampleCsPath);
+var sampleTsPath = Path.Combine(workspacePath, "TaskManager.ts");
+var sampleTsCode = File.ReadAllText(sampleTsPath);
 
-        public int Divide(int a, int b)
-        {
-            // TODO: handle division by zero
-            return a / b;
-        }
-
-        public void Legacy()
-        {
-            DeprecatedMethod(); // Hint: deprecated API
-        }
-
-        public void Broken()
-        {
-            var x = undefinedVar + 1; // Error: undefined identifier
-        }
-    }
-    """;
-
-var syntaxDoc = new Hex1bDocument(sampleCode);
+var syntaxDoc = new Hex1bDocument(sampleCsCode);
 var syntaxState = new EditorState(syntaxDoc);
 var syntaxHighlighter = new CSharpSyntaxHighlighter();
 
-var diagDoc = new Hex1bDocument(diagnosticCode);
+var diagDoc = new Hex1bDocument(sampleCsCode);
 var diagState = new EditorState(diagDoc);
 var diagSyntaxHighlighter = new CSharpSyntaxHighlighter();
 var diagHighlighter = new DiagnosticHighlighter();
 
-// Hover info demo reuses diagnostic code
-var hoverDoc = new Hex1bDocument(diagnosticCode);
+var hoverDoc = new Hex1bDocument(sampleCsCode);
 var hoverState = new EditorState(hoverDoc);
 var hoverSyntax = new CSharpSyntaxHighlighter();
 var hoverDiag = new DiagnosticHighlighter();
 var hoverInfo = new HoverInfoProvider();
 
-// LSP demo — workspace with in-process language server (old API)
-var lspServer = new InProcessLanguageServer();
-lspServer.Start();
-var workspace = new Hex1bLanguageServerWorkspace("/demo");
-workspace.RegisterServer("csharp", lsp => lsp
-    .WithTransport(lspServer.ClientInput, lspServer.ClientOutput));
+// ── Real language server workspace ───────────────────────────────────
+// Uses csharp-ls for C# and typescript-language-server for TypeScript.
+// Both are real Roslyn/tsserver-backed LSP servers providing accurate
+// semantic tokens, diagnostics, and completions.
 
-var lspDoc1 = new Hex1bDocument(diagnosticCode);
-var lspState1 = new EditorState(lspDoc1);
-var lspDoc2 = new Hex1bDocument(sampleCode);
-var lspState2 = new EditorState(lspDoc2);
+await using var workspace = new Hex1bDocumentWorkspace(workspacePath);
 
-// Document workspace demo — the new API with AddLanguageServer/MapLanguageServer
-var docLspServer = new InProcessLanguageServer();
-docLspServer.Start();
-var docWorkspace = new Hex1bDocumentWorkspace("/demo");
-docWorkspace.AddLanguageServer("csharp-ls", lsp => lsp
-    .WithTransport(docLspServer.ClientInput, docLspServer.ClientOutput)
+// Register csharp-ls (Roslyn-based C# language server)
+workspace.AddLanguageServer("csharp-ls", lsp => lsp
+    .WithServerCommand("csharp-ls")
     .WithLanguageId("csharp"));
-docWorkspace.MapLanguageServer("*.cs", "csharp-ls");
+workspace.MapLanguageServer("*.cs", "csharp-ls");
 
-var wsDoc1 = docWorkspace.CreateDocument(diagnosticCode, "Calculator.cs");
-var wsState1 = new EditorState(wsDoc1);
-var wsDoc2 = docWorkspace.CreateDocument(sampleCode, "Greeter.cs");
-var wsState2 = new EditorState(wsDoc2);
+// Register typescript-language-server (tsserver-backed TypeScript/JS LSP)
+workspace.AddLanguageServer("ts-ls", lsp => lsp
+    .WithServerCommand("typescript-language-server", "--stdio")
+    .WithLanguageId("typescript"));
+workspace.MapLanguageServer("*.ts", "ts-ls");
+workspace.MapLanguageServer("*.tsx", "ts-ls");
+workspace.MapLanguageServer("*.js", "ts-ls");
+
+// Open real files from the workspace — backed by the file system
+var csDoc = await workspace.OpenDocumentAsync("Greeter.cs");
+var csState = new EditorState(csDoc);
+
+var tsDoc = await workspace.OpenDocumentAsync("TaskManager.ts");
+var tsState = new EditorState(tsDoc);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -121,11 +90,35 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         return ctx.TabPanel(tp =>
         [
-            tp.Tab("Syntax Highlighting", t =>
+            tp.Tab("C# (csharp-ls)", t =>
             [
                 t.VStack(v =>
                 [
-                    v.Text("C# Syntax Highlighting via ITextDecorationProvider"),
+                    v.Text("Real C# highlighting via csharp-ls (Roslyn) — Greeter.cs"),
+                    v.Separator(),
+                    v.Editor(csState)
+                        .LanguageServer(workspace)
+                        .LineNumbers()
+                        .Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("TypeScript (ts-ls)", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("Real TypeScript highlighting via typescript-language-server — TaskManager.ts"),
+                    v.Separator(),
+                    v.Editor(tsState)
+                        .LanguageServer(workspace)
+                        .LineNumbers()
+                        .Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("Static Syntax", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("C# Syntax Highlighting via ITextDecorationProvider (no LSP)"),
                     v.Separator(),
                     v.Editor(syntaxState).Decorations(syntaxHighlighter).LineNumbers().Fill()
                 ]).Fill()
@@ -157,44 +150,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .Fill()
                 ]).Fill()
             ]),
-            tp.Tab("Language Server", t =>
-            [
-                t.VStack(v =>
-                [
-                    v.Text("LSP Workspace — two editors sharing one language server connection"),
-                    v.Separator(),
-                    v.HStack(h =>
-                    [
-                        h.Editor(lspState1)
-                            .LanguageServer(workspace, "file:///demo/Calculator.cs")
-                            .LineNumbers()
-                            .Fill(),
-                        h.Editor(lspState2)
-                            .LanguageServer(workspace, "file:///demo/Greeter.cs")
-                            .LineNumbers()
-                            .Fill()
-                    ]).Fill()
-                ]).Fill()
-            ]),
-            tp.Tab("Doc Workspace", t =>
-            [
-                t.VStack(v =>
-                [
-                    v.Text("Document Workspace — AddLanguageServer + MapLanguageServer(\"*.cs\", ...)"),
-                    v.Separator(),
-                    v.HStack(h =>
-                    [
-                        h.Editor(wsState1)
-                            .LanguageServer(docWorkspace)
-                            .LineNumbers()
-                            .Fill(),
-                        h.Editor(wsState2)
-                            .LanguageServer(docWorkspace)
-                            .LineNumbers()
-                            .Fill()
-                    ]).Fill()
-                ]).Fill()
-            ])
         ]).Fill();
     })
     .Build();

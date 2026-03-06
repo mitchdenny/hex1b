@@ -140,7 +140,11 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
     /// <param name="configure">Configuration callback.</param>
     public void AddLanguageServer(string serverId, Action<LanguageServerConfiguration> configure)
     {
-        var config = new LanguageServerConfiguration { RootUri = _rootUri };
+        var config = new LanguageServerConfiguration
+        {
+            RootUri = _rootUri,
+            WorkingDirectory = _rootPath,
+        };
         configure(config);
         _serverConfigs[serverId] = config;
     }
