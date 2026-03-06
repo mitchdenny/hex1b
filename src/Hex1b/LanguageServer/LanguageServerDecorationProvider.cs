@@ -25,6 +25,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     private volatile IReadOnlyList<TextDecorationSpan> _semanticSpans = [];
     private volatile IReadOnlyList<TextDecorationSpan> _diagnosticSpans = [];
     private long _lastDocVersion = -1;
+    private volatile bool _documentOpened;
 
     public LanguageServerDecorationProvider(LanguageServerConfiguration config)
     {
@@ -92,8 +93,8 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
 
     public IReadOnlyList<TextDecorationSpan> GetDecorations(int startLine, int endLine, IHex1bDocument document)
     {
-        // Check if document changed — request fresh tokens
-        if (document.Version != _lastDocVersion && ActiveClient != null)
+        // Don't send change notifications until the document has been opened via didOpen
+        if (_documentOpened && document.Version != _lastDocVersion && ActiveClient != null)
         {
             _lastDocVersion = document.Version;
             var client = ActiveClient;
@@ -162,12 +163,22 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
 
         var text = _session.State.Document.GetText();
         await client.OpenDocumentAsync(_documentUri, _languageId, text, ct).ConfigureAwait(false);
+        _documentOpened = true;
 
         // Also wire up notification handling for shared clients
         if (_sharedClient != null)
             _sharedClient.NotificationReceived += OnServerNotification;
 
-        await RefreshSemanticTokensAsync(client, ct).ConfigureAwait(false);
+        // Initial token request — real language servers (csharp-ls, tsserver) may
+        // need time to load projects/analyze code before returning tokens.
+        // Retry a few times with increasing delays.
+        for (var attempt = 0; attempt < 5 && !ct.IsCancellationRequested; attempt++)
+        {
+            await RefreshSemanticTokensAsync(client, ct).ConfigureAwait(false);
+            if (_semanticSpans.Count > 0)
+                break;
+            await Task.Delay(TimeSpan.FromSeconds(1 + attempt), ct).ConfigureAwait(false);
+        }
     }
 
     private void ExtractTokenLegend(LanguageServerClient client)

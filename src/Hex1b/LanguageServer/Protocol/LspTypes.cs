@@ -62,8 +62,20 @@ internal sealed class InitializeParams
     [JsonPropertyName("rootUri")]
     public string? RootUri { get; set; }
 
+    [JsonPropertyName("workspaceFolders")]
+    public WorkspaceFolder[]? WorkspaceFolders { get; set; }
+
     [JsonPropertyName("capabilities")]
     public ClientCapabilities Capabilities { get; set; } = new();
+}
+
+internal sealed class WorkspaceFolder
+{
+    [JsonPropertyName("uri")]
+    public string Uri { get; set; } = "";
+
+    [JsonPropertyName("name")]
+    public string Name { get; set; } = "";
 }
 
 internal sealed class ClientCapabilities

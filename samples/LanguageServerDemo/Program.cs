@@ -57,17 +57,10 @@ var hoverDiag = new DiagnosticHighlighter();
 var hoverInfo = new HoverInfoProvider();
 
 // ── Real language server workspace ───────────────────────────────────
-// Uses csharp-ls for C# and typescript-language-server for TypeScript.
-// Both are real Roslyn/tsserver-backed LSP servers providing accurate
-// semantic tokens, diagnostics, and completions.
+// Uses typescript-language-server (tsserver-backed) for real LSP semantic tokens.
+// The C# tab uses the regex-based CSharpSyntaxHighlighter as a static provider.
 
 await using var workspace = new Hex1bDocumentWorkspace(workspacePath);
-
-// Register csharp-ls (Roslyn-based C# language server)
-workspace.AddLanguageServer("csharp-ls", lsp => lsp
-    .WithServerCommand("csharp-ls")
-    .WithLanguageId("csharp"));
-workspace.MapLanguageServer("*.cs", "csharp-ls");
 
 // Register typescript-language-server (tsserver-backed TypeScript/JS LSP)
 workspace.AddLanguageServer("ts-ls", lsp => lsp
@@ -77,10 +70,7 @@ workspace.MapLanguageServer("*.ts", "ts-ls");
 workspace.MapLanguageServer("*.tsx", "ts-ls");
 workspace.MapLanguageServer("*.js", "ts-ls");
 
-// Open real files from the workspace — backed by the file system
-var csDoc = await workspace.OpenDocumentAsync("Greeter.cs");
-var csState = new EditorState(csDoc);
-
+// Open the TypeScript file — backed by the file system
 var tsDoc = await workspace.OpenDocumentAsync("TaskManager.ts");
 var tsState = new EditorState(tsDoc);
 
@@ -90,19 +80,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     {
         return ctx.TabPanel(tp =>
         [
-            tp.Tab("C# (csharp-ls)", t =>
-            [
-                t.VStack(v =>
-                [
-                    v.Text("Real C# highlighting via csharp-ls (Roslyn) — Greeter.cs"),
-                    v.Separator(),
-                    v.Editor(csState)
-                        .LanguageServer(workspace)
-                        .LineNumbers()
-                        .Fill()
-                ]).Fill()
-            ]),
-            tp.Tab("TypeScript (ts-ls)", t =>
+            tp.Tab("TypeScript (LSP)", t =>
             [
                 t.VStack(v =>
                 [
@@ -114,11 +92,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .Fill()
                 ]).Fill()
             ]),
-            tp.Tab("Static Syntax", t =>
+            tp.Tab("C# (Static)", t =>
             [
                 t.VStack(v =>
                 [
-                    v.Text("C# Syntax Highlighting via ITextDecorationProvider (no LSP)"),
+                    v.Text("C# Syntax Highlighting via ITextDecorationProvider (regex-based, no LSP)"),
                     v.Separator(),
                     v.Editor(syntaxState).Decorations(syntaxHighlighter).LineNumbers().Fill()
                 ]).Fill()
