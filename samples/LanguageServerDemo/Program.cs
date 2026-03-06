@@ -89,15 +89,17 @@ var hoverSyntax = new CSharpSyntaxHighlighter();
 var hoverDiag = new DiagnosticHighlighter();
 var hoverInfo = new HoverInfoProvider();
 
-// LSP demo — in-process language server
+// LSP demo — workspace with in-process language server
 var lspServer = new InProcessLanguageServer();
 lspServer.Start();
-var lspDoc = new Hex1bDocument(diagnosticCode);
-var lspState = new EditorState(lspDoc);
-var lspConfig = new LanguageServerConfiguration();
-lspConfig.WithTransport(lspServer.ClientInput, lspServer.ClientOutput);
-lspConfig.WithLanguageId("csharp");
-var lspProvider = new LanguageServerDecorationProvider(lspConfig);
+var workspace = new Hex1bLanguageServerWorkspace("/demo");
+workspace.RegisterServer("csharp", lsp => lsp
+    .WithTransport(lspServer.ClientInput, lspServer.ClientOutput));
+
+var lspDoc1 = new Hex1bDocument(diagnosticCode);
+var lspState1 = new EditorState(lspDoc1);
+var lspDoc2 = new Hex1bDocument(sampleCode);
+var lspState2 = new EditorState(lspDoc2);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -145,12 +147,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             [
                 t.VStack(v =>
                 [
-                    v.Text("LSP Integration — in-process server providing semantic tokens + diagnostics"),
+                    v.Text("LSP Workspace — two editors sharing one language server connection"),
                     v.Separator(),
-                    v.Editor(lspState)
-                        .Decorations(lspProvider)
-                        .LineNumbers()
-                        .Fill()
+                    v.HStack(h =>
+                    [
+                        h.Editor(lspState1)
+                            .LanguageServer(workspace, "file:///demo/Calculator.cs")
+                            .LineNumbers()
+                            .Fill(),
+                        h.Editor(lspState2)
+                            .LanguageServer(workspace, "file:///demo/Greeter.cs")
+                            .LineNumbers()
+                            .Fill()
+                    ]).Fill()
                 ]).Fill()
             ])
         ]).Fill();

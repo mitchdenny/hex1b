@@ -10,6 +10,9 @@ namespace Hex1b.Tests.LanguageServer;
 /// </summary>
 public class LspIntegrationTests : IAsyncLifetime
 {
+    private const string DocUri = "file:///test.cs";
+    private const string LangId = "csharp";
+
     private TestLanguageServer? _server;
     private LanguageServerClient? _client;
 
@@ -20,8 +23,7 @@ public class LspIntegrationTests : IAsyncLifetime
 
         var config = new LanguageServerConfiguration
         {
-            LanguageId = "csharp",
-            DocumentUri = "file:///test.cs",
+            LanguageId = LangId,
         };
         config.Transport = new JsonRpcTransport(_server.ClientInput, _server.ClientOutput);
 
@@ -51,15 +53,13 @@ public class LspIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task SemanticTokens_ReturnsTokensForKeywords()
     {
-        await _client!.OpenDocumentAsync("public class Foo { }");
+        await _client!.OpenDocumentAsync(DocUri, LangId, "public class Foo { }");
 
-        var result = await _client.RequestSemanticTokensAsync();
+        var result = await _client.RequestSemanticTokensAsync(DocUri);
 
         Assert.NotNull(result);
         Assert.True(result!.Data.Length > 0, "Should return semantic tokens");
 
-        // "public" starts at line 0, char 0
-        // First token group: [deltaLine=0, deltaChar=0, length=6, tokenType=0(keyword), modifiers=0]
         Assert.Equal(0, result.Data[0]); // deltaLine
         Assert.Equal(0, result.Data[1]); // deltaChar
         Assert.Equal(6, result.Data[2]); // length of "public"
@@ -70,14 +70,13 @@ public class LspIntegrationTests : IAsyncLifetime
     public async Task SemanticTokens_MapsToDecorationSpans()
     {
         var legend = new[] { "keyword", "type", "string", "comment", "number", "variable", "function", "namespace" };
-        await _client!.OpenDocumentAsync("public class Foo { }");
+        await _client!.OpenDocumentAsync(DocUri, LangId, "public class Foo { }");
 
-        var result = await _client.RequestSemanticTokensAsync();
+        var result = await _client.RequestSemanticTokensAsync(DocUri);
         var spans = SemanticTokenMapper.MapTokens(result!.Data, legend);
 
         Assert.True(spans.Count >= 2, "Should have spans for 'public' and 'class'");
 
-        // First span should be "public" at line 1, col 1
         var first = spans[0];
         Assert.Equal(1, first.Start.Line);
         Assert.Equal(1, first.Start.Column);
@@ -94,7 +93,7 @@ public class LspIntegrationTests : IAsyncLifetime
                 diagnosticsReceived.TrySetResult(msg);
         };
 
-        await _client.OpenDocumentAsync("// TODO: fix this");
+        await _client.OpenDocumentAsync(DocUri, LangId, "// TODO: fix this");
 
         var result = await diagnosticsReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         Assert.NotNull(result.Params);
@@ -117,7 +116,7 @@ public class LspIntegrationTests : IAsyncLifetime
                 diagnosticsReceived.TrySetResult(msg);
         };
 
-        await _client.OpenDocumentAsync("var x = undefinedVar;");
+        await _client.OpenDocumentAsync(DocUri, LangId, "var x = undefinedVar;");
 
         var result = await diagnosticsReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
         var diagParams = System.Text.Json.JsonSerializer.Deserialize<PublishDiagnosticsParams>(
@@ -128,15 +127,15 @@ public class LspIntegrationTests : IAsyncLifetime
 
         var span = spans[0];
         Assert.Equal(UnderlineStyle.Curly, span.Decoration.UnderlineStyle);
-        Assert.Equal(1, span.Start.Line); // LSP line 0 → DocumentPosition line 1
+        Assert.Equal(1, span.Start.Line);
     }
 
     [Fact]
     public async Task Completion_ReturnsItems()
     {
-        await _client!.OpenDocumentAsync("var x = foo.");
+        await _client!.OpenDocumentAsync(DocUri, LangId, "var x = foo.");
 
-        var result = await _client.RequestCompletionAsync(0, 12);
+        var result = await _client.RequestCompletionAsync(DocUri, 0, 12);
 
         Assert.NotNull(result);
         Assert.True(result!.Items.Length > 0);
@@ -147,15 +146,14 @@ public class LspIntegrationTests : IAsyncLifetime
     [Fact]
     public async Task DocumentChange_UpdatesTokens()
     {
-        await _client!.OpenDocumentAsync("var x = 1;");
-        var result1 = await _client.RequestSemanticTokensAsync();
+        await _client!.OpenDocumentAsync(DocUri, LangId, "var x = 1;");
+        var result1 = await _client.RequestSemanticTokensAsync(DocUri);
 
-        await _client.ChangeDocumentAsync("public static void Main() { }");
-        var result2 = await _client.RequestSemanticTokensAsync();
+        await _client.ChangeDocumentAsync(DocUri, "public static void Main() { }");
+        var result2 = await _client.RequestSemanticTokensAsync(DocUri);
 
         Assert.NotNull(result1);
         Assert.NotNull(result2);
-        // Second result should have more tokens (public, static, void)
         Assert.True(result2!.Data.Length > result1!.Data.Length);
     }
 }

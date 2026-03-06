@@ -19,7 +19,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     private CancellationTokenSource? _notificationCts;
     private Task? _notificationLoop;
     private ServerCapabilities? _serverCapabilities;
-    private int _documentVersion;
+    private readonly Dictionary<string, int> _documentVersions = new();
 
     public LanguageServerClient(LanguageServerConfiguration config)
     {
@@ -28,9 +28,6 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
     /// <summary>The server capabilities received during initialization.</summary>
     public ServerCapabilities? ServerCapabilities => _serverCapabilities;
-
-    /// <summary>The document URI used for this client's document.</summary>
-    public string DocumentUri => _config.DocumentUri ?? "file:///untitled";
 
     /// <summary>Raised when the server sends a notification (e.g., diagnostics).</summary>
     public event Action<JsonRpcResponse>? NotificationReceived;
@@ -115,49 +112,50 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     }
 
     /// <summary>Sends textDocument/didOpen notification.</summary>
-    public async Task OpenDocumentAsync(string text, CancellationToken ct = default)
+    public async Task OpenDocumentAsync(string documentUri, string languageId, string text, CancellationToken ct = default)
     {
         if (_transport == null) throw new InvalidOperationException("Client not started");
 
-        _documentVersion = 1;
+        _documentVersions[documentUri] = 1;
         await _transport.SendNotificationAsync("textDocument/didOpen", new DidOpenTextDocumentParams
         {
             TextDocument = new TextDocumentItem
             {
-                Uri = DocumentUri,
-                LanguageId = _config.LanguageId ?? "plaintext",
-                Version = _documentVersion,
+                Uri = documentUri,
+                LanguageId = languageId,
+                Version = 1,
                 Text = text,
             }
         }, ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends textDocument/didChange notification (full document sync).</summary>
-    public async Task ChangeDocumentAsync(string text, CancellationToken ct = default)
+    public async Task ChangeDocumentAsync(string documentUri, string text, CancellationToken ct = default)
     {
         if (_transport == null) throw new InvalidOperationException("Client not started");
 
-        _documentVersion++;
+        var version = _documentVersions.GetValueOrDefault(documentUri) + 1;
+        _documentVersions[documentUri] = version;
         await _transport.SendNotificationAsync("textDocument/didChange", new DidChangeTextDocumentParams
         {
             TextDocument = new VersionedTextDocumentIdentifier
             {
-                Uri = DocumentUri,
-                Version = _documentVersion,
+                Uri = documentUri,
+                Version = version,
             },
             ContentChanges = [new TextDocumentContentChangeEvent { Text = text }]
         }, ct).ConfigureAwait(false);
     }
 
     /// <summary>Requests textDocument/semanticTokens/full.</summary>
-    public async Task<SemanticTokensResult?> RequestSemanticTokensAsync(CancellationToken ct = default)
+    public async Task<SemanticTokensResult?> RequestSemanticTokensAsync(string documentUri, CancellationToken ct = default)
     {
         if (_transport == null) return null;
 
         var response = await _transport.SendRequestAsync("textDocument/semanticTokens/full",
             new SemanticTokensParams
             {
-                TextDocument = new TextDocumentIdentifier { Uri = DocumentUri }
+                TextDocument = new TextDocumentIdentifier { Uri = documentUri }
             }, ct).ConfigureAwait(false);
 
         if (response.Error != null || !response.Result.HasValue) return null;
@@ -166,14 +164,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     }
 
     /// <summary>Requests textDocument/completion.</summary>
-    public async Task<CompletionList?> RequestCompletionAsync(int line, int character, CancellationToken ct = default)
+    public async Task<CompletionList?> RequestCompletionAsync(string documentUri, int line, int character, CancellationToken ct = default)
     {
         if (_transport == null) return null;
 
         var response = await _transport.SendRequestAsync("textDocument/completion",
             new CompletionParams
             {
-                TextDocument = new TextDocumentIdentifier { Uri = DocumentUri },
+                TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character },
             }, ct).ConfigureAwait(false);
 
@@ -190,17 +188,20 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         return JsonSerializer.Deserialize<CompletionList>(raw.GetRawText());
     }
 
-    /// <summary>Sends textDocument/didClose and shutdown/exit.</summary>
+    /// <summary>Sends textDocument/didClose for all open documents and shutdown/exit.</summary>
     public async Task StopAsync(CancellationToken ct = default)
     {
         if (_transport == null) return;
 
         try
         {
-            await _transport.SendNotificationAsync("textDocument/didClose", new DidCloseTextDocumentParams
+            foreach (var uri in _documentVersions.Keys)
             {
-                TextDocument = new TextDocumentIdentifier { Uri = DocumentUri }
-            }, ct).ConfigureAwait(false);
+                await _transport.SendNotificationAsync("textDocument/didClose", new DidCloseTextDocumentParams
+                {
+                    TextDocument = new TextDocumentIdentifier { Uri = uri }
+                }, ct).ConfigureAwait(false);
+            }
 
             await _transport.SendRequestAsync("shutdown", null, ct).ConfigureAwait(false);
             await _transport.SendNotificationAsync("exit", null, ct).ConfigureAwait(false);
