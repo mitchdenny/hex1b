@@ -36,4 +36,37 @@ public static class LanguageServerExtensions
 
         return editor.Decorations(provider);
     }
+
+    /// <summary>
+    /// Connects this editor to a language server managed by a workspace.
+    /// The workspace handles server lifecycle and connection sharing — multiple
+    /// documents of the same language share a single server process.
+    /// </summary>
+    /// <param name="editor">The editor widget to enhance.</param>
+    /// <param name="workspace">The workspace that manages server instances.</param>
+    /// <param name="documentUri">
+    /// The document's URI (e.g., <c>file:///path/to/file.cs</c>).
+    /// Used to identify this document to the language server.
+    /// </param>
+    /// <param name="languageId">
+    /// LSP language identifier. If null, inferred from the document URI extension.
+    /// </param>
+    /// <returns>A new editor widget with the workspace-managed decoration provider.</returns>
+    /// <example>
+    /// <code>
+    /// var workspace = new Hex1bLanguageServerWorkspace("/my/project");
+    /// workspace.RegisterServer("csharp", lsp => lsp.WithServerCommand("csharp-ls"));
+    ///
+    /// ctx.Editor(state).LanguageServer(workspace, "file:///my/project/Program.cs")
+    /// </code>
+    /// </example>
+    public static EditorWidget LanguageServer(
+        this EditorWidget editor,
+        Hex1bLanguageServerWorkspace workspace,
+        string documentUri,
+        string? languageId = null)
+    {
+        var provider = workspace.GetProvider(documentUri, languageId);
+        return editor.Decorations(provider);
+    }
 }

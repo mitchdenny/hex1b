@@ -13,7 +13,10 @@ namespace Hex1b.LanguageServer;
 public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, IAsyncDisposable
 {
     private readonly LanguageServerConfiguration _config;
+    private readonly string _documentUri;
+    private readonly string _languageId;
     private LanguageServerClient? _client;
+    private LanguageServerClient? _sharedClient; // Set when using a workspace-managed client
     private IEditorSession? _session;
     private CancellationTokenSource? _cts;
     private string[] _tokenLegend = SemanticTokenTypes.All;
@@ -26,10 +29,27 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     public LanguageServerDecorationProvider(LanguageServerConfiguration config)
     {
         _config = config;
+        _documentUri = config.DocumentUri ?? "file:///untitled";
+        _languageId = config.LanguageId ?? "plaintext";
+    }
+
+    /// <summary>
+    /// Creates a provider that uses a shared client managed by a workspace.
+    /// </summary>
+    internal LanguageServerDecorationProvider(LanguageServerClient sharedClient, string documentUri, string languageId, string[] tokenLegend)
+    {
+        _config = new LanguageServerConfiguration();
+        _sharedClient = sharedClient;
+        _documentUri = documentUri;
+        _languageId = languageId;
+        _tokenLegend = tokenLegend;
     }
 
     /// <summary>Whether the language server is connected and initialized.</summary>
-    public bool IsConnected => _client != null;
+    public bool IsConnected => _client != null || _sharedClient != null;
+
+    /// <summary>The active client (owned or shared).</summary>
+    private LanguageServerClient? ActiveClient => _sharedClient ?? _client;
 
     // ── ITextDecorationProvider ──────────────────────────────
 
@@ -38,31 +58,50 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
         _session = session;
         _cts = new CancellationTokenSource();
 
-        // Start connection in background
-        _ = Task.Run(async () =>
+        if (_sharedClient != null)
         {
-            try
+            // Shared client is already connected — just open our document
+            _ = Task.Run(async () =>
             {
-                await ConnectAsync(_cts.Token).ConfigureAwait(false);
-            }
-            catch (Exception ex)
+                try
+                {
+                    await OpenAndRefreshAsync(_sharedClient, _cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LSP document open failed: {ex.Message}");
+                }
+            });
+        }
+        else
+        {
+            // Start connection in background
+            _ = Task.Run(async () =>
             {
-                System.Diagnostics.Debug.WriteLine($"LSP connection failed: {ex.Message}");
-            }
-        });
+                try
+                {
+                    await ConnectAsync(_cts.Token).ConfigureAwait(false);
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"LSP connection failed: {ex.Message}");
+                }
+            });
+        }
     }
 
     public IReadOnlyList<TextDecorationSpan> GetDecorations(int startLine, int endLine, IHex1bDocument document)
     {
         // Check if document changed — request fresh tokens
-        if (document.Version != _lastDocVersion && _client != null)
+        if (document.Version != _lastDocVersion && ActiveClient != null)
         {
             _lastDocVersion = document.Version;
+            var client = ActiveClient;
             _ = Task.Run(async () =>
             {
                 try
                 {
-                    await OnDocumentChangedAsync(document).ConfigureAwait(false);
+                    await OnDocumentChangedAsync(client, document).ConfigureAwait(false);
                 }
                 catch { }
             });
@@ -104,48 +143,53 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
         await _client.StartAsync(ct).ConfigureAwait(false);
 
         // Extract token legend from server capabilities
-        if (_client.ServerCapabilities?.SemanticTokensProvider != null)
-        {
-            try
-            {
-                var provider = _client.ServerCapabilities.SemanticTokensProvider.Value;
-                if (provider.TryGetProperty("legend", out var legend) &&
-                    legend.TryGetProperty("tokenTypes", out var types))
-                {
-                    _tokenLegend = JsonSerializer.Deserialize<string[]>(types.GetRawText()) ?? SemanticTokenTypes.All;
-                }
-            }
-            catch { }
-        }
+        ExtractTokenLegend(_client);
 
-        // Open the document
-        if (_session != null)
-        {
-            var text = _session.State.Document.GetText();
-            await _client.OpenDocumentAsync(text, ct).ConfigureAwait(false);
-
-            // Request initial semantic tokens
-            if (_config.EnableSemanticHighlightingValue)
-                await RefreshSemanticTokensAsync(ct).ConfigureAwait(false);
-        }
+        await OpenAndRefreshAsync(_client, ct).ConfigureAwait(false);
     }
 
-    private async Task OnDocumentChangedAsync(IHex1bDocument document)
+    private async Task OpenAndRefreshAsync(LanguageServerClient client, CancellationToken ct)
     {
-        if (_client == null || _cts == null) return;
+        if (_session == null) return;
+
+        var text = _session.State.Document.GetText();
+        await client.OpenDocumentAsync(_documentUri, _languageId, text, ct).ConfigureAwait(false);
+
+        // Also wire up notification handling for shared clients
+        if (_sharedClient != null)
+            _sharedClient.NotificationReceived += OnServerNotification;
+
+        await RefreshSemanticTokensAsync(client, ct).ConfigureAwait(false);
+    }
+
+    private void ExtractTokenLegend(LanguageServerClient client)
+    {
+        if (client.ServerCapabilities?.SemanticTokensProvider == null) return;
+        try
+        {
+            var provider = client.ServerCapabilities.SemanticTokensProvider.Value;
+            if (provider.TryGetProperty("legend", out var legend) &&
+                legend.TryGetProperty("tokenTypes", out var types))
+            {
+                _tokenLegend = JsonSerializer.Deserialize<string[]>(types.GetRawText()) ?? SemanticTokenTypes.All;
+            }
+        }
+        catch { }
+    }
+
+    private async Task OnDocumentChangedAsync(LanguageServerClient client, IHex1bDocument document)
+    {
+        if (_cts == null) return;
 
         var text = document.GetText();
-        await _client.ChangeDocumentAsync(text, _cts.Token).ConfigureAwait(false);
+        await client.ChangeDocumentAsync(_documentUri, text, _cts.Token).ConfigureAwait(false);
 
-        if (_config.EnableSemanticHighlightingValue)
-            await RefreshSemanticTokensAsync(_cts.Token).ConfigureAwait(false);
+        await RefreshSemanticTokensAsync(client, _cts.Token).ConfigureAwait(false);
     }
 
-    private async Task RefreshSemanticTokensAsync(CancellationToken ct)
+    private async Task RefreshSemanticTokensAsync(LanguageServerClient client, CancellationToken ct)
     {
-        if (_client == null) return;
-
-        var result = await _client.RequestSemanticTokensAsync(ct).ConfigureAwait(false);
+        var result = await client.RequestSemanticTokensAsync(_documentUri, ct).ConfigureAwait(false);
         if (result?.Data != null)
         {
             _semanticSpans = SemanticTokenMapper.MapTokens(result.Data, _tokenLegend);
@@ -162,7 +206,8 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
                 var diagParams = JsonSerializer.Deserialize<PublishDiagnosticsParams>(
                     notification.Params.Value.GetRawText());
 
-                if (diagParams != null && _config.EnableDiagnosticsValue)
+                // Only accept diagnostics for our document
+                if (diagParams != null && diagParams.Uri == _documentUri)
                 {
                     _diagnosticSpans = DiagnosticMapper.MapDiagnostics(diagParams.Diagnostics);
                     _session?.Invalidate();
@@ -180,10 +225,11 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     /// </summary>
     internal async Task RequestCompletionAsync(int line, int column, CancellationToken ct = default)
     {
-        if (_client == null || _session == null || !_config.EnableCompletionValue) return;
+        var client = ActiveClient;
+        if (client == null || _session == null) return;
 
         // LSP positions are 0-based
-        var result = await _client.RequestCompletionAsync(line - 1, column - 1, ct).ConfigureAwait(false);
+        var result = await client.RequestCompletionAsync(_documentUri, line - 1, column - 1, ct).ConfigureAwait(false);
         if (result?.Items == null || result.Items.Length == 0)
         {
             _session.DismissOverlay("lsp-completion");
