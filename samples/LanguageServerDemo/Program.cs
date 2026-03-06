@@ -2,6 +2,7 @@ using Hex1b;
 using Hex1b.Documents;
 using Hex1b.LanguageServer;
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Widgets;
 
 // =============================================================================
@@ -892,24 +893,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     ])
                                     .Focus(ideState.FocusedDiagnosticKey)
                                     .OnFocusChanged(key => ideState.FocusedDiagnosticKey = key as string)
-                                    .OnRowActivated((key, row) =>
+                                    .OnRowActivated((key, diag) =>
                                     {
-                                        var diag = diagnostics.FirstOrDefault(d =>
-                                            $"{d.DocumentUri}:{d.Start.Line}:{d.Start.Column}:{d.Message}" == key as string);
-                                        if (diag != null)
+                                        var file = ideState.Files.FirstOrDefault(f => diag.FileName.EndsWith(f.Name));
+                                        if (file != null)
                                         {
-                                            var file = ideState.Files.FirstOrDefault(f => diag.FileName.EndsWith(f.Name));
-                                            if (file != null)
+                                            OpenFile(file, keepOpen: true);
+                                            var tab = ideState.ActiveDocument;
+                                            if (tab != null)
                                             {
-                                                OpenFile(file, keepOpen: true);
-                                                var tab = ideState.ActiveDocument;
-                                                if (tab != null)
-                                                {
-                                                    var offset = tab.Document.PositionToOffset(diag.Start);
-                                                    tab.EditorState.SetCursorPosition(offset);
-                                                }
-                                                statusMessage = $"{diag.FileName}:{diag.Start.Line}:{diag.Start.Column} — {diag.Message}";
+                                                var offset = tab.Document.PositionToOffset(diag.Start);
+                                                tab.EditorState.SetCursorPosition(offset);
                                             }
+                                            statusMessage = $"{diag.FileName}:{diag.Start.Line}:{diag.Start.Column} — {diag.Message}";
+                                            displayApp?.RequestFocus(node => node is EditorNode);
                                         }
                                     })
                                     .Compact()
