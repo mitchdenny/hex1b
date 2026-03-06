@@ -81,6 +81,13 @@ var diagState = new EditorState(diagDoc);
 var diagSyntaxHighlighter = new CSharpSyntaxHighlighter();
 var diagHighlighter = new DiagnosticHighlighter();
 
+// Hover info demo reuses diagnostic code
+var hoverDoc = new Hex1bDocument(diagnosticCode);
+var hoverState = new EditorState(hoverDoc);
+var hoverSyntax = new CSharpSyntaxHighlighter();
+var hoverDiag = new DiagnosticHighlighter();
+var hoverInfo = new HoverInfoProvider();
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
@@ -105,6 +112,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Editor(diagState)
                         .Decorations(diagSyntaxHighlighter)
                         .Decorations(diagHighlighter)
+                        .LineNumbers()
+                        .Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("Hover Info", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("Overlay Demo — move cursor onto underlined diagnostics to see hover info"),
+                    v.Separator(),
+                    v.Editor(hoverState)
+                        .Decorations(hoverSyntax)
+                        .Decorations(hoverDiag)
+                        .Decorations(hoverInfo)
                         .LineNumbers()
                         .Fill()
                 ]).Fill()
