@@ -152,6 +152,14 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     {
         if (_session == null) return;
 
+        // Wait for client to finish its initialize handshake (critical for shared clients
+        // that are started in a fire-and-forget Task.Run by workspaces)
+        await client.WaitUntilReadyAsync(ct).ConfigureAwait(false);
+
+        // Extract token legend now that client is initialized (may not have been available
+        // when the provider was created if the workspace started the client asynchronously)
+        ExtractTokenLegend(client);
+
         var text = _session.State.Document.GetText();
         await client.OpenDocumentAsync(_documentUri, _languageId, text, ct).ConfigureAwait(false);
 
@@ -180,6 +188,9 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     private async Task OnDocumentChangedAsync(LanguageServerClient client, IHex1bDocument document)
     {
         if (_cts == null) return;
+
+        // Ensure client is ready before sending requests
+        await client.WaitUntilReadyAsync(_cts.Token).ConfigureAwait(false);
 
         var text = document.GetText();
         await client.ChangeDocumentAsync(_documentUri, text, _cts.Token).ConfigureAwait(false);
