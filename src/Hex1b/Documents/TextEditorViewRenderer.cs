@@ -465,6 +465,8 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             sb.Append(globalColors);
 
             var prevType = CellType.Normal;
+            ResolvedDecoration prevDec = default;
+            var hasActiveDec = false;
             sb.Append(fg.ToForegroundAnsi());
             sb.Append(bg.ToBackgroundAnsi());
 
@@ -475,6 +477,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 // For surrogate pairs, use the cell type of the first char for both
                 if (char.IsHighSurrogate(text[i]) && i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]))
                 {
+                    // Reset decorations before type transition on surrogate pairs
+                    if (cellType != prevType && hasActiveDec)
+                    {
+                        ResetDecoration(sb, prevDec, context.Capabilities);
+                        hasActiveDec = false;
+                    }
+
                     if (cellType != prevType)
                     {
                         switch (cellType)
@@ -503,6 +512,13 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                     continue;
                 }
 
+                // Reset decorations before type transition
+                if (cellType != prevType && hasActiveDec)
+                {
+                    ResetDecoration(sb, prevDec, context.Capabilities);
+                    hasActiveDec = false;
+                }
+
                 if (cellType != prevType)
                 {
                     switch (cellType)
@@ -524,64 +540,76 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                     prevType = cellType;
                 }
 
-                // Apply decoration colors for Normal cells
+                // Apply decoration for Normal cells
                 if (lineDecorations != null && cellType == CellType.Normal && i < lineDecorations.Length)
                 {
                     var dec = lineDecorations[i];
-                    if (dec.HasForeground) sb.Append(dec.Foreground.ToForegroundAnsi());
-                    if (dec.HasBackground) sb.Append(dec.Background.ToBackgroundAnsi());
-                    if (dec.Bold) sb.Append("\x1b[1m");
-                    if (dec.Italic) sb.Append("\x1b[3m");
-                    if (dec.HasUnderline)
+
+                    // Only re-emit ANSI if decoration changed from previous
+                    if (!hasActiveDec || !dec.Equals(prevDec))
                     {
-                        var caps = context.Capabilities;
-                        var style = dec.UnderlineStyle;
-                        // Fallback: styled underlines → single if unsupported
-                        if (!caps.SupportsStyledUnderlines && style is not UnderlineStyle.Single and not UnderlineStyle.None)
-                            style = UnderlineStyle.Single;
-
-                        sb.Append(style switch
+                        // Reset previous decoration if active
+                        if (hasActiveDec)
                         {
-                            UnderlineStyle.Single => "\x1b[4m",
-                            UnderlineStyle.Double => "\x1b[21m",
-                            UnderlineStyle.Curly => "\x1b[4:3m",
-                            UnderlineStyle.Dotted => "\x1b[4:4m",
-                            UnderlineStyle.Dashed => "\x1b[4:5m",
-                            _ => ""
-                        });
-
-                        // Underline color (SGR 58) — only if supported
-                        if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
-                            sb.Append(dec.UnderlineColor.ToUnderlineColorAnsi());
-                    }
-                }
-
-                sb.Append(text[i]);
-
-                // Reset decoration after each decorated character
-                if (lineDecorations != null && cellType == CellType.Normal && i < lineDecorations.Length)
-                {
-                    var dec = lineDecorations[i];
-                    if (dec.HasAnyDecoration)
-                    {
-                        // Check if next char has a different decoration to decide reset
-                        var nextI = i + 1;
-                        var nextDec = nextI < lineDecorations.Length ? lineDecorations[nextI] : default;
-                        var nextCellType = nextI < cellTypes.Length ? cellTypes[nextI] : CellType.Normal;
-                        if (nextCellType != CellType.Normal || !nextDec.Equals(dec))
-                        {
-                            // Reset individual attributes without full SGR reset (\x1b[0m)
-                            // to avoid clobbering the terminal's color state
-                            if (dec.Bold) sb.Append("\x1b[22m");
-                            if (dec.Italic) sb.Append("\x1b[23m");
-                            if (dec.HasUnderline) sb.Append("\x1b[24m"); // SGR 24: underline off
-                            if (dec.HasUnderlineColor && context.Capabilities.SupportsUnderlineColor)
-                                sb.Append("\x1b[59m"); // SGR 59: default underline color
+                            ResetDecoration(sb, prevDec, context.Capabilities);
+                            // Re-apply base colors after reset
                             sb.Append(fg.ToForegroundAnsi());
                             sb.Append(bg.ToBackgroundAnsi());
                         }
+
+                        if (dec.HasAnyDecoration)
+                        {
+                            if (dec.HasForeground) sb.Append(dec.Foreground.ToForegroundAnsi());
+                            if (dec.HasBackground) sb.Append(dec.Background.ToBackgroundAnsi());
+                            if (dec.Bold) sb.Append("\x1b[1m");
+                            if (dec.Italic) sb.Append("\x1b[3m");
+                            if (dec.HasUnderline)
+                            {
+                                var caps = context.Capabilities;
+                                var style = dec.UnderlineStyle;
+                                if (!caps.SupportsStyledUnderlines && style is not UnderlineStyle.Single and not UnderlineStyle.None)
+                                    style = UnderlineStyle.Single;
+
+                                sb.Append(style switch
+                                {
+                                    UnderlineStyle.Single => "\x1b[4m",
+                                    UnderlineStyle.Double => "\x1b[21m",
+                                    UnderlineStyle.Curly => "\x1b[4:3m",
+                                    UnderlineStyle.Dotted => "\x1b[4:4m",
+                                    UnderlineStyle.Dashed => "\x1b[4:5m",
+                                    _ => ""
+                                });
+
+                                if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
+                                    sb.Append(dec.UnderlineColor.ToUnderlineColorAnsi());
+                            }
+                            hasActiveDec = true;
+                            prevDec = dec;
+                        }
+                        else
+                        {
+                            hasActiveDec = false;
+                        }
                     }
                 }
+                else if (hasActiveDec)
+                {
+                    // Moved out of Normal cell range while decoration was active
+                    ResetDecoration(sb, prevDec, context.Capabilities);
+                    sb.Append(fg.ToForegroundAnsi());
+                    sb.Append(bg.ToBackgroundAnsi());
+                    hasActiveDec = false;
+                }
+
+                sb.Append(text[i]);
+            }
+
+            // Clean up any trailing decoration state
+            if (hasActiveDec)
+            {
+                ResetDecoration(sb, prevDec, context.Capabilities);
+                sb.Append(fg.ToForegroundAnsi());
+                sb.Append(bg.ToBackgroundAnsi());
             }
 
             if (prevType != CellType.Normal)
@@ -607,5 +635,18 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         sb.Append(dec.HasBackground ? dec.Background.ToBackgroundAnsi() : defaultBg.ToBackgroundAnsi());
         if (dec.Bold) sb.Append("\x1b[1m");
         if (dec.Italic) sb.Append("\x1b[3m");
+    }
+
+    /// <summary>
+    /// Resets individual SGR attributes that were set by a decoration,
+    /// without using a full SGR reset that would clobber the terminal's global state.
+    /// </summary>
+    private static void ResetDecoration(System.Text.StringBuilder sb, ResolvedDecoration dec, TerminalCapabilities caps)
+    {
+        if (dec.Bold) sb.Append("\x1b[22m");
+        if (dec.Italic) sb.Append("\x1b[23m");
+        if (dec.HasUnderline) sb.Append("\x1b[24m");
+        if (dec.HasUnderlineColor && caps.SupportsUnderlineColor)
+            sb.Append("\x1b[59m");
     }
 }

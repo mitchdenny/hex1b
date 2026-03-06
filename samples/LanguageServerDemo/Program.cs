@@ -92,7 +92,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 [
                     v.Text("C# Syntax Highlighting via ITextDecorationProvider"),
                     v.Separator(),
-                    v.Editor(syntaxState).Decorations(syntaxHighlighter).Fill()
+                    v.Editor(syntaxState).Decorations(syntaxHighlighter).LineNumbers().Fill()
                 ]).Fill()
             ]),
             tp.Tab("Diagnostics", t =>
@@ -104,6 +104,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Editor(diagState)
                         .Decorations(diagSyntaxHighlighter)
                         .Decorations(diagHighlighter)
+                        .LineNumbers()
                         .Fill()
                 ]).Fill()
             ])
