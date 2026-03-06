@@ -130,6 +130,49 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
     public IEnumerable<Documents.Hex1bDocument> DirtyDocuments =>
         _openDocuments.Values.Where(d => d.IsDirty);
 
+    /// <summary>
+    /// Returns all current diagnostics aggregated across all open documents
+    /// that have connected language servers, ordered by severity then file.
+    /// </summary>
+    public IReadOnlyList<DiagnosticInfo> GetAllDiagnostics()
+    {
+        var all = new List<DiagnosticInfo>();
+        foreach (var provider in _documentProviders.Values)
+        {
+            all.AddRange(provider.CurrentDiagnostics);
+        }
+        all.Sort((a, b) =>
+        {
+            var sev = a.Severity.CompareTo(b.Severity);
+            if (sev != 0) return sev;
+            var file = string.Compare(a.FileName, b.FileName, StringComparison.OrdinalIgnoreCase);
+            if (file != 0) return file;
+            return a.Start.Line.CompareTo(b.Start.Line);
+        });
+        return all;
+    }
+
+    /// <summary>
+    /// Returns a summary of diagnostic counts by severity across all open documents.
+    /// </summary>
+    public (int Errors, int Warnings, int Info) GetDiagnosticSummary()
+    {
+        int errors = 0, warnings = 0, info = 0;
+        foreach (var provider in _documentProviders.Values)
+        {
+            foreach (var diag in provider.CurrentDiagnostics)
+            {
+                switch (diag.Severity)
+                {
+                    case DiagnosticSeverity.Error: errors++; break;
+                    case DiagnosticSeverity.Warning: warnings++; break;
+                    default: info++; break;
+                }
+            }
+        }
+        return (errors, warnings, info);
+    }
+
     // ── Language server management ───────────────────────────
 
     /// <summary>

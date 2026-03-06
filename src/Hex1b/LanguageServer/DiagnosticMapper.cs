@@ -44,6 +44,45 @@ internal static class DiagnosticMapper
         return spans;
     }
 
+    /// <summary>
+    /// Converts LSP diagnostics to public <see cref="DiagnosticInfo"/> records
+    /// that can be displayed in a problems panel.
+    /// </summary>
+    public static IReadOnlyList<DiagnosticInfo> MapToDiagnosticInfo(LspDiagnostic[] diagnostics, string documentUri)
+    {
+        if (diagnostics.Length == 0) return [];
+
+        var result = new List<DiagnosticInfo>(diagnostics.Length);
+
+        foreach (var diag in diagnostics)
+        {
+            var start = new DocumentPosition(
+                diag.Range.Start.Line + 1,
+                diag.Range.Start.Character + 1);
+            var end = new DocumentPosition(
+                diag.Range.End.Line + 1,
+                diag.Range.End.Character + 1);
+
+            var severity = (DiagnosticSeverity)(diag.Severity ?? 1);
+            var code = diag.Code?.ValueKind == System.Text.Json.JsonValueKind.String
+                ? diag.Code.Value.GetString()
+                : diag.Code?.ValueKind == System.Text.Json.JsonValueKind.Number
+                    ? diag.Code.Value.GetInt32().ToString()
+                    : null;
+
+            result.Add(new DiagnosticInfo(
+                DocumentUri: documentUri,
+                Message: diag.Message,
+                Severity: severity,
+                Start: start,
+                End: end,
+                Source: diag.Source,
+                Code: code));
+        }
+
+        return result;
+    }
+
     private static (UnderlineStyle, Hex1bThemeElement<Hex1bColor>) GetStyleForSeverity(int? severity) => severity switch
     {
         1 => (UnderlineStyle.Curly, DiagnosticTheme.ErrorUnderlineColor),   // Error
