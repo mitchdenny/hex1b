@@ -89,7 +89,7 @@ var hoverSyntax = new CSharpSyntaxHighlighter();
 var hoverDiag = new DiagnosticHighlighter();
 var hoverInfo = new HoverInfoProvider();
 
-// LSP demo — workspace with in-process language server
+// LSP demo — workspace with in-process language server (old API)
 var lspServer = new InProcessLanguageServer();
 lspServer.Start();
 var workspace = new Hex1bLanguageServerWorkspace("/demo");
@@ -100,6 +100,20 @@ var lspDoc1 = new Hex1bDocument(diagnosticCode);
 var lspState1 = new EditorState(lspDoc1);
 var lspDoc2 = new Hex1bDocument(sampleCode);
 var lspState2 = new EditorState(lspDoc2);
+
+// Document workspace demo — the new API with AddLanguageServer/MapLanguageServer
+var docLspServer = new InProcessLanguageServer();
+docLspServer.Start();
+var docWorkspace = new Hex1bDocumentWorkspace("/demo");
+docWorkspace.AddLanguageServer("csharp-ls", lsp => lsp
+    .WithTransport(docLspServer.ClientInput, docLspServer.ClientOutput)
+    .WithLanguageId("csharp"));
+docWorkspace.MapLanguageServer("*.cs", "csharp-ls");
+
+var wsDoc1 = docWorkspace.CreateDocument(diagnosticCode, "Calculator.cs");
+var wsState1 = new EditorState(wsDoc1);
+var wsDoc2 = docWorkspace.CreateDocument(sampleCode, "Greeter.cs");
+var wsState2 = new EditorState(wsDoc2);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -157,6 +171,25 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             .Fill(),
                         h.Editor(lspState2)
                             .LanguageServer(workspace, "file:///demo/Greeter.cs")
+                            .LineNumbers()
+                            .Fill()
+                    ]).Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("Doc Workspace", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("Document Workspace — AddLanguageServer + MapLanguageServer(\"*.cs\", ...)"),
+                    v.Separator(),
+                    v.HStack(h =>
+                    [
+                        h.Editor(wsState1)
+                            .LanguageServer(docWorkspace)
+                            .LineNumbers()
+                            .Fill(),
+                        h.Editor(wsState2)
+                            .LanguageServer(docWorkspace)
                             .LineNumbers()
                             .Fill()
                     ]).Fill()
