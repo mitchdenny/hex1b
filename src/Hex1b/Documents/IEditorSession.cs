@@ -20,4 +20,20 @@ public interface IEditorSession
     /// (e.g., when language server results arrive) to ensure decorations are refreshed.
     /// </summary>
     void Invalidate();
+
+    /// <summary>
+    /// Pushes a floating overlay anchored to a document position.
+    /// If an overlay with the same ID already exists, it is replaced.
+    /// </summary>
+    void PushOverlay(EditorOverlay overlay);
+
+    /// <summary>
+    /// Dismisses an overlay by its unique ID.
+    /// </summary>
+    void DismissOverlay(string overlayId);
+
+    /// <summary>
+    /// Returns all currently active overlays.
+    /// </summary>
+    IReadOnlyList<EditorOverlay> ActiveOverlays { get; }
 }

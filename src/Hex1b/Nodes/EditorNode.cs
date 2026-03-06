@@ -12,7 +12,7 @@ namespace Hex1b;
 /// Scrollbars are rendered and handled internally (not composed) because their
 /// behavior is tightly coupled to the active IEditorViewRenderer.
 /// </summary>
-public sealed class EditorNode : Hex1bNode
+public sealed class EditorNode : Hex1bNode, IEditorSession
 {
     private int _scrollOffset; // First visible line (1-based)
     private int _horizontalScrollOffset; // First visible column (0-based)
@@ -23,13 +23,20 @@ public sealed class EditorNode : Hex1bNode
     private bool _cursorDirty; // Set when cursor changes; cleared after Arrange adjusts scroll
     private char? _pendingNibble; // For hex renderers: first nibble of partially-entered byte
     private IHex1bDocument? _subscribedDocument;
+    private readonly List<EditorOverlay> _activeOverlays = [];
+    private Hex1bRenderContext? _lastRenderContext; // For IEditorSession.Capabilities
 
     /// <summary>
     /// Marks that the cursor has changed and scroll should adjust to keep it visible
     /// on the next Arrange pass. Called automatically by input handlers; exposed for
     /// testing scenarios that modify EditorState directly.
     /// </summary>
-    internal void NotifyCursorChanged() => _cursorDirty = true;
+    internal void NotifyCursorChanged()
+    {
+        _cursorDirty = true;
+        // Dismiss overlays that should close on cursor move
+        _activeOverlays.RemoveAll(o => o.DismissOnCursorMove);
+    }
 
     /// <summary>The source widget that was reconciled into this node.</summary>
     public EditorWidget? SourceWidget { get; set; }
@@ -41,7 +48,37 @@ public sealed class EditorNode : Hex1bNode
     public IEditorViewRenderer ViewRenderer { get; set; } = TextEditorViewRenderer.Instance;
 
     /// <summary>Text decoration providers for syntax highlighting, diagnostics, etc.</summary>
-    public IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; set; }
+    public IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; internal set; }
+
+    /// <summary>
+    /// Updates the decoration providers, activating new ones and deactivating removed ones.
+    /// </summary>
+    internal void UpdateDecorationProviders(IReadOnlyList<ITextDecorationProvider>? newProviders)
+    {
+        var oldProviders = DecorationProviders;
+
+        // Deactivate providers that are no longer present
+        if (oldProviders != null)
+        {
+            foreach (var old in oldProviders)
+            {
+                if (newProviders == null || !newProviders.Contains(old))
+                    old.Deactivate();
+            }
+        }
+
+        // Activate providers that are newly added
+        if (newProviders != null)
+        {
+            foreach (var p in newProviders)
+            {
+                if (oldProviders == null || !oldProviders.Contains(p))
+                    p.Activate(this);
+            }
+        }
+
+        DecorationProviders = newProviders;
+    }
 
     /// <summary>Whether to show line numbers in a gutter on the left side.</summary>
     public bool ShowLineNumbers { get; set; }
@@ -286,7 +323,135 @@ public sealed class EditorNode : Hex1bNode
             context.WriteClipped(Bounds.X + Bounds.Width - 1, Bounds.Y + Bounds.Height - 1,
                 $"{bg.ToBackgroundAnsi()} ");
         }
+
+        // Render overlays on top of content
+        if (_activeOverlays.Count > 0)
+            RenderOverlays(context, contentBounds);
+
+        _lastRenderContext = context;
     }
+
+    // ── Overlay rendering ─────────────────────────────────────
+
+    private void RenderOverlays(Hex1bRenderContext context, Rect contentBounds)
+    {
+        foreach (var overlay in _activeOverlays)
+        {
+            var screenPos = DocumentToScreen(overlay.AnchorPosition, contentBounds);
+            if (screenPos is null) continue;
+
+            var (anchorX, anchorY) = screenPos.Value;
+            var contentLines = overlay.Content;
+            if (contentLines.Count == 0) continue;
+
+            // Calculate overlay dimensions
+            var maxWidth = 0;
+            foreach (var line in contentLines)
+                maxWidth = Math.Max(maxWidth, line.Text.Length);
+            maxWidth = Math.Min(maxWidth + 2, contentBounds.Width); // +2 for border padding
+
+            var overlayHeight = contentLines.Count + 2; // +2 for top/bottom border
+
+            // Position based on placement
+            int overlayX = Math.Max(contentBounds.X, Math.Min(anchorX, contentBounds.Right - maxWidth));
+            int overlayY;
+
+            if (overlay.Placement == OverlayPlacement.Above)
+            {
+                overlayY = anchorY - overlayHeight;
+                if (overlayY < contentBounds.Y)
+                    overlayY = anchorY + 1; // Fall back to below
+            }
+            else
+            {
+                overlayY = anchorY + 1;
+                if (overlayY + overlayHeight > contentBounds.Bottom)
+                    overlayY = anchorY - overlayHeight; // Fall back to above
+            }
+
+            // Clamp to screen
+            overlayY = Math.Max(contentBounds.Y, overlayY);
+
+            // Draw overlay box
+            var borderFg = Hex1bColor.FromRgb(100, 100, 100);
+            var overlayBg = Hex1bColor.FromRgb(30, 30, 30);
+            var resetAnsi = "\x1b[0m";
+
+            // Top border
+            var topBorder = "┌" + new string('─', maxWidth - 2) + "┐";
+            context.WriteClipped(overlayX, overlayY,
+                $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{topBorder}{resetAnsi}");
+
+            // Content lines
+            for (var i = 0; i < contentLines.Count && overlayY + 1 + i < contentBounds.Bottom; i++)
+            {
+                var line = contentLines[i];
+                var lineFg = line.Foreground ?? Hex1bColor.FromRgb(200, 200, 200);
+                var lineBg = line.Background ?? overlayBg;
+                var paddedText = line.Text.PadRight(maxWidth - 2)[..(maxWidth - 2)];
+
+                context.WriteClipped(overlayX, overlayY + 1 + i,
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│" +
+                    $"{lineFg.ToForegroundAnsi()}{lineBg.ToBackgroundAnsi()}{paddedText}" +
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│{resetAnsi}");
+            }
+
+            // Bottom border
+            var bottomY = overlayY + 1 + contentLines.Count;
+            if (bottomY < contentBounds.Bottom)
+            {
+                var bottomBorder = "└" + new string('─', maxWidth - 2) + "┘";
+                context.WriteClipped(overlayX, bottomY,
+                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{bottomBorder}{resetAnsi}");
+            }
+        }
+    }
+
+    /// <summary>
+    /// Maps a document position to screen coordinates relative to the current viewport.
+    /// Returns null if the position is outside the visible area.
+    /// </summary>
+    private (int X, int Y)? DocumentToScreen(DocumentPosition docPos, Rect contentBounds)
+    {
+        // Check if the line is visible
+        var viewLine = docPos.Line - _scrollOffset;
+        if (viewLine < 0 || viewLine >= _viewportLines)
+            return null;
+
+        // Calculate screen column (accounting for horizontal scroll)
+        var screenCol = docPos.Column - 1 - _horizontalScrollOffset;
+        if (screenCol < 0)
+            screenCol = 0;
+
+        return (contentBounds.X + screenCol, contentBounds.Y + viewLine);
+    }
+
+    // ── IEditorSession implementation ─────────────────────────
+
+    EditorState IEditorSession.State => State;
+
+    TerminalCapabilities IEditorSession.Capabilities =>
+        _lastRenderContext?.Capabilities ?? TerminalCapabilities.Modern;
+
+    void IEditorSession.Invalidate()
+    {
+        // Request a re-render by marking the node dirty
+        // The app's render loop will pick this up
+    }
+
+    void IEditorSession.PushOverlay(EditorOverlay overlay)
+    {
+        // Replace if same ID exists
+        _activeOverlays.RemoveAll(o => o.Id == overlay.Id);
+        _activeOverlays.Add(overlay);
+    }
+
+    void IEditorSession.DismissOverlay(string overlayId)
+    {
+        _activeOverlays.RemoveAll(o => o.Id == overlayId);
+    }
+
+    IReadOnlyList<EditorOverlay> IEditorSession.ActiveOverlays => _activeOverlays;
 
     // ── Line number gutter ────────────────────────────────────
 

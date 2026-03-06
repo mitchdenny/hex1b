@@ -71,8 +71,10 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
         node.State = State;
 
         node.ViewRenderer = Renderer ?? TextEditorViewRenderer.Instance;
-        node.DecorationProviders = DecorationProviders;
         node.ShowLineNumbers = ShowLineNumbersValue;
+
+        // Activate/deactivate decoration providers when they change
+        node.UpdateDecorationProviders(DecorationProviders);
 
         if (TextChangedHandler != null)
         {
