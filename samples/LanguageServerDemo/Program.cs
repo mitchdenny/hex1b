@@ -88,6 +88,12 @@ var hoverSyntax = new CSharpSyntaxHighlighter();
 var hoverDiag = new DiagnosticHighlighter();
 var hoverInfo = new HoverInfoProvider();
 
+// LSP demo — in-process language server
+var lspServer = new InProcessLanguageServer();
+lspServer.Start();
+var lspDoc = new Hex1bDocument(diagnosticCode);
+var lspState = new EditorState(lspDoc);
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
@@ -126,6 +132,20 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .Decorations(hoverSyntax)
                         .Decorations(hoverDiag)
                         .Decorations(hoverInfo)
+                        .LineNumbers()
+                        .Fill()
+                ]).Fill()
+            ]),
+            tp.Tab("Language Server", t =>
+            [
+                t.VStack(v =>
+                [
+                    v.Text("LSP Integration — in-process server providing semantic tokens + diagnostics"),
+                    v.Separator(),
+                    v.Editor(lspState)
+                        .LanguageServer(lsp => lsp
+                            .WithTransport(lspServer.ClientInput, lspServer.ClientOutput)
+                            .WithLanguageId("csharp"))
                         .LineNumbers()
                         .Fill()
                 ]).Fill()
