@@ -712,8 +712,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ]),
             m.Menu("View", m => [
                 m.MenuItem("Explorer").OnActivated(e => statusMessage = "Explorer visible"),
-                m.MenuItem("Problems").Disabled(),
-                m.MenuItem("Output").Disabled(),
+                m.MenuItem("Terminal").OnActivated(e =>
+                {
+                    ideState.BottomPanelTabIndex = 0;
+                    statusMessage = "Showing Terminal";
+                }),
+                m.MenuItem("Problems").OnActivated(e =>
+                {
+                    ideState.BottomPanelTabIndex = 1;
+                    statusMessage = "Showing Problems";
+                }),
             ]),
             m.Menu("Help", m => [
                 m.MenuItem("Keyboard Shortcuts").OnActivated(e =>
@@ -839,15 +847,73 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 leftWidth: 25
             ).Fill()
             ],
-            // ─── BOTTOM: Embedded Terminal ────────────────────────────────
+            // ─── BOTTOM: Tab panel with Terminal + Problems ──────────────
             bottom => [
-                bottom.Text(" TERMINAL"),
-                bottom.Separator(),
-                bottom.Terminal(shellHandle)
-                    .WhenNotRunning(args => bottom.VStack(v => [
-                        v.Text($"  Shell exited (code {args.ExitCode ?? 0}). Restart the demo to get a new terminal.")
-                    ]))
-                    .Fill()
+                bottom.TabPanel(tp =>
+                {
+                    var diagnostics = workspace.GetAllDiagnostics();
+                    var (errors, warnings, _) = workspace.GetDiagnosticSummary();
+                    var problemsLabel = errors + warnings > 0
+                        ? $"⚠ Problems ({errors + warnings})"
+                        : "⚠ Problems";
+
+                    return [
+                        tp.Tab("⌨ Terminal", t => [
+                            t.Terminal(shellHandle)
+                                .WhenNotRunning(args => t.VStack(v => [
+                                    v.Text($"  Shell exited (code {args.ExitCode ?? 0}). Restart the demo to get a new terminal.")
+                                ]))
+                                .Fill()
+                        ])
+                        .Selected(ideState.BottomPanelTabIndex == 0),
+
+                        tp.Tab(problemsLabel, t => diagnostics.Count == 0
+                            ? [
+                                t.Center(c => c.Text("No problems detected")).Fill()
+                            ]
+                            : [
+                                t.Table((IReadOnlyList<DiagnosticInfo>)diagnostics)
+                                    .RowKey(d => $"{d.DocumentUri}:{d.Start.Line}:{d.Start.Column}:{d.Message}")
+                                    .Header(h => [
+                                        h.Cell("").Width(SizeHint.Fixed(4)),
+                                        h.Cell("Severity").Width(SizeHint.Fixed(10)),
+                                        h.Cell("Message").Width(SizeHint.Fill),
+                                        h.Cell("File").Width(SizeHint.Fixed(20)),
+                                        h.Cell("Ln").Width(SizeHint.Fixed(5)).Align(Alignment.Right),
+                                        h.Cell("Col").Width(SizeHint.Fixed(5)).Align(Alignment.Right),
+                                    ])
+                                    .Row((r, diag, state) => [
+                                        r.Cell(diag.SeverityIcon),
+                                        r.Cell(diag.SeverityLabel),
+                                        r.Cell(diag.Code != null ? $"{diag.Message} ({diag.Code})" : diag.Message),
+                                        r.Cell(diag.FileName),
+                                        r.Cell(diag.Start.Line.ToString()),
+                                        r.Cell(diag.Start.Column.ToString()),
+                                    ])
+                                    .OnRowActivated((key, row) =>
+                                    {
+                                        // Navigate to the diagnostic location
+                                        var diag = diagnostics.FirstOrDefault(d =>
+                                            $"{d.DocumentUri}:{d.Start.Line}:{d.Start.Column}:{d.Message}" == key);
+                                        if (diag != null)
+                                        {
+                                            var file = ideState.Files.FirstOrDefault(f => diag.FileName.EndsWith(f.Name));
+                                            if (file != null)
+                                            {
+                                                OpenFile(file, keepOpen: true);
+                                                statusMessage = $"Go to {diag.FileName}:{diag.Start.Line}:{diag.Start.Column}";
+                                            }
+                                        }
+                                    })
+                                    .Compact()
+                                    .FillHeight()
+                            ])
+                        .Selected(ideState.BottomPanelTabIndex == 1),
+                    ];
+                })
+                .OnSelectionChanged(e => ideState.BottomPanelTabIndex = e.SelectedIndex)
+                .Compact()
+                .Fill()
             ],
             topHeight: 20
         ).Fill(),
@@ -887,6 +953,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             {
                 items.Add(s.Separator(" | "));
                 items.Add(s.Section($"Tab {ideState.SelectedTabIndex + 1}/{ideState.OpenTabs.Count}"));
+            }
+
+            // Diagnostic summary
+            var (errors, warnings, _) = workspace.GetDiagnosticSummary();
+            if (errors + warnings > 0)
+            {
+                items.Add(s.Separator(" | "));
+                if (errors > 0) items.Add(s.Section($"🔴 {errors}"));
+                if (warnings > 0) items.Add(s.Section($"🟡 {warnings}"));
             }
 
             return items;
@@ -978,6 +1053,7 @@ class IdeState
     public List<WorkspaceFile> Files { get; } = [];
     public List<OpenTab> OpenTabs { get; } = [];
     public int SelectedTabIndex { get; set; }
+    public int BottomPanelTabIndex { get; set; }
 
     public OpenTab? ActiveDocument =>
         SelectedTabIndex >= 0 && SelectedTabIndex < OpenTabs.Count

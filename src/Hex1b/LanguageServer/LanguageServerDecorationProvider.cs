@@ -24,6 +24,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     // Cached decoration state — swapped atomically from background tasks
     private volatile IReadOnlyList<TextDecorationSpan> _semanticSpans = [];
     private volatile IReadOnlyList<TextDecorationSpan> _diagnosticSpans = [];
+    private volatile IReadOnlyList<DiagnosticInfo> _currentDiagnostics = [];
     private long _lastDocVersion = -1;
     private volatile bool _documentOpened;
 
@@ -48,6 +49,9 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
 
     /// <summary>Whether the language server is connected and initialized.</summary>
     public bool IsConnected => _client != null || _sharedClient != null;
+
+    /// <summary>The current diagnostics for this document, updated from publishDiagnostics notifications.</summary>
+    public IReadOnlyList<DiagnosticInfo> CurrentDiagnostics => _currentDiagnostics;
 
     /// <summary>The active client (owned or shared).</summary>
     private LanguageServerClient? ActiveClient => _sharedClient ?? _client;
@@ -238,6 +242,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
                 if (diagParams != null && diagParams.Uri == _documentUri)
                 {
                     _diagnosticSpans = DiagnosticMapper.MapDiagnostics(diagParams.Diagnostics);
+                    _currentDiagnostics = DiagnosticMapper.MapToDiagnosticInfo(diagParams.Diagnostics, _documentUri);
                     _session?.Invalidate();
                 }
             }
