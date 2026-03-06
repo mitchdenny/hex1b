@@ -24,6 +24,8 @@ namespace Hex1b.Surfaces;
 /// <param name="DisplayWidth">The number of terminal columns this cell occupies. 1 for normal, 2 for wide, 0 for continuation.</param>
 /// <param name="Sixel">Optional tracked reference to Sixel graphics data.</param>
 /// <param name="Hyperlink">Optional tracked reference to hyperlink data.</param>
+/// <param name="UnderlineStyle">The underline style (single, double, curly, dotted, dashed). Only meaningful when Attributes has Underline flag.</param>
+/// <param name="UnderlineColor">The underline color (independent of foreground), or null for default (foreground color).</param>
 public readonly record struct SurfaceCell(
     string Character,
     Hex1bColor? Foreground,
@@ -31,7 +33,9 @@ public readonly record struct SurfaceCell(
     CellAttributes Attributes = CellAttributes.None,
     int DisplayWidth = 1,
     TrackedObject<SixelData>? Sixel = null,
-    TrackedObject<HyperlinkData>? Hyperlink = null)
+    TrackedObject<HyperlinkData>? Hyperlink = null,
+    UnderlineStyle UnderlineStyle = UnderlineStyle.None,
+    Hex1bColor? UnderlineColor = null)
 {
     /// <summary>
     /// Gets whether this cell is a continuation of a previous wide character.
