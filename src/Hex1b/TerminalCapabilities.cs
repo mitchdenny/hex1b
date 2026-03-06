@@ -61,6 +61,11 @@ public record TerminalCapabilities
     public bool SupportsBracketedPaste { get; init; }
     
     /// <summary>
+    /// Presentation supports Kitty Graphics Protocol (KGP) for inline image display.
+    /// </summary>
+    public bool SupportsKgp { get; init; }
+    
+    /// <summary>
     /// Whether the terminal supports retroactive variation selector width changes.
     /// </summary>
     /// <remarks>
