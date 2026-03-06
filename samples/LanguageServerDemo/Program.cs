@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Documents;
+using Hex1b.LanguageServer;
 using Hex1b.Widgets;
 using LanguageServerDemo;
 
@@ -93,6 +94,10 @@ var lspServer = new InProcessLanguageServer();
 lspServer.Start();
 var lspDoc = new Hex1bDocument(diagnosticCode);
 var lspState = new EditorState(lspDoc);
+var lspConfig = new LanguageServerConfiguration();
+lspConfig.WithTransport(lspServer.ClientInput, lspServer.ClientOutput);
+lspConfig.WithLanguageId("csharp");
+var lspProvider = new LanguageServerDecorationProvider(lspConfig);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -143,9 +148,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Text("LSP Integration — in-process server providing semantic tokens + diagnostics"),
                     v.Separator(),
                     v.Editor(lspState)
-                        .LanguageServer(lsp => lsp
-                            .WithTransport(lspServer.ClientInput, lspServer.ClientOutput)
-                            .WithLanguageId("csharp"))
+                        .Decorations(lspProvider)
                         .LineNumbers()
                         .Fill()
                 ]).Fill()
