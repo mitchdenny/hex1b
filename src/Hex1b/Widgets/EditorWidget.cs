@@ -125,6 +125,11 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     internal IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; init; }
 
     /// <summary>
+    /// Whether to show line numbers in a gutter on the left side of the editor.
+    /// </summary>
+    internal bool ShowLineNumbersValue { get; init; }
+
+    /// <summary>
     /// Sets a synchronous handler called when the document text changes.
     /// </summary>
     public EditorWidget OnTextChanged(Action<EditorTextChangedEventArgs> handler)
@@ -151,6 +156,12 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     public EditorWidget Decorations(ITextDecorationProvider provider)
         => this with { DecorationProviders = [..(DecorationProviders ?? []), provider] };
 
+    /// <summary>
+    /// Enables or disables line numbers in a gutter on the left side of the editor.
+    /// </summary>
+    public EditorWidget LineNumbers(bool show = true)
+        => this with { ShowLineNumbersValue = show };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as EditorNode ?? new EditorNode();
@@ -160,6 +171,7 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
 
         node.ViewRenderer = Renderer ?? TextEditorViewRenderer.Instance;
         node.DecorationProviders = DecorationProviders;
+        node.ShowLineNumbers = ShowLineNumbersValue;
 
         if (TextChangedHandler != null)
         {

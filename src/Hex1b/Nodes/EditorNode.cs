@@ -43,6 +43,9 @@ public sealed class EditorNode : Hex1bNode
     /// <summary>Text decoration providers for syntax highlighting, diagnostics, etc.</summary>
     public IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; set; }
 
+    /// <summary>Whether to show line numbers in a gutter on the left side.</summary>
+    public bool ShowLineNumbers { get; set; }
+
     /// <summary>
     /// Internal action invoked when text content changes.
     /// </summary>
@@ -216,15 +219,15 @@ public sealed class EditorNode : Hex1bNode
         _showHorizontalScrollbar = maxLineWidth > bounds.Width - (_showVerticalScrollbar ? 1 : 0)
             && bounds.Height > 1;
 
-        // Content area excludes scrollbar space
+        // Content area excludes scrollbar space and line number gutter
         _viewportLines = bounds.Height - (_showHorizontalScrollbar ? 1 : 0);
-        _viewportColumns = bounds.Width - (_showVerticalScrollbar ? 1 : 0);
+        _viewportColumns = bounds.Width - (_showVerticalScrollbar ? 1 : 0) - GetGutterWidth();
 
         // Re-check vertical after adjusting for horizontal scrollbar
         if (!_showVerticalScrollbar && totalLines > _viewportLines && _viewportColumns > 0)
         {
             _showVerticalScrollbar = true;
-            _viewportColumns = bounds.Width - 1;
+            _viewportColumns = bounds.Width - 1 - GetGutterWidth();
         }
 
         // Subscribe to document changes if not already
@@ -244,8 +247,39 @@ public sealed class EditorNode : Hex1bNode
     {
         if (State == null) return;
 
-        // Render text content at full bounds width — scrollbars render on top
-        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, DecorationProviders);
+        var contentBounds = Bounds;
+
+        if (ShowLineNumbers)
+        {
+            var gutterWidth = GetGutterWidth();
+
+            var theme = context.Theme;
+            var gutterFg = theme.Get(EditorTheme.LineNumberForegroundColor);
+            var editorBg = theme.Get(EditorTheme.BackgroundColor);
+            var totalLines = State.Document.LineCount;
+            var digitCount = gutterWidth - 1;
+
+            for (var viewLine = 0; viewLine < Bounds.Height; viewLine++)
+            {
+                var docLine = _scrollOffset + viewLine;
+                var screenY = Bounds.Y + viewLine;
+                string gutterText;
+
+                if (docLine <= totalLines)
+                    gutterText = docLine.ToString().PadLeft(digitCount) + " ";
+                else
+                    gutterText = new string(' ', gutterWidth);
+
+                context.WriteClipped(Bounds.X, screenY,
+                    $"{gutterFg.ToForegroundAnsi()}{editorBg.ToBackgroundAnsi()}{gutterText}");
+            }
+
+            contentBounds = new Rect(Bounds.X + gutterWidth, Bounds.Y,
+                Math.Max(1, Bounds.Width - gutterWidth), Bounds.Height);
+        }
+
+        // Render text content
+        ViewRenderer.Render(context, State, contentBounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, DecorationProviders);
 
         // Render scrollbars (self-rendered, not composed)
         if (_showVerticalScrollbar)
@@ -260,6 +294,16 @@ public sealed class EditorNode : Hex1bNode
             context.WriteClipped(Bounds.X + Bounds.Width - 1, Bounds.Y + Bounds.Height - 1,
                 $"{bg.ToBackgroundAnsi()} ");
         }
+    }
+
+    // ── Line number gutter ────────────────────────────────────
+
+    private int GetGutterWidth()
+    {
+        if (!ShowLineNumbers || State == null) return 0;
+        var totalLines = State.Document.LineCount;
+        var digitCount = Math.Max(2, (int)Math.Floor(Math.Log10(Math.Max(1, totalLines))) + 1);
+        return digitCount + 1; // digits + 1 space separator
     }
 
     // ── Scrollbar rendering ─────────────────────────────────────
@@ -631,6 +675,14 @@ public sealed class EditorNode : Hex1bNode
         var localY = absY - Bounds.Y;
 
         if (GetHitZone(localX, localY) != HitZone.Content) return null;
+
+        // Adjust for line number gutter
+        if (ShowLineNumbers)
+        {
+            var gutterWidth = GetGutterWidth();
+            localX -= gutterWidth;
+            if (localX < 0) return null; // Click in gutter area
+        }
 
         return ViewRenderer.HitTest(localX, localY, State, _viewportColumns, _viewportLines, _scrollOffset, _horizontalScrollOffset);
     }
