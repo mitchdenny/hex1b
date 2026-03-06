@@ -178,7 +178,7 @@ public class RealLanguageServerTests : IAsyncLifetime
 
             Assert.True(line >= 0, "Expected 'this.' in TaskManager.ts");
 
-            var completions = await client.RequestCompletionAsync(fileUri, line, col, cts.Token);
+            var completions = await client.RequestCompletionAsync(fileUri, line, col, ct: cts.Token);
             Assert.NotNull(completions);
             Assert.True(completions!.Items.Length > 0, "Expected completions after 'this.'");
 

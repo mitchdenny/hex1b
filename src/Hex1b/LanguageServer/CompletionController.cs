@@ -14,12 +14,14 @@ internal sealed class CompletionController
     private const int MaxVisibleItems = 10;
 
     private IEditorSession? _session;
-    private CompletionItem[] _items = [];
+    private CompletionItem[] _allItems = [];
+    private CompletionItem[] _filteredItems = [];
     private int _selectedIndex;
     private DocumentPosition _triggerPosition;
+    private string _filterPrefix = "";
 
     /// <summary>Whether the completion popup is currently showing.</summary>
-    public bool IsActive => _items.Length > 0 && _session != null;
+    public bool IsActive => _filteredItems.Length > 0 && _session != null;
 
     /// <summary>Binds the controller to an editor session.</summary>
     public void Attach(IEditorSession session) => _session = session;
@@ -42,9 +44,38 @@ internal sealed class CompletionController
             return;
         }
 
-        _items = items;
+        _allItems = items;
+        _filterPrefix = "";
         _selectedIndex = 0;
         _triggerPosition = triggerPosition;
+        _filteredItems = items;
+        UpdateOverlay();
+    }
+
+    /// <summary>
+    /// Filters the current completion list by the given prefix typed after the trigger.
+    /// Dismisses if no items match.
+    /// </summary>
+    public void Filter(string prefix)
+    {
+        if (_allItems.Length == 0) return;
+
+        _filterPrefix = prefix;
+        _filteredItems = string.IsNullOrEmpty(prefix)
+            ? _allItems
+            : _allItems.Where(item =>
+            {
+                var text = item.FilterText ?? item.Label;
+                return text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+            }).ToArray();
+
+        if (_filteredItems.Length == 0)
+        {
+            Dismiss();
+            return;
+        }
+
+        _selectedIndex = Math.Min(_selectedIndex, _filteredItems.Length - 1);
         UpdateOverlay();
     }
 
@@ -52,7 +83,7 @@ internal sealed class CompletionController
     public void SelectNext()
     {
         if (!IsActive) return;
-        _selectedIndex = (_selectedIndex + 1) % _items.Length;
+        _selectedIndex = (_selectedIndex + 1) % _filteredItems.Length;
         UpdateOverlay();
     }
 
@@ -60,20 +91,26 @@ internal sealed class CompletionController
     public void SelectPrev()
     {
         if (!IsActive) return;
-        _selectedIndex = (_selectedIndex - 1 + _items.Length) % _items.Length;
+        _selectedIndex = (_selectedIndex - 1 + _filteredItems.Length) % _filteredItems.Length;
         UpdateOverlay();
     }
 
     /// <summary>
     /// Accepts the currently selected item and inserts its text into the document.
-    /// Returns the text that was inserted, or null if nothing was active.
+    /// Returns the text that was inserted (minus the already-typed prefix), or null if nothing was active.
     /// </summary>
     public string? Accept()
     {
-        if (!IsActive || _selectedIndex >= _items.Length) return null;
+        if (!IsActive || _selectedIndex >= _filteredItems.Length) return null;
 
-        var item = _items[_selectedIndex];
+        var item = _filteredItems[_selectedIndex];
         var insertText = item.InsertText ?? item.Label;
+
+        // Remove the prefix the user already typed
+        if (_filterPrefix.Length > 0 && insertText.StartsWith(_filterPrefix, StringComparison.OrdinalIgnoreCase))
+        {
+            insertText = insertText[_filterPrefix.Length..];
+        }
 
         Dismiss();
         return insertText;
@@ -82,9 +119,11 @@ internal sealed class CompletionController
     /// <summary>Dismisses the completion popup without inserting anything.</summary>
     public void Dismiss()
     {
-        if (_items.Length > 0)
+        if (_allItems.Length > 0 || _filteredItems.Length > 0)
         {
-            _items = [];
+            _allItems = [];
+            _filteredItems = [];
+            _filterPrefix = "";
             _selectedIndex = 0;
             _session?.DismissOverlay(OverlayId);
         }
@@ -92,10 +131,10 @@ internal sealed class CompletionController
 
     private void UpdateOverlay()
     {
-        if (_session == null || _items.Length == 0) return;
+        if (_session == null || _filteredItems.Length == 0) return;
 
         // Calculate visible window (scroll if more items than max)
-        var totalItems = _items.Length;
+        var totalItems = _filteredItems.Length;
         var visibleCount = Math.Min(totalItems, MaxVisibleItems);
 
         // Center the selection in the visible window
@@ -110,7 +149,7 @@ internal sealed class CompletionController
 
         for (var i = scrollOffset; i < scrollOffset + visibleCount && i < totalItems; i++)
         {
-            var item = _items[i];
+            var item = _filteredItems[i];
             var kindIcon = GetKindIcon(item.Kind);
             var isSelected = i == _selectedIndex;
 

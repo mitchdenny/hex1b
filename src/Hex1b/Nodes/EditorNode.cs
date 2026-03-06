@@ -2,6 +2,7 @@ using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.LanguageServer;
+using Hex1b.LanguageServer.Protocol;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -27,6 +28,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
     private readonly List<EditorOverlay> _activeOverlays = [];
     private Hex1bRenderContext? _lastRenderContext; // For IEditorSession.Capabilities
     private CompletionController? _completionController;
+    private string _completionFilterPrefix = "";
 
     /// <summary>
     /// Marks that the cursor has changed and scroll should adjust to keep it visible
@@ -636,10 +638,29 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private async Task InsertTextAsync(string text, InputBindingActionContext ctx)
     {
-        // Dismiss active completion if typing continues (unless it's a trigger char)
+        // If completion is active and user types a non-trigger character, filter the list
         if (_completionController is { IsActive: true } && text != ".")
         {
-            _completionController.Dismiss();
+            // Let the text be inserted first, then filter
+            if (text.Length == 1 && char.IsLetterOrDigit(text[0]))
+            {
+                _completionFilterPrefix += text;
+                // Insert the text
+                _pendingNibble = null;
+                State.InsertText(text);
+                AfterEdit();
+                if (TextChangedAction != null) await TextChangedAction(ctx);
+
+                // Now filter the completion list
+                _completionController.Filter(_completionFilterPrefix);
+                MarkDirty();
+                return;
+            }
+            else
+            {
+                _completionController.Dismiss();
+                _completionFilterPrefix = "";
+            }
         }
 
         // Let the view renderer intercept character input (e.g., hex byte editing)
@@ -672,7 +693,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         // Trigger completion after typing '.'
         if (text == ".")
         {
-            await RequestCompletionAtCursorAsync();
+            await RequestCompletionAtCursorAsync(triggerCharacter: ".");
         }
     }
 
@@ -737,6 +758,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         if (_completionController is { IsActive: true })
         {
             _completionController.Dismiss();
+            _completionFilterPrefix = "";
             MarkDirty();
             return;
         }
@@ -754,7 +776,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         await RequestCompletionAtCursorAsync();
     }
 
-    private async Task RequestCompletionAtCursorAsync()
+    private async Task RequestCompletionAtCursorAsync(string? triggerCharacter = null)
     {
         var provider = FindLspProvider();
         if (provider == null) return;
@@ -766,14 +788,21 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         // Ensure controller exists and is attached
         _completionController ??= new CompletionController();
         _completionController.Attach(this);
+        _completionFilterPrefix = "";
 
         try
         {
             var client = GetLspClient(provider);
             if (client == null) return;
 
+            var context = new CompletionContext
+            {
+                TriggerKind = triggerCharacter != null ? 2 : 1, // 2=TriggerCharacter, 1=Invoked
+                TriggerCharacter = triggerCharacter,
+            };
+
             var docUri = GetDocumentUri(provider);
-            var result = await client.RequestCompletionAsync(docUri, line - 1, column - 1);
+            var result = await client.RequestCompletionAsync(docUri, line - 1, column - 1, context);
 
             if (result?.Items is { Length: > 0 })
             {
@@ -796,6 +825,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         if (_completionController == null) return;
 
         var insertText = _completionController.Accept();
+        _completionFilterPrefix = "";
         if (insertText != null)
         {
             State.InsertText(insertText);

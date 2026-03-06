@@ -197,7 +197,10 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     }
 
     /// <summary>Requests textDocument/completion.</summary>
-    public async Task<CompletionList?> RequestCompletionAsync(string documentUri, int line, int character, CancellationToken ct = default)
+    public async Task<CompletionList?> RequestCompletionAsync(
+        string documentUri, int line, int character,
+        CompletionContext? context = null,
+        CancellationToken ct = default)
     {
         if (_transport == null) return null;
 
@@ -206,6 +209,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character },
+                Context = context,
             }, ct).ConfigureAwait(false);
 
         if (response.Error != null || !response.Result.HasValue) return null;
