@@ -76,6 +76,19 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
             _process = Process.Start(psi) ?? throw new InvalidOperationException("Failed to start language server process");
             _transport = new JsonRpcTransport(_process.StandardOutput.BaseStream, _process.StandardInput.BaseStream);
+
+            // Drain stderr to prevent pipe buffer deadlocks — language servers
+            // like csharp-ls write verbose logs to stderr that can fill the OS
+            // pipe buffer and block the process.
+            _ = Task.Run(async () =>
+            {
+                try
+                {
+                    var buf = new byte[4096];
+                    while (await _process.StandardError.BaseStream.ReadAsync(buf).ConfigureAwait(false) > 0) { }
+                }
+                catch { }
+            });
         }
         else if (_config.Transport != null)
         {
@@ -104,6 +117,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
                 }
             }
         };
+
+        // Include workspace folders if we have a root URI
+        if (_config.RootUri != null)
+        {
+            var folderName = Path.GetFileName(_config.WorkingDirectory ?? "workspace") ?? "workspace";
+            initParams.WorkspaceFolders = [new WorkspaceFolder { Uri = _config.RootUri, Name = folderName }];
+        }
 
         var response = await _transport.SendRequestAsync("initialize", initParams, ct).ConfigureAwait(false);
         if (response.Error != null)

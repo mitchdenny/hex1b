@@ -99,6 +99,10 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         }
         catch (OperationCanceledException) { }
         catch (IOException) { }
+        catch (Exception)
+        {
+            // Deserialization or other errors — don't crash the loop silently
+        }
         finally
         {
             _readerLoopRunning = false;
@@ -111,9 +115,33 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         }
     }
 
+    /// <summary>
+    /// Raised when the server sends a request (has both id and method).
+    /// The handler should return the result to send back to the server.
+    /// </summary>
+    public event Func<string, JsonElement?, Task<object?>>? ServerRequestReceived;
+
     private void DispatchMessage(JsonRpcResponse msg)
     {
-        if (msg.Id.HasValue && _pendingRequests.TryRemove(msg.Id.Value, out var tcs))
+        if (msg.Id.HasValue && msg.Method != null)
+        {
+            // Server-to-client request — needs a response
+            _ = Task.Run(async () =>
+            {
+                object? result = null;
+                try
+                {
+                    if (ServerRequestReceived != null)
+                        result = await ServerRequestReceived.Invoke(msg.Method, msg.Params);
+                }
+                catch { }
+
+                var response = new { jsonrpc = "2.0", id = msg.Id.Value, result };
+                await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(response, s_jsonOptions), CancellationToken.None)
+                    .ConfigureAwait(false);
+            });
+        }
+        else if (msg.Id.HasValue && _pendingRequests.TryRemove(msg.Id.Value, out var tcs))
         {
             tcs.TrySetResult(msg);
         }
