@@ -111,6 +111,10 @@ var modelViewerDemo = builder.AddCSharpApp("model-viewer-demo", "./samples/Model
 var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionDemo")
     .ExcludeFromManifest();
 
+// Language Server demo
+var languageServerDemo = builder.AddCSharpApp("language-server-demo", "./samples/LanguageServerDemo")
+    .ExcludeFromManifest();
+
 // Docker container demo
 var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
     .ExcludeFromManifest();

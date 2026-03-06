@@ -1,3 +1,4 @@
+using Hex1b.Documents;
 using Hex1b.Events;
 using Hex1b.Nodes;
 
@@ -20,6 +21,11 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     internal IEditorViewRenderer? Renderer { get; init; }
 
     /// <summary>
+    /// Text decoration providers for syntax highlighting, diagnostics, etc.
+    /// </summary>
+    internal IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; init; }
+
+    /// <summary>
     /// Sets a synchronous handler called when the document text changes.
     /// </summary>
     public EditorWidget OnTextChanged(Action<EditorTextChangedEventArgs> handler)
@@ -38,6 +44,14 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     public EditorWidget WithViewRenderer(IEditorViewRenderer renderer)
         => this with { Renderer = renderer };
 
+    /// <summary>
+    /// Adds a text decoration provider to the editor. Providers supply per-character styling
+    /// such as syntax highlighting, diagnostic underlines, and other visual decorations.
+    /// Multiple providers can be added; their decorations are resolved by priority.
+    /// </summary>
+    public EditorWidget Decorations(ITextDecorationProvider provider)
+        => this with { DecorationProviders = [..(DecorationProviders ?? []), provider] };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as EditorNode ?? new EditorNode();
@@ -46,6 +60,7 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
         node.State = State;
 
         node.ViewRenderer = Renderer ?? TextEditorViewRenderer.Instance;
+        node.DecorationProviders = DecorationProviders;
 
         if (TextChangedHandler != null)
         {

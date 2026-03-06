@@ -40,6 +40,9 @@ public sealed class EditorNode : Hex1bNode
     /// <summary>The view renderer that controls how document content is displayed.</summary>
     public IEditorViewRenderer ViewRenderer { get; set; } = TextEditorViewRenderer.Instance;
 
+    /// <summary>Text decoration providers for syntax highlighting, diagnostics, etc.</summary>
+    public IReadOnlyList<ITextDecorationProvider>? DecorationProviders { get; set; }
+
     /// <summary>
     /// Internal action invoked when text content changes.
     /// </summary>
@@ -234,7 +237,7 @@ public sealed class EditorNode : Hex1bNode
         if (State == null) return;
 
         // Render text content at full bounds width — scrollbars render on top
-        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble);
+        ViewRenderer.Render(context, State, Bounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, DecorationProviders);
 
         // Render scrollbars (self-rendered, not composed)
         if (_showVerticalScrollbar)
