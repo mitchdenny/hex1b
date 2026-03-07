@@ -23,6 +23,7 @@ namespace Hex1b.Surfaces;
 /// <param name="Attributes">Text styling attributes (bold, italic, underline, etc.).</param>
 /// <param name="DisplayWidth">The number of terminal columns this cell occupies. 1 for normal, 2 for wide, 0 for continuation.</param>
 /// <param name="Sixel">Optional tracked reference to Sixel graphics data.</param>
+/// <param name="Kgp">Optional tracked reference to KGP (Kitty Graphics Protocol) image data.</param>
 /// <param name="Hyperlink">Optional tracked reference to hyperlink data.</param>
 /// <param name="UnderlineStyle">The underline style (single, double, curly, dotted, dashed). Only meaningful when Attributes has Underline flag.</param>
 /// <param name="UnderlineColor">The underline color (independent of foreground), or null for default (foreground color).</param>
@@ -33,6 +34,7 @@ public readonly record struct SurfaceCell(
     CellAttributes Attributes = CellAttributes.None,
     int DisplayWidth = 1,
     TrackedObject<SixelData>? Sixel = null,
+    TrackedObject<KgpCellData>? Kgp = null,
     TrackedObject<HyperlinkData>? Hyperlink = null,
     UnderlineStyle UnderlineStyle = UnderlineStyle.None,
     Hex1bColor? UnderlineColor = null)
@@ -69,6 +71,11 @@ public readonly record struct SurfaceCell(
     /// Gets whether this cell contains Sixel graphics data.
     /// </summary>
     public bool HasSixel => Sixel is not null;
+
+    /// <summary>
+    /// Gets whether this cell contains KGP (Kitty Graphics Protocol) image data.
+    /// </summary>
+    public bool HasKgp => Kgp is not null;
 
     /// <summary>
     /// Gets whether this cell contains hyperlink data.

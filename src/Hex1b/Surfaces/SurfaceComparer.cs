@@ -506,6 +506,10 @@ public static class SurfaceComparer
         if (!SixelsEqual(a.Sixel, b.Sixel))
             return false;
         
+        // Compare KGP
+        if (!KgpEqual(a.Kgp, b.Kgp))
+            return false;
+        
         // Compare hyperlinks by content (URI and parameters)
         return HyperlinksEqual(a.Hyperlink, b.Hyperlink);
     }
@@ -517,6 +521,15 @@ public static class SurfaceComparer
         
         // Compare by content hash
         return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+    }
+    
+    private static bool KgpEqual(TrackedObject<KgpCellData>? a, TrackedObject<KgpCellData>? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        
+        // Compare by content hash
+        return KgpCellData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)

@@ -73,6 +73,12 @@ public sealed class KgpCellData
     public byte[] ContentHash { get; }
 
     /// <summary>
+    /// Gets the z-index for KGP placement stacking order relative to text.
+    /// Negative values render behind text, positive values render on top of text.
+    /// </summary>
+    public int ZIndex { get; }
+
+    /// <summary>
     /// Creates a new KGP cell data instance with structured placement data.
     /// </summary>
     public KgpCellData(
@@ -86,7 +92,8 @@ public sealed class KgpCellData
         int clipX = 0,
         int clipY = 0,
         int clipW = 0,
-        int clipH = 0)
+        int clipH = 0,
+        int zIndex = -1)
     {
         TransmitPayload = transmitPayload;
         ImageId = imageId;
@@ -99,6 +106,7 @@ public sealed class KgpCellData
         ClipY = clipY;
         ClipW = clipW;
         ClipH = clipH;
+        ZIndex = zIndex;
     }
 
     /// <summary>
@@ -113,7 +121,7 @@ public sealed class KgpCellData
         if (ClipY > 0) sb.Append($",y={ClipY}");
         if (ClipW > 0) sb.Append($",w={ClipW}");
         if (ClipH > 0) sb.Append($",h={ClipH}");
-        sb.Append(",C=1,q=2,z=-1");
+        sb.Append($",C=1,q=2,z={ZIndex}");
         sb.Append("\x1b\\");
         return sb.ToString();
     }
@@ -135,7 +143,8 @@ public sealed class KgpCellData
             clipX,
             clipY,
             clipW,
-            clipH);
+            clipH,
+            ZIndex);
     }
 
     /// <summary>
