@@ -6,6 +6,7 @@
 // Additional scenes are added as each phase of KGP support is implemented.
 
 using System.Security.Cryptography;
+using System.Text;
 using Hex1b;
 
 // Generate a small RGBA32 test image (4x4 pixels, gradient)
@@ -226,6 +227,85 @@ Console.WriteLine($"  All same image: {fullKgp.ImageId == topLeft.ImageId && top
 
 Console.WriteLine();
 Console.WriteLine("Scene 4 complete.");
+Console.WriteLine();
+
+// --- Scene 5: Token Emission & Caching ---
+Console.WriteLine("KGP Demo - Scene 5: Token Emission & Caching");
+Console.WriteLine("==============================================");
+Console.WriteLine();
+
+// Demonstrate how SurfaceComparer detects KGP changes
+// Note: In production code, TrackedObject creation happens through the
+// SurfaceLayerContext.CreateKgp() API. Here we demonstrate the diff concepts.
+var emitHash = SHA256.HashData(Encoding.UTF8.GetBytes("emit-test-image"));
+var emitBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("emit-test-image"));
+var emitKgp = new KgpCellData(
+    transmitPayload: $"\x1b_Ga=t,f=32,s=10,v=10,i=30;{emitBase64}\x1b\\",
+    imageId: 30,
+    widthInCells: 3,
+    heightInCells: 1,
+    sourcePixelWidth: 10,
+    sourcePixelHeight: 10,
+    contentHash: emitHash,
+    zIndex: -1);
+
+Console.WriteLine("=== Token Emission Model ===");
+Console.WriteLine("  First frame: transmit (a=t) + placement (a=p)");
+Console.WriteLine($"    Full payload length: {emitKgp.Payload.Length} chars");
+Console.WriteLine("  Subsequent frames: placement only (a=p)");
+Console.WriteLine($"    Placement length: {emitKgp.BuildPlacementPayload().Length} chars");
+Console.WriteLine($"    Savings: {emitKgp.Payload.Length - emitKgp.BuildPlacementPayload().Length} chars");
+Console.WriteLine();
+
+// Demonstrate SurfaceComparer on surfaces without KGP (text only)
+var s1 = new Hex1b.Surfaces.Surface(10, 3);
+var s2 = new Hex1b.Surfaces.Surface(10, 3);
+s2[0, 0] = new Hex1b.Surfaces.SurfaceCell("X", Hex1b.Theming.Hex1bColor.White, Hex1b.Theming.Hex1bColor.Black);
+var textDiff = Hex1b.Surfaces.SurfaceComparer.Compare(s1, s2);
+Console.WriteLine($"  Text-only diff: {textDiff.Count} changed cells");
+Console.WriteLine();
+
+Console.WriteLine("Scene 5 complete.");
+Console.WriteLine();
+
+// --- Scene 6: Image Reuse ---
+Console.WriteLine("KGP Demo - Scene 6: Image Reuse");
+Console.WriteLine("================================");
+Console.WriteLine();
+
+// Same image displayed at 4 positions with different crops
+var reuseKgp = new KgpCellData(
+    transmitPayload: $"\x1b_Ga=t,f=32,s=100,v=100,i=40;{emitBase64}\x1b\\",
+    imageId: 40,
+    widthInCells: 10,
+    heightInCells: 5,
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+    contentHash: emitHash,
+    zIndex: -1);
+
+Console.WriteLine($"  Image ID {reuseKgp.ImageId}: {reuseKgp.SourcePixelWidth}x{reuseKgp.SourcePixelHeight} pixels");
+Console.WriteLine();
+
+var quadrants = new[] {
+    ("Top-Left",     reuseKgp.WithClip(0,  0,  50, 50, 5, 3)),
+    ("Top-Right",    reuseKgp.WithClip(50, 0,  50, 50, 5, 3)),
+    ("Bottom-Left",  reuseKgp.WithClip(0,  50, 50, 50, 5, 3)),
+    ("Bottom-Right", reuseKgp.WithClip(50, 50, 50, 50, 5, 3)),
+};
+
+foreach (var (name, quadrant) in quadrants)
+{
+    Console.WriteLine($"  {name}: clip=({quadrant.ClipX},{quadrant.ClipY},{quadrant.ClipW},{quadrant.ClipH}), " +
+                      $"cells={quadrant.WidthInCells}x{quadrant.HeightInCells}, imageId={quadrant.ImageId}");
+    Console.WriteLine($"    Placement: {Sanitize(quadrant.BuildPlacementPayload())}");
+}
+
+Console.WriteLine();
+Console.WriteLine($"  All placements reference same image ID {reuseKgp.ImageId}: " +
+                  $"{quadrants.All(q => q.Item2.ImageId == reuseKgp.ImageId)}");
+Console.WriteLine();
+Console.WriteLine("Scene 6 complete.");
 
 static byte[] GenerateGradientImage(int width, int height)
 {
