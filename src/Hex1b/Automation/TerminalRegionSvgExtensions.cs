@@ -235,10 +235,11 @@ public static class TerminalRegionSvgExtensions
         // Render KGP images and Sixel graphics
         sb.AppendLine("  <g class=\"terminal-images\">");
 
-        // KGP images
+        // KGP images - sort by ZIndex so lower z-values render first (further back)
         if (region is Hex1bTerminalSnapshot snapshot2)
         {
-            foreach (var placement in snapshot2.KgpPlacements)
+            var sortedPlacements = snapshot2.KgpPlacements.OrderBy(p => p.ZIndex).ToList();
+            foreach (var placement in sortedPlacements)
             {
                 if (snapshot2.KgpImages.TryGetValue(placement.ImageId, out var imageData))
                 {

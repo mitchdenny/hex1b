@@ -210,6 +210,110 @@ public class KgpPerlinNoiseTests
         Assert.NotEqual(dataUris[0], dataUris[1]);
     }
 
+    /// <summary>
+    /// Fills the screen with white 'A' characters with green underlines, then overlays
+    /// a staircase of overlapping KGP images descending from the top-left. Each image
+    /// uses a different color tint on Perlin noise and a progressively lower z-index,
+    /// so the top-left image is closest under the text and subsequent images stack behind.
+    /// </summary>
+    [Fact]
+    public void PerlinStaircase_OverlappingZOrder_WithTextOverlay()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(Caps)
+            .WithDimensions(TermWidth, TermHeight)
+            .Build();
+
+        // Fill entire screen with white 'A' characters with green underlines
+        // SGR 37 = white fg, SGR 4 = underline, SGR 58;2;0;180;0 = green underline color
+        Send(terminal, "\x1b[37;4;58;2;0;180;0m");
+        for (int row = 0; row < TermHeight; row++)
+        {
+            Send(terminal, $"\x1b[{row + 1};1H");
+            Send(terminal, new string('A', TermWidth));
+        }
+
+        // Image dimensions: 16 cols x 8 rows per image
+        const int imgCols = 16;
+        const int imgRows = 8;
+        int imgPixelW = imgCols * CellW;  // 160
+        int imgPixelH = imgRows * CellH;  // 160
+
+        // Generate base Perlin noise at image size
+        var baseNoise = GeneratePerlinNoiseRgb(imgPixelW, imgPixelH, scale: 25.0, seed: 13);
+
+        // Create 6 tinted variants: red, orange, yellow, cyan, magenta, green
+        var tints = new (string Name, double R, double G, double B, int RB, int GB, int BB)[]
+        {
+            ("red",     0.8, 0.2, 0.1, 80, 0,  0),
+            ("orange",  0.8, 0.5, 0.1, 80, 40, 0),
+            ("yellow",  0.8, 0.8, 0.2, 80, 80, 0),
+            ("cyan",    0.2, 0.7, 0.8, 0,  40, 80),
+            ("magenta", 0.7, 0.2, 0.7, 60, 0,  60),
+            ("green",   0.2, 0.8, 0.3, 0,  80, 0),
+        };
+
+        // Transmit each tinted image
+        for (int i = 0; i < tints.Length; i++)
+        {
+            var t = tints[i];
+            var tinted = TintColor(baseNoise, t.R, t.G, t.B, t.BB, t.RB, t.GB);
+            TransmitImage(terminal, imageId: (uint)(i + 1), (uint)imgPixelW, (uint)imgPixelH, tinted);
+        }
+
+        // Place images in a staircase: each offset by (6 cols, 2 rows)
+        // Z-index descends: -1 (closest under text) to -6 (furthest back)
+        const int stepCols = 6;
+        const int stepRows = 2;
+
+        for (int i = 0; i < tints.Length; i++)
+        {
+            int col = i * stepCols;
+            int row = i * stepRows;
+            int zIndex = -(i + 1); // -1, -2, -3, -4, -5, -6
+
+            Send(terminal, $"\x1b[{row + 1};{col + 1}H");
+            Send(terminal, KgpTestHelper.BuildCommand(
+                $"a=p,i={i + 1},c={imgCols},r={imgRows},z={zIndex},q=2"));
+        }
+
+        var snapshot = terminal.CreateSnapshot();
+        var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-perlin-staircase-zorder.svg", svg);
+
+        // Verify all 6 images were placed
+        Assert.Equal(tints.Length, snapshot.KgpPlacements.Count);
+        Assert.Equal(tints.Length, snapshot.KgpImages.Count);
+
+        // Verify staircase positioning
+        for (int i = 0; i < tints.Length; i++)
+        {
+            var p = snapshot.KgpPlacements[i];
+            Assert.Equal((uint)(i + 1), p.ImageId);
+            Assert.Equal(i * stepRows, p.Row);
+            Assert.Equal(i * stepCols, p.Column);
+            Assert.Equal(-(i + 1), p.ZIndex);
+        }
+
+        // Verify z-order in SVG: images should be sorted by ZIndex ascending
+        // (lowest z-index = furthest back = rendered first in SVG)
+        var dataUris = ExtractDataUris(svg);
+        Assert.Equal(tints.Length, dataUris.Count);
+        // All data URIs should be distinct (different tint colors)
+        Assert.Equal(tints.Length, dataUris.Distinct().Count());
+
+        // Verify text layer exists above images
+        var imagesGroupEnd = svg.LastIndexOf("</g>", svg.IndexOf("class=\"terminal-text\""));
+        var textGroupStart = svg.IndexOf("class=\"terminal-text\"");
+        Assert.True(textGroupStart > imagesGroupEnd,
+            "Text group should appear after images group in SVG");
+
+        // Verify the 'A' characters are in the text layer
+        Assert.Contains(">A<", svg);
+    }
+
     #region Perlin noise generation
 
     /// <summary>
@@ -248,14 +352,22 @@ public class KgpPerlinNoiseTests
     /// </summary>
     private static byte[] TintBlue(byte[] grayData, int width, int height)
     {
+        return TintColor(grayData, 0.3, 0.4, 0.6, 100);
+    }
+
+    /// <summary>
+    /// Creates a color-tinted copy of grayscale RGB24 pixel data.
+    /// Each channel is scaled by a factor and optionally boosted by a constant.
+    /// </summary>
+    private static byte[] TintColor(byte[] grayData, double rScale, double gScale, double bScale, int bBoost = 0, int rBoost = 0, int gBoost = 0)
+    {
         var data = new byte[grayData.Length];
         for (int i = 0; i < grayData.Length; i += 3)
         {
             byte gray = grayData[i];
-            // Darken R/G channels, boost B channel
-            data[i] = (byte)(gray * 0.3);     // R
-            data[i + 1] = (byte)(gray * 0.4); // G
-            data[i + 2] = (byte)Math.Min(255, gray * 0.6 + 100); // B
+            data[i] = (byte)Math.Clamp((int)(gray * rScale) + rBoost, 0, 255);
+            data[i + 1] = (byte)Math.Clamp((int)(gray * gScale) + gBoost, 0, 255);
+            data[i + 2] = (byte)Math.Clamp((int)(gray * bScale) + bBoost, 0, 255);
         }
 
         return data;
