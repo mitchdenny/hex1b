@@ -44,7 +44,7 @@ public sealed class IconNode : Hex1bNode
     {
         if (ClickCallback != null)
         {
-            bindings.Mouse(MouseButton.Left).Action(ClickCallback, "Click icon");
+            bindings.Mouse(MouseButton.Left).Triggers(IconWidget.ActivateActionId, ClickCallback, "Click icon");
         }
     }
 

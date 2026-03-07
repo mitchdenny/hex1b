@@ -11,6 +11,10 @@ namespace Hex1b.Nodes;
 /// </summary>
 public sealed class WindowNode : Hex1bNode, ILayoutProvider
 {
+    public static readonly ActionId CloseAction = new("Window.Close");
+    public static readonly ActionId ClickAction = new("Window.Click");
+    public static readonly ActionId TitleBarIconClickAction = new("Window.TitleBarIconClick");
+
     /// <summary>
     /// The window entry from the WindowManager.
     /// </summary>
@@ -304,7 +308,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Escape behavior based on configuration
-        bindings.Key(Hex1bKey.Escape).Action(_ =>
+        bindings.Key(Hex1bKey.Escape).Triggers(CloseAction, _ =>
         {
             var shouldClose = EscapeBehavior switch
             {
@@ -322,7 +326,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         }, "Close window");
 
         // Mouse click handles button clicks and brings window to front
-        bindings.Mouse(Input.MouseButton.Left).Action(ctx =>
+        bindings.Mouse(Input.MouseButton.Left).Triggers(ClickAction, ctx =>
         {
             // Check for button clicks first
             var localX = ctx.MouseX - Bounds.X;
@@ -979,7 +983,7 @@ internal sealed class TitleBarIconNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Mouse(Input.MouseButton.Left).Action(ctx =>
+        bindings.Mouse(Input.MouseButton.Left).Triggers(WindowNode.TitleBarIconClickAction, ctx =>
         {
             if (Action != null && Entry != null)
             {

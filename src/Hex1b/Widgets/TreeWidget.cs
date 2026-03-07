@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -10,6 +11,30 @@ namespace Hex1b.Widgets;
 /// <param name="Items">The root tree items to display.</param>
 public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidget
 {
+    /// <summary>Action ID for moving focus up in the tree.</summary>
+    public static readonly ActionId MoveUpActionId = new("Tree.MoveUp");
+
+    /// <summary>Action ID for moving focus down in the tree.</summary>
+    public static readonly ActionId MoveDownActionId = new("Tree.MoveDown");
+
+    /// <summary>Action ID for collapsing or moving to parent.</summary>
+    public static readonly ActionId CollapseOrParentActionId = new("Tree.CollapseOrParent");
+
+    /// <summary>Action ID for expanding or moving to child.</summary>
+    public static readonly ActionId ExpandOrChildActionId = new("Tree.ExpandOrChild");
+
+    /// <summary>Action ID for activating the focused item.</summary>
+    public static readonly ActionId ActivateActionId = new("Tree.Activate");
+
+    /// <summary>Action ID for toggling selection or expand state.</summary>
+    public static readonly ActionId ToggleActionId = new("Tree.Toggle");
+
+    /// <summary>Action ID for selecting an item via mouse click.</summary>
+    public static readonly ActionId SelectItemActionId = new("Tree.SelectItem");
+
+    /// <summary>Action ID for activating an item via mouse double-click.</summary>
+    public static readonly ActionId DoubleClickActivateActionId = new("Tree.DoubleClickActivate");
+
     /// <summary>
     /// Whether multiple items can be selected with checkboxes. Default is false.
     /// When enabled, selecting a parent automatically selects all children (cascade selection).

@@ -57,11 +57,11 @@ public sealed class ButtonNode : Hex1bNode
         if (ClickAction != null)
         {
             // Enter and Space trigger the button
-            bindings.Key(Hex1bKey.Enter).Action(ClickAction, "Activate button");
-            bindings.Key(Hex1bKey.Spacebar).Action(ClickAction, "Activate button");
+            bindings.Key(Hex1bKey.Enter).Triggers(ButtonWidget.Activate, ClickAction, "Activate button");
+            bindings.Key(Hex1bKey.Spacebar).Triggers(ButtonWidget.Activate, ClickAction, "Activate button");
             
             // Left click activates the button
-            bindings.Mouse(MouseButton.Left).Action(ClickAction, "Click button");
+            bindings.Mouse(MouseButton.Left).Triggers(ButtonWidget.Activate, ClickAction, "Click button");
         }
     }
 

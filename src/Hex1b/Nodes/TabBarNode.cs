@@ -388,14 +388,14 @@ public sealed class TabBarNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Left/Right arrow keys to scroll through tabs when overflow
-        bindings.Key(Hex1bKey.LeftArrow).Action(_ =>
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(TabBarWidget.ScrollLeft, _ =>
         {
             if (CanScrollLeft)
                 ScrollOffset--;
             return Task.CompletedTask;
         }, "Scroll tabs left");
 
-        bindings.Key(Hex1bKey.RightArrow).Action(_ =>
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TabBarWidget.ScrollRight, _ =>
         {
             if (CanScrollRight)
                 ScrollOffset++;
@@ -403,7 +403,7 @@ public sealed class TabBarNode : Hex1bNode
         }, "Scroll tabs right");
 
         // Mouse click on tabs and arrows
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select tab or scroll");
+        bindings.Mouse(MouseButton.Left).Triggers(TabBarWidget.Click, HandleMouseClick, "Select tab or scroll");
     }
 
     private async Task HandleMouseClick(InputBindingActionContext ctx)

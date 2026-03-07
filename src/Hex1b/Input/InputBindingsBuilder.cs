@@ -10,6 +10,7 @@ public sealed class InputBindingsBuilder
     private readonly List<CharacterBinding> _characterBindings = [];
     private readonly List<MouseBinding> _mouseBindings = [];
     private readonly List<DragBinding> _dragBindings = [];
+    private readonly Dictionary<ActionId, (Func<InputBindingActionContext, Task> Handler, string? Description)> _actionRegistry = new();
 
     /// <summary>
     /// Gets all key bindings currently configured.
@@ -132,9 +133,82 @@ public sealed class InputBindingsBuilder
     }
 
     /// <summary>
+    /// Removes all bindings (key, mouse, character, and drag) with the specified action ID.
+    /// The action handler remains in the registry for future rebinding via 
+    /// <see cref="KeyStepBuilder.Triggers(ActionId)"/>.
+    /// </summary>
+    public void Remove(ActionId actionId)
+    {
+        _bindings.RemoveAll(b => b.ActionId == actionId);
+        _mouseBindings.RemoveAll(b => b.ActionId == actionId);
+        _characterBindings.RemoveAll(b => b.ActionId == actionId);
+        _dragBindings.RemoveAll(b => b.ActionId == actionId);
+    }
+
+    /// <summary>
     /// Clears all bindings (including defaults).
     /// </summary>
     public void Clear() => _bindings.Clear();
+
+    /// <summary>
+    /// Removes all bindings of every type (key, mouse, character, and drag).
+    /// Action handlers remain in the registry for future rebinding.
+    /// </summary>
+    public void RemoveAll()
+    {
+        _bindings.Clear();
+        _characterBindings.Clear();
+        _mouseBindings.Clear();
+        _dragBindings.Clear();
+    }
+
+    /// <summary>
+    /// Returns all key bindings with the specified action ID.
+    /// </summary>
+    public IReadOnlyList<InputBinding> GetBindings(ActionId actionId)
+        => _bindings.Where(b => b.ActionId == actionId).ToList();
+
+    /// <summary>
+    /// Returns all unique action IDs across all binding types.
+    /// </summary>
+    public IReadOnlyList<ActionId> GetAllActionIds()
+    {
+        var ids = new HashSet<ActionId>();
+        foreach (var b in _bindings)
+            if (b.ActionId is { } id) ids.Add(id);
+        foreach (var b in _mouseBindings)
+            if (b.ActionId is { } id) ids.Add(id);
+        foreach (var b in _characterBindings)
+            if (b.ActionId is { } id) ids.Add(id);
+        foreach (var b in _dragBindings)
+            if (b.ActionId is { } id) ids.Add(id);
+        return [.. ids];
+    }
+
+    /// <summary>
+    /// Registers an action handler in the internal registry.
+    /// Called by <see cref="KeyStepBuilder.Triggers(ActionId, Action{InputBindingActionContext}, string?)"/>
+    /// during default binding setup. The registry persists across <see cref="Remove(ActionId)"/> calls.
+    /// </summary>
+    internal void RegisterAction(ActionId actionId, Func<InputBindingActionContext, Task> handler, string? description)
+    {
+        // First registration wins — if the same action is registered multiple times
+        // (e.g., Enter and Spacebar both trigger Activate), keep the first handler.
+        _actionRegistry.TryAdd(actionId, (handler, description));
+    }
+
+    /// <summary>
+    /// Gets a previously registered action handler from the registry.
+    /// </summary>
+    /// <exception cref="InvalidOperationException">Thrown if the action has not been registered.</exception>
+    internal (Func<InputBindingActionContext, Task> Handler, string? Description) GetRegisteredAction(ActionId actionId)
+    {
+        if (!_actionRegistry.TryGetValue(actionId, out var entry))
+            throw new InvalidOperationException(
+                $"Action '{actionId.Value}' has not been registered. " +
+                $"Use Triggers(actionId, handler, description) to register it first.");
+        return entry;
+    }
 
     /// <summary>
     /// Builds the final list of bindings.

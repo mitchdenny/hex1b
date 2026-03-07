@@ -29,6 +29,12 @@ public sealed class CharacterBinding
     public string? Description { get; }
 
     /// <summary>
+    /// A stable identifier for the action this binding performs.
+    /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
+    /// </summary>
+    public ActionId? ActionId { get; internal set; }
+
+    /// <summary>
     /// Creates a text binding with the given predicate and synchronous handler.
     /// </summary>
     public CharacterBinding(Func<string, bool> predicate, Action<string> handler, string? description = null)

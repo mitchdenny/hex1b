@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 
 namespace Hex1b.Widgets;
 
@@ -43,6 +44,27 @@ namespace Hex1b.Widgets;
 /// <seealso cref="Theming.SliderTheme"/>
 public sealed record SliderWidget : Hex1bWidget
 {
+    /// <summary>Action ID for decreasing the slider value by a small step.</summary>
+    public static readonly ActionId DecreaseSmallActionId = new("Slider.DecreaseSmall");
+
+    /// <summary>Action ID for increasing the slider value by a small step.</summary>
+    public static readonly ActionId IncreaseSmallActionId = new("Slider.IncreaseSmall");
+
+    /// <summary>Action ID for jumping to the minimum value.</summary>
+    public static readonly ActionId JumpToMinimumActionId = new("Slider.JumpToMinimum");
+
+    /// <summary>Action ID for jumping to the maximum value.</summary>
+    public static readonly ActionId JumpToMaximumActionId = new("Slider.JumpToMaximum");
+
+    /// <summary>Action ID for increasing the slider value by a large step.</summary>
+    public static readonly ActionId IncreaseLargeActionId = new("Slider.IncreaseLarge");
+
+    /// <summary>Action ID for decreasing the slider value by a large step.</summary>
+    public static readonly ActionId DecreaseLargeActionId = new("Slider.DecreaseLarge");
+
+    /// <summary>Action ID for setting the slider value via mouse click.</summary>
+    public static readonly ActionId SetValueActionId = new("Slider.SetValue");
+
     /// <summary>
     /// The minimum value of the slider range.
     /// </summary>

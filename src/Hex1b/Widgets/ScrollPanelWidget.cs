@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -9,6 +10,20 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record ScrollPanelWidget : Hex1bWidget
 {
+    public static readonly ActionId ScrollUpAction = new("ScrollPanel.ScrollUp");
+    public static readonly ActionId ScrollDownAction = new("ScrollPanel.ScrollDown");
+    public static readonly ActionId ScrollLeftAction = new("ScrollPanel.ScrollLeft");
+    public static readonly ActionId ScrollRightAction = new("ScrollPanel.ScrollRight");
+    public static readonly ActionId PageUpAction = new("ScrollPanel.PageUp");
+    public static readonly ActionId PageDownAction = new("ScrollPanel.PageDown");
+    public static readonly ActionId ScrollToStartAction = new("ScrollPanel.ScrollToStart");
+    public static readonly ActionId ScrollToEndAction = new("ScrollPanel.ScrollToEnd");
+    public static readonly ActionId FocusNextAction = new("ScrollPanel.FocusNext");
+    public static readonly ActionId FocusPreviousAction = new("ScrollPanel.FocusPrevious");
+    public static readonly ActionId FocusFirstAction = new("ScrollPanel.FocusFirst");
+    public static readonly ActionId MouseScrollUpAction = new("ScrollPanel.MouseScrollUp");
+    public static readonly ActionId MouseScrollDownAction = new("ScrollPanel.MouseScrollDown");
+
     /// <summary>
     /// The child widget to scroll.
     /// </summary>

@@ -125,10 +125,10 @@ public sealed class HyperlinkNode : Hex1bNode
         if (ClickAction != null)
         {
             // Enter triggers the link
-            bindings.Key(Hex1bKey.Enter).Action(ClickAction, "Open link");
+            bindings.Key(Hex1bKey.Enter).Triggers(HyperlinkWidget.ActivateActionId, ClickAction, "Open link");
             
             // Left click activates the link
-            bindings.Mouse(MouseButton.Left).Action(ClickAction, "Click link");
+            bindings.Mouse(MouseButton.Left).Triggers(HyperlinkWidget.ActivateActionId, ClickAction, "Click link");
         }
     }
 

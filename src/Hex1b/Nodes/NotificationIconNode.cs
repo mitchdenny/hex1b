@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
 
@@ -70,9 +71,9 @@ public sealed class NotificationIconNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.Enter).Action(TogglePanel, "Toggle notifications");
-        bindings.Key(Hex1bKey.Spacebar).Action(TogglePanel, "Toggle notifications");
-        bindings.Mouse(MouseButton.Left).Action(TogglePanel, "Toggle notifications");
+        bindings.Key(Hex1bKey.Enter).Triggers(NotificationIconWidget.TogglePanelAction, TogglePanel, "Toggle notifications");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(NotificationIconWidget.TogglePanelAction, TogglePanel, "Toggle notifications");
+        bindings.Mouse(MouseButton.Left).Triggers(NotificationIconWidget.TogglePanelAction, TogglePanel, "Toggle notifications");
     }
 
     private Task TogglePanel(InputBindingActionContext ctx)

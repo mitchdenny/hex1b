@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -8,6 +9,13 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record MenuSeparatorWidget() : Hex1bWidget, IMenuChild
 {
+    /// <summary>Rebindable action: Close the parent menu.</summary>
+    public static readonly ActionId Close = new("MenuSeparator.Close");
+    /// <summary>Rebindable action: Navigate to previous menu.</summary>
+    public static readonly ActionId PreviousMenu = new("MenuSeparator.PreviousMenu");
+    /// <summary>Rebindable action: Navigate to next menu.</summary>
+    public static readonly ActionId NextMenu = new("MenuSeparator.NextMenu");
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as MenuSeparatorNode ?? new MenuSeparatorNode();

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -18,6 +19,13 @@ namespace Hex1b.Widgets;
 /// </example>
 public sealed record AccordionWidget(IReadOnlyList<AccordionSectionWidget> Sections) : Hex1bWidget
 {
+    public static readonly ActionId ToggleSectionAction = new("Accordion.ToggleSection");
+    public static readonly ActionId PreviousSectionAction = new("Accordion.PreviousSection");
+    public static readonly ActionId NextSectionAction = new("Accordion.NextSection");
+    public static readonly ActionId FocusNextAction = new("Accordion.FocusNext");
+    public static readonly ActionId FocusPreviousAction = new("Accordion.FocusPrevious");
+    public static readonly ActionId ClickAction = new("Accordion.Click");
+
     /// <summary>
     /// Handler called when a section is expanded or collapsed.
     /// </summary>

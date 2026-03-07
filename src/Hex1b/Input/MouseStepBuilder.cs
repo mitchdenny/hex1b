@@ -101,4 +101,42 @@ public sealed class MouseStepBuilder
         _parent.AddMouseBinding(binding);
         return _parent;
     }
+
+    /// <summary>
+    /// Binds a mouse action and registers it for the specified action ID.
+    /// The handler is registered in the action registry for future rebinding.
+    /// </summary>
+    public InputBindingsBuilder Triggers(ActionId actionId, Action action, string? description = null)
+    {
+        _parent.RegisterAction(actionId, _ => { action(); return Task.CompletedTask; }, description);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
+        binding.ActionId = actionId;
+        _parent.AddMouseBinding(binding);
+        return _parent;
+    }
+
+    /// <summary>
+    /// Binds a mouse action and registers it for the specified action ID.
+    /// The handler is registered in the action registry for future rebinding.
+    /// </summary>
+    public InputBindingsBuilder Triggers(ActionId actionId, Action<InputBindingActionContext> action, string? description = null)
+    {
+        _parent.RegisterAction(actionId, ctx => { action(ctx); return Task.CompletedTask; }, description);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
+        binding.ActionId = actionId;
+        _parent.AddMouseBinding(binding);
+        return _parent;
+    }
+
+    /// <summary>
+    /// Binds a mouse action and registers it for the specified action ID.
+    /// </summary>
+    public InputBindingsBuilder Triggers(ActionId actionId, Func<InputBindingActionContext, Task> action, string? description = null)
+    {
+        _parent.RegisterAction(actionId, action, description);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
+        binding.ActionId = actionId;
+        _parent.AddMouseBinding(binding);
+        return _parent;
+    }
 }

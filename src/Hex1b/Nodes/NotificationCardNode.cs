@@ -119,7 +119,7 @@ public sealed class NotificationCardNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Escape dismisses the notification (global shortcut)
-        bindings.Key(Hex1bKey.Escape).Action(DismissNotification, "Dismiss");
+        bindings.Key(Hex1bKey.Escape).Triggers(NotificationCardWidget.DismissAction, DismissNotification, "Dismiss");
     }
 
     private async Task DismissNotification(InputBindingActionContext ctx)

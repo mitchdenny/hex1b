@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -9,6 +10,15 @@ namespace Hex1b.Widgets;
 /// <param name="Menus">The top-level menus in the bar.</param>
 public sealed record MenuBarWidget(IReadOnlyList<MenuWidget> Menus) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Focus previous menu.</summary>
+    public static readonly ActionId PreviousMenu = new("MenuBar.PreviousMenu");
+    /// <summary>Rebindable action: Focus next menu.</summary>
+    public static readonly ActionId NextMenu = new("MenuBar.NextMenu");
+    /// <summary>Rebindable action: Focus next focusable element.</summary>
+    public static readonly ActionId NextFocusable = new("MenuBar.NextFocusable");
+    /// <summary>Rebindable action: Focus previous focusable element.</summary>
+    public static readonly ActionId PreviousFocusable = new("MenuBar.PreviousFocusable");
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as MenuBarNode ?? new MenuBarNode();

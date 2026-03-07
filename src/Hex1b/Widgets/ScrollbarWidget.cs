@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -15,6 +16,17 @@ public sealed record ScrollbarWidget(
     int ViewportSize,
     int Offset) : Hex1bWidget
 {
+    public static readonly ActionId ScrollUpAction = new("Scrollbar.ScrollUp");
+    public static readonly ActionId ScrollDownAction = new("Scrollbar.ScrollDown");
+    public static readonly ActionId PageUpAction = new("Scrollbar.PageUp");
+    public static readonly ActionId PageDownAction = new("Scrollbar.PageDown");
+    public static readonly ActionId ScrollToTopAction = new("Scrollbar.ScrollToTop");
+    public static readonly ActionId ScrollToBottomAction = new("Scrollbar.ScrollToBottom");
+    public static readonly ActionId ScrollLeftAction = new("Scrollbar.ScrollLeft");
+    public static readonly ActionId ScrollRightAction = new("Scrollbar.ScrollRight");
+    public static readonly ActionId ScrollToStartAction = new("Scrollbar.ScrollToStart");
+    public static readonly ActionId ScrollToEndAction = new("Scrollbar.ScrollToEnd");
+
     /// <summary>
     /// Handler called when the scroll offset changes.
     /// </summary>

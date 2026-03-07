@@ -140,13 +140,13 @@ public sealed class BackdropNode : Hex1bNode
         // Backdrop captures Escape to trigger click-away (if handler is set)
         if (hasHandler)
         {
-            bindings.Key(Hex1bKey.Escape).Action(async _ => await InvokeClickAway(-1, -1), "Dismiss");
+            bindings.Key(Hex1bKey.Escape).Triggers(BackdropWidget.DismissAction, async _ => await InvokeClickAway(-1, -1), "Dismiss");
         }
 
         // Mouse click on backdrop (not on child) triggers click-away
         if (hasHandler)
         {
-            bindings.Mouse(MouseButton.Left).Action(async ctx =>
+            bindings.Mouse(MouseButton.Left).Triggers(BackdropWidget.ClickAwayAction, async ctx =>
             {
                 // Check if click is on child content bounds - if so, don't trigger click-away
                 // Use ContentBounds instead of Bounds for nodes like AnchoredNode that

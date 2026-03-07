@@ -57,15 +57,16 @@ public sealed class MenuBarNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Left/Right navigation between menu triggers
-        bindings.Key(Hex1bKey.LeftArrow).Action(FocusPreviousMenu, "Previous menu");
-        bindings.Key(Hex1bKey.RightArrow).Action(FocusNextMenu, "Next menu");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuBarWidget.PreviousMenu, FocusPreviousMenu, "Previous menu");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(MenuBarWidget.NextMenu, FocusNextMenu, "Next menu");
         
         // Tab navigation
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(MenuBarWidget.NextFocusable, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(MenuBarWidget.PreviousFocusable, ctx => ctx.FocusPrevious(), "Previous focusable");
         
         // Alt+Key accelerators for each menu - these are GLOBAL bindings
         // so they work regardless of focus (e.g., from a TextBox)
+        // Dynamic per-menu accelerators keep .Action() since they are generated per-instance
         foreach (var (menu, accel, _) in MenuAccelerators)
         {
             if (accel.HasValue)

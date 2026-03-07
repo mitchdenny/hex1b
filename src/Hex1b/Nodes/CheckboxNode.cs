@@ -63,9 +63,9 @@ public sealed class CheckboxNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.Enter).Action(Toggle, "Toggle checkbox");
-        bindings.Key(Hex1bKey.Spacebar).Action(Toggle, "Toggle checkbox");
-        bindings.Mouse(MouseButton.Left).Action(HandleClick, "Toggle checkbox");
+        bindings.Key(Hex1bKey.Enter).Triggers(CheckboxWidget.ToggleActionId, Toggle, "Toggle checkbox");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(CheckboxWidget.ToggleActionId);
+        bindings.Mouse(MouseButton.Left).Triggers(CheckboxWidget.ToggleActionId, HandleClick, "Toggle checkbox");
     }
 
     private async Task Toggle(InputBindingActionContext ctx)

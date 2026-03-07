@@ -1,4 +1,5 @@
 using Hex1b.Data;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -9,6 +10,37 @@ namespace Hex1b.Widgets;
 /// <typeparam name="TRow">The type of data for each row.</typeparam>
 public record TableWidget<TRow> : Hex1bWidget
 {
+    /// <summary>Rebindable action: Move focus to previous row.</summary>
+    public static readonly ActionId MoveUp = new("Table.MoveUp");
+    /// <summary>Rebindable action: Move focus to next row.</summary>
+    public static readonly ActionId MoveDown = new("Table.MoveDown");
+    /// <summary>Rebindable action: Move focus to first row.</summary>
+    public static readonly ActionId MoveToFirst = new("Table.MoveToFirst");
+    /// <summary>Rebindable action: Move focus to last row.</summary>
+    public static readonly ActionId MoveToLast = new("Table.MoveToLast");
+    /// <summary>Rebindable action: Extend selection up.</summary>
+    public static readonly ActionId ExtendUp = new("Table.ExtendUp");
+    /// <summary>Rebindable action: Extend selection down.</summary>
+    public static readonly ActionId ExtendDown = new("Table.ExtendDown");
+    /// <summary>Rebindable action: Extend selection to first row.</summary>
+    public static readonly ActionId ExtendToFirst = new("Table.ExtendToFirst");
+    /// <summary>Rebindable action: Extend selection to last row.</summary>
+    public static readonly ActionId ExtendToLast = new("Table.ExtendToLast");
+    /// <summary>Rebindable action: Toggle row selection.</summary>
+    public static readonly ActionId ToggleSelection = new("Table.ToggleSelection");
+    /// <summary>Rebindable action: Select all rows.</summary>
+    public static readonly ActionId SelectAll = new("Table.SelectAll");
+    /// <summary>Rebindable action: Scroll page up.</summary>
+    public static readonly ActionId PageUp = new("Table.PageUp");
+    /// <summary>Rebindable action: Scroll page down.</summary>
+    public static readonly ActionId PageDown = new("Table.PageDown");
+    /// <summary>Rebindable action: Scroll up via mouse wheel.</summary>
+    public static readonly ActionId ScrollUp = new("Table.ScrollUp");
+    /// <summary>Rebindable action: Scroll down via mouse wheel.</summary>
+    public static readonly ActionId ScrollDown = new("Table.ScrollDown");
+    /// <summary>Rebindable action: Click on a row.</summary>
+    public static readonly ActionId ClickRow = new("Table.ClickRow");
+
     /// <summary>
     /// The data source for the table rows. When null, loading state is shown.
     /// When empty, empty state is shown.

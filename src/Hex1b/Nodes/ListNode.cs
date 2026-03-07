@@ -147,19 +147,19 @@ public sealed class ListNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation with selection changed events
-        bindings.Key(Hex1bKey.UpArrow).Action(MoveUpWithEvent, "Move up");
-        bindings.Key(Hex1bKey.DownArrow).Action(MoveDownWithEvent, "Move down");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(ListWidget.MoveUp, MoveUpWithEvent, "Move up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(ListWidget.MoveDown, MoveDownWithEvent, "Move down");
         
         // Activation - always bind Enter/Space so focused lists consume these keys
-        bindings.Key(Hex1bKey.Enter).Action(ActivateItemWithEvent, "Activate item");
-        bindings.Key(Hex1bKey.Spacebar).Action(ActivateItemWithEvent, "Activate item");
+        bindings.Key(Hex1bKey.Enter).Triggers(ListWidget.Activate, ActivateItemWithEvent, "Activate item");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(ListWidget.Activate, ActivateItemWithEvent, "Activate item");
         
         // Mouse click to select and activate
-        bindings.Mouse(MouseButton.Left).Action(MouseSelectAndActivate, "Select and activate item");
+        bindings.Mouse(MouseButton.Left).Triggers(ListWidget.Activate, MouseSelectAndActivate, "Select and activate item");
         
         // Mouse wheel scrolling - navigates selection like arrow keys (ignores cursor position)
-        bindings.Mouse(MouseButton.ScrollUp).Action(MoveUpWithEvent, "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(MoveDownWithEvent, "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(ListWidget.ScrollUp, MoveUpWithEvent, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(ListWidget.ScrollDown, MoveDownWithEvent, "Scroll down");
     }
 
     private async Task MouseSelectAndActivate(InputBindingActionContext ctx)

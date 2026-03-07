@@ -171,7 +171,7 @@ public sealed class NotificationPanelNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Alt+N toggles the notification drawer
-        bindings.Alt().Key(Hex1bKey.N).Action(ToggleDrawer, "Toggle notifications");
+        bindings.Alt().Key(Hex1bKey.N).Triggers(NotificationPanelWidget.ToggleDrawerAction, ToggleDrawer, "Toggle notifications");
     }
 
     private Task ToggleDrawer(InputBindingActionContext ctx)

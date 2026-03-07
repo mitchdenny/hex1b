@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -37,6 +38,8 @@ namespace Hex1b.Widgets;
 /// <seealso cref="SplitButtonWidget"/>
 public sealed record NotificationCardWidget : Hex1bWidget
 {
+    public static readonly ActionId DismissAction = new("NotificationCard.Dismiss");
+
     /// <summary>
     /// The notification to display in this card.
     /// </summary>

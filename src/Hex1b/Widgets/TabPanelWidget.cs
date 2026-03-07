@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -18,6 +19,21 @@ namespace Hex1b.Widgets;
 /// </example>
 public sealed record TabPanelWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Switch to next tab.</summary>
+    public static readonly ActionId NextTab = new("TabPanel.NextTab");
+    /// <summary>Rebindable action: Switch to previous tab.</summary>
+    public static readonly ActionId PreviousTab = new("TabPanel.PreviousTab");
+    /// <summary>Rebindable action: Focus next focusable element.</summary>
+    public static readonly ActionId NextFocusable = new("TabPanel.NextFocusable");
+    /// <summary>Rebindable action: Focus previous focusable element.</summary>
+    public static readonly ActionId PreviousFocusable = new("TabPanel.PreviousFocusable");
+    /// <summary>Rebindable action: Select tab or scroll via mouse click.</summary>
+    public static readonly ActionId Click = new("TabPanel.Click");
+    /// <summary>Rebindable action: Scroll tabs left via mouse wheel.</summary>
+    public static readonly ActionId ScrollTabsLeft = new("TabPanel.ScrollTabsLeft");
+    /// <summary>Rebindable action: Scroll tabs right via mouse wheel.</summary>
+    public static readonly ActionId ScrollTabsRight = new("TabPanel.ScrollTabsRight");
+
     /// <summary>
     /// Handler called when the selected tab changes.
     /// </summary>

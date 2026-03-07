@@ -40,6 +40,12 @@ namespace Hex1b.Widgets;
 /// <seealso cref="SplitButtonClickedEventArgs"/>
 public sealed record SplitButtonWidget : Hex1bWidget
 {
+    /// <summary>Action ID for activating the primary action.</summary>
+    public static readonly ActionId ActivateActionId = new("SplitButton.Activate");
+
+    /// <summary>Action ID for opening the dropdown menu.</summary>
+    public static readonly ActionId OpenMenuActionId = new("SplitButton.OpenMenu");
+
     /// <summary>
     /// The label for the primary action button.
     /// </summary>

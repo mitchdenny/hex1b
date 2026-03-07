@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -39,6 +40,13 @@ public sealed class TabSelectionChangedEventArgs : EventArgs
 /// </example>
 public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Scroll tabs left.</summary>
+    public static readonly ActionId ScrollLeft = new("TabBar.ScrollLeft");
+    /// <summary>Rebindable action: Scroll tabs right.</summary>
+    public static readonly ActionId ScrollRight = new("TabBar.ScrollRight");
+    /// <summary>Rebindable action: Select tab or scroll via mouse click.</summary>
+    public static readonly ActionId Click = new("TabBar.Click");
+
     /// <summary>
     /// Handler called when the selected tab changes.
     /// </summary>

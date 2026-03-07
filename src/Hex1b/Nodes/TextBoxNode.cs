@@ -94,40 +94,40 @@ public sealed class TextBoxNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation
-        bindings.Key(Hex1bKey.LeftArrow).Action(MoveLeft, "Move left");
-        bindings.Key(Hex1bKey.RightArrow).Action(MoveRight, "Move right");
-        bindings.Key(Hex1bKey.Home).Action(MoveHome, "Go to start");
-        bindings.Key(Hex1bKey.End).Action(MoveEnd, "Go to end");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(TextBoxWidget.MoveLeft, MoveLeft, "Move left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.MoveRight, MoveRight, "Move right");
+        bindings.Key(Hex1bKey.Home).Triggers(TextBoxWidget.MoveHome, MoveHome, "Go to start");
+        bindings.Key(Hex1bKey.End).Triggers(TextBoxWidget.MoveEnd, MoveEnd, "Go to end");
         
         // Word navigation (Ctrl+Arrow)
-        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Action(MoveWordLeft, "Move to previous word");
-        bindings.Ctrl().Key(Hex1bKey.RightArrow).Action(MoveWordRight, "Move to next word");
+        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Triggers(TextBoxWidget.MoveWordLeft, MoveWordLeft, "Move to previous word");
+        bindings.Ctrl().Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.MoveWordRight, MoveWordRight, "Move to next word");
         
         // Selection navigation
-        bindings.Shift().Key(Hex1bKey.LeftArrow).Action(SelectLeft, "Extend selection left");
-        bindings.Shift().Key(Hex1bKey.RightArrow).Action(SelectRight, "Extend selection right");
-        bindings.Shift().Key(Hex1bKey.Home).Action(SelectToStart, "Select to start");
-        bindings.Shift().Key(Hex1bKey.End).Action(SelectToEnd, "Select to end");
+        bindings.Shift().Key(Hex1bKey.LeftArrow).Triggers(TextBoxWidget.SelectLeft, SelectLeft, "Extend selection left");
+        bindings.Shift().Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.SelectRight, SelectRight, "Extend selection right");
+        bindings.Shift().Key(Hex1bKey.Home).Triggers(TextBoxWidget.SelectToStart, SelectToStart, "Select to start");
+        bindings.Shift().Key(Hex1bKey.End).Triggers(TextBoxWidget.SelectToEnd, SelectToEnd, "Select to end");
         
         // Editing - use async handlers to fire callbacks
-        bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
-        bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
+        bindings.Key(Hex1bKey.Backspace).Triggers(TextBoxWidget.DeleteBackward, DeleteBackwardAsync, "Delete backward");
+        bindings.Key(Hex1bKey.Delete).Triggers(TextBoxWidget.DeleteForward, DeleteForwardAsync, "Delete forward");
         
         // Word deletion (Ctrl+Backspace/Delete)
-        bindings.Ctrl().Key(Hex1bKey.Backspace).Action(DeleteWordBackwardAsync, "Delete previous word");
-        bindings.Ctrl().Key(Hex1bKey.Delete).Action(DeleteWordForwardAsync, "Delete next word");
+        bindings.Ctrl().Key(Hex1bKey.Backspace).Triggers(TextBoxWidget.DeleteWordBackward, DeleteWordBackwardAsync, "Delete previous word");
+        bindings.Ctrl().Key(Hex1bKey.Delete).Triggers(TextBoxWidget.DeleteWordForward, DeleteWordForwardAsync, "Delete next word");
         
         // Submit (Enter key)
         if (SubmitAction != null)
         {
-            bindings.Key(Hex1bKey.Enter).Action(SubmitAction, "Submit");
+            bindings.Key(Hex1bKey.Enter).Triggers(TextBoxWidget.Submit, SubmitAction, "Submit");
         }
         
         // Selection
-        bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+        bindings.Ctrl().Key(Hex1bKey.A).Triggers(TextBoxWidget.SelectAll, SelectAll, "Select all");
         
         // Mouse: double-click to select all
-        bindings.Mouse(MouseButton.Left).DoubleClick().Action(SelectAll, "Select all");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Triggers(TextBoxWidget.SelectAll, SelectAll, "Select all");
         
         // Character input - matches any printable text (including emojis)
         bindings.AnyCharacter().Action(InsertTextAsync, "Type text");

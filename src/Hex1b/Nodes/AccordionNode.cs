@@ -415,18 +415,18 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Enter/Space to toggle section
-        bindings.Key(Hex1bKey.Enter).Action(async ctx =>
+        bindings.Key(Hex1bKey.Enter).Triggers(AccordionWidget.ToggleSectionAction, async ctx =>
         {
             await ToggleSectionAsync(_focusedSectionIndex);
         }, "Toggle section");
 
-        bindings.Key(Hex1bKey.Spacebar).Action(async ctx =>
+        bindings.Key(Hex1bKey.Spacebar).Triggers(AccordionWidget.ToggleSectionAction, async ctx =>
         {
             await ToggleSectionAsync(_focusedSectionIndex);
         }, "Toggle section");
 
         // Up/Down to navigate between section headers
-        bindings.Key(Hex1bKey.UpArrow).Action(ctx =>
+        bindings.Key(Hex1bKey.UpArrow).Triggers(AccordionWidget.PreviousSectionAction, ctx =>
         {
             if (_focusedSectionIndex > 0)
             {
@@ -436,7 +436,7 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
             return Task.CompletedTask;
         }, "Previous section");
 
-        bindings.Key(Hex1bKey.DownArrow).Action(ctx =>
+        bindings.Key(Hex1bKey.DownArrow).Triggers(AccordionWidget.NextSectionAction, ctx =>
         {
             if (_focusedSectionIndex < _sections.Count - 1)
             {
@@ -447,11 +447,11 @@ public sealed class AccordionNode : Hex1bNode, ILayoutProvider
         }, "Next section");
 
         // Tab/Shift+Tab for focus navigation into content
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(AccordionWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(AccordionWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
 
         // Mouse click on headers
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Toggle section or click icon");
+        bindings.Mouse(MouseButton.Left).Triggers(AccordionWidget.ClickAction, HandleMouseClick, "Toggle section or click icon");
     }
 
     private async Task HandleMouseClick(InputBindingActionContext ctx)

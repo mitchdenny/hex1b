@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -34,6 +35,11 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record WindowPanelWidget(string? Name = null) : Hex1bWidget
 {
+    public static readonly ActionId FocusNextAction = new("WindowPanel.FocusNext");
+    public static readonly ActionId FocusPreviousAction = new("WindowPanel.FocusPrevious");
+    public static readonly ActionId PanUpAction = new("WindowPanel.PanUp");
+    public static readonly ActionId PanDownAction = new("WindowPanel.PanDown");
+
     /// <summary>
     /// Whether windows can be moved outside the panel bounds.
     /// When true, scrollbars appear to allow panning to out-of-bounds windows.

@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 
 namespace Hex1b.Widgets;
 
@@ -8,6 +9,9 @@ namespace Hex1b.Widgets;
 /// <param name="State">The current state of the checkbox.</param>
 public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecked) : Hex1bWidget
 {
+    /// <summary>Action ID for toggling the checkbox state.</summary>
+    public static readonly ActionId ToggleActionId = new("Checkbox.Toggle");
+
     /// <summary>
     /// Optional label displayed after the checkbox.
     /// </summary>

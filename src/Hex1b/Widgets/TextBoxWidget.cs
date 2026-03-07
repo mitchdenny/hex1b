@@ -1,10 +1,46 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
 public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Move cursor left.</summary>
+    public static readonly ActionId MoveLeft = new("TextBox.MoveLeft");
+    /// <summary>Rebindable action: Move cursor right.</summary>
+    public static readonly ActionId MoveRight = new("TextBox.MoveRight");
+    /// <summary>Rebindable action: Move cursor to start.</summary>
+    public static readonly ActionId MoveHome = new("TextBox.MoveHome");
+    /// <summary>Rebindable action: Move cursor to end.</summary>
+    public static readonly ActionId MoveEnd = new("TextBox.MoveEnd");
+    /// <summary>Rebindable action: Move cursor to previous word.</summary>
+    public static readonly ActionId MoveWordLeft = new("TextBox.MoveWordLeft");
+    /// <summary>Rebindable action: Move cursor to next word.</summary>
+    public static readonly ActionId MoveWordRight = new("TextBox.MoveWordRight");
+    /// <summary>Rebindable action: Extend selection left.</summary>
+    public static readonly ActionId SelectLeft = new("TextBox.SelectLeft");
+    /// <summary>Rebindable action: Extend selection right.</summary>
+    public static readonly ActionId SelectRight = new("TextBox.SelectRight");
+    /// <summary>Rebindable action: Select to start.</summary>
+    public static readonly ActionId SelectToStart = new("TextBox.SelectToStart");
+    /// <summary>Rebindable action: Select to end.</summary>
+    public static readonly ActionId SelectToEnd = new("TextBox.SelectToEnd");
+    /// <summary>Rebindable action: Delete character backward.</summary>
+    public static readonly ActionId DeleteBackward = new("TextBox.DeleteBackward");
+    /// <summary>Rebindable action: Delete character forward.</summary>
+    public static readonly ActionId DeleteForward = new("TextBox.DeleteForward");
+    /// <summary>Rebindable action: Delete previous word.</summary>
+    public static readonly ActionId DeleteWordBackward = new("TextBox.DeleteWordBackward");
+    /// <summary>Rebindable action: Delete next word.</summary>
+    public static readonly ActionId DeleteWordForward = new("TextBox.DeleteWordForward");
+    /// <summary>Rebindable action: Select all text.</summary>
+    public static readonly ActionId SelectAll = new("TextBox.SelectAll");
+    /// <summary>Rebindable action: Submit text.</summary>
+    public static readonly ActionId Submit = new("TextBox.Submit");
+    /// <summary>Rebindable action: Insert typed text.</summary>
+    public static readonly ActionId InsertText = new("TextBox.InsertText");
+
     /// <summary>
     /// Internal handler for text changed events.
     /// </summary>

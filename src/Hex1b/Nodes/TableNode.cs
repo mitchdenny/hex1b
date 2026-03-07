@@ -382,34 +382,34 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Row navigation (moves focus between rows, auto-scrolls to keep focus visible)
-        bindings.Key(Hex1bKey.UpArrow).Action(MoveFocusUp, "Previous row");
-        bindings.Key(Hex1bKey.DownArrow).Action(MoveFocusDown, "Next row");
-        bindings.Key(Hex1bKey.Home).Action(MoveFocusToFirst, "First row");
-        bindings.Key(Hex1bKey.End).Action(MoveFocusToLast, "Last row");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(TableWidget<TRow>.MoveUp, MoveFocusUp, "Previous row");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(TableWidget<TRow>.MoveDown, MoveFocusDown, "Next row");
+        bindings.Key(Hex1bKey.Home).Triggers(TableWidget<TRow>.MoveToFirst, MoveFocusToFirst, "First row");
+        bindings.Key(Hex1bKey.End).Triggers(TableWidget<TRow>.MoveToLast, MoveFocusToLast, "Last row");
         
         // Shift+Arrow for range selection
-        bindings.Shift().Key(Hex1bKey.UpArrow).Action(ExtendSelectionUp, "Extend selection up");
-        bindings.Shift().Key(Hex1bKey.DownArrow).Action(ExtendSelectionDown, "Extend selection down");
-        bindings.Shift().Key(Hex1bKey.Home).Action(ExtendSelectionToFirst, "Select to first");
-        bindings.Shift().Key(Hex1bKey.End).Action(ExtendSelectionToLast, "Select to last");
+        bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TableWidget<TRow>.ExtendUp, ExtendSelectionUp, "Extend selection up");
+        bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TableWidget<TRow>.ExtendDown, ExtendSelectionDown, "Extend selection down");
+        bindings.Shift().Key(Hex1bKey.Home).Triggers(TableWidget<TRow>.ExtendToFirst, ExtendSelectionToFirst, "Select to first");
+        bindings.Shift().Key(Hex1bKey.End).Triggers(TableWidget<TRow>.ExtendToLast, ExtendSelectionToLast, "Select to last");
         
         // Selection commands
-        bindings.Key(Hex1bKey.Spacebar).Action(ToggleSelection, "Toggle selection");
-        bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(TableWidget<TRow>.ToggleSelection, ToggleSelection, "Toggle selection");
+        bindings.Ctrl().Key(Hex1bKey.A).Triggers(TableWidget<TRow>.SelectAll, SelectAll, "Select all");
         
         // Page scrolling (scrolls viewport, keeps focus if possible)
-        bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
-        bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
+        bindings.Key(Hex1bKey.PageUp).Triggers(TableWidget<TRow>.PageUp, PageUp, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Triggers(TableWidget<TRow>.PageDown, PageDown, "Page down");
         
         // Mouse wheel scrolling
-        bindings.Mouse(MouseButton.ScrollUp).Action(_ => { ScrollByAmount(-3); UserScrolledAway = true; }, "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(_ => { ScrollByAmount(3); if (_scrollOffset >= MaxScrollOffset) UserScrolledAway = false; }, "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TableWidget<TRow>.ScrollUp, _ => { ScrollByAmount(-3); UserScrolledAway = true; }, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TableWidget<TRow>.ScrollDown, _ => { ScrollByAmount(3); if (_scrollOffset >= MaxScrollOffset) UserScrolledAway = false; }, "Scroll down");
         
-        // Scrollbar drag
+        // Scrollbar drag — DragStepBuilder has no Triggers, keep .Action()
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");
         
         // Mouse click on rows
-        bindings.Mouse(MouseButton.Left).Action(HandleRowClick, "Click row");
+        bindings.Mouse(MouseButton.Left).Triggers(TableWidget<TRow>.ClickRow, HandleRowClick, "Click row");
     }
 
     /// <summary>

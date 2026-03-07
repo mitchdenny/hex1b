@@ -12,6 +12,7 @@ public sealed class KeyStepBuilder
     private Hex1bKey? _currentKey;
     private bool _isGlobal;
     private bool _overridesCapture;
+    private ActionId? _actionId;
 
     internal KeyStepBuilder(InputBindingsBuilder parent)
     {
@@ -107,6 +108,7 @@ public sealed class KeyStepBuilder
         CommitCurrentStep();
         var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
         binding.OverridesCapture = _overridesCapture;
+        binding.ActionId = _actionId;
         _parent.AddBinding(binding);
     }
 
@@ -119,6 +121,7 @@ public sealed class KeyStepBuilder
         CommitCurrentStep();
         var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
         binding.OverridesCapture = _overridesCapture;
+        binding.ActionId = _actionId;
         _parent.AddBinding(binding);
     }
 
@@ -130,7 +133,61 @@ public sealed class KeyStepBuilder
         CommitCurrentStep();
         var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
         binding.OverridesCapture = _overridesCapture;
+        binding.ActionId = _actionId;
         _parent.AddBinding(binding);
+    }
+
+    /// <summary>
+    /// Completes the binding by registering it for the specified action.
+    /// The handler is provided and registered in the action registry for future rebinding.
+    /// </summary>
+    /// <param name="actionId">The action this binding triggers.</param>
+    /// <param name="handler">The handler to execute (no context).</param>
+    /// <param name="description">Optional description for help/documentation.</param>
+    public void Triggers(ActionId actionId, Action handler, string? description = null)
+    {
+        _actionId = actionId;
+        _parent.RegisterAction(actionId, _ => { handler(); return Task.CompletedTask; }, description);
+        Action(handler, description);
+    }
+
+    /// <summary>
+    /// Completes the binding by registering it for the specified action.
+    /// The handler is provided and registered in the action registry for future rebinding.
+    /// </summary>
+    /// <param name="actionId">The action this binding triggers.</param>
+    /// <param name="handler">The handler to execute.</param>
+    /// <param name="description">Optional description for help/documentation.</param>
+    public void Triggers(ActionId actionId, Action<InputBindingActionContext> handler, string? description = null)
+    {
+        _actionId = actionId;
+        _parent.RegisterAction(actionId, ctx => { handler(ctx); return Task.CompletedTask; }, description);
+        Action(handler, description);
+    }
+
+    /// <summary>
+    /// Completes the binding by registering it for the specified action.
+    /// The handler is provided and registered in the action registry for future rebinding.
+    /// </summary>
+    public void Triggers(ActionId actionId, Func<InputBindingActionContext, Task> handler, string? description = null)
+    {
+        _actionId = actionId;
+        _parent.RegisterAction(actionId, handler, description);
+        Action(handler, description);
+    }
+
+    /// <summary>
+    /// Completes the binding by rebinding a previously registered action to this key.
+    /// The handler is auto-resolved from the action registry.
+    /// </summary>
+    /// <param name="actionId">The action to rebind. Must have been previously registered via 
+    /// <see cref="Triggers(ActionId, Action{InputBindingActionContext}, string?)"/>.</param>
+    /// <exception cref="InvalidOperationException">Thrown if the action has not been registered.</exception>
+    public void Triggers(ActionId actionId)
+    {
+        var (handler, description) = _parent.GetRegisteredAction(actionId);
+        _actionId = actionId;
+        Action(handler, description);
     }
 
     private void CommitCurrentStep()

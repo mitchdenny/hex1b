@@ -72,9 +72,9 @@ public sealed class InteractableNode : Hex1bNode
     {
         if (ClickAction != null)
         {
-            bindings.Key(Hex1bKey.Enter).Action(ClickAction, "Activate");
-            bindings.Key(Hex1bKey.Spacebar).Action(ClickAction, "Activate");
-            bindings.Mouse(MouseButton.Left).Action(ClickAction, "Click");
+            bindings.Key(Hex1bKey.Enter).Triggers(InteractableWidget.Activate, ClickAction, "Activate");
+            bindings.Key(Hex1bKey.Spacebar).Triggers(InteractableWidget.Activate, ClickAction, "Activate");
+            bindings.Mouse(MouseButton.Left).Triggers(InteractableWidget.Activate, ClickAction, "Click");
         }
     }
 

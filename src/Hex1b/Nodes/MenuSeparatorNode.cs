@@ -36,11 +36,11 @@ public sealed class MenuSeparatorNode : Hex1bNode
         if (!IsFallbackFocusable) return;
         
         // All navigation keys close the menu and return to the trigger
-        bindings.Key(Hex1bKey.UpArrow).Action(CloseParentMenu, "Close menu");
-        bindings.Key(Hex1bKey.DownArrow).Action(CloseParentMenu, "Close menu");
-        bindings.Key(Hex1bKey.LeftArrow).Action(NavigateToPreviousMenu, "Previous menu");
-        bindings.Key(Hex1bKey.RightArrow).Action(NavigateToNextMenu, "Next menu");
-        bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(MenuSeparatorWidget.Close, CloseParentMenu, "Close menu");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(MenuSeparatorWidget.Close, CloseParentMenu, "Close menu");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuSeparatorWidget.PreviousMenu, NavigateToPreviousMenu, "Previous menu");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(MenuSeparatorWidget.NextMenu, NavigateToNextMenu, "Next menu");
+        bindings.Key(Hex1bKey.Escape).Triggers(MenuSeparatorWidget.Close, CloseParentMenu, "Close menu");
     }
     
     /// <summary>
