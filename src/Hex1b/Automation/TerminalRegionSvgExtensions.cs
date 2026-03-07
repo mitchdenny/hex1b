@@ -238,12 +238,8 @@ public static class TerminalRegionSvgExtensions
         // KGP images
         if (region is Hex1bTerminalSnapshot snapshot2)
         {
-            var renderedKgpPlacements = new HashSet<(uint, uint)>();
             foreach (var placement in snapshot2.KgpPlacements)
             {
-                if (!renderedKgpPlacements.Add((placement.ImageId, placement.PlacementId)))
-                    continue;
-
                 if (snapshot2.KgpImages.TryGetValue(placement.ImageId, out var imageData))
                 {
                     var imgX = placement.Column * cellWidth;
@@ -251,7 +247,10 @@ public static class TerminalRegionSvgExtensions
                     var imgWidth = (int)placement.DisplayColumns * cellWidth;
                     var imgHeight = (int)placement.DisplayRows * cellHeight;
 
-                    var dataUri = EncodeRgbaToDataUri(imageData.Data, imageData.Width, imageData.Height, imageData.Format);
+                    var dataUri = EncodeRgbaToDataUri(
+                        imageData.Data, imageData.Width, imageData.Height, imageData.Format,
+                        placement.SourceX, placement.SourceY,
+                        placement.SourceWidth, placement.SourceHeight);
                     if (dataUri is not null)
                     {
                         sb.AppendLine($"""    <image x="{imgX}" y="{imgY}" width="{imgWidth}" height="{imgHeight}" href="{dataUri}" preserveAspectRatio="none" style="image-rendering: pixelated;"/>""");
@@ -540,14 +539,28 @@ public static class TerminalRegionSvgExtensions
         return sb.ToString();
     }
 
-    private static string? EncodeRgbaToDataUri(byte[] data, uint width, uint height, KgpFormat format)
+    private static string? EncodeRgbaToDataUri(
+        byte[] data, uint width, uint height, KgpFormat format,
+        uint sourceX = 0, uint sourceY = 0,
+        uint sourceWidth = 0, uint sourceHeight = 0)
     {
         if (data.Length == 0 || width == 0 || height == 0)
             return null;
 
         int bytesPerPixel = format == KgpFormat.Rgb24 ? 3 : 4;
-        int w = (int)width;
-        int h = (int)height;
+        int fullW = (int)width;
+
+        // Apply source crop region (0 means full extent)
+        int cropX = (int)sourceX;
+        int cropY = (int)sourceY;
+        int w = sourceWidth > 0 ? (int)sourceWidth : fullW - cropX;
+        int h = sourceHeight > 0 ? (int)sourceHeight : (int)height - cropY;
+
+        // Clamp to image bounds
+        w = Math.Min(w, fullW - cropX);
+        h = Math.Min(h, (int)height - cropY);
+        if (w <= 0 || h <= 0)
+            return null;
 
         // Create BMP with bottom-up row order
         int rowSize = (w * 3 + 3) & ~3; // BMP rows are 4-byte aligned
@@ -571,11 +584,11 @@ public static class TerminalRegionSvgExtensions
         // Write pixel data (BMP is bottom-up, BGR order)
         for (int y = 0; y < h; y++)
         {
-            int srcRow = (h - 1 - y) * w * bytesPerPixel;
+            int srcRow = (cropY + h - 1 - y) * fullW * bytesPerPixel;
             int dstRow = y * rowSize;
             for (int x = 0; x < w; x++)
             {
-                int si = srcRow + x * bytesPerPixel;
+                int si = srcRow + (cropX + x) * bytesPerPixel;
                 int di = dstRow + x * 3;
                 if (si + 2 < data.Length)
                 {
