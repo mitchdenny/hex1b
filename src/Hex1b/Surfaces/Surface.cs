@@ -544,6 +544,12 @@ public sealed class Surface : ISurfaceSource
                             $"  After clip: REMOVED\n");
                     }
                 }
+                
+                // Clip KGP images that would extend beyond destination bounds
+                if (srcCell.HasKgp && srcCell.Kgp?.Data is not null)
+                {
+                    srcCell = ClipKgpCell(srcCell, destX, destY);
+                }
 
                 var index = destRowStart + destX;
                 
@@ -631,6 +637,49 @@ public sealed class Surface : ISurfaceSource
         var clippedTracked = new TrackedObject<SixelData>(clippedSixelData, _ => { });
         
         return cell with { Sixel = clippedTracked };
+    }
+
+    /// <summary>
+    /// Clips a KGP cell so it doesn't extend beyond the surface bounds.
+    /// Unlike sixel clipping (which re-encodes pixels), KGP clipping adjusts
+    /// the source rectangle placement parameters — a pure metadata operation.
+    /// </summary>
+    private SurfaceCell ClipKgpCell(SurfaceCell cell, int destX, int destY)
+    {
+        var kgpData = cell.Kgp!.Data;
+        var kgpWidth = kgpData.WidthInCells;
+        var kgpHeight = kgpData.HeightInCells;
+        
+        // Check if KGP image extends beyond bounds
+        var extendsRight = destX + kgpWidth > Width;
+        var extendsDown = destY + kgpHeight > Height;
+        
+        if (!extendsRight && !extendsDown)
+            return cell;
+        
+        // Calculate the visible portion in cells
+        var visibleCellWidth = Math.Min(kgpWidth, Width - destX);
+        var visibleCellHeight = Math.Min(kgpHeight, Height - destY);
+        
+        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+            return cell with { Kgp = null };
+        
+        // Calculate pixel clip rect from cell dimensions
+        var sourceWidth = kgpData.SourcePixelWidth > 0 ? (int)kgpData.SourcePixelWidth : kgpWidth * CellMetrics.PixelWidth;
+        var sourceHeight = kgpData.SourcePixelHeight > 0 ? (int)kgpData.SourcePixelHeight : kgpHeight * CellMetrics.PixelHeight;
+        
+        // Compute visible pixel region proportionally
+        var clipW = (int)(sourceWidth * visibleCellWidth / (double)kgpWidth);
+        var clipH = (int)(sourceHeight * visibleCellHeight / (double)kgpHeight);
+        
+        // Apply clip via WithClip (preserves transmit payload and z-index)
+        var clippedData = kgpData.WithClip(
+            kgpData.ClipX, kgpData.ClipY,
+            clipW, clipH,
+            visibleCellWidth, visibleCellHeight);
+        
+        var clippedTracked = new TrackedObject<KgpCellData>(clippedData, _ => { });
+        return cell with { Kgp = clippedTracked };
     }
 
     /// <summary>

@@ -122,6 +122,110 @@ else
 
 Console.WriteLine();
 Console.WriteLine("Scene 2 complete.");
+Console.WriteLine();
+
+// --- Scene 3: Layer Compositing Concepts ---
+Console.WriteLine("KGP Demo - Scene 3: Layer Compositing");
+Console.WriteLine("======================================");
+Console.WriteLine();
+
+// Demonstrate the z-ordering model with KGP data objects
+Console.WriteLine("=== Z-Ordering Model ===");
+Console.WriteLine("  KGP images can be placed below text (z < 0) or above text (z > 0).");
+Console.WriteLine("  The compositing system assigns z-indexes by layer position.");
+Console.WriteLine();
+
+// Create KGP images at different z-levels
+var bgImage = GenerateGradientImage(200, 160);
+var bgHash = SHA256.HashData(bgImage);
+var bgPayload = $"\x1b_Ga=t,f=32,s=200,v=160,i=10;{Convert.ToBase64String(bgImage)}\x1b\\";
+var bgKgp = new KgpCellData(
+    transmitPayload: bgPayload,
+    imageId: 10,
+    widthInCells: 20,
+    heightInCells: 8,
+    sourcePixelWidth: 200,
+    sourcePixelHeight: 160,
+    contentHash: bgHash,
+    zIndex: -2);
+
+var overlayImage = GenerateGradientImage(40, 40);
+var ovHash = SHA256.HashData(overlayImage);
+var ovPayload = $"\x1b_Ga=t,f=32,s=40,v=40,i=11;{Convert.ToBase64String(overlayImage)}\x1b\\";
+var ovKgp = new KgpCellData(
+    transmitPayload: ovPayload,
+    imageId: 11,
+    widthInCells: 4,
+    heightInCells: 2,
+    sourcePixelWidth: 40,
+    sourcePixelHeight: 40,
+    contentHash: ovHash,
+    zIndex: 1);
+
+Console.WriteLine($"  Background layer: {bgKgp.WidthInCells}x{bgKgp.HeightInCells} cells, z={bgKgp.ZIndex} (below text)");
+Console.WriteLine($"  Overlay layer:    {ovKgp.WidthInCells}x{ovKgp.HeightInCells} cells, z={ovKgp.ZIndex} (above text)");
+Console.WriteLine($"  Text layer:       renders at z=0 (between the two images)");
+Console.WriteLine();
+
+// Demonstrate placement building for each layer
+Console.WriteLine("=== Background Placement ===");
+Console.WriteLine($"  {Sanitize(bgKgp.BuildPlacementPayload())}");
+Console.WriteLine();
+Console.WriteLine("=== Overlay Placement ===");
+Console.WriteLine($"  {Sanitize(ovKgp.BuildPlacementPayload())}");
+
+Console.WriteLine();
+Console.WriteLine("Scene 3 complete.");
+Console.WriteLine();
+
+// --- Scene 4: Clipping ---
+Console.WriteLine("KGP Demo - Scene 4: Clipping");
+Console.WriteLine("=============================");
+Console.WriteLine();
+
+// Demonstrate how WithClip creates different source rectangles from the same image
+var fullImage = GenerateGradientImage(100, 100);
+var fullHash = SHA256.HashData(fullImage);
+var fullPayload = $"\x1b_Ga=t,f=32,s=100,v=100,i=20;{Convert.ToBase64String(fullImage)}\x1b\\";
+var fullKgp = new KgpCellData(
+    transmitPayload: fullPayload,
+    imageId: 20,
+    widthInCells: 10,
+    heightInCells: 5,
+    sourcePixelWidth: 100,
+    sourcePixelHeight: 100,
+    contentHash: fullHash,
+    zIndex: -1);
+
+Console.WriteLine($"  Original image: {fullKgp.WidthInCells}x{fullKgp.HeightInCells} cells ({fullKgp.SourcePixelWidth}x{fullKgp.SourcePixelHeight} px)");
+Console.WriteLine();
+
+// Clip to show only the top-left quadrant
+var topLeft = fullKgp.WithClip(0, 0, 50, 50, 5, 3);
+Console.WriteLine("=== Top-Left Quadrant ===");
+Console.WriteLine($"  Clip: ({topLeft.ClipX}, {topLeft.ClipY}, {topLeft.ClipW}, {topLeft.ClipH})");
+Console.WriteLine($"  Cell size: {topLeft.WidthInCells}x{topLeft.HeightInCells}");
+Console.WriteLine($"  ZIndex preserved: {topLeft.ZIndex == fullKgp.ZIndex}");
+Console.WriteLine($"  Placement: {Sanitize(topLeft.BuildPlacementPayload())}");
+Console.WriteLine();
+
+// Clip to show only the bottom-right quadrant
+var bottomRight = fullKgp.WithClip(50, 50, 50, 50, 5, 3);
+Console.WriteLine("=== Bottom-Right Quadrant ===");
+Console.WriteLine($"  Clip: ({bottomRight.ClipX}, {bottomRight.ClipY}, {bottomRight.ClipW}, {bottomRight.ClipH})");
+Console.WriteLine($"  Cell size: {bottomRight.WidthInCells}x{bottomRight.HeightInCells}");
+Console.WriteLine($"  Placement: {Sanitize(bottomRight.BuildPlacementPayload())}");
+Console.WriteLine();
+
+// Show that all clips share the same ImageId
+Console.WriteLine("=== Transmit-Once, Place-Many ===");
+Console.WriteLine($"  Full image ID:      {fullKgp.ImageId}");
+Console.WriteLine($"  Top-left clip ID:   {topLeft.ImageId}");
+Console.WriteLine($"  Bottom-right clip:  {bottomRight.ImageId}");
+Console.WriteLine($"  All same image: {fullKgp.ImageId == topLeft.ImageId && topLeft.ImageId == bottomRight.ImageId}");
+
+Console.WriteLine();
+Console.WriteLine("Scene 4 complete.");
 
 static byte[] GenerateGradientImage(int width, int height)
 {

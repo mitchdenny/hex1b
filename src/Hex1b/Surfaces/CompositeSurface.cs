@@ -243,8 +243,11 @@ public sealed class CompositeSurface : ISurfaceSource
         if (above.Character == SurfaceCells.UnwrittenMarker)
             return below;
         
-        // Cells with sixels are always opaque - return as-is
+        // Cells with sixels or KGP images are always opaque - return as-is
         if (above.HasSixel)
+            return above;
+        
+        if (above.HasKgp)
             return above;
         
         if (above.Character != " " || above.Background is not null)
@@ -255,7 +258,8 @@ public sealed class CompositeSurface : ISurfaceSource
             Character = below.Character,
             Foreground = below.Foreground,
             Attributes = below.Attributes | above.Attributes,
-            Sixel = below.Sixel  // Preserve sixel from below if any
+            Sixel = below.Sixel,  // Preserve sixel from below if any
+            Kgp = below.Kgp      // Preserve KGP from below if any
         };
     }
 
@@ -822,6 +826,12 @@ public sealed class CompositeSurface : ISurfaceSource
             
             // Cells with sixels are always opaque - return as-is
             if (above.HasSixel)
+            {
+                return above;
+            }
+            
+            // Cells with KGP images are always opaque - return as-is
+            if (above.HasKgp)
             {
                 return above;
             }
