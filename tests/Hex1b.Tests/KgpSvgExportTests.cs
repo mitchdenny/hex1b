@@ -44,6 +44,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-basic-image.svg", svg);
 
         Assert.Contains("<image", svg);
         Assert.Contains("data:image/bmp;base64,", svg);
@@ -68,6 +69,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-positioned-image.svg", svg);
 
         // Cell dimensions from KgpCapabilities default: 10px wide, 20px tall
         var expectedX = 5 * 10; // col 5 * cellWidth
@@ -93,6 +95,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-three-pass.svg", svg);
 
         // Verify all three passes exist
         Assert.Contains("class=\"terminal-bg\"", svg);
@@ -121,6 +124,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-no-images.svg", svg);
 
         // No <image elements should be present
         Assert.DoesNotContain("<image", svg);
@@ -152,6 +156,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-multiple-images.svg", svg);
 
         // Count <image occurrences
         var imageCount = CountOccurrences(svg, "<image ");
@@ -176,6 +181,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-z-order.svg", svg);
 
         // Image element should appear after bg rects but before text elements
         var bgGroupEnd = svg.IndexOf("</g>", svg.IndexOf("class=\"terminal-bg\""));
@@ -202,6 +208,7 @@ public class KgpSvgExportTests
 
         var snapshot = terminal.CreateSnapshot();
         var svg = snapshot.ToSvg();
+        TestCaptureHelper.AttachSvg("kgp-red-pixel-bmp.svg", svg);
 
         // Extract the data URI from the SVG
         Assert.Contains("data:image/bmp;base64,", svg);
@@ -236,6 +243,7 @@ public class KgpSvgExportTests
         Send(terminal, cmd);
 
         var snapshot = terminal.CreateSnapshot();
+        TestCaptureHelper.CaptureSvg(snapshot, "kgp-snapshot-state");
 
         Assert.True(snapshot.KgpPlacements.Count > 0,
             "Snapshot should capture KGP placements");
