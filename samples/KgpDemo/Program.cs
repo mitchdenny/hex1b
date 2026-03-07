@@ -71,6 +71,57 @@ Console.WriteLine($"  Hash match (diff content): {KgpCellData.HashEquals(hash, d
 Console.WriteLine();
 
 Console.WriteLine("Scene 1 complete.");
+Console.WriteLine();
+
+// --- Scene 2: Capability Detection ---
+Console.WriteLine("KGP Demo - Scene 2: Capability Detection");
+Console.WriteLine("=========================================");
+Console.WriteLine();
+
+// Show what the Modern preset supports (baseline for SurfaceRenderContext)
+var modern = TerminalCapabilities.Modern;
+Console.WriteLine("=== TerminalCapabilities.Modern ===");
+Console.WriteLine($"  SupportsKgp:       {modern.SupportsKgp}");
+Console.WriteLine($"  SupportsSixel:     {modern.SupportsSixel}");
+Console.WriteLine($"  SupportsTrueColor: {modern.SupportsTrueColor}");
+Console.WriteLine();
+
+// Show custom capabilities with KGP enabled
+var kgpCaps = new TerminalCapabilities
+{
+    SupportsKgp = true,
+    SupportsSixel = true,
+    SupportsTrueColor = true,
+    Supports256Colors = true,
+};
+Console.WriteLine("=== Custom KGP Capabilities ===");
+Console.WriteLine($"  SupportsKgp:       {kgpCaps.SupportsKgp}");
+Console.WriteLine($"  SupportsSixel:     {kgpCaps.SupportsSixel}");
+Console.WriteLine($"  SupportsTrueColor: {kgpCaps.SupportsTrueColor}");
+Console.WriteLine();
+
+// Demonstrate SurfaceRenderContext capability propagation
+var testSurface = new Hex1b.Surfaces.Surface(10, 5);
+var ctx = new Hex1b.Surfaces.SurfaceRenderContext(testSurface);
+Console.WriteLine("=== SurfaceRenderContext (default) ===");
+Console.WriteLine($"  SupportsKgp: {ctx.Capabilities.SupportsKgp}");
+
+ctx.SetCapabilities(kgpCaps);
+Console.WriteLine("=== SurfaceRenderContext (after SetCapabilities) ===");
+Console.WriteLine($"  SupportsKgp: {ctx.Capabilities.SupportsKgp}");
+Console.WriteLine();
+
+// Conditional rendering decision
+Console.WriteLine("=== Conditional Rendering ===");
+if (ctx.Capabilities.SupportsKgp)
+    Console.WriteLine("  → Would render KGP image");
+else if (ctx.Capabilities.SupportsSixel)
+    Console.WriteLine("  → Would render Sixel fallback");
+else
+    Console.WriteLine("  → Would render text fallback");
+
+Console.WriteLine();
+Console.WriteLine("Scene 2 complete.");
 
 static byte[] GenerateGradientImage(int width, int height)
 {

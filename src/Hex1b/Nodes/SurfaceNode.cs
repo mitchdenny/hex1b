@@ -110,7 +110,8 @@ public sealed class SurfaceNode : Hex1bNode
             mouseY: relativeMouseY,
             theme: context.Theme,
             store: store,
-            cellMetrics: cellMetrics);
+            cellMetrics: cellMetrics,
+            capabilities: context.Capabilities);
 
         // Build the layers
         var layers = LayerBuilder(layerContext).ToList();

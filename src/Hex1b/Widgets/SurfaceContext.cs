@@ -65,9 +65,18 @@ public class SurfaceLayerContext
     public CellMetrics CellMetrics { get; }
 
     /// <summary>
+    /// Gets the terminal capabilities available for rendering.
+    /// </summary>
+    /// <remarks>
+    /// Use this to check whether graphics protocols like KGP or Sixel are supported
+    /// before creating graphics data in layers.
+    /// </remarks>
+    public TerminalCapabilities Capabilities { get; }
+
+    /// <summary>
     /// Creates a new SurfaceLayerContext.
     /// </summary>
-    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme, TrackedObjectStore? store = null, CellMetrics? cellMetrics = null)
+    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme, TrackedObjectStore? store = null, CellMetrics? cellMetrics = null, TerminalCapabilities? capabilities = null)
     {
         Width = width;
         Height = height;
@@ -76,6 +85,7 @@ public class SurfaceLayerContext
         Theme = theme;
         _store = store;
         CellMetrics = cellMetrics ?? CellMetrics.Default;
+        Capabilities = capabilities ?? TerminalCapabilities.Modern;
     }
 
     /// <summary>

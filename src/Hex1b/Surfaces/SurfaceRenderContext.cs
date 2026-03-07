@@ -27,6 +27,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
     // Coordinate offset for child rendering - allows absolute coordinates to map to a smaller surface
     private int _offsetX;
     private int _offsetY;
+    
+    // Terminal capabilities inherited from parent context
+    private TerminalCapabilities? _capabilities;
 
     // Maximum dimension for a child surface to prevent overflow in width*height allocation.
     // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
@@ -128,9 +131,16 @@ public class SurfaceRenderContext : Hex1bRenderContext
     public override int Height => _surface.Height;
 
     /// <summary>
-    /// Gets terminal capabilities. For Surface rendering, reports modern capabilities.
+    /// Gets terminal capabilities. Returns capabilities inherited from parent context,
+    /// falling back to <see cref="TerminalCapabilities.Modern"/> if not set.
     /// </summary>
-    public override TerminalCapabilities Capabilities => TerminalCapabilities.Modern;
+    public override TerminalCapabilities Capabilities => _capabilities ?? TerminalCapabilities.Modern;
+    
+    /// <summary>
+    /// Sets the terminal capabilities for this context and child contexts.
+    /// Call this to propagate capabilities from a parent render context.
+    /// </summary>
+    public void SetCapabilities(TerminalCapabilities capabilities) => _capabilities = capabilities;
 
     /// <summary>
     /// Gets the underlying surface being written to.
@@ -352,7 +362,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         MouseY = MouseY,
                         CellMetrics = CellMetrics,
                         Metrics = Metrics,
-                        SurfacePool = pool
+                        SurfacePool = pool,
+                        _capabilities = _capabilities
                     };
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                     RenderChildTimed(child, childContext);
@@ -458,7 +469,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 MouseX = MouseX,  // Pass mouse position to children
                 MouseY = MouseY,
                 CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
-                Metrics = Metrics
+                Metrics = Metrics,
+                _capabilities = _capabilities
                 // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
             };
             
