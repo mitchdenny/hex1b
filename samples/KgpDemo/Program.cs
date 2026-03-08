@@ -172,9 +172,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
 
                 return new Hex1bWidget[]
                 {
-                    image,
-
-                    // Controls panel with drag handle at top edge
+                    // Controls panel with drag handle at bottom edge (first child in VStack)
                     v.DragBarPanel(
                         v.VStack(p =>
                         [
@@ -229,7 +227,9 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                                 h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
                             ])
                         ])
-                    ).InitialSize(6).MinSize(4)
+                    ).InitialSize(6).MinSize(4),
+
+                    image,
                 };
             });
         }
