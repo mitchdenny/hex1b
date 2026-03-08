@@ -119,6 +119,7 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         SupportsBracketedPaste = true,  // Raw mode can handle this
         SupportsStyledUnderlines = true,
         SupportsUnderlineColor = true,
+        SupportsKgp = true  // KGP uses q=2 (quiet) so non-supporting terminals safely ignore it
     };
 
     /// <inheritdoc />

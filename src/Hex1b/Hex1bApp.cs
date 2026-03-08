@@ -916,6 +916,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
             SurfacePool = _surfacePool
         };
+        surfaceContext.SetCapabilities(caps);
         
         if (_rootNode != null)
         {

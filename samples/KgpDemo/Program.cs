@@ -21,6 +21,7 @@ var checkerImage = GenerateCheckerImage(80, 40);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
+    .WithWorkloadLogging("/tmp/kgp-demo.log")
     .WithHex1bApp((app, options) => ctx =>
     {
         return ctx.VStack(v => [
