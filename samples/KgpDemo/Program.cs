@@ -137,22 +137,19 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
         {
             return w.VStack(v =>
             {
-                // Build image widget
-                Hex1bWidget image = v.KgpImage(imageData, pixelW, pixelH,
+                // Build image widget with optional explicit cell dimensions
+                var kgpImage = v.KgpImage(imageData, pixelW, pixelH,
                     v.Text($" [KGP not supported - {name} fallback]"))
                     .WithStretch(stretch);
 
-                // Apply explicit sizing or fill
                 if (sizeEnabled
                     && int.TryParse(widthText, out var cw) && cw > 0
                     && int.TryParse(heightText, out var ch) && ch > 0)
                 {
-                    image = image.Width(SizeHint.Fixed(cw)).Height(SizeHint.Fixed(ch));
+                    kgpImage = kgpImage.WithWidth(cw).WithHeight(ch);
                 }
-                else
-                {
-                    image = image.Width(SizeHint.Fill).Height(SizeHint.Fill);
-                }
+
+                Hex1bWidget image = kgpImage.Width(SizeHint.Fill).Height(SizeHint.Fill);
 
                 // Wrap in Align if enabled
                 if (alignEnabled)
@@ -173,67 +170,67 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                         .Width(SizeHint.Fill).Height(SizeHint.Fill);
                 }
 
-                var items = new List<Hex1bWidget> { image };
-
-                // Stretch mode row
-                items.Add(v.HStack(h =>
-                [
-                    h.Text(" Stretch: "),
-                    h.ToggleSwitch(stretchOptions, (int)stretch)
-                        .OnSelectionChanged(ev => stretch = (KgpImageStretch)ev.SelectedIndex),
-                ]));
-
-                // Align controls row
-                items.Add(v.HStack(h =>
+                return new Hex1bWidget[]
                 {
-                    var row = new List<Hex1bWidget>
-                    {
-                        h.Checkbox(alignEnabled, "Align")
-                            .OnToggled(ev => alignEnabled = ev.NewState == CheckboxState.Checked)
-                    };
-                    if (alignEnabled)
-                    {
-                        row.Add(h.Text(" H:"));
-                        row.Add(h.ToggleSwitch(hAlignOptions, hAlignIndex)
-                            .OnSelectionChanged(ev => hAlignIndex = ev.SelectedIndex));
-                        row.Add(h.Text(" V:"));
-                        row.Add(h.ToggleSwitch(vAlignOptions, vAlignIndex)
-                            .OnSelectionChanged(ev => vAlignIndex = ev.SelectedIndex));
-                    }
-                    return row.ToArray();
-                }));
+                    image,
 
-                // Size controls row
-                items.Add(v.HStack(h =>
-                {
-                    var row = new List<Hex1bWidget>
-                    {
-                        h.Checkbox(sizeEnabled, "Size")
-                            .OnToggled(ev => sizeEnabled = ev.NewState == CheckboxState.Checked)
-                    };
-                    if (sizeEnabled)
-                    {
-                        row.Add(h.Text(" W:"));
-                        row.Add(h.TextBox(widthText)
-                            .OnTextChanged(ev => widthText = ev.NewText)
-                            .Width(SizeHint.Fixed(6)));
-                        row.Add(h.Text(" H:"));
-                        row.Add(h.TextBox(heightText)
-                            .OnTextChanged(ev => heightText = ev.NewText)
-                            .Width(SizeHint.Fixed(6)));
-                    }
-                    return row.ToArray();
-                }));
-
-                // Footer
-                items.Add(v.HStack(h =>
-                [
-                    h.Text($" {pixelW}x{pixelH}px "),
-                    h.Text(" ").Width(SizeHint.Fill),
-                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                ]));
-
-                return items.ToArray();
+                    // Controls panel with drag handle at top edge
+                    v.DragBarPanel(
+                        v.VStack(p =>
+                        [
+                            p.HStack(h =>
+                            [
+                                h.Text(" Stretch: "),
+                                h.ToggleSwitch(stretchOptions, (int)stretch)
+                                    .OnSelectionChanged(ev => stretch = (KgpImageStretch)ev.SelectedIndex),
+                            ]),
+                            p.HStack(h =>
+                            {
+                                var row = new List<Hex1bWidget>
+                                {
+                                    h.Checkbox(alignEnabled, "Align")
+                                        .OnToggled(ev => alignEnabled = ev.NewState == CheckboxState.Checked)
+                                };
+                                if (alignEnabled)
+                                {
+                                    row.Add(h.Text(" H:"));
+                                    row.Add(h.ToggleSwitch(hAlignOptions, hAlignIndex)
+                                        .OnSelectionChanged(ev => hAlignIndex = ev.SelectedIndex));
+                                    row.Add(h.Text(" V:"));
+                                    row.Add(h.ToggleSwitch(vAlignOptions, vAlignIndex)
+                                        .OnSelectionChanged(ev => vAlignIndex = ev.SelectedIndex));
+                                }
+                                return row.ToArray();
+                            }),
+                            p.HStack(h =>
+                            {
+                                var row = new List<Hex1bWidget>
+                                {
+                                    h.Checkbox(sizeEnabled, "Size")
+                                        .OnToggled(ev => sizeEnabled = ev.NewState == CheckboxState.Checked)
+                                };
+                                if (sizeEnabled)
+                                {
+                                    row.Add(h.Text(" W:"));
+                                    row.Add(h.TextBox(widthText)
+                                        .OnTextChanged(ev => widthText = ev.NewText)
+                                        .Width(SizeHint.Fixed(6)));
+                                    row.Add(h.Text(" H:"));
+                                    row.Add(h.TextBox(heightText)
+                                        .OnTextChanged(ev => heightText = ev.NewText)
+                                        .Width(SizeHint.Fixed(6)));
+                                }
+                                return row.ToArray();
+                            }),
+                            p.HStack(h =>
+                            [
+                                h.Text($" {pixelW}x{pixelH}px "),
+                                h.Text(" ").Width(SizeHint.Fill),
+                                h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                            ])
+                        ])
+                    ).InitialSize(6).MinSize(4)
+                };
             });
         }
         catch (Exception ex)
@@ -244,7 +241,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
         }
     })
     .Title($"{name} #{num}")
-    .Size(42, 22)
+    .Size(46, 22)
     .Resizable()
     .Position(new WindowPositionSpec(WindowPosition.Center,
         OffsetX: num * 3, OffsetY: num * 2));
