@@ -72,10 +72,36 @@ public class Hex1bRenderContext
         var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
         var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
 
-        var transmit = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
-        Write(transmit);
+        // Chunk the base64 payload per KGP protocol (max 4096 bytes per APC)
+        const int maxChunk = 4096;
+        if (base64.Length <= maxChunk)
+        {
+            Write($"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\");
+        }
+        else
+        {
+            var offset = 0;
+            var isFirst = true;
+            while (offset < base64.Length)
+            {
+                var remaining = base64.Length - offset;
+                var chunkLen = Math.Min(remaining, maxChunk);
+                var isLast = (offset + chunkLen >= base64.Length);
+                var chunk = base64.Substring(offset, chunkLen);
 
-        var placement = $"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight},C=1,q=2,z={zIndex}\x1b\\";
+                if (isFirst)
+                    Write($"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2,m=1;{chunk}\x1b\\");
+                else if (isLast)
+                    Write($"\x1b_Gm=0;{chunk}\x1b\\");
+                else
+                    Write($"\x1b_Gm=1;{chunk}\x1b\\");
+
+                offset += chunkLen;
+                isFirst = false;
+            }
+        }
+
+        var placement = $"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight},q=2,z={zIndex}\x1b\\";
         Write(placement);
     }
     public virtual int Width => _adapter?.Width ?? 0;

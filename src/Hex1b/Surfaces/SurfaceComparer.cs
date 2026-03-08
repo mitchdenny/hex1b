@@ -512,15 +512,17 @@ public static class SurfaceComparer
     
     /// <summary>
     /// Emits KGP transmit and placement tokens for a KGP cell.
-    /// Transmit (a=t) and placement (a=p) are emitted as separate tokens so that
-    /// <see cref="Hex1bTerminal.NormalizePreTokenizedTokens"/> can convert them to
-    /// <see cref="KgpToken"/> individually.
+    /// Transmit data is chunked per KGP protocol (max 4096 bytes per APC) so that
+    /// terminals don't truncate the payload. Each chunk and the placement are emitted
+    /// as separate tokens so that <see cref="Hex1bTerminal.NormalizePreTokenizedTokens"/>
+    /// can convert them to <see cref="KgpToken"/> individually.
     /// </summary>
     private static void EmitKgpTokens(List<AnsiToken> tokens, KgpCellData data)
     {
-        if (data.TransmitPayload != null)
+        var chunks = data.BuildTransmitChunks();
+        foreach (var chunk in chunks)
         {
-            tokens.Add(new UnrecognizedSequenceToken(data.TransmitPayload));
+            tokens.Add(new UnrecognizedSequenceToken(chunk));
         }
         tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
     }

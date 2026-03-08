@@ -153,6 +153,75 @@ public sealed class KgpCellData
     public bool IsClipped => ClipX > 0 || ClipY > 0 || ClipW > 0 || ClipH > 0;
 
     /// <summary>
+    /// Maximum payload size per KGP APC chunk (KGP protocol limit).
+    /// </summary>
+    private const int MaxChunkSize = 4096;
+
+    /// <summary>
+    /// Builds chunked transmit sequences for the KGP image data.
+    /// Payloads larger than 4096 bytes are split into multiple APC sequences
+    /// using the m=1 (more data) / m=0 (final chunk) protocol.
+    /// Returns an empty list if TransmitPayload is null.
+    /// </summary>
+    public List<string> BuildTransmitChunks()
+    {
+        var chunks = new List<string>();
+        if (TransmitPayload == null)
+            return chunks;
+
+        // Legacy opaque payload (from FromPayload for tests) — emit as-is
+        if (SourcePixelWidth == 0)
+        {
+            chunks.Add(TransmitPayload);
+            return chunks;
+        }
+
+        // Extract base64 from the stored transmit payload (format: ESC_G{params};{base64}ESC\)
+        var semiIdx = TransmitPayload.IndexOf(';');
+        if (semiIdx < 0)
+        {
+            chunks.Add(TransmitPayload);
+            return chunks;
+        }
+
+        // Get just the params part without ESC_G prefix and base64 without ESC\ suffix
+        var paramsStart = TransmitPayload.IndexOf('G') + 1; // after 'G' in ESC_G
+        var paramsStr = TransmitPayload.Substring(paramsStart, semiIdx - paramsStart);
+        var base64 = TransmitPayload.Substring(semiIdx + 1, TransmitPayload.Length - semiIdx - 3); // strip ESC\
+
+        if (base64.Length <= MaxChunkSize)
+        {
+            // Small enough for a single chunk
+            chunks.Add($"\x1b_G{paramsStr};{base64}\x1b\\");
+        }
+        else
+        {
+            // Split into chunks
+            var offset = 0;
+            var isFirst = true;
+            while (offset < base64.Length)
+            {
+                var remaining = base64.Length - offset;
+                var chunkLen = Math.Min(remaining, MaxChunkSize);
+                var isLast = (offset + chunkLen >= base64.Length);
+                var chunk = base64.Substring(offset, chunkLen);
+
+                if (isFirst)
+                    chunks.Add($"\x1b_G{paramsStr},m=1;{chunk}\x1b\\");
+                else if (isLast)
+                    chunks.Add($"\x1b_Gm=0;{chunk}\x1b\\");
+                else
+                    chunks.Add($"\x1b_Gm=1;{chunk}\x1b\\");
+
+                offset += chunkLen;
+                isFirst = false;
+            }
+        }
+
+        return chunks;
+    }
+
+    /// <summary>
     /// Gets the complete payload for emission: transmit (if needed) + placement.
     /// For legacy/opaque payloads (SourcePixelWidth == 0), returns TransmitPayload as-is.
     /// </summary>
