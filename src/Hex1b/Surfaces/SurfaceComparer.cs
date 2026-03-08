@@ -128,6 +128,18 @@ public static class SurfaceComparer
     /// <param name="currentSurface">The current surface, used to find sixels that need re-rendering when their region is dirty.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
     public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface)
+        => ToTokens(diff, currentSurface, previousSurface: null);
+
+    /// <summary>
+    /// Generates a list of ANSI tokens to render the diff, with sixel and KGP awareness.
+    /// When a previous surface is provided, KGP images that have moved or been removed
+    /// will emit delete commands so the terminal cleans up stale placements.
+    /// </summary>
+    /// <param name="diff">The surface diff to render.</param>
+    /// <param name="currentSurface">The current surface, used to find images that need re-rendering when their region is dirty.</param>
+    /// <param name="previousSurface">The previous surface, used to detect KGP images that need to be deleted.</param>
+    /// <returns>A list of ANSI tokens that will render the changes.</returns>
+    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface)
     {
         ArgumentNullException.ThrowIfNull(diff);
 
@@ -136,6 +148,56 @@ public static class SurfaceComparer
 
         var tokens = new List<AnsiToken>();
         
+        // Emit KGP delete commands for images that were in the previous surface but have
+        // moved or been removed. KGP placements persist in the terminal until explicitly
+        // deleted with a=d, so we must clean up stale placements before emitting new ones.
+        if (previousSurface != null && previousSurface.HasKgp)
+        {
+            // Collect all KGP image IDs and their anchor positions from the previous surface
+            var previousKgpAnchors = new Dictionary<uint, (int X, int Y)>();
+            for (var y = 0; y < previousSurface.Height; y++)
+            {
+                for (var x = 0; x < previousSurface.Width; x++)
+                {
+                    var cell = previousSurface[x, y];
+                    if (cell.HasKgp && cell.Kgp?.Data is not null)
+                    {
+                        previousKgpAnchors.TryAdd(cell.Kgp.Data.ImageId, (x, y));
+                    }
+                }
+            }
+
+            if (previousKgpAnchors.Count > 0)
+            {
+                // Collect current KGP anchors
+                var currentKgpAnchors = new Dictionary<uint, (int X, int Y)>();
+                if (currentSurface != null && currentSurface.HasKgp)
+                {
+                    for (var y = 0; y < currentSurface.Height; y++)
+                    {
+                        for (var x = 0; x < currentSurface.Width; x++)
+                        {
+                            var cell = currentSurface[x, y];
+                            if (cell.HasKgp && cell.Kgp?.Data is not null)
+                            {
+                                currentKgpAnchors.TryAdd(cell.Kgp.Data.ImageId, (x, y));
+                            }
+                        }
+                    }
+                }
+
+                // Delete KGP placements that moved or disappeared
+                foreach (var (imageId, prevPos) in previousKgpAnchors)
+                {
+                    if (!currentKgpAnchors.TryGetValue(imageId, out var curPos) || curPos != prevPos)
+                    {
+                        // Image moved or was removed — delete all placements for this image ID
+                        tokens.Add(new UnrecognizedSequenceToken($"\x1b_Ga=d,d=i,i={imageId},q=2\x1b\\"));
+                    }
+                }
+            }
+        }
+
         // Track regions covered by sixels (we need to skip cells under sixels)
         // Each entry is (x, y, width, height, cell) of a sixel region
         var sixelRegions = new List<(int X, int Y, int Width, int Height, SurfaceCell Cell)>();

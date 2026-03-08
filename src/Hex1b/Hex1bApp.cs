@@ -936,7 +936,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             // Generate tokens then serialize — captures both counts for metrics
             var tokensStart = Stopwatch.GetTimestamp();
-            var tokens = SurfaceComparer.ToTokens(diff, _currentSurface);
+            var tokens = SurfaceComparer.ToTokens(diff, _currentSurface, _previousSurface);
             _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
             
             var serializeStart = Stopwatch.GetTimestamp();

@@ -25,8 +25,16 @@ var statusMessage = "Press menu buttons to open windows";
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("KgpDemo", forceEnable: true)
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp((app, options) =>
     {
+        options.OnRescue = args =>
+        {
+            File.AppendAllText("/tmp/kgp-demo-errors.log",
+                $"[{DateTime.Now:HH:mm:ss.fff}] RESCUE: phase={args.Phase} error={args.Exception}\n");
+        };
+
+        return ctx =>
+        {
         return ctx.VStack(outer =>
         [
             // Menu bar
@@ -36,20 +44,32 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 {
                     windowCount++;
                     var num = windowCount;
-                    var window = e.Windows.Window(w => w.VStack(v =>
-                    [
-                        v.Text(" KGP gradient inside a window:"),
-                        v.Text(""),
-                        v.KgpImage(gradientImage, 128, 64,
-                            v.Text(" [KGP not supported - gradient fallback]"),
-                            width: 30, height: 10),
-                        v.Text(""),
-                        v.HStack(h =>
-                        [
-                            h.Text(" "),
-                            h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                        ])
-                    ]))
+                    var window = e.Windows.Window(w =>
+                    {
+                        try
+                        {
+                            return w.VStack(v =>
+                            [
+                                v.Text(" KGP gradient inside a window:"),
+                                v.Text(""),
+                                v.KgpImage(gradientImage, 128, 64,
+                                    v.Text(" [KGP not supported - gradient fallback]"),
+                                    width: 30, height: 10),
+                                v.Text(""),
+                                v.HStack(h =>
+                                [
+                                    h.Text(" "),
+                                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                ])
+                            ]);
+                        }
+                        catch (Exception ex)
+                        {
+                            File.AppendAllText("/tmp/kgp-demo-errors.log",
+                                $"[{DateTime.Now:HH:mm:ss.fff}] Gradient builder exception: {ex}\n");
+                            return w.Text($"ERROR: {ex.Message}");
+                        }
+                    })
                     .Title($"Gradient #{num}")
                     .Size(34, 16)
                     .Position(new WindowPositionSpec(WindowPosition.Center,
@@ -63,20 +83,32 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 {
                     windowCount++;
                     var num = windowCount;
-                    var window = e.Windows.Window(w => w.VStack(v =>
-                    [
-                        v.Text(" KGP checkerboard:"),
-                        v.Text(""),
-                        v.KgpImage(checkerImage, 64, 64,
-                            v.Text(" [KGP not supported - checker fallback]"),
-                            width: 20, height: 10),
-                        v.Text(""),
-                        v.HStack(h =>
-                        [
-                            h.Text(" "),
-                            h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                        ])
-                    ]))
+                    var window = e.Windows.Window(w =>
+                    {
+                        try
+                        {
+                            return w.VStack(v =>
+                            [
+                                v.Text(" KGP checkerboard:"),
+                                v.Text(""),
+                                v.KgpImage(checkerImage, 64, 64,
+                                    v.Text(" [KGP not supported - checker fallback]"),
+                                    width: 20, height: 10),
+                                v.Text(""),
+                                v.HStack(h =>
+                                [
+                                    h.Text(" "),
+                                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                ])
+                            ]);
+                        }
+                        catch (Exception ex)
+                        {
+                            File.AppendAllText("/tmp/kgp-demo-errors.log",
+                                $"[{DateTime.Now:HH:mm:ss.fff}] Checker builder exception: {ex}\n");
+                            return w.Text($"ERROR: {ex.Message}");
+                        }
+                    })
                     .Title($"Checker #{num}")
                     .Size(24, 16)
                     .Position(new WindowPositionSpec(WindowPosition.Center,
@@ -129,6 +161,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 )
                 .Fill()
         ]);
+        };
     })
     .Build();
 
