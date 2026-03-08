@@ -116,7 +116,7 @@ When widgets define input bindings in `ConfigureDefaultBindings`, use `Triggers(
 
 ```csharp
 // In Widget record:
-public static readonly ActionId MyAction = new(nameof(MyAction));
+public static readonly ActionId MyAction = new("WidgetName.MyAction");
 
 // In Node's ConfigureDefaultBindings:
 bindings.Key(Hex1bKey.Enter).Triggers(MyWidget.MyAction, handler, "Description");

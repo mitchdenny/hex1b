@@ -16,16 +16,16 @@ public sealed record ScrollbarWidget(
     int ViewportSize,
     int Offset) : Hex1bWidget
 {
-    public static readonly ActionId ScrollUpAction = new(nameof(ScrollUpAction));
-    public static readonly ActionId ScrollDownAction = new(nameof(ScrollDownAction));
-    public static readonly ActionId PageUpAction = new(nameof(PageUpAction));
-    public static readonly ActionId PageDownAction = new(nameof(PageDownAction));
-    public static readonly ActionId ScrollToTopAction = new(nameof(ScrollToTopAction));
-    public static readonly ActionId ScrollToBottomAction = new(nameof(ScrollToBottomAction));
-    public static readonly ActionId ScrollLeftAction = new(nameof(ScrollLeftAction));
-    public static readonly ActionId ScrollRightAction = new(nameof(ScrollRightAction));
-    public static readonly ActionId ScrollToStartAction = new(nameof(ScrollToStartAction));
-    public static readonly ActionId ScrollToEndAction = new(nameof(ScrollToEndAction));
+    public static readonly ActionId ScrollUpAction = new("Scrollbar.ScrollUp");
+    public static readonly ActionId ScrollDownAction = new("Scrollbar.ScrollDown");
+    public static readonly ActionId PageUpAction = new("Scrollbar.PageUp");
+    public static readonly ActionId PageDownAction = new("Scrollbar.PageDown");
+    public static readonly ActionId ScrollToTopAction = new("Scrollbar.ScrollToTop");
+    public static readonly ActionId ScrollToBottomAction = new("Scrollbar.ScrollToBottom");
+    public static readonly ActionId ScrollLeftAction = new("Scrollbar.ScrollLeft");
+    public static readonly ActionId ScrollRightAction = new("Scrollbar.ScrollRight");
+    public static readonly ActionId ScrollToStartAction = new("Scrollbar.ScrollToStart");
+    public static readonly ActionId ScrollToEndAction = new("Scrollbar.ScrollToEnd");
 
     /// <summary>
     /// Handler called when the scroll offset changes.

@@ -12,13 +12,13 @@ namespace Hex1b.Widgets;
 public sealed record ToggleSwitchWidget(IReadOnlyList<string> Options, int SelectedIndex = 0) : Hex1bWidget
 {
     /// <summary>Action ID for moving to the previous option.</summary>
-    public static readonly ActionId PreviousOptionActionId = new(nameof(PreviousOptionActionId));
+    public static readonly ActionId PreviousOptionActionId = new("ToggleSwitch.PreviousOption");
 
     /// <summary>Action ID for moving to the next option.</summary>
-    public static readonly ActionId NextOptionActionId = new(nameof(NextOptionActionId));
+    public static readonly ActionId NextOptionActionId = new("ToggleSwitch.NextOption");
 
     /// <summary>Action ID for selecting an option via mouse click.</summary>
-    public static readonly ActionId SelectOptionActionId = new(nameof(SelectOptionActionId));
+    public static readonly ActionId SelectOptionActionId = new("ToggleSwitch.SelectOption");
 
     /// <summary>
     /// Internal handler for selection changed events.

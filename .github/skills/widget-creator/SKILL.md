@@ -54,7 +54,7 @@ public sealed record MyWidget(string PrimaryProperty) : Hex1bWidget
     /// convention (PascalCase, omit "Widget" suffix from the widget name).
     /// Define one static readonly ActionId per rebindable action.
     /// </summary>
-    public static readonly ActionId Activate = new(nameof(Activate));
+    public static readonly ActionId Activate = new("My.Activate");
 
     /// <summary>
     /// Optional configuration property.
@@ -223,7 +223,7 @@ public sealed class MyNode : Hex1bNode
             // Use .Triggers() with an ActionId to make bindings rebindable by users.
             // Naming convention: "WidgetName.ActionName" (PascalCase, omit "Widget" suffix).
             // Define the ActionId as a static readonly field on the widget record:
-            //   public static readonly ActionId Activate = new(nameof(Activate));
+            //   public static readonly ActionId Activate = new("My.Activate");
             bindings.Key(Hex1bKey.Enter).Triggers(MyWidget.Activate, ActionCallback, "Activate");
         }
     }

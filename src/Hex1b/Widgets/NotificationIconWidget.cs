@@ -45,7 +45,7 @@ namespace Hex1b.Widgets;
 /// <seealso cref="NotificationStack"/>
 public sealed record NotificationIconWidget : Hex1bWidget
 {
-    public static readonly ActionId TogglePanelAction = new(nameof(TogglePanelAction));
+    public static readonly ActionId TogglePanelAction = new("NotificationIcon.TogglePanel");
 
     /// <summary>
     /// The bell character to display. Defaults to "🔔".

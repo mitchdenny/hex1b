@@ -24,7 +24,7 @@ namespace Hex1b.Widgets;
 public sealed record IconWidget(string Icon) : Hex1bWidget
 {
     /// <summary>Action ID for clicking the icon.</summary>
-    public static readonly ActionId ActivateActionId = new(nameof(ActivateActionId));
+    public static readonly ActionId ActivateActionId = new("Icon.Activate");
 
     /// <summary>
     /// Click handler for when the icon is clicked.

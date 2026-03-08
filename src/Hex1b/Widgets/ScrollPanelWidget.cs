@@ -10,19 +10,19 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record ScrollPanelWidget : Hex1bWidget
 {
-    public static readonly ActionId ScrollUpAction = new(nameof(ScrollUpAction));
-    public static readonly ActionId ScrollDownAction = new(nameof(ScrollDownAction));
-    public static readonly ActionId ScrollLeftAction = new(nameof(ScrollLeftAction));
-    public static readonly ActionId ScrollRightAction = new(nameof(ScrollRightAction));
-    public static readonly ActionId PageUpAction = new(nameof(PageUpAction));
-    public static readonly ActionId PageDownAction = new(nameof(PageDownAction));
-    public static readonly ActionId ScrollToStartAction = new(nameof(ScrollToStartAction));
-    public static readonly ActionId ScrollToEndAction = new(nameof(ScrollToEndAction));
-    public static readonly ActionId FocusNextAction = new(nameof(FocusNextAction));
-    public static readonly ActionId FocusPreviousAction = new(nameof(FocusPreviousAction));
-    public static readonly ActionId FocusFirstAction = new(nameof(FocusFirstAction));
-    public static readonly ActionId MouseScrollUpAction = new(nameof(MouseScrollUpAction));
-    public static readonly ActionId MouseScrollDownAction = new(nameof(MouseScrollDownAction));
+    public static readonly ActionId ScrollUpAction = new("ScrollPanel.ScrollUp");
+    public static readonly ActionId ScrollDownAction = new("ScrollPanel.ScrollDown");
+    public static readonly ActionId ScrollLeftAction = new("ScrollPanel.ScrollLeft");
+    public static readonly ActionId ScrollRightAction = new("ScrollPanel.ScrollRight");
+    public static readonly ActionId PageUpAction = new("ScrollPanel.PageUp");
+    public static readonly ActionId PageDownAction = new("ScrollPanel.PageDown");
+    public static readonly ActionId ScrollToStartAction = new("ScrollPanel.ScrollToStart");
+    public static readonly ActionId ScrollToEndAction = new("ScrollPanel.ScrollToEnd");
+    public static readonly ActionId FocusNextAction = new("ScrollPanel.FocusNext");
+    public static readonly ActionId FocusPreviousAction = new("ScrollPanel.FocusPrevious");
+    public static readonly ActionId FocusFirstAction = new("ScrollPanel.FocusFirst");
+    public static readonly ActionId MouseScrollUpAction = new("ScrollPanel.MouseScrollUp");
+    public static readonly ActionId MouseScrollDownAction = new("ScrollPanel.MouseScrollDown");
 
     /// <summary>
     /// The child widget to scroll.

@@ -35,10 +35,10 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record WindowPanelWidget(string? Name = null) : Hex1bWidget
 {
-    public static readonly ActionId FocusNextAction = new(nameof(FocusNextAction));
-    public static readonly ActionId FocusPreviousAction = new(nameof(FocusPreviousAction));
-    public static readonly ActionId PanUpAction = new(nameof(PanUpAction));
-    public static readonly ActionId PanDownAction = new(nameof(PanDownAction));
+    public static readonly ActionId FocusNextAction = new("WindowPanel.FocusNext");
+    public static readonly ActionId FocusPreviousAction = new("WindowPanel.FocusPrevious");
+    public static readonly ActionId PanUpAction = new("WindowPanel.PanUp");
+    public static readonly ActionId PanDownAction = new("WindowPanel.PanDown");
 
     /// <summary>
     /// Whether windows can be moved outside the panel bounds.

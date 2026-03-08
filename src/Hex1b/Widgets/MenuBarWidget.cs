@@ -11,13 +11,13 @@ namespace Hex1b.Widgets;
 public sealed record MenuBarWidget(IReadOnlyList<MenuWidget> Menus) : Hex1bWidget
 {
     /// <summary>Rebindable action: Focus previous menu.</summary>
-    public static readonly ActionId PreviousMenu = new(nameof(PreviousMenu));
+    public static readonly ActionId PreviousMenu = new("MenuBar.PreviousMenu");
     /// <summary>Rebindable action: Focus next menu.</summary>
-    public static readonly ActionId NextMenu = new(nameof(NextMenu));
+    public static readonly ActionId NextMenu = new("MenuBar.NextMenu");
     /// <summary>Rebindable action: Focus next focusable element.</summary>
-    public static readonly ActionId NextFocusable = new(nameof(NextFocusable));
+    public static readonly ActionId NextFocusable = new("MenuBar.NextFocusable");
     /// <summary>Rebindable action: Focus previous focusable element.</summary>
-    public static readonly ActionId PreviousFocusable = new(nameof(PreviousFocusable));
+    public static readonly ActionId PreviousFocusable = new("MenuBar.PreviousFocusable");
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {

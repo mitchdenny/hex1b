@@ -10,11 +10,11 @@ namespace Hex1b.Widgets;
 public sealed record MenuSeparatorWidget() : Hex1bWidget, IMenuChild
 {
     /// <summary>Rebindable action: Close the parent menu.</summary>
-    public static readonly ActionId Close = new(nameof(Close));
+    public static readonly ActionId Close = new("MenuSeparator.Close");
     /// <summary>Rebindable action: Navigate to previous menu.</summary>
-    public static readonly ActionId PreviousMenu = new(nameof(PreviousMenu));
+    public static readonly ActionId PreviousMenu = new("MenuSeparator.PreviousMenu");
     /// <summary>Rebindable action: Navigate to next menu.</summary>
-    public static readonly ActionId NextMenu = new(nameof(NextMenu));
+    public static readonly ActionId NextMenu = new("MenuSeparator.NextMenu");
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
