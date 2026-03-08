@@ -179,7 +179,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                 items.Add(v.HStack(h =>
                 [
                     h.Text(" Stretch: "),
-                    h.Picker(stretchOptions, (int)stretch)
+                    h.ToggleSwitch(stretchOptions, (int)stretch)
                         .OnSelectionChanged(ev => stretch = (KgpImageStretch)ev.SelectedIndex),
                 ]));
 
@@ -194,10 +194,10 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                     if (alignEnabled)
                     {
                         row.Add(h.Text(" H:"));
-                        row.Add(h.Picker(hAlignOptions, hAlignIndex)
+                        row.Add(h.ToggleSwitch(hAlignOptions, hAlignIndex)
                             .OnSelectionChanged(ev => hAlignIndex = ev.SelectedIndex));
                         row.Add(h.Text(" V:"));
-                        row.Add(h.Picker(vAlignOptions, vAlignIndex)
+                        row.Add(h.ToggleSwitch(vAlignOptions, vAlignIndex)
                             .OnSelectionChanged(ev => vAlignIndex = ev.SelectedIndex));
                     }
                     return row.ToArray();
