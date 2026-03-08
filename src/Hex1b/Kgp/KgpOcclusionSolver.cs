@@ -165,11 +165,18 @@ public static class KgpOcclusionSolver
         var effectiveW = data.ClipW > 0 ? data.ClipW : (int)data.SourcePixelWidth;
         var effectiveH = data.ClipH > 0 ? data.ClipH : (int)data.SourcePixelHeight;
 
-        // Map cell offsets to pixel coordinates
+        // Map cell offsets to pixel coordinates.
+        // Compute clip width/height from endpoint differences rather than independently,
+        // so adjacent fragments tile perfectly without gaps from integer truncation.
+        // Example: 128px in 30 cells → fragments at offsets [0,10) and [10,15) get
+        //   clipX₁=0, clipEnd₁=42 → clipW₁=42    clipX₂=42, clipEnd₂=64 → clipW₂=22
+        // vs the old way: clipW₁=42, clipW₂=21 (gap at pixel 63-64).
         var clipX = data.ClipX + (int)((long)cellOffsetX * effectiveW / imageRect.Width);
         var clipY = data.ClipY + (int)((long)cellOffsetY * effectiveH / imageRect.Height);
-        var clipW = (int)((long)visibleRect.Width * effectiveW / imageRect.Width);
-        var clipH = (int)((long)visibleRect.Height * effectiveH / imageRect.Height);
+        var clipEndX = data.ClipX + (int)((long)(cellOffsetX + visibleRect.Width) * effectiveW / imageRect.Width);
+        var clipEndY = data.ClipY + (int)((long)(cellOffsetY + visibleRect.Height) * effectiveH / imageRect.Height);
+        var clipW = clipEndX - clipX;
+        var clipH = clipEndY - clipY;
 
         return new KgpFragment(
             data.ImageId,

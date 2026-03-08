@@ -339,4 +339,68 @@ public class KgpOcclusionSolverTests
         // Should delete old placement + emit 2 new placements
         Assert.Contains(before2, t => t is UnrecognizedSequenceToken u && u.Sequence.Contains("a=d"));
     }
+
+    [Fact]
+    public void FragmentClips_TilePerfectly_WithNonIntegerPixelRatio()
+    {
+        // 128 pixels across 30 cells → 4.267 px/cell (non-integer ratio).
+        // An occluder splits the image into left (10 cells) and right (10 cells) fragments.
+        // Their clip regions must abut exactly with no gap or overlap.
+        var data = MakeKgpData(1, 30, 15, 128, 64);
+
+        var registry = new KgpImageRegistry();
+        registry.RegisterImage(data, 0, 0);
+        registry.PushLayer();
+        registry.RegisterOccluder(10, 0, 10, 15); // Vertical strip in the middle
+
+        var fragments = KgpOcclusionSolver.ComputeFragments(registry);
+
+        Assert.Equal(2, fragments.Count);
+
+        var left = fragments.First(f => f.AbsoluteX == 0);
+        var right = fragments.First(f => f.AbsoluteX == 20);
+
+        // Left fragment: cells 0-9, right fragment: cells 20-29
+        Assert.Equal(10, left.CellWidth);
+        Assert.Equal(10, right.CellWidth);
+
+        // Clip regions must tile: left.ClipX + left.ClipW == right.ClipX is NOT required
+        // (they're non-adjacent fragments), but each must cover the correct pixel range.
+        // Left: 0..10 cells → pixels 0..floor(10*128/30) = 0..42
+        Assert.Equal(0, left.ClipX);
+        Assert.Equal(42, left.ClipW); // floor(10*128/30)=42
+
+        // Right: 20..30 cells → pixels floor(20*128/30)..floor(30*128/30) = 85..128
+        Assert.Equal(85, right.ClipX);  // floor(20*128/30)
+        Assert.Equal(43, right.ClipW);  // 128 - 85 = 43
+
+        // Verify Y clips tile perfectly too
+        Assert.Equal(0, left.ClipY);
+        Assert.Equal(64, left.ClipH); // full height, endpoint method: floor(15*64/15) - 0 = 64
+
+        // The key property: adjacent fragments' clip regions must abut perfectly.
+        // A center occluder produces 4 strips where top/left share a Y boundary.
+        registry.Clear();
+        registry.RegisterImage(data, 0, 0);
+        registry.PushLayer();
+        registry.RegisterOccluder(10, 5, 10, 5); // Center block
+
+        var cFragments = KgpOcclusionSolver.ComputeFragments(registry);
+        Assert.Equal(4, cFragments.Count);
+
+        var cTop = cFragments.First(f => f.AbsoluteY == 0 && f.CellWidth == 30);
+        var cLeft = cFragments.First(f => f.AbsoluteX == 0 && f.AbsoluteY == 5);
+        var cBottom = cFragments.First(f => f.AbsoluteY == 10 && f.CellWidth == 30);
+
+        // Top strip clipEnd Y must equal left/right strip clipStart Y
+        var topEndY = cTop.ClipY + cTop.ClipH;
+        Assert.Equal(cLeft.ClipY, topEndY);
+
+        // Left/right strip clipEnd Y must equal bottom strip clipStart Y
+        var leftEndY = cLeft.ClipY + cLeft.ClipH;
+        Assert.Equal(cBottom.ClipY, leftEndY);
+
+        // Full height must be preserved
+        Assert.Equal(64, cTop.ClipH + cLeft.ClipH + cBottom.ClipH);
+    }
 }
