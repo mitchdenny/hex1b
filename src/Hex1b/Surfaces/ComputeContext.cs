@@ -12,6 +12,7 @@ namespace Hex1b.Surfaces;
 ///   <item>Cells from layers below the current layer</item>
 ///   <item>Adjacent cells on the same layer</item>
 ///   <item>Sixel pixel data from layers below</item>
+///   <item>KGP image data from layers below</item>
 /// </list>
 /// </para>
 /// <para>
@@ -185,6 +186,63 @@ public readonly ref struct ComputeContext
         var pixelOffsetY = cellOffsetY * CellMetrics.PixelHeight;
 
         return new SixelPixelAccess(pixels, pixelOffsetX, pixelOffsetY, CellMetrics);
+    }
+
+    /// <summary>
+    /// Checks if there is a KGP image at this position in layers below.
+    /// </summary>
+    /// <returns>True if a KGP image covers this cell position.</returns>
+    public bool HasKgpBelow()
+    {
+        return _context.FindKgpAtPosition(X, Y, _currentLayerIndex) is not null;
+    }
+
+    /// <summary>
+    /// Gets KGP image information at this cell position from layers below.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Unlike sixels, KGP images don't store pixel data in-memory — the pixel data
+    /// is transmitted to the terminal. This returns a <see cref="KgpCellAccess"/>
+    /// with the image metadata (image ID, source dimensions, clip region) and the
+    /// cell's offset within the image, enabling computed layers to make decisions
+    /// based on KGP image presence and position.
+    /// </para>
+    /// </remarks>
+    /// <returns>A KGP accessor for the image at this position, or default if none.</returns>
+    public KgpCellAccess GetKgpBelow()
+    {
+        var kgpInfo = _context.FindKgpAtPosition(X, Y, _currentLayerIndex);
+        if (kgpInfo is null)
+            return default;
+
+        var (kgpData, anchorX, anchorY) = kgpInfo.Value;
+        var cellOffsetX = X - anchorX;
+        var cellOffsetY = Y - anchorY;
+
+        return new KgpCellAccess(kgpData, cellOffsetX, cellOffsetY);
+    }
+
+    /// <summary>
+    /// Gets KGP image information at a specific cell position from layers below.
+    /// </summary>
+    /// <param name="x">The X position to query.</param>
+    /// <param name="y">The Y position to query.</param>
+    /// <returns>A KGP accessor for the image at the specified position, or default if none.</returns>
+    public KgpCellAccess GetKgpBelowAt(int x, int y)
+    {
+        if (!_context.IsInBounds(x, y))
+            return default;
+
+        var kgpInfo = _context.FindKgpAtPosition(x, y, _currentLayerIndex);
+        if (kgpInfo is null)
+            return default;
+
+        var (kgpData, anchorX, anchorY) = kgpInfo.Value;
+        var cellOffsetX = x - anchorX;
+        var cellOffsetY = y - anchorY;
+
+        return new KgpCellAccess(kgpData, cellOffsetX, cellOffsetY);
     }
 }
 

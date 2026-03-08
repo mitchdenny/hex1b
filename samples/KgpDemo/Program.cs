@@ -8,6 +8,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Hex1b;
+using Hex1b.Surfaces;
 
 // Generate a small RGBA32 test image (4x4 pixels, gradient)
 var pixelWidth = 4;
@@ -375,6 +376,123 @@ Console.WriteLine("  - BelowText (z<0): Image behind text, text readable");
 Console.WriteLine("  - AboveText (z>0): Image covers text, used for overlays");
 Console.WriteLine();
 Console.WriteLine("Scene 8 complete.");
+Console.WriteLine();
+
+// --- Scene 9: Surface Layer Integration ---
+Console.WriteLine("KGP Demo - Scene 9: Surface Layer Integration");
+Console.WriteLine("==============================================");
+Console.WriteLine();
+
+// In a real Hex1bApp, surface layers are built via SurfaceWidget:
+//   ctx.Surface(s => [
+//       s.Layer(draw => { /* KGP background via s.CreateKgp() */ }),
+//       s.WidgetLayer(textContent),
+//       s.Layer(draw => { /* KGP overlay via s.CreateKgp() */ }),
+//   ])
+//
+// The CreateKgp methods on SurfaceLayerContext handle:
+// - Image ID allocation
+// - Content-hash deduplication via TrackedObjectStore
+// - Pixel-to-cell conversion via CellMetrics
+
+Console.WriteLine("  Multi-layer composition model:");
+Console.WriteLine("    Layer 0: KGP background (draw layer, z=-1, below text)");
+Console.WriteLine("    Layer 1: Text/widget content");
+Console.WriteLine("    Layer 2: KGP overlay (draw layer, z=1, above text)");
+Console.WriteLine();
+
+// Demonstrate CompositeSurface with text layers (no TrackedObjectStore needed)
+var metrics = new CellMetrics(10, 20);
+var textBottom = new Surface(20, 5, metrics);
+textBottom[0, 0] = new SurfaceCell("B", Hex1b.Theming.Hex1bColor.FromRgb(100, 100, 255), null);
+textBottom[1, 0] = new SurfaceCell("G", Hex1b.Theming.Hex1bColor.FromRgb(100, 100, 255), null);
+
+var textTop = new Surface(20, 5, metrics);
+textTop[0, 0] = new SurfaceCell("T", Hex1b.Theming.Hex1bColor.FromRgb(255, 100, 100), null);
+
+var layerComposite = new CompositeSurface(20, 5, metrics);
+layerComposite.AddLayer(textBottom);
+layerComposite.AddLayer(textTop);
+
+var flatLayers = layerComposite.Flatten();
+Console.WriteLine($"  Layer 0 cell (0,0): '{textBottom[0, 0].Character}'");
+Console.WriteLine($"  Layer 1 cell (0,0): '{textTop[0, 0].Character}'");
+Console.WriteLine($"  Flattened  (0,0): '{flatLayers[0, 0].Character}' (top layer wins)");
+Console.WriteLine($"  Flattened  (1,0): '{flatLayers[1, 0].Character}' (bottom shows through)");
+Console.WriteLine();
+
+Console.WriteLine("  ISurfaceSource.HasKgp: available on Surface and CompositeSurface");
+Console.WriteLine($"    textBottom.HasKgp = {textBottom.HasKgp}");
+Console.WriteLine($"    layerComposite.HasKgp = {layerComposite.HasKgp}");
+Console.WriteLine();
+
+Console.WriteLine("  SurfaceLayerContext.CreateKgp() methods:");
+Console.WriteLine("    CreateKgp(KgpCellData) — from pre-built cell data");
+Console.WriteLine("    CreateKgp(byte[], pixelW, pixelH, zOrder) — from raw RGBA32 pixels");
+Console.WriteLine("    Both return TrackedObject<KgpCellData> for dedup/lifecycle tracking");
+
+Console.WriteLine();
+Console.WriteLine("Scene 9 complete.");
+Console.WriteLine();
+
+// --- Scene 10: Computed Layer with KGP Awareness ---
+Console.WriteLine("KGP Demo - Scene 10: Computed Layer Effects");
+Console.WriteLine("============================================");
+Console.WriteLine();
+
+// Demonstrate computed layers querying KGP from below
+// (Using CompositeSurface directly — no TrackedObjectStore needed for text demo)
+
+Console.WriteLine("  ComputeContext KGP query API:");
+Console.WriteLine("    HasKgpBelow()       — check if KGP image covers this cell");
+Console.WriteLine("    GetKgpBelow()       → KgpCellAccess with:");
+Console.WriteLine("      .IsValid          — whether KGP data was found");
+Console.WriteLine("      .ImageId          — KGP image ID");
+Console.WriteLine("      .SourcePixelWidth/.Height — source image dimensions");
+Console.WriteLine("      .WidthInCells/.HeightInCells — placement size");
+Console.WriteLine("      .CellOffsetX/.Y   — this cell's position within the image");
+Console.WriteLine("      .IsAnchor         — whether this is the top-left cell");
+Console.WriteLine("      .ZIndex           — z-ordering (negative=below, positive=above)");
+Console.WriteLine("      .Data             — underlying KgpCellData for advanced use");
+Console.WriteLine("    GetKgpBelowAt(x,y)  — query at specific position");
+Console.WriteLine();
+
+// Show a computed layer that checks adjacent cells (without KGP)
+var baseSurface = new Surface(10, 3, metrics);
+baseSurface[2, 1] = new SurfaceCell("*", Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 0), null);
+
+var computedResult = new List<(int x, int y, string info)>();
+
+var computeComposite = new CompositeSurface(10, 3, metrics);
+computeComposite.AddLayer(baseSurface);
+computeComposite.AddComputedLayer(10, 3, ctx =>
+{
+    var below = ctx.GetBelow();
+    if (below.Character == "*")
+    {
+        computedResult.Add((ctx.X, ctx.Y, "found star below"));
+        return new SurfaceCell("★", Hex1b.Theming.Hex1bColor.FromRgb(255, 200, 0), null);
+    }
+    if (ctx.HasKgpBelow())
+    {
+        var kgp = ctx.GetKgpBelow();
+        computedResult.Add((ctx.X, ctx.Y, $"KGP id={kgp.ImageId} offset=({kgp.CellOffsetX},{kgp.CellOffsetY})"));
+    }
+    return SurfaceCells.Empty;
+});
+
+var flatComputed = computeComposite.Flatten();
+Console.WriteLine($"  Computed layer processed {computedResult.Count} interesting cell(s):");
+foreach (var (x, y, info) in computedResult)
+{
+    Console.WriteLine($"    ({x},{y}): {info}");
+}
+Console.WriteLine($"  Result at (2,1): '{flatComputed[2, 1].Character}' (computed layer replaced '*' with '★')");
+
+Console.WriteLine();
+Console.WriteLine("Scene 10 complete.");
+Console.WriteLine();
+Console.WriteLine("All 10 KGP demo scenes complete!");
 
 static byte[] GenerateGradientImage(int width, int height)
 {
