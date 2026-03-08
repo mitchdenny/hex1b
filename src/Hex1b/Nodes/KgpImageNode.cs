@@ -209,33 +209,19 @@ public sealed class KgpImageNode : Hex1bNode
 
         var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
         int cellWidth, cellHeight;
+        int clipX = 0, clipY = 0, clipW = 0, clipH = 0;
 
         switch (Stretch)
         {
             case KgpImageStretch.None:
             {
-                // Render at native pixel density, clipped to Bounds from top-left.
                 cellWidth = RequestedWidth ?? naturalW;
                 cellHeight = RequestedHeight ?? naturalH;
-
-                if (Bounds.Width > 0 && Bounds.Height > 0 &&
-                    (cellWidth > Bounds.Width || cellHeight > Bounds.Height))
-                {
-                    // Clip to Bounds: show only the top-left portion at native resolution
-                    var clippedW = Math.Min(cellWidth, Bounds.Width);
-                    var clippedH = Math.Min(cellHeight, Bounds.Height);
-                    var srcClipW = (int)((long)PixelWidth * clippedW / cellWidth);
-                    var srcClipH = (int)((long)PixelHeight * clippedH / cellHeight);
-                    context.WriteKgp(ImageData, PixelWidth, PixelHeight, clippedW, clippedH, ZOrder,
-                        clipX: 0, clipY: 0, clipW: srcClipW, clipH: srcClipH);
-                    return;
-                }
                 break;
             }
 
             case KgpImageStretch.Fit:
             {
-                // Fit within Bounds maintaining aspect ratio
                 var boundsW = RequestedWidth ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
                 var boundsH = RequestedHeight ?? (Bounds.Height > 0 ? Bounds.Height : naturalH);
                 var scaleW = (double)boundsW / naturalW;
@@ -248,21 +234,17 @@ public sealed class KgpImageNode : Hex1bNode
 
             case KgpImageStretch.Fill:
             {
-                // Fill Bounds with source-rect crop to maintain aspect ratio
                 cellWidth = RequestedWidth
                     ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
                 cellHeight = RequestedHeight
                     ?? (Bounds.Height > 0 ? Bounds.Height : naturalH);
-                var (clipX, clipY, clipW, clipH) = ComputeFillClip(
+                (clipX, clipY, clipW, clipH) = ComputeFillClip(
                     PixelWidth, PixelHeight, cellWidth, cellHeight);
-                context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
-                    clipX, clipY, clipW, clipH);
-                return;
+                break;
             }
 
             case KgpImageStretch.Stretch:
             default:
-                // Stretch to fill Bounds (may distort)
                 cellWidth = RequestedWidth
                     ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
                 cellHeight = RequestedHeight
@@ -270,7 +252,38 @@ public sealed class KgpImageNode : Hex1bNode
                 break;
         }
 
-        context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
+        // Clamp to Bounds so the image never overflows its container.
+        if (Bounds.Width > 0 && Bounds.Height > 0 &&
+            (cellWidth > Bounds.Width || cellHeight > Bounds.Height))
+        {
+            var visibleW = Math.Min(cellWidth, Bounds.Width);
+            var visibleH = Math.Min(cellHeight, Bounds.Height);
+
+            // Compute source-rect clip for the visible portion.
+            // If there's already a Fill clip, apply within that sub-region.
+            var srcW = clipW > 0 ? clipW : PixelWidth;
+            var srcH = clipH > 0 ? clipH : PixelHeight;
+            var srcX = clipX;
+            var srcY = clipY;
+
+            clipW = Math.Max(1, (int)((long)srcW * visibleW / cellWidth));
+            clipH = Math.Max(1, (int)((long)srcH * visibleH / cellHeight));
+            clipX = srcX;
+            clipY = srcY;
+
+            cellWidth = visibleW;
+            cellHeight = visibleH;
+        }
+
+        if (clipW > 0 && clipH > 0)
+        {
+            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
+                clipX, clipY, clipW, clipH);
+        }
+        else
+        {
+            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
+        }
     }
 
     /// <summary>
