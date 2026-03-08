@@ -213,10 +213,25 @@ public sealed class KgpImageNode : Hex1bNode
         switch (Stretch)
         {
             case KgpImageStretch.None:
-                // Render at natural pixel-to-cell dimensions regardless of Bounds
+            {
+                // Render at native pixel density, clipped to Bounds from top-left.
                 cellWidth = RequestedWidth ?? naturalW;
                 cellHeight = RequestedHeight ?? naturalH;
+
+                if (Bounds.Width > 0 && Bounds.Height > 0 &&
+                    (cellWidth > Bounds.Width || cellHeight > Bounds.Height))
+                {
+                    // Clip to Bounds: show only the top-left portion at native resolution
+                    var clippedW = Math.Min(cellWidth, Bounds.Width);
+                    var clippedH = Math.Min(cellHeight, Bounds.Height);
+                    var srcClipW = (int)((long)PixelWidth * clippedW / cellWidth);
+                    var srcClipH = (int)((long)PixelHeight * clippedH / cellHeight);
+                    context.WriteKgp(ImageData, PixelWidth, PixelHeight, clippedW, clippedH, ZOrder,
+                        clipX: 0, clipY: 0, clipW: srcClipW, clipH: srcClipH);
+                    return;
+                }
                 break;
+            }
 
             case KgpImageStretch.Fit:
             {
