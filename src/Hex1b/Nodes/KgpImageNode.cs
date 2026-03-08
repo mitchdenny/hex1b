@@ -122,11 +122,12 @@ public sealed class KgpImageNode : Hex1bNode
     {
         var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
 
-        // When no fixed size is requested, use Fill hints or auto-compute from pixels
-        var cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill
+        // When no fixed size is requested, use Fill hints or auto-compute from pixels.
+        // Guard against unbounded constraints (int.MaxValue) from VStack first pass.
+        var cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
             ? constraints.MaxWidth
             : Math.Max(1, (PixelWidth + 9) / 10));
-        var cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill
+        var cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
             ? constraints.MaxHeight
             : Math.Max(1, (PixelHeight + 19) / 20));
         var kgpSize = constraints.Constrain(new Size(cellWidth, cellHeight));
@@ -176,11 +177,12 @@ public sealed class KgpImageNode : Hex1bNode
 
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
-        // Use actual arranged bounds so the image scales with its container
-        var cellWidth = Bounds.Width > 0 ? Bounds.Width
-            : RequestedWidth ?? Math.Max(1, (PixelWidth + 9) / 10);
-        var cellHeight = Bounds.Height > 0 ? Bounds.Height
-            : RequestedHeight ?? Math.Max(1, (PixelHeight + 19) / 20);
+        // Use Bounds for dynamic sizing (no fixed Width/Height requested),
+        // otherwise respect the explicit requested dimensions.
+        var cellWidth = RequestedWidth
+            ?? (Bounds.Width > 0 ? Bounds.Width : Math.Max(1, (PixelWidth + 9) / 10));
+        var cellHeight = RequestedHeight
+            ?? (Bounds.Height > 0 ? Bounds.Height : Math.Max(1, (PixelHeight + 19) / 20));
 
         context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
     }
