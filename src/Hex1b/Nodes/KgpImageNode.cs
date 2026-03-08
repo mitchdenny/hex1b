@@ -1,4 +1,3 @@
-using System.Security.Cryptography;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -173,22 +172,10 @@ public sealed class KgpImageNode : Hex1bNode
 
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
-        // Build transmit + placement command
-        var base64 = Convert.ToBase64String(ImageData);
-        var contentHash = SHA256.HashData(ImageData);
-        var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
-        var zIndex = ZOrder == KgpZOrder.AboveText ? 1 : -1;
-
         var cellWidth = RequestedWidth ?? Math.Max(1, (PixelWidth + 9) / 10);
         var cellHeight = RequestedHeight ?? Math.Max(1, (PixelHeight + 19) / 20);
 
-        // Transmit image data
-        var transmit = $"\x1b_Ga=t,f=32,s={PixelWidth},v={PixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
-        context.Write(transmit);
-
-        // Place the image
-        var placement = $"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight},C=1,q=2,z={zIndex}\x1b\\";
-        context.Write(placement);
+        context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
     }
 
     private void RenderFallback(Hex1bRenderContext context)

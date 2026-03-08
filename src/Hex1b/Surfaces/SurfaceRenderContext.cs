@@ -166,6 +166,58 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         WriteToSurface(_cursorX, _cursorY, text, updateCursor: true);
     }
+    
+    /// <summary>
+    /// Writes a KGP image at the current cursor position by populating surface cells
+    /// with structured <see cref="KgpCellData"/>. The anchor cell (top-left) carries
+    /// the KGP metadata; remaining cells in the region are filled with spaces.
+    /// <see cref="SurfaceComparer"/> later reads the KGP data and emits transmit/placement
+    /// tokens with proper z-ordering.
+    /// </summary>
+    public override void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight, int cellWidth, int cellHeight, KgpZOrder zOrder)
+    {
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
+
+        if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
+            return;
+
+        var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
+        var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
+        var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
+
+        var base64 = Convert.ToBase64String(imageData);
+        var transmitPayload = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
+
+        var kgpData = new KgpCellData(
+            transmitPayload,
+            imageId,
+            cellWidth,
+            cellHeight,
+            (uint)pixelWidth,
+            (uint)pixelHeight,
+            contentHash,
+            zIndex: zIndex);
+
+        var tracked = _trackedObjects.GetOrCreateKgp(kgpData);
+
+        // Anchor cell carries the KGP metadata
+        tracked.AddRef();
+        _surface[writeX, writeY] = new SurfaceCell(" ", null, null, Kgp: tracked);
+
+        // Fill remaining cells in the region with spaces so they occupy space
+        for (var dy = 0; dy < cellHeight; dy++)
+        {
+            for (var dx = 0; dx < cellWidth; dx++)
+            {
+                if (dx == 0 && dy == 0) continue;
+                var cx = writeX + dx;
+                var cy = writeY + dy;
+                if (cx >= 0 && cx < _surface.Width && cy >= 0 && cy < _surface.Height)
+                    _surface[cx, cy] = new SurfaceCell(" ", null, null);
+            }
+        }
+    }
 
     /// <summary>
     /// Writes text at the specified position, respecting the current layout provider's clipping.

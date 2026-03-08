@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -57,6 +58,26 @@ public class Hex1bRenderContext
     public virtual void Write(string text) => _adapter?.Write(text);
     public virtual void Clear() => _adapter?.Clear();
     public virtual void SetCursorPosition(int left, int top) => _adapter?.SetCursorPosition(left, top);
+    
+    /// <summary>
+    /// Writes a KGP image at the current cursor position.
+    /// The base implementation writes raw APC transmit and placement sequences directly.
+    /// Surface-backed render contexts override this to populate surface cells with
+    /// structured <see cref="KgpCellData"/> for compositing and diff-based emission.
+    /// </summary>
+    public virtual void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight, int cellWidth, int cellHeight, KgpZOrder zOrder)
+    {
+        var base64 = Convert.ToBase64String(imageData);
+        var contentHash = SHA256.HashData(imageData);
+        var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
+        var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
+
+        var transmit = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d,q=2;{base64}\x1b\\";
+        Write(transmit);
+
+        var placement = $"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight},C=1,q=2,z={zIndex}\x1b\\";
+        Write(placement);
+    }
     public virtual int Width => _adapter?.Width ?? 0;
     public virtual int Height => _adapter?.Height ?? 0;
     
