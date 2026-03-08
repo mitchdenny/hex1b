@@ -148,13 +148,14 @@ public class KgpComparerTokenTests
         var diff = SurfaceComparer.Compare(prev, curr);
         var tokens = SurfaceComparer.ToTokens(diff, curr);
 
-        var kgpToken = tokens.OfType<UnrecognizedSequenceToken>()
-            .FirstOrDefault(t => t.Sequence.Contains("_G"));
-        Assert.NotNull(kgpToken);
-        Assert.Contains("x=10", kgpToken!.Sequence);
-        Assert.Contains("y=20", kgpToken.Sequence);
-        Assert.Contains("w=30", kgpToken.Sequence);
-        Assert.Contains("h=40", kgpToken.Sequence);
+        // Placement token is separate from transmit — find the a=p token
+        var placementToken = tokens.OfType<UnrecognizedSequenceToken>()
+            .FirstOrDefault(t => t.Sequence.Contains("a=p"));
+        Assert.NotNull(placementToken);
+        Assert.Contains("x=10", placementToken!.Sequence);
+        Assert.Contains("y=20", placementToken.Sequence);
+        Assert.Contains("w=30", placementToken.Sequence);
+        Assert.Contains("h=40", placementToken.Sequence);
     }
 
     [Fact]
@@ -215,11 +216,12 @@ public class KgpComparerTokenTests
         var diff = SurfaceComparer.Compare(prev, curr);
         var tokens = SurfaceComparer.ToTokens(diff, curr);
 
+        // Each KGP image emits separate transmit (a=t) and placement (a=p) tokens
         var kgpTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("_G"))
             .ToList();
         
-        Assert.Equal(2, kgpTokens.Count);
+        Assert.Equal(4, kgpTokens.Count); // 2 images × (transmit + placement)
     }
 
     [Fact]

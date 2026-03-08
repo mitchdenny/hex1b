@@ -119,8 +119,31 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
         SupportsBracketedPaste = true,  // Raw mode can handle this
         SupportsStyledUnderlines = true,
         SupportsUnderlineColor = true,
-        SupportsKgp = true  // KGP uses q=2 (quiet) so non-supporting terminals safely ignore it
+        SupportsKgp = DetectKgpSupport()
     };
+
+    /// <summary>
+    /// Detects KGP (Kitty Graphics Protocol) support from terminal environment.
+    /// Checks TERM, TERM_PROGRAM, and HEX1B_KGP environment variables.
+    /// </summary>
+    private static bool DetectKgpSupport()
+    {
+        // Explicit opt-in/out via environment variable
+        var kgpEnv = Environment.GetEnvironmentVariable("HEX1B_KGP");
+        if (kgpEnv is "1" or "true") return true;
+        if (kgpEnv is "0" or "false") return false;
+
+        // Detect known KGP-capable terminals
+        var term = Environment.GetEnvironmentVariable("TERM") ?? "";
+        var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "";
+
+        if (term.Contains("kitty", StringComparison.OrdinalIgnoreCase)) return true;
+        if (termProgram.Contains("kitty", StringComparison.OrdinalIgnoreCase)) return true;
+        if (termProgram.Contains("WezTerm", StringComparison.OrdinalIgnoreCase)) return true;
+        if (termProgram.Contains("Ghostty", StringComparison.OrdinalIgnoreCase)) return true;
+
+        return false;
+    }
 
     /// <inheritdoc />
     public event Action<int, int>? Resized;
