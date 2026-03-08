@@ -118,6 +118,10 @@ var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
 var pasteDemo = builder.AddCSharpApp("paste-demo", "./samples/PasteDemo")
     .ExcludeFromManifest();
 
+// Tile panel demo
+var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
