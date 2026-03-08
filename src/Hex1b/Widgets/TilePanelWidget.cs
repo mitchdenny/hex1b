@@ -1,5 +1,6 @@
 using Hex1b.Data;
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
@@ -40,6 +41,39 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
     /// The tile data source providing tile content.
     /// </summary>
     public required ITileDataSource DataSource { get; init; }
+
+    /// <summary>Rebindable action: Pan camera up.</summary>
+    public static readonly ActionId PanUp = new($"{nameof(TilePanelWidget)}.{nameof(PanUp)}");
+
+    /// <summary>Rebindable action: Pan camera down.</summary>
+    public static readonly ActionId PanDown = new($"{nameof(TilePanelWidget)}.{nameof(PanDown)}");
+
+    /// <summary>Rebindable action: Pan camera left.</summary>
+    public static readonly ActionId PanLeft = new($"{nameof(TilePanelWidget)}.{nameof(PanLeft)}");
+
+    /// <summary>Rebindable action: Pan camera right.</summary>
+    public static readonly ActionId PanRight = new($"{nameof(TilePanelWidget)}.{nameof(PanRight)}");
+
+    /// <summary>Rebindable action: Pan camera up fast.</summary>
+    public static readonly ActionId PanUpFast = new($"{nameof(TilePanelWidget)}.{nameof(PanUpFast)}");
+
+    /// <summary>Rebindable action: Pan camera down fast.</summary>
+    public static readonly ActionId PanDownFast = new($"{nameof(TilePanelWidget)}.{nameof(PanDownFast)}");
+
+    /// <summary>Rebindable action: Pan camera left fast.</summary>
+    public static readonly ActionId PanLeftFast = new($"{nameof(TilePanelWidget)}.{nameof(PanLeftFast)}");
+
+    /// <summary>Rebindable action: Pan camera right fast.</summary>
+    public static readonly ActionId PanRightFast = new($"{nameof(TilePanelWidget)}.{nameof(PanRightFast)}");
+
+    /// <summary>Rebindable action: Zoom in.</summary>
+    public static readonly ActionId ZoomIn = new($"{nameof(TilePanelWidget)}.{nameof(ZoomIn)}");
+
+    /// <summary>Rebindable action: Zoom out.</summary>
+    public static readonly ActionId ZoomOut = new($"{nameof(TilePanelWidget)}.{nameof(ZoomOut)}");
+
+    /// <summary>Rebindable action: Reset camera to origin.</summary>
+    public static readonly ActionId ResetPosition = new($"{nameof(TilePanelWidget)}.{nameof(ResetPosition)}");
 
     /// <summary>
     /// The camera X position in tile coordinates.

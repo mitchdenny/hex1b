@@ -275,32 +275,32 @@ public sealed class TilePanelNode : CompositeNode
     private void ConfigureBindings(InputBindingsBuilder bindings)
     {
         // Pan by 1 tile
-        bindings.Key(Hex1bKey.UpArrow).Action(ctx => HandlePan(ctx, 0, -1), "Pan up");
-        bindings.Key(Hex1bKey.DownArrow).Action(ctx => HandlePan(ctx, 0, 1), "Pan down");
-        bindings.Key(Hex1bKey.LeftArrow).Action(ctx => HandlePan(ctx, -1, 0), "Pan left");
-        bindings.Key(Hex1bKey.RightArrow).Action(ctx => HandlePan(ctx, 1, 0), "Pan right");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(TilePanelWidget.PanUp, ctx => HandlePan(ctx, 0, -1), "Pan up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(TilePanelWidget.PanDown, ctx => HandlePan(ctx, 0, 1), "Pan down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(TilePanelWidget.PanLeft, ctx => HandlePan(ctx, -1, 0), "Pan left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TilePanelWidget.PanRight, ctx => HandlePan(ctx, 1, 0), "Pan right");
 
         // Pan by 5 tiles
-        bindings.Shift().Key(Hex1bKey.UpArrow).Action(ctx => HandlePan(ctx, 0, -5), "Pan up fast");
-        bindings.Shift().Key(Hex1bKey.DownArrow).Action(ctx => HandlePan(ctx, 0, 5), "Pan down fast");
-        bindings.Shift().Key(Hex1bKey.LeftArrow).Action(ctx => HandlePan(ctx, -5, 0), "Pan left fast");
-        bindings.Shift().Key(Hex1bKey.RightArrow).Action(ctx => HandlePan(ctx, 5, 0), "Pan right fast");
+        bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TilePanelWidget.PanUpFast, ctx => HandlePan(ctx, 0, -5), "Pan up fast");
+        bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TilePanelWidget.PanDownFast, ctx => HandlePan(ctx, 0, 5), "Pan down fast");
+        bindings.Shift().Key(Hex1bKey.LeftArrow).Triggers(TilePanelWidget.PanLeftFast, ctx => HandlePan(ctx, -5, 0), "Pan left fast");
+        bindings.Shift().Key(Hex1bKey.RightArrow).Triggers(TilePanelWidget.PanRightFast, ctx => HandlePan(ctx, 5, 0), "Pan right fast");
 
         // Zoom — support both numpad (+/-) and regular keyboard (=/-)
-        bindings.Key(Hex1bKey.Add).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
-        bindings.Key(Hex1bKey.Subtract).Action(ctx => HandleZoom(ctx, -1), "Zoom out");
-        bindings.Key(Hex1bKey.OemPlus).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
-        bindings.Key(Hex1bKey.OemMinus).Action(ctx => HandleZoom(ctx, -1), "Zoom out");
+        bindings.Key(Hex1bKey.Add).Triggers(TilePanelWidget.ZoomIn, ctx => HandleZoom(ctx, 1), "Zoom in");
+        bindings.Key(Hex1bKey.Subtract).Triggers(TilePanelWidget.ZoomOut, ctx => HandleZoom(ctx, -1), "Zoom out");
+        bindings.Key(Hex1bKey.OemPlus).Triggers(TilePanelWidget.ZoomIn);
+        bindings.Key(Hex1bKey.OemMinus).Triggers(TilePanelWidget.ZoomOut);
 
         // Mouse scroll for zoom
-        bindings.Mouse(MouseButton.ScrollUp).Action(ctx => HandleZoom(ctx, 1), "Zoom in");
-        bindings.Mouse(MouseButton.ScrollDown).Action(ctx => HandleZoom(ctx, -1), "Zoom out");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TilePanelWidget.ZoomIn, ctx => HandleZoom(ctx, 1), "Zoom in");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TilePanelWidget.ZoomOut, ctx => HandleZoom(ctx, -1), "Zoom out");
 
         // Mouse drag for panning
         bindings.Drag(MouseButton.Left).Action(HandleDragStart, "Pan by dragging");
 
         // Reset to origin
-        bindings.Key(Hex1bKey.Home).Action(ctx => HandlePan(ctx, -CameraX, -CameraY), "Reset position");
+        bindings.Key(Hex1bKey.Home).Triggers(TilePanelWidget.ResetPosition, ctx => HandlePan(ctx, -CameraX, -CameraY), "Reset position");
     }
 
     // Track cumulative drag delta to convert absolute deltas to incremental ones
