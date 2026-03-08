@@ -112,17 +112,17 @@ public sealed class SliderNode : Hex1bNode
     /// <inheritdoc/>
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.LeftArrow).Action(DecreaseSmall, "Decrease");
-        bindings.Key(Hex1bKey.RightArrow).Action(IncreaseSmall, "Increase");
-        bindings.Key(Hex1bKey.DownArrow).Action(DecreaseSmall, "Decrease");
-        bindings.Key(Hex1bKey.UpArrow).Action(IncreaseSmall, "Increase");
-        bindings.Key(Hex1bKey.Home).Action(JumpToMinimum, "Minimum");
-        bindings.Key(Hex1bKey.End).Action(JumpToMaximum, "Maximum");
-        bindings.Key(Hex1bKey.PageUp).Action(IncreaseLarge, "Large increase");
-        bindings.Key(Hex1bKey.PageDown).Action(DecreaseLarge, "Large decrease");
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Set value");
-        bindings.Mouse(MouseButton.ScrollUp).Action(IncreaseSmall, "Scroll up to increase");
-        bindings.Mouse(MouseButton.ScrollDown).Action(DecreaseSmall, "Scroll down to decrease");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(SliderWidget.DecreaseSmallActionId, DecreaseSmall, "Decrease");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(SliderWidget.IncreaseSmallActionId, IncreaseSmall, "Increase");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(SliderWidget.DecreaseSmallActionId);
+        bindings.Key(Hex1bKey.UpArrow).Triggers(SliderWidget.IncreaseSmallActionId);
+        bindings.Key(Hex1bKey.Home).Triggers(SliderWidget.JumpToMinimumActionId, JumpToMinimum, "Minimum");
+        bindings.Key(Hex1bKey.End).Triggers(SliderWidget.JumpToMaximumActionId, JumpToMaximum, "Maximum");
+        bindings.Key(Hex1bKey.PageUp).Triggers(SliderWidget.IncreaseLargeActionId, IncreaseLarge, "Large increase");
+        bindings.Key(Hex1bKey.PageDown).Triggers(SliderWidget.DecreaseLargeActionId, DecreaseLarge, "Large decrease");
+        bindings.Mouse(MouseButton.Left).Triggers(SliderWidget.SetValueActionId, HandleMouseClick, "Set value");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(SliderWidget.IncreaseSmallActionId, IncreaseSmall, "Scroll up to increase");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(SliderWidget.DecreaseSmallActionId, DecreaseSmall, "Scroll down to decrease");
         bindings.Drag(MouseButton.Left).Action(HandleDragStart, "Drag to adjust");
     }
 

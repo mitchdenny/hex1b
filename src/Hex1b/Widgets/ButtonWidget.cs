@@ -6,6 +6,9 @@ namespace Hex1b.Widgets;
 
 public sealed record ButtonWidget(string Label) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Activate the button.</summary>
+    public static readonly ActionId Activate = new($"{nameof(ButtonWidget)}.{nameof(Activate)}");
+
     /// <summary>
     /// The async click handler. Called when the button is activated via Enter, Space, or mouse click.
     /// </summary>

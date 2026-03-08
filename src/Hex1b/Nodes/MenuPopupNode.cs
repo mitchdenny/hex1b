@@ -12,6 +12,13 @@ namespace Hex1b;
 /// </summary>
 public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
 {
+    /// <summary>Rebindable action: Move to next item.</summary>
+    public static readonly ActionId NextItemAction = new($"{nameof(MenuPopupNode)}.{nameof(NextItemAction)}");
+    /// <summary>Rebindable action: Move to previous item.</summary>
+    public static readonly ActionId PreviousItemAction = new($"{nameof(MenuPopupNode)}.{nameof(PreviousItemAction)}");
+    /// <summary>Rebindable action: Close the menu.</summary>
+    public static readonly ActionId CloseAction = new($"{nameof(MenuPopupNode)}.{nameof(CloseAction)}");
+
     /// <summary>
     /// The MenuNode that owns this popup.
     /// </summary>
@@ -45,12 +52,13 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation within the menu - use global focus ring
-        bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
-        bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
-        bindings.Key(Hex1bKey.LeftArrow).Action(CloseMenu, "Close menu");
-        bindings.Key(Hex1bKey.Escape).Action(CloseMenu, "Close menu");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(MenuPopupNode.NextItemAction, ctx => ctx.FocusNext(), "Next item");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(MenuPopupNode.PreviousItemAction, ctx => ctx.FocusPrevious(), "Previous item");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuPopupNode.CloseAction, CloseMenu, "Close menu");
+        bindings.Key(Hex1bKey.Escape).Triggers(MenuPopupNode.CloseAction, CloseMenu, "Close menu");
         
         // Accelerator keys - register for each child
+        // Dynamic per-child accelerators keep .Action() since they are generated per-instance
         if (OwnerNode != null)
         {
             foreach (var (child, accel, _) in OwnerNode.ChildAccelerators)

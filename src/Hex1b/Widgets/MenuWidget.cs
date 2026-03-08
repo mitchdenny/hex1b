@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -11,6 +12,21 @@ namespace Hex1b.Widgets;
 /// <param name="Children">The menu's children (items, separators, submenus).</param>
 public sealed record MenuWidget(string Label, IReadOnlyList<IMenuChild> Children) : Hex1bWidget, IMenuChild
 {
+    /// <summary>Rebindable action: Open the menu or submenu.</summary>
+    public static readonly ActionId Open = new($"{nameof(MenuWidget)}.{nameof(Open)}");
+    /// <summary>Rebindable action: Move to next item in popup.</summary>
+    public static readonly ActionId NextItem = new($"{nameof(MenuWidget)}.{nameof(NextItem)}");
+    /// <summary>Rebindable action: Move to previous item in popup.</summary>
+    public static readonly ActionId PreviousItem = new($"{nameof(MenuWidget)}.{nameof(PreviousItem)}");
+    /// <summary>Rebindable action: Close the parent menu.</summary>
+    public static readonly ActionId Close = new($"{nameof(MenuWidget)}.{nameof(Close)}");
+    /// <summary>Rebindable action: Navigate to previous menu.</summary>
+    public static readonly ActionId NavigatePrevious = new($"{nameof(MenuWidget)}.{nameof(NavigatePrevious)}");
+    /// <summary>Rebindable action: Focus previous menu in bar.</summary>
+    public static readonly ActionId FocusPreviousInBar = new($"{nameof(MenuWidget)}.{nameof(FocusPreviousInBar)}");
+    /// <summary>Rebindable action: Focus next menu in bar.</summary>
+    public static readonly ActionId FocusNextInBar = new($"{nameof(MenuWidget)}.{nameof(FocusNextInBar)}");
+
     /// <summary>
     /// The explicitly specified accelerator character (from &amp; syntax).
     /// </summary>

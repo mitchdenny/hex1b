@@ -110,6 +110,27 @@ public class ButtonNode : Hex1bNode
 }
 ```
 
+### Keybinding Rebinding Pattern
+
+When widgets define input bindings in `ConfigureDefaultBindings`, use `Triggers(ActionId, handler, desc)` instead of `Action(handler, desc)` to make bindings rebindable:
+
+```csharp
+// In Widget record:
+public static readonly ActionId MyAction = new($"{nameof(MyWidget)}.{nameof(MyAction)}");
+
+// In Node's ConfigureDefaultBindings:
+bindings.Key(Hex1bKey.Enter).Triggers(MyWidget.MyAction, handler, "Description");
+```
+
+Users can then remap/alias/disable actions via `WithInputBindings`:
+```csharp
+widget.WithInputBindings(b =>
+{
+    b.Remove(MyWidget.MyAction);  // remove default key
+    b.Key(Hex1bKey.X).Triggers(MyWidget.MyAction);  // rebind to X
+});
+```
+
 ### Adding New Widgets
 
 > **📘 Use the `widget-creator` skill** for comprehensive step-by-step guidance including templates, theming, and test patterns.

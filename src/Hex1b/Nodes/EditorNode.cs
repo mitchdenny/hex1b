@@ -102,82 +102,90 @@ public sealed class EditorNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // ── Navigation ──────────────────────────────────────────
-        bindings.Key(Hex1bKey.LeftArrow).Action(MoveLeft, "Move left");
-        bindings.Key(Hex1bKey.RightArrow).Action(MoveRight, "Move right");
-        bindings.Key(Hex1bKey.UpArrow).Action(MoveUp, "Move up");
-        bindings.Key(Hex1bKey.DownArrow).Action(MoveDown, "Move down");
-        bindings.Key(Hex1bKey.Home).Action(MoveToLineStart, "Go to line start");
-        bindings.Key(Hex1bKey.End).Action(MoveToLineEnd, "Go to line end");
-        bindings.Ctrl().Key(Hex1bKey.Home).Action(MoveToDocumentStart, "Go to document start");
-        bindings.Ctrl().Key(Hex1bKey.End).Action(MoveToDocumentEnd, "Go to document end");
-        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Action(MoveWordLeft, "Move to previous word");
-        bindings.Ctrl().Key(Hex1bKey.RightArrow).Action(MoveWordRight, "Move to next word");
-        bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
-        bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(EditorWidget.MoveLeft, MoveLeft, "Move left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(EditorWidget.MoveRight, MoveRight, "Move right");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(EditorWidget.MoveUp, MoveUp, "Move up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(EditorWidget.MoveDown, MoveDown, "Move down");
+        bindings.Key(Hex1bKey.Home).Triggers(EditorWidget.MoveToLineStart, MoveToLineStart, "Go to line start");
+        bindings.Key(Hex1bKey.End).Triggers(EditorWidget.MoveToLineEnd, MoveToLineEnd, "Go to line end");
+        bindings.Ctrl().Key(Hex1bKey.Home).Triggers(EditorWidget.MoveToDocumentStart, MoveToDocumentStart, "Go to document start");
+        bindings.Ctrl().Key(Hex1bKey.End).Triggers(EditorWidget.MoveToDocumentEnd, MoveToDocumentEnd, "Go to document end");
+        bindings.Ctrl().Key(Hex1bKey.LeftArrow).Triggers(EditorWidget.MoveWordLeft, MoveWordLeft, "Move to previous word");
+        bindings.Ctrl().Key(Hex1bKey.RightArrow).Triggers(EditorWidget.MoveWordRight, MoveWordRight, "Move to next word");
+        bindings.Key(Hex1bKey.PageUp).Triggers(EditorWidget.PageUp, PageUp, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Triggers(EditorWidget.PageDown, PageDown, "Page down");
 
         // ── Selection (Shift+Navigation) ────────────────────────
-        bindings.Shift().Key(Hex1bKey.LeftArrow).Action(SelectLeft, "Extend selection left");
-        bindings.Shift().Key(Hex1bKey.RightArrow).Action(SelectRight, "Extend selection right");
-        bindings.Shift().Key(Hex1bKey.UpArrow).Action(SelectUp, "Extend selection up");
-        bindings.Shift().Key(Hex1bKey.DownArrow).Action(SelectDown, "Extend selection down");
-        bindings.Shift().Key(Hex1bKey.Home).Action(SelectToLineStart, "Select to line start");
-        bindings.Shift().Key(Hex1bKey.End).Action(SelectToLineEnd, "Select to line end");
-        bindings.Shift().Key(Hex1bKey.PageUp).Action(SelectPageUp, "Select page up");
-        bindings.Shift().Key(Hex1bKey.PageDown).Action(SelectPageDown, "Select page down");
+        bindings.Shift().Key(Hex1bKey.LeftArrow).Triggers(EditorWidget.SelectLeft, SelectLeft, "Extend selection left");
+        bindings.Shift().Key(Hex1bKey.RightArrow).Triggers(EditorWidget.SelectRight, SelectRight, "Extend selection right");
+        bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(EditorWidget.SelectUp, SelectUp, "Extend selection up");
+        bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(EditorWidget.SelectDown, SelectDown, "Extend selection down");
+        bindings.Shift().Key(Hex1bKey.Home).Triggers(EditorWidget.SelectToLineStart, SelectToLineStart, "Select to line start");
+        bindings.Shift().Key(Hex1bKey.End).Triggers(EditorWidget.SelectToLineEnd, SelectToLineEnd, "Select to line end");
+        bindings.Shift().Key(Hex1bKey.PageUp).Triggers(EditorWidget.SelectPageUp, SelectPageUp, "Select page up");
+        bindings.Shift().Key(Hex1bKey.PageDown).Triggers(EditorWidget.SelectPageDown, SelectPageDown, "Select page down");
 
         // Ctrl+Shift bindings (requires direct InputBinding construction)
-        AddCtrlShiftBinding(bindings, Hex1bKey.Home, SelectToDocumentStart, "Select to document start");
-        AddCtrlShiftBinding(bindings, Hex1bKey.End, SelectToDocumentEnd, "Select to document end");
-        AddCtrlShiftBinding(bindings, Hex1bKey.LeftArrow, SelectWordLeft, "Select to previous word");
-        AddCtrlShiftBinding(bindings, Hex1bKey.RightArrow, SelectWordRight, "Select to next word");
+        AddCtrlShiftBinding(bindings, Hex1bKey.Home, EditorWidget.SelectToDocumentStart, SelectToDocumentStart, "Select to document start");
+        AddCtrlShiftBinding(bindings, Hex1bKey.End, EditorWidget.SelectToDocumentEnd, SelectToDocumentEnd, "Select to document end");
+        AddCtrlShiftBinding(bindings, Hex1bKey.LeftArrow, EditorWidget.SelectWordLeft, SelectWordLeft, "Select to previous word");
+        AddCtrlShiftBinding(bindings, Hex1bKey.RightArrow, EditorWidget.SelectWordRight, SelectWordRight, "Select to next word");
 
         // ── Selection (Ctrl+A) ──────────────────────────────────
-        bindings.Ctrl().Key(Hex1bKey.A).Action(SelectAll, "Select all");
+        bindings.Ctrl().Key(Hex1bKey.A).Triggers(EditorWidget.SelectAll, SelectAll, "Select all");
 
         // ── Multi-cursor (Ctrl+D) ───────────────────────────────
-        bindings.Ctrl().Key(Hex1bKey.D).Action(AddCursorAtNextMatch, "Add cursor at next match");
+        bindings.Ctrl().Key(Hex1bKey.D).Triggers(EditorWidget.AddCursorAtNextMatch, AddCursorAtNextMatch, "Add cursor at next match");
 
         // ── Undo/Redo ───────────────────────────────────────────
-        bindings.Ctrl().Key(Hex1bKey.Z).Action(UndoAction, "Undo");
-        bindings.Ctrl().Key(Hex1bKey.Y).Action(RedoAction, "Redo");
+        bindings.Ctrl().Key(Hex1bKey.Z).Triggers(EditorWidget.Undo, UndoAction, "Undo");
+        bindings.Ctrl().Key(Hex1bKey.Y).Triggers(EditorWidget.Redo, RedoAction, "Redo");
 
         // ── Escape to collapse multi-cursor ─────────────────────
         // Note: Escape is only handled when we have multiple cursors
 
         // ── Editing ─────────────────────────────────────────────
-        bindings.Key(Hex1bKey.Backspace).Action(DeleteBackwardAsync, "Delete backward");
-        bindings.Key(Hex1bKey.Delete).Action(DeleteForwardAsync, "Delete forward");
-        bindings.Ctrl().Key(Hex1bKey.Backspace).Action(DeleteWordBackwardAsync, "Delete previous word");
-        bindings.Ctrl().Key(Hex1bKey.Delete).Action(DeleteWordForwardAsync, "Delete next word");
-        AddCtrlShiftBinding(bindings, Hex1bKey.K, DeleteLineAsync, "Delete line");
-        bindings.Key(Hex1bKey.Enter).Action(InsertNewlineAsync, "Insert newline");
-        bindings.Key(Hex1bKey.Tab).Action(InsertTabAsync, "Insert tab");
+        bindings.Key(Hex1bKey.Backspace).Triggers(EditorWidget.DeleteBackward, DeleteBackwardAsync, "Delete backward");
+        bindings.Key(Hex1bKey.Delete).Triggers(EditorWidget.DeleteForward, DeleteForwardAsync, "Delete forward");
+        bindings.Ctrl().Key(Hex1bKey.Backspace).Triggers(EditorWidget.DeleteWordBackward, DeleteWordBackwardAsync, "Delete previous word");
+        bindings.Ctrl().Key(Hex1bKey.Delete).Triggers(EditorWidget.DeleteWordForward, DeleteWordForwardAsync, "Delete next word");
+        AddCtrlShiftBinding(bindings, Hex1bKey.K, EditorWidget.DeleteLine, DeleteLineAsync, "Delete line");
+        bindings.Key(Hex1bKey.Enter).Triggers(EditorWidget.InsertNewline, InsertNewlineAsync, "Insert newline");
+        bindings.Key(Hex1bKey.Tab).Triggers(EditorWidget.InsertTab, InsertTabAsync, "Insert tab");
 
         // ── Character input ─────────────────────────────────────
+        // CharacterStepBuilder has no Triggers, keep .Action()
         bindings.AnyCharacter().Action(InsertTextAsync, "Type text");
 
         // ── Mouse ────────────────────────────────────────────────
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Click to position cursor");
-        bindings.Mouse(MouseButton.Left).Ctrl().Action(HandleCtrlClick, "Ctrl+Click to add/remove cursor");
-        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Double-click to select word");
-        bindings.Mouse(MouseButton.Left).TripleClick().Action(HandleMouseTripleClick, "Triple-click to select line");
+        bindings.Mouse(MouseButton.Left).Triggers(EditorWidget.Click, HandleMouseClick, "Click to position cursor");
+        bindings.Mouse(MouseButton.Left).Ctrl().Triggers(EditorWidget.CtrlClick, HandleCtrlClick, "Ctrl+Click to add/remove cursor");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Triggers(EditorWidget.DoubleClick, HandleMouseDoubleClick, "Double-click to select word");
+        bindings.Mouse(MouseButton.Left).TripleClick().Triggers(EditorWidget.TripleClick, HandleMouseTripleClick, "Triple-click to select line");
+        // DragStepBuilder has no Triggers, keep .Action()
         bindings.Drag(MouseButton.Left).Action(HandleDragStart, "Drag to select text");
-        bindings.Mouse(MouseButton.ScrollUp).Action(ScrollUp, "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(ScrollDown, "Scroll down");
-        bindings.Mouse(MouseButton.ScrollUp).Shift().Action(ScrollLeft, "Scroll left");
-        bindings.Mouse(MouseButton.ScrollDown).Shift().Action(ScrollRight, "Scroll right");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(EditorWidget.ScrollUp, ScrollUp, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(EditorWidget.ScrollDown, ScrollDown, "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Shift().Triggers(EditorWidget.ScrollLeft, ScrollLeft, "Scroll left");
+        bindings.Mouse(MouseButton.ScrollDown).Shift().Triggers(EditorWidget.ScrollRight, ScrollRight, "Scroll right");
     }
 
-    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, Action handler, string description)
+    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId, Action handler, string description)
     {
+        bindings.RegisterAction(actionId, _ => { handler(); return Task.CompletedTask; }, description);
         var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
-        bindings.AddBinding(new InputBinding([step], handler, description));
+        var binding = new InputBinding([step], handler, description);
+        binding.ActionId = actionId;
+        bindings.AddBinding(binding);
     }
 
-    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, Func<InputBindingActionContext, Task> handler, string description)
+    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId, Func<InputBindingActionContext, Task> handler, string description)
     {
+        bindings.RegisterAction(actionId, handler, description);
         var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
-        bindings.AddBinding(new InputBinding([step], handler, description));
+        var binding = new InputBinding([step], handler, description);
+        binding.ActionId = actionId;
+        bindings.AddBinding(binding);
     }
 
     protected override Size MeasureCore(Constraints constraints)

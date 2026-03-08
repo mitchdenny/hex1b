@@ -1,9 +1,12 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
 public sealed record HStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget, IFloatWidgetContainer
 {
+    public static readonly ActionId FocusNextAction = new($"{nameof(HStackWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(HStackWidget)}.{nameof(FocusPreviousAction)}");
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as HStackNode ?? new HStackNode();

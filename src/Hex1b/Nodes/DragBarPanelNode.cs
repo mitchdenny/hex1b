@@ -111,14 +111,14 @@ public sealed class DragBarPanelNode : Hex1bNode, IChildLayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Keyboard resize
-        bindings.Key(Hex1bKey.LeftArrow).Action(ResizeLeft, "Resize left");
-        bindings.Key(Hex1bKey.RightArrow).Action(ResizeRight, "Resize right");
-        bindings.Key(Hex1bKey.UpArrow).Action(ResizeUp, "Resize up");
-        bindings.Key(Hex1bKey.DownArrow).Action(ResizeDown, "Resize down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(DragBarPanelWidget.ResizeLeftAction, _ => ResizeLeft(), "Resize left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(DragBarPanelWidget.ResizeRightAction, _ => ResizeRight(), "Resize right");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(DragBarPanelWidget.ResizeUpAction, _ => ResizeUp(), "Resize up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(DragBarPanelWidget.ResizeDownAction, _ => ResizeDown(), "Resize down");
         
         // Focus navigation
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(DragBarPanelWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(DragBarPanelWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
         
         // Mouse drag to resize
         bindings.Drag(MouseButton.Left).Action((startX, startY) =>

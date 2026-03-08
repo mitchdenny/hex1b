@@ -89,9 +89,9 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.LeftArrow).Action(MovePreviousWithEvent, "Previous option");
-        bindings.Key(Hex1bKey.RightArrow).Action(MoveNextWithEvent, "Next option");
-        bindings.Mouse(MouseButton.Left).Action(MouseSelectWithEvent, "Select option");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(ToggleSwitchWidget.PreviousOptionActionId, MovePreviousWithEvent, "Previous option");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(ToggleSwitchWidget.NextOptionActionId, MoveNextWithEvent, "Next option");
+        bindings.Mouse(MouseButton.Left).Triggers(ToggleSwitchWidget.SelectOptionActionId, MouseSelectWithEvent, "Select option");
     }
 
     private async Task MouseSelectWithEvent(InputBindingActionContext ctx)

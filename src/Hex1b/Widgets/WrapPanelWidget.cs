@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -11,6 +12,9 @@ namespace Hex1b.Widgets;
 /// <param name="Children">The child widgets to lay out.</param>
 public sealed record WrapPanelWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
 {
+    public static readonly ActionId FocusNextAction = new($"{nameof(WrapPanelWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(WrapPanelWidget)}.{nameof(FocusPreviousAction)}");
+
     /// <summary>
     /// The primary layout direction. <see cref="WrapOrientation.Horizontal"/> (default)
     /// lays children left-to-right and wraps top-to-bottom.

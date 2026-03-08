@@ -171,10 +171,10 @@ public sealed class DrawerNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Click on collapsed drawer expands it
-        bindings.Mouse(MouseButton.Left).Action(OnClick, "Toggle drawer");
+        bindings.Mouse(MouseButton.Left).Triggers(DrawerWidget.ToggleAction, OnClick, "Toggle drawer");
         // Enter/Space on focused drawer also expands it
-        bindings.Key(Hex1bKey.Enter).Action(OnClick, "Open drawer");
-        bindings.Key(Hex1bKey.Spacebar).Action(OnClick, "Open drawer");
+        bindings.Key(Hex1bKey.Enter).Triggers(DrawerWidget.OpenAction, OnClick, "Open drawer");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(DrawerWidget.OpenAction, OnClick, "Open drawer");
     }
     
     private Task OnClick(InputBindingActionContext ctx)

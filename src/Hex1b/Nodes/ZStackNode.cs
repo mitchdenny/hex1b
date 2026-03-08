@@ -215,8 +215,8 @@ public sealed class ZStackNode : Hex1bNode, ILayoutProvider, IPopupHost, INotifi
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Tab navigation is handled by the app-level FocusRing
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(ZStackWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(ZStackWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
     }
 
     /// <summary>

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 using Hex1b.Theming;
 
@@ -22,6 +23,9 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record DrawerWidget : Hex1bWidget
 {
+    public static readonly ActionId ToggleAction = new($"{nameof(DrawerWidget)}.{nameof(ToggleAction)}");
+    public static readonly ActionId OpenAction = new($"{nameof(DrawerWidget)}.{nameof(OpenAction)}");
+
     /// <summary>
     /// Builder function for collapsed state content.
     /// If null, the drawer is invisible when collapsed.

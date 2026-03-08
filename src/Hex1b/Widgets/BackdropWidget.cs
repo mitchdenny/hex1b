@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 using Hex1b.Theming;
 
@@ -30,6 +31,8 @@ public enum BackdropStyle
 /// <param name="Child">Optional child widget to display on top of the backdrop.</param>
 public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
 {
+    public static readonly ActionId DismissAction = new($"{nameof(BackdropWidget)}.{nameof(DismissAction)}");
+    public static readonly ActionId ClickAwayAction = new($"{nameof(BackdropWidget)}.{nameof(ClickAwayAction)}");
     /// <summary>
     /// The visual style for the backdrop.
     /// </summary>

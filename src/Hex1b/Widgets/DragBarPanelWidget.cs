@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -32,6 +33,13 @@ public enum DragBarEdge
 /// </remarks>
 public sealed record DragBarPanelWidget : Hex1bWidget
 {
+    public static readonly ActionId ResizeLeftAction = new($"{nameof(DragBarPanelWidget)}.{nameof(ResizeLeftAction)}");
+    public static readonly ActionId ResizeRightAction = new($"{nameof(DragBarPanelWidget)}.{nameof(ResizeRightAction)}");
+    public static readonly ActionId ResizeUpAction = new($"{nameof(DragBarPanelWidget)}.{nameof(ResizeUpAction)}");
+    public static readonly ActionId ResizeDownAction = new($"{nameof(DragBarPanelWidget)}.{nameof(ResizeDownAction)}");
+    public static readonly ActionId FocusNextAction = new($"{nameof(DragBarPanelWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(DragBarPanelWidget)}.{nameof(FocusPreviousAction)}");
+
     /// <summary>
     /// The content widget displayed inside the panel.
     /// </summary>

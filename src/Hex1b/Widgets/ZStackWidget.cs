@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -10,6 +11,9 @@ namespace Hex1b.Widgets;
 /// <param name="Children">The child widgets to stack. First child is at the bottom, last is on top.</param>
 public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget, IFloatWidgetContainer
 {
+    public static readonly ActionId FocusNextAction = new($"{nameof(ZStackWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(ZStackWidget)}.{nameof(FocusPreviousAction)}");
+
     /// <summary>
     /// The clipping scope for this ZStack's content.
     /// Defaults to parent bounds.

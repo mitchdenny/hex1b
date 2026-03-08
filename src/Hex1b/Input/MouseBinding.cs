@@ -39,6 +39,12 @@ public sealed class MouseBinding
     public string? Description { get; }
 
     /// <summary>
+    /// A stable identifier for the action this binding performs.
+    /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
+    /// </summary>
+    public ActionId? ActionId { get; internal set; }
+
+    /// <summary>
     /// Creates a mouse binding with a simple action handler (no context).
     /// </summary>
     public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, Action handler, string? description)

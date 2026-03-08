@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -13,6 +14,9 @@ namespace Hex1b.Widgets;
 /// <param name="Overflow">How to handle text that exceeds the available width.</param>
 public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overflow = TextOverflow.Truncate) : Hex1bWidget
 {
+    /// <summary>Action ID for activating the hyperlink.</summary>
+    public static readonly ActionId ActivateActionId = new($"{nameof(HyperlinkWidget)}.{nameof(ActivateActionId)}");
+
     /// <summary>
     /// Optional parameters for the hyperlink (e.g., "id=unique-id").
     /// Per the OSC 8 spec, the id parameter can be used to group multiple hyperlink

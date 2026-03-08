@@ -44,6 +44,13 @@ public sealed class InputBinding
     public Hex1bNode? OwnerNode { get; internal set; }
 
     /// <summary>
+    /// A stable identifier for the action this binding performs.
+    /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
+    /// Convention: "WidgetName.ActionName" (e.g., "List.MoveUp").
+    /// </summary>
+    public ActionId? ActionId { get; internal set; }
+
+    /// <summary>
     /// Creates an input binding with a simple action handler (no context).
     /// </summary>
     public InputBinding(IReadOnlyList<KeyStep> steps, Action action, string? description = null, bool isGlobal = false)

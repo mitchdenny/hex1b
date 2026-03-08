@@ -203,7 +203,7 @@ public sealed class WrapPanelNode : Hex1bNode, ILayoutProvider
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(WrapPanelWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(WrapPanelWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
     }
 }

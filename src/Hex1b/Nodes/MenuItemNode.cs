@@ -85,20 +85,20 @@ public sealed class MenuItemNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation within the parent menu popup
-        bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
-        bindings.Key(Hex1bKey.UpArrow).Action(HandleUpArrow, "Previous item");
-        bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(MenuItemWidget.MoveDown, ctx => ctx.FocusNext(), "Next item");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(MenuItemWidget.MoveUp, HandleUpArrow, "Previous item");
+        bindings.Key(Hex1bKey.Escape).Triggers(MenuItemWidget.Close, CloseParentMenu, "Close menu");
         
         // Left/Right arrows navigate to adjacent menus in the menu bar
-        bindings.Key(Hex1bKey.LeftArrow).Action(NavigateToPreviousMenu, "Previous menu");
-        bindings.Key(Hex1bKey.RightArrow).Action(NavigateToNextMenu, "Next menu");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuItemWidget.NavigateLeft, NavigateToPreviousMenu, "Previous menu");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(MenuItemWidget.NavigateRight, NavigateToNextMenu, "Next menu");
         
         // Activation
         if (ActivatedAction != null && !IsDisabled)
         {
-            bindings.Key(Hex1bKey.Enter).Action(ActivatedAction, "Activate item");
-            bindings.Key(Hex1bKey.Spacebar).Action(ActivatedAction, "Activate item");
-            bindings.Mouse(MouseButton.Left).Action(ActivatedAction, "Click item");
+            bindings.Key(Hex1bKey.Enter).Triggers(MenuItemWidget.Activate, ActivatedAction, "Activate item");
+            bindings.Key(Hex1bKey.Spacebar).Triggers(MenuItemWidget.Activate, ActivatedAction, "Activate item");
+            bindings.Mouse(MouseButton.Left).Triggers(MenuItemWidget.Activate, ActivatedAction, "Click item");
         }
     }
     

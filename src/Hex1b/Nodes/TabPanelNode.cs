@@ -495,27 +495,27 @@ public sealed class TabPanelNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Alt+Right to go to next tab
-        bindings.Alt().Key(Hex1bKey.RightArrow).Action(async ctx =>
+        bindings.Alt().Key(Hex1bKey.RightArrow).Triggers(TabPanelWidget.NextTab, async ctx =>
         {
             await SelectNextTabAsync();
         }, "Next tab");
 
         // Alt+Left to go to previous tab
-        bindings.Alt().Key(Hex1bKey.LeftArrow).Action(async ctx =>
+        bindings.Alt().Key(Hex1bKey.LeftArrow).Triggers(TabPanelWidget.PreviousTab, async ctx =>
         {
             await SelectPreviousTabAsync();
         }, "Previous tab");
 
         // Tab/Shift+Tab for focus navigation within content
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(TabPanelWidget.NextFocusable, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(TabPanelWidget.PreviousFocusable, ctx => ctx.FocusPrevious(), "Previous focusable");
 
         // Mouse click on tabs and arrows
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select tab or scroll");
+        bindings.Mouse(MouseButton.Left).Triggers(TabPanelWidget.Click, HandleMouseClick, "Select tab or scroll");
         
         // Mouse wheel on tab bar scrolls through tabs (doesn't switch selection)
-        bindings.Mouse(MouseButton.ScrollUp).Action(HandleMouseWheelUp, "Scroll tabs left");
-        bindings.Mouse(MouseButton.ScrollDown).Action(HandleMouseWheelDown, "Scroll tabs right");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TabPanelWidget.ScrollTabsLeft, HandleMouseWheelUp, "Scroll tabs left");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TabPanelWidget.ScrollTabsRight, HandleMouseWheelDown, "Scroll tabs right");
     }
 
     private Task HandleMouseWheelUp(InputBindingActionContext ctx)

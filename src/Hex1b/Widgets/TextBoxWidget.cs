@@ -1,10 +1,46 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
 public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Move cursor left.</summary>
+    public static readonly ActionId MoveLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveLeft)}");
+    /// <summary>Rebindable action: Move cursor right.</summary>
+    public static readonly ActionId MoveRight = new($"{nameof(TextBoxWidget)}.{nameof(MoveRight)}");
+    /// <summary>Rebindable action: Move cursor to start.</summary>
+    public static readonly ActionId MoveHome = new($"{nameof(TextBoxWidget)}.{nameof(MoveHome)}");
+    /// <summary>Rebindable action: Move cursor to end.</summary>
+    public static readonly ActionId MoveEnd = new($"{nameof(TextBoxWidget)}.{nameof(MoveEnd)}");
+    /// <summary>Rebindable action: Move cursor to previous word.</summary>
+    public static readonly ActionId MoveWordLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordLeft)}");
+    /// <summary>Rebindable action: Move cursor to next word.</summary>
+    public static readonly ActionId MoveWordRight = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordRight)}");
+    /// <summary>Rebindable action: Extend selection left.</summary>
+    public static readonly ActionId SelectLeft = new($"{nameof(TextBoxWidget)}.{nameof(SelectLeft)}");
+    /// <summary>Rebindable action: Extend selection right.</summary>
+    public static readonly ActionId SelectRight = new($"{nameof(TextBoxWidget)}.{nameof(SelectRight)}");
+    /// <summary>Rebindable action: Select to start.</summary>
+    public static readonly ActionId SelectToStart = new($"{nameof(TextBoxWidget)}.{nameof(SelectToStart)}");
+    /// <summary>Rebindable action: Select to end.</summary>
+    public static readonly ActionId SelectToEnd = new($"{nameof(TextBoxWidget)}.{nameof(SelectToEnd)}");
+    /// <summary>Rebindable action: Delete character backward.</summary>
+    public static readonly ActionId DeleteBackward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteBackward)}");
+    /// <summary>Rebindable action: Delete character forward.</summary>
+    public static readonly ActionId DeleteForward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteForward)}");
+    /// <summary>Rebindable action: Delete previous word.</summary>
+    public static readonly ActionId DeleteWordBackward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteWordBackward)}");
+    /// <summary>Rebindable action: Delete next word.</summary>
+    public static readonly ActionId DeleteWordForward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteWordForward)}");
+    /// <summary>Rebindable action: Select all text.</summary>
+    public static readonly ActionId SelectAll = new($"{nameof(TextBoxWidget)}.{nameof(SelectAll)}");
+    /// <summary>Rebindable action: Submit text.</summary>
+    public static readonly ActionId Submit = new($"{nameof(TextBoxWidget)}.{nameof(Submit)}");
+    /// <summary>Rebindable action: Insert typed text.</summary>
+    public static readonly ActionId InsertText = new($"{nameof(TextBoxWidget)}.{nameof(InsertText)}");
+
     /// <summary>
     /// Internal handler for text changed events.
     /// </summary>

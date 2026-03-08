@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 
@@ -9,6 +10,14 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record SplitterWidget : Hex1bWidget
 {
+    public static readonly ActionId ResizeLeftAction = new($"{nameof(SplitterWidget)}.{nameof(ResizeLeftAction)}");
+    public static readonly ActionId ResizeRightAction = new($"{nameof(SplitterWidget)}.{nameof(ResizeRightAction)}");
+    public static readonly ActionId ResizeUpAction = new($"{nameof(SplitterWidget)}.{nameof(ResizeUpAction)}");
+    public static readonly ActionId ResizeDownAction = new($"{nameof(SplitterWidget)}.{nameof(ResizeDownAction)}");
+    public static readonly ActionId FocusNextAction = new($"{nameof(SplitterWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(SplitterWidget)}.{nameof(FocusPreviousAction)}");
+    public static readonly ActionId FocusFirstAction = new($"{nameof(SplitterWidget)}.{nameof(FocusFirstAction)}");
+
     /// <summary>
     /// The first child widget (left for horizontal, top for vertical).
     /// Wrapped in a LayoutWidget for clipping.

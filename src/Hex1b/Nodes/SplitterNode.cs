@@ -2,6 +2,7 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace Hex1b;
 
@@ -138,15 +139,15 @@ public sealed class SplitterNode : Hex1bNode, IChildLayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Resize bindings
-        bindings.Key(Hex1bKey.LeftArrow).Action(ResizeLeft, "Resize left");
-        bindings.Key(Hex1bKey.RightArrow).Action(ResizeRight, "Resize right");
-        bindings.Key(Hex1bKey.UpArrow).Action(ResizeUp, "Resize up");
-        bindings.Key(Hex1bKey.DownArrow).Action(ResizeDown, "Resize down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(SplitterWidget.ResizeLeftAction, _ => ResizeLeft(), "Resize left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(SplitterWidget.ResizeRightAction, _ => ResizeRight(), "Resize right");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(SplitterWidget.ResizeUpAction, _ => ResizeUp(), "Resize up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(SplitterWidget.ResizeDownAction, _ => ResizeDown(), "Resize down");
         
         // Focus navigation - delegated to app-level FocusRing via InputBindingActionContext
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
-        bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(SplitterWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(SplitterWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Escape).Triggers(SplitterWidget.FocusFirstAction, _ => FocusFirst(), "Jump to first focusable");
         
         // Mouse drag to resize
         bindings.Drag(MouseButton.Left).Action((startX, startY) =>

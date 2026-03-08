@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -15,6 +16,17 @@ public sealed record ScrollbarWidget(
     int ViewportSize,
     int Offset) : Hex1bWidget
 {
+    public static readonly ActionId ScrollUpAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollUpAction)}");
+    public static readonly ActionId ScrollDownAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollDownAction)}");
+    public static readonly ActionId PageUpAction = new($"{nameof(ScrollbarWidget)}.{nameof(PageUpAction)}");
+    public static readonly ActionId PageDownAction = new($"{nameof(ScrollbarWidget)}.{nameof(PageDownAction)}");
+    public static readonly ActionId ScrollToTopAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollToTopAction)}");
+    public static readonly ActionId ScrollToBottomAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollToBottomAction)}");
+    public static readonly ActionId ScrollLeftAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollLeftAction)}");
+    public static readonly ActionId ScrollRightAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollRightAction)}");
+    public static readonly ActionId ScrollToStartAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollToStartAction)}");
+    public static readonly ActionId ScrollToEndAction = new($"{nameof(ScrollbarWidget)}.{nameof(ScrollToEndAction)}");
+
     /// <summary>
     /// Handler called when the scroll offset changes.
     /// </summary>

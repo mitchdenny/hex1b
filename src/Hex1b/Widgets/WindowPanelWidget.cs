@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -34,6 +35,11 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record WindowPanelWidget(string? Name = null) : Hex1bWidget
 {
+    public static readonly ActionId FocusNextAction = new($"{nameof(WindowPanelWidget)}.{nameof(FocusNextAction)}");
+    public static readonly ActionId FocusPreviousAction = new($"{nameof(WindowPanelWidget)}.{nameof(FocusPreviousAction)}");
+    public static readonly ActionId PanUpAction = new($"{nameof(WindowPanelWidget)}.{nameof(PanUpAction)}");
+    public static readonly ActionId PanDownAction = new($"{nameof(WindowPanelWidget)}.{nameof(PanDownAction)}");
+
     /// <summary>
     /// Whether windows can be moved outside the panel bounds.
     /// When true, scrollbars appear to allow panning to out-of-bounds windows.

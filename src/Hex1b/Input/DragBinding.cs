@@ -27,6 +27,12 @@ public sealed class DragBinding
     /// </summary>
     public string? Description { get; }
 
+    /// <summary>
+    /// A stable identifier for the action this binding performs.
+    /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
+    /// </summary>
+    public ActionId? ActionId { get; internal set; }
+
     public DragBinding(MouseButton button, Hex1bModifiers modifiers, Func<int, int, DragHandler> factory, string? description)
     {
         Button = button;

@@ -118,29 +118,29 @@ public sealed class MenuNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Open menu on Enter/Space/Click
-        bindings.Key(Hex1bKey.Enter).Action(OpenMenu, "Open menu");
-        bindings.Key(Hex1bKey.Spacebar).Action(OpenMenu, "Open menu");
-        bindings.Mouse(MouseButton.Left).Action(OpenMenu, "Open menu");
+        bindings.Key(Hex1bKey.Enter).Triggers(MenuWidget.Open, OpenMenu, "Open menu");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(MenuWidget.Open, OpenMenu, "Open menu");
+        bindings.Mouse(MouseButton.Left).Triggers(MenuWidget.Open, OpenMenu, "Open menu");
         
         // When this menu is rendered inside a popup (as a submenu trigger),
         // it needs navigation bindings like a menu item
         if (Parent is MenuPopupNode)
         {
             // Right arrow opens submenu (only in popup context)
-            bindings.Key(Hex1bKey.RightArrow).Action(OpenMenu, "Open submenu");
-            bindings.Key(Hex1bKey.DownArrow).Action(ctx => ctx.FocusNext(), "Next item");
-            bindings.Key(Hex1bKey.UpArrow).Action(ctx => ctx.FocusPrevious(), "Previous item");
-            bindings.Key(Hex1bKey.Escape).Action(CloseParentMenu, "Close menu");
+            bindings.Key(Hex1bKey.RightArrow).Triggers(MenuWidget.Open, OpenMenu, "Open submenu");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(MenuWidget.NextItem, ctx => ctx.FocusNext(), "Next item");
+            bindings.Key(Hex1bKey.UpArrow).Triggers(MenuWidget.PreviousItem, ctx => ctx.FocusPrevious(), "Previous item");
+            bindings.Key(Hex1bKey.Escape).Triggers(MenuWidget.Close, CloseParentMenu, "Close menu");
             // Left arrow navigates to previous menu in menu bar (same as MenuItemNode)
-            bindings.Key(Hex1bKey.LeftArrow).Action(NavigateToPreviousMenu, "Previous menu");
+            bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuWidget.NavigatePrevious, NavigateToPreviousMenu, "Previous menu");
         }
         else
         {
             // When in a menu bar (or any non-popup context), Down arrow opens the menu
             // Left/Right navigate between menus without opening
-            bindings.Key(Hex1bKey.DownArrow).Action(OpenMenu, "Open menu");
-            bindings.Key(Hex1bKey.LeftArrow).Action(FocusPreviousMenuInBar, "Previous menu");
-            bindings.Key(Hex1bKey.RightArrow).Action(FocusNextMenuInBar, "Next menu");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(MenuWidget.Open, OpenMenu, "Open menu");
+            bindings.Key(Hex1bKey.LeftArrow).Triggers(MenuWidget.FocusPreviousInBar, FocusPreviousMenuInBar, "Previous menu");
+            bindings.Key(Hex1bKey.RightArrow).Triggers(MenuWidget.FocusNextInBar, FocusNextMenuInBar, "Next menu");
         }
     }
     

@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 
 namespace Hex1b.Widgets;
 
@@ -22,6 +23,9 @@ namespace Hex1b.Widgets;
 /// <param name="Icon">The icon character or string to display.</param>
 public sealed record IconWidget(string Icon) : Hex1bWidget
 {
+    /// <summary>Action ID for clicking the icon.</summary>
+    public static readonly ActionId ActivateActionId = new($"{nameof(IconWidget)}.{nameof(ActivateActionId)}");
+
     /// <summary>
     /// Click handler for when the icon is clicked.
     /// </summary>

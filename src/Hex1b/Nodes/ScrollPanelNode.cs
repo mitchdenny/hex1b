@@ -208,23 +208,23 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation based on orientation
-        bindings.Key(Hex1bKey.UpArrow).Action(ScrollUp, "Scroll up");
-        bindings.Key(Hex1bKey.DownArrow).Action(ScrollDown, "Scroll down");
-        bindings.Key(Hex1bKey.LeftArrow).Action(ScrollLeft, "Scroll left");
-        bindings.Key(Hex1bKey.RightArrow).Action(ScrollRight, "Scroll right");
-        bindings.Key(Hex1bKey.PageUp).Action(PageUp, "Page up");
-        bindings.Key(Hex1bKey.PageDown).Action(PageDown, "Page down");
-        bindings.Key(Hex1bKey.Home).Action(ScrollToStart, "Scroll to start");
-        bindings.Key(Hex1bKey.End).Action(ScrollToEnd, "Scroll to end");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(ScrollPanelWidget.ScrollUpAction, ScrollUp, "Scroll up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(ScrollPanelWidget.ScrollDownAction, ScrollDown, "Scroll down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(ScrollPanelWidget.ScrollLeftAction, ScrollLeft, "Scroll left");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(ScrollPanelWidget.ScrollRightAction, ScrollRight, "Scroll right");
+        bindings.Key(Hex1bKey.PageUp).Triggers(ScrollPanelWidget.PageUpAction, PageUp, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Triggers(ScrollPanelWidget.PageDownAction, PageDown, "Page down");
+        bindings.Key(Hex1bKey.Home).Triggers(ScrollPanelWidget.ScrollToStartAction, ScrollToStart, "Scroll to start");
+        bindings.Key(Hex1bKey.End).Triggers(ScrollPanelWidget.ScrollToEndAction, ScrollToEnd, "Scroll to end");
         
         // Focus navigation - delegated to app-level FocusRing via InputBindingActionContext
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
-        bindings.Key(Hex1bKey.Escape).Action(FocusFirst, "Jump to first focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(ScrollPanelWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(ScrollPanelWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Escape).Triggers(ScrollPanelWidget.FocusFirstAction, _ => FocusFirst(), "Jump to first focusable");
         
         // Mouse wheel scrolling
-        bindings.Mouse(MouseButton.ScrollUp).Action(ctx => ScrollByAmount(-3, ctx), "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(ctx => ScrollByAmount(3, ctx), "Scroll down");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(ScrollPanelWidget.MouseScrollUpAction, ctx => ScrollByAmount(-3, ctx), "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(ScrollPanelWidget.MouseScrollDownAction, ctx => ScrollByAmount(3, ctx), "Scroll down");
         
         // Mouse drag on scrollbar (handles both clicks and thumb dragging)
         bindings.Drag(MouseButton.Left).Action(HandleScrollbarDrag, "Drag scrollbar");

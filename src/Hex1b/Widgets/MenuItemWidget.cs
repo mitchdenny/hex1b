@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -9,6 +10,19 @@ namespace Hex1b.Widgets;
 /// <param name="Label">The display label for the item.</param>
 public sealed record MenuItemWidget(string Label) : Hex1bWidget, IMenuChild
 {
+    /// <summary>Rebindable action: Move to next item.</summary>
+    public static readonly ActionId MoveDown = new($"{nameof(MenuItemWidget)}.{nameof(MoveDown)}");
+    /// <summary>Rebindable action: Move to previous item.</summary>
+    public static readonly ActionId MoveUp = new($"{nameof(MenuItemWidget)}.{nameof(MoveUp)}");
+    /// <summary>Rebindable action: Close the menu.</summary>
+    public static readonly ActionId Close = new($"{nameof(MenuItemWidget)}.{nameof(Close)}");
+    /// <summary>Rebindable action: Navigate to previous menu.</summary>
+    public static readonly ActionId NavigateLeft = new($"{nameof(MenuItemWidget)}.{nameof(NavigateLeft)}");
+    /// <summary>Rebindable action: Navigate to next menu.</summary>
+    public static readonly ActionId NavigateRight = new($"{nameof(MenuItemWidget)}.{nameof(NavigateRight)}");
+    /// <summary>Rebindable action: Activate the menu item.</summary>
+    public static readonly ActionId Activate = new($"{nameof(MenuItemWidget)}.{nameof(Activate)}");
+
     /// <summary>
     /// The handler called when the item is activated (user triggers the action).
     /// </summary>

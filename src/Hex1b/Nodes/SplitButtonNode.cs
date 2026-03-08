@@ -87,15 +87,15 @@ public sealed class SplitButtonNode : Hex1bNode
         // Primary action on Enter/Space/Click
         if (PrimaryAction != null)
         {
-            bindings.Key(Hex1bKey.Enter).Action(PrimaryAction, "Activate");
-            bindings.Key(Hex1bKey.Spacebar).Action(PrimaryAction, "Activate");
-            bindings.Mouse(MouseButton.Left).Action(HandleClick, "Click");
+            bindings.Key(Hex1bKey.Enter).Triggers(SplitButtonWidget.ActivateActionId, PrimaryAction, "Activate");
+            bindings.Key(Hex1bKey.Spacebar).Triggers(SplitButtonWidget.ActivateActionId);
+            bindings.Mouse(MouseButton.Left).Triggers(SplitButtonWidget.ActivateActionId, HandleClick, "Click");
         }
 
         // Down arrow opens dropdown if there are secondary actions
         if (HasSecondaryActions)
         {
-            bindings.Key(Hex1bKey.DownArrow).Action(OpenDropdown, "Open menu");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(SplitButtonWidget.OpenMenuActionId, OpenDropdown, "Open menu");
         }
     }
 

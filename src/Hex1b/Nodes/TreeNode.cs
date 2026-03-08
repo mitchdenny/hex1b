@@ -115,16 +115,16 @@ public sealed class TreeNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        bindings.Key(Hex1bKey.UpArrow).Action(MoveFocusUp, "Move up");
-        bindings.Key(Hex1bKey.DownArrow).Action(MoveFocusDown, "Move down");
-        bindings.Key(Hex1bKey.LeftArrow).Action(HandleLeft, "Collapse or move to parent");
-        bindings.Key(Hex1bKey.RightArrow).Action(HandleRight, "Expand or move to child");
-        bindings.Key(Hex1bKey.Enter).Action(ActivateFocused, "Activate item");
-        bindings.Key(Hex1bKey.Spacebar).Action(HandleSpace, "Toggle selection/expand");
-        bindings.Mouse(MouseButton.Left).Action(HandleMouseClick, "Select item");
-        bindings.Mouse(MouseButton.Left).DoubleClick().Action(HandleMouseDoubleClick, "Activate item");
-        bindings.Mouse(MouseButton.ScrollUp).Action(MoveFocusUp, "Scroll up");
-        bindings.Mouse(MouseButton.ScrollDown).Action(MoveFocusDown, "Scroll down");
+        bindings.Key(Hex1bKey.UpArrow).Triggers(TreeWidget.MoveUpActionId, MoveFocusUp, "Move up");
+        bindings.Key(Hex1bKey.DownArrow).Triggers(TreeWidget.MoveDownActionId, MoveFocusDown, "Move down");
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(TreeWidget.CollapseOrParentActionId, HandleLeft, "Collapse or move to parent");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TreeWidget.ExpandOrChildActionId, HandleRight, "Expand or move to child");
+        bindings.Key(Hex1bKey.Enter).Triggers(TreeWidget.ActivateActionId, ActivateFocused, "Activate item");
+        bindings.Key(Hex1bKey.Spacebar).Triggers(TreeWidget.ToggleActionId, HandleSpace, "Toggle selection/expand");
+        bindings.Mouse(MouseButton.Left).Triggers(TreeWidget.SelectItemActionId, HandleMouseClick, "Select item");
+        bindings.Mouse(MouseButton.Left).DoubleClick().Triggers(TreeWidget.DoubleClickActivateActionId, HandleMouseDoubleClick, "Activate item");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TreeWidget.MoveUpActionId, MoveFocusUp, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TreeWidget.MoveDownActionId, MoveFocusDown, "Scroll down");
     }
 
     private Task MoveFocusUp(InputBindingActionContext ctx)

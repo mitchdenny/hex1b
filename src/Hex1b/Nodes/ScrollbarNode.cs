@@ -183,19 +183,19 @@ public sealed class ScrollbarNode : Hex1bNode
         // Keyboard scrolling when focused
         if (Orientation == ScrollOrientation.Vertical)
         {
-            bindings.Key(Hex1bKey.UpArrow).Action(_ => ScrollByAmount(-1), "Scroll up");
-            bindings.Key(Hex1bKey.DownArrow).Action(_ => ScrollByAmount(1), "Scroll down");
-            bindings.Key(Hex1bKey.PageUp).Action(_ => ScrollByPage(-1), "Page up");
-            bindings.Key(Hex1bKey.PageDown).Action(_ => ScrollByPage(1), "Page down");
-            bindings.Key(Hex1bKey.Home).Action(_ => SetOffset(0), "Scroll to top");
-            bindings.Key(Hex1bKey.End).Action(_ => SetOffset(MaxOffset), "Scroll to bottom");
+            bindings.Key(Hex1bKey.UpArrow).Triggers(ScrollbarWidget.ScrollUpAction, _ => ScrollByAmount(-1), "Scroll up");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(ScrollbarWidget.ScrollDownAction, _ => ScrollByAmount(1), "Scroll down");
+            bindings.Key(Hex1bKey.PageUp).Triggers(ScrollbarWidget.PageUpAction, _ => ScrollByPage(-1), "Page up");
+            bindings.Key(Hex1bKey.PageDown).Triggers(ScrollbarWidget.PageDownAction, _ => ScrollByPage(1), "Page down");
+            bindings.Key(Hex1bKey.Home).Triggers(ScrollbarWidget.ScrollToTopAction, _ => SetOffset(0), "Scroll to top");
+            bindings.Key(Hex1bKey.End).Triggers(ScrollbarWidget.ScrollToBottomAction, _ => SetOffset(MaxOffset), "Scroll to bottom");
         }
         else
         {
-            bindings.Key(Hex1bKey.LeftArrow).Action(_ => ScrollByAmount(-1), "Scroll left");
-            bindings.Key(Hex1bKey.RightArrow).Action(_ => ScrollByAmount(1), "Scroll right");
-            bindings.Key(Hex1bKey.Home).Action(_ => SetOffset(0), "Scroll to start");
-            bindings.Key(Hex1bKey.End).Action(_ => SetOffset(MaxOffset), "Scroll to end");
+            bindings.Key(Hex1bKey.LeftArrow).Triggers(ScrollbarWidget.ScrollLeftAction, _ => ScrollByAmount(-1), "Scroll left");
+            bindings.Key(Hex1bKey.RightArrow).Triggers(ScrollbarWidget.ScrollRightAction, _ => ScrollByAmount(1), "Scroll right");
+            bindings.Key(Hex1bKey.Home).Triggers(ScrollbarWidget.ScrollToStartAction, _ => SetOffset(0), "Scroll to start");
+            bindings.Key(Hex1bKey.End).Triggers(ScrollbarWidget.ScrollToEndAction, _ => SetOffset(MaxOffset), "Scroll to end");
         }
 
         // Mouse drag on scrollbar

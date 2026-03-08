@@ -86,6 +86,14 @@ public sealed class ReconcileContext
     public CancellationToken CancellationToken { get; }
 
     /// <summary>
+    /// Per-widget-type input binding overrides cascaded from ancestor
+    /// <see cref="InputOverrideWidget"/> instances. When a child widget's type
+    /// matches a key in this dictionary, the corresponding configurator is
+    /// applied after the widget's default and per-instance bindings.
+    /// </summary>
+    private IReadOnlyDictionary<Type, Action<InputBindingsBuilder>>? _inputOverrides;
+
+    /// <summary>
     /// Callback to schedule an animation timer for a widget.
     /// The action will be called after the specified delay, marking the node dirty
     /// and triggering a re-render.
@@ -149,7 +157,8 @@ public sealed class ReconcileContext
             CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
         {
             DiagnosticTimingEnabled = DiagnosticTimingEnabled,
-            Metrics = Metrics
+            Metrics = Metrics,
+            _inputOverrides = _inputOverrides
         };
     }
     
@@ -160,7 +169,8 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
+        { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
     
     /// <summary>
@@ -170,7 +180,40 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry) { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics };
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
+        { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
+    }
+
+    /// <summary>
+    /// Creates a new context with the specified input binding overrides.
+    /// Used by <see cref="InputOverrideWidget"/> to cascade overrides to descendants.
+    /// </summary>
+    internal ReconcileContext WithInputOverrides(IReadOnlyDictionary<Type, Action<InputBindingsBuilder>> overrides)
+    {
+        return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry)
+        { IsNew = IsNew, ChildIndex = ChildIndex, ChildCount = ChildCount, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = overrides };
+    }
+
+    /// <summary>
+    /// Merges new overrides with any existing parent overrides. Inner (new) overrides
+    /// take precedence over outer (existing) overrides for the same widget type.
+    /// </summary>
+    internal IReadOnlyDictionary<Type, Action<InputBindingsBuilder>> MergeInputOverrides(
+        IReadOnlyDictionary<Type, Action<InputBindingsBuilder>> newOverrides)
+    {
+        if (_inputOverrides is null || _inputOverrides.Count == 0)
+        {
+            return newOverrides;
+        }
+
+        // Start with parent overrides, then overlay child overrides (child wins)
+        var merged = new Dictionary<Type, Action<InputBindingsBuilder>>(_inputOverrides);
+        foreach (var (type, configurator) in newOverrides)
+        {
+            merged[type] = configurator;
+        }
+        return merged;
     }
 
     /// <summary>
@@ -208,7 +251,24 @@ public sealed class ReconcileContext
         // Set common properties on the reconciled node
         node.Parent = parent;
         node.ReconcileSourceWidget = widget;
-        node.BindingsConfigurator = widget.BindingsConfigurator;
+        
+        // Apply input binding overrides from ancestor InputOverrideWidget instances.
+        // The override wraps the widget's own BindingsConfigurator (if any) so that
+        // the override runs AFTER per-instance WithInputBindings configuration.
+        var widgetConfigurator = widget.BindingsConfigurator;
+        if (_inputOverrides is not null && _inputOverrides.TryGetValue(widget.GetType(), out var overrideConfigurator))
+        {
+            node.BindingsConfigurator = builder =>
+            {
+                widgetConfigurator?.Invoke(builder);
+                overrideConfigurator(builder);
+            };
+        }
+        else
+        {
+            node.BindingsConfigurator = widgetConfigurator;
+        }
+        
         node.CachePredicate = widget.CachePredicate;
         node.WidthHint = widget.WidthHint;
         node.HeightHint = widget.HeightHint;

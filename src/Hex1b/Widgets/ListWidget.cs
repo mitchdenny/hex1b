@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -9,6 +10,17 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Move selection up.</summary>
+    public static readonly ActionId MoveUp = new($"{nameof(ListWidget)}.{nameof(MoveUp)}");
+    /// <summary>Rebindable action: Move selection down.</summary>
+    public static readonly ActionId MoveDown = new($"{nameof(ListWidget)}.{nameof(MoveDown)}");
+    /// <summary>Rebindable action: Activate the selected item.</summary>
+    public static readonly ActionId Activate = new($"{nameof(ListWidget)}.{nameof(Activate)}");
+    /// <summary>Rebindable action: Scroll up.</summary>
+    public static readonly ActionId ScrollUp = new($"{nameof(ListWidget)}.{nameof(ScrollUp)}");
+    /// <summary>Rebindable action: Scroll down.</summary>
+    public static readonly ActionId ScrollDown = new($"{nameof(ListWidget)}.{nameof(ScrollDown)}");
+
     /// <summary>
     /// The initial selected index when the list is first created.
     /// Defaults to 0 (first item). Only applied when the node is new.

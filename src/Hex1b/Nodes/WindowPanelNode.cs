@@ -494,12 +494,12 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Tab navigation through focusables
-        bindings.Key(Hex1bKey.Tab).Action(ctx => ctx.FocusNext(), "Next focusable");
-        bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => ctx.FocusPrevious(), "Previous focusable");
+        bindings.Key(Hex1bKey.Tab).Triggers(WindowPanelWidget.FocusNextAction, ctx => ctx.FocusNext(), "Next focusable");
+        bindings.Shift().Key(Hex1bKey.Tab).Triggers(WindowPanelWidget.FocusPreviousAction, ctx => ctx.FocusPrevious(), "Previous focusable");
         
         // Mouse wheel scrolling for panel panning
-        bindings.Mouse(Input.MouseButton.ScrollUp).Action(_ => ScrollByAmount(0, -3), "Pan up");
-        bindings.Mouse(Input.MouseButton.ScrollDown).Action(_ => ScrollByAmount(0, 3), "Pan down");
+        bindings.Mouse(Input.MouseButton.ScrollUp).Triggers(WindowPanelWidget.PanUpAction, _ => ScrollByAmount(0, -3), "Pan up");
+        bindings.Mouse(Input.MouseButton.ScrollDown).Triggers(WindowPanelWidget.PanDownAction, _ => ScrollByAmount(0, 3), "Pan down");
     }
 
     /// <summary>

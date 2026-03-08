@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -10,6 +11,30 @@ namespace Hex1b.Widgets;
 /// <param name="Items">The root tree items to display.</param>
 public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidget
 {
+    /// <summary>Action ID for moving focus up in the tree.</summary>
+    public static readonly ActionId MoveUpActionId = new($"{nameof(TreeWidget)}.{nameof(MoveUpActionId)}");
+
+    /// <summary>Action ID for moving focus down in the tree.</summary>
+    public static readonly ActionId MoveDownActionId = new($"{nameof(TreeWidget)}.{nameof(MoveDownActionId)}");
+
+    /// <summary>Action ID for collapsing or moving to parent.</summary>
+    public static readonly ActionId CollapseOrParentActionId = new($"{nameof(TreeWidget)}.{nameof(CollapseOrParentActionId)}");
+
+    /// <summary>Action ID for expanding or moving to child.</summary>
+    public static readonly ActionId ExpandOrChildActionId = new($"{nameof(TreeWidget)}.{nameof(ExpandOrChildActionId)}");
+
+    /// <summary>Action ID for activating the focused item.</summary>
+    public static readonly ActionId ActivateActionId = new($"{nameof(TreeWidget)}.{nameof(ActivateActionId)}");
+
+    /// <summary>Action ID for toggling selection or expand state.</summary>
+    public static readonly ActionId ToggleActionId = new($"{nameof(TreeWidget)}.{nameof(ToggleActionId)}");
+
+    /// <summary>Action ID for selecting an item via mouse click.</summary>
+    public static readonly ActionId SelectItemActionId = new($"{nameof(TreeWidget)}.{nameof(SelectItemActionId)}");
+
+    /// <summary>Action ID for activating an item via mouse double-click.</summary>
+    public static readonly ActionId DoubleClickActivateActionId = new($"{nameof(TreeWidget)}.{nameof(DoubleClickActivateActionId)}");
+
     /// <summary>
     /// Whether multiple items can be selected with checkboxes. Default is false.
     /// When enabled, selecting a parent automatically selects all children (cascade selection).

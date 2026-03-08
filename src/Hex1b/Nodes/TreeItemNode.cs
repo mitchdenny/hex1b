@@ -223,10 +223,10 @@ public sealed class TreeItemNode : Hex1bNode
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Enter to activate
-        bindings.Key(Hex1bKey.Enter).Action(ctx => ActivateCallback?.Invoke(ctx) ?? Task.CompletedTask, "Activate item");
+        bindings.Key(Hex1bKey.Enter).Triggers(TreeItemWidget.ActivateActionId, ctx => ActivateCallback?.Invoke(ctx) ?? Task.CompletedTask, "Activate item");
         
         // Space to toggle selection (in multi-select mode) or expand/collapse
-        bindings.Key(Hex1bKey.Spacebar).Action(ctx => 
+        bindings.Key(Hex1bKey.Spacebar).Triggers(TreeItemWidget.ToggleActionId, ctx => 
         {
             if (ToggleSelectCallback != null)
                 return ToggleSelectCallback(ctx);
@@ -234,7 +234,7 @@ public sealed class TreeItemNode : Hex1bNode
         }, "Toggle selection/expand");
         
         // Left to collapse (or move to parent - handled by TreeNode)
-        bindings.Key(Hex1bKey.LeftArrow).Action(ctx => 
+        bindings.Key(Hex1bKey.LeftArrow).Triggers(TreeItemWidget.CollapseActionId, ctx => 
         {
             if (IsExpanded && HasChildren)
                 return ToggleExpandCallback?.Invoke(ctx) ?? Task.CompletedTask;
@@ -242,7 +242,7 @@ public sealed class TreeItemNode : Hex1bNode
         }, "Collapse");
         
         // Right to expand (or move to first child - handled by TreeNode)
-        bindings.Key(Hex1bKey.RightArrow).Action(ctx =>
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TreeItemWidget.ExpandActionId, ctx =>
         {
             if (!IsExpanded && HasChildren)
                 return ToggleExpandCallback?.Invoke(ctx) ?? Task.CompletedTask;
