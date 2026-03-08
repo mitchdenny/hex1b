@@ -147,8 +147,6 @@ public sealed class KgpImageNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
-
         var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
 
         // All modes claim the same layout space — Stretch mode only affects rendering.
@@ -160,11 +158,7 @@ public sealed class KgpImageNode : Hex1bNode
             ? constraints.MaxHeight
             : naturalH);
 
-        var kgpSize = constraints.Constrain(new Size(cellWidth, cellHeight));
-
-        return new Size(
-            Math.Max(fallbackSize.Width, kgpSize.Width),
-            Math.Max(fallbackSize.Height, kgpSize.Height));
+        return constraints.Constrain(new Size(cellWidth, cellHeight));
     }
 
     protected override void ArrangeCore(Rect bounds)
