@@ -3,7 +3,7 @@ namespace Hex1b;
 using Hex1b.Widgets;
 
 /// <summary>
-/// Extension methods for creating KgpImageWidget.
+/// Extension methods for creating and configuring <see cref="KgpImageWidget"/>.
 /// </summary>
 public static class KgpImageExtensions
 {
@@ -72,4 +72,38 @@ public static class KgpImageExtensions
     /// </summary>
     public static KgpImageWidget WithHeight(this KgpImageWidget widget, int height)
         => widget with { Height = height };
+
+    /// <summary>
+    /// Sets the image stretch mode.
+    /// </summary>
+    public static KgpImageWidget WithStretch(this KgpImageWidget widget, KgpImageStretch stretch)
+        => widget with { Stretch = stretch };
+
+    /// <summary>
+    /// Scales the image to fit within the allocated area while preserving the aspect ratio.
+    /// The resulting image may be smaller than the available space in one dimension.
+    /// Wrap in <see cref="AlignWidget"/> to control positioning of the remaining space.
+    /// </summary>
+    public static KgpImageWidget Uniform(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.Uniform };
+
+    /// <summary>
+    /// Scales the image to completely fill the allocated area while preserving the aspect
+    /// ratio. Excess portions of the source image are cropped.
+    /// </summary>
+    public static KgpImageWidget UniformToFill(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.UniformToFill };
+
+    /// <summary>
+    /// Stretches the image to fill the allocated area. Aspect ratio is not preserved.
+    /// This is the default behavior.
+    /// </summary>
+    public static KgpImageWidget Stretched(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.Fill };
+
+    /// <summary>
+    /// Displays the image at its natural pixel-to-cell dimensions without scaling.
+    /// </summary>
+    public static KgpImageWidget NaturalSize(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.None };
 }

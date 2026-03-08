@@ -204,7 +204,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// <see cref="SurfaceComparer"/> later reads the KGP data and emits transmit/placement
     /// tokens with proper z-ordering.
     /// </summary>
-    public override void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight, int cellWidth, int cellHeight, KgpZOrder zOrder)
+    public override void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight,
+        int cellWidth, int cellHeight, KgpZOrder zOrder,
+        int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
     {
         var writeX = _cursorX - _offsetX;
         var writeY = _cursorY - _offsetY;
@@ -227,6 +229,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
             (uint)pixelWidth,
             (uint)pixelHeight,
             contentHash,
+            clipX: clipX,
+            clipY: clipY,
+            clipW: clipW,
+            clipH: clipH,
             zIndex: zIndex);
 
         var tracked = _trackedObjects.GetOrCreateKgp(kgpData);

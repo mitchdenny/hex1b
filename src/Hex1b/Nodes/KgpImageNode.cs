@@ -15,6 +15,11 @@ public sealed class KgpImageNode : Hex1bNode
     private int? _requestedWidth;
     private int? _requestedHeight;
     private KgpZOrder _zOrder = KgpZOrder.BelowText;
+    private KgpImageStretch _stretch = KgpImageStretch.Fill;
+
+    // Approximate terminal cell dimensions for aspect ratio calculations.
+    private const double CellPixelWidth = 10.0;
+    private const double CellPixelHeight = 20.0;
 
     /// <summary>
     /// The raw RGBA32 pixel data for the image.
@@ -114,22 +119,77 @@ public sealed class KgpImageNode : Hex1bNode
     }
 
     /// <summary>
+    /// How the image is scaled within its allocated cell area.
+    /// </summary>
+    public KgpImageStretch Stretch
+    {
+        get => _stretch;
+        set
+        {
+            if (_stretch != value)
+            {
+                _stretch = value;
+                MarkDirty();
+            }
+        }
+    }
+
+    /// <summary>
     /// The fallback node to render if KGP is not supported.
     /// </summary>
     public Hex1bNode? Fallback { get; set; }
+
+    /// <summary>
+    /// Computes the natural cell dimensions from pixel dimensions.
+    /// </summary>
+    internal static (int Width, int Height) NaturalCellSize(int pixelWidth, int pixelHeight)
+        => (Math.Max(1, (pixelWidth + 9) / 10), Math.Max(1, (pixelHeight + 19) / 20));
 
     protected override Size MeasureCore(Constraints constraints)
     {
         var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
 
-        // When no fixed size is requested, use Fill hints or auto-compute from pixels.
-        // Guard against unbounded constraints (int.MaxValue) from VStack first pass.
-        var cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
-            ? constraints.MaxWidth
-            : Math.Max(1, (PixelWidth + 9) / 10));
-        var cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
-            ? constraints.MaxHeight
-            : Math.Max(1, (PixelHeight + 19) / 20));
+        var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
+        int cellWidth, cellHeight;
+
+        switch (Stretch)
+        {
+            case KgpImageStretch.None:
+                // Natural size, ignoring available space
+                cellWidth = RequestedWidth ?? naturalW;
+                cellHeight = RequestedHeight ?? naturalH;
+                break;
+
+            case KgpImageStretch.Uniform:
+            {
+                // Determine the target area to fit within
+                var targetW = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
+                    ? constraints.MaxWidth : naturalW);
+                var targetH = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
+                    ? constraints.MaxHeight : naturalH);
+
+                // Scale uniformly to fit
+                var scaleW = (double)targetW / naturalW;
+                var scaleH = (double)targetH / naturalH;
+                var scale = Math.Min(scaleW, scaleH);
+                cellWidth = Math.Max(1, (int)Math.Round(naturalW * scale));
+                cellHeight = Math.Max(1, (int)Math.Round(naturalH * scale));
+                break;
+            }
+
+            case KgpImageStretch.UniformToFill:
+            case KgpImageStretch.Fill:
+            default:
+                // Fill allocated space (guard against int.MaxValue from VStack first pass)
+                cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
+                    ? constraints.MaxWidth
+                    : naturalW);
+                cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
+                    ? constraints.MaxHeight
+                    : naturalH);
+                break;
+        }
+
         var kgpSize = constraints.Constrain(new Size(cellWidth, cellHeight));
 
         return new Size(
@@ -184,7 +244,64 @@ public sealed class KgpImageNode : Hex1bNode
         var cellHeight = RequestedHeight
             ?? (Bounds.Height > 0 ? Bounds.Height : Math.Max(1, (PixelHeight + 19) / 20));
 
-        context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
+        if (Stretch == KgpImageStretch.UniformToFill)
+        {
+            // Compute source-rect crop to maintain aspect ratio.
+            // Compare the display cell aspect ratio (in equivalent pixels) to the source image.
+            var (clipX, clipY, clipW, clipH) = ComputeUniformToFillClip(
+                PixelWidth, PixelHeight, cellWidth, cellHeight);
+            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
+                clipX, clipY, clipW, clipH);
+        }
+        else
+        {
+            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
+        }
+    }
+
+    /// <summary>
+    /// Computes the source-rectangle crop for UniformToFill scaling.
+    /// Centers the crop so that the image fills the display area while
+    /// preserving the original aspect ratio.
+    /// </summary>
+    internal static (int ClipX, int ClipY, int ClipW, int ClipH) ComputeUniformToFillClip(
+        int pixelWidth, int pixelHeight, int cellWidth, int cellHeight)
+    {
+        // Display area in equivalent pixel dimensions
+        var displayPixelW = cellWidth * CellPixelWidth;
+        var displayPixelH = cellHeight * CellPixelHeight;
+
+        var displayRatio = displayPixelW / displayPixelH;
+        var sourceRatio = (double)pixelWidth / pixelHeight;
+
+        int clipX, clipY, clipW, clipH;
+
+        if (sourceRatio > displayRatio)
+        {
+            // Source is wider → crop width, show full height
+            clipH = pixelHeight;
+            clipW = Math.Max(1, (int)Math.Round(pixelHeight * displayRatio));
+            clipX = (pixelWidth - clipW) / 2;
+            clipY = 0;
+        }
+        else if (sourceRatio < displayRatio)
+        {
+            // Source is taller → crop height, show full width
+            clipW = pixelWidth;
+            clipH = Math.Max(1, (int)Math.Round(pixelWidth / displayRatio));
+            clipX = 0;
+            clipY = (pixelHeight - clipH) / 2;
+        }
+        else
+        {
+            // Aspect ratios match — no crop needed
+            clipX = 0;
+            clipY = 0;
+            clipW = 0;
+            clipH = 0;
+        }
+
+        return (clipX, clipY, clipW, clipH);
     }
 
     private void RenderFallback(Hex1bRenderContext context)

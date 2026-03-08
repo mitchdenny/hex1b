@@ -326,4 +326,384 @@ public class KgpImageNodeTests
     }
 
     #endregion
+
+    #region Stretch Modes — Widget Construction
+
+    [Fact]
+    public void KgpImageWidget_DefaultStretch_IsFill()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"));
+
+        Assert.Equal(KgpImageStretch.Fill, widget.Stretch);
+    }
+
+    [Fact]
+    public void KgpImageWidget_Uniform_SetsStretch()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"))
+            .Uniform();
+
+        Assert.Equal(KgpImageStretch.Uniform, widget.Stretch);
+    }
+
+    [Fact]
+    public void KgpImageWidget_UniformToFill_SetsStretch()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"))
+            .UniformToFill();
+
+        Assert.Equal(KgpImageStretch.UniformToFill, widget.Stretch);
+    }
+
+    [Fact]
+    public void KgpImageWidget_Stretched_SetsStretch()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"))
+            .Stretched();
+
+        Assert.Equal(KgpImageStretch.Fill, widget.Stretch);
+    }
+
+    [Fact]
+    public void KgpImageWidget_NaturalSize_SetsStretch()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"))
+            .NaturalSize();
+
+        Assert.Equal(KgpImageStretch.None, widget.Stretch);
+    }
+
+    [Fact]
+    public void KgpImageWidget_WithStretch_SetsStretch()
+    {
+        var widget = new KgpImageWidget(
+            CreateTestImage(), 4, 4,
+            new TextBlockWidget("fallback"))
+            .WithStretch(KgpImageStretch.Uniform);
+
+        Assert.Equal(KgpImageStretch.Uniform, widget.Stretch);
+    }
+
+    #endregion
+
+    #region Stretch Modes — MeasureCore
+
+    [Fact]
+    public void Measure_StretchNone_AlwaysUsesNaturalSize()
+    {
+        // 100x200 pixels → natural: 10 cols x 10 rows
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(100, 200),
+            PixelWidth = 100,
+            PixelHeight = 200,
+            Stretch = KgpImageStretch.None,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+
+        // Even with large constraints, should use natural size
+        var size = node.Measure(new Constraints(0, 80, 0, 24));
+        Assert.Equal(10, size.Width);   // (100+9)/10 = 10
+        Assert.Equal(10, size.Height);  // (200+19)/20 = 10
+    }
+
+    [Fact]
+    public void Measure_StretchFill_WithFillHint_ExpandsToConstraints()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(40, 40),
+            PixelWidth = 40,
+            PixelHeight = 40,
+            Stretch = KgpImageStretch.Fill,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        var size = node.Measure(new Constraints(0, 60, 0, 20));
+        Assert.Equal(60, size.Width);
+        Assert.Equal(20, size.Height);
+    }
+
+    [Fact]
+    public void Measure_StretchFill_WithoutFillHint_UsesNaturalSize()
+    {
+        // 40x40 pixels → natural: 4 cols x 2 rows
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(40, 40),
+            PixelWidth = 40,
+            PixelHeight = 40,
+            Stretch = KgpImageStretch.Fill,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+
+        var size = node.Measure(new Constraints(0, 60, 0, 20));
+        Assert.Equal(4, size.Width);
+        Assert.Equal(2, size.Height);
+    }
+
+    [Fact]
+    public void Measure_Uniform_FitsWithinConstraintsMaintainingAspectRatio()
+    {
+        // 200x100 pixels → natural: 20 cols x 5 rows (cell aspect 4:1)
+        // Container: 10x20 → should fit to width
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(200, 100),
+            PixelWidth = 200,
+            PixelHeight = 100,
+            Stretch = KgpImageStretch.Uniform,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        var size = node.Measure(new Constraints(0, 10, 0, 20));
+        // Natural is 20x5, constrained to 10 wide: scale = 10/20 = 0.5
+        // Fitted: 10x3 (round(5*0.5) = 3)
+        Assert.Equal(10, size.Width);
+        Assert.True(size.Height <= 5, $"Height {size.Height} should be <= 5 for uniform fit");
+        Assert.True(size.Height >= 2, $"Height {size.Height} should be >= 2");
+    }
+
+    [Fact]
+    public void Measure_Uniform_FitsToHeight_WhenHeightIsConstraining()
+    {
+        // 100x400 pixels → natural: 10 cols x 20 rows
+        // Container: 80x5 → height is constraining
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(100, 400),
+            PixelWidth = 100,
+            PixelHeight = 400,
+            Stretch = KgpImageStretch.Uniform,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        var size = node.Measure(new Constraints(0, 80, 0, 5));
+        // Natural 10x20, constrained to 5 high: scale = 5/20 = 0.25
+        // Fitted: 3x5 (round(10*0.25) = 3)
+        Assert.Equal(5, size.Height);
+        Assert.True(size.Width <= 10, $"Width {size.Width} should be <= 10");
+    }
+
+    [Fact]
+    public void Measure_Uniform_WithoutFillHint_UsesNaturalSize()
+    {
+        // 100x200 pixels → natural: 10x10
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(100, 200),
+            PixelWidth = 100,
+            PixelHeight = 200,
+            Stretch = KgpImageStretch.Uniform,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+
+        var size = node.Measure(new Constraints(0, 80, 0, 24));
+        // Without Fill hints, target = natural = 10x10, scale = 1.0
+        Assert.Equal(10, size.Width);
+        Assert.Equal(10, size.Height);
+    }
+
+    [Fact]
+    public void Measure_UniformToFill_FillsConstraints()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(100, 200),
+            PixelWidth = 100,
+            PixelHeight = 200,
+            Stretch = KgpImageStretch.UniformToFill,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        var size = node.Measure(new Constraints(0, 60, 0, 20));
+        // UniformToFill fills constraints just like Fill
+        Assert.Equal(60, size.Width);
+        Assert.Equal(20, size.Height);
+    }
+
+    [Fact]
+    public void Measure_StretchFill_GuardsAgainstIntMaxValue()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(100, 200),
+            PixelWidth = 100,
+            PixelHeight = 200,
+            Stretch = KgpImageStretch.Fill,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        // VStack first-pass uses int.MaxValue
+        var size = node.Measure(new Constraints(0, int.MaxValue, 0, int.MaxValue));
+        // Should fall back to natural size, not int.MaxValue
+        Assert.True(size.Width < 1000, $"Width {size.Width} should not be int.MaxValue");
+        Assert.True(size.Height < 1000, $"Height {size.Height} should not be int.MaxValue");
+    }
+
+    [Fact]
+    public void Measure_Uniform_SquareImage_InSquareContainer()
+    {
+        // 200x200 pixels → natural: 20 cols x 10 rows (cells are 10×20 px)
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(200, 200),
+            PixelWidth = 200,
+            PixelHeight = 200,
+            Stretch = KgpImageStretch.Uniform,
+            Fallback = new TextBlockNode { Text = "fb" },
+        };
+        node.WidthHint = SizeHint.Fill;
+        node.HeightHint = SizeHint.Fill;
+
+        // Container 20x10 matches natural exactly
+        var size = node.Measure(new Constraints(0, 20, 0, 10));
+        Assert.Equal(20, size.Width);
+        Assert.Equal(10, size.Height);
+    }
+
+    #endregion
+
+    #region Stretch Modes — UniformToFill Clip Computation
+
+    [Fact]
+    public void ComputeUniformToFillClip_WiderSource_CropsWidth()
+    {
+        // Source 400x200 (pixel aspect 2:1), display 10x10 cells
+        // Display pixel equiv: 100x200 (ratio 0.5:1)
+        // Source wider → crop width
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeUniformToFillClip(400, 200, 10, 10);
+        Assert.True(clipX > 0, "Should crop from sides");
+        Assert.Equal(0, clipY);
+        Assert.True(clipW < 400, $"clipW {clipW} should be less than full width 400");
+        Assert.Equal(200, clipH);
+        // Centered
+        Assert.Equal((400 - clipW) / 2, clipX);
+    }
+
+    [Fact]
+    public void ComputeUniformToFillClip_TallerSource_CropsHeight()
+    {
+        // Source 100x400 (pixel aspect 0.25:1), display 20x5 cells
+        // Display pixel equiv: 200x100 (ratio 2:1)
+        // Source taller → crop height
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeUniformToFillClip(100, 400, 20, 5);
+        Assert.Equal(0, clipX);
+        Assert.True(clipY > 0, "Should crop from top/bottom");
+        Assert.Equal(100, clipW);
+        Assert.True(clipH < 400, $"clipH {clipH} should be less than full height 400");
+        Assert.Equal((400 - clipH) / 2, clipY);
+    }
+
+    [Fact]
+    public void ComputeUniformToFillClip_MatchingAspect_NoCrop()
+    {
+        // Source 200x400 → natural 20x20 cells
+        // Display at 20x20 cells → pixel equiv 200x400 → ratio 0.5
+        // Source ratio = 200/400 = 0.5 → matches display → no crop
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeUniformToFillClip(200, 400, 20, 20);
+        Assert.Equal(0, clipX);
+        Assert.Equal(0, clipY);
+        Assert.Equal(0, clipW);
+        Assert.Equal(0, clipH);
+    }
+
+    [Fact]
+    public void ComputeUniformToFillClip_SquareImageInWideDisplay_CropsHeight()
+    {
+        // Source 100x100 (square), display 40x5 cells
+        // Display pixel equiv: 400x100 (ratio 4:1)
+        // Source pixel ratio: 1:1
+        // Source is taller → crop height
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeUniformToFillClip(100, 100, 40, 5);
+        Assert.Equal(0, clipX);
+        Assert.True(clipY > 0, "Should crop height for wide display");
+        Assert.Equal(100, clipW);
+        Assert.True(clipH < 100);
+    }
+
+    #endregion
+
+    #region Stretch — Dirty Tracking
+
+    [Fact]
+    public void StretchChange_MarksDirty()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(2, 2),
+            PixelWidth = 2,
+            PixelHeight = 2,
+            Stretch = KgpImageStretch.Fill,
+        };
+
+        node.Measure(new Constraints(0, 80, 0, 24));
+        node.Arrange(new Rect(0, 0, 80, 24));
+        node.ClearDirty();
+
+        node.Stretch = KgpImageStretch.Uniform;
+        Assert.True(node.IsDirty);
+    }
+
+    [Fact]
+    public void StretchChange_SameValue_DoesNotMarkDirty()
+    {
+        var node = new KgpImageNode
+        {
+            ImageData = CreateTestImage(2, 2),
+            PixelWidth = 2,
+            PixelHeight = 2,
+            Stretch = KgpImageStretch.Fill,
+        };
+
+        node.Measure(new Constraints(0, 80, 0, 24));
+        node.Arrange(new Rect(0, 0, 80, 24));
+        node.ClearDirty();
+
+        node.Stretch = KgpImageStretch.Fill; // same value
+        Assert.False(node.IsDirty);
+    }
+
+    #endregion
+
+    #region Stretch — NaturalCellSize Helper
+
+    [Fact]
+    public void NaturalCellSize_ComputesCorrectly()
+    {
+        // 100x200 pixels → (100+9)/10 = 10, (200+19)/20 = 10
+        var (w, h) = KgpImageNode.NaturalCellSize(100, 200);
+        Assert.Equal(10, w);
+        Assert.Equal(10, h);
+    }
+
+    [Fact]
+    public void NaturalCellSize_MinimumOne()
+    {
+        var (w, h) = KgpImageNode.NaturalCellSize(1, 1);
+        Assert.Equal(1, w);
+        Assert.Equal(1, h);
+    }
+
+    #endregion
 }

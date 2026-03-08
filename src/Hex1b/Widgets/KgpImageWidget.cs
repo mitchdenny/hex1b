@@ -13,6 +13,7 @@ namespace Hex1b.Widgets;
 /// <param name="Width">Optional width in character cells. If null, computed from pixel dimensions.</param>
 /// <param name="Height">Optional height in character cells. If null, computed from pixel dimensions.</param>
 /// <param name="ZOrder">Z-ordering relative to text. Default is <see cref="KgpZOrder.BelowText"/>.</param>
+/// <param name="Stretch">How the image is scaled within its allocated cell area. Default is <see cref="KgpImageStretch.Fill"/>.</param>
 public sealed record KgpImageWidget(
     byte[] ImageData,
     int PixelWidth,
@@ -20,7 +21,8 @@ public sealed record KgpImageWidget(
     Hex1bWidget Fallback,
     int? Width = null,
     int? Height = null,
-    KgpZOrder ZOrder = KgpZOrder.BelowText) : Hex1bWidget
+    KgpZOrder ZOrder = KgpZOrder.BelowText,
+    KgpImageStretch Stretch = KgpImageStretch.Fill) : Hex1bWidget
 {
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -31,6 +33,7 @@ public sealed record KgpImageWidget(
         node.RequestedWidth = Width;
         node.RequestedHeight = Height;
         node.ZOrder = ZOrder;
+        node.Stretch = Stretch;
         node.Fallback = await context.ReconcileChildAsync(node.Fallback, Fallback, node);
         return node;
     }

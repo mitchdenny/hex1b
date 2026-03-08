@@ -65,7 +65,19 @@ public class Hex1bRenderContext
     /// Surface-backed render contexts override this to populate surface cells with
     /// structured <see cref="KgpCellData"/> for compositing and diff-based emission.
     /// </summary>
-    public virtual void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight, int cellWidth, int cellHeight, KgpZOrder zOrder)
+    /// <param name="imageData">Raw RGBA32 pixel data.</param>
+    /// <param name="pixelWidth">Source image width in pixels.</param>
+    /// <param name="pixelHeight">Source image height in pixels.</param>
+    /// <param name="cellWidth">Display width in terminal columns.</param>
+    /// <param name="cellHeight">Display height in terminal rows.</param>
+    /// <param name="zOrder">Stacking order relative to text.</param>
+    /// <param name="clipX">Pixel X offset into the source image for clipping (0 = no clip).</param>
+    /// <param name="clipY">Pixel Y offset into the source image for clipping (0 = no clip).</param>
+    /// <param name="clipW">Pixel width of the visible source region (0 = full width).</param>
+    /// <param name="clipH">Pixel height of the visible source region (0 = full height).</param>
+    public virtual void WriteKgp(byte[] imageData, int pixelWidth, int pixelHeight,
+        int cellWidth, int cellHeight, KgpZOrder zOrder,
+        int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
     {
         var base64 = Convert.ToBase64String(imageData);
         var contentHash = SHA256.HashData(imageData);
@@ -101,8 +113,14 @@ public class Hex1bRenderContext
             }
         }
 
-        var placement = $"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight},q=2,z={zIndex}\x1b\\";
-        Write(placement);
+        var sb = new System.Text.StringBuilder();
+        sb.Append($"\x1b_Ga=p,i={imageId},c={cellWidth},r={cellHeight}");
+        if (clipX > 0) sb.Append($",x={clipX}");
+        if (clipY > 0) sb.Append($",y={clipY}");
+        if (clipW > 0) sb.Append($",w={clipW}");
+        if (clipH > 0) sb.Append($",h={clipH}");
+        sb.Append($",q=2,z={zIndex}\x1b\\");
+        Write(sb.ToString());
     }
     public virtual int Width => _adapter?.Width ?? 0;
     public virtual int Height => _adapter?.Height ?? 0;
