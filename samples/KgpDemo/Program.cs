@@ -1,514 +1,260 @@
-// KgpDemo - Demonstrates KGP (Kitty Graphics Protocol) support across the Hex1b stack.
+// KgpDemo - Interactive demonstration of KGP (Kitty Graphics Protocol) support in Hex1b.
 //
-// Scene 1: Surface Cell Basics
-//   Validates KgpCellData z-index parameterization, clipping, and placement building.
-//
-// Additional scenes are added as each phase of KGP support is implemented.
+// Navigate between scenes using the picker at the bottom.
+// Each scene demonstrates a different aspect of KGP support.
 
-using System.Security.Cryptography;
-using System.Text;
 using Hex1b;
+using Hex1b.Layout;
 using Hex1b.Surfaces;
+using Hex1b.Theming;
+using Hex1b.Widgets;
 
-// Generate a small RGBA32 test image (4x4 pixels, gradient)
-var pixelWidth = 4;
-var pixelHeight = 4;
-var imageData = GenerateGradientImage(pixelWidth, pixelHeight);
+var scenes = new[] { "Image Display", "Z-Ordering", "Surface Layers", "Multiple Images", "Computed Effects" };
+var selectedScene = 0;
 
-Console.WriteLine("KGP Demo - Scene 1: KGP Cell Data Basics");
-Console.WriteLine("=========================================");
-Console.WriteLine();
+// Pre-generate test images
+var gradientImage = GenerateGradientImage(80, 40);
+var redImage = GenerateSolidImage(40, 40, 220, 60, 60);
+var greenImage = GenerateSolidImage(40, 40, 60, 200, 60);
+var blueImage = GenerateSolidImage(40, 40, 60, 80, 220);
+var checkerImage = GenerateCheckerImage(80, 40);
 
-// Create KGP cell data with z=-1 (below text, default)
-var hash = SHA256.HashData(imageData);
-var base64Payload = Convert.ToBase64String(imageData);
-var transmitPayload = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i=1,q=2;{base64Payload}\x1b\\";
-var kgpBelowText = new KgpCellData(
-    transmitPayload: transmitPayload,
-    imageId: 1,
-    widthInCells: 4,
-    heightInCells: 2,
-    sourcePixelWidth: (uint)pixelWidth,
-    sourcePixelHeight: (uint)pixelHeight,
-    contentHash: hash,
-    zIndex: -1);
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
+    .WithHex1bApp((app, options) => ctx =>
+    {
+        return ctx.VStack(v => [
+            v.ThemePanel(
+                t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
+                v.Text($" ◆ KGP Demo — {scenes[selectedScene]}")),
+            v.Text(" Tab to navigate, Enter to interact, Ctrl+C to exit"),
+            v.Separator(),
 
-Console.WriteLine("=== Below-Text Image (z=-1) ===");
-Console.WriteLine($"  ZIndex: {kgpBelowText.ZIndex}");
-Console.WriteLine($"  Placement: {Sanitize(kgpBelowText.BuildPlacementPayload())}");
-Console.WriteLine();
+            BuildScene(v, selectedScene),
 
-// Create KGP cell data with z=1 (above text)
-var kgpAboveText = new KgpCellData(
-    transmitPayload: transmitPayload,
-    imageId: 2,
-    widthInCells: 4,
-    heightInCells: 2,
-    sourcePixelWidth: (uint)pixelWidth,
-    sourcePixelHeight: (uint)pixelHeight,
-    contentHash: hash,
-    zIndex: 1);
+            v.Separator(),
+            v.Center(vc =>
+                vc.HStack(h => [
+                    h.Text("Scene: "),
+                    h.Picker(scenes, selectedScene)
+                        .OnSelectionChanged(e => selectedScene = e.SelectedIndex)
+                ]).Height(SizeHint.Content)
+            ).Height(SizeHint.Content)
+        ]);
+    })
+    .Build();
 
-Console.WriteLine("=== Above-Text Image (z=1) ===");
-Console.WriteLine($"  ZIndex: {kgpAboveText.ZIndex}");
-Console.WriteLine($"  Placement: {Sanitize(kgpAboveText.BuildPlacementPayload())}");
-Console.WriteLine();
+await terminal.RunAsync();
 
-// Test clipping preserves z-index
-var clipped = kgpBelowText.WithClip(2, 2, 10, 8, 2, 1);
-Console.WriteLine("=== Clipped Image ===");
-Console.WriteLine($"  ZIndex preserved: {clipped.ZIndex == kgpBelowText.ZIndex} (z={clipped.ZIndex})");
-Console.WriteLine($"  IsClipped: {clipped.IsClipped}");
-Console.WriteLine($"  ClipRect: ({clipped.ClipX}, {clipped.ClipY}, {clipped.ClipW}, {clipped.ClipH})");
-Console.WriteLine($"  New size: {clipped.WidthInCells}x{clipped.HeightInCells} cells");
-Console.WriteLine($"  Placement: {Sanitize(clipped.BuildPlacementPayload())}");
-Console.WriteLine();
+// --- Scene builders ---
 
-// Demonstrate content hash for deduplication
-Console.WriteLine("=== Deduplication ===");
-Console.WriteLine($"  Hash match (same content): {KgpCellData.HashEquals(kgpBelowText.ContentHash, kgpAboveText.ContentHash)}");
-var differentImage = GenerateGradientImage(8, 8);
-var differentHash = SHA256.HashData(differentImage);
-Console.WriteLine($"  Hash match (diff content): {KgpCellData.HashEquals(hash, differentHash)}");
-Console.WriteLine();
-
-Console.WriteLine("Scene 1 complete.");
-Console.WriteLine();
-
-// --- Scene 2: Capability Detection ---
-Console.WriteLine("KGP Demo - Scene 2: Capability Detection");
-Console.WriteLine("=========================================");
-Console.WriteLine();
-
-// Show what the Modern preset supports (baseline for SurfaceRenderContext)
-var modern = TerminalCapabilities.Modern;
-Console.WriteLine("=== TerminalCapabilities.Modern ===");
-Console.WriteLine($"  SupportsKgp:       {modern.SupportsKgp}");
-Console.WriteLine($"  SupportsSixel:     {modern.SupportsSixel}");
-Console.WriteLine($"  SupportsTrueColor: {modern.SupportsTrueColor}");
-Console.WriteLine();
-
-// Show custom capabilities with KGP enabled
-var kgpCaps = new TerminalCapabilities
+Hex1bWidget BuildScene<TParent>(WidgetContext<TParent> ctx, int scene) where TParent : Hex1bWidget
 {
-    SupportsKgp = true,
-    SupportsSixel = true,
-    SupportsTrueColor = true,
-    Supports256Colors = true,
-};
-Console.WriteLine("=== Custom KGP Capabilities ===");
-Console.WriteLine($"  SupportsKgp:       {kgpCaps.SupportsKgp}");
-Console.WriteLine($"  SupportsSixel:     {kgpCaps.SupportsSixel}");
-Console.WriteLine($"  SupportsTrueColor: {kgpCaps.SupportsTrueColor}");
-Console.WriteLine();
-
-// Demonstrate SurfaceRenderContext capability propagation
-var testSurface = new Hex1b.Surfaces.Surface(10, 5);
-var ctx = new Hex1b.Surfaces.SurfaceRenderContext(testSurface);
-Console.WriteLine("=== SurfaceRenderContext (default) ===");
-Console.WriteLine($"  SupportsKgp: {ctx.Capabilities.SupportsKgp}");
-
-ctx.SetCapabilities(kgpCaps);
-Console.WriteLine("=== SurfaceRenderContext (after SetCapabilities) ===");
-Console.WriteLine($"  SupportsKgp: {ctx.Capabilities.SupportsKgp}");
-Console.WriteLine();
-
-// Conditional rendering decision
-Console.WriteLine("=== Conditional Rendering ===");
-if (ctx.Capabilities.SupportsKgp)
-    Console.WriteLine("  → Would render KGP image");
-else if (ctx.Capabilities.SupportsSixel)
-    Console.WriteLine("  → Would render Sixel fallback");
-else
-    Console.WriteLine("  → Would render text fallback");
-
-Console.WriteLine();
-Console.WriteLine("Scene 2 complete.");
-Console.WriteLine();
-
-// --- Scene 3: Layer Compositing Concepts ---
-Console.WriteLine("KGP Demo - Scene 3: Layer Compositing");
-Console.WriteLine("======================================");
-Console.WriteLine();
-
-// Demonstrate the z-ordering model with KGP data objects
-Console.WriteLine("=== Z-Ordering Model ===");
-Console.WriteLine("  KGP images can be placed below text (z < 0) or above text (z > 0).");
-Console.WriteLine("  The compositing system assigns z-indexes by layer position.");
-Console.WriteLine();
-
-// Create KGP images at different z-levels
-var bgImage = GenerateGradientImage(200, 160);
-var bgHash = SHA256.HashData(bgImage);
-var bgPayload = $"\x1b_Ga=t,f=32,s=200,v=160,i=10;{Convert.ToBase64String(bgImage)}\x1b\\";
-var bgKgp = new KgpCellData(
-    transmitPayload: bgPayload,
-    imageId: 10,
-    widthInCells: 20,
-    heightInCells: 8,
-    sourcePixelWidth: 200,
-    sourcePixelHeight: 160,
-    contentHash: bgHash,
-    zIndex: -2);
-
-var overlayImage = GenerateGradientImage(40, 40);
-var ovHash = SHA256.HashData(overlayImage);
-var ovPayload = $"\x1b_Ga=t,f=32,s=40,v=40,i=11;{Convert.ToBase64String(overlayImage)}\x1b\\";
-var ovKgp = new KgpCellData(
-    transmitPayload: ovPayload,
-    imageId: 11,
-    widthInCells: 4,
-    heightInCells: 2,
-    sourcePixelWidth: 40,
-    sourcePixelHeight: 40,
-    contentHash: ovHash,
-    zIndex: 1);
-
-Console.WriteLine($"  Background layer: {bgKgp.WidthInCells}x{bgKgp.HeightInCells} cells, z={bgKgp.ZIndex} (below text)");
-Console.WriteLine($"  Overlay layer:    {ovKgp.WidthInCells}x{ovKgp.HeightInCells} cells, z={ovKgp.ZIndex} (above text)");
-Console.WriteLine($"  Text layer:       renders at z=0 (between the two images)");
-Console.WriteLine();
-
-// Demonstrate placement building for each layer
-Console.WriteLine("=== Background Placement ===");
-Console.WriteLine($"  {Sanitize(bgKgp.BuildPlacementPayload())}");
-Console.WriteLine();
-Console.WriteLine("=== Overlay Placement ===");
-Console.WriteLine($"  {Sanitize(ovKgp.BuildPlacementPayload())}");
-
-Console.WriteLine();
-Console.WriteLine("Scene 3 complete.");
-Console.WriteLine();
-
-// --- Scene 4: Clipping ---
-Console.WriteLine("KGP Demo - Scene 4: Clipping");
-Console.WriteLine("=============================");
-Console.WriteLine();
-
-// Demonstrate how WithClip creates different source rectangles from the same image
-var fullImage = GenerateGradientImage(100, 100);
-var fullHash = SHA256.HashData(fullImage);
-var fullPayload = $"\x1b_Ga=t,f=32,s=100,v=100,i=20;{Convert.ToBase64String(fullImage)}\x1b\\";
-var fullKgp = new KgpCellData(
-    transmitPayload: fullPayload,
-    imageId: 20,
-    widthInCells: 10,
-    heightInCells: 5,
-    sourcePixelWidth: 100,
-    sourcePixelHeight: 100,
-    contentHash: fullHash,
-    zIndex: -1);
-
-Console.WriteLine($"  Original image: {fullKgp.WidthInCells}x{fullKgp.HeightInCells} cells ({fullKgp.SourcePixelWidth}x{fullKgp.SourcePixelHeight} px)");
-Console.WriteLine();
-
-// Clip to show only the top-left quadrant
-var topLeft = fullKgp.WithClip(0, 0, 50, 50, 5, 3);
-Console.WriteLine("=== Top-Left Quadrant ===");
-Console.WriteLine($"  Clip: ({topLeft.ClipX}, {topLeft.ClipY}, {topLeft.ClipW}, {topLeft.ClipH})");
-Console.WriteLine($"  Cell size: {topLeft.WidthInCells}x{topLeft.HeightInCells}");
-Console.WriteLine($"  ZIndex preserved: {topLeft.ZIndex == fullKgp.ZIndex}");
-Console.WriteLine($"  Placement: {Sanitize(topLeft.BuildPlacementPayload())}");
-Console.WriteLine();
-
-// Clip to show only the bottom-right quadrant
-var bottomRight = fullKgp.WithClip(50, 50, 50, 50, 5, 3);
-Console.WriteLine("=== Bottom-Right Quadrant ===");
-Console.WriteLine($"  Clip: ({bottomRight.ClipX}, {bottomRight.ClipY}, {bottomRight.ClipW}, {bottomRight.ClipH})");
-Console.WriteLine($"  Cell size: {bottomRight.WidthInCells}x{bottomRight.HeightInCells}");
-Console.WriteLine($"  Placement: {Sanitize(bottomRight.BuildPlacementPayload())}");
-Console.WriteLine();
-
-// Show that all clips share the same ImageId
-Console.WriteLine("=== Transmit-Once, Place-Many ===");
-Console.WriteLine($"  Full image ID:      {fullKgp.ImageId}");
-Console.WriteLine($"  Top-left clip ID:   {topLeft.ImageId}");
-Console.WriteLine($"  Bottom-right clip:  {bottomRight.ImageId}");
-Console.WriteLine($"  All same image: {fullKgp.ImageId == topLeft.ImageId && topLeft.ImageId == bottomRight.ImageId}");
-
-Console.WriteLine();
-Console.WriteLine("Scene 4 complete.");
-Console.WriteLine();
-
-// --- Scene 5: Token Emission & Caching ---
-Console.WriteLine("KGP Demo - Scene 5: Token Emission & Caching");
-Console.WriteLine("==============================================");
-Console.WriteLine();
-
-// Demonstrate how SurfaceComparer detects KGP changes
-// Note: In production code, TrackedObject creation happens through the
-// SurfaceLayerContext.CreateKgp() API. Here we demonstrate the diff concepts.
-var emitHash = SHA256.HashData(Encoding.UTF8.GetBytes("emit-test-image"));
-var emitBase64 = Convert.ToBase64String(Encoding.UTF8.GetBytes("emit-test-image"));
-var emitKgp = new KgpCellData(
-    transmitPayload: $"\x1b_Ga=t,f=32,s=10,v=10,i=30;{emitBase64}\x1b\\",
-    imageId: 30,
-    widthInCells: 3,
-    heightInCells: 1,
-    sourcePixelWidth: 10,
-    sourcePixelHeight: 10,
-    contentHash: emitHash,
-    zIndex: -1);
-
-Console.WriteLine("=== Token Emission Model ===");
-Console.WriteLine("  First frame: transmit (a=t) + placement (a=p)");
-Console.WriteLine($"    Full payload length: {emitKgp.Payload.Length} chars");
-Console.WriteLine("  Subsequent frames: placement only (a=p)");
-Console.WriteLine($"    Placement length: {emitKgp.BuildPlacementPayload().Length} chars");
-Console.WriteLine($"    Savings: {emitKgp.Payload.Length - emitKgp.BuildPlacementPayload().Length} chars");
-Console.WriteLine();
-
-// Demonstrate SurfaceComparer on surfaces without KGP (text only)
-var s1 = new Hex1b.Surfaces.Surface(10, 3);
-var s2 = new Hex1b.Surfaces.Surface(10, 3);
-s2[0, 0] = new Hex1b.Surfaces.SurfaceCell("X", Hex1b.Theming.Hex1bColor.White, Hex1b.Theming.Hex1bColor.Black);
-var textDiff = Hex1b.Surfaces.SurfaceComparer.Compare(s1, s2);
-Console.WriteLine($"  Text-only diff: {textDiff.Count} changed cells");
-Console.WriteLine();
-
-Console.WriteLine("Scene 5 complete.");
-Console.WriteLine();
-
-// --- Scene 6: Image Reuse ---
-Console.WriteLine("KGP Demo - Scene 6: Image Reuse");
-Console.WriteLine("================================");
-Console.WriteLine();
-
-// Same image displayed at 4 positions with different crops
-var reuseKgp = new KgpCellData(
-    transmitPayload: $"\x1b_Ga=t,f=32,s=100,v=100,i=40;{emitBase64}\x1b\\",
-    imageId: 40,
-    widthInCells: 10,
-    heightInCells: 5,
-    sourcePixelWidth: 100,
-    sourcePixelHeight: 100,
-    contentHash: emitHash,
-    zIndex: -1);
-
-Console.WriteLine($"  Image ID {reuseKgp.ImageId}: {reuseKgp.SourcePixelWidth}x{reuseKgp.SourcePixelHeight} pixels");
-Console.WriteLine();
-
-var quadrants = new[] {
-    ("Top-Left",     reuseKgp.WithClip(0,  0,  50, 50, 5, 3)),
-    ("Top-Right",    reuseKgp.WithClip(50, 0,  50, 50, 5, 3)),
-    ("Bottom-Left",  reuseKgp.WithClip(0,  50, 50, 50, 5, 3)),
-    ("Bottom-Right", reuseKgp.WithClip(50, 50, 50, 50, 5, 3)),
-};
-
-foreach (var (name, quadrant) in quadrants)
-{
-    Console.WriteLine($"  {name}: clip=({quadrant.ClipX},{quadrant.ClipY},{quadrant.ClipW},{quadrant.ClipH}), " +
-                      $"cells={quadrant.WidthInCells}x{quadrant.HeightInCells}, imageId={quadrant.ImageId}");
-    Console.WriteLine($"    Placement: {Sanitize(quadrant.BuildPlacementPayload())}");
+    return scene switch
+    {
+        0 => BuildImageDisplayScene(ctx),
+        1 => BuildZOrderScene(ctx),
+        2 => BuildSurfaceLayerScene(ctx),
+        3 => BuildMultiImageScene(ctx),
+        4 => BuildComputedScene(ctx),
+        _ => ctx.Text("Unknown scene"),
+    };
 }
 
-Console.WriteLine();
-Console.WriteLine($"  All placements reference same image ID {reuseKgp.ImageId}: " +
-                  $"{quadrants.All(q => q.Item2.ImageId == reuseKgp.ImageId)}");
-Console.WriteLine();
-Console.WriteLine("Scene 6 complete.");
-Console.WriteLine();
-
-// --- Scene 7: Widget API ---
-Console.WriteLine("KGP Demo - Scene 7: Widget API");
-Console.WriteLine("===============================");
-Console.WriteLine();
-
-// Demonstrate the KgpImageWidget API
-var widgetImage = GenerateGradientImage(10, 10);
-var kgpWidget = new Hex1b.Widgets.KgpImageWidget(
-    widgetImage, 10, 10,
-    new Hex1b.Widgets.TextBlockWidget("Fallback: No KGP support"))
-    .WithWidth(5)
-    .WithHeight(3);
-
-Console.WriteLine($"  Widget type: {kgpWidget.GetType().Name}");
-Console.WriteLine($"  Image size: {kgpWidget.PixelWidth}x{kgpWidget.PixelHeight} pixels");
-Console.WriteLine($"  Cell size: {kgpWidget.Width}x{kgpWidget.Height} cells");
-Console.WriteLine($"  Z-order: {kgpWidget.ZOrder}");
-Console.WriteLine($"  Fallback: {kgpWidget.Fallback.GetType().Name}");
-Console.WriteLine();
-
-// Create and configure the node — nodes are usually created by reconciliation,
-// but we can test the node directly via the widget's ReconcileAsync
-Console.WriteLine("  Node details:");
-Console.WriteLine($"    KgpImageNode supports: Measure, Arrange, Render");
-Console.WriteLine($"    Capability dispatch: KGP → transmit+place, else → fallback");
-
-var kgpNode = new Hex1b.Nodes.KgpImageNode
+Hex1bWidget BuildImageDisplayScene<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
 {
-    ImageData = widgetImage,
-    PixelWidth = 10,
-    PixelHeight = 10,
-    RequestedWidth = 5,
-    RequestedHeight = 3,
-};
-
-var nodeSize = kgpNode.Measure(new Hex1b.Layout.Constraints(0, 80, 0, 24));
-Console.WriteLine($"    Measured: {nodeSize.Width}x{nodeSize.Height}");
-Console.WriteLine($"    Children: {kgpNode.GetChildren().Count()}");
-
-Console.WriteLine();
-Console.WriteLine("Scene 7 complete.");
-Console.WriteLine();
-
-// --- Scene 8: Above/Below Text ---
-Console.WriteLine("KGP Demo - Scene 8: Above/Below Text");
-Console.WriteLine("=====================================");
-Console.WriteLine();
-
-var belowWidget = new Hex1b.Widgets.KgpImageWidget(
-    widgetImage, 10, 10,
-    new Hex1b.Widgets.TextBlockWidget("[no kgp]"))
-    .BelowText();
-
-var aboveWidget = new Hex1b.Widgets.KgpImageWidget(
-    widgetImage, 10, 10,
-    new Hex1b.Widgets.TextBlockWidget("[no kgp]"))
-    .AboveText();
-
-Console.WriteLine($"  Below-text widget: ZOrder={belowWidget.ZOrder}");
-Console.WriteLine($"  Above-text widget: ZOrder={aboveWidget.ZOrder}");
-Console.WriteLine();
-
-Console.WriteLine("  In practice:");
-Console.WriteLine("  - BelowText (z<0): Image behind text, text readable");
-Console.WriteLine("  - AboveText (z>0): Image covers text, used for overlays");
-Console.WriteLine();
-Console.WriteLine("Scene 8 complete.");
-Console.WriteLine();
-
-// --- Scene 9: Surface Layer Integration ---
-Console.WriteLine("KGP Demo - Scene 9: Surface Layer Integration");
-Console.WriteLine("==============================================");
-Console.WriteLine();
-
-// In a real Hex1bApp, surface layers are built via SurfaceWidget:
-//   ctx.Surface(s => [
-//       s.Layer(draw => { /* KGP background via s.CreateKgp() */ }),
-//       s.WidgetLayer(textContent),
-//       s.Layer(draw => { /* KGP overlay via s.CreateKgp() */ }),
-//   ])
-//
-// The CreateKgp methods on SurfaceLayerContext handle:
-// - Image ID allocation
-// - Content-hash deduplication via TrackedObjectStore
-// - Pixel-to-cell conversion via CellMetrics
-
-Console.WriteLine("  Multi-layer composition model:");
-Console.WriteLine("    Layer 0: KGP background (draw layer, z=-1, below text)");
-Console.WriteLine("    Layer 1: Text/widget content");
-Console.WriteLine("    Layer 2: KGP overlay (draw layer, z=1, above text)");
-Console.WriteLine();
-
-// Demonstrate CompositeSurface with text layers (no TrackedObjectStore needed)
-var metrics = new CellMetrics(10, 20);
-var textBottom = new Surface(20, 5, metrics);
-textBottom[0, 0] = new SurfaceCell("B", Hex1b.Theming.Hex1bColor.FromRgb(100, 100, 255), null);
-textBottom[1, 0] = new SurfaceCell("G", Hex1b.Theming.Hex1bColor.FromRgb(100, 100, 255), null);
-
-var textTop = new Surface(20, 5, metrics);
-textTop[0, 0] = new SurfaceCell("T", Hex1b.Theming.Hex1bColor.FromRgb(255, 100, 100), null);
-
-var layerComposite = new CompositeSurface(20, 5, metrics);
-layerComposite.AddLayer(textBottom);
-layerComposite.AddLayer(textTop);
-
-var flatLayers = layerComposite.Flatten();
-Console.WriteLine($"  Layer 0 cell (0,0): '{textBottom[0, 0].Character}'");
-Console.WriteLine($"  Layer 1 cell (0,0): '{textTop[0, 0].Character}'");
-Console.WriteLine($"  Flattened  (0,0): '{flatLayers[0, 0].Character}' (top layer wins)");
-Console.WriteLine($"  Flattened  (1,0): '{flatLayers[1, 0].Character}' (bottom shows through)");
-Console.WriteLine();
-
-Console.WriteLine("  ISurfaceSource.HasKgp: available on Surface and CompositeSurface");
-Console.WriteLine($"    textBottom.HasKgp = {textBottom.HasKgp}");
-Console.WriteLine($"    layerComposite.HasKgp = {layerComposite.HasKgp}");
-Console.WriteLine();
-
-Console.WriteLine("  SurfaceLayerContext.CreateKgp() methods:");
-Console.WriteLine("    CreateKgp(KgpCellData) — from pre-built cell data");
-Console.WriteLine("    CreateKgp(byte[], pixelW, pixelH, zOrder) — from raw RGBA32 pixels");
-Console.WriteLine("    Both return TrackedObject<KgpCellData> for dedup/lifecycle tracking");
-
-Console.WriteLine();
-Console.WriteLine("Scene 9 complete.");
-Console.WriteLine();
-
-// --- Scene 10: Computed Layer with KGP Awareness ---
-Console.WriteLine("KGP Demo - Scene 10: Computed Layer Effects");
-Console.WriteLine("============================================");
-Console.WriteLine();
-
-// Demonstrate computed layers querying KGP from below
-// (Using CompositeSurface directly — no TrackedObjectStore needed for text demo)
-
-Console.WriteLine("  ComputeContext KGP query API:");
-Console.WriteLine("    HasKgpBelow()       — check if KGP image covers this cell");
-Console.WriteLine("    GetKgpBelow()       → KgpCellAccess with:");
-Console.WriteLine("      .IsValid          — whether KGP data was found");
-Console.WriteLine("      .ImageId          — KGP image ID");
-Console.WriteLine("      .SourcePixelWidth/.Height — source image dimensions");
-Console.WriteLine("      .WidthInCells/.HeightInCells — placement size");
-Console.WriteLine("      .CellOffsetX/.Y   — this cell's position within the image");
-Console.WriteLine("      .IsAnchor         — whether this is the top-left cell");
-Console.WriteLine("      .ZIndex           — z-ordering (negative=below, positive=above)");
-Console.WriteLine("      .Data             — underlying KgpCellData for advanced use");
-Console.WriteLine("    GetKgpBelowAt(x,y)  — query at specific position");
-Console.WriteLine();
-
-// Show a computed layer that checks adjacent cells (without KGP)
-var baseSurface = new Surface(10, 3, metrics);
-baseSurface[2, 1] = new SurfaceCell("*", Hex1b.Theming.Hex1bColor.FromRgb(255, 255, 0), null);
-
-var computedResult = new List<(int x, int y, string info)>();
-
-var computeComposite = new CompositeSurface(10, 3, metrics);
-computeComposite.AddLayer(baseSurface);
-computeComposite.AddComputedLayer(10, 3, ctx =>
-{
-    var below = ctx.GetBelow();
-    if (below.Character == "*")
-    {
-        computedResult.Add((ctx.X, ctx.Y, "found star below"));
-        return new SurfaceCell("★", Hex1b.Theming.Hex1bColor.FromRgb(255, 200, 0), null);
-    }
-    if (ctx.HasKgpBelow())
-    {
-        var kgp = ctx.GetKgpBelow();
-        computedResult.Add((ctx.X, ctx.Y, $"KGP id={kgp.ImageId} offset=({kgp.CellOffsetX},{kgp.CellOffsetY})"));
-    }
-    return SurfaceCells.Empty;
-});
-
-var flatComputed = computeComposite.Flatten();
-Console.WriteLine($"  Computed layer processed {computedResult.Count} interesting cell(s):");
-foreach (var (x, y, info) in computedResult)
-{
-    Console.WriteLine($"    ({x},{y}): {info}");
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text(" KGP images render in terminals that support the Kitty Graphics Protocol."),
+        v.Text(" Other terminals see the fallback text instead."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Border(
+                h.KgpImage(gradientImage, 80, 40, "[gradient: 80x40 RGBA]", width: 20, height: 5)
+            ).Title("Gradient"),
+            h.Text("  "),
+            h.Border(
+                h.KgpImage(checkerImage, 80, 40, "[checker: 80x40 RGBA]", width: 20, height: 5)
+            ).Title("Checkerboard"),
+        ]).Height(SizeHint.Content),
+        v.Text(""),
+        v.Text(" The KgpImageWidget sends RGBA32 pixel data to the terminal via APC sequences."),
+        v.Text(" Image data is base64-encoded and transmitted once, then placed with a=p."),
+    ]);
 }
-Console.WriteLine($"  Result at (2,1): '{flatComputed[2, 1].Character}' (computed layer replaced '*' with '★')");
 
-Console.WriteLine();
-Console.WriteLine("Scene 10 complete.");
-Console.WriteLine();
-Console.WriteLine("All 10 KGP demo scenes complete!");
+Hex1bWidget BuildZOrderScene<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text(" KGP supports z-ordering: images can render below or above text."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Border(
+                h.KgpImage(gradientImage, 80, 40, "[below text]", width: 20, height: 5)
+                    .BelowText()
+            ).Title("z < 0 (Below Text)"),
+            h.Text("  "),
+            h.Border(
+                h.KgpImage(gradientImage, 80, 40, "[above text]", width: 20, height: 5)
+                    .AboveText()
+            ).Title("z > 0 (Above Text)"),
+        ]).Height(SizeHint.Content),
+        v.Text(""),
+        v.Text(" Below-text: image renders behind text characters (good for backgrounds)"),
+        v.Text(" Above-text: image renders on top of text (good for overlays)"),
+    ]);
+}
+
+Hex1bWidget BuildSurfaceLayerScene<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text(" KGP integrates with the Surface layer system for compositing."),
+        v.Text(" Draw layers can contain KGP data alongside text layers."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Border(
+                h.Surface(s =>
+                {
+                    var layers = new List<SurfaceLayer>();
+                    layers.Add(s.Layer(surface =>
+                    {
+                        for (var y = 0; y < surface.Height; y++)
+                            for (var x = 0; x < surface.Width; x++)
+                            {
+                                var shade = (byte)(40 + (y * 30 / Math.Max(1, surface.Height - 1)));
+                                surface[x, y] = new SurfaceCell(" ", null, Hex1bColor.FromRgb(shade, shade, (byte)(shade + 20)));
+                            }
+                    }));
+                    layers.Add(s.Layer(surface =>
+                    {
+                        var msg = "KGP + Layers";
+                        for (var i = 0; i < msg.Length && i + 2 < surface.Width; i++)
+                            surface[i + 2, 2] = new SurfaceCell(msg[i].ToString(), Hex1bColor.White, null);
+                    }));
+                    return layers;
+                })
+                .Width(SizeHint.Fixed(30))
+                .Height(SizeHint.Fixed(5))
+            ).Title("Layered Surface"),
+        ]).Height(SizeHint.Content),
+        v.Text(""),
+        v.Text(" SurfaceLayerContext.CreateKgp() creates tracked KGP objects for layers."),
+        v.Text(" CompositeSurface preserves KGP data through layer compositing."),
+    ]);
+}
+
+Hex1bWidget BuildMultiImageScene<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text(" Multiple KGP images can coexist in a widget tree."),
+        v.Text(" Each gets a unique image ID for independent placement."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text(" "),
+            h.Border(h.KgpImage(redImage, 40, 40, "[R]", width: 8, height: 4)).Title("Red"),
+            h.Text(" "),
+            h.Border(h.KgpImage(greenImage, 40, 40, "[G]", width: 8, height: 4)).Title("Green"),
+            h.Text(" "),
+            h.Border(h.KgpImage(blueImage, 40, 40, "[B]", width: 8, height: 4)).Title("Blue"),
+            h.Text(" "),
+            h.Border(h.KgpImage(gradientImage, 80, 40, "[Grad]", width: 8, height: 4)).Title("Gradient"),
+        ]).Height(SizeHint.Content),
+        v.Text(""),
+        v.Text(" Images are content-hash deduplicated: identical data = same image ID."),
+        v.Text(" Transmit-once, place-many: efficient bandwidth usage."),
+    ]);
+}
+
+Hex1bWidget BuildComputedScene<TParent>(WidgetContext<TParent> ctx) where TParent : Hex1bWidget
+{
+    return ctx.VStack(v => [
+        v.Text(""),
+        v.Text(" Computed layers can query KGP images from layers below."),
+        v.Text(" This enables effects like dimming, tinting, or overlay markers."),
+        v.Text(""),
+        v.HStack(h => [
+            h.Text("  "),
+            h.Border(
+                h.Surface(s =>
+                {
+                    var layers = new List<SurfaceLayer>();
+                    layers.Add(s.Layer(surface =>
+                    {
+                        for (var y = 0; y < surface.Height; y++)
+                            for (var x = 0; x < surface.Width; x++)
+                            {
+                                var r = (byte)(x * 255 / Math.Max(1, surface.Width - 1));
+                                var g = (byte)(y * 255 / Math.Max(1, surface.Height - 1));
+                                surface[x, y] = new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, 128));
+                            }
+                    }));
+                    layers.Add(s.Layer(ctx2 =>
+                    {
+                        var below = ctx2.GetBelow();
+                        if ((ctx2.X + ctx2.Y) % 3 == 0 && below.Background is not null)
+                            return new SurfaceCell("·", Hex1bColor.White, below.Background);
+                        return SurfaceCells.Empty;
+                    }));
+                    return layers;
+                })
+                .Width(SizeHint.Fixed(30))
+                .Height(SizeHint.Fixed(8))
+            ).Title("Computed Layer Effect"),
+        ]).Height(SizeHint.Content),
+        v.Text(""),
+        v.Text(" ComputeContext API: HasKgpBelow(), GetKgpBelow() -> KgpCellAccess"),
+        v.Text(" Access: ImageId, CellOffsetX/Y, ZIndex, SourcePixelWidth/Height"),
+    ]);
+}
+
+// --- Image generation helpers ---
 
 static byte[] GenerateGradientImage(int width, int height)
 {
-    var data = new byte[width * height * 4]; // RGBA32
+    var data = new byte[width * height * 4];
     for (var y = 0; y < height; y++)
-    {
         for (var x = 0; x < width; x++)
         {
             var offset = (y * width + x) * 4;
-            data[offset] = (byte)(x * 255 / Math.Max(1, width - 1));     // R
-            data[offset + 1] = (byte)(y * 255 / Math.Max(1, height - 1)); // G
-            data[offset + 2] = 128;                                        // B
-            data[offset + 3] = 255;                                        // A
+            data[offset] = (byte)(x * 255 / Math.Max(1, width - 1));
+            data[offset + 1] = (byte)(y * 255 / Math.Max(1, height - 1));
+            data[offset + 2] = 128;
+            data[offset + 3] = 255;
         }
+    return data;
+}
+
+static byte[] GenerateSolidImage(int width, int height, byte r, byte g, byte b)
+{
+    var data = new byte[width * height * 4];
+    for (var i = 0; i < data.Length; i += 4)
+    {
+        data[i] = r;
+        data[i + 1] = g;
+        data[i + 2] = b;
+        data[i + 3] = 255;
     }
     return data;
 }
 
-static string Sanitize(string s) => s.Replace("\x1b", "ESC").Replace("\\", "\\\\");
+static byte[] GenerateCheckerImage(int width, int height)
+{
+    var data = new byte[width * height * 4];
+    for (var y = 0; y < height; y++)
+        for (var x = 0; x < width; x++)
+        {
+            var offset = (y * width + x) * 4;
+            var val = ((x / 8) + (y / 8)) % 2 == 0 ? (byte)200 : (byte)80;
+            data[offset] = val;
+            data[offset + 1] = val;
+            data[offset + 2] = val;
+            data[offset + 3] = 255;
+        }
+    return data;
+}
