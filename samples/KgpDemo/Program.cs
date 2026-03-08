@@ -306,6 +306,75 @@ Console.WriteLine($"  All placements reference same image ID {reuseKgp.ImageId}:
                   $"{quadrants.All(q => q.Item2.ImageId == reuseKgp.ImageId)}");
 Console.WriteLine();
 Console.WriteLine("Scene 6 complete.");
+Console.WriteLine();
+
+// --- Scene 7: Widget API ---
+Console.WriteLine("KGP Demo - Scene 7: Widget API");
+Console.WriteLine("===============================");
+Console.WriteLine();
+
+// Demonstrate the KgpImageWidget API
+var widgetImage = GenerateGradientImage(10, 10);
+var kgpWidget = new Hex1b.Widgets.KgpImageWidget(
+    widgetImage, 10, 10,
+    new Hex1b.Widgets.TextBlockWidget("Fallback: No KGP support"))
+    .WithWidth(5)
+    .WithHeight(3);
+
+Console.WriteLine($"  Widget type: {kgpWidget.GetType().Name}");
+Console.WriteLine($"  Image size: {kgpWidget.PixelWidth}x{kgpWidget.PixelHeight} pixels");
+Console.WriteLine($"  Cell size: {kgpWidget.Width}x{kgpWidget.Height} cells");
+Console.WriteLine($"  Z-order: {kgpWidget.ZOrder}");
+Console.WriteLine($"  Fallback: {kgpWidget.Fallback.GetType().Name}");
+Console.WriteLine();
+
+// Create and configure the node — nodes are usually created by reconciliation,
+// but we can test the node directly via the widget's ReconcileAsync
+Console.WriteLine("  Node details:");
+Console.WriteLine($"    KgpImageNode supports: Measure, Arrange, Render");
+Console.WriteLine($"    Capability dispatch: KGP → transmit+place, else → fallback");
+
+var kgpNode = new Hex1b.Nodes.KgpImageNode
+{
+    ImageData = widgetImage,
+    PixelWidth = 10,
+    PixelHeight = 10,
+    RequestedWidth = 5,
+    RequestedHeight = 3,
+};
+
+var nodeSize = kgpNode.Measure(new Hex1b.Layout.Constraints(0, 80, 0, 24));
+Console.WriteLine($"    Measured: {nodeSize.Width}x{nodeSize.Height}");
+Console.WriteLine($"    Children: {kgpNode.GetChildren().Count()}");
+
+Console.WriteLine();
+Console.WriteLine("Scene 7 complete.");
+Console.WriteLine();
+
+// --- Scene 8: Above/Below Text ---
+Console.WriteLine("KGP Demo - Scene 8: Above/Below Text");
+Console.WriteLine("=====================================");
+Console.WriteLine();
+
+var belowWidget = new Hex1b.Widgets.KgpImageWidget(
+    widgetImage, 10, 10,
+    new Hex1b.Widgets.TextBlockWidget("[no kgp]"))
+    .BelowText();
+
+var aboveWidget = new Hex1b.Widgets.KgpImageWidget(
+    widgetImage, 10, 10,
+    new Hex1b.Widgets.TextBlockWidget("[no kgp]"))
+    .AboveText();
+
+Console.WriteLine($"  Below-text widget: ZOrder={belowWidget.ZOrder}");
+Console.WriteLine($"  Above-text widget: ZOrder={aboveWidget.ZOrder}");
+Console.WriteLine();
+
+Console.WriteLine("  In practice:");
+Console.WriteLine("  - BelowText (z<0): Image behind text, text readable");
+Console.WriteLine("  - AboveText (z>0): Image covers text, used for overlays");
+Console.WriteLine();
+Console.WriteLine("Scene 8 complete.");
 
 static byte[] GenerateGradientImage(int width, int height)
 {
