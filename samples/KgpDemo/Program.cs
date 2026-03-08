@@ -124,6 +124,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
     var hAlignIndex = 0; // Left
     var vAlignIndex = 0; // Top
     var sizeEnabled = false;
+    var maintainAspectRatio = true;
     var widthText = "20";
     var heightText = "10";
 
@@ -146,6 +147,13 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                     && int.TryParse(widthText, out var cw) && cw > 0
                     && int.TryParse(heightText, out var ch) && ch > 0)
                 {
+                    if (maintainAspectRatio)
+                    {
+                        // Compute height from width preserving pixel aspect ratio
+                        // Account for terminal cell aspect (~10px wide, ~20px tall)
+                        var aspectRatio = (double)pixelW / pixelH;
+                        ch = Math.Max(1, (int)Math.Round(cw / aspectRatio * 0.5));
+                    }
                     kgpImage = kgpImage.WithWidth(cw).WithHeight(ch);
                 }
 
@@ -209,14 +217,19 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                                 };
                                 if (sizeEnabled)
                                 {
+                                    row.Add(h.Checkbox(maintainAspectRatio, "AR")
+                                        .OnToggled(ev => maintainAspectRatio = ev.NewState == CheckboxState.Checked));
                                     row.Add(h.Text(" W:"));
                                     row.Add(h.TextBox(widthText)
                                         .OnTextChanged(ev => widthText = ev.NewText)
                                         .Width(SizeHint.Fixed(6)));
-                                    row.Add(h.Text(" H:"));
-                                    row.Add(h.TextBox(heightText)
-                                        .OnTextChanged(ev => heightText = ev.NewText)
-                                        .Width(SizeHint.Fixed(6)));
+                                    if (!maintainAspectRatio)
+                                    {
+                                        row.Add(h.Text(" H:"));
+                                        row.Add(h.TextBox(heightText)
+                                            .OnTextChanged(ev => heightText = ev.NewText)
+                                            .Width(SizeHint.Fixed(6)));
+                                    }
                                 }
                                 return row.ToArray();
                             }),
