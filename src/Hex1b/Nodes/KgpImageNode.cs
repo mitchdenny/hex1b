@@ -122,9 +122,13 @@ public sealed class KgpImageNode : Hex1bNode
     {
         var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
 
-        // Compute cell dimensions from pixel dimensions using CellMetrics
-        var cellWidth = RequestedWidth ?? Math.Max(1, (PixelWidth + 9) / 10);  // Default 10px per cell
-        var cellHeight = RequestedHeight ?? Math.Max(1, (PixelHeight + 19) / 20); // Default 20px per cell
+        // When no fixed size is requested, use Fill hints or auto-compute from pixels
+        var cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill
+            ? constraints.MaxWidth
+            : Math.Max(1, (PixelWidth + 9) / 10));
+        var cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill
+            ? constraints.MaxHeight
+            : Math.Max(1, (PixelHeight + 19) / 20));
         var kgpSize = constraints.Constrain(new Size(cellWidth, cellHeight));
 
         return new Size(
@@ -172,8 +176,11 @@ public sealed class KgpImageNode : Hex1bNode
 
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
-        var cellWidth = RequestedWidth ?? Math.Max(1, (PixelWidth + 9) / 10);
-        var cellHeight = RequestedHeight ?? Math.Max(1, (PixelHeight + 19) / 20);
+        // Use actual arranged bounds so the image scales with its container
+        var cellWidth = Bounds.Width > 0 ? Bounds.Width
+            : RequestedWidth ?? Math.Max(1, (PixelWidth + 9) / 10);
+        var cellHeight = Bounds.Height > 0 ? Bounds.Height
+            : RequestedHeight ?? Math.Max(1, (PixelHeight + 19) / 20);
 
         context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
     }

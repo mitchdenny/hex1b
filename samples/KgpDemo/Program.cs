@@ -51,11 +51,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             return w.VStack(v =>
                             [
                                 v.Text(" KGP gradient inside a window:"),
-                                v.Text(""),
                                 v.KgpImage(gradientImage, 128, 64,
-                                    v.Text(" [KGP not supported - gradient fallback]"),
-                                    width: 30, height: 10),
-                                v.Text(""),
+                                    v.Text(" [KGP not supported - gradient fallback]"))
+                                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
                                 v.HStack(h =>
                                 [
                                     h.Text(" "),
@@ -72,6 +70,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     })
                     .Title($"Gradient #{num}")
                     .Size(34, 16)
+                    .Resizable()
                     .Position(new WindowPositionSpec(WindowPosition.Center,
                         OffsetX: num * 3, OffsetY: num * 2));
 
@@ -90,11 +89,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                             return w.VStack(v =>
                             [
                                 v.Text(" KGP checkerboard:"),
-                                v.Text(""),
                                 v.KgpImage(checkerImage, 64, 64,
-                                    v.Text(" [KGP not supported - checker fallback]"),
-                                    width: 20, height: 10),
-                                v.Text(""),
+                                    v.Text(" [KGP not supported - checker fallback]"))
+                                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
                                 v.HStack(h =>
                                 [
                                     h.Text(" "),
@@ -111,6 +108,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     })
                     .Title($"Checker #{num}")
                     .Size(24, 16)
+                    .Resizable()
                     .Position(new WindowPositionSpec(WindowPosition.Center,
                         OffsetX: -num * 3, OffsetY: num * 2));
 
@@ -139,6 +137,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     ]))
                     .Title($"Text #{num}")
                     .Size(36, 11)
+                    .Resizable()
                     .Position(new WindowPositionSpec(WindowPosition.Center,
                         OffsetX: num * 4, OffsetY: -num));
 
