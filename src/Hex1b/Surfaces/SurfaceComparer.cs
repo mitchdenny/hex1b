@@ -539,10 +539,17 @@ public static class SurfaceComparer
                     // KGP below-text gets emitted inline; above-text deferred to end
                     if (kgpData.ZIndex >= 0)
                         aboveTextKgp.Add((change.X, change.Y, kgpData));
-                    else
+                    else if (!skipKgpEmission)
                         EmitKgpTokens(tokens, kgpData);
                 }
-                continue;
+
+                if (!skipKgpEmission)
+                {
+                    // When the comparer handles KGP directly, skip the anchor cell's text
+                    continue;
+                }
+                // When an external tracker handles KGP placement, fall through
+                // to emit the space character so stale text at the anchor is cleared.
             }
 
             // Output the character (convert unwritten marker to space)
