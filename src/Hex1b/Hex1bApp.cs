@@ -137,6 +137,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // KGP placement lifecycle tracker (persists across frames)
     private readonly Kgp.KgpPlacementTracker _kgpTracker = new();
 
+    // KGP image registry for occlusion tracking (cleared per frame)
+    private readonly Kgp.KgpImageRegistry _kgpRegistry = new();
+
     // Optional pool for temporary surfaces (SurfaceWidget layers, effect panels, etc.)
     private readonly SurfacePool? _surfacePool;
     
@@ -911,6 +914,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _currentSurface.Clear();
         
         // Create surface-backed render context and render
+        _kgpRegistry.Clear();
         var surfaceContext = new SurfaceRenderContext(_currentSurface, _context.Theme)
         {
             MouseX = _mouseX,
@@ -918,7 +922,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             CellMetrics = cellMetrics,
             CachingEnabled = _enableRenderCaching,
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
-            SurfacePool = _surfacePool
+            SurfacePool = _surfacePool,
+            KgpRegistry = _kgpRegistry
         };
         surfaceContext.SetCapabilities(caps);
         
@@ -936,16 +941,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _metrics.OutputCellsChanged.Record(diff.Count);
         
-        // Generate KGP placement commands via the tracker (handles lifecycle across frames).
-        // The tracker computes minimal operations: transmit only new images, delete moved/removed
-        // placements, place at new positions. This runs even when the text diff is empty because
-        // KGP placements are terminal-level state that must be explicitly managed.
-        var hasKgp = _currentSurface.HasKgp || _kgpTracker.ActivePlacementCount > 0;
+        // Generate KGP placement commands via the occlusion solver + tracker.
+        // The solver computes visible fragments (shredding images around higher-z windows),
+        // and the tracker manages lifecycle (transmit-once, minimal delete/place per frame).
+        var hasKgp = _kgpRegistry.Images.Count > 0 || _currentSurface.HasKgp || _kgpTracker.ActivePlacementCount > 0;
         var kgpBefore = new List<Tokens.AnsiToken>();
         var kgpAfter = new List<Tokens.AnsiToken>();
         if (hasKgp)
         {
-            (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(_currentSurface);
+            if (_kgpRegistry.Images.Count > 0)
+            {
+                // Use occlusion solver for fragment-based placement
+                var fragments = Kgp.KgpOcclusionSolver.ComputeFragments(_kgpRegistry);
+                (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(fragments);
+            }
+            else
+            {
+                // Fallback: scan surface directly (no occlusion data)
+                (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(_currentSurface);
+            }
         }
         var hasKgpChanges = kgpBefore.Count > 0 || kgpAfter.Count > 0;
         

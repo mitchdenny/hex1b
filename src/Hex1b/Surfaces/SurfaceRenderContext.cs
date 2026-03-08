@@ -31,6 +31,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
     // Terminal capabilities inherited from parent context
     private TerminalCapabilities? _capabilities;
 
+    // KGP occlusion tracking
+    private Kgp.KgpImageRegistry? _kgpRegistry;
+    private int _kgpLayer;
+
     // Maximum dimension for a child surface to prevent overflow in width*height allocation.
     // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
     // (from unconstrained measure passes) from causing OverflowException in Surface allocation.
@@ -78,6 +82,32 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// Optional surface pool for reusing temporary surfaces during rendering.
     /// </summary>
     internal SurfacePool? SurfacePool { get; init; }
+
+    /// <summary>
+    /// Gets or sets the KGP image registry for occlusion tracking.
+    /// When set, <see cref="WriteKgp"/> records images in the registry,
+    /// and the <see cref="Kgp.KgpOcclusionSolver"/> uses the data post-rendering.
+    /// </summary>
+    internal Kgp.KgpImageRegistry? KgpRegistry
+    {
+        get => _kgpRegistry;
+        set => _kgpRegistry = value;
+    }
+
+    /// <summary>
+    /// Advances to the next KGP occlusion layer. Call before rendering each
+    /// window or layer group so images and occluders get correct z-levels.
+    /// </summary>
+    internal void PushKgpLayer()
+    {
+        _kgpLayer++;
+        _kgpRegistry?.PushLayer();
+    }
+
+    /// <summary>
+    /// Gets the current KGP occlusion layer.
+    /// </summary>
+    internal int KgpLayer => _kgpLayer;
 
     /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
@@ -200,6 +230,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
             zIndex: zIndex);
 
         var tracked = _trackedObjects.GetOrCreateKgp(kgpData);
+
+        // Register with the occlusion registry (if active) using absolute coordinates
+        _kgpRegistry?.RegisterImage(kgpData, _cursorX, _cursorY);
 
         // Anchor cell carries the KGP metadata
         tracked.AddRef();
@@ -415,7 +448,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         CellMetrics = CellMetrics,
                         Metrics = Metrics,
                         SurfacePool = pool,
-                        _capabilities = _capabilities
+                        _capabilities = _capabilities,
+                        _kgpRegistry = _kgpRegistry,
+                        _kgpLayer = _kgpLayer
                     };
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                     RenderChildTimed(child, childContext);
@@ -522,7 +557,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 MouseY = MouseY,
                 CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
                 Metrics = Metrics,
-                _capabilities = _capabilities
+                _capabilities = _capabilities,
+                _kgpRegistry = _kgpRegistry,
+                _kgpLayer = _kgpLayer
                 // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
             };
             

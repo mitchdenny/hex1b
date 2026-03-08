@@ -15,13 +15,17 @@ namespace Hex1b.Kgp;
 /// </para>
 /// <list type="bullet">
 ///   <item>Tracking which images have been transmitted (transmit once, place many)</item>
-///   <item>Tracking active placements to compute minimal diffs between frames</item>
+///   <item>Tracking active placements (including multiple fragments per image) to compute minimal diffs</item>
 ///   <item>Emitting only the necessary delete/transmit/place commands per frame</item>
 /// </list>
 /// <para>
-/// This is integrated into <see cref="Hex1bApp"/> as a persistent field that
-/// survives across render frames, unlike <see cref="TrackedObjectStore"/> which is
-/// recreated per frame.
+/// Supports two input modes:
+/// <list type="bullet">
+///   <item><see cref="GenerateCommands(List{KgpFragment})"/>: Pre-computed fragments from the
+///     <see cref="KgpOcclusionSolver"/> (preferred when occlusion is active)</item>
+///   <item><see cref="GenerateCommands(Surface)"/>: Backward-compatible surface scanning
+///     for simple scenarios without occlusion</item>
+/// </list>
 /// </para>
 /// </remarks>
 public class KgpPlacementTracker
@@ -43,60 +47,64 @@ public class KgpPlacementTracker
     private readonly HashSet<uint> _transmittedImages = new();
 
     /// <summary>
-    /// Active placements from the previous frame (image ID → position).
-    /// Used to determine which placements need to be deleted or moved.
+    /// Active fragments from the previous frame, grouped by image ID.
+    /// Used to determine which images need delete + re-emit.
     /// </summary>
-    private readonly Dictionary<uint, (int X, int Y)> _previousPlacements = new();
+    private readonly Dictionary<uint, List<KgpFragment>> _previousFragments = new();
 
     /// <summary>
-    /// Generates the minimal set of KGP tokens needed to transition from the
-    /// previous frame's placements to the current frame's desired placements.
+    /// Generates KGP commands from pre-computed occlusion fragments.
     /// </summary>
-    /// <param name="currentSurface">The current surface containing desired KGP placements.</param>
+    /// <param name="fragments">Visible fragments computed by <see cref="KgpOcclusionSolver"/>.</param>
     /// <returns>
-    /// A list of tokens in correct emission order: deletes first, then
-    /// below-text placements (z &lt; 0), with above-text placements (z &gt; 0) in a separate list.
+    /// Token lists split by z-order: <c>BeforeText</c> (z &lt; 0) and <c>AfterText</c> (z &gt; 0).
     /// </returns>
-    public (List<AnsiToken> BeforeText, List<AnsiToken> AfterText) GenerateCommands(Surface? currentSurface)
+    public (List<AnsiToken> BeforeText, List<AnsiToken> AfterText) GenerateCommands(List<KgpFragment> fragments)
     {
         var beforeText = new List<AnsiToken>();
         var afterText = new List<AnsiToken>();
 
-        // Extract desired placements from the current surface
-        var desired = ExtractDesiredPlacements(currentSurface);
-
-        // 1. Delete placements that have moved or disappeared
-        foreach (var (imageId, prevPos) in _previousPlacements)
+        // Group current fragments by image ID
+        var currentByImage = new Dictionary<uint, List<KgpFragment>>();
+        foreach (var fragment in fragments)
         {
-            if (!desired.TryGetValue(imageId, out var placement) ||
-                placement.X != prevPos.X || placement.Y != prevPos.Y)
+            if (!currentByImage.TryGetValue(fragment.ImageId, out var list))
             {
-                // Placement moved or removed — delete all placements for this image ID
-                // Using d=i keeps the image data in the terminal's store
+                list = new List<KgpFragment>();
+                currentByImage[fragment.ImageId] = list;
+            }
+            list.Add(fragment);
+        }
+
+        // 1. Delete placements for images that changed or disappeared
+        foreach (var (imageId, _) in _previousFragments)
+        {
+            if (!currentByImage.TryGetValue(imageId, out var currentList) ||
+                !FragmentListsEqual(_previousFragments[imageId], currentList))
+            {
                 beforeText.Add(new UnrecognizedSequenceToken(
                     $"\x1b_Ga=d,d=i,i={imageId},q=2\x1b\\"));
             }
         }
 
-        // 2. Add or update placements
-        foreach (var (imageId, placement) in desired)
+        // 2. Emit placements for new or changed images
+        foreach (var (imageId, currentList) in currentByImage)
         {
             var needsTransmit = !_transmittedImages.Contains(imageId);
-            var needsPlace = !_previousPlacements.TryGetValue(imageId, out var prevPos) ||
-                             prevPos.X != placement.X || prevPos.Y != placement.Y;
+            var needsPlace = !_previousFragments.TryGetValue(imageId, out var prevList) ||
+                             !FragmentListsEqual(prevList, currentList);
 
             if (!needsTransmit && !needsPlace)
                 continue; // Unchanged — skip entirely
 
-            var targetList = placement.Data.ZIndex < 0 ? beforeText : afterText;
-
-            // Cursor position for the placement
-            targetList.Add(new CursorPositionToken(placement.Y + 1, placement.X + 1));
-
-            if (needsTransmit)
+            // For the first fragment, handle transmit if needed
+            if (needsTransmit && currentList.Count > 0)
             {
-                // First time seeing this image — transmit data + place
-                var chunks = placement.Data.BuildTransmitChunks();
+                var firstFragment = currentList[0];
+                var targetList = firstFragment.Data.ZIndex < 0 ? beforeText : afterText;
+                targetList.Add(new CursorPositionToken(firstFragment.AbsoluteY + 1, firstFragment.AbsoluteX + 1));
+
+                var chunks = firstFragment.Data.BuildTransmitChunks();
                 foreach (var chunk in chunks)
                 {
                     targetList.Add(new UnrecognizedSequenceToken(chunk));
@@ -104,18 +112,56 @@ public class KgpPlacementTracker
                 _transmittedImages.Add(imageId);
             }
 
-            // Always emit placement (even for already-transmitted images)
-            targetList.Add(new UnrecognizedSequenceToken(placement.Data.BuildPlacementPayload()));
+            // Emit all fragment placements
+            foreach (var fragment in currentList)
+            {
+                var targetList = fragment.Data.ZIndex < 0 ? beforeText : afterText;
+                targetList.Add(new CursorPositionToken(fragment.AbsoluteY + 1, fragment.AbsoluteX + 1));
+
+                // Build placement with fragment-specific clip parameters
+                var placementData = fragment.Data.WithClip(
+                    fragment.ClipX, fragment.ClipY, fragment.ClipW, fragment.ClipH,
+                    fragment.CellWidth, fragment.CellHeight);
+                targetList.Add(new UnrecognizedSequenceToken(placementData.BuildPlacementPayload()));
+            }
         }
 
-        // 3. Update active placements for next frame
-        _previousPlacements.Clear();
-        foreach (var (imageId, placement) in desired)
+        // 3. Update state for next frame
+        _previousFragments.Clear();
+        foreach (var (imageId, list) in currentByImage)
         {
-            _previousPlacements[imageId] = (placement.X, placement.Y);
+            _previousFragments[imageId] = new List<KgpFragment>(list);
         }
 
         return (beforeText, afterText);
+    }
+
+    /// <summary>
+    /// Generates KGP commands by scanning the surface for anchor cells.
+    /// This is the backward-compatible path for simple scenarios without occlusion.
+    /// </summary>
+    public (List<AnsiToken> BeforeText, List<AnsiToken> AfterText) GenerateCommands(Surface? currentSurface)
+    {
+        var placements = ExtractDesiredPlacements(currentSurface);
+
+        // Convert to fragments for the unified path
+        var fragments = new List<KgpFragment>();
+        foreach (var (_, placement) in placements)
+        {
+            fragments.Add(new KgpFragment(
+                placement.ImageId,
+                placement.X,
+                placement.Y,
+                placement.Data.WidthInCells,
+                placement.Data.HeightInCells,
+                placement.Data.ClipX,
+                placement.Data.ClipY,
+                placement.Data.ClipW,
+                placement.Data.ClipH,
+                placement.Data));
+        }
+
+        return GenerateCommands(fragments);
     }
 
     /// <summary>
@@ -149,7 +195,7 @@ public class KgpPlacementTracker
     public void Reset()
     {
         _transmittedImages.Clear();
-        _previousPlacements.Clear();
+        _previousFragments.Clear();
     }
 
     /// <summary>
@@ -158,7 +204,47 @@ public class KgpPlacementTracker
     internal bool HasTransmittedImages => _transmittedImages.Count > 0;
 
     /// <summary>
-    /// Gets the number of active placements from the previous frame.
+    /// Gets the number of images with active placements from the previous frame.
     /// </summary>
-    internal int ActivePlacementCount => _previousPlacements.Count;
+    internal int ActivePlacementCount => _previousFragments.Count;
+
+    /// <summary>
+    /// Gets the total number of active fragments across all images.
+    /// </summary>
+    internal int ActiveFragmentCount
+    {
+        get
+        {
+            var count = 0;
+            foreach (var list in _previousFragments.Values)
+                count += list.Count;
+            return count;
+        }
+    }
+
+    /// <summary>
+    /// Compares two fragment lists for equality (same count, same positions and clips).
+    /// </summary>
+    private static bool FragmentListsEqual(List<KgpFragment> a, List<KgpFragment> b)
+    {
+        if (a.Count != b.Count)
+            return false;
+
+        for (var i = 0; i < a.Count; i++)
+        {
+            if (a[i].AbsoluteX != b[i].AbsoluteX ||
+                a[i].AbsoluteY != b[i].AbsoluteY ||
+                a[i].CellWidth != b[i].CellWidth ||
+                a[i].CellHeight != b[i].CellHeight ||
+                a[i].ClipX != b[i].ClipX ||
+                a[i].ClipY != b[i].ClipY ||
+                a[i].ClipW != b[i].ClipW ||
+                a[i].ClipH != b[i].ClipH)
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
 }
