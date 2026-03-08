@@ -5271,6 +5271,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.None),
             >= '\x01' and <= '\x1a' => new Hex1bKeyEvent(
                 KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - '\x01'))), c, Hex1bModifiers.Control),
+            '+' or '=' => new Hex1bKeyEvent(Hex1bKey.OemPlus, c, Hex1bModifiers.None),
+            '-' => new Hex1bKeyEvent(Hex1bKey.OemMinus, c, Hex1bModifiers.None),
+            ',' => new Hex1bKeyEvent(Hex1bKey.OemComma, c, Hex1bModifiers.None),
+            '.' => new Hex1bKeyEvent(Hex1bKey.OemPeriod, c, Hex1bModifiers.None),
+            '/' or '?' => new Hex1bKeyEvent(Hex1bKey.OemQuestion, c, Hex1bModifiers.None),
             _ when !char.IsControl(c) => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
             _ => null
         };

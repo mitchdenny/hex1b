@@ -469,6 +469,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
                 KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.A + (c - 'A'))), c, Hex1bModifiers.Shift),
             >= '0' and <= '9' => new Hex1bKeyEvent(
                 KeyMapper.ToHex1bKey((ConsoleKey)((int)ConsoleKey.D0 + (c - '0'))), c, Hex1bModifiers.None),
+            '+' or '=' => new Hex1bKeyEvent(Hex1bKey.OemPlus, c, Hex1bModifiers.None),
+            '-' => new Hex1bKeyEvent(Hex1bKey.OemMinus, c, Hex1bModifiers.None),
+            ',' => new Hex1bKeyEvent(Hex1bKey.OemComma, c, Hex1bModifiers.None),
+            '.' => new Hex1bKeyEvent(Hex1bKey.OemPeriod, c, Hex1bModifiers.None),
+            '/' or '?' => new Hex1bKeyEvent(Hex1bKey.OemQuestion, c, Hex1bModifiers.None),
             _ when !char.IsControl(c) => new Hex1bKeyEvent(Hex1bKey.None, c, Hex1bModifiers.None),
             _ => null
         };
