@@ -7,39 +7,39 @@ namespace Hex1b.Widgets;
 public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 {
     /// <summary>Rebindable action: Move cursor left.</summary>
-    public static readonly ActionId MoveLeft = new("TextBox.MoveLeft");
+    public static readonly ActionId MoveLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveLeft)}");
     /// <summary>Rebindable action: Move cursor right.</summary>
-    public static readonly ActionId MoveRight = new("TextBox.MoveRight");
+    public static readonly ActionId MoveRight = new($"{nameof(TextBoxWidget)}.{nameof(MoveRight)}");
     /// <summary>Rebindable action: Move cursor to start.</summary>
-    public static readonly ActionId MoveHome = new("TextBox.MoveHome");
+    public static readonly ActionId MoveHome = new($"{nameof(TextBoxWidget)}.{nameof(MoveHome)}");
     /// <summary>Rebindable action: Move cursor to end.</summary>
-    public static readonly ActionId MoveEnd = new("TextBox.MoveEnd");
+    public static readonly ActionId MoveEnd = new($"{nameof(TextBoxWidget)}.{nameof(MoveEnd)}");
     /// <summary>Rebindable action: Move cursor to previous word.</summary>
-    public static readonly ActionId MoveWordLeft = new("TextBox.MoveWordLeft");
+    public static readonly ActionId MoveWordLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordLeft)}");
     /// <summary>Rebindable action: Move cursor to next word.</summary>
-    public static readonly ActionId MoveWordRight = new("TextBox.MoveWordRight");
+    public static readonly ActionId MoveWordRight = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordRight)}");
     /// <summary>Rebindable action: Extend selection left.</summary>
-    public static readonly ActionId SelectLeft = new("TextBox.SelectLeft");
+    public static readonly ActionId SelectLeft = new($"{nameof(TextBoxWidget)}.{nameof(SelectLeft)}");
     /// <summary>Rebindable action: Extend selection right.</summary>
-    public static readonly ActionId SelectRight = new("TextBox.SelectRight");
+    public static readonly ActionId SelectRight = new($"{nameof(TextBoxWidget)}.{nameof(SelectRight)}");
     /// <summary>Rebindable action: Select to start.</summary>
-    public static readonly ActionId SelectToStart = new("TextBox.SelectToStart");
+    public static readonly ActionId SelectToStart = new($"{nameof(TextBoxWidget)}.{nameof(SelectToStart)}");
     /// <summary>Rebindable action: Select to end.</summary>
-    public static readonly ActionId SelectToEnd = new("TextBox.SelectToEnd");
+    public static readonly ActionId SelectToEnd = new($"{nameof(TextBoxWidget)}.{nameof(SelectToEnd)}");
     /// <summary>Rebindable action: Delete character backward.</summary>
-    public static readonly ActionId DeleteBackward = new("TextBox.DeleteBackward");
+    public static readonly ActionId DeleteBackward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteBackward)}");
     /// <summary>Rebindable action: Delete character forward.</summary>
-    public static readonly ActionId DeleteForward = new("TextBox.DeleteForward");
+    public static readonly ActionId DeleteForward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteForward)}");
     /// <summary>Rebindable action: Delete previous word.</summary>
-    public static readonly ActionId DeleteWordBackward = new("TextBox.DeleteWordBackward");
+    public static readonly ActionId DeleteWordBackward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteWordBackward)}");
     /// <summary>Rebindable action: Delete next word.</summary>
-    public static readonly ActionId DeleteWordForward = new("TextBox.DeleteWordForward");
+    public static readonly ActionId DeleteWordForward = new($"{nameof(TextBoxWidget)}.{nameof(DeleteWordForward)}");
     /// <summary>Rebindable action: Select all text.</summary>
-    public static readonly ActionId SelectAll = new("TextBox.SelectAll");
+    public static readonly ActionId SelectAll = new($"{nameof(TextBoxWidget)}.{nameof(SelectAll)}");
     /// <summary>Rebindable action: Submit text.</summary>
-    public static readonly ActionId Submit = new("TextBox.Submit");
+    public static readonly ActionId Submit = new($"{nameof(TextBoxWidget)}.{nameof(Submit)}");
     /// <summary>Rebindable action: Insert typed text.</summary>
-    public static readonly ActionId InsertText = new("TextBox.InsertText");
+    public static readonly ActionId InsertText = new($"{nameof(TextBoxWidget)}.{nameof(InsertText)}");
 
     /// <summary>
     /// Internal handler for text changed events.

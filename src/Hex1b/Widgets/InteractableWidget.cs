@@ -24,7 +24,7 @@ namespace Hex1b.Widgets;
 public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> Builder) : Hex1bWidget
 {
     /// <summary>Rebindable action: Activate the interactable.</summary>
-    public static readonly ActionId Activate = new("Interactable.Activate");
+    public static readonly ActionId Activate = new($"{nameof(InteractableWidget)}.{nameof(Activate)}");
 
     /// <summary>
     /// The async click handler. Called when activated via Enter, Space, or mouse click.

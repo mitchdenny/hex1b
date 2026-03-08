@@ -13,11 +13,11 @@ namespace Hex1b;
 public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
 {
     /// <summary>Rebindable action: Move to next item.</summary>
-    public static readonly ActionId NextItemAction = new("MenuPopup.NextItem");
+    public static readonly ActionId NextItemAction = new($"{nameof(MenuPopupNode)}.{nameof(NextItemAction)}");
     /// <summary>Rebindable action: Move to previous item.</summary>
-    public static readonly ActionId PreviousItemAction = new("MenuPopup.PreviousItem");
+    public static readonly ActionId PreviousItemAction = new($"{nameof(MenuPopupNode)}.{nameof(PreviousItemAction)}");
     /// <summary>Rebindable action: Close the menu.</summary>
-    public static readonly ActionId CloseAction = new("MenuPopup.Close");
+    public static readonly ActionId CloseAction = new($"{nameof(MenuPopupNode)}.{nameof(CloseAction)}");
 
     /// <summary>
     /// The MenuNode that owns this popup.

@@ -10,7 +10,7 @@ namespace Hex1b.Widgets;
 public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecked) : Hex1bWidget
 {
     /// <summary>Action ID for toggling the checkbox state.</summary>
-    public static readonly ActionId ToggleActionId = new("Checkbox.Toggle");
+    public static readonly ActionId ToggleActionId = new($"{nameof(CheckboxWidget)}.{nameof(ToggleActionId)}");
 
     /// <summary>
     /// Optional label displayed after the checkbox.

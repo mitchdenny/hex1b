@@ -117,15 +117,15 @@ ctx.Border(
 
 Every built-in widget exposes its bindable actions as `static readonly ActionId` fields. `ActionId` is a `readonly record struct` with a string value — strongly typed, no risk of typos.
 
-The naming convention is `"WidgetName.ActionName"`:
+The naming convention is `"WidgetNameWidget.ActionName"`:
 
 ```csharp
 // Widget definition (library code):
 public record ListWidget : Hex1bWidget
 {
-    public static readonly ActionId MoveUp = new("List.MoveUp");
-    public static readonly ActionId MoveDown = new("List.MoveDown");
-    public static readonly ActionId Activate = new("List.Activate");
+    public static readonly ActionId MoveUp = new($"{nameof(ListWidget)}.{nameof(MoveUp)}");
+    public static readonly ActionId MoveDown = new($"{nameof(ListWidget)}.{nameof(MoveDown)}");
+    public static readonly ActionId Activate = new($"{nameof(ListWidget)}.{nameof(Activate)}");
     // ...
 }
 ```
@@ -361,312 +361,312 @@ Every built-in widget's named actions, their `ActionId` values, and default key 
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `ListWidget.MoveUp` | `"List.MoveUp"` | ↑ |
-| `ListWidget.MoveDown` | `"List.MoveDown"` | ↓ |
-| `ListWidget.Activate` | `"List.Activate"` | Enter, Space, Mouse Left |
-| `ListWidget.ScrollUp` | `"List.ScrollUp"` | Mouse ScrollUp |
-| `ListWidget.ScrollDown` | `"List.ScrollDown"` | Mouse ScrollDown |
+| `ListWidget.MoveUp` | `"ListWidget.MoveUp"` | ↑ |
+| `ListWidget.MoveDown` | `"ListWidget.MoveDown"` | ↓ |
+| `ListWidget.Activate` | `"ListWidget.Activate"` | Enter, Space, Mouse Left |
+| `ListWidget.ScrollUp` | `"ListWidget.ScrollUp"` | Mouse ScrollUp |
+| `ListWidget.ScrollDown` | `"ListWidget.ScrollDown"` | Mouse ScrollDown |
 
 ### Button
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `ButtonWidget.Activate` | `"Button.Activate"` | Enter, Space, Mouse Left |
+| `ButtonWidget.Activate` | `"ButtonWidget.Activate"` | Enter, Space, Mouse Left |
 
 ### TextBox
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `TextBoxWidget.MoveLeft` | `"TextBox.MoveLeft"` | ← |
-| `TextBoxWidget.MoveRight` | `"TextBox.MoveRight"` | → |
-| `TextBoxWidget.MoveHome` | `"TextBox.MoveHome"` | Home |
-| `TextBoxWidget.MoveEnd` | `"TextBox.MoveEnd"` | End |
-| `TextBoxWidget.MoveWordLeft` | `"TextBox.MoveWordLeft"` | Ctrl+← |
-| `TextBoxWidget.MoveWordRight` | `"TextBox.MoveWordRight"` | Ctrl+→ |
-| `TextBoxWidget.SelectLeft` | `"TextBox.SelectLeft"` | Shift+← |
-| `TextBoxWidget.SelectRight` | `"TextBox.SelectRight"` | Shift+→ |
-| `TextBoxWidget.SelectToStart` | `"TextBox.SelectToStart"` | Shift+Home |
-| `TextBoxWidget.SelectToEnd` | `"TextBox.SelectToEnd"` | Shift+End |
-| `TextBoxWidget.SelectAll` | `"TextBox.SelectAll"` | Ctrl+A, Mouse DoubleClick |
-| `TextBoxWidget.DeleteForward` | `"TextBox.DeleteForward"` | Delete |
-| `TextBoxWidget.DeleteBackward` | `"TextBox.DeleteBackward"` | Backspace |
-| `TextBoxWidget.DeleteWordForward` | `"TextBox.DeleteWordForward"` | Ctrl+Delete |
-| `TextBoxWidget.DeleteWordBackward` | `"TextBox.DeleteWordBackward"` | Ctrl+Backspace |
-| `TextBoxWidget.InsertText` | `"TextBox.InsertText"` | Any character |
-| `TextBoxWidget.Submit` | `"TextBox.Submit"` | Enter |
+| `TextBoxWidget.MoveLeft` | `"TextBoxWidget.MoveLeft"` | ← |
+| `TextBoxWidget.MoveRight` | `"TextBoxWidget.MoveRight"` | → |
+| `TextBoxWidget.MoveHome` | `"TextBoxWidget.MoveHome"` | Home |
+| `TextBoxWidget.MoveEnd` | `"TextBoxWidget.MoveEnd"` | End |
+| `TextBoxWidget.MoveWordLeft` | `"TextBoxWidget.MoveWordLeft"` | Ctrl+← |
+| `TextBoxWidget.MoveWordRight` | `"TextBoxWidget.MoveWordRight"` | Ctrl+→ |
+| `TextBoxWidget.SelectLeft` | `"TextBoxWidget.SelectLeft"` | Shift+← |
+| `TextBoxWidget.SelectRight` | `"TextBoxWidget.SelectRight"` | Shift+→ |
+| `TextBoxWidget.SelectToStart` | `"TextBoxWidget.SelectToStart"` | Shift+Home |
+| `TextBoxWidget.SelectToEnd` | `"TextBoxWidget.SelectToEnd"` | Shift+End |
+| `TextBoxWidget.SelectAll` | `"TextBoxWidget.SelectAll"` | Ctrl+A, Mouse DoubleClick |
+| `TextBoxWidget.DeleteForward` | `"TextBoxWidget.DeleteForward"` | Delete |
+| `TextBoxWidget.DeleteBackward` | `"TextBoxWidget.DeleteBackward"` | Backspace |
+| `TextBoxWidget.DeleteWordForward` | `"TextBoxWidget.DeleteWordForward"` | Ctrl+Delete |
+| `TextBoxWidget.DeleteWordBackward` | `"TextBoxWidget.DeleteWordBackward"` | Ctrl+Backspace |
+| `TextBoxWidget.InsertText` | `"TextBoxWidget.InsertText"` | Any character |
+| `TextBoxWidget.Submit` | `"TextBoxWidget.Submit"` | Enter |
 
 ### Checkbox
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `CheckboxWidget.ToggleActionId` | `"Checkbox.Toggle"` | Enter, Space, Mouse Left |
+| `CheckboxWidget.ToggleActionId` | `"CheckboxWidget.Toggle"` | Enter, Space, Mouse Left |
 
 ### ToggleSwitch
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `ToggleSwitchWidget.PreviousOptionActionId` | `"ToggleSwitch.PreviousOption"` | ← |
-| `ToggleSwitchWidget.NextOptionActionId` | `"ToggleSwitch.NextOption"` | → |
-| `ToggleSwitchWidget.SelectOptionActionId` | `"ToggleSwitch.SelectOption"` | Mouse Left |
+| `ToggleSwitchWidget.PreviousOptionActionId` | `"ToggleSwitchWidget.PreviousOption"` | ← |
+| `ToggleSwitchWidget.NextOptionActionId` | `"ToggleSwitchWidget.NextOption"` | → |
+| `ToggleSwitchWidget.SelectOptionActionId` | `"ToggleSwitchWidget.SelectOption"` | Mouse Left |
 
 ### Slider
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `SliderWidget.IncreaseSmallActionId` | `"Slider.IncreaseSmall"` | →, ↑, Mouse ScrollUp |
-| `SliderWidget.DecreaseSmallActionId` | `"Slider.DecreaseSmall"` | ←, ↓, Mouse ScrollDown |
-| `SliderWidget.IncreaseLargeActionId` | `"Slider.IncreaseLarge"` | PageUp |
-| `SliderWidget.DecreaseLargeActionId` | `"Slider.DecreaseLarge"` | PageDown |
-| `SliderWidget.JumpToMinimumActionId` | `"Slider.JumpToMinimum"` | Home |
-| `SliderWidget.JumpToMaximumActionId` | `"Slider.JumpToMaximum"` | End |
-| `SliderWidget.SetValueActionId` | `"Slider.SetValue"` | Mouse Left |
+| `SliderWidget.IncreaseSmallActionId` | `"SliderWidget.IncreaseSmall"` | →, ↑, Mouse ScrollUp |
+| `SliderWidget.DecreaseSmallActionId` | `"SliderWidget.DecreaseSmall"` | ←, ↓, Mouse ScrollDown |
+| `SliderWidget.IncreaseLargeActionId` | `"SliderWidget.IncreaseLarge"` | PageUp |
+| `SliderWidget.DecreaseLargeActionId` | `"SliderWidget.DecreaseLarge"` | PageDown |
+| `SliderWidget.JumpToMinimumActionId` | `"SliderWidget.JumpToMinimum"` | Home |
+| `SliderWidget.JumpToMaximumActionId` | `"SliderWidget.JumpToMaximum"` | End |
+| `SliderWidget.SetValueActionId` | `"SliderWidget.SetValue"` | Mouse Left |
 
 ### Tree
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `TreeWidget.MoveUpActionId` | `"Tree.MoveUp"` | ↑, Mouse ScrollUp |
-| `TreeWidget.MoveDownActionId` | `"Tree.MoveDown"` | ↓, Mouse ScrollDown |
-| `TreeWidget.ExpandOrChildActionId` | `"Tree.ExpandOrChild"` | → |
-| `TreeWidget.CollapseOrParentActionId` | `"Tree.CollapseOrParent"` | ← |
-| `TreeWidget.ToggleActionId` | `"Tree.Toggle"` | Space |
-| `TreeWidget.ActivateActionId` | `"Tree.Activate"` | Enter |
-| `TreeWidget.DoubleClickActivateActionId` | `"Tree.DoubleClickActivate"` | Mouse DoubleClick |
-| `TreeWidget.SelectItemActionId` | `"Tree.SelectItem"` | Mouse Left |
+| `TreeWidget.MoveUpActionId` | `"TreeWidget.MoveUp"` | ↑, Mouse ScrollUp |
+| `TreeWidget.MoveDownActionId` | `"TreeWidget.MoveDown"` | ↓, Mouse ScrollDown |
+| `TreeWidget.ExpandOrChildActionId` | `"TreeWidget.ExpandOrChild"` | → |
+| `TreeWidget.CollapseOrParentActionId` | `"TreeWidget.CollapseOrParent"` | ← |
+| `TreeWidget.ToggleActionId` | `"TreeWidget.Toggle"` | Space |
+| `TreeWidget.ActivateActionId` | `"TreeWidget.Activate"` | Enter |
+| `TreeWidget.DoubleClickActivateActionId` | `"TreeWidget.DoubleClickActivate"` | Mouse DoubleClick |
+| `TreeWidget.SelectItemActionId` | `"TreeWidget.SelectItem"` | Mouse Left |
 
 ### TreeItem
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `TreeItemWidget.ExpandActionId` | `"TreeItem.Expand"` | → |
-| `TreeItemWidget.CollapseActionId` | `"TreeItem.Collapse"` | ← |
-| `TreeItemWidget.ToggleActionId` | `"TreeItem.Toggle"` | Space |
-| `TreeItemWidget.ActivateActionId` | `"TreeItem.Activate"` | Enter |
+| `TreeItemWidget.ExpandActionId` | `"TreeItemWidget.Expand"` | → |
+| `TreeItemWidget.CollapseActionId` | `"TreeItemWidget.Collapse"` | ← |
+| `TreeItemWidget.ToggleActionId` | `"TreeItemWidget.Toggle"` | Space |
+| `TreeItemWidget.ActivateActionId` | `"TreeItemWidget.Activate"` | Enter |
 
 ### Table
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `TableWidget.MoveUp` | `"Table.MoveUp"` | ↑ |
-| `TableWidget.MoveDown` | `"Table.MoveDown"` | ↓ |
-| `TableWidget.MoveToFirst` | `"Table.MoveToFirst"` | Home |
-| `TableWidget.MoveToLast` | `"Table.MoveToLast"` | End |
-| `TableWidget.ExtendUp` | `"Table.ExtendUp"` | Shift+↑ |
-| `TableWidget.ExtendDown` | `"Table.ExtendDown"` | Shift+↓ |
-| `TableWidget.ExtendToFirst` | `"Table.ExtendToFirst"` | Shift+Home |
-| `TableWidget.ExtendToLast` | `"Table.ExtendToLast"` | Shift+End |
-| `TableWidget.ToggleSelection` | `"Table.ToggleSelection"` | Space |
-| `TableWidget.SelectAll` | `"Table.SelectAll"` | Ctrl+A |
-| `TableWidget.PageUp` | `"Table.PageUp"` | PageUp |
-| `TableWidget.PageDown` | `"Table.PageDown"` | PageDown |
-| `TableWidget.ScrollUp` | `"Table.ScrollUp"` | Mouse ScrollUp |
-| `TableWidget.ScrollDown` | `"Table.ScrollDown"` | Mouse ScrollDown |
-| `TableWidget.ClickRow` | `"Table.ClickRow"` | Mouse Left |
+| `TableWidget.MoveUp` | `"TableWidget.MoveUp"` | ↑ |
+| `TableWidget.MoveDown` | `"TableWidget.MoveDown"` | ↓ |
+| `TableWidget.MoveToFirst` | `"TableWidget.MoveToFirst"` | Home |
+| `TableWidget.MoveToLast` | `"TableWidget.MoveToLast"` | End |
+| `TableWidget.ExtendUp` | `"TableWidget.ExtendUp"` | Shift+↑ |
+| `TableWidget.ExtendDown` | `"TableWidget.ExtendDown"` | Shift+↓ |
+| `TableWidget.ExtendToFirst` | `"TableWidget.ExtendToFirst"` | Shift+Home |
+| `TableWidget.ExtendToLast` | `"TableWidget.ExtendToLast"` | Shift+End |
+| `TableWidget.ToggleSelection` | `"TableWidget.ToggleSelection"` | Space |
+| `TableWidget.SelectAll` | `"TableWidget.SelectAll"` | Ctrl+A |
+| `TableWidget.PageUp` | `"TableWidget.PageUp"` | PageUp |
+| `TableWidget.PageDown` | `"TableWidget.PageDown"` | PageDown |
+| `TableWidget.ScrollUp` | `"TableWidget.ScrollUp"` | Mouse ScrollUp |
+| `TableWidget.ScrollDown` | `"TableWidget.ScrollDown"` | Mouse ScrollDown |
+| `TableWidget.ClickRow` | `"TableWidget.ClickRow"` | Mouse Left |
 
 ### Editor
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `EditorWidget.MoveLeft` | `"Editor.MoveLeft"` | ← |
-| `EditorWidget.MoveRight` | `"Editor.MoveRight"` | → |
-| `EditorWidget.MoveUp` | `"Editor.MoveUp"` | ↑ |
-| `EditorWidget.MoveDown` | `"Editor.MoveDown"` | ↓ |
-| `EditorWidget.MoveToLineStart` | `"Editor.MoveToLineStart"` | Home |
-| `EditorWidget.MoveToLineEnd` | `"Editor.MoveToLineEnd"` | End |
-| `EditorWidget.MoveToDocumentStart` | `"Editor.MoveToDocumentStart"` | Ctrl+Home |
-| `EditorWidget.MoveToDocumentEnd` | `"Editor.MoveToDocumentEnd"` | Ctrl+End |
-| `EditorWidget.MoveWordLeft` | `"Editor.MoveWordLeft"` | Ctrl+← |
-| `EditorWidget.MoveWordRight` | `"Editor.MoveWordRight"` | Ctrl+→ |
-| `EditorWidget.PageUp` | `"Editor.PageUp"` | PageUp |
-| `EditorWidget.PageDown` | `"Editor.PageDown"` | PageDown |
-| `EditorWidget.SelectLeft` | `"Editor.SelectLeft"` | Shift+← |
-| `EditorWidget.SelectRight` | `"Editor.SelectRight"` | Shift+→ |
-| `EditorWidget.SelectUp` | `"Editor.SelectUp"` | Shift+↑ |
-| `EditorWidget.SelectDown` | `"Editor.SelectDown"` | Shift+↓ |
-| `EditorWidget.SelectToLineStart` | `"Editor.SelectToLineStart"` | Shift+Home |
-| `EditorWidget.SelectToLineEnd` | `"Editor.SelectToLineEnd"` | Shift+End |
-| `EditorWidget.SelectToDocumentStart` | `"Editor.SelectToDocumentStart"` | Ctrl+Shift+Home |
-| `EditorWidget.SelectToDocumentEnd` | `"Editor.SelectToDocumentEnd"` | Ctrl+Shift+End |
-| `EditorWidget.SelectWordLeft` | `"Editor.SelectWordLeft"` | Ctrl+Shift+← |
-| `EditorWidget.SelectWordRight` | `"Editor.SelectWordRight"` | Ctrl+Shift+→ |
-| `EditorWidget.SelectPageUp` | `"Editor.SelectPageUp"` | Shift+PageUp |
-| `EditorWidget.SelectPageDown` | `"Editor.SelectPageDown"` | Shift+PageDown |
-| `EditorWidget.SelectAll` | `"Editor.SelectAll"` | Ctrl+A |
-| `EditorWidget.AddCursorAtNextMatch` | `"Editor.AddCursorAtNextMatch"` | Ctrl+D |
-| `EditorWidget.Undo` | `"Editor.Undo"` | Ctrl+Z |
-| `EditorWidget.Redo` | `"Editor.Redo"` | Ctrl+Y |
-| `EditorWidget.DeleteBackward` | `"Editor.DeleteBackward"` | Backspace |
-| `EditorWidget.DeleteForward` | `"Editor.DeleteForward"` | Delete |
-| `EditorWidget.DeleteWordBackward` | `"Editor.DeleteWordBackward"` | Ctrl+Backspace |
-| `EditorWidget.DeleteWordForward` | `"Editor.DeleteWordForward"` | Ctrl+Delete |
-| `EditorWidget.DeleteLine` | `"Editor.DeleteLine"` | Ctrl+Shift+K |
-| `EditorWidget.InsertNewline` | `"Editor.InsertNewline"` | Enter |
-| `EditorWidget.InsertTab` | `"Editor.InsertTab"` | Tab |
-| `EditorWidget.Click` | `"Editor.Click"` | Mouse Left |
-| `EditorWidget.CtrlClick` | `"Editor.CtrlClick"` | Ctrl+Mouse Left |
-| `EditorWidget.DoubleClick` | `"Editor.DoubleClick"` | Mouse DoubleClick |
-| `EditorWidget.TripleClick` | `"Editor.TripleClick"` | Mouse TripleClick |
-| `EditorWidget.ScrollUp` | `"Editor.ScrollUp"` | Mouse ScrollUp |
-| `EditorWidget.ScrollDown` | `"Editor.ScrollDown"` | Mouse ScrollDown |
-| `EditorWidget.ScrollLeft` | `"Editor.ScrollLeft"` | Mouse ScrollLeft |
-| `EditorWidget.ScrollRight` | `"Editor.ScrollRight"` | Mouse ScrollRight |
+| `EditorWidget.MoveLeft` | `"EditorWidget.MoveLeft"` | ← |
+| `EditorWidget.MoveRight` | `"EditorWidget.MoveRight"` | → |
+| `EditorWidget.MoveUp` | `"EditorWidget.MoveUp"` | ↑ |
+| `EditorWidget.MoveDown` | `"EditorWidget.MoveDown"` | ↓ |
+| `EditorWidget.MoveToLineStart` | `"EditorWidget.MoveToLineStart"` | Home |
+| `EditorWidget.MoveToLineEnd` | `"EditorWidget.MoveToLineEnd"` | End |
+| `EditorWidget.MoveToDocumentStart` | `"EditorWidget.MoveToDocumentStart"` | Ctrl+Home |
+| `EditorWidget.MoveToDocumentEnd` | `"EditorWidget.MoveToDocumentEnd"` | Ctrl+End |
+| `EditorWidget.MoveWordLeft` | `"EditorWidget.MoveWordLeft"` | Ctrl+← |
+| `EditorWidget.MoveWordRight` | `"EditorWidget.MoveWordRight"` | Ctrl+→ |
+| `EditorWidget.PageUp` | `"EditorWidget.PageUp"` | PageUp |
+| `EditorWidget.PageDown` | `"EditorWidget.PageDown"` | PageDown |
+| `EditorWidget.SelectLeft` | `"EditorWidget.SelectLeft"` | Shift+← |
+| `EditorWidget.SelectRight` | `"EditorWidget.SelectRight"` | Shift+→ |
+| `EditorWidget.SelectUp` | `"EditorWidget.SelectUp"` | Shift+↑ |
+| `EditorWidget.SelectDown` | `"EditorWidget.SelectDown"` | Shift+↓ |
+| `EditorWidget.SelectToLineStart` | `"EditorWidget.SelectToLineStart"` | Shift+Home |
+| `EditorWidget.SelectToLineEnd` | `"EditorWidget.SelectToLineEnd"` | Shift+End |
+| `EditorWidget.SelectToDocumentStart` | `"EditorWidget.SelectToDocumentStart"` | Ctrl+Shift+Home |
+| `EditorWidget.SelectToDocumentEnd` | `"EditorWidget.SelectToDocumentEnd"` | Ctrl+Shift+End |
+| `EditorWidget.SelectWordLeft` | `"EditorWidget.SelectWordLeft"` | Ctrl+Shift+← |
+| `EditorWidget.SelectWordRight` | `"EditorWidget.SelectWordRight"` | Ctrl+Shift+→ |
+| `EditorWidget.SelectPageUp` | `"EditorWidget.SelectPageUp"` | Shift+PageUp |
+| `EditorWidget.SelectPageDown` | `"EditorWidget.SelectPageDown"` | Shift+PageDown |
+| `EditorWidget.SelectAll` | `"EditorWidget.SelectAll"` | Ctrl+A |
+| `EditorWidget.AddCursorAtNextMatch` | `"EditorWidget.AddCursorAtNextMatch"` | Ctrl+D |
+| `EditorWidget.Undo` | `"EditorWidget.Undo"` | Ctrl+Z |
+| `EditorWidget.Redo` | `"EditorWidget.Redo"` | Ctrl+Y |
+| `EditorWidget.DeleteBackward` | `"EditorWidget.DeleteBackward"` | Backspace |
+| `EditorWidget.DeleteForward` | `"EditorWidget.DeleteForward"` | Delete |
+| `EditorWidget.DeleteWordBackward` | `"EditorWidget.DeleteWordBackward"` | Ctrl+Backspace |
+| `EditorWidget.DeleteWordForward` | `"EditorWidget.DeleteWordForward"` | Ctrl+Delete |
+| `EditorWidget.DeleteLine` | `"EditorWidget.DeleteLine"` | Ctrl+Shift+K |
+| `EditorWidget.InsertNewline` | `"EditorWidget.InsertNewline"` | Enter |
+| `EditorWidget.InsertTab` | `"EditorWidget.InsertTab"` | Tab |
+| `EditorWidget.Click` | `"EditorWidget.Click"` | Mouse Left |
+| `EditorWidget.CtrlClick` | `"EditorWidget.CtrlClick"` | Ctrl+Mouse Left |
+| `EditorWidget.DoubleClick` | `"EditorWidget.DoubleClick"` | Mouse DoubleClick |
+| `EditorWidget.TripleClick` | `"EditorWidget.TripleClick"` | Mouse TripleClick |
+| `EditorWidget.ScrollUp` | `"EditorWidget.ScrollUp"` | Mouse ScrollUp |
+| `EditorWidget.ScrollDown` | `"EditorWidget.ScrollDown"` | Mouse ScrollDown |
+| `EditorWidget.ScrollLeft` | `"EditorWidget.ScrollLeft"` | Mouse ScrollLeft |
+| `EditorWidget.ScrollRight` | `"EditorWidget.ScrollRight"` | Mouse ScrollRight |
 
 ### Interactable
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `InteractableWidget.Activate` | `"Interactable.Activate"` | Enter, Space, Mouse Left |
+| `InteractableWidget.Activate` | `"InteractableWidget.Activate"` | Enter, Space, Mouse Left |
 
 ### Hyperlink
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `HyperlinkWidget.ActivateActionId` | `"Hyperlink.Activate"` | Enter, Mouse Left |
+| `HyperlinkWidget.ActivateActionId` | `"HyperlinkWidget.Activate"` | Enter, Mouse Left |
 
 ### Icon
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `IconWidget.ActivateActionId` | `"Icon.Activate"` | Mouse Left |
+| `IconWidget.ActivateActionId` | `"IconWidget.Activate"` | Mouse Left |
 
 ### ScrollPanel
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `ScrollPanelWidget.ScrollUpAction` | `"ScrollPanel.ScrollUp"` | ↑ |
-| `ScrollPanelWidget.ScrollDownAction` | `"ScrollPanel.ScrollDown"` | ↓ |
-| `ScrollPanelWidget.ScrollLeftAction` | `"ScrollPanel.ScrollLeft"` | ← |
-| `ScrollPanelWidget.ScrollRightAction` | `"ScrollPanel.ScrollRight"` | → |
-| `ScrollPanelWidget.PageUpAction` | `"ScrollPanel.PageUp"` | PageUp |
-| `ScrollPanelWidget.PageDownAction` | `"ScrollPanel.PageDown"` | PageDown |
-| `ScrollPanelWidget.ScrollToStartAction` | `"ScrollPanel.ScrollToStart"` | Home |
-| `ScrollPanelWidget.ScrollToEndAction` | `"ScrollPanel.ScrollToEnd"` | End |
-| `ScrollPanelWidget.FocusNextAction` | `"ScrollPanel.FocusNext"` | Tab |
-| `ScrollPanelWidget.FocusPreviousAction` | `"ScrollPanel.FocusPrevious"` | Shift+Tab |
-| `ScrollPanelWidget.FocusFirstAction` | `"ScrollPanel.FocusFirst"` | Escape |
-| `ScrollPanelWidget.MouseScrollUpAction` | `"ScrollPanel.MouseScrollUp"` | Mouse ScrollUp |
-| `ScrollPanelWidget.MouseScrollDownAction` | `"ScrollPanel.MouseScrollDown"` | Mouse ScrollDown |
+| `ScrollPanelWidget.ScrollUpAction` | `"ScrollPanelWidget.ScrollUp"` | ↑ |
+| `ScrollPanelWidget.ScrollDownAction` | `"ScrollPanelWidget.ScrollDown"` | ↓ |
+| `ScrollPanelWidget.ScrollLeftAction` | `"ScrollPanelWidget.ScrollLeft"` | ← |
+| `ScrollPanelWidget.ScrollRightAction` | `"ScrollPanelWidget.ScrollRight"` | → |
+| `ScrollPanelWidget.PageUpAction` | `"ScrollPanelWidget.PageUp"` | PageUp |
+| `ScrollPanelWidget.PageDownAction` | `"ScrollPanelWidget.PageDown"` | PageDown |
+| `ScrollPanelWidget.ScrollToStartAction` | `"ScrollPanelWidget.ScrollToStart"` | Home |
+| `ScrollPanelWidget.ScrollToEndAction` | `"ScrollPanelWidget.ScrollToEnd"` | End |
+| `ScrollPanelWidget.FocusNextAction` | `"ScrollPanelWidget.FocusNext"` | Tab |
+| `ScrollPanelWidget.FocusPreviousAction` | `"ScrollPanelWidget.FocusPrevious"` | Shift+Tab |
+| `ScrollPanelWidget.FocusFirstAction` | `"ScrollPanelWidget.FocusFirst"` | Escape |
+| `ScrollPanelWidget.MouseScrollUpAction` | `"ScrollPanelWidget.MouseScrollUp"` | Mouse ScrollUp |
+| `ScrollPanelWidget.MouseScrollDownAction` | `"ScrollPanelWidget.MouseScrollDown"` | Mouse ScrollDown |
 
 ### SplitButton
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `SplitButtonWidget.ActivateActionId` | `"SplitButton.Activate"` | Enter, Space, Mouse Left |
-| `SplitButtonWidget.OpenMenuActionId` | `"SplitButton.OpenMenu"` | ↓ |
+| `SplitButtonWidget.ActivateActionId` | `"SplitButtonWidget.Activate"` | Enter, Space, Mouse Left |
+| `SplitButtonWidget.OpenMenuActionId` | `"SplitButtonWidget.OpenMenu"` | ↓ |
 
 ### Menu
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `MenuWidget.Open` | `"Menu.Open"` | Enter, Space, Mouse Left |
-| `MenuWidget.NextItem` | `"Menu.NextItem"` | ↓ (context-dependent) |
-| `MenuWidget.PreviousItem` | `"Menu.PreviousItem"` | ↑ (context-dependent) |
-| `MenuWidget.Close` | `"Menu.Close"` | ← (context-dependent) |
-| `MenuWidget.NavigatePrevious` | `"Menu.NavigatePrevious"` | ← (context-dependent) |
-| `MenuWidget.FocusPreviousInBar` | `"Menu.FocusPreviousInBar"` | ← (in menu bar) |
-| `MenuWidget.FocusNextInBar` | `"Menu.FocusNextInBar"` | → (in menu bar) |
+| `MenuWidget.Open` | `"MenuWidget.Open"` | Enter, Space, Mouse Left |
+| `MenuWidget.NextItem` | `"MenuWidget.NextItem"` | ↓ (context-dependent) |
+| `MenuWidget.PreviousItem` | `"MenuWidget.PreviousItem"` | ↑ (context-dependent) |
+| `MenuWidget.Close` | `"MenuWidget.Close"` | ← (context-dependent) |
+| `MenuWidget.NavigatePrevious` | `"MenuWidget.NavigatePrevious"` | ← (context-dependent) |
+| `MenuWidget.FocusPreviousInBar` | `"MenuWidget.FocusPreviousInBar"` | ← (in menu bar) |
+| `MenuWidget.FocusNextInBar` | `"MenuWidget.FocusNextInBar"` | → (in menu bar) |
 
 ### MenuBar
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `MenuBarWidget.PreviousMenu` | `"MenuBar.PreviousMenu"` | ← |
-| `MenuBarWidget.NextMenu` | `"MenuBar.NextMenu"` | → |
-| `MenuBarWidget.NextFocusable` | `"MenuBar.NextFocusable"` | Tab |
-| `MenuBarWidget.PreviousFocusable` | `"MenuBar.PreviousFocusable"` | Shift+Tab |
+| `MenuBarWidget.PreviousMenu` | `"MenuBarWidget.PreviousMenu"` | ← |
+| `MenuBarWidget.NextMenu` | `"MenuBarWidget.NextMenu"` | → |
+| `MenuBarWidget.NextFocusable` | `"MenuBarWidget.NextFocusable"` | Tab |
+| `MenuBarWidget.PreviousFocusable` | `"MenuBarWidget.PreviousFocusable"` | Shift+Tab |
 
 ### MenuItem
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `MenuItemWidget.MoveDown` | `"MenuItem.MoveDown"` | ↓ |
-| `MenuItemWidget.MoveUp` | `"MenuItem.MoveUp"` | ↑ |
-| `MenuItemWidget.Close` | `"MenuItem.Close"` | Escape |
-| `MenuItemWidget.NavigateLeft` | `"MenuItem.NavigateLeft"` | ← |
-| `MenuItemWidget.NavigateRight` | `"MenuItem.NavigateRight"` | → |
-| `MenuItemWidget.Activate` | `"MenuItem.Activate"` | Enter, Space, Mouse Left |
+| `MenuItemWidget.MoveDown` | `"MenuItemWidget.MoveDown"` | ↓ |
+| `MenuItemWidget.MoveUp` | `"MenuItemWidget.MoveUp"` | ↑ |
+| `MenuItemWidget.Close` | `"MenuItemWidget.Close"` | Escape |
+| `MenuItemWidget.NavigateLeft` | `"MenuItemWidget.NavigateLeft"` | ← |
+| `MenuItemWidget.NavigateRight` | `"MenuItemWidget.NavigateRight"` | → |
+| `MenuItemWidget.Activate` | `"MenuItemWidget.Activate"` | Enter, Space, Mouse Left |
 
 ### TabBar
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `TabBarWidget.ScrollLeft` | `"TabBar.ScrollLeft"` | ← |
-| `TabBarWidget.ScrollRight` | `"TabBar.ScrollRight"` | → |
-| `TabBarWidget.Click` | `"TabBar.Click"` | Mouse Left |
+| `TabBarWidget.ScrollLeft` | `"TabBarWidget.ScrollLeft"` | ← |
+| `TabBarWidget.ScrollRight` | `"TabBarWidget.ScrollRight"` | → |
+| `TabBarWidget.Click` | `"TabBarWidget.Click"` | Mouse Left |
 
 ### Accordion
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `AccordionWidget.ToggleSectionAction` | `"Accordion.ToggleSection"` | Enter, Space |
-| `AccordionWidget.PreviousSectionAction` | `"Accordion.PreviousSection"` | ↑ |
-| `AccordionWidget.NextSectionAction` | `"Accordion.NextSection"` | ↓ |
-| `AccordionWidget.FocusNextAction` | `"Accordion.FocusNext"` | Tab |
-| `AccordionWidget.FocusPreviousAction` | `"Accordion.FocusPrevious"` | Shift+Tab |
-| `AccordionWidget.ClickAction` | `"Accordion.Click"` | Mouse Left |
+| `AccordionWidget.ToggleSectionAction` | `"AccordionWidget.ToggleSection"` | Enter, Space |
+| `AccordionWidget.PreviousSectionAction` | `"AccordionWidget.PreviousSection"` | ↑ |
+| `AccordionWidget.NextSectionAction` | `"AccordionWidget.NextSection"` | ↓ |
+| `AccordionWidget.FocusNextAction` | `"AccordionWidget.FocusNext"` | Tab |
+| `AccordionWidget.FocusPreviousAction` | `"AccordionWidget.FocusPrevious"` | Shift+Tab |
+| `AccordionWidget.ClickAction` | `"AccordionWidget.Click"` | Mouse Left |
 
 ### Drawer
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `DrawerWidget.ToggleAction` | `"Drawer.Toggle"` | Mouse Left |
-| `DrawerWidget.OpenAction` | `"Drawer.Open"` | Enter, Space |
+| `DrawerWidget.ToggleAction` | `"DrawerWidget.Toggle"` | Mouse Left |
+| `DrawerWidget.OpenAction` | `"DrawerWidget.Open"` | Enter, Space |
 
 ### Splitter
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `SplitterWidget.ResizeLeftAction` | `"Splitter.ResizeLeft"` | ← |
-| `SplitterWidget.ResizeRightAction` | `"Splitter.ResizeRight"` | → |
-| `SplitterWidget.ResizeUpAction` | `"Splitter.ResizeUp"` | ↑ |
-| `SplitterWidget.ResizeDownAction` | `"Splitter.ResizeDown"` | ↓ |
-| `SplitterWidget.FocusNextAction` | `"Splitter.FocusNext"` | Tab |
-| `SplitterWidget.FocusPreviousAction` | `"Splitter.FocusPrevious"` | Shift+Tab |
-| `SplitterWidget.FocusFirstAction` | `"Splitter.FocusFirst"` | Escape |
+| `SplitterWidget.ResizeLeftAction` | `"SplitterWidget.ResizeLeft"` | ← |
+| `SplitterWidget.ResizeRightAction` | `"SplitterWidget.ResizeRight"` | → |
+| `SplitterWidget.ResizeUpAction` | `"SplitterWidget.ResizeUp"` | ↑ |
+| `SplitterWidget.ResizeDownAction` | `"SplitterWidget.ResizeDown"` | ↓ |
+| `SplitterWidget.FocusNextAction` | `"SplitterWidget.FocusNext"` | Tab |
+| `SplitterWidget.FocusPreviousAction` | `"SplitterWidget.FocusPrevious"` | Shift+Tab |
+| `SplitterWidget.FocusFirstAction` | `"SplitterWidget.FocusFirst"` | Escape |
 
 ### DragBarPanel
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `DragBarPanelWidget.ResizeLeftAction` | `"DragBarPanel.ResizeLeft"` | ← |
-| `DragBarPanelWidget.ResizeRightAction` | `"DragBarPanel.ResizeRight"` | → |
-| `DragBarPanelWidget.ResizeUpAction` | `"DragBarPanel.ResizeUp"` | ↑ |
-| `DragBarPanelWidget.ResizeDownAction` | `"DragBarPanel.ResizeDown"` | ↓ |
-| `DragBarPanelWidget.FocusNextAction` | `"DragBarPanel.FocusNext"` | Tab |
-| `DragBarPanelWidget.FocusPreviousAction` | `"DragBarPanel.FocusPrevious"` | Shift+Tab |
+| `DragBarPanelWidget.ResizeLeftAction` | `"DragBarPanelWidget.ResizeLeft"` | ← |
+| `DragBarPanelWidget.ResizeRightAction` | `"DragBarPanelWidget.ResizeRight"` | → |
+| `DragBarPanelWidget.ResizeUpAction` | `"DragBarPanelWidget.ResizeUp"` | ↑ |
+| `DragBarPanelWidget.ResizeDownAction` | `"DragBarPanelWidget.ResizeDown"` | ↓ |
+| `DragBarPanelWidget.FocusNextAction` | `"DragBarPanelWidget.FocusNext"` | Tab |
+| `DragBarPanelWidget.FocusPreviousAction` | `"DragBarPanelWidget.FocusPrevious"` | Shift+Tab |
 
 ### Window
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `WindowNode.CloseAction` | `"Window.Close"` | Escape |
-| `WindowNode.ClickAction` | `"Window.Click"` | Mouse Left |
-| `WindowNode.TitleBarIconClickAction` | `"Window.TitleBarIconClick"` | — |
+| `WindowNode.CloseAction` | `"WindowNode.Close"` | Escape |
+| `WindowNode.ClickAction` | `"WindowNode.Click"` | Mouse Left |
+| `WindowNode.TitleBarIconClickAction` | `"WindowNode.TitleBarIconClick"` | — |
 
 ### NotificationCard
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `NotificationCardWidget.DismissAction` | `"NotificationCard.Dismiss"` | Escape |
+| `NotificationCardWidget.DismissAction` | `"NotificationCardWidget.Dismiss"` | Escape |
 
 ### NotificationPanel
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `NotificationPanelWidget.ToggleDrawerAction` | `"NotificationPanel.ToggleDrawer"` | Alt+N |
+| `NotificationPanelWidget.ToggleDrawerAction` | `"NotificationPanelWidget.ToggleDrawer"` | Alt+N |
 
 ### NotificationIcon
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `NotificationIconWidget.TogglePanelAction` | `"NotificationIcon.TogglePanel"` | Enter, Space, Mouse Left |
+| `NotificationIconWidget.TogglePanelAction` | `"NotificationIconWidget.TogglePanel"` | Enter, Space, Mouse Left |
 
 ### Backdrop
 
 | Field | ActionId | Default Key |
 |-------|----------|-------------|
-| `BackdropWidget.DismissAction` | `"Backdrop.Dismiss"` | Escape |
-| `BackdropWidget.ClickAwayAction` | `"Backdrop.ClickAway"` | Mouse Left |
+| `BackdropWidget.DismissAction` | `"BackdropWidget.Dismiss"` | Escape |
+| `BackdropWidget.ClickAwayAction` | `"BackdropWidget.ClickAway"` | Mouse Left |
 
 ## Next Steps
 

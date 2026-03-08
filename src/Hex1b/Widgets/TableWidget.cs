@@ -11,35 +11,35 @@ namespace Hex1b.Widgets;
 public record TableWidget<TRow> : Hex1bWidget
 {
     /// <summary>Rebindable action: Move focus to previous row.</summary>
-    public static readonly ActionId MoveUp = new("Table.MoveUp");
+    public static readonly ActionId MoveUp = new($"{nameof(TableWidget<TRow>)}.{nameof(MoveUp)}");
     /// <summary>Rebindable action: Move focus to next row.</summary>
-    public static readonly ActionId MoveDown = new("Table.MoveDown");
+    public static readonly ActionId MoveDown = new($"{nameof(TableWidget<TRow>)}.{nameof(MoveDown)}");
     /// <summary>Rebindable action: Move focus to first row.</summary>
-    public static readonly ActionId MoveToFirst = new("Table.MoveToFirst");
+    public static readonly ActionId MoveToFirst = new($"{nameof(TableWidget<TRow>)}.{nameof(MoveToFirst)}");
     /// <summary>Rebindable action: Move focus to last row.</summary>
-    public static readonly ActionId MoveToLast = new("Table.MoveToLast");
+    public static readonly ActionId MoveToLast = new($"{nameof(TableWidget<TRow>)}.{nameof(MoveToLast)}");
     /// <summary>Rebindable action: Extend selection up.</summary>
-    public static readonly ActionId ExtendUp = new("Table.ExtendUp");
+    public static readonly ActionId ExtendUp = new($"{nameof(TableWidget<TRow>)}.{nameof(ExtendUp)}");
     /// <summary>Rebindable action: Extend selection down.</summary>
-    public static readonly ActionId ExtendDown = new("Table.ExtendDown");
+    public static readonly ActionId ExtendDown = new($"{nameof(TableWidget<TRow>)}.{nameof(ExtendDown)}");
     /// <summary>Rebindable action: Extend selection to first row.</summary>
-    public static readonly ActionId ExtendToFirst = new("Table.ExtendToFirst");
+    public static readonly ActionId ExtendToFirst = new($"{nameof(TableWidget<TRow>)}.{nameof(ExtendToFirst)}");
     /// <summary>Rebindable action: Extend selection to last row.</summary>
-    public static readonly ActionId ExtendToLast = new("Table.ExtendToLast");
+    public static readonly ActionId ExtendToLast = new($"{nameof(TableWidget<TRow>)}.{nameof(ExtendToLast)}");
     /// <summary>Rebindable action: Toggle row selection.</summary>
-    public static readonly ActionId ToggleSelection = new("Table.ToggleSelection");
+    public static readonly ActionId ToggleSelection = new($"{nameof(TableWidget<TRow>)}.{nameof(ToggleSelection)}");
     /// <summary>Rebindable action: Select all rows.</summary>
-    public static readonly ActionId SelectAll = new("Table.SelectAll");
+    public static readonly ActionId SelectAll = new($"{nameof(TableWidget<TRow>)}.{nameof(SelectAll)}");
     /// <summary>Rebindable action: Scroll page up.</summary>
-    public static readonly ActionId PageUp = new("Table.PageUp");
+    public static readonly ActionId PageUp = new($"{nameof(TableWidget<TRow>)}.{nameof(PageUp)}");
     /// <summary>Rebindable action: Scroll page down.</summary>
-    public static readonly ActionId PageDown = new("Table.PageDown");
+    public static readonly ActionId PageDown = new($"{nameof(TableWidget<TRow>)}.{nameof(PageDown)}");
     /// <summary>Rebindable action: Scroll up via mouse wheel.</summary>
-    public static readonly ActionId ScrollUp = new("Table.ScrollUp");
+    public static readonly ActionId ScrollUp = new($"{nameof(TableWidget<TRow>)}.{nameof(ScrollUp)}");
     /// <summary>Rebindable action: Scroll down via mouse wheel.</summary>
-    public static readonly ActionId ScrollDown = new("Table.ScrollDown");
+    public static readonly ActionId ScrollDown = new($"{nameof(TableWidget<TRow>)}.{nameof(ScrollDown)}");
     /// <summary>Rebindable action: Click on a row.</summary>
-    public static readonly ActionId ClickRow = new("Table.ClickRow");
+    public static readonly ActionId ClickRow = new($"{nameof(TableWidget<TRow>)}.{nameof(ClickRow)}");
 
     /// <summary>
     /// The data source for the table rows. When null, loading state is shown.

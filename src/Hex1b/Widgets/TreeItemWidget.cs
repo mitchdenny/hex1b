@@ -12,16 +12,16 @@ namespace Hex1b.Widgets;
 public sealed record TreeItemWidget(string Label) : Hex1bWidget
 {
     /// <summary>Action ID for activating the tree item.</summary>
-    public static readonly ActionId ActivateActionId = new("TreeItem.Activate");
+    public static readonly ActionId ActivateActionId = new($"{nameof(TreeItemWidget)}.{nameof(ActivateActionId)}");
 
     /// <summary>Action ID for toggling selection or expand state.</summary>
-    public static readonly ActionId ToggleActionId = new("TreeItem.Toggle");
+    public static readonly ActionId ToggleActionId = new($"{nameof(TreeItemWidget)}.{nameof(ToggleActionId)}");
 
     /// <summary>Action ID for collapsing the tree item.</summary>
-    public static readonly ActionId CollapseActionId = new("TreeItem.Collapse");
+    public static readonly ActionId CollapseActionId = new($"{nameof(TreeItemWidget)}.{nameof(CollapseActionId)}");
 
     /// <summary>Action ID for expanding the tree item.</summary>
-    public static readonly ActionId ExpandActionId = new("TreeItem.Expand");
+    public static readonly ActionId ExpandActionId = new($"{nameof(TreeItemWidget)}.{nameof(ExpandActionId)}");
 
     /// <summary>
     /// Optional icon/emoji prefix displayed before the label.

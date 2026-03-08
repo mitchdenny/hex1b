@@ -83,7 +83,7 @@ namespace Hex1b.Widgets;
 /// <seealso cref="NotificationCardWidget"/>
 public sealed record NotificationPanelWidget : Hex1bWidget
 {
-    public static readonly ActionId ToggleDrawerAction = new("NotificationPanel.ToggleDrawer");
+    public static readonly ActionId ToggleDrawerAction = new($"{nameof(NotificationPanelWidget)}.{nameof(ToggleDrawerAction)}");
 
     /// <summary>
     /// Animation interval for progress bar updates (50ms = 20fps).
