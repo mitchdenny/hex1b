@@ -13,19 +13,19 @@ namespace Hex1b.Widgets;
 public sealed record MenuWidget(string Label, IReadOnlyList<IMenuChild> Children) : Hex1bWidget, IMenuChild
 {
     /// <summary>Rebindable action: Open the menu or submenu.</summary>
-    public static readonly ActionId Open = new("Menu.Open");
+    public static readonly ActionId Open = new(nameof(Open));
     /// <summary>Rebindable action: Move to next item in popup.</summary>
-    public static readonly ActionId NextItem = new("Menu.NextItem");
+    public static readonly ActionId NextItem = new(nameof(NextItem));
     /// <summary>Rebindable action: Move to previous item in popup.</summary>
-    public static readonly ActionId PreviousItem = new("Menu.PreviousItem");
+    public static readonly ActionId PreviousItem = new(nameof(PreviousItem));
     /// <summary>Rebindable action: Close the parent menu.</summary>
-    public static readonly ActionId Close = new("Menu.Close");
+    public static readonly ActionId Close = new(nameof(Close));
     /// <summary>Rebindable action: Navigate to previous menu.</summary>
-    public static readonly ActionId NavigatePrevious = new("Menu.NavigatePrevious");
+    public static readonly ActionId NavigatePrevious = new(nameof(NavigatePrevious));
     /// <summary>Rebindable action: Focus previous menu in bar.</summary>
-    public static readonly ActionId FocusPreviousInBar = new("Menu.FocusPreviousInBar");
+    public static readonly ActionId FocusPreviousInBar = new(nameof(FocusPreviousInBar));
     /// <summary>Rebindable action: Focus next menu in bar.</summary>
-    public static readonly ActionId FocusNextInBar = new("Menu.FocusNextInBar");
+    public static readonly ActionId FocusNextInBar = new(nameof(FocusNextInBar));
 
     /// <summary>
     /// The explicitly specified accelerator character (from &amp; syntax).

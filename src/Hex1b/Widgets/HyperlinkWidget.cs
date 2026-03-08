@@ -15,7 +15,7 @@ namespace Hex1b.Widgets;
 public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overflow = TextOverflow.Truncate) : Hex1bWidget
 {
     /// <summary>Action ID for activating the hyperlink.</summary>
-    public static readonly ActionId ActivateActionId = new("Hyperlink.Activate");
+    public static readonly ActionId ActivateActionId = new(nameof(ActivateActionId));
 
     /// <summary>
     /// Optional parameters for the hyperlink (e.g., "id=unique-id").

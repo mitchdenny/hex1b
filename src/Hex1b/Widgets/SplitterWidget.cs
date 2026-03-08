@@ -10,13 +10,13 @@ namespace Hex1b.Widgets;
 /// </summary>
 public sealed record SplitterWidget : Hex1bWidget
 {
-    public static readonly ActionId ResizeLeftAction = new("Splitter.ResizeLeft");
-    public static readonly ActionId ResizeRightAction = new("Splitter.ResizeRight");
-    public static readonly ActionId ResizeUpAction = new("Splitter.ResizeUp");
-    public static readonly ActionId ResizeDownAction = new("Splitter.ResizeDown");
-    public static readonly ActionId FocusNextAction = new("Splitter.FocusNext");
-    public static readonly ActionId FocusPreviousAction = new("Splitter.FocusPrevious");
-    public static readonly ActionId FocusFirstAction = new("Splitter.FocusFirst");
+    public static readonly ActionId ResizeLeftAction = new(nameof(ResizeLeftAction));
+    public static readonly ActionId ResizeRightAction = new(nameof(ResizeRightAction));
+    public static readonly ActionId ResizeUpAction = new(nameof(ResizeUpAction));
+    public static readonly ActionId ResizeDownAction = new(nameof(ResizeDownAction));
+    public static readonly ActionId FocusNextAction = new(nameof(FocusNextAction));
+    public static readonly ActionId FocusPreviousAction = new(nameof(FocusPreviousAction));
+    public static readonly ActionId FocusFirstAction = new(nameof(FocusFirstAction));
 
     /// <summary>
     /// The first child widget (left for horizontal, top for vertical).

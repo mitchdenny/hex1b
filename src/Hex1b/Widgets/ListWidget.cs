@@ -11,15 +11,15 @@ namespace Hex1b.Widgets;
 public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>Rebindable action: Move selection up.</summary>
-    public static readonly ActionId MoveUp = new("List.MoveUp");
+    public static readonly ActionId MoveUp = new(nameof(MoveUp));
     /// <summary>Rebindable action: Move selection down.</summary>
-    public static readonly ActionId MoveDown = new("List.MoveDown");
+    public static readonly ActionId MoveDown = new(nameof(MoveDown));
     /// <summary>Rebindable action: Activate the selected item.</summary>
-    public static readonly ActionId Activate = new("List.Activate");
+    public static readonly ActionId Activate = new(nameof(Activate));
     /// <summary>Rebindable action: Scroll up.</summary>
-    public static readonly ActionId ScrollUp = new("List.ScrollUp");
+    public static readonly ActionId ScrollUp = new(nameof(ScrollUp));
     /// <summary>Rebindable action: Scroll down.</summary>
-    public static readonly ActionId ScrollDown = new("List.ScrollDown");
+    public static readonly ActionId ScrollDown = new(nameof(ScrollDown));
 
     /// <summary>
     /// The initial selected index when the list is first created.

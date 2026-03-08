@@ -11,9 +11,9 @@ namespace Hex1b.Nodes;
 /// </summary>
 public sealed class WindowNode : Hex1bNode, ILayoutProvider
 {
-    public static readonly ActionId CloseAction = new("Window.Close");
-    public static readonly ActionId ClickAction = new("Window.Click");
-    public static readonly ActionId TitleBarIconClickAction = new("Window.TitleBarIconClick");
+    public static readonly ActionId CloseAction = new(nameof(CloseAction));
+    public static readonly ActionId ClickAction = new(nameof(ClickAction));
+    public static readonly ActionId TitleBarIconClickAction = new(nameof(TitleBarIconClickAction));
 
     /// <summary>
     /// The window entry from the WindowManager.

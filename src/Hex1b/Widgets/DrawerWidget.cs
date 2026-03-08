@@ -23,8 +23,8 @@ namespace Hex1b.Widgets;
 /// </remarks>
 public sealed record DrawerWidget : Hex1bWidget
 {
-    public static readonly ActionId ToggleAction = new("Drawer.Toggle");
-    public static readonly ActionId OpenAction = new("Drawer.Open");
+    public static readonly ActionId ToggleAction = new(nameof(ToggleAction));
+    public static readonly ActionId OpenAction = new(nameof(OpenAction));
 
     /// <summary>
     /// Builder function for collapsed state content.

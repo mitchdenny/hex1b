@@ -38,7 +38,7 @@ namespace Hex1b.Widgets;
 /// <seealso cref="SplitButtonWidget"/>
 public sealed record NotificationCardWidget : Hex1bWidget
 {
-    public static readonly ActionId DismissAction = new("NotificationCard.Dismiss");
+    public static readonly ActionId DismissAction = new(nameof(DismissAction));
 
     /// <summary>
     /// The notification to display in this card.

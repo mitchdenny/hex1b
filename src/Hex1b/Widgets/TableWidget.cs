@@ -11,35 +11,35 @@ namespace Hex1b.Widgets;
 public record TableWidget<TRow> : Hex1bWidget
 {
     /// <summary>Rebindable action: Move focus to previous row.</summary>
-    public static readonly ActionId MoveUp = new("Table.MoveUp");
+    public static readonly ActionId MoveUp = new(nameof(MoveUp));
     /// <summary>Rebindable action: Move focus to next row.</summary>
-    public static readonly ActionId MoveDown = new("Table.MoveDown");
+    public static readonly ActionId MoveDown = new(nameof(MoveDown));
     /// <summary>Rebindable action: Move focus to first row.</summary>
-    public static readonly ActionId MoveToFirst = new("Table.MoveToFirst");
+    public static readonly ActionId MoveToFirst = new(nameof(MoveToFirst));
     /// <summary>Rebindable action: Move focus to last row.</summary>
-    public static readonly ActionId MoveToLast = new("Table.MoveToLast");
+    public static readonly ActionId MoveToLast = new(nameof(MoveToLast));
     /// <summary>Rebindable action: Extend selection up.</summary>
-    public static readonly ActionId ExtendUp = new("Table.ExtendUp");
+    public static readonly ActionId ExtendUp = new(nameof(ExtendUp));
     /// <summary>Rebindable action: Extend selection down.</summary>
-    public static readonly ActionId ExtendDown = new("Table.ExtendDown");
+    public static readonly ActionId ExtendDown = new(nameof(ExtendDown));
     /// <summary>Rebindable action: Extend selection to first row.</summary>
-    public static readonly ActionId ExtendToFirst = new("Table.ExtendToFirst");
+    public static readonly ActionId ExtendToFirst = new(nameof(ExtendToFirst));
     /// <summary>Rebindable action: Extend selection to last row.</summary>
-    public static readonly ActionId ExtendToLast = new("Table.ExtendToLast");
+    public static readonly ActionId ExtendToLast = new(nameof(ExtendToLast));
     /// <summary>Rebindable action: Toggle row selection.</summary>
-    public static readonly ActionId ToggleSelection = new("Table.ToggleSelection");
+    public static readonly ActionId ToggleSelection = new(nameof(ToggleSelection));
     /// <summary>Rebindable action: Select all rows.</summary>
-    public static readonly ActionId SelectAll = new("Table.SelectAll");
+    public static readonly ActionId SelectAll = new(nameof(SelectAll));
     /// <summary>Rebindable action: Scroll page up.</summary>
-    public static readonly ActionId PageUp = new("Table.PageUp");
+    public static readonly ActionId PageUp = new(nameof(PageUp));
     /// <summary>Rebindable action: Scroll page down.</summary>
-    public static readonly ActionId PageDown = new("Table.PageDown");
+    public static readonly ActionId PageDown = new(nameof(PageDown));
     /// <summary>Rebindable action: Scroll up via mouse wheel.</summary>
-    public static readonly ActionId ScrollUp = new("Table.ScrollUp");
+    public static readonly ActionId ScrollUp = new(nameof(ScrollUp));
     /// <summary>Rebindable action: Scroll down via mouse wheel.</summary>
-    public static readonly ActionId ScrollDown = new("Table.ScrollDown");
+    public static readonly ActionId ScrollDown = new(nameof(ScrollDown));
     /// <summary>Rebindable action: Click on a row.</summary>
-    public static readonly ActionId ClickRow = new("Table.ClickRow");
+    public static readonly ActionId ClickRow = new(nameof(ClickRow));
 
     /// <summary>
     /// The data source for the table rows. When null, loading state is shown.

@@ -33,12 +33,12 @@ public enum DragBarEdge
 /// </remarks>
 public sealed record DragBarPanelWidget : Hex1bWidget
 {
-    public static readonly ActionId ResizeLeftAction = new("DragBarPanel.ResizeLeft");
-    public static readonly ActionId ResizeRightAction = new("DragBarPanel.ResizeRight");
-    public static readonly ActionId ResizeUpAction = new("DragBarPanel.ResizeUp");
-    public static readonly ActionId ResizeDownAction = new("DragBarPanel.ResizeDown");
-    public static readonly ActionId FocusNextAction = new("DragBarPanel.FocusNext");
-    public static readonly ActionId FocusPreviousAction = new("DragBarPanel.FocusPrevious");
+    public static readonly ActionId ResizeLeftAction = new(nameof(ResizeLeftAction));
+    public static readonly ActionId ResizeRightAction = new(nameof(ResizeRightAction));
+    public static readonly ActionId ResizeUpAction = new(nameof(ResizeUpAction));
+    public static readonly ActionId ResizeDownAction = new(nameof(ResizeDownAction));
+    public static readonly ActionId FocusNextAction = new(nameof(FocusNextAction));
+    public static readonly ActionId FocusPreviousAction = new(nameof(FocusPreviousAction));
 
     /// <summary>
     /// The content widget displayed inside the panel.

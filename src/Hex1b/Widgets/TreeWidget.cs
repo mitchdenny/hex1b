@@ -12,28 +12,28 @@ namespace Hex1b.Widgets;
 public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidget
 {
     /// <summary>Action ID for moving focus up in the tree.</summary>
-    public static readonly ActionId MoveUpActionId = new("Tree.MoveUp");
+    public static readonly ActionId MoveUpActionId = new(nameof(MoveUpActionId));
 
     /// <summary>Action ID for moving focus down in the tree.</summary>
-    public static readonly ActionId MoveDownActionId = new("Tree.MoveDown");
+    public static readonly ActionId MoveDownActionId = new(nameof(MoveDownActionId));
 
     /// <summary>Action ID for collapsing or moving to parent.</summary>
-    public static readonly ActionId CollapseOrParentActionId = new("Tree.CollapseOrParent");
+    public static readonly ActionId CollapseOrParentActionId = new(nameof(CollapseOrParentActionId));
 
     /// <summary>Action ID for expanding or moving to child.</summary>
-    public static readonly ActionId ExpandOrChildActionId = new("Tree.ExpandOrChild");
+    public static readonly ActionId ExpandOrChildActionId = new(nameof(ExpandOrChildActionId));
 
     /// <summary>Action ID for activating the focused item.</summary>
-    public static readonly ActionId ActivateActionId = new("Tree.Activate");
+    public static readonly ActionId ActivateActionId = new(nameof(ActivateActionId));
 
     /// <summary>Action ID for toggling selection or expand state.</summary>
-    public static readonly ActionId ToggleActionId = new("Tree.Toggle");
+    public static readonly ActionId ToggleActionId = new(nameof(ToggleActionId));
 
     /// <summary>Action ID for selecting an item via mouse click.</summary>
-    public static readonly ActionId SelectItemActionId = new("Tree.SelectItem");
+    public static readonly ActionId SelectItemActionId = new(nameof(SelectItemActionId));
 
     /// <summary>Action ID for activating an item via mouse double-click.</summary>
-    public static readonly ActionId DoubleClickActivateActionId = new("Tree.DoubleClickActivate");
+    public static readonly ActionId DoubleClickActivateActionId = new(nameof(DoubleClickActivateActionId));
 
     /// <summary>
     /// Whether multiple items can be selected with checkboxes. Default is false.

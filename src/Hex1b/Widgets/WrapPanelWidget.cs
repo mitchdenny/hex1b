@@ -12,8 +12,8 @@ namespace Hex1b.Widgets;
 /// <param name="Children">The child widgets to lay out.</param>
 public sealed record WrapPanelWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidget
 {
-    public static readonly ActionId FocusNextAction = new("WrapPanel.FocusNext");
-    public static readonly ActionId FocusPreviousAction = new("WrapPanel.FocusPrevious");
+    public static readonly ActionId FocusNextAction = new(nameof(FocusNextAction));
+    public static readonly ActionId FocusPreviousAction = new(nameof(FocusPreviousAction));
 
     /// <summary>
     /// The primary layout direction. <see cref="WrapOrientation.Horizontal"/> (default)
