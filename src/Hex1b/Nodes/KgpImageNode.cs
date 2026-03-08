@@ -150,45 +150,15 @@ public sealed class KgpImageNode : Hex1bNode
         var fallbackSize = Fallback?.Measure(constraints) ?? Size.Zero;
 
         var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
-        int cellWidth, cellHeight;
 
-        switch (Stretch)
-        {
-            case KgpImageStretch.None:
-                // Natural size, ignoring available space
-                cellWidth = RequestedWidth ?? naturalW;
-                cellHeight = RequestedHeight ?? naturalH;
-                break;
-
-            case KgpImageStretch.Fit:
-            {
-                // Determine the target area to fit within
-                var targetW = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
-                    ? constraints.MaxWidth : naturalW);
-                var targetH = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
-                    ? constraints.MaxHeight : naturalH);
-
-                // Scale uniformly to fit
-                var scaleW = (double)targetW / naturalW;
-                var scaleH = (double)targetH / naturalH;
-                var scale = Math.Min(scaleW, scaleH);
-                cellWidth = Math.Max(1, (int)Math.Round(naturalW * scale));
-                cellHeight = Math.Max(1, (int)Math.Round(naturalH * scale));
-                break;
-            }
-
-            case KgpImageStretch.Fill:
-            case KgpImageStretch.Stretch:
-            default:
-                // Fill allocated space (guard against int.MaxValue from VStack first pass)
-                cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
-                    ? constraints.MaxWidth
-                    : naturalW);
-                cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
-                    ? constraints.MaxHeight
-                    : naturalH);
-                break;
-        }
+        // All modes claim the same layout space — Stretch mode only affects rendering.
+        // When SizeHint.Fill is set, expand to fill constraints (guard int.MaxValue).
+        var cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
+            ? constraints.MaxWidth
+            : naturalW);
+        var cellHeight = RequestedHeight ?? (HeightHint == SizeHint.Fill && constraints.MaxHeight < int.MaxValue
+            ? constraints.MaxHeight
+            : naturalH);
 
         var kgpSize = constraints.Constrain(new Size(cellWidth, cellHeight));
 
@@ -237,26 +207,55 @@ public sealed class KgpImageNode : Hex1bNode
 
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
-        // Use Bounds for dynamic sizing (no fixed Width/Height requested),
-        // otherwise respect the explicit requested dimensions.
-        var cellWidth = RequestedWidth
-            ?? (Bounds.Width > 0 ? Bounds.Width : Math.Max(1, (PixelWidth + 9) / 10));
-        var cellHeight = RequestedHeight
-            ?? (Bounds.Height > 0 ? Bounds.Height : Math.Max(1, (PixelHeight + 19) / 20));
+        var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
+        int cellWidth, cellHeight;
 
-        if (Stretch == KgpImageStretch.Fill)
+        switch (Stretch)
         {
-            // Compute source-rect crop to maintain aspect ratio.
-            // Compare the display cell aspect ratio (in equivalent pixels) to the source image.
-            var (clipX, clipY, clipW, clipH) = ComputeUniformToFillClip(
-                PixelWidth, PixelHeight, cellWidth, cellHeight);
-            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
-                clipX, clipY, clipW, clipH);
+            case KgpImageStretch.None:
+                // Render at natural pixel-to-cell dimensions regardless of Bounds
+                cellWidth = RequestedWidth ?? naturalW;
+                cellHeight = RequestedHeight ?? naturalH;
+                break;
+
+            case KgpImageStretch.Fit:
+            {
+                // Fit within Bounds maintaining aspect ratio
+                var boundsW = RequestedWidth ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
+                var boundsH = RequestedHeight ?? (Bounds.Height > 0 ? Bounds.Height : naturalH);
+                var scaleW = (double)boundsW / naturalW;
+                var scaleH = (double)boundsH / naturalH;
+                var scale = Math.Min(scaleW, scaleH);
+                cellWidth = Math.Max(1, (int)Math.Round(naturalW * scale));
+                cellHeight = Math.Max(1, (int)Math.Round(naturalH * scale));
+                break;
+            }
+
+            case KgpImageStretch.Fill:
+            {
+                // Fill Bounds with source-rect crop to maintain aspect ratio
+                cellWidth = RequestedWidth
+                    ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
+                cellHeight = RequestedHeight
+                    ?? (Bounds.Height > 0 ? Bounds.Height : naturalH);
+                var (clipX, clipY, clipW, clipH) = ComputeFillClip(
+                    PixelWidth, PixelHeight, cellWidth, cellHeight);
+                context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder,
+                    clipX, clipY, clipW, clipH);
+                return;
+            }
+
+            case KgpImageStretch.Stretch:
+            default:
+                // Stretch to fill Bounds (may distort)
+                cellWidth = RequestedWidth
+                    ?? (Bounds.Width > 0 ? Bounds.Width : naturalW);
+                cellHeight = RequestedHeight
+                    ?? (Bounds.Height > 0 ? Bounds.Height : naturalH);
+                break;
         }
-        else
-        {
-            context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
-        }
+
+        context.WriteKgp(ImageData, PixelWidth, PixelHeight, cellWidth, cellHeight, ZOrder);
     }
 
     /// <summary>
@@ -264,7 +263,7 @@ public sealed class KgpImageNode : Hex1bNode
     /// Centers the crop so that the image fills the display area while
     /// preserving the original aspect ratio.
     /// </summary>
-    internal static (int ClipX, int ClipY, int ClipW, int ClipH) ComputeUniformToFillClip(
+    internal static (int ClipX, int ClipY, int ClipW, int ClipH) ComputeFillClip(
         int pixelWidth, int pixelHeight, int cellWidth, int cellHeight)
     {
         // Display area in equivalent pixel dimensions
