@@ -427,8 +427,11 @@ public static class SurfaceComparer
             if (IsCoveredBySixelRegion(change.X, change.Y, change.Cell, sixelRegions))
                 continue;
             
-            // Skip cells covered by a KGP image region (same logic as sixels)
-            if (IsCoveredByKgpRegion(change.X, change.Y, change.Cell, kgpRegions))
+            // Skip cells covered by a KGP image region (same logic as sixels).
+            // Only skip when the comparer handles KGP placement itself — when KGP
+            // emission is external (skipKgpEmission=true), we must still emit clears
+            // so stale text doesn't obscure below-text KGP placements.
+            if (!skipKgpEmission && IsCoveredByKgpRegion(change.X, change.Y, change.Cell, kgpRegions))
                 continue;
 
             // Position cursor if needed
