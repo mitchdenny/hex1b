@@ -3,6 +3,7 @@ using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 using SkiaSharp;
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -119,35 +120,121 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
     windowCount++;
     var num = windowCount;
     var stretch = KgpImageStretch.Fit;
+    var alignEnabled = false;
+    var hAlignIndex = 0; // Left
+    var vAlignIndex = 0; // Top
+    var sizeEnabled = false;
+    var widthText = "20";
+    var heightText = "10";
+
+    string[] hAlignOptions = ["Left", "Center", "Right"];
+    string[] vAlignOptions = ["Top", "Center", "Bottom"];
+    string[] stretchOptions = ["None", "Fit", "Fill", "Stretch"];
 
     var window = e.Windows.Window(w =>
     {
         try
         {
             return w.VStack(v =>
-            [
-                v.KgpImage(imageData, pixelW, pixelH,
+            {
+                // Build image widget
+                Hex1bWidget image = v.KgpImage(imageData, pixelW, pixelH,
                     v.Text($" [KGP not supported - {name} fallback]"))
-                    .WithStretch(stretch)
-                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
-                v.HStack(h =>
+                    .WithStretch(stretch);
+
+                // Apply explicit sizing or fill
+                if (sizeEnabled
+                    && int.TryParse(widthText, out var cw) && cw > 0
+                    && int.TryParse(heightText, out var ch) && ch > 0)
+                {
+                    image = image.Width(SizeHint.Fixed(cw)).Height(SizeHint.Fixed(ch));
+                }
+                else
+                {
+                    image = image.Width(SizeHint.Fill).Height(SizeHint.Fill);
+                }
+
+                // Wrap in Align if enabled
+                if (alignEnabled)
+                {
+                    var hAlign = hAlignIndex switch
+                    {
+                        1 => Alignment.HCenter,
+                        2 => Alignment.Right,
+                        _ => Alignment.Left
+                    };
+                    var vAlign = vAlignIndex switch
+                    {
+                        1 => Alignment.VCenter,
+                        2 => Alignment.Bottom,
+                        _ => Alignment.Top
+                    };
+                    image = v.Align(hAlign | vAlign, image)
+                        .Width(SizeHint.Fill).Height(SizeHint.Fill);
+                }
+
+                var items = new List<Hex1bWidget> { image };
+
+                // Stretch mode row
+                items.Add(v.HStack(h =>
                 [
-                    h.Button(stretch == KgpImageStretch.Fit ? "[Fit]" : " Fit ")
-                        .OnClick(_ => stretch = KgpImageStretch.Fit),
-                    h.Button(stretch == KgpImageStretch.Fill ? "[Fill]" : " Fill ")
-                        .OnClick(_ => stretch = KgpImageStretch.Fill),
-                    h.Button(stretch == KgpImageStretch.Stretch ? "[Stretch]" : " Stretch ")
-                        .OnClick(_ => stretch = KgpImageStretch.Stretch),
-                    h.Button(stretch == KgpImageStretch.None ? "[None]" : " None ")
-                        .OnClick(_ => stretch = KgpImageStretch.None),
-                ]),
-                v.HStack(h =>
+                    h.Text(" Stretch: "),
+                    h.Picker(stretchOptions, (int)stretch)
+                        .OnSelectionChanged(ev => stretch = (KgpImageStretch)ev.SelectedIndex),
+                ]));
+
+                // Align controls row
+                items.Add(v.HStack(h =>
+                {
+                    var row = new List<Hex1bWidget>
+                    {
+                        h.Checkbox(alignEnabled, "Align")
+                            .OnToggled(ev => alignEnabled = ev.NewState == CheckboxState.Checked)
+                    };
+                    if (alignEnabled)
+                    {
+                        row.Add(h.Text(" H:"));
+                        row.Add(h.Picker(hAlignOptions, hAlignIndex)
+                            .OnSelectionChanged(ev => hAlignIndex = ev.SelectedIndex));
+                        row.Add(h.Text(" V:"));
+                        row.Add(h.Picker(vAlignOptions, vAlignIndex)
+                            .OnSelectionChanged(ev => vAlignIndex = ev.SelectedIndex));
+                    }
+                    return row.ToArray();
+                }));
+
+                // Size controls row
+                items.Add(v.HStack(h =>
+                {
+                    var row = new List<Hex1bWidget>
+                    {
+                        h.Checkbox(sizeEnabled, "Size")
+                            .OnToggled(ev => sizeEnabled = ev.NewState == CheckboxState.Checked)
+                    };
+                    if (sizeEnabled)
+                    {
+                        row.Add(h.Text(" W:"));
+                        row.Add(h.TextBox(widthText)
+                            .OnTextChanged(ev => widthText = ev.NewText)
+                            .Width(SizeHint.Fixed(6)));
+                        row.Add(h.Text(" H:"));
+                        row.Add(h.TextBox(heightText)
+                            .OnTextChanged(ev => heightText = ev.NewText)
+                            .Width(SizeHint.Fixed(6)));
+                    }
+                    return row.ToArray();
+                }));
+
+                // Footer
+                items.Add(v.HStack(h =>
                 [
                     h.Text($" {pixelW}x{pixelH}px "),
                     h.Text(" ").Width(SizeHint.Fill),
                     h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                ])
-            ]);
+                ]));
+
+                return items.ToArray();
+            });
         }
         catch (Exception ex)
         {
@@ -157,7 +244,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
         }
     })
     .Title($"{name} #{num}")
-    .Size(34, 16)
+    .Size(42, 22)
     .Resizable()
     .Position(new WindowPositionSpec(WindowPosition.Center,
         OffsetX: num * 3, OffsetY: num * 2));
