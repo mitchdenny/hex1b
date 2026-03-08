@@ -331,7 +331,7 @@ public static class SurfaceComparer
             foreach (var (kx, ky, data) in belowTextKgp)
             {
                 tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
-                tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+                EmitKgpTokens(tokens, data);
             }
         }
 
@@ -467,7 +467,7 @@ public static class SurfaceComparer
                     if (kgpData.ZIndex >= 0)
                         aboveTextKgp.Add((change.X, change.Y, kgpData));
                     else
-                        tokens.Add(new UnrecognizedSequenceToken(kgpData.Payload));
+                        EmitKgpTokens(tokens, kgpData);
                 }
                 continue;
             }
@@ -504,12 +504,27 @@ public static class SurfaceComparer
         foreach (var (kx, ky, data) in aboveTextKgp)
         {
             tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
-            tokens.Add(new UnrecognizedSequenceToken(data.Payload));
+            EmitKgpTokens(tokens, data);
         }
 
         return tokens;
     }
     
+    /// <summary>
+    /// Emits KGP transmit and placement tokens for a KGP cell.
+    /// Transmit (a=t) and placement (a=p) are emitted as separate tokens so that
+    /// <see cref="Hex1bTerminal.NormalizePreTokenizedTokens"/> can convert them to
+    /// <see cref="KgpToken"/> individually.
+    /// </summary>
+    private static void EmitKgpTokens(List<AnsiToken> tokens, KgpCellData data)
+    {
+        if (data.TransmitPayload != null)
+        {
+            tokens.Add(new UnrecognizedSequenceToken(data.TransmitPayload));
+        }
+        tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
+    }
+
     /// <summary>
     /// Checks if a cell position is covered by any sixel region.
     /// </summary>

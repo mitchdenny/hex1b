@@ -289,6 +289,20 @@ public static class AnsiTokenUtf8Serializer
                 WriteUtf8(writer, unrec.Sequence);
                 return;
 
+            case KgpToken kgp:
+                WriteByte(writer, 0x1b);
+                WriteByte(writer, (byte)'_');
+                WriteByte(writer, (byte)'G');
+                WriteUtf8(writer, kgp.ControlData);
+                if (!string.IsNullOrEmpty(kgp.Payload))
+                {
+                    WriteByte(writer, (byte)';');
+                    WriteUtf8(writer, kgp.Payload);
+                }
+                WriteByte(writer, 0x1b);
+                WriteByte(writer, (byte)'\\');
+                return;
+
             case DeviceStatusReportToken dsr:
                 WriteEscLeftBracket(writer);
                 WriteInt(writer, dsr.Type);
