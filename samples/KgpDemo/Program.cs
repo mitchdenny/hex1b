@@ -118,6 +118,8 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
 {
     windowCount++;
     var num = windowCount;
+    var stretch = KgpImageStretch.Fill;
+
     var window = e.Windows.Window(w =>
     {
         try
@@ -126,7 +128,19 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
             [
                 v.KgpImage(imageData, pixelW, pixelH,
                     v.Text($" [KGP not supported - {name} fallback]"))
+                    .WithStretch(stretch)
                     .Width(SizeHint.Fill).Height(SizeHint.Fill),
+                v.HStack(h =>
+                [
+                    h.Button(stretch == KgpImageStretch.Fill ? "[Fill]" : " Fill ")
+                        .OnClick(_ => stretch = KgpImageStretch.Fill),
+                    h.Button(stretch == KgpImageStretch.Uniform ? "[Fit]" : " Fit ")
+                        .OnClick(_ => stretch = KgpImageStretch.Uniform),
+                    h.Button(stretch == KgpImageStretch.UniformToFill ? "[Cover]" : " Cover ")
+                        .OnClick(_ => stretch = KgpImageStretch.UniformToFill),
+                    h.Button(stretch == KgpImageStretch.None ? "[None]" : " None ")
+                        .OnClick(_ => stretch = KgpImageStretch.None),
+                ]),
                 v.HStack(h =>
                 [
                     h.Text($" {pixelW}x{pixelH}px "),
