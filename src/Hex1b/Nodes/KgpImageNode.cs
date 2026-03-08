@@ -15,7 +15,7 @@ public sealed class KgpImageNode : Hex1bNode
     private int? _requestedWidth;
     private int? _requestedHeight;
     private KgpZOrder _zOrder = KgpZOrder.BelowText;
-    private KgpImageStretch _stretch = KgpImageStretch.Fill;
+    private KgpImageStretch _stretch = KgpImageStretch.Stretch;
 
     // Approximate terminal cell dimensions for aspect ratio calculations.
     private const double CellPixelWidth = 10.0;
@@ -160,7 +160,7 @@ public sealed class KgpImageNode : Hex1bNode
                 cellHeight = RequestedHeight ?? naturalH;
                 break;
 
-            case KgpImageStretch.Uniform:
+            case KgpImageStretch.Fit:
             {
                 // Determine the target area to fit within
                 var targetW = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
@@ -177,8 +177,8 @@ public sealed class KgpImageNode : Hex1bNode
                 break;
             }
 
-            case KgpImageStretch.UniformToFill:
             case KgpImageStretch.Fill:
+            case KgpImageStretch.Stretch:
             default:
                 // Fill allocated space (guard against int.MaxValue from VStack first pass)
                 cellWidth = RequestedWidth ?? (WidthHint == SizeHint.Fill && constraints.MaxWidth < int.MaxValue
@@ -244,7 +244,7 @@ public sealed class KgpImageNode : Hex1bNode
         var cellHeight = RequestedHeight
             ?? (Bounds.Height > 0 ? Bounds.Height : Math.Max(1, (PixelHeight + 19) / 20));
 
-        if (Stretch == KgpImageStretch.UniformToFill)
+        if (Stretch == KgpImageStretch.Fill)
         {
             // Compute source-rect crop to maintain aspect ratio.
             // Compare the display cell aspect ratio (in equivalent pixels) to the source image.
@@ -260,7 +260,7 @@ public sealed class KgpImageNode : Hex1bNode
     }
 
     /// <summary>
-    /// Computes the source-rectangle crop for UniformToFill scaling.
+    /// Computes the source-rectangle crop for Fill scaling.
     /// Centers the crop so that the image fills the display area while
     /// preserving the original aspect ratio.
     /// </summary>

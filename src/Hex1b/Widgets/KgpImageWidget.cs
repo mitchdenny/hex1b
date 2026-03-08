@@ -22,7 +22,7 @@ public sealed record KgpImageWidget(
     int? Width = null,
     int? Height = null,
     KgpZOrder ZOrder = KgpZOrder.BelowText,
-    KgpImageStretch Stretch = KgpImageStretch.Fill) : Hex1bWidget
+    KgpImageStretch Stretch = KgpImageStretch.Stretch) : Hex1bWidget
 {
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {

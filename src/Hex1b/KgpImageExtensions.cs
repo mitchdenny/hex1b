@@ -80,26 +80,26 @@ public static class KgpImageExtensions
         => widget with { Stretch = stretch };
 
     /// <summary>
-    /// Scales the image to fit within the allocated area while preserving the aspect ratio.
-    /// The resulting image may be smaller than the available space in one dimension.
-    /// Wrap in <see cref="AlignWidget"/> to control positioning of the remaining space.
+    /// Scales the image to fit within the allocated area while preserving the aspect ratio,
+    /// maximizing one dimension. The image may be smaller than the available space in one
+    /// dimension. Wrap in <see cref="AlignWidget"/> to control positioning.
     /// </summary>
-    public static KgpImageWidget Uniform(this KgpImageWidget widget)
-        => widget with { Stretch = KgpImageStretch.Uniform };
+    public static KgpImageWidget Fit(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.Fit };
 
     /// <summary>
     /// Scales the image to completely fill the allocated area while preserving the aspect
     /// ratio. Excess portions of the source image are cropped.
     /// </summary>
-    public static KgpImageWidget UniformToFill(this KgpImageWidget widget)
-        => widget with { Stretch = KgpImageStretch.UniformToFill };
+    public static KgpImageWidget Fill(this KgpImageWidget widget)
+        => widget with { Stretch = KgpImageStretch.Fill };
 
     /// <summary>
     /// Stretches the image to fill the allocated area. Aspect ratio is not preserved.
     /// This is the default behavior.
     /// </summary>
     public static KgpImageWidget Stretched(this KgpImageWidget widget)
-        => widget with { Stretch = KgpImageStretch.Fill };
+        => widget with { Stretch = KgpImageStretch.Stretch };
 
     /// <summary>
     /// Displays the image at its natural pixel-to-cell dimensions without scaling.

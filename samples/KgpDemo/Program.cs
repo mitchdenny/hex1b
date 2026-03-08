@@ -118,7 +118,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
 {
     windowCount++;
     var num = windowCount;
-    var stretch = KgpImageStretch.Fill;
+    var stretch = KgpImageStretch.Fit;
 
     var window = e.Windows.Window(w =>
     {
@@ -132,12 +132,12 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                     .Width(SizeHint.Fill).Height(SizeHint.Fill),
                 v.HStack(h =>
                 [
+                    h.Button(stretch == KgpImageStretch.Fit ? "[Fit]" : " Fit ")
+                        .OnClick(_ => stretch = KgpImageStretch.Fit),
                     h.Button(stretch == KgpImageStretch.Fill ? "[Fill]" : " Fill ")
                         .OnClick(_ => stretch = KgpImageStretch.Fill),
-                    h.Button(stretch == KgpImageStretch.Uniform ? "[Fit]" : " Fit ")
-                        .OnClick(_ => stretch = KgpImageStretch.Uniform),
-                    h.Button(stretch == KgpImageStretch.UniformToFill ? "[Cover]" : " Cover ")
-                        .OnClick(_ => stretch = KgpImageStretch.UniformToFill),
+                    h.Button(stretch == KgpImageStretch.Stretch ? "[Stretch]" : " Stretch ")
+                        .OnClick(_ => stretch = KgpImageStretch.Stretch),
                     h.Button(stretch == KgpImageStretch.None ? "[None]" : " None ")
                         .OnClick(_ => stretch = KgpImageStretch.None),
                 ]),
