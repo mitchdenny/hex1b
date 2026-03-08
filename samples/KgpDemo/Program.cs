@@ -1,17 +1,19 @@
 using Hex1b;
+using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
+using SkiaSharp;
 
 // ─────────────────────────────────────────────────────────────────────────────
 // KGP Demo: Exercises KGP graphics in various widget composition scenarios.
 //
 // Scenarios covered:
 // 1. KGP image as WindowPanel background (with text labels on top)
-// 2. Draggable windows that occlude the background KGP image
+// 2. Draggable, resizable windows that occlude the background KGP image
 // 3. KGP image inside a window (nested KGP)
-// 4. Multiple KGP images at different z-orders
-// 5. Surface layer with KGP cells (low-level compositing)
+// 4. Generated images (gradient, checkerboard, circle)
+// 5. Real photos loaded from disk (Bonny, Bogie, Mitch, Firestarter)
 // ─────────────────────────────────────────────────────────────────────────────
 
 // Generate test images
@@ -19,8 +21,19 @@ var gradientImage = GenerateGradient(128, 64);
 var checkerImage = GenerateCheckerboard(64, 64, 8);
 var circleImage = GenerateCircle(64, 64);
 
+// Load real photos from disk
+var imageDir = Path.Combine(AppContext.BaseDirectory, "images");
+var photoImages = new Dictionary<string, (byte[] Data, int W, int H)>();
+foreach (var file in Directory.Exists(imageDir) ? Directory.GetFiles(imageDir) : [])
+{
+    var name = Path.GetFileNameWithoutExtension(file);
+    var rgba = LoadImageFile(file);
+    if (rgba != null)
+        photoImages[name] = rgba.Value;
+}
+
 var windowCount = 0;
-var statusMessage = "Press menu buttons to open windows";
+var statusMessage = "Use File menu to open windows";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("KgpDemo", forceEnable: true)
@@ -38,114 +51,37 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         return ctx.VStack(outer =>
         [
             // Menu bar
-            outer.HStack(menu =>
+            outer.MenuBar(m =>
             [
-                menu.Button(" Gradient Window ").OnClick(e =>
+                m.Menu("File", m =>
                 {
-                    windowCount++;
-                    var num = windowCount;
-                    var window = e.Windows.Window(w =>
-                    {
-                        try
-                        {
-                            return w.VStack(v =>
-                            [
-                                v.Text(" KGP gradient inside a window:"),
-                                v.KgpImage(gradientImage, 128, 64,
-                                    v.Text(" [KGP not supported - gradient fallback]"))
-                                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
-                                v.HStack(h =>
-                                [
-                                    h.Text(" "),
-                                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                                ])
-                            ]);
-                        }
-                        catch (Exception ex)
-                        {
-                            File.AppendAllText("/tmp/kgp-demo-errors.log",
-                                $"[{DateTime.Now:HH:mm:ss.fff}] Gradient builder exception: {ex}\n");
-                            return w.Text($"ERROR: {ex.Message}");
-                        }
-                    })
-                    .Title($"Gradient #{num}")
-                    .Size(34, 16)
-                    .Resizable()
-                    .Position(new WindowPositionSpec(WindowPosition.Center,
-                        OffsetX: num * 3, OffsetY: num * 2));
-
-                    e.Windows.Open(window);
-                    statusMessage = $"Opened gradient window #{num}";
-                }),
-
-                menu.Button(" Checkerboard Window ").OnClick(e =>
-                {
-                    windowCount++;
-                    var num = windowCount;
-                    var window = e.Windows.Window(w =>
-                    {
-                        try
-                        {
-                            return w.VStack(v =>
-                            [
-                                v.Text(" KGP checkerboard:"),
-                                v.KgpImage(checkerImage, 64, 64,
-                                    v.Text(" [KGP not supported - checker fallback]"))
-                                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
-                                v.HStack(h =>
-                                [
-                                    h.Text(" "),
-                                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                                ])
-                            ]);
-                        }
-                        catch (Exception ex)
-                        {
-                            File.AppendAllText("/tmp/kgp-demo-errors.log",
-                                $"[{DateTime.Now:HH:mm:ss.fff}] Checker builder exception: {ex}\n");
-                            return w.Text($"ERROR: {ex.Message}");
-                        }
-                    })
-                    .Title($"Checker #{num}")
-                    .Size(24, 16)
-                    .Resizable()
-                    .Position(new WindowPositionSpec(WindowPosition.Center,
-                        OffsetX: -num * 3, OffsetY: num * 2));
-
-                    e.Windows.Open(window);
-                    statusMessage = $"Opened checker window #{num}";
-                }),
-
-                menu.Button(" Text Window ").OnClick(e =>
-                {
-                    windowCount++;
-                    var num = windowCount;
-                    var window = e.Windows.Window(w => w.VStack(v =>
+                    var items = new List<Hex1b.Widgets.IMenuChild>();
+                    items.Add(m.Menu("Generated", m =>
                     [
-                        v.Text(""),
-                        v.Text("  This is a plain text window."),
-                        v.Text("  Drag it over the background"),
-                        v.Text("  KGP image to test occlusion."),
-                        v.Text(""),
-                        v.Text($"  Window #{num}"),
-                        v.Text(""),
-                        v.HStack(h =>
-                        [
-                            h.Text(" "),
-                            h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-                        ])
-                    ]))
-                    .Title($"Text #{num}")
-                    .Size(36, 11)
-                    .Resizable()
-                    .Position(new WindowPositionSpec(WindowPosition.Center,
-                        OffsetX: num * 4, OffsetY: -num));
-
-                    e.Windows.Open(window);
-                    statusMessage = $"Opened text window #{num}";
+                        m.MenuItem("Gradient").OnActivated(e =>
+                            OpenImageWindow(e, "Gradient", gradientImage, 128, 64)),
+                        m.MenuItem("Checkerboard").OnActivated(e =>
+                            OpenImageWindow(e, "Checker", checkerImage, 64, 64)),
+                        m.MenuItem("Circle").OnActivated(e =>
+                            OpenImageWindow(e, "Circle", circleImage, 64, 64)),
+                    ]));
+                    if (photoImages.Count > 0)
+                    {
+                        items.Add(m.Separator());
+                        foreach (var kvp in photoImages)
+                        {
+                            var name = Capitalize(kvp.Key);
+                            var (data, w, h) = kvp.Value;
+                            items.Add(m.MenuItem(name).OnActivated(e =>
+                                OpenImageWindow(e, name, data, w, h)));
+                        }
+                    }
+                    items.Add(m.Separator());
+                    items.Add(m.MenuItem("Text Window").OnActivated(e => OpenTextWindow(e)));
+                    items.Add(m.Separator());
+                    items.Add(m.MenuItem("Quit").OnActivated(e => e.Context.RequestStop()));
+                    return items;
                 }),
-
-                menu.Text($"  │ {statusMessage}")
             ]),
 
             // WindowPanel with KGP background image
@@ -158,13 +94,123 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         ]).Width(SizeHint.Fill).Height(SizeHint.Fill),
                         width: 40, height: 20)
                 )
-                .Fill()
+                .Fill(),
+
+            // Info bar at bottom
+            outer.InfoBar([
+                "Alt+Letter", "Menu",
+                "Drag", "Move window",
+                "Resize", "Drag edges",
+                "Ctrl+C", "Exit"
+            ])
         ]);
         };
     })
     .Build();
 
 await terminal.RunAsync();
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Window openers
+// ─────────────────────────────────────────────────────────────────────────────
+
+void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData, int pixelW, int pixelH)
+{
+    windowCount++;
+    var num = windowCount;
+    var window = e.Windows.Window(w =>
+    {
+        try
+        {
+            return w.VStack(v =>
+            [
+                v.KgpImage(imageData, pixelW, pixelH,
+                    v.Text($" [KGP not supported - {name} fallback]"))
+                    .Width(SizeHint.Fill).Height(SizeHint.Fill),
+                v.HStack(h =>
+                [
+                    h.Text($" {pixelW}x{pixelH}px "),
+                    h.Text(" ").Width(SizeHint.Fill),
+                    h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                ])
+            ]);
+        }
+        catch (Exception ex)
+        {
+            File.AppendAllText("/tmp/kgp-demo-errors.log",
+                $"[{DateTime.Now:HH:mm:ss.fff}] Window builder exception: {ex}\n");
+            return w.Text($"ERROR: {ex.Message}");
+        }
+    })
+    .Title($"{name} #{num}")
+    .Size(34, 16)
+    .Resizable()
+    .Position(new WindowPositionSpec(WindowPosition.Center,
+        OffsetX: num * 3, OffsetY: num * 2));
+
+    e.Windows.Open(window);
+    statusMessage = $"Opened {name} window #{num}";
+}
+
+void OpenTextWindow(MenuItemActivatedEventArgs e)
+{
+    windowCount++;
+    var num = windowCount;
+    var window = e.Windows.Window(w => w.VStack(v =>
+    [
+        v.Text(""),
+        v.Text("  This is a plain text window."),
+        v.Text("  Drag it over the background"),
+        v.Text("  KGP image to test occlusion."),
+        v.Text(""),
+        v.Text($"  Window #{num}"),
+        v.Text(""),
+        v.HStack(h =>
+        [
+            h.Text(" "),
+            h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+        ])
+    ]))
+    .Title($"Text #{num}")
+    .Size(36, 11)
+    .Resizable()
+    .Position(new WindowPositionSpec(WindowPosition.Center,
+        OffsetX: num * 4, OffsetY: -num));
+
+    e.Windows.Open(window);
+    statusMessage = $"Opened text window #{num}";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Image loading
+// ─────────────────────────────────────────────────────────────────────────────
+
+static (byte[] Data, int W, int H)? LoadImageFile(string path)
+{
+    try
+    {
+        using var bitmap = SKBitmap.Decode(path);
+        if (bitmap == null) return null;
+
+        // Ensure RGBA8888 format
+        using var rgba = bitmap.ColorType == SKColorType.Rgba8888
+            ? bitmap
+            : bitmap.Copy(SKColorType.Rgba8888);
+        if (rgba == null) return null;
+
+        var pixels = rgba.GetPixelSpan();
+        var data = new byte[pixels.Length];
+        pixels.CopyTo(data);
+        return (data, rgba.Width, rgba.Height);
+    }
+    catch
+    {
+        return null;
+    }
+}
+
+static string Capitalize(string s) =>
+    s.Length == 0 ? s : char.ToUpper(s[0]) + s[1..];
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Image generators
