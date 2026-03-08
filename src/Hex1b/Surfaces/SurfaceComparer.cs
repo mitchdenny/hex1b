@@ -138,8 +138,11 @@ public static class SurfaceComparer
     /// <param name="diff">The surface diff to render.</param>
     /// <param name="currentSurface">The current surface, used to find images that need re-rendering when their region is dirty.</param>
     /// <param name="previousSurface">The previous surface, used to detect KGP images that need to be deleted.</param>
+    /// <param name="skipKgpEmission">When true, KGP region detection is still performed (for text skipping)
+    /// but no KGP delete/transmit/placement tokens are emitted. Use this when a
+    /// <see cref="Hex1b.Kgp.KgpPlacementTracker"/> handles KGP lifecycle externally.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
-    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface)
+    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface, bool skipKgpEmission = false)
     {
         ArgumentNullException.ThrowIfNull(diff);
 
@@ -151,7 +154,8 @@ public static class SurfaceComparer
         // Emit KGP delete commands for images that were in the previous surface but have
         // moved or been removed. KGP placements persist in the terminal until explicitly
         // deleted with a=d, so we must clean up stale placements before emitting new ones.
-        if (previousSurface != null && previousSurface.HasKgp)
+        // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+        if (!skipKgpEmission && previousSurface != null && previousSurface.HasKgp)
         {
             // Collect all KGP image IDs and their anchor positions from the previous surface
             var previousKgpAnchors = new Dictionary<uint, (int X, int Y)>();
@@ -390,10 +394,14 @@ public static class SurfaceComparer
             }
             
             // Emit below-text KGP placements BEFORE text (like sixels)
-            foreach (var (kx, ky, data) in belowTextKgp)
+            // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+            if (!skipKgpEmission)
             {
-                tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
-                EmitKgpTokens(tokens, data);
+                foreach (var (kx, ky, data) in belowTextKgp)
+                {
+                    tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
+                    EmitKgpTokens(tokens, data);
+                }
             }
         }
 
@@ -563,10 +571,14 @@ public static class SurfaceComparer
         }
 
         // Emit above-text KGP placements AFTER all text tokens
-        foreach (var (kx, ky, data) in aboveTextKgp)
+        // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+        if (!skipKgpEmission)
         {
-            tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
-            EmitKgpTokens(tokens, data);
+            foreach (var (kx, ky, data) in aboveTextKgp)
+            {
+                tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
+                EmitKgpTokens(tokens, data);
+            }
         }
 
         return tokens;

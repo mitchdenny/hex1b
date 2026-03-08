@@ -133,6 +133,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // Surface rendering double-buffer
     private Surface? _currentSurface;
     private Surface? _previousSurface;
+    
+    // KGP placement lifecycle tracker (persists across frames)
+    private readonly Kgp.KgpPlacementTracker _kgpTracker = new();
 
     // Optional pool for temporary surfaces (SurfaceWidget layers, effect panels, etc.)
     private readonly SurfacePool? _surfacePool;
@@ -898,6 +901,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
             _currentSurface = new Surface(width, height, cellMetrics);
             _previousSurface = new Surface(width, height, cellMetrics);
+            _kgpTracker.Reset();
             _isFirstFrame = true;
         }
         
@@ -932,29 +936,58 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _metrics.OutputCellsChanged.Record(diff.Count);
         
-        if (!diff.IsEmpty)
+        // Generate KGP placement commands via the tracker (handles lifecycle across frames).
+        // The tracker computes minimal operations: transmit only new images, delete moved/removed
+        // placements, place at new positions. This runs even when the text diff is empty because
+        // KGP placements are terminal-level state that must be explicitly managed.
+        var hasKgp = _currentSurface.HasKgp || _kgpTracker.ActivePlacementCount > 0;
+        var kgpBefore = new List<Tokens.AnsiToken>();
+        var kgpAfter = new List<Tokens.AnsiToken>();
+        if (hasKgp)
         {
-            // Generate tokens then serialize — captures both counts for metrics
+            (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(_currentSurface);
+        }
+        var hasKgpChanges = kgpBefore.Count > 0 || kgpAfter.Count > 0;
+        
+        if (!diff.IsEmpty || hasKgpChanges)
+        {
+            // Generate text/sixel tokens (KGP emission skipped — handled by tracker above)
             var tokensStart = Stopwatch.GetTimestamp();
-            var tokens = SurfaceComparer.ToTokens(diff, _currentSurface, _previousSurface);
+            var textTokens = diff.IsEmpty
+                ? Array.Empty<Tokens.AnsiToken>()
+                : SurfaceComparer.ToTokens(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp);
             _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
             
+            // Merge: KGP before-text + text tokens + KGP after-text
+            List<Tokens.AnsiToken> tokens;
+            if (hasKgpChanges)
+            {
+                tokens = new List<Tokens.AnsiToken>(kgpBefore.Count + textTokens.Count + kgpAfter.Count);
+                tokens.AddRange(kgpBefore);
+                tokens.AddRange(textTokens);
+                tokens.AddRange(kgpAfter);
+            }
+            else
+            {
+                tokens = textTokens is List<Tokens.AnsiToken> list ? list : new List<Tokens.AnsiToken>(textTokens);
+            }
+            
             var serializeStart = Stopwatch.GetTimestamp();
-             var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
-             _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
-             
-             if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
-             {
-                 workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
-             }
-             else
-             {
-                 _adapter.Write(ansiOutput);
-             }
-             
-             _metrics.OutputTokens.Record(tokens.Count);
-             _metrics.OutputBytes.Record(ansiOutput.Length);
-         }
+            var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+            
+            if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
+            {
+                workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
+            }
+            else
+            {
+                _adapter.Write(ansiOutput);
+            }
+            
+            _metrics.OutputTokens.Record(tokens.Count);
+            _metrics.OutputBytes.Record(ansiOutput.Length);
+        }
         
         _isFirstFrame = false;
     }
