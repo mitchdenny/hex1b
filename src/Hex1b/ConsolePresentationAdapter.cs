@@ -124,25 +124,13 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 
     /// <summary>
     /// Detects KGP (Kitty Graphics Protocol) support from terminal environment.
-    /// Checks TERM, TERM_PROGRAM, and HEX1B_KGP environment variables.
+    /// KGP is only enabled when explicitly requested via HEX1B_KGP=1 environment variable,
+    /// since sending APC sequences to non-supporting terminals causes visible gibberish.
     /// </summary>
     private static bool DetectKgpSupport()
     {
-        // Explicit opt-in/out via environment variable
         var kgpEnv = Environment.GetEnvironmentVariable("HEX1B_KGP");
-        if (kgpEnv is "1" or "true") return true;
-        if (kgpEnv is "0" or "false") return false;
-
-        // Detect known KGP-capable terminals
-        var term = Environment.GetEnvironmentVariable("TERM") ?? "";
-        var termProgram = Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "";
-
-        if (term.Contains("kitty", StringComparison.OrdinalIgnoreCase)) return true;
-        if (termProgram.Contains("kitty", StringComparison.OrdinalIgnoreCase)) return true;
-        if (termProgram.Contains("WezTerm", StringComparison.OrdinalIgnoreCase)) return true;
-        if (termProgram.Contains("Ghostty", StringComparison.OrdinalIgnoreCase)) return true;
-
-        return false;
+        return kgpEnv is "1" or "true";
     }
 
     /// <inheritdoc />

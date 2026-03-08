@@ -121,7 +121,7 @@ public sealed class KgpCellData
         if (ClipY > 0) sb.Append($",y={ClipY}");
         if (ClipW > 0) sb.Append($",w={ClipW}");
         if (ClipH > 0) sb.Append($",h={ClipH}");
-        sb.Append($",C=1,q=2,z={ZIndex}");
+        sb.Append($",q=2,z={ZIndex}");
         sb.Append("\x1b\\");
         return sb.ToString();
     }
