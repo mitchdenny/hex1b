@@ -26,9 +26,9 @@ public sealed class CheckboxNode : Hex1bNode
     public CheckboxWidget? SourceWidget { get; set; }
 
     /// <summary>
-    /// Callback for the toggle event. Parameters: context, previousState, newState.
+    /// Callback for the toggle event.
     /// </summary>
-    public Func<InputBindingActionContext, CheckboxState, CheckboxState, Task>? ToggledCallback { get; set; }
+    public Func<InputBindingActionContext, Task>? ToggledCallback { get; set; }
 
     // Focus tracking
     private bool _isFocused;
@@ -77,7 +77,7 @@ public sealed class CheckboxNode : Hex1bNode
 
         if (ToggledCallback != null)
         {
-            await ToggledCallback(ctx, previousState, State);
+            await ToggledCallback(ctx);
         }
     }
 

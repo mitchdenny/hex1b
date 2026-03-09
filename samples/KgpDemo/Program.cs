@@ -195,7 +195,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                                 var row = new List<Hex1bWidget>
                                 {
                                     h.Checkbox(alignEnabled, "Align")
-                                        .OnToggled(ev => alignEnabled = ev.NewState == CheckboxState.Checked)
+                                        .OnToggled(_ => alignEnabled = !alignEnabled)
                                 };
                                 if (alignEnabled)
                                 {
@@ -213,12 +213,12 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                                 var row = new List<Hex1bWidget>
                                 {
                                     h.Checkbox(sizeEnabled, "Size")
-                                        .OnToggled(ev => sizeEnabled = ev.NewState == CheckboxState.Checked)
+                                        .OnToggled(_ => sizeEnabled = !sizeEnabled)
                                 };
                                 if (sizeEnabled)
                                 {
                                     row.Add(h.Checkbox(maintainAspectRatio, "AR")
-                                        .OnToggled(ev => maintainAspectRatio = ev.NewState == CheckboxState.Checked));
+                                        .OnToggled(_ => maintainAspectRatio = !maintainAspectRatio));
                                     row.Add(h.Text(" W:"));
                                     row.Add(h.TextBox(widthText)
                                         .OnTextChanged(ev => widthText = ev.NewText)

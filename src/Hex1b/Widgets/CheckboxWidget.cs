@@ -73,9 +73,9 @@ public sealed record CheckboxWidget(CheckboxState State = CheckboxState.Unchecke
 
         if (ToggledHandler != null)
         {
-            node.ToggledCallback = async (ctx, previousState, newState) =>
+            node.ToggledCallback = async ctx =>
             {
-                var args = new CheckboxToggledEventArgs(this, node, ctx, previousState, newState);
+                var args = new CheckboxToggledEventArgs(this, node, ctx);
                 await ToggledHandler(args);
             };
         }
