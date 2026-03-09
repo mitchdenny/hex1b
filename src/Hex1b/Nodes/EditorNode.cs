@@ -26,6 +26,14 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
     private char? _pendingNibble; // For hex renderers: first nibble of partially-entered byte
     private IHex1bDocument? _subscribedDocument;
     private readonly List<EditorOverlay> _activeOverlays = [];
+    private IReadOnlyList<InlineHint> _activeInlineHints = [];
+    private IReadOnlyList<RangeHighlight> _activeRangeHighlights = [];
+    private readonly RangeHighlightDecorationProvider _rangeHighlightProvider = new();
+    private IReadOnlyList<GutterDecoration> _activeGutterDecorations = [];
+    private readonly DecorationGutterProvider _decorationGutterProvider = new();
+    private IReadOnlyList<FoldingRegion> _foldingRegions = [];
+    private BreadcrumbData? _breadcrumbs;
+    private SignaturePanel? _signaturePanel;
     private Hex1bRenderContext? _lastRenderContext; // For IEditorSession.Capabilities
     private CompletionController? _completionController;
     private string _completionFilterPrefix = "";
@@ -86,6 +94,42 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     /// <summary>Whether to show line numbers in a gutter on the left side.</summary>
     public bool ShowLineNumbers { get; set; }
+
+    /// <summary>Whether soft line wrapping is enabled.</summary>
+    public bool WordWrap { get; set; }
+
+    /// <summary>
+    /// Gutter providers rendered left-to-right in the editor's left margin.
+    /// When empty and <see cref="ShowLineNumbers"/> is true, a default
+    /// <see cref="LineNumberGutterProvider"/> is used.
+    /// </summary>
+    internal List<IGutterProvider> GutterProviders { get; set; } = [];
+
+    /// <summary>
+    /// Returns the effective list of gutter providers, including the implicit
+    /// line number provider when <see cref="ShowLineNumbers"/> is true.
+    /// </summary>
+    private IReadOnlyList<IGutterProvider> EffectiveGutterProviders
+    {
+        get
+        {
+            var hasDecorations = _activeGutterDecorations.Count > 0;
+            if (GutterProviders.Count > 0)
+            {
+                if (hasDecorations && !GutterProviders.Contains(_decorationGutterProvider))
+                    return [_decorationGutterProvider, ..GutterProviders];
+                return GutterProviders;
+            }
+            if (ShowLineNumbers)
+            {
+                if (hasDecorations)
+                    return [_decorationGutterProvider, LineNumberGutterProvider.Instance];
+                return [LineNumberGutterProvider.Instance];
+            }
+            if (hasDecorations) return [_decorationGutterProvider];
+            return [];
+        }
+    }
 
     /// <summary>
     /// Internal action invoked when text content changes.
@@ -261,7 +305,8 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
             : 0;
 
         _showVerticalScrollbar = totalLines > bounds.Height && bounds.Width > 1;
-        _showHorizontalScrollbar = maxLineWidth > bounds.Width - (_showVerticalScrollbar ? 1 : 0)
+        _showHorizontalScrollbar = !WordWrap
+            && maxLineWidth > bounds.Width - (_showVerticalScrollbar ? 1 : 0)
             && bounds.Height > 1;
 
         // Content area excludes scrollbar space and line number gutter
@@ -294,37 +339,48 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
         var contentBounds = Bounds;
 
-        if (ShowLineNumbers)
+        var gutterProviders = EffectiveGutterProviders;
+        if (gutterProviders.Count > 0)
         {
             var gutterWidth = GetGutterWidth();
-
             var theme = context.Theme;
-            var gutterFg = theme.Get(EditorTheme.LineNumberForegroundColor);
-            var editorBg = theme.Get(EditorTheme.BackgroundColor);
             var totalLines = State.Document.LineCount;
-            var digitCount = gutterWidth - 1;
 
             for (var viewLine = 0; viewLine < Bounds.Height; viewLine++)
             {
                 var docLine = _scrollOffset + viewLine;
                 var screenY = Bounds.Y + viewLine;
-                string gutterText;
+                var effectiveDocLine = docLine <= totalLines ? docLine : 0;
 
-                if (docLine <= totalLines)
-                    gutterText = docLine.ToString().PadLeft(digitCount) + " ";
-                else
-                    gutterText = new string(' ', gutterWidth);
-
-                context.WriteClipped(Bounds.X, screenY,
-                    $"{gutterFg.ToForegroundAnsi()}{editorBg.ToBackgroundAnsi()}{gutterText}");
+                var providerX = Bounds.X;
+                foreach (var provider in gutterProviders)
+                {
+                    var pw = provider.GetWidth(State.Document);
+                    provider.RenderLine(context, theme, providerX, screenY, effectiveDocLine, pw);
+                    providerX += pw;
+                }
             }
 
             contentBounds = new Rect(Bounds.X + gutterWidth, Bounds.Y,
                 Math.Max(1, Bounds.Width - gutterWidth), Bounds.Height);
         }
 
+        // Build effective decoration providers (include range highlight provider if active)
+        var effectiveProviders = DecorationProviders;
+        if (_activeRangeHighlights.Count > 0)
+        {
+            _rangeHighlightProvider.SetHighlights(_activeRangeHighlights, context.Theme);
+            effectiveProviders = effectiveProviders != null
+                ? [_rangeHighlightProvider, ..effectiveProviders]
+                : [_rangeHighlightProvider];
+        }
+        else
+        {
+            _rangeHighlightProvider.Clear();
+        }
+
         // Render text content
-        ViewRenderer.Render(context, State, contentBounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, DecorationProviders);
+        ViewRenderer.Render(context, State, contentBounds, _scrollOffset, _horizontalScrollOffset, IsFocused, _pendingNibble, effectiveProviders, _activeInlineHints, WordWrap);
 
         // Render scrollbars (self-rendered, not composed)
         if (_showVerticalScrollbar)
@@ -360,13 +416,39 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
             var contentLines = overlay.Content;
             if (contentLines.Count == 0) continue;
 
+            // Apply MaxHeight constraint
+            var maxH = overlay.MaxHeight ?? int.MaxValue;
+            var visibleContent = contentLines.Count > maxH
+                ? contentLines.Take(maxH).ToList()
+                : contentLines;
+
             // Calculate overlay dimensions
             var maxWidth = 0;
-            foreach (var line in contentLines)
-                maxWidth = Math.Max(maxWidth, line.Text.Length);
+            foreach (var line in visibleContent)
+            {
+                if (line.Segments is { } segments)
+                {
+                    var segWidth = 0;
+                    foreach (var seg in segments)
+                        segWidth += seg.Text.Length;
+                    maxWidth = Math.Max(maxWidth, segWidth);
+                }
+                else
+                {
+                    maxWidth = Math.Max(maxWidth, line.Text.Length);
+                }
+            }
+
+            // Apply MaxWidth constraint, then cap at bounds
+            var maxW = overlay.MaxWidth ?? int.MaxValue;
+            maxWidth = Math.Min(maxWidth, maxW);
             maxWidth = Math.Min(maxWidth + 2, contentBounds.Width); // +2 for border padding
 
-            var overlayHeight = contentLines.Count + 2; // +2 for top/bottom border
+            // Ensure title fits if present
+            if (overlay.Title is { } title)
+                maxWidth = Math.Max(maxWidth, Math.Min(title.Length + 4, contentBounds.Width)); // +4 for border chars and spacing
+
+            var overlayHeight = visibleContent.Count + 2; // +2 for top/bottom border
 
             // Position based on placement
             int overlayX = Math.Max(contentBounds.X, Math.Min(anchorX, contentBounds.Right - maxWidth));
@@ -388,35 +470,93 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
             // Clamp to screen
             overlayY = Math.Max(contentBounds.Y, overlayY);
 
-            // Draw overlay box
-            var borderFg = Hex1bColor.FromRgb(100, 100, 100);
-            var overlayBg = Hex1bColor.FromRgb(30, 30, 30);
+            // Resolve theme colors
+            var borderFg = context.Theme.Get(OverlayTheme.BorderColor);
+            var overlayBg = context.Theme.Get(OverlayTheme.BackgroundColor);
+            var defaultFg = context.Theme.Get(OverlayTheme.ForegroundColor);
             var resetAnsi = "\x1b[0m";
+            var innerWidth = maxWidth - 2;
 
-            // Top border
-            var topBorder = "┌" + new string('─', maxWidth - 2) + "┐";
+            // Top border (with optional title)
+            string topBorder;
+            if (overlay.Title is { } overlayTitle && overlayTitle.Length > 0)
+            {
+                var titleFg = context.Theme.Get(OverlayTheme.TitleForegroundColor);
+                var availableForTitle = innerWidth - 2; // space on each side of title
+                var displayTitle = overlayTitle.Length > availableForTitle
+                    ? overlayTitle[..availableForTitle]
+                    : overlayTitle;
+                var rightDashes = innerWidth - displayTitle.Length - 2; // 1 dash left + 1 space each side
+                topBorder = $"┌─{titleFg.ToForegroundAnsi()}{displayTitle}{borderFg.ToForegroundAnsi()}" +
+                            $"{new string('─', Math.Max(0, rightDashes))}┐";
+            }
+            else
+            {
+                topBorder = "┌" + new string('─', innerWidth) + "┐";
+            }
+
             context.WriteClipped(overlayX, overlayY,
                 $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{topBorder}{resetAnsi}");
 
             // Content lines
-            for (var i = 0; i < contentLines.Count && overlayY + 1 + i < contentBounds.Bottom; i++)
+            for (var i = 0; i < visibleContent.Count && overlayY + 1 + i < contentBounds.Bottom; i++)
             {
-                var line = contentLines[i];
-                var lineFg = line.Foreground ?? Hex1bColor.FromRgb(200, 200, 200);
-                var lineBg = line.Background ?? overlayBg;
-                var paddedText = line.Text.PadRight(maxWidth - 2)[..(maxWidth - 2)];
+                var line = visibleContent[i];
 
-                context.WriteClipped(overlayX, overlayY + 1 + i,
-                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│" +
-                    $"{lineFg.ToForegroundAnsi()}{lineBg.ToBackgroundAnsi()}{paddedText}" +
-                    $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│{resetAnsi}");
+                if (line.Segments is { } lineSegments)
+                {
+                    // Rich segment rendering
+                    var segmentContent = "";
+                    var totalLen = 0;
+                    foreach (var segment in lineSegments)
+                    {
+                        var remaining = innerWidth - totalLen;
+                        if (remaining <= 0) break;
+                        var segText = segment.Text.Length > remaining
+                            ? segment.Text[..remaining]
+                            : segment.Text;
+                        var segFg = segment.Foreground ?? defaultFg;
+                        segmentContent += segFg.ToForegroundAnsi();
+                        if (segment.Background is { } segBg)
+                            segmentContent += segBg.ToBackgroundAnsi();
+                        else
+                            segmentContent += overlayBg.ToBackgroundAnsi();
+                        if (segment.IsBold) segmentContent += "\x1b[1m";
+                        if (segment.IsItalic) segmentContent += "\x1b[3m";
+                        segmentContent += segText;
+                        if (segment.IsBold || segment.IsItalic) segmentContent += "\x1b[22;23m";
+                        totalLen += segText.Length;
+                    }
+
+                    // Pad remaining space
+                    var padding = innerWidth - totalLen;
+                    if (padding > 0)
+                        segmentContent += $"{defaultFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{new string(' ', padding)}";
+
+                    context.WriteClipped(overlayX, overlayY + 1 + i,
+                        $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│" +
+                        $"{segmentContent}" +
+                        $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│{resetAnsi}");
+                }
+                else
+                {
+                    // Simple text rendering
+                    var lineFg = line.Foreground ?? defaultFg;
+                    var lineBg = line.Background ?? overlayBg;
+                    var paddedText = line.Text.PadRight(innerWidth)[..innerWidth];
+
+                    context.WriteClipped(overlayX, overlayY + 1 + i,
+                        $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│" +
+                        $"{lineFg.ToForegroundAnsi()}{lineBg.ToBackgroundAnsi()}{paddedText}" +
+                        $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}│{resetAnsi}");
+                }
             }
 
             // Bottom border
-            var bottomY = overlayY + 1 + contentLines.Count;
+            var bottomY = overlayY + 1 + visibleContent.Count;
             if (bottomY < contentBounds.Bottom)
             {
-                var bottomBorder = "└" + new string('─', maxWidth - 2) + "┘";
+                var bottomBorder = "└" + new string('─', innerWidth) + "┘";
                 context.WriteClipped(overlayX, bottomY,
                     $"{borderFg.ToForegroundAnsi()}{overlayBg.ToBackgroundAnsi()}{bottomBorder}{resetAnsi}");
             }
@@ -468,14 +608,94 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     IReadOnlyList<EditorOverlay> IEditorSession.ActiveOverlays => _activeOverlays;
 
-    // ── Line number gutter ────────────────────────────────────
+    void IEditorSession.PushInlineHints(IReadOnlyList<InlineHint> hints)
+    {
+        _activeInlineHints = hints;
+    }
+
+    void IEditorSession.ClearInlineHints()
+    {
+        _activeInlineHints = [];
+    }
+
+    IReadOnlyList<InlineHint> IEditorSession.ActiveInlineHints => _activeInlineHints;
+
+    void IEditorSession.PushRangeHighlights(IReadOnlyList<RangeHighlight> highlights)
+    {
+        _activeRangeHighlights = highlights;
+    }
+
+    void IEditorSession.ClearRangeHighlights()
+    {
+        _activeRangeHighlights = [];
+    }
+
+    IReadOnlyList<RangeHighlight> IEditorSession.ActiveRangeHighlights => _activeRangeHighlights;
+
+    void IEditorSession.PushGutterDecorations(IReadOnlyList<GutterDecoration> decorations)
+    {
+        _activeGutterDecorations = decorations;
+        _decorationGutterProvider.SetDecorations(decorations);
+    }
+
+    void IEditorSession.ClearGutterDecorations()
+    {
+        _activeGutterDecorations = [];
+        _decorationGutterProvider.Clear();
+    }
+
+    IReadOnlyList<GutterDecoration> IEditorSession.ActiveGutterDecorations => _activeGutterDecorations;
+
+    // ── Folding regions ────────────────────────────────────────
+
+    void IEditorSession.SetFoldingRegions(IReadOnlyList<FoldingRegion> regions)
+    {
+        _foldingRegions = regions;
+    }
+
+    IReadOnlyList<FoldingRegion> IEditorSession.FoldingRegions => _foldingRegions;
+
+    // ── Breadcrumbs ────────────────────────────────────────────
+
+    void IEditorSession.SetBreadcrumbs(BreadcrumbData? data)
+    {
+        _breadcrumbs = data;
+    }
+
+    BreadcrumbData? IEditorSession.Breadcrumbs => _breadcrumbs;
+
+    // ── Action menu ────────────────────────────────────────────
+
+    Task<string?> IEditorSession.ShowActionMenuAsync(ActionMenu menu)
+    {
+        // TODO: Render popup overlay and await user selection
+        return Task.FromResult<string?>(null);
+    }
+
+    // ── Signature panel ────────────────────────────────────────
+
+    void IEditorSession.ShowSignaturePanel(SignaturePanel panel)
+    {
+        _signaturePanel = panel;
+    }
+
+    void IEditorSession.DismissSignaturePanel()
+    {
+        _signaturePanel = null;
+    }
+
+    // ── Gutter providers ────────────────────────────────────────
 
     private int GetGutterWidth()
     {
-        if (!ShowLineNumbers || State == null) return 0;
-        var totalLines = State.Document.LineCount;
-        var digitCount = Math.Max(2, (int)Math.Floor(Math.Log10(Math.Max(1, totalLines))) + 1);
-        return digitCount + 1; // digits + 1 space separator
+        if (State == null) return 0;
+        var providers = EffectiveGutterProviders;
+        if (providers.Count == 0) return 0;
+
+        var total = 0;
+        foreach (var provider in providers)
+            total += provider.GetWidth(State.Document);
+        return total;
     }
 
     // ── Scrollbar rendering ─────────────────────────────────────
@@ -1008,12 +1228,32 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
         if (GetHitZone(localX, localY) != HitZone.Content) return null;
 
-        // Adjust for line number gutter
-        if (ShowLineNumbers)
+        // Adjust for gutter area
+        var gutterWidth = GetGutterWidth();
+        if (gutterWidth > 0)
         {
-            var gutterWidth = GetGutterWidth();
+            if (localX < gutterWidth)
+            {
+                // Click is in gutter area — route to provider
+                var providerX = 0;
+                var gutterProviders = EffectiveGutterProviders;
+                if (State != null)
+                {
+                    var docLine = _scrollOffset + localY;
+                    foreach (var provider in gutterProviders)
+                    {
+                        var pw = provider.GetWidth(State.Document);
+                        if (localX < providerX + pw)
+                        {
+                            provider.HandleClick(docLine);
+                            break;
+                        }
+                        providerX += pw;
+                    }
+                }
+                return null;
+            }
             localX -= gutterWidth;
-            if (localX < 0) return null; // Click in gutter area
         }
 
         return ViewRenderer.HitTest(localX, localY, State, _viewportColumns, _viewportLines, _scrollOffset, _horizontalScrollOffset);

@@ -23,7 +23,9 @@ public interface IEditorViewRenderer
     /// <param name="isFocused">Whether the editor is currently focused.</param>
     /// <param name="pendingNibble">For hex renderers, the first nibble of a partially-entered byte (null if none).</param>
     /// <param name="decorationProviders">Optional text decoration providers for syntax highlighting and diagnostics.</param>
-    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null);
+    /// <param name="inlineHints">Optional inline hints (virtual text) to render at document positions.</param>
+    /// <param name="wordWrap">Whether soft line wrapping is enabled.</param>
+    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false);
 
     /// <summary>
     /// Converts screen-local coordinates (relative to viewport origin) to a document offset.

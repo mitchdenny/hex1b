@@ -16,8 +16,14 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     public static TextEditorViewRenderer Instance { get; } = new();
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false)
     {
+        if (wordWrap)
+        {
+            RenderWrapped(context, state, viewport, scrollOffset, isFocused, decorationProviders, inlineHints);
+            return;
+        }
+
         var theme = context.Theme;
         var fg = theme.Get(EditorTheme.ForegroundColor);
         var bg = theme.Get(EditorTheme.BackgroundColor);
@@ -140,6 +146,17 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             // Build per-column decoration map for this line
             var lineDecorations = BuildLineDecorations(allDecorations, docLine, horizontalScrollOffset, displayText.Length, theme);
 
+            // Expand line with inline hints if present
+            if (inlineHints is { Count: > 0 })
+            {
+                var lineHints = CollectLineHints(inlineHints, docLine, horizontalScrollOffset, displayText.Length);
+                if (lineHints is { Count: > 0 })
+                {
+                    (displayText, cellTypes, lineDecorations) = ExpandLineWithInlineHints(
+                        displayText, cellTypes, lineDecorations, lineHints, viewportColumns, theme);
+                }
+            }
+
             RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes, lineDecorations);
         }
     }
@@ -198,6 +215,194 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
             if (lineWidth > maxWidth) maxWidth = lineWidth;
         }
         return maxWidth;
+    }
+
+    // ── Soft line wrapping ────────────────────────────────────
+
+    /// <summary>
+    /// Represents a single display row produced by wrapping a document line.
+    /// </summary>
+    internal readonly record struct WrappedLine(int DocLine, string Text, int StartColumn, bool IsContinuation);
+
+    /// <summary>
+    /// Wraps a single line of text into multiple display lines based on viewport width.
+    /// Returns the wrapped segments.
+    /// </summary>
+    internal static List<string> WrapLine(string line, int viewportWidth)
+    {
+        if (viewportWidth <= 0 || line.Length <= viewportWidth)
+            return [line];
+
+        var segments = new List<string>();
+        var remaining = line;
+        while (remaining.Length > viewportWidth)
+        {
+            // Try to break at a word boundary
+            var breakPoint = remaining.LastIndexOf(' ', viewportWidth - 1);
+            if (breakPoint <= 0)
+                breakPoint = viewportWidth; // Hard break if no word boundary
+
+            segments.Add(remaining[..breakPoint]);
+            remaining = remaining[breakPoint..].TrimStart();
+        }
+        if (remaining.Length > 0)
+            segments.Add(remaining);
+
+        return segments;
+    }
+
+    /// <summary>
+    /// Builds a flat list of wrapped display lines for all document lines starting
+    /// from <paramref name="firstDocLine"/> until enough display rows are produced
+    /// to fill the viewport (or the document is exhausted).
+    /// </summary>
+    private static List<WrappedLine> BuildWrappedLines(IHex1bDocument doc, int firstDocLine, int viewportWidth, int viewportLines)
+    {
+        var result = new List<WrappedLine>();
+        var docLine = firstDocLine;
+        while (result.Count < viewportLines && docLine <= doc.LineCount)
+        {
+            string lineText;
+            try
+            {
+                lineText = doc.GetLineText(docLine);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                break;
+            }
+
+            var segments = WrapLine(lineText, viewportWidth);
+            var startCol = 0;
+            for (var i = 0; i < segments.Count && result.Count < viewportLines; i++)
+            {
+                result.Add(new WrappedLine(docLine, segments[i], startCol, i > 0));
+                startCol += segments[i].Length;
+                // Account for trimmed leading spaces on continuation segments
+                if (i > 0)
+                {
+                    var originalOffset = lineText.IndexOf(segments[i], startCol - segments[i].Length, StringComparison.Ordinal);
+                    if (originalOffset >= 0)
+                        startCol = originalOffset + segments[i].Length;
+                }
+            }
+            docLine++;
+        }
+        return result;
+    }
+
+    /// <summary>
+    /// Renders document content with soft line wrapping enabled.
+    /// Horizontal scrolling is disabled; long lines wrap at viewport width.
+    /// </summary>
+    private void RenderWrapped(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, bool isFocused, IReadOnlyList<ITextDecorationProvider>? decorationProviders, IReadOnlyList<InlineHint>? inlineHints)
+    {
+        var theme = context.Theme;
+        var fg = theme.Get(EditorTheme.ForegroundColor);
+        var bg = theme.Get(EditorTheme.BackgroundColor);
+        var cursorFg = theme.Get(EditorTheme.CursorForegroundColor);
+        var cursorBg = theme.Get(EditorTheme.CursorBackgroundColor);
+        var selFg = theme.Get(EditorTheme.SelectionForegroundColor);
+        var selBg = theme.Get(EditorTheme.SelectionBackgroundColor);
+
+        var doc = state.Document;
+        var viewportLines = viewport.Height;
+        var viewportColumns = viewport.Width;
+
+        // Collect cursor positions and selection ranges
+        var cursorPositions = new HashSet<(int Line, int Column)>();
+        var selectionRanges = new List<(int Start, int End)>();
+
+        if (isFocused)
+        {
+            foreach (var cursor in state.Cursors)
+            {
+                try
+                {
+                    var pos = doc.OffsetToPosition(cursor.Position);
+                    cursorPositions.Add((pos.Line, pos.Column));
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Cursor offset stale — skip
+                }
+
+                if (cursor.HasSelection)
+                    selectionRanges.Add((cursor.SelectionStart.Value, cursor.SelectionEnd.Value));
+            }
+        }
+
+        // Build wrapped display lines
+        var wrappedLines = BuildWrappedLines(doc, scrollOffset, viewportColumns, viewportLines);
+
+        // Collect decorations for the visible document line range
+        List<TextDecorationSpan>? allDecorations = null;
+        if (decorationProviders is { Count: > 0 } && wrappedLines.Count > 0)
+        {
+            var startLine = wrappedLines[0].DocLine;
+            var endLine = wrappedLines[^1].DocLine;
+            allDecorations = [];
+            foreach (var provider in decorationProviders)
+            {
+                var spans = provider.GetDecorations(startLine, endLine, doc);
+                if (spans.Count > 0)
+                    allDecorations.AddRange(spans);
+            }
+        }
+
+        for (var viewLine = 0; viewLine < viewportLines; viewLine++)
+        {
+            var screenY = viewport.Y + viewLine;
+            var screenX = viewport.X;
+
+            if (viewLine >= wrappedLines.Count)
+            {
+                // Past end of document — render tilde placeholder
+                var emptyLine = "~".PadRight(viewportColumns);
+                RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
+                continue;
+            }
+
+            var wrapped = wrappedLines[viewLine];
+            var docLine = wrapped.DocLine;
+            var startColumn = wrapped.StartColumn;
+
+            // Fit display text to viewport width
+            var displayText = FitToDisplayWidth(wrapped.Text, viewportColumns);
+
+            // Build cell types for cursor/selection highlighting
+            int lineStartOffset;
+            try
+            {
+                lineStartOffset = doc.PositionToOffset(new DocumentPosition(docLine, 1)).Value;
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
+                continue;
+            }
+
+            string fullLineText;
+            try
+            {
+                fullLineText = doc.GetLineText(docLine);
+            }
+            catch (ArgumentOutOfRangeException)
+            {
+                RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
+                continue;
+            }
+
+            var lineEndOffset = lineStartOffset + fullLineText.Length;
+            // For wrapped segments, offset the horizontal scroll to the segment's start column
+            var cellTypes = BuildCellTypes(displayText, docLine, lineStartOffset, lineEndOffset,
+                cursorPositions, selectionRanges, startColumn);
+
+            // Build decorations for this display line
+            var lineDecorations = BuildLineDecorations(allDecorations, docLine, startColumn, displayText.Length, theme);
+
+            RenderLine(context, screenX, screenY, displayText, fg, bg, cursorFg, cursorBg, selFg, selBg, cellTypes, lineDecorations);
+        }
     }
 
     // ── Cell type logic (extracted from EditorNode) ──────────────
@@ -437,6 +642,126 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
         }
 
         return result;
+    }
+
+    // ── Inline hint expansion ──────────────────────────────────
+
+    /// <summary>
+    /// Collects inline hints that are visible on a given document line,
+    /// returning their display column positions (0-based, scroll-adjusted).
+    /// </summary>
+    private static List<(int DisplayCol, InlineHint Hint)>? CollectLineHints(
+        IReadOnlyList<InlineHint> inlineHints, int docLine, int horizontalScrollOffset, int displayWidth)
+    {
+        List<(int DisplayCol, InlineHint Hint)>? result = null;
+        foreach (var hint in inlineHints)
+        {
+            if (hint.Position.Line != docLine)
+                continue;
+
+            var displayCol = hint.Position.Column - 1 - horizontalScrollOffset;
+            if (displayCol < 0)
+                continue;
+
+            result ??= [];
+            result.Add((displayCol, hint));
+        }
+
+        result?.Sort((a, b) => a.DisplayCol.CompareTo(b.DisplayCol));
+        return result;
+    }
+
+    /// <summary>
+    /// Expands displayText, cellTypes, and lineDecorations to include inline hint text.
+    /// Hints are inserted before the character at their display column position.
+    /// The result is truncated/padded back to viewportColumns display width.
+    /// </summary>
+    private static (string DisplayText, CellType[]? CellTypes, ResolvedDecoration[]? Decorations) ExpandLineWithInlineHints(
+        string displayText,
+        CellType[]? cellTypes,
+        ResolvedDecoration[]? lineDecorations,
+        List<(int DisplayCol, InlineHint Hint)> hints,
+        int viewportColumns,
+        Hex1bTheme theme)
+    {
+        var totalHintChars = 0;
+        foreach (var (_, hint) in hints)
+            totalHintChars += hint.Text.Length;
+
+        var capacity = displayText.Length + totalHintChars;
+        var textBuilder = new System.Text.StringBuilder(capacity);
+        var typesList = new List<CellType>(capacity);
+        var decsList = new List<ResolvedDecoration>(capacity);
+
+        var emptyDec = new ResolvedDecoration(
+            Hex1bColor.Default, Hex1bColor.Default, false, false, UnderlineStyle.None, Hex1bColor.Default);
+
+        int prevPos = 0;
+        foreach (var (displayCol, hint) in hints)
+        {
+            var insertPos = Math.Max(0, Math.Min(displayCol, displayText.Length));
+
+            // Append original characters from prevPos to insertPos
+            for (var i = prevPos; i < insertPos; i++)
+            {
+                textBuilder.Append(displayText[i]);
+                typesList.Add(cellTypes != null && i < cellTypes.Length ? cellTypes[i] : CellType.Normal);
+                decsList.Add(lineDecorations != null && i < lineDecorations.Length ? lineDecorations[i] : emptyDec);
+            }
+
+            // Resolve hint styling: decoration overrides > theme defaults
+            var hintFg = Hex1bColor.Default;
+            var hintBg = Hex1bColor.Default;
+            var hintBold = false;
+            var hintItalic = false;
+
+            if (hint.Decoration != null)
+            {
+                hintFg = hint.Decoration.ResolveForeground(theme) ?? Hex1bColor.Default;
+                hintBg = hint.Decoration.ResolveBackground(theme) ?? Hex1bColor.Default;
+                hintBold = hint.Decoration.Bold ?? false;
+                hintItalic = hint.Decoration.Italic ?? false;
+            }
+
+            if (hintFg.IsDefault) hintFg = theme.Get(InlineHintTheme.ForegroundColor);
+            if (hintBg.IsDefault) hintBg = theme.Get(InlineHintTheme.BackgroundColor);
+            if (hint.Decoration?.Bold == null) hintBold = theme.Get(InlineHintTheme.IsBold);
+            if (hint.Decoration?.Italic == null) hintItalic = theme.Get(InlineHintTheme.IsItalic);
+
+            var hintDec = new ResolvedDecoration(hintFg, hintBg, hintBold, hintItalic, UnderlineStyle.None, Hex1bColor.Default);
+
+            // Append hint characters
+            foreach (var ch in hint.Text)
+            {
+                textBuilder.Append(ch);
+                typesList.Add(CellType.Normal);
+                decsList.Add(hintDec);
+            }
+
+            prevPos = insertPos;
+        }
+
+        // Append remaining original characters
+        for (var i = prevPos; i < displayText.Length; i++)
+        {
+            textBuilder.Append(displayText[i]);
+            typesList.Add(cellTypes != null && i < cellTypes.Length ? cellTypes[i] : CellType.Normal);
+            decsList.Add(lineDecorations != null && i < lineDecorations.Length ? lineDecorations[i] : emptyDec);
+        }
+
+        // Re-fit to viewport width (hint insertion may have pushed content past viewport)
+        var expandedText = FitToDisplayWidth(textBuilder.ToString(), viewportColumns);
+
+        var finalTypes = typesList.ToArray();
+        var finalDecs = decsList.ToArray();
+
+        // Resize arrays to match final text length
+        if (finalTypes.Length != expandedText.Length)
+            Array.Resize(ref finalTypes, expandedText.Length);
+        if (finalDecs.Length != expandedText.Length)
+            Array.Resize(ref finalDecs, expandedText.Length);
+
+        return (expandedText, finalTypes, finalDecs);
     }
 
     private static void RenderLine(
