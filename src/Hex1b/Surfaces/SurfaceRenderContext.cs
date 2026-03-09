@@ -35,6 +35,13 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private Kgp.KgpImageRegistry? _kgpRegistry;
     private int _kgpLayer;
 
+    // Hierarchical KGP clip rect (absolute coordinates).
+    // In the non-caching render path children render directly into the parent
+    // surface, so there is no Composite / ClipKgpCell step. This rect
+    // accumulates the intersection of every ancestor's Bounds so that
+    // WriteKgp can clip images to the closest container, not just the surface.
+    private Rect? _kgpClipRect;
+
     // Maximum dimension for a child surface to prevent overflow in width*height allocation.
     // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
     // (from unconstrained measure passes) from causing OverflowException in Surface allocation.
@@ -108,6 +115,27 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// Gets the current KGP occlusion layer.
     /// </summary>
     internal int KgpLayer => _kgpLayer;
+
+    /// <summary>
+    /// Intersects the current KGP clip rect with another rect, returning the
+    /// overlapping region. If there is no current clip, returns <paramref name="bounds"/>.
+    /// </summary>
+    private static Rect? IntersectKgpClip(Rect? current, Rect bounds)
+    {
+        if (!current.HasValue)
+            return bounds;
+
+        var c = current.Value;
+        var left = Math.Max(c.X, bounds.X);
+        var top = Math.Max(c.Y, bounds.Y);
+        var right = Math.Min(c.X + c.Width, bounds.X + bounds.Width);
+        var bottom = Math.Min(c.Y + c.Height, bounds.Y + bounds.Height);
+
+        if (right <= left || bottom <= top)
+            return new Rect(left, top, 0, 0);
+
+        return new Rect(left, top, right - left, bottom - top);
+    }
 
     /// <summary>
     /// Creates a new SurfaceRenderContext that writes to the specified surface.
@@ -208,15 +236,16 @@ public class SurfaceRenderContext : Hex1bRenderContext
         int cellWidth, int cellHeight, KgpZOrder zOrder,
         int clipX = 0, int clipY = 0, int clipW = 0, int clipH = 0)
     {
-        var writeX = _cursorX - _offsetX;
-        var writeY = _cursorY - _offsetY;
+        var anchorX = _cursorX;
+        var anchorY = _cursorY;
+        var writeX = anchorX - _offsetX;
+        var writeY = anchorY - _offsetY;
 
         if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
             return;
 
-        // Clip cell dimensions to the surface bounds so the KGP placement
-        // doesn't overflow the container. Without this, images inside windows
-        // that extend beyond the terminal can overlay the MenuBar / InfoBar.
+        // ── Surface-bounds clipping ──
+        // Clip cell dimensions so the KGP placement stays within the surface.
         var visibleCellWidth = Math.Min(cellWidth, _surface.Width - writeX);
         var visibleCellHeight = Math.Min(cellHeight, _surface.Height - writeY);
 
@@ -225,23 +254,76 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         if (visibleCellWidth < cellWidth || visibleCellHeight < cellHeight)
         {
-            // Image extends beyond the surface — compute a pixel-level clip rect
-            // so the placement only shows the visible portion.
             var effectiveW = clipW > 0 ? clipW : pixelWidth;
             var effectiveH = clipH > 0 ? clipH : pixelHeight;
 
-            var newClipW = (int)((long)effectiveW * visibleCellWidth / cellWidth);
-            var newClipH = (int)((long)effectiveH * visibleCellHeight / cellHeight);
-
-            if (newClipW <= 0 || newClipH <= 0)
-                return;
-
-            // Preserve existing clipX/clipY origin, narrow the window
-            clipW = newClipW;
-            clipH = newClipH;
+            clipW = Math.Max(1, (int)((long)effectiveW * visibleCellWidth / cellWidth));
+            clipH = Math.Max(1, (int)((long)effectiveH * visibleCellHeight / cellHeight));
             cellWidth = visibleCellWidth;
             cellHeight = visibleCellHeight;
         }
+
+        // ── Hierarchical container-bounds clipping ──
+        // In the non-caching render path children share the parent surface,
+        // so there is no Composite / ClipKgpCell step.  _kgpClipRect carries
+        // the intersection of all ancestor Bounds and restricts images to
+        // the visible container area.
+        if (_kgpClipRect.HasValue)
+        {
+            var clip = _kgpClipRect.Value;
+            var clipRight = clip.X + clip.Width;
+            var clipBottom = clip.Y + clip.Height;
+
+            // No overlap at all → drop the image.
+            if (anchorX >= clipRight || anchorY >= clipBottom ||
+                anchorX + cellWidth <= clip.X || anchorY + cellHeight <= clip.Y)
+                return;
+
+            var newLeft   = Math.Max(anchorX, clip.X);
+            var newTop    = Math.Max(anchorY, clip.Y);
+            var newRight  = Math.Min(anchorX + cellWidth, clipRight);
+            var newBottom = Math.Min(anchorY + cellHeight, clipBottom);
+
+            var newCellW = newRight - newLeft;
+            var newCellH = newBottom - newTop;
+
+            if (newCellW <= 0 || newCellH <= 0)
+                return;
+
+            if (newCellW != cellWidth || newCellH != cellHeight ||
+                newLeft != anchorX || newTop != anchorY)
+            {
+                var effW = clipW > 0 ? clipW : pixelWidth;
+                var effH = clipH > 0 ? clipH : pixelHeight;
+
+                var leftClipped = newLeft - anchorX;
+                var topClipped  = newTop - anchorY;
+
+                var newClipX = clipX + (int)((long)leftClipped * effW / cellWidth);
+                var newClipY = clipY + (int)((long)topClipped * effH / cellHeight);
+                var newClipW = (int)((long)newCellW * effW / cellWidth);
+                var newClipH = (int)((long)newCellH * effH / cellHeight);
+
+                if (newClipW <= 0 || newClipH <= 0)
+                    return;
+
+                clipX = newClipX;
+                clipY = newClipY;
+                clipW = newClipW;
+                clipH = newClipH;
+                cellWidth = newCellW;
+                cellHeight = newCellH;
+
+                // Move anchor to the clipped top-left.
+                anchorX = newLeft;
+                anchorY = newTop;
+                writeX = anchorX - _offsetX;
+                writeY = anchorY - _offsetY;
+            }
+        }
+
+        if (cellWidth <= 0 || cellHeight <= 0)
+            return;
 
         var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
         var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
@@ -267,11 +349,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
         var tracked = _trackedObjects.GetOrCreateKgp(kgpData);
 
         // Register with the occlusion registry (if active) using absolute coordinates
-        _kgpRegistry?.RegisterImage(kgpData, _cursorX, _cursorY);
+        _kgpRegistry?.RegisterImage(kgpData, anchorX, anchorY);
 
         // Anchor cell carries the KGP metadata
         tracked.AddRef();
-        _surface[writeX, writeY] = new SurfaceCell(" ", null, null, Kgp: tracked);
+        if (writeX >= 0 && writeX < _surface.Width && writeY >= 0 && writeY < _surface.Height)
+            _surface[writeX, writeY] = new SurfaceCell(" ", null, null, Kgp: tracked);
 
         // Fill remaining cells in the region with spaces so they occupy space
         for (var dy = 0; dy < cellHeight; dy++)
@@ -485,7 +568,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         SurfacePool = pool,
                         _capabilities = _capabilities,
                         _kgpRegistry = _kgpRegistry,
-                        _kgpLayer = _kgpLayer
+                        _kgpLayer = _kgpLayer,
+                        _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds)
                     };
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
                     RenderChildTimed(child, childContext);
@@ -512,7 +596,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
             }
 
             SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+
+            // Push a narrowed KGP clip so images inside this child cannot
+            // extend beyond its Bounds (which may be smaller than the surface).
+            var savedClip = _kgpClipRect;
+            if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
+                _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds);
             RenderChildTimed(child, this);
+            _kgpClipRect = savedClip;
             
             // Post-process: fill transparent backgrounds in the child's region.
             // In direct rendering mode, child writes overwrite fill cells with
@@ -594,7 +685,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 Metrics = Metrics,
                 _capabilities = _capabilities,
                 _kgpRegistry = _kgpRegistry,
-                _kgpLayer = _kgpLayer
+                _kgpLayer = _kgpLayer,
+                _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds)
                 // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
             };
             
