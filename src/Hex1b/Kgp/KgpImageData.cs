@@ -43,6 +43,15 @@ public sealed class KgpImageData
     /// </summary>
     public byte[] ContentHash { get; }
 
+    /// <summary>
+    /// Creates a new KGP image data entry from raw pixel data.
+    /// </summary>
+    /// <param name="imageId">The image ID assigned by the client or allocated by the terminal.</param>
+    /// <param name="imageNumber">The image number (I key), or 0 if unspecified.</param>
+    /// <param name="data">The raw decoded pixel data.</param>
+    /// <param name="width">Image width in pixels.</param>
+    /// <param name="height">Image height in pixels.</param>
+    /// <param name="format">The pixel format of the stored data.</param>
     public KgpImageData(uint imageId, uint imageNumber, byte[] data, uint width, uint height, KgpFormat format)
     {
         ImageId = imageId;

@@ -145,6 +145,7 @@ public sealed class KgpImageNode : Hex1bNode
     internal static (int Width, int Height) NaturalCellSize(int pixelWidth, int pixelHeight)
         => (Math.Max(1, (pixelWidth + 9) / 10), Math.Max(1, (pixelHeight + 19) / 20));
 
+    /// <inheritdoc />
     protected override Size MeasureCore(Constraints constraints)
     {
         var (naturalW, naturalH) = NaturalCellSize(PixelWidth, PixelHeight);
@@ -161,12 +162,14 @@ public sealed class KgpImageNode : Hex1bNode
         return constraints.Constrain(new Size(cellWidth, cellHeight));
     }
 
+    /// <inheritdoc />
     protected override void ArrangeCore(Rect bounds)
     {
         base.ArrangeCore(bounds);
         Fallback?.Arrange(bounds);
     }
 
+    /// <inheritdoc />
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
         if (Fallback != null)
@@ -178,6 +181,9 @@ public sealed class KgpImageNode : Hex1bNode
         }
     }
 
+    /// <summary>
+    /// Renders the KGP image if the terminal supports it, otherwise renders the fallback content.
+    /// </summary>
     public override void Render(Hex1bRenderContext context)
     {
         if (context.Capabilities.SupportsKgp)
