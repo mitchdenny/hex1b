@@ -13,7 +13,7 @@ namespace Hex1b;
 /// Render node for <see cref="TilePanelWidget"/>.
 /// Manages viewport math, tile fetching, POI positioning, and input bindings.
 /// </summary>
-public sealed class TilePanelNode : CompositeNode
+public sealed class TilePanelNode : CompositeNode, IDisposable
 {
     /// <summary>
     /// Camera X position in tile coordinates.
@@ -33,7 +33,7 @@ public sealed class TilePanelNode : CompositeNode
     /// <summary>
     /// The tile data source.
     /// </summary>
-    public ITileDataSource? DataSource { get; internal set; }
+    public ITileDataSource? DataSource { get; private set; }
 
     /// <summary>
     /// Points of interest to display on the map.
@@ -55,12 +55,59 @@ public sealed class TilePanelNode : CompositeNode
     /// </summary>
     internal Func<TilePointOfInterest, InputBindingActionContext, Task>? PoiClickedCallback { get; set; }
 
-    // Cached tile data from last fetch
-    private TileData[,]? _cachedTiles;
-    private int _cachedTileX;
-    private int _cachedTileY;
-    private int _cachedTilesWide;
-    private int _cachedTilesTall;
+    // Tile caching via TileCache (never blocks render thread)
+    private TileCache? _tileCache;
+    private ITileDataSource? _currentDataSource;
+
+    // Invalidation callback from ReconcileContext
+    private Action? _invalidateCallback;
+
+    // Empty tile placeholder styling (matching TilePanelTheme defaults)
+    internal char EmptyTileCharacter { get; set; } = '·';
+    internal Hex1bColor? EmptyTileForeground { get; set; } = Hex1bColor.DarkGray;
+    internal Hex1bColor? EmptyTileBackground { get; set; }
+
+    /// <summary>
+    /// Sets the invalidation callback used to trigger app re-renders
+    /// when background-fetched tiles become available.
+    /// </summary>
+    internal void SetInvalidateCallback(Action callback)
+    {
+        _invalidateCallback = callback;
+    }
+
+    /// <summary>
+    /// Sets the data source. Creates or recreates the internal sync/async bridge
+    /// when the data source changes.
+    /// </summary>
+    internal void SetDataSource(ITileDataSource dataSource)
+    {
+        DataSource = dataSource;
+
+        if (!ReferenceEquals(dataSource, _currentDataSource))
+        {
+            // Data source changed — recreate cache
+            if (_tileCache != null)
+            {
+                _tileCache.TilesAvailable -= OnTilesAvailable;
+                _tileCache.Dispose();
+            }
+
+            _currentDataSource = dataSource;
+            _tileCache = new TileCache(dataSource);
+            _tileCache.TilesAvailable += OnTilesAvailable;
+        }
+    }
+
+    private void OnTilesAvailable()
+    {
+        // Don't call MarkDirty() here — we're on a ThreadPool thread and
+        // MarkDirty isn't thread-safe (races with render loop's version checks).
+        // Just trigger a new render cycle. SurfaceWidget.ReconcileExistingNode
+        // always marks the SurfaceNode dirty during reconciliation, so the
+        // DrawTiles callback will re-run and pick up the newly cached tiles.
+        _invalidateCallback?.Invoke();
+    }
 
     /// <summary>
     /// Gets the effective tile render width at the current zoom level.
@@ -141,7 +188,7 @@ public sealed class TilePanelNode : CompositeNode
         return interactableTiles;
     }
 
-    private SurfaceWidget BuildTileSurfaceWidget()
+    private Hex1bWidget BuildTileSurfaceWidget()
     {
         return new SurfaceWidget(ctx =>
         {
@@ -151,14 +198,12 @@ public sealed class TilePanelNode : CompositeNode
 
     private void DrawTiles(Surface surface)
     {
-        if (DataSource == null) return;
+        if (_tileCache == null) return;
 
         var tileW = EffectiveTileWidth;
         var tileH = EffectiveTileHeight;
         if (tileW <= 0 || tileH <= 0) return;
 
-        // Use the surface dimensions for viewport calculations (not Bounds,
-        // which may not be set when the DrawSurfaceLayer callback fires)
         var viewWidth = surface.Width;
         var viewHeight = surface.Height;
         if (viewWidth <= 0 || viewHeight <= 0) return;
@@ -168,44 +213,41 @@ public sealed class TilePanelNode : CompositeNode
         var tilesWide = viewWidth / tileW + 2;
         var tilesTall = viewHeight / tileH + 2;
 
-        // Use cached tiles if available and covering the same region
-        var tiles = _cachedTiles;
-        if (tiles == null
-            || _cachedTileX != startTileX || _cachedTileY != startTileY
-            || _cachedTilesWide != tilesWide || _cachedTilesTall != tilesTall)
-        {
-            // Synchronously wait — tile data sources should be fast for visible regions
-            tiles = DataSource.GetTilesAsync(startTileX, startTileY, tilesWide, tilesTall)
-                .AsTask().GetAwaiter().GetResult();
-            _cachedTiles = tiles;
-            _cachedTileX = startTileX;
-            _cachedTileY = startTileY;
-            _cachedTilesWide = tilesWide;
-            _cachedTilesTall = tilesTall;
-        }
+        // Get tiles from cache — never blocks. Uncached tiles are default(TileData)
+        // and will be fetched asynchronously in the background.
+        var tiles = _tileCache.GetTiles(startTileX, startTileY, tilesWide, tilesTall);
 
         for (int ty = 0; ty < tilesTall && ty < tiles.GetLength(1); ty++)
         {
             for (int tx = 0; tx < tilesWide && tx < tiles.GetLength(0); tx++)
             {
                 var tile = tiles[tx, ty];
-                // Compute screen position using surface dimensions
                 var screenX = (int)(((startTileX + tx) - CameraX) * tileW + viewWidth / 2.0);
                 var screenY = (int)(((startTileY + ty) - CameraY) * tileH + viewHeight / 2.0);
 
                 if (string.IsNullOrEmpty(tile.Content))
+                {
+                    // Render placeholder for uncached tiles
+                    var placeholder = new string(EmptyTileCharacter, tileW);
+                    for (int row = 0; row < tileH; row++)
+                    {
+                        surface.WriteText(
+                            screenX, screenY + row,
+                            placeholder,
+                            EmptyTileForeground,
+                            EmptyTileBackground);
+                    }
                     continue;
+                }
 
-                // Render tile content at screen position
-                // For zoomed tiles, repeat/scale the content
+                var tileSize = _tileCache.TileSize;
                 for (int row = 0; row < tileH; row++)
                 {
-                    var contentRow = tileH > 1 && DataSource.TileSize.Height > 1
-                        ? row * DataSource.TileSize.Height / tileH
+                    var contentRow = tileH > 1 && tileSize.Height > 1
+                        ? row * tileSize.Height / tileH
                         : 0;
 
-                    // Scale content horizontally
-                    var content = ScaleTileContent(tile.Content, tileW, DataSource.TileSize.Width);
+                    var content = ScaleTileContent(tile.Content, tileW, tileSize.Width);
 
                     surface.WriteText(
                         screenX, screenY + row,
@@ -368,5 +410,18 @@ public sealed class TilePanelNode : CompositeNode
             return ZoomCallback(delta, pivotX, pivotY, ctx);
         }
         return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Disposes the tile cache and cancels pending background fetches.
+    /// </summary>
+    public void Dispose()
+    {
+        if (_tileCache != null)
+        {
+            _tileCache.TilesAvailable -= OnTilesAvailable;
+            _tileCache.Dispose();
+            _tileCache = null;
+        }
     }
 }

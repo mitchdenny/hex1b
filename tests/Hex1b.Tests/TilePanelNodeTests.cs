@@ -3,6 +3,7 @@ using Hex1b.Data;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -43,11 +44,12 @@ public class TilePanelNodeTests
     [Fact]
     public void EffectiveTileWidth_ZoomLevel0_ReturnsBaseSize()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
         };
+        node.SetDataSource(ds);
 
         Assert.Equal(3, node.EffectiveTileWidth);
         Assert.Equal(1, node.EffectiveTileHeight);
@@ -56,11 +58,12 @@ public class TilePanelNodeTests
     [Fact]
     public void EffectiveTileWidth_ZoomLevel1_DoubleSize()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 1,
         };
+        node.SetDataSource(ds);
 
         Assert.Equal(6, node.EffectiveTileWidth);
         Assert.Equal(2, node.EffectiveTileHeight);
@@ -69,11 +72,12 @@ public class TilePanelNodeTests
     [Fact]
     public void EffectiveTileWidth_ZoomLevel2_QuadrupleSize()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 2,
         };
+        node.SetDataSource(ds);
 
         Assert.Equal(12, node.EffectiveTileWidth);
         Assert.Equal(4, node.EffectiveTileHeight);
@@ -82,13 +86,14 @@ public class TilePanelNodeTests
     [Fact]
     public void GetVisibleTileRange_CenteredAtOrigin_ReturnsCorrectRange()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 0,
             CameraY = 0,
         };
+        node.SetDataSource(ds);
         // Set bounds to simulate a 30x10 viewport
         node.Arrange(new Rect(0, 0, 30, 10));
 
@@ -107,13 +112,14 @@ public class TilePanelNodeTests
     [Fact]
     public void TileToScreen_AtCameraCenter_ReturnsViewportCenter()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 0,
             CameraY = 0,
         };
+        node.SetDataSource(ds);
         node.Arrange(new Rect(0, 0, 80, 24));
 
         var (screenX, screenY) = node.TileToScreen(0, 0);
@@ -126,13 +132,14 @@ public class TilePanelNodeTests
     [Fact]
     public void TileToScreen_OffsetFromCamera_ReturnsCorrectScreenPosition()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 5,
             CameraY = 3,
         };
+        node.SetDataSource(ds);
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Tile at (5, 3) should be at center since camera is at (5, 3)
@@ -183,14 +190,15 @@ public class TilePanelNodeTests
     [Fact]
     public void BuildContent_WithNoPois_ReturnsInteractable()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 0,
             CameraY = 0,
             PointsOfInterest = [],
         };
+        node.SetDataSource(ds);
         node.Arrange(new Rect(0, 0, 80, 24));
 
         var content = node.BuildContent();
@@ -202,14 +210,15 @@ public class TilePanelNodeTests
     [Fact]
     public void BuildContent_WithPois_ReturnsZStack()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 0,
             CameraY = 0,
             PointsOfInterest = [new TilePointOfInterest(0, 0, "📍", "Test")],
         };
+        node.SetDataSource(ds);
         node.Arrange(new Rect(0, 0, 80, 24));
 
         var content = node.BuildContent();
@@ -225,14 +234,15 @@ public class TilePanelNodeTests
     [Fact]
     public void BuildContent_PoiOutsideViewport_IsExcluded()
     {
+        var ds = new TestTileDataSource();
         var node = new TilePanelNode
         {
-            DataSource = new TestTileDataSource(),
             ZoomLevel = 0,
             CameraX = 0,
             CameraY = 0,
             PointsOfInterest = [new TilePointOfInterest(1000, 1000, "📍")],
         };
+        node.SetDataSource(ds);
         node.Arrange(new Rect(0, 0, 80, 24));
 
         var content = node.BuildContent();
@@ -431,5 +441,16 @@ public class TilePanelIntegrationTests
 
         Assert.True(zoomCount > 0, "Zoom handler should have been called");
         Assert.Equal(1, zoomLevel);
+    }
+
+    /// <summary>
+    /// Invokes the private DrawTiles method via the DrawSurfaceLayer action.
+    /// </summary>
+    private static void DrawTilesViaReflection(TilePanelNode node, Surface surface)
+    {
+        // Use the internal method to invoke DrawTiles
+        var method = typeof(TilePanelNode).GetMethod("DrawTiles",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        method!.Invoke(node, [surface]);
     }
 }

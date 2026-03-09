@@ -32,6 +32,7 @@ Widgets that respond to user input.
 - **[List](/guide/widgets/list)** — Scrollable, selectable item lists
 - **[Tree](/guide/widgets/tree)** — Hierarchical data with expand/collapse and multi-select
 - **[Table](/guide/widgets/table)** — Data tables with sorting, selection, and virtualization
+- **[TilePanel](/guide/widgets/tilepanel)** — Infinite, pannable and zoomable tile map
 - **[Picker](/guide/widgets/picker)** — Dropdown selection menus
 - **[Slider](/guide/widgets/slider)** — Numeric value selection with keyboard and mouse
 - **[ToggleSwitch](/guide/widgets/toggle-switch)** — On/off toggle controls

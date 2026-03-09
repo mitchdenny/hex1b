@@ -163,7 +163,7 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
         node.CameraX = CameraX;
         node.CameraY = CameraY;
         node.ZoomLevel = ZoomLevel;
-        node.DataSource = DataSource;
+        node.SetDataSource(DataSource);
         node.PointsOfInterest = PointsOfInterest;
 
         // Wire up event handler callbacks
@@ -209,6 +209,14 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
 
     protected override Task<Hex1bWidget> BuildContentAsync(TilePanelNode node, ReconcileContext context)
     {
-        return Task.FromResult(node.BuildContent());
+        // Wire InvalidateCallback so TileCache can trigger re-renders
+        if (context.InvalidateCallback != null)
+        {
+            node.SetInvalidateCallback(context.InvalidateCallback);
+        }
+
+        Hex1bWidget content = node.BuildContent();
+
+        return Task.FromResult(content);
     }
 }
