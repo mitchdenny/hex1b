@@ -456,31 +456,17 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         ParentLayoutProvider = previousLayout;
         context.CurrentLayoutProvider = this;
 
-        // Get the surface render context for KGP occlusion tracking (if available)
-        var surfaceContext = context as Surfaces.SurfaceRenderContext;
-
         // Render background first (bottom layer - decorative only)
         if (BackgroundNode != null)
         {
             context.RenderChild(BackgroundNode);
         }
 
-        // Render windows in z-order (bottom to top)
+        // Render windows in z-order (bottom to top).
+        // KGP occlusion is handled automatically by SurfaceRenderContext.RenderChild()
+        // at the compositing boundary — no manual layer/occluder registration needed.
         foreach (var windowNode in WindowNodes)
         {
-            // Push a KGP occlusion layer for each window and register its bounds
-            // as an occluder so KGP images at lower layers get shredded around it
-            if (surfaceContext != null)
-            {
-                surfaceContext.PushKgpLayer();
-                if (windowNode.Bounds.Width > 0 && windowNode.Bounds.Height > 0)
-                {
-                    surfaceContext.KgpRegistry?.RegisterOccluder(
-                        windowNode.Bounds.X, windowNode.Bounds.Y,
-                        windowNode.Bounds.Width, windowNode.Bounds.Height);
-                }
-            }
-
             context.RenderChild(windowNode);
         }
 

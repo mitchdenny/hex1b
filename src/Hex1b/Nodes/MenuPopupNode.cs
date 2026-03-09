@@ -424,15 +424,6 @@ public sealed class MenuPopupNode : Hex1bNode, ILayoutProvider
 
     public override void Render(Hex1bRenderContext context)
     {
-        // Register popup as KGP occluder so background images are shredded around it
-        if (context is Surfaces.SurfaceRenderContext surfaceContext && Bounds.Width > 0 && Bounds.Height > 0)
-        {
-            surfaceContext.PushKgpLayer();
-            surfaceContext.KgpRegistry?.RegisterOccluder(
-                Bounds.X, Bounds.Y,
-                Bounds.Width, Bounds.Height);
-        }
-
         var theme = context.Theme;
         var bg = theme.Get(MenuTheme.BackgroundColor);
         var fg = theme.Get(MenuTheme.ForegroundColor);
