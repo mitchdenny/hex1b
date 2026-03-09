@@ -157,6 +157,9 @@ builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
 
+// KGP Image examples
+builder.Services.AddSingleton<IGalleryExample, KgpImageBasicExample>();
+
 // Drag & Drop examples
 builder.Services.AddSingleton<IGalleryExample, DragDropBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, DragDropGhostExample>();
