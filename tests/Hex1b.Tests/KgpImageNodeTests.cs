@@ -589,4 +589,28 @@ public class KgpImageNodeTests
     }
 
     #endregion
+
+    #region Zero-bounds safety
+
+    [Fact]
+    public void ComputeFillClip_ZeroCellDimensions_ReturnsZeroClip()
+    {
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeFillClip(100, 100, 0, 0);
+        Assert.Equal(0, clipX);
+        Assert.Equal(0, clipY);
+        Assert.Equal(0, clipW);
+        Assert.Equal(0, clipH);
+    }
+
+    [Fact]
+    public void ComputeFillClip_ZeroPixelDimensions_ReturnsZeroClip()
+    {
+        var (clipX, clipY, clipW, clipH) = KgpImageNode.ComputeFillClip(0, 0, 10, 10);
+        Assert.Equal(0, clipX);
+        Assert.Equal(0, clipY);
+        Assert.Equal(0, clipW);
+        Assert.Equal(0, clipH);
+    }
+
+    #endregion
 }

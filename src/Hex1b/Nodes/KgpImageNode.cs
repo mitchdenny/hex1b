@@ -198,12 +198,16 @@ public sealed class KgpImageNode : Hex1bNode
 
     private void RenderKgp(Hex1bRenderContext context)
     {
-        if (ImageData.Length == 0)
+        if (ImageData.Length == 0 || PixelWidth <= 0 || PixelHeight <= 0)
         {
             context.SetCursorPosition(Bounds.X, Bounds.Y);
             context.Write("[No image data]");
             return;
         }
+
+        // Nothing to render if bounds have collapsed to zero.
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+            return;
 
         context.SetCursorPosition(Bounds.X, Bounds.Y);
 
@@ -261,19 +265,26 @@ public sealed class KgpImageNode : Hex1bNode
 
             // Compute source-rect clip for the visible portion.
             // If there's already a Fill clip, apply within that sub-region.
-            var srcW = clipW > 0 ? clipW : PixelWidth;
-            var srcH = clipH > 0 ? clipH : PixelHeight;
-            var srcX = clipX;
-            var srcY = clipY;
+            if (cellWidth > 0 && cellHeight > 0)
+            {
+                var srcW = clipW > 0 ? clipW : PixelWidth;
+                var srcH = clipH > 0 ? clipH : PixelHeight;
+                var srcX = clipX;
+                var srcY = clipY;
 
-            clipW = Math.Max(1, (int)((long)srcW * visibleW / cellWidth));
-            clipH = Math.Max(1, (int)((long)srcH * visibleH / cellHeight));
-            clipX = srcX;
-            clipY = srcY;
+                clipW = Math.Max(1, (int)((long)srcW * visibleW / cellWidth));
+                clipH = Math.Max(1, (int)((long)srcH * visibleH / cellHeight));
+                clipX = srcX;
+                clipY = srcY;
+            }
 
             cellWidth = visibleW;
             cellHeight = visibleH;
         }
+
+        // Guard: cannot write a zero-cell image.
+        if (cellWidth <= 0 || cellHeight <= 0)
+            return;
 
         if (clipW > 0 && clipH > 0)
         {
@@ -294,6 +305,9 @@ public sealed class KgpImageNode : Hex1bNode
     internal static (int ClipX, int ClipY, int ClipW, int ClipH) ComputeFillClip(
         int pixelWidth, int pixelHeight, int cellWidth, int cellHeight)
     {
+        if (cellWidth <= 0 || cellHeight <= 0 || pixelWidth <= 0 || pixelHeight <= 0)
+            return (0, 0, 0, 0);
+
         // Display area in equivalent pixel dimensions
         var displayPixelW = cellWidth * CellPixelWidth;
         var displayPixelH = cellHeight * CellPixelHeight;
