@@ -319,4 +319,184 @@ public class KgpIntegrationTests
         // Both images should produce KGP placements in the terminal
         Assert.NotNull(snapshot);
     }
+
+    [Fact]
+    public async Task App_KgpImageWidget_SurvivesResize()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(40, 10)
+            .Build();
+
+        var imageData = CreateTestImage();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
+                    .WithWidth(4)
+                    .WithHeight(2)
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render, verify KGP placement exists
+        var beforeResize = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen && terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
+            .Capture("before-resize")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(beforeResize);
+        var placementsBefore = terminal.KgpPlacements;
+        Assert.NotEmpty(placementsBefore);
+
+        // Resize the terminal — resize both buffer and workload adapter
+        terminal.Resize(60, 15);
+        await workload.ResizeAsync(60, 15, TestContext.Current.CancellationToken);
+
+        // Wait for re-render to complete with KGP placements present at new size
+        var afterResize = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 60 && s.Height == 15 && terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
+            .Capture("after-resize")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(afterResize);
+        var placementsAfter = terminal.KgpPlacements;
+        Assert.NotEmpty(placementsAfter);
+
+        // Stop the app
+        app.RequestStop();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_KgpImageInVStack_SurvivesResize()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(60, 20)
+            .Build();
+
+        var imageData = CreateTestImage(8, 8);
+
+        // VStack with text + KGP image (Fill layout)
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget([
+                    new TextBlockWidget("Header text"),
+                    new KgpImageWidget(imageData, 8, 8, new TextBlockWidget("[fallback]"))
+                        .Width(Layout.SizeHint.Fill)
+                        .Height(Layout.SizeHint.Fill),
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for KGP placements after initial render
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(terminal.KgpPlacements);
+
+        // Resize the terminal — must resize BOTH terminal buffer and workload adapter.
+        // In a real scenario, the OS resizes the presentation adapter which triggers both
+        // via Hex1bTerminal.ResizeWithWorkload().
+        terminal.Resize(80, 25);
+        await workload.ResizeAsync(80, 25, TestContext.Current.CancellationToken);
+
+        // Wait for re-render at new size with KGP placements
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 80 && s.Height == 25 && terminal.KgpPlacements.Count > 0,
+                TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotEmpty(terminal.KgpPlacements);
+
+        // Stop the app
+        app.RequestStop();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_KgpImageInVStack_ClipsToSurfaceBounds()
+    {
+        // Simulate a letterbox terminal where the KGP image would overflow
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(40, 8)
+            .Build();
+
+        var imageData = CreateTestImage(80, 80);
+
+        // VStack with 3 rows of text + KGP image (Fill) + 1 row of text
+        // In an 8-row terminal, the image should be clipped to rows 3-6 (4 rows)
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget([
+                    new TextBlockWidget("Row 1"),
+                    new TextBlockWidget("Row 2"),
+                    new TextBlockWidget("Row 3"),
+                    new KgpImageWidget(imageData, 80, 80, new TextBlockWidget("[fallback]"))
+                        .Width(Layout.SizeHint.Fill)
+                        .Height(Layout.SizeHint.Fill),
+                    new TextBlockWidget("Bottom row"),
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var placements = terminal.KgpPlacements;
+        Assert.NotEmpty(placements);
+
+        // Verify the placement doesn't overflow the terminal bounds.
+        // The image should be clipped: it starts at row 3 (0-indexed) and the
+        // bottom text is at row 7, so the image can be at most 4 rows tall.
+        foreach (var p in placements)
+        {
+            Assert.True(p.Row + (int)p.DisplayRows <= 8,
+                $"KGP placement at row {p.Row} with {p.DisplayRows} rows overflows terminal height 8 (bottom={p.Row + (int)p.DisplayRows})");
+        }
+
+        app.RequestStop();
+        await runTask;
+    }
 }

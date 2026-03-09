@@ -214,6 +214,35 @@ public class SurfaceRenderContext : Hex1bRenderContext
         if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
             return;
 
+        // Clip cell dimensions to the surface bounds so the KGP placement
+        // doesn't overflow the container. Without this, images inside windows
+        // that extend beyond the terminal can overlay the MenuBar / InfoBar.
+        var visibleCellWidth = Math.Min(cellWidth, _surface.Width - writeX);
+        var visibleCellHeight = Math.Min(cellHeight, _surface.Height - writeY);
+
+        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+            return;
+
+        if (visibleCellWidth < cellWidth || visibleCellHeight < cellHeight)
+        {
+            // Image extends beyond the surface — compute a pixel-level clip rect
+            // so the placement only shows the visible portion.
+            var effectiveW = clipW > 0 ? clipW : pixelWidth;
+            var effectiveH = clipH > 0 ? clipH : pixelHeight;
+
+            var newClipW = (int)((long)effectiveW * visibleCellWidth / cellWidth);
+            var newClipH = (int)((long)effectiveH * visibleCellHeight / cellHeight);
+
+            if (newClipW <= 0 || newClipH <= 0)
+                return;
+
+            // Preserve existing clipX/clipY origin, narrow the window
+            clipW = newClipW;
+            clipH = newClipH;
+            cellWidth = visibleCellWidth;
+            cellHeight = visibleCellHeight;
+        }
+
         var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
         var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
         var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
