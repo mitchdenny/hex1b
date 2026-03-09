@@ -14,7 +14,7 @@ namespace Hex1b.Kgp;
 /// <param name="ClipW">Pixel width of the visible source region.</param>
 /// <param name="ClipH">Pixel height of the visible source region.</param>
 /// <param name="Data">Reference to the original KGP cell data (for transmit payload, z-index, etc.).</param>
-public readonly record struct KgpFragment(
+internal readonly record struct KgpFragment(
     uint ImageId,
     int AbsoluteX,
     int AbsoluteY,

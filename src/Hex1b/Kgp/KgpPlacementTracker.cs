@@ -28,7 +28,7 @@ namespace Hex1b.Kgp;
 /// </list>
 /// </para>
 /// </remarks>
-public class KgpPlacementTracker
+internal class KgpPlacementTracker
 {
     /// <summary>
     /// Represents a desired KGP placement extracted from a surface.

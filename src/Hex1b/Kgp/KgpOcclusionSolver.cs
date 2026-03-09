@@ -26,7 +26,7 @@ namespace Hex1b.Kgp;
 /// </code>
 /// </para>
 /// </remarks>
-public static class KgpOcclusionSolver
+internal static class KgpOcclusionSolver
 {
     /// <summary>
     /// Computes visible fragments for all KGP images in the registry.

@@ -21,7 +21,7 @@ namespace Hex1b.Kgp;
 /// </list>
 /// </para>
 /// </remarks>
-public class KgpImageRegistry
+internal class KgpImageRegistry
 {
     private readonly List<KgpImageEntry> _images = [];
     private readonly List<OccluderEntry> _occluders = [];
@@ -82,7 +82,7 @@ public class KgpImageRegistry
 /// <summary>
 /// A KGP image registered during rendering, with its absolute position and layer.
 /// </summary>
-public readonly record struct KgpImageEntry(
+internal readonly record struct KgpImageEntry(
     KgpCellData Data,
     int AbsoluteX,
     int AbsoluteY,
@@ -91,6 +91,6 @@ public readonly record struct KgpImageEntry(
 /// <summary>
 /// A rectangular occluder (window bounds) registered during rendering.
 /// </summary>
-public readonly record struct OccluderEntry(
+internal readonly record struct OccluderEntry(
     int Layer,
     Rect Bounds);

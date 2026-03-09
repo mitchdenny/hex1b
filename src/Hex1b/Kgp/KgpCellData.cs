@@ -70,7 +70,7 @@ public sealed class KgpCellData
     /// <summary>
     /// Gets the content hash for deduplication.
     /// </summary>
-    public byte[] ContentHash { get; }
+    internal byte[] ContentHash { get; }
 
     /// <summary>
     /// Gets the z-index for KGP placement stacking order relative to text.
@@ -81,7 +81,7 @@ public sealed class KgpCellData
     /// <summary>
     /// Creates a new KGP cell data instance with structured placement data.
     /// </summary>
-    public KgpCellData(
+    internal KgpCellData(
         string? transmitPayload,
         uint imageId,
         int widthInCells,
@@ -112,7 +112,7 @@ public sealed class KgpCellData
     /// <summary>
     /// Builds the placement command (a=p) with current clip parameters.
     /// </summary>
-    public string BuildPlacementPayload()
+    internal string BuildPlacementPayload()
     {
         var sb = new StringBuilder();
         sb.Append("\x1b_G");
@@ -130,7 +130,7 @@ public sealed class KgpCellData
     /// Creates a clipped version of this KGP data with a new source rectangle.
     /// The transmit payload is preserved (image only needs to be sent once).
     /// </summary>
-    public KgpCellData WithClip(int clipX, int clipY, int clipW, int clipH, int newWidthInCells, int newHeightInCells)
+    internal KgpCellData WithClip(int clipX, int clipY, int clipW, int clipH, int newWidthInCells, int newHeightInCells)
     {
         return new KgpCellData(
             TransmitPayload,
@@ -163,7 +163,7 @@ public sealed class KgpCellData
     /// using the m=1 (more data) / m=0 (final chunk) protocol.
     /// Returns an empty list if TransmitPayload is null.
     /// </summary>
-    public List<string> BuildTransmitChunks()
+    internal List<string> BuildTransmitChunks()
     {
         var chunks = new List<string>();
         if (TransmitPayload == null)
@@ -243,7 +243,7 @@ public sealed class KgpCellData
     /// Creates a KGP cell data from a pre-built payload string (for tests and backward compatibility).
     /// The payload is stored as-is and emitted directly.
     /// </summary>
-    public static KgpCellData FromPayload(string payload, int widthInCells, int heightInCells)
+    internal static KgpCellData FromPayload(string payload, int widthInCells, int heightInCells)
     {
         var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(payload));
         return new KgpCellData(payload, 0, widthInCells, heightInCells, 0, 0, hash);
@@ -252,6 +252,6 @@ public sealed class KgpCellData
     /// <summary>
     /// Compares content hashes for equality.
     /// </summary>
-    public static bool HashEquals(byte[] a, byte[] b)
+    internal static bool HashEquals(byte[] a, byte[] b)
         => a.AsSpan().SequenceEqual(b);
 }
