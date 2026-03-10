@@ -53,6 +53,13 @@ internal class KgpPlacementTracker
     private readonly Dictionary<uint, List<KgpFragment>> _previousFragments = new();
 
     /// <summary>
+    /// Whether any KGP images have ever been transmitted during this session.
+    /// Survives <see cref="Reset"/> so that resize cleanup can send delete-all
+    /// even after the per-frame tracking state is cleared.
+    /// </summary>
+    private bool _hasEverTransmitted;
+
+    /// <summary>
     /// Generates KGP commands from pre-computed occlusion fragments.
     /// </summary>
     /// <param name="fragments">Visible fragments computed by <see cref="KgpOcclusionSolver"/>.</param>
@@ -110,6 +117,7 @@ internal class KgpPlacementTracker
                     targetList.Add(new UnrecognizedSequenceToken(chunk));
                 }
                 _transmittedImages.Add(imageId);
+                _hasEverTransmitted = true;
             }
 
             // Emit all fragment placements
@@ -199,9 +207,15 @@ internal class KgpPlacementTracker
     }
 
     /// <summary>
-    /// Gets whether any KGP images have been transmitted.
+    /// Gets whether any KGP images have been transmitted in the current frame state.
     /// </summary>
     internal bool HasTransmittedImages => _transmittedImages.Count > 0;
+
+    /// <summary>
+    /// Gets whether any KGP images have ever been transmitted during this session.
+    /// Unlike <see cref="HasTransmittedImages"/>, this survives <see cref="Reset"/>.
+    /// </summary>
+    internal bool HasEverTransmitted => _hasEverTransmitted;
 
     /// <summary>
     /// Gets the number of images with active placements from the previous frame.

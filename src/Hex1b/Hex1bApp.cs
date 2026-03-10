@@ -899,6 +899,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
         if (needNewSurfaces)
         {
+            // Delete all KGP images first — \x1b[2J only clears text cells, but KGP
+            // placements are terminal-level state that persists until explicitly deleted.
+            // Without this, old placements at stale positions remain visible after resize.
+            if (_kgpTracker.HasEverTransmitted)
+            {
+                _adapter.Write("\x1b_Ga=d,d=a,q=2\x1b\\");
+            }
+            
             // Reset attributes and clear screen on resize to remove artifacts from old layout
             _adapter.Write("\x1b[0m\x1b[2J");
             

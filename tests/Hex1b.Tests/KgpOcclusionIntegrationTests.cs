@@ -516,4 +516,188 @@ public class KgpOcclusionIntegrationTests
         Assert.True(afterMenu.KgpPlacements.Count > placementsBeforeMenu,
             $"Expected image to be sliced by menu occluder: before={placementsBeforeMenu}, after={afterMenu.KgpPlacements.Count}");
     }
+
+    [Fact]
+    public async Task WindowPanel_KgpWindowDragThenResize_WindowSurvives()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithMouse()
+            .WithDimensions(60, 20)
+            .Build();
+
+        var imageData = CreateTestImage(16, 16);
+        var windowOpened = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer =>
+                [
+                    outer.Button("Open").OnClick(e =>
+                    {
+                        var window = e.Windows.Window(w =>
+                                w.VStack(v =>
+                                [
+                                    v.Text("KGP-Content"),
+                                    v.KgpImage(imageData, 16, 16,
+                                        v.Text("[fallback]"),
+                                        width: 10, height: 3)
+                                ]))
+                            .Title("DragMe")
+                            .Size(20, 8)
+                            .Position(new WindowPositionSpec(WindowPosition.Center));
+                        e.Windows.Open(window);
+                        windowOpened = true;
+                    }),
+                    outer.WindowPanel().Fill()
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open window and wait for it
+        var beforeDrag = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("DragMe"), TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("before-drag")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowOpened, "Window should have been opened");
+        Assert.NotNull(beforeDrag);
+        Assert.True(beforeDrag.ContainsText("DragMe"), "Window title should be visible before drag");
+        Assert.True(beforeDrag.ContainsText("KGP-Content"), "Window content should be visible before drag");
+
+        // Drag the window title bar from center to a new position (move right 5, down 3)
+        // Window is centered at roughly (20, 6) on 60x20, title bar is first row
+        var afterDrag = await new Hex1bTerminalInputSequenceBuilder()
+            .Drag(30, 7, 35, 10) // Drag from center-ish to right+down
+            .Wait(TimeSpan.FromMilliseconds(300))
+            .Capture("after-drag")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(afterDrag);
+        Assert.True(afterDrag.ContainsText("DragMe"), "Window title should be visible after drag");
+        Assert.True(afterDrag.ContainsText("KGP-Content"), "Window content should be visible after drag");
+
+        // Now resize the terminal by 1 row
+        terminal.Resize(60, 19);
+        await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
+
+        var afterResize = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 60 && s.Height == 19, TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(300))
+            .Capture("after-resize")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(afterResize);
+
+        // The window should still be visible after resize!
+        Assert.True(afterResize.ContainsText("DragMe"),
+            $"Window title 'DragMe' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
+        Assert.True(afterResize.ContainsText("KGP-Content"),
+            $"Window content 'KGP-Content' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
+
+        // KGP placements should exist after resize
+        Assert.True(afterResize.KgpPlacements.Count >= 1,
+            $"Expected KGP placement after drag+resize, got {afterResize.KgpPlacements.Count}");
+
+        app.RequestStop();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task WindowPanel_NonKgpWindowDragThenResize_WindowSurvives()
+    {
+        // Control test: same as above but without KGP image to isolate whether
+        // the bug is KGP-specific or a general window issue
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithMouse()
+            .WithDimensions(60, 20)
+            .Build();
+
+        var windowOpened = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer =>
+                [
+                    outer.Button("Open").OnClick(e =>
+                    {
+                        var window = e.Windows.Window(w =>
+                                w.Text("PlainContent"))
+                            .Title("DragMe")
+                            .Size(20, 8)
+                            .Position(new WindowPositionSpec(WindowPosition.Center));
+                        e.Windows.Open(window);
+                        windowOpened = true;
+                    }),
+                    outer.WindowPanel().Fill()
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open window
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("DragMe"), TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowOpened);
+
+        // Drag then resize
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Drag(30, 7, 35, 10)
+            .Wait(TimeSpan.FromMilliseconds(300))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        terminal.Resize(60, 19);
+        await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
+
+        var afterResize = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 60 && s.Height == 19, TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(300))
+            .Capture("after-resize-no-kgp")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(afterResize);
+        Assert.True(afterResize.ContainsText("DragMe"),
+            $"Window title should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
+        Assert.True(afterResize.ContainsText("PlainContent"),
+            $"Window content should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
+
+        app.RequestStop();
+        await runTask;
+    }
 }
