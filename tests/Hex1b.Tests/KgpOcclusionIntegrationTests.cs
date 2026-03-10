@@ -439,4 +439,74 @@ public class KgpOcclusionIntegrationTests
         Assert.Equal(50, right.ClipW);
         Assert.Equal(40, right.ClipH);
     }
+
+    [Fact]
+    public async Task MenuPopup_DoesNotOccludeBackgroundKgpImage()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(60, 20)
+            .Build();
+
+        var imageData = CreateTestImage(64, 64);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New"),
+                            menu.MenuItem("Open"),
+                            menu.MenuItem("Exit")
+                        ])
+                    ]),
+                    outer.WindowPanel()
+                        .Background(bg =>
+                            bg.KgpImage(imageData, 64, 64,
+                                bg.Text("[fallback]"),
+                                width: 30, height: 15))
+                        .Fill()
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Capture before opening menu — image should be visible
+        var beforeMenu = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("before-menu")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(beforeMenu);
+        Assert.True(beforeMenu.KgpPlacements.Count >= 1,
+            $"Expected KGP placement before menu open, got {beforeMenu.KgpPlacements.Count}");
+
+        // Open the File menu via Alt+F, then capture — image should still be visible
+        var afterMenu = await new Hex1bTerminalInputSequenceBuilder()
+            .Alt().Key(Hex1bKey.F)
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-menu")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.NotNull(afterMenu);
+        Assert.True(afterMenu.KgpPlacements.Count >= 1,
+            $"Expected KGP placement with menu open, got {afterMenu.KgpPlacements.Count}");
+    }
 }

@@ -102,8 +102,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
     }
 
     /// <summary>
-    /// Advances to the next KGP occlusion layer. Called automatically by
-    /// <see cref="RegisterCompositeAsOccluder"/> at compositing boundaries.
+    /// Advances to the next KGP occlusion layer. Called at compositing boundaries
+    /// before the child renders, so images and occluders share the same layer.
     /// </summary>
     private void PushKgpLayer()
     {
@@ -138,20 +138,25 @@ public class SurfaceRenderContext : Hex1bRenderContext
     }
 
     /// <summary>
-    /// Pushes a KGP layer and registers the child's bounds as an occluder.
-    /// Called before each <see cref="Surface.Composite"/> so the child's own
-    /// KGP images land on the same layer (preventing self-occlusion) while
-    /// images on lower layers get properly shredded.
+    /// Registers the child's written content area as a KGP occluder.
+    /// Called AFTER the child renders so that the occluder reflects the actual
+    /// content bounds rather than the node's full layout bounds. This prevents
+    /// transparent containers (like <see cref="Hex1b.Nodes.BackdropNode"/> in
+    /// transparent mode) from registering full-screen occluders that hide all
+    /// KGP images beneath them.
     /// </summary>
-    private void RegisterCompositeAsOccluder(Hex1bNode child)
+    /// <param name="childSurface">The surface the child rendered into.</param>
+    /// <param name="child">The child node.</param>
+    /// <param name="layer">The KGP layer to register the occluder at (pushed before rendering).</param>
+    private void RegisterOccluderFromContent(Surface childSurface, Hex1bNode child, int layer)
     {
-        if (_kgpRegistry != null && child.Bounds.Width > 0 && child.Bounds.Height > 0)
-        {
-            PushKgpLayer();
-            _kgpRegistry.RegisterOccluder(
-                child.Bounds.X, child.Bounds.Y,
-                child.Bounds.Width, child.Bounds.Height);
-        }
+        if (_kgpRegistry == null || !childSurface.HasWrittenContent)
+            return;
+
+        var cb = childSurface.WrittenContentBounds;
+        _kgpRegistry.RegisterOccluder(
+            child.Bounds.X + cb.X, child.Bounds.Y + cb.Y,
+            cb.Width, cb.Height, layer);
     }
 
     /// <summary>
@@ -578,7 +583,8 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     // Push KGP layer BEFORE creating child context so the child
                     // inherits the new layer number and its images land on the
                     // same layer as the occluder (preventing self-occlusion).
-                    RegisterCompositeAsOccluder(child);
+                    PushKgpLayer();
+                    var occluderLayer = _kgpLayer;
 
                     var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                     {
@@ -600,6 +606,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     {
                         childSurface.FillBackground(child.FillBackground);
                     }
+
+                    // Register occluder AFTER rendering, using the child surface's
+                    // actual content bounds. This prevents transparent containers
+                    // (e.g. BackdropNode) from registering full-screen occluders.
+                    RegisterOccluderFromContent(childSurface, child, occluderLayer);
 
                     var providerClip = CurrentLayoutProvider.ClipRect;
                     var clipRect = new Rect(
@@ -673,7 +684,6 @@ public class SurfaceRenderContext : Hex1bRenderContext
                             providerClip.Height
                         );
                     }
-                    RegisterCompositeAsOccluder(child);
                     _surface.Composite(child.CachedSurface!, child.Bounds.X - _offsetX, child.Bounds.Y - _offsetY, clipRect);
                     return;
                 }
@@ -686,11 +696,6 @@ public class SurfaceRenderContext : Hex1bRenderContext
         // Only cache if the node has non-zero bounds
         if (child.Bounds.Width > 0 && child.Bounds.Height > 0)
         {
-            // Push KGP layer BEFORE creating child context so the child
-            // inherits the new layer number and its images land on the
-            // same layer as the occluder (preventing self-occlusion).
-            RegisterCompositeAsOccluder(child);
-
             // Create a surface for this child's content with matching cell metrics
             // Clamp dimensions to prevent overflow with unconstrained children
             var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);

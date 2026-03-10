@@ -45,6 +45,15 @@ internal class KgpImageRegistry
     }
 
     /// <summary>
+    /// Registers a rectangular occluder at the specified layer (rather than the current layer).
+    /// Used when the occluder must match a previously pushed layer.
+    /// </summary>
+    public void RegisterOccluder(int x, int y, int width, int height, int atLayer)
+    {
+        _occluders.Add(new OccluderEntry(atLayer, new Rect(x, y, width, height)));
+    }
+
+    /// <summary>
     /// Advances to the next rendering layer. Call before rendering each window
     /// so that images and occluders are assigned the correct z-level.
     /// </summary>

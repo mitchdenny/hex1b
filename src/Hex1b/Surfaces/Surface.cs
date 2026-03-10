@@ -35,6 +35,14 @@ public sealed class Surface : ISurfaceSource
     // Track if any cells contain KGP graphics
     private int _kgpCount;
     
+    // Track the bounding box of written (non-empty) cells.
+    // Used by KGP occlusion to register occluders at the actual content area
+    // rather than the full surface bounds.
+    private int _contentMaxX = -1;
+    private int _contentMinX;
+    private int _contentMaxY = -1;
+    private int _contentMinY;
+    
     /// <summary>
     /// Gets the width of the surface in columns.
     /// </summary>
@@ -65,6 +73,19 @@ public sealed class Surface : ISurfaceSource
     /// </summary>
     public bool HasKgp => _kgpCount > 0;
     
+    /// <summary>
+    /// Gets whether any cells have been written (are not <see cref="SurfaceCells.Empty"/>).
+    /// </summary>
+    internal bool HasWrittenContent => _contentMaxX >= 0;
+
+    /// <summary>
+    /// Gets the bounding rectangle of all written cells in surface-local coordinates.
+    /// Returns a zero-size rectangle if no cells have been written.
+    /// </summary>
+    internal Rect WrittenContentBounds => _contentMaxX >= 0
+        ? new Rect(_contentMinX, _contentMinY, _contentMaxX - _contentMinX + 1, _contentMaxY - _contentMinY + 1)
+        : new Rect(0, 0, 0, 0);
+
     /// <summary>
     /// Gets the total number of cells in the surface.
     /// </summary>
@@ -101,6 +122,8 @@ public sealed class Surface : ISurfaceSource
         
         // Initialize all cells to empty
         Array.Fill(_cells, SurfaceCells.Empty);
+        _contentMinX = width;
+        _contentMinY = height;
     }
 
     /// <summary>
@@ -134,6 +157,10 @@ public sealed class Surface : ISurfaceSource
                 _kgpCount--;
             else if (!oldCell.HasKgp && value.HasKgp)
                 _kgpCount++;
+            
+            // Track content bounding box
+            if (value != SurfaceCells.Empty)
+                ExpandContentBounds(x, y);
             
             _cells[index] = value;
         }
@@ -192,6 +219,10 @@ public sealed class Surface : ISurfaceSource
             else if (!oldCell.HasKgp && cell.HasKgp)
                 _kgpCount++;
             
+            // Track content bounding box
+            if (cell != SurfaceCells.Empty)
+                ExpandContentBounds(x, y);
+            
             _cells[index] = cell;
             return true;
         }
@@ -215,6 +246,7 @@ public sealed class Surface : ISurfaceSource
         Array.Fill(_cells, SurfaceCells.Empty);
         _sixelCount = 0;
         _kgpCount = 0;
+        ResetContentBounds();
     }
 
     /// <summary>
@@ -238,6 +270,7 @@ public sealed class Surface : ISurfaceSource
 
         _sixelCount = 0;
         _kgpCount = 0;
+        ResetContentBounds();
     }
 
     /// <summary>
@@ -249,6 +282,10 @@ public sealed class Surface : ISurfaceSource
         Array.Fill(_cells, cell);
         _sixelCount = cell.HasSixel ? CellCount : 0;
         _kgpCount = cell.HasKgp ? CellCount : 0;
+        if (cell != SurfaceCells.Empty && Width > 0 && Height > 0)
+            SetContentBoundsToFull();
+        else
+            ResetContentBounds();
     }
 
     /// <summary>
@@ -264,6 +301,12 @@ public sealed class Surface : ISurfaceSource
         var startY = Math.Max(0, region.Y);
         var endX = Math.Min(Width, region.Right);
         var endY = Math.Min(Height, region.Bottom);
+
+        if (cell != SurfaceCells.Empty && startX < endX && startY < endY)
+        {
+            ExpandContentBounds(startX, startY);
+            ExpandContentBounds(endX - 1, endY - 1);
+        }
 
         for (var y = startY; y < endY; y++)
         {
@@ -322,6 +365,7 @@ public sealed class Surface : ISurfaceSource
 
         var currentX = x;
         var columnsWritten = 0;
+        var startX = -1;
         var enumerator = StringInfo.GetTextElementEnumerator(text);
 
         while (enumerator.MoveNext())
@@ -347,6 +391,7 @@ public sealed class Surface : ISurfaceSource
                 // Fill remaining space with spaces
                 while (currentX < Width)
                 {
+                    if (startX < 0) startX = currentX;
                     _cells[y * Width + currentX] = new SurfaceCell(" ", foreground, background, attributes, 1);
                     currentX++;
                     columnsWritten++;
@@ -356,6 +401,7 @@ public sealed class Surface : ISurfaceSource
 
             // Write the primary cell
             var cell = new SurfaceCell(grapheme, foreground, background, attributes, graphemeWidth);
+            if (startX < 0) startX = currentX;
             _cells[y * Width + currentX] = cell;
             currentX++;
             columnsWritten++;
@@ -370,6 +416,12 @@ public sealed class Surface : ISurfaceSource
                     columnsWritten++;
                 }
             }
+        }
+
+        if (columnsWritten > 0 && startX >= 0)
+        {
+            ExpandContentBounds(startX, y);
+            ExpandContentBounds(Math.Min(currentX - 1, Width - 1), y);
         }
 
         return columnsWritten;
@@ -391,6 +443,7 @@ public sealed class Surface : ISurfaceSource
             return false;
 
         _cells[y * Width + x] = new SurfaceCell(character.ToString(), foreground, background, attributes, 1);
+        ExpandContentBounds(x, y);
         return true;
     }
 
@@ -415,6 +468,9 @@ public sealed class Surface : ISurfaceSource
                 _cells[i] = cell with { Background = background };
             }
         }
+        // After FillBackground, every cell has content (either rendered or bgCell)
+        if (Width > 0 && Height > 0)
+            SetContentBoundsToFull();
     }
 
     /// <summary>
@@ -428,6 +484,12 @@ public sealed class Surface : ISurfaceSource
         var startY = Math.Max(0, regionY);
         var endX = Math.Min(Width, regionX + regionWidth);
         var endY = Math.Min(Height, regionY + regionHeight);
+
+        if (startX < endX && startY < endY)
+        {
+            ExpandContentBounds(startX, startY);
+            ExpandContentBounds(endX - 1, endY - 1);
+        }
 
         for (int y = startY; y < endY; y++)
         {
@@ -567,6 +629,7 @@ public sealed class Surface : ISurfaceSource
                     _kgpCount++;
 
                 _cells[index] = srcCell;
+                ExpandContentBounds(destX, destY);
             }
         }
     }
@@ -730,5 +793,29 @@ public sealed class Surface : ISurfaceSource
             throw new ArgumentOutOfRangeException(nameof(x), x, $"X must be between 0 and {Width - 1}");
         if (y < 0 || y >= Height)
             throw new ArgumentOutOfRangeException(nameof(y), y, $"Y must be between 0 and {Height - 1}");
+    }
+
+    private void ExpandContentBounds(int x, int y)
+    {
+        if (x < _contentMinX) _contentMinX = x;
+        if (y < _contentMinY) _contentMinY = y;
+        if (x > _contentMaxX) _contentMaxX = x;
+        if (y > _contentMaxY) _contentMaxY = y;
+    }
+
+    private void SetContentBoundsToFull()
+    {
+        _contentMinX = 0;
+        _contentMinY = 0;
+        _contentMaxX = Width - 1;
+        _contentMaxY = Height - 1;
+    }
+
+    private void ResetContentBounds()
+    {
+        _contentMinX = Width;
+        _contentMinY = Height;
+        _contentMaxX = -1;
+        _contentMaxY = -1;
     }
 }
