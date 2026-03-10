@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.RegularExpressions;
 
 namespace Hex1b;
 
@@ -22,6 +23,10 @@ public static class DockerContainerExtensions
     /// <para>
     /// When <see cref="DockerContainerOptions.DockerfilePath"/> is set, the image
     /// is built automatically with content-hash tagging before starting the container.
+    /// </para>
+    /// <para>
+    /// On Windows, Docker is launched through WSL2 to avoid ConPTY TTY detection
+    /// issues. Docker Desktop's WSL2 integration must be enabled.
     /// </para>
     /// </remarks>
     /// <example>
@@ -93,20 +98,21 @@ public static class DockerContainerExtensions
         }
 
         var containerName = options.Name ?? DockerContainerArgBuilder.GenerateContainerName();
-        var args = DockerContainerArgBuilder.BuildRunArgs(options, containerName);
 
         if (OperatingSystem.IsWindows())
         {
-            // On Windows, launch Docker through cmd.exe so that docker.exe
-            // inherits the console via normal Windows console inheritance
-            // rather than being directly attached via ConPTY's
-            // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE. Docker's Go runtime uses
-            // GetConsoleMode to check for a TTY, and this check can fail when
-            // the process is the direct ConPTY child (e.g. when the parent
-            // dotnet test process has no console of its own).
-            return builder.WithPtyProcess("cmd.exe", ["/c", "docker", ..args]);
+            // On Windows, Docker's Go runtime calls GetConsoleMode(stdin) to
+            // detect a TTY. Under ConPTY (used by Hex1b and test frameworks),
+            // this check fails, producing "the input device is not a TTY".
+            // We bridge through WSL2 instead: ConPTY → wsl.exe → Linux PTY →
+            // docker (Linux CLI) → isatty() succeeds → container PTY works.
+            // Docker Desktop's WSL2 integration shares the daemon, so the
+            // Linux docker CLI talks to the same Docker engine.
+            var wslArgs = DockerContainerArgBuilder.BuildRunArgsForWsl(options, containerName);
+            return builder.WithPtyProcess("wsl", wslArgs);
         }
 
+        var args = DockerContainerArgBuilder.BuildRunArgs(options, containerName);
         return builder.WithPtyProcess("docker", args);
     }
 
@@ -125,18 +131,35 @@ public static class DockerContainerExtensions
         var hash = DockerContainerArgBuilder.ComputeDockerfileHash(content);
         var (buildArgs, imageTag) = DockerContainerArgBuilder.BuildBuildArgs(options, hash);
 
+        string fileName;
         var startInfo = new ProcessStartInfo
         {
-            FileName = "docker",
             RedirectStandardOutput = true,
             RedirectStandardError = true,
             UseShellExecute = false,
             CreateNoWindow = true
         };
 
-        foreach (var arg in buildArgs)
+        if (OperatingSystem.IsWindows())
         {
-            startInfo.ArgumentList.Add(arg);
+            // Use WSL for docker build on Windows too, for consistency and to
+            // avoid potential ConPTY issues with docker.exe process handles.
+            fileName = "wsl";
+            startInfo.FileName = fileName;
+            startInfo.ArgumentList.Add("docker");
+            foreach (var arg in buildArgs)
+            {
+                startInfo.ArgumentList.Add(WslPathHelper.ConvertArgIfPath(arg));
+            }
+        }
+        else
+        {
+            fileName = "docker";
+            startInfo.FileName = fileName;
+            foreach (var arg in buildArgs)
+            {
+                startInfo.ArgumentList.Add(arg);
+            }
         }
 
         using var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };

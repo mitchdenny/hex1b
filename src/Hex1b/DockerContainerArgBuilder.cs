@@ -54,7 +54,36 @@ internal static class DockerContainerArgBuilder
     /// <returns>An array of command-line arguments.</returns>
     public static string[] BuildRunArgs(DockerContainerOptions options, string containerName)
     {
-        var args = new List<string> { "run", "-it" };
+        return BuildRunArgsCore(options, containerName, convertPaths: false);
+    }
+
+    /// <summary>
+    /// Builds the arguments for running Docker through WSL2 on Windows.
+    /// Windows paths in volume mounts are converted to WSL2 mount paths
+    /// (e.g. <c>C:\Users\me</c> → <c>/mnt/c/Users/me</c>).
+    /// </summary>
+    /// <param name="options">The container configuration options.</param>
+    /// <param name="containerName">The name to assign to the container.</param>
+    /// <returns>
+    /// An array of arguments to pass to <c>wsl</c>, starting with <c>docker</c>.
+    /// </returns>
+    public static string[] BuildRunArgsForWsl(DockerContainerOptions options, string containerName)
+    {
+        return BuildRunArgsCore(options, containerName, convertPaths: true);
+    }
+
+    private static string[] BuildRunArgsCore(DockerContainerOptions options, string containerName, bool convertPaths)
+    {
+        var args = new List<string>();
+
+        if (convertPaths)
+        {
+            // When running through WSL, the first arg is the docker command itself
+            args.Add("docker");
+        }
+
+        args.Add("run");
+        args.Add("-it");
 
         if (options.AutoRemove)
         {
@@ -73,7 +102,7 @@ internal static class DockerContainerArgBuilder
         foreach (var volume in options.Volumes)
         {
             args.Add("-v");
-            args.Add(volume);
+            args.Add(convertPaths ? WslPathHelper.ConvertVolumeSpec(volume) : volume);
         }
 
         if (options.MountDockerSocket)

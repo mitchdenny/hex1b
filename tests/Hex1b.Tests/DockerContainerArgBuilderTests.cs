@@ -456,6 +456,76 @@ public class DockerContainerArgBuilderTests
         Assert.Equal("/context", args[^1]);
     }
 
+    // --- BuildRunArgsForWsl tests ---
+
+    [Fact]
+    public void BuildRunArgsForWsl_StartsWithDocker()
+    {
+        var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
+        var args = DockerContainerArgBuilder.BuildRunArgsForWsl(options, "test-ctr");
+
+        Assert.Equal("docker", args[0]);
+        Assert.Equal("run", args[1]);
+    }
+
+    [Fact]
+    public void BuildRunArgsForWsl_IncludesInteractiveFlag()
+    {
+        var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
+        var args = DockerContainerArgBuilder.BuildRunArgsForWsl(options, "test-ctr");
+
+        Assert.Contains("-it", args);
+    }
+
+    [Fact]
+    public void BuildRunArgsForWsl_ConvertsWindowsVolumePaths()
+    {
+        var options = new DockerContainerOptions();
+        options.Volumes.Add(@"C:\Users\me\code:/workspace");
+        var args = DockerContainerArgBuilder.BuildRunArgsForWsl(options, "test");
+
+        Assert.Contains("/mnt/c/Users/me/code:/workspace", args);
+        Assert.DoesNotContain(@"C:\Users\me\code:/workspace", args);
+    }
+
+    [Fact]
+    public void BuildRunArgsForWsl_PreservesLinuxVolumePaths()
+    {
+        var options = new DockerContainerOptions();
+        options.Volumes.Add("/host/path:/container/path");
+        var args = DockerContainerArgBuilder.BuildRunArgsForWsl(options, "test");
+
+        Assert.Contains("/host/path:/container/path", args);
+    }
+
+    [Fact]
+    public void BuildRunArgsForWsl_AllOptions_ProducesValidArgs()
+    {
+        var options = new DockerContainerOptions
+        {
+            Image = "alpine:3.21",
+            WorkingDirectory = "/workspace",
+            Network = "bridge",
+            MountDockerSocket = true,
+            AutoRemove = true,
+            Shell = "/bin/sh",
+            ShellArgs = ["-l"]
+        };
+        options.Environment["A"] = "1";
+        options.Volumes.Add(@"C:\tmp:/tmp");
+
+        var args = DockerContainerArgBuilder.BuildRunArgsForWsl(options, "wsl-test");
+
+        Assert.Equal("docker", args[0]);
+        Assert.Contains("run", args);
+        Assert.Contains("-it", args);
+        Assert.Contains("--rm", args);
+        Assert.Contains("wsl-test", args);
+        Assert.Contains("A=1", args);
+        Assert.Contains("/mnt/c/tmp:/tmp", args);
+        Assert.Contains("alpine:3.21", args);
+    }
+
     // --- Hash computation tests ---
 
     [Fact]
