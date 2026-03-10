@@ -95,6 +95,18 @@ public static class DockerContainerExtensions
         var containerName = options.Name ?? DockerContainerArgBuilder.GenerateContainerName();
         var args = DockerContainerArgBuilder.BuildRunArgs(options, containerName);
 
+        if (OperatingSystem.IsWindows())
+        {
+            // On Windows, launch Docker through cmd.exe so that docker.exe
+            // inherits the console via normal Windows console inheritance
+            // rather than being directly attached via ConPTY's
+            // PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE. Docker's Go runtime uses
+            // GetConsoleMode to check for a TTY, and this check can fail when
+            // the process is the direct ConPTY child (e.g. when the parent
+            // dotnet test process has no console of its own).
+            return builder.WithPtyProcess("cmd.exe", ["/c", "docker", ..args]);
+        }
+
         return builder.WithPtyProcess("docker", args);
     }
 
