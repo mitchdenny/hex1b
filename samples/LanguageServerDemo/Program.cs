@@ -17,6 +17,94 @@ Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "models"));
 Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "services"));
 Directory.CreateDirectory(Path.Combine(tempWorkspace, "src", "utils"));
 
+// ── README with feature guide ────────────────────────────────────────────────
+
+File.WriteAllText(Path.Combine(tempWorkspace, "README.md"), """
+# Hex1b Language Server Demo
+
+Welcome! This is a live TypeScript workspace powered by a real language server
+(typescript-language-server). Open any `.ts` file from the explorer on the left
+to try out the features below.
+
+## Editor Hotkeys
+
+### Navigation
+| Key             | Action                         |
+|-----------------|--------------------------------|
+| Arrow keys      | Move cursor                    |
+| Home / End      | Jump to line start / end       |
+| Ctrl+Home / End | Jump to document start / end   |
+| Page Up / Down  | Scroll by page                 |
+| Tab / Shift+Tab | Focus next / previous pane     |
+
+### Editing
+| Key             | Action                         |
+|-----------------|--------------------------------|
+| Type normally   | Insert text                    |
+| Backspace       | Delete backward                |
+| Delete          | Delete forward                 |
+| Enter           | Insert new line                |
+| Ctrl+Z          | Undo                           |
+| Ctrl+Y          | Redo                           |
+
+### Language Server Features
+| Key             | Feature           | Description                                   |
+|-----------------|-------------------|-----------------------------------------------|
+| Ctrl+Space      | **Completions**   | Show context-aware code completions.          |
+|                 |                   | Type to filter, arrows to select, Enter to    |
+|                 |                   | accept, Escape to dismiss.                    |
+| Ctrl+K          | **Hover Info**    | Show type information and documentation for   |
+|                 |                   | the symbol under the cursor. Displays in a    |
+|                 |                   | floating overlay above or below the cursor.   |
+| F12             | **Go to Def**     | Jump to the definition of the symbol under    |
+|                 |                   | the cursor. Works across files in the         |
+|                 |                   | workspace.                                    |
+| Shift+F12       | **References**    | Find all references to the symbol under the   |
+|                 |                   | cursor. Highlights every occurrence in the    |
+|                 |                   | current file with a colored background.       |
+| F4              | **Toggle Fold**   | Collapse or expand the code region at the     |
+|                 |                   | cursor. Folded regions show a ▶ in the gutter |
+|                 |                   | and hide the enclosed lines.                  |
+| `.` (dot)       | **Auto-complete** | Typing a dot after an object automatically    |
+|                 |                   | triggers member completions.                  |
+
+### Automatic Features (no hotkey needed)
+| Feature                | Description                                    |
+|------------------------|------------------------------------------------|
+| **Syntax Highlighting**| Semantic tokens from the language server color |
+|                        | keywords, types, strings, comments, and more.  |
+| **Diagnostics**        | Errors and warnings appear as colored          |
+|                        | underlines. The Problems panel (View menu)     |
+|                        | lists all diagnostics across open files.       |
+| **Inlay Hints**        | The language server may insert virtual text     |
+|                        | showing inferred types and parameter names.    |
+| **Breadcrumbs**        | The symbol path (e.g. `TaskService > addTask`) |
+|                        | appears above the editor from document symbols.|
+| **Folding Ranges**     | Collapsible regions are detected automatically |
+|                        | for functions, classes, imports, and blocks.   |
+
+## IDE Panels
+| Key / Menu         | Panel            | Description                         |
+|--------------------|------------------|-------------------------------------|
+| View > Explorer    | File Explorer    | Browse and open workspace files.    |
+| View > Problems    | Problems Panel   | All diagnostics sorted by severity. |
+|                    |                  | Click a row to jump to that line.   |
+| View > Terminal    | Terminal         | Embedded bash shell in workspace.   |
+| File > Save        | Save             | Save the current file to disk.      |
+| File > Close Tab   | Close Tab        | Close the active editor tab.        |
+
+## Tips
+- **Preview vs Persistent tabs**: Single-clicking a file opens it in preview
+  mode (italic tab title). Making an edit promotes it to a persistent tab.
+- **Scrollbar**: The horizontal scrollbar appears whenever any line in the
+  document exceeds the editor width — even if the visible lines don't.
+- **Try introducing errors**: Type some invalid syntax and watch diagnostics
+  appear in real time. The red underlines update as the language server
+  re-analyzes the file.
+- **Multi-file navigation**: Use F12 on an imported symbol to jump to its
+  definition in another file. The file opens in a new tab automatically.
+""");
+
 // ── Root config files ────────────────────────────────────────────────────────
 
 File.WriteAllText(Path.Combine(tempWorkspace, "package.json"), """
@@ -677,6 +765,7 @@ static void BuildFileTree(string rootPath, string relativePath, List<WorkspaceFi
             ".ts" => "🟦",
             ".js" => "🟨",
             ".json" => "⚙️",
+            ".md" => "📖",
             ".diff" or ".patch" => "📝",
             _ => "📄",
         };
