@@ -190,7 +190,13 @@ public static class DockerContainerExtensions
         process.Start();
         process.BeginOutputReadLine();
         process.BeginErrorReadLine();
-        process.WaitForExit();
+
+        if (!process.WaitForExit(TimeSpan.FromMinutes(5)))
+        {
+            process.Kill();
+            throw new TimeoutException(
+                $"docker build timed out after 5 minutes. stderr: {stderr}");
+        }
 
         if (process.ExitCode != 0)
         {
