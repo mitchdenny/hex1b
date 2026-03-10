@@ -66,7 +66,9 @@ internal sealed class CompletionController
             : _allItems.Where(item =>
             {
                 var text = item.FilterText ?? item.Label;
-                return text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
+                // Prefer StartsWith, fall back to Contains for broader matching
+                return text.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    || text.Contains(prefix, StringComparison.OrdinalIgnoreCase);
             }).ToArray();
 
         if (_filteredItems.Length == 0)

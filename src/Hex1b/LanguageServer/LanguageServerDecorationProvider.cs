@@ -64,6 +64,20 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
     /// <summary>The document URI, exposed for completion requests from EditorNode.</summary>
     internal string DocumentUriForCompletion => _documentUri;
 
+    /// <summary>
+    /// Syncs the document content to the language server and marks the version
+    /// as up-to-date so the background sync in GetDecorations() won't re-send it.
+    /// This prevents double-sending didChange when a feature request (e.g., completion)
+    /// needs to sync before issuing its LSP request.
+    /// </summary>
+    internal async Task SyncDocumentAsync(IHex1bDocument document)
+    {
+        var client = ActiveClient;
+        if (client == null) return;
+        _lastDocVersion = document.Version;
+        await client.ChangeDocumentAsync(_documentUri, document.GetText()).ConfigureAwait(false);
+    }
+
     // ── ITextDecorationProvider ──────────────────────────────
 
     public void Activate(IEditorSession session)

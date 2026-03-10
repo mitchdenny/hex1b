@@ -1090,7 +1090,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         if (_completionController is { IsActive: true } && text != ".")
         {
             // Let the text be inserted first, then filter
-            if (text.Length == 1 && char.IsLetterOrDigit(text[0]))
+            if (text.Length == 1 && (char.IsLetterOrDigit(text[0]) || text[0] == '_'))
             {
                 _completionFilterPrefix += text;
                 // Insert the text
@@ -1166,6 +1166,23 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
 
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
     {
+        // If completion is active, shrink the filter prefix or dismiss
+        if (_completionController is { IsActive: true } && _completionFilterPrefix.Length > 0)
+        {
+            _completionFilterPrefix = _completionFilterPrefix[..^1];
+            State.DeleteBackward();
+            AfterEdit();
+            if (TextChangedAction != null) await TextChangedAction(ctx);
+            _completionController.Filter(_completionFilterPrefix);
+            MarkDirty();
+            return;
+        }
+        else if (_completionController is { IsActive: true })
+        {
+            _completionController.Dismiss();
+            _completionFilterPrefix = "";
+        }
+
         State.DeleteBackward();
         AfterEdit();
         if (TextChangedAction != null) await TextChangedAction(ctx);
@@ -1327,9 +1344,9 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
             var docUri = GetDocumentUri(provider);
 
             // Sync the latest document content to the LS before requesting completions.
-            // Without this, the LS still has the old content (before the trigger char)
-            // and returns completions for the wrong context.
-            await client.ChangeDocumentAsync(docUri, State.Document.GetText());
+            // Use provider.SyncDocumentAsync to also update _lastDocVersion, preventing
+            // the background GetDecorations() sync from double-sending didChange.
+            await provider.SyncDocumentAsync(State.Document);
 
             var context = new CompletionContext
             {

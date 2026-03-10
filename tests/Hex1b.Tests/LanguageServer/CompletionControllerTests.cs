@@ -162,6 +162,19 @@ public class CompletionControllerTests
     }
 
     [Fact]
+    public void Filter_ContainsFallback_MatchesSubstring()
+    {
+        var items = MakeItems("groupCollapsed", "groupEnd", "log", "warn");
+        _controller.Show(items, new DocumentPosition(1, 5));
+
+        _controller.Filter("Coll");
+
+        Assert.True(_controller.IsActive);
+        var overlay = _session.Overlays[0];
+        Assert.Single(overlay.Content); // "groupCollapsed" via Contains
+    }
+
+    [Fact]
     public void Dismiss_ClearsOverlay()
     {
         var items = MakeItems("foo", "bar");
