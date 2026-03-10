@@ -25,7 +25,8 @@ public interface IEditorViewRenderer
     /// <param name="decorationProviders">Optional text decoration providers for syntax highlighting and diagnostics.</param>
     /// <param name="inlineHints">Optional inline hints (virtual text) to render at document positions.</param>
     /// <param name="wordWrap">Whether soft line wrapping is enabled.</param>
-    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false);
+    /// <param name="foldingRegions">Optional folding regions for collapsible code sections.</param>
+    void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false, IReadOnlyList<FoldingRegion>? foldingRegions = null);
 
     /// <summary>
     /// Converts screen-local coordinates (relative to viewport origin) to a document offset.

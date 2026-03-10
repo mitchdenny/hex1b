@@ -85,6 +85,12 @@ internal sealed class InProcessLanguageServer : IAsyncDisposable
                             }
                         },
                         completionProvider = new { triggerCharacters = new[] { "." } },
+                        hoverProvider = true,
+                        foldingRangeProvider = true,
+                        documentSymbolProvider = true,
+                        definitionProvider = true,
+                        referencesProvider = true,
+                        documentHighlightProvider = true,
                     }
                 }, ct).ConfigureAwait(false);
                 break;
@@ -129,6 +135,30 @@ internal sealed class InProcessLanguageServer : IAsyncDisposable
                         new { label = "Dispose", kind = 2, detail = "void IDisposable.Dispose()" },
                     }
                 }, ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/hover":
+                await RespondAsync(idEl.GetInt32(), ComputeHover(root), ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/foldingRange":
+                await RespondAsync(idEl.GetInt32(), ComputeFoldingRanges(), ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/documentSymbol":
+                await RespondAsync(idEl.GetInt32(), ComputeDocumentSymbols(), ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/definition":
+                await RespondAsync(idEl.GetInt32(), ComputeDefinition(root), ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/references":
+                await RespondAsync(idEl.GetInt32(), ComputeReferences(root), ct).ConfigureAwait(false);
+                break;
+
+            case "textDocument/documentHighlight":
+                await RespondAsync(idEl.GetInt32(), ComputeDocumentHighlights(root), ct).ConfigureAwait(false);
                 break;
 
             case "shutdown":
@@ -517,5 +547,307 @@ internal sealed class InProcessLanguageServer : IAsyncDisposable
         await _cts.CancelAsync().ConfigureAwait(false);
         if (_runLoop != null) try { await _runLoop.ConfigureAwait(false); } catch { }
         _cts.Dispose();
+    }
+
+    // ── Hover ────────────────────────────────────────────────
+
+    private object? ComputeHover(JsonElement root)
+    {
+        if (!root.TryGetProperty("params", out var p)) return null;
+        var pos = p.GetProperty("position");
+        var line = pos.GetProperty("line").GetInt32();
+        var character = pos.GetProperty("character").GetInt32();
+
+        var lines = _documentText.Split('\n');
+        if (line >= lines.Length) return null;
+
+        var lineText = lines[line];
+        var word = GetWordAt(lineText, character);
+        if (word == null) return null;
+
+        // Provide hover info for known C# keywords and types
+        var info = word switch
+        {
+            "using" => "keyword `using` — imports a namespace or defines a using directive",
+            "namespace" => "keyword `namespace` — declares a scope for types",
+            "class" => "keyword `class` — declares a reference type",
+            "static" => "keyword `static` — member belongs to the type, not instances",
+            "void" => "keyword `void` — specifies no return value",
+            "var" => "keyword `var` — implicitly typed local variable",
+            "int" => "struct System.Int32 — 32-bit signed integer",
+            "string" => "class System.String — UTF-16 character sequence",
+            "bool" => "struct System.Boolean — true or false",
+            "Console" => "class System.Console — standard I/O streams",
+            "WriteLine" => "void Console.WriteLine(string? value) — writes a line to stdout",
+            "Main" => "static void Main(string[] args) — application entry point",
+            "ToString" => "virtual string Object.ToString() — returns string representation",
+            _ => null,
+        };
+
+        return info != null
+            ? new { contents = new { kind = "plaintext", value = info } }
+            : null;
+    }
+
+    private static string? GetWordAt(string line, int character)
+    {
+        if (character >= line.Length) return null;
+        if (!char.IsLetterOrDigit(line[character]) && line[character] != '_') return null;
+
+        var start = character;
+        while (start > 0 && (char.IsLetterOrDigit(line[start - 1]) || line[start - 1] == '_'))
+            start--;
+        var end = character;
+        while (end < line.Length - 1 && (char.IsLetterOrDigit(line[end + 1]) || line[end + 1] == '_'))
+            end++;
+
+        return line[start..(end + 1)];
+    }
+
+    // ── Folding Ranges ───────────────────────────────────────
+
+    private object[] ComputeFoldingRanges()
+    {
+        var ranges = new List<object>();
+        var lines = _documentText.Split('\n');
+        var braceStack = new Stack<int>();
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimStart();
+
+            // Track brace-based folding
+            if (trimmed.Contains('{'))
+                braceStack.Push(i);
+            if (trimmed.Contains('}') && braceStack.Count > 0)
+            {
+                var startLine = braceStack.Pop();
+                if (i > startLine)
+                    ranges.Add(new { startLine, endLine = i, kind = "region" });
+            }
+
+            // Comment blocks
+            if (trimmed.StartsWith("//") && i + 1 < lines.Length && lines[i + 1].TrimStart().StartsWith("//"))
+            {
+                var commentStart = i;
+                while (i + 1 < lines.Length && lines[i + 1].TrimStart().StartsWith("//"))
+                    i++;
+                if (i > commentStart)
+                    ranges.Add(new { startLine = commentStart, endLine = i, kind = "comment" });
+            }
+
+            // Using blocks (imports)
+            if (trimmed.StartsWith("using ") && !trimmed.Contains('{'))
+            {
+                var usingStart = i;
+                while (i + 1 < lines.Length && lines[i + 1].TrimStart().StartsWith("using "))
+                    i++;
+                if (i > usingStart)
+                    ranges.Add(new { startLine = usingStart, endLine = i, kind = "imports" });
+            }
+        }
+
+        return ranges.ToArray();
+    }
+
+    // ── Document Symbols ─────────────────────────────────────
+
+    private object[] ComputeDocumentSymbols()
+    {
+        var symbols = new List<object>();
+        var lines = _documentText.Split('\n');
+
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimStart();
+
+            // Detect namespace
+            if (trimmed.StartsWith("namespace "))
+            {
+                var name = trimmed["namespace ".Length..].TrimEnd(';', ' ', '{');
+                var endLine = FindClosingBrace(lines, i);
+                symbols.Add(new
+                {
+                    name,
+                    kind = 3, // Namespace
+                    range = new { start = new { line = i, character = 0 }, end = new { line = endLine, character = 0 } },
+                    selectionRange = new { start = new { line = i, character = trimmed.IndexOf(name) }, end = new { line = i, character = trimmed.IndexOf(name) + name.Length } },
+                    children = FindClassesAndMethods(lines, i + 1, endLine),
+                });
+            }
+        }
+
+        return symbols.ToArray();
+    }
+
+    private object[] FindClassesAndMethods(string[] lines, int startLine, int endLine)
+    {
+        var result = new List<object>();
+
+        for (var i = startLine; i <= endLine && i < lines.Length; i++)
+        {
+            var trimmed = lines[i].TrimStart();
+
+            if (trimmed.Contains("class "))
+            {
+                var classIdx = trimmed.IndexOf("class ");
+                var nameStart = classIdx + "class ".Length;
+                var nameEnd = trimmed.IndexOfAny([' ', '{', ':'], nameStart);
+                if (nameEnd < 0) nameEnd = trimmed.Length;
+                var name = trimmed[nameStart..nameEnd];
+                var classBraceEnd = FindClosingBrace(lines, i);
+
+                var methods = new List<object>();
+                for (var j = i + 1; j < classBraceEnd && j < lines.Length; j++)
+                {
+                    var mt = lines[j].TrimStart();
+                    if (mt.Contains('(') && !mt.StartsWith("//") && !mt.StartsWith("if") && !mt.StartsWith("for") && !mt.StartsWith("while"))
+                    {
+                        var parenIdx = mt.IndexOf('(');
+                        var spaceBeforeParen = mt.LastIndexOf(' ', parenIdx);
+                        if (spaceBeforeParen >= 0)
+                        {
+                            var methodName = mt[(spaceBeforeParen + 1)..parenIdx];
+                            if (methodName.Length > 0 && char.IsLetter(methodName[0]))
+                            {
+                                var methodEnd = FindClosingBrace(lines, j);
+                                methods.Add(new
+                                {
+                                    name = methodName,
+                                    kind = 6, // Method
+                                    range = new { start = new { line = j, character = 0 }, end = new { line = methodEnd, character = 0 } },
+                                    selectionRange = new { start = new { line = j, character = spaceBeforeParen + 1 }, end = new { line = j, character = parenIdx } },
+                                });
+                            }
+                        }
+                    }
+                }
+
+                result.Add(new
+                {
+                    name,
+                    kind = 5, // Class
+                    range = new { start = new { line = i, character = 0 }, end = new { line = classBraceEnd, character = 0 } },
+                    selectionRange = new { start = new { line = i, character = nameStart }, end = new { line = i, character = nameEnd } },
+                    children = methods.ToArray(),
+                });
+
+                i = classBraceEnd;
+            }
+        }
+
+        return result.ToArray();
+    }
+
+    private static int FindClosingBrace(string[] lines, int startLine)
+    {
+        var depth = 0;
+        for (var i = startLine; i < lines.Length; i++)
+        {
+            foreach (var ch in lines[i])
+            {
+                if (ch == '{') depth++;
+                if (ch == '}') { depth--; if (depth <= 0) return i; }
+            }
+        }
+        return Math.Min(startLine + 1, lines.Length - 1);
+    }
+
+    // ── Definition ───────────────────────────────────────────
+
+    private object? ComputeDefinition(JsonElement root)
+    {
+        if (!root.TryGetProperty("params", out var p)) return null;
+        var pos = p.GetProperty("position");
+        var line = pos.GetProperty("line").GetInt32();
+        var character = pos.GetProperty("character").GetInt32();
+        var uri = p.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+
+        var lines = _documentText.Split('\n');
+        if (line >= lines.Length) return null;
+
+        var word = GetWordAt(lines[line], character);
+        if (word == null) return null;
+
+        // Find definition: search for where the word is declared
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var lt = lines[i];
+            // Method definition pattern
+            if (lt.Contains($" {word}(") && i != line)
+            {
+                var col = lt.IndexOf(word);
+                return new[] { new { uri, range = new { start = new { line = i, character = col }, end = new { line = i, character = col + word.Length } } } };
+            }
+            // Class/variable definition
+            if ((lt.Contains($"class {word}") || lt.Contains($"var {word}") || lt.Contains($"int {word}") || lt.Contains($"string {word}")) && i != line)
+            {
+                var col = lt.IndexOf(word);
+                return new[] { new { uri, range = new { start = new { line = i, character = col }, end = new { line = i, character = col + word.Length } } } };
+            }
+        }
+
+        return Array.Empty<object>();
+    }
+
+    // ── References ───────────────────────────────────────────
+
+    private object[] ComputeReferences(JsonElement root)
+    {
+        if (!root.TryGetProperty("params", out var p)) return [];
+        var pos = p.GetProperty("position");
+        var line = pos.GetProperty("line").GetInt32();
+        var character = pos.GetProperty("character").GetInt32();
+        var uri = p.GetProperty("textDocument").GetProperty("uri").GetString() ?? "";
+
+        var lines = _documentText.Split('\n');
+        if (line >= lines.Length) return [];
+
+        var word = GetWordAt(lines[line], character);
+        if (word == null) return [];
+
+        var refs = new List<object>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var idx = lines[i].IndexOf(word, StringComparison.Ordinal);
+            while (idx >= 0)
+            {
+                refs.Add(new { uri, range = new { start = new { line = i, character = idx }, end = new { line = i, character = idx + word.Length } } });
+                idx = lines[i].IndexOf(word, idx + word.Length, StringComparison.Ordinal);
+            }
+        }
+
+        return refs.ToArray();
+    }
+
+    // ── Document Highlights ──────────────────────────────────
+
+    private object[] ComputeDocumentHighlights(JsonElement root)
+    {
+        if (!root.TryGetProperty("params", out var p)) return [];
+        var pos = p.GetProperty("position");
+        var line = pos.GetProperty("line").GetInt32();
+        var character = pos.GetProperty("character").GetInt32();
+
+        var lines = _documentText.Split('\n');
+        if (line >= lines.Length) return [];
+
+        var word = GetWordAt(lines[line], character);
+        if (word == null) return [];
+
+        var highlights = new List<object>();
+        for (var i = 0; i < lines.Length; i++)
+        {
+            var idx = lines[i].IndexOf(word, StringComparison.Ordinal);
+            while (idx >= 0)
+            {
+                // Mark the cursor position as Write (3), others as Read (2)
+                var kind = (i == line && idx == character) ? 3 : 2;
+                highlights.Add(new { range = new { start = new { line = i, character = idx }, end = new { line = i, character = idx + word.Length } }, kind });
+                idx = lines[i].IndexOf(word, idx + word.Length, StringComparison.Ordinal);
+            }
+        }
+
+        return highlights.ToArray();
     }
 }

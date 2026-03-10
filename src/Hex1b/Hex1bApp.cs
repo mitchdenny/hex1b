@@ -1534,6 +1534,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             node.InvalidateMetricPath();
         }
         node.Metrics = _metrics.NodeMeasureDuration != null ? _metrics : null;
+        node.AppInvalidate = Invalidate;
         
         // Record per-node reconcile duration (after MetricName/parent are set)
         if (recordReconcileMetric)

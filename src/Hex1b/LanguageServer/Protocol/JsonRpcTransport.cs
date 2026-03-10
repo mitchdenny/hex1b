@@ -42,7 +42,11 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         var tcs = new TaskCompletionSource<JsonRpcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
         _pendingRequests[id] = tcs;
 
-        using var reg = ct.Register(() => tcs.TrySetCanceled());
+        using var reg = ct.Register(() =>
+        {
+            tcs.TrySetCanceled();
+            _ = SendNotificationAsync("$/cancelRequest", new { id }, CancellationToken.None);
+        });
 
         var request = new JsonRpcRequest { Id = id, Method = method, Params = @params };
         await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(request, s_jsonOptions), ct).ConfigureAwait(false);

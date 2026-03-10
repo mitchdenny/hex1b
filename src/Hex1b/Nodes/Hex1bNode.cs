@@ -298,6 +298,13 @@ public abstract class Hex1bNode
     internal Action<InputBindingsBuilder>? BindingsConfigurator { get; set; }
 
     /// <summary>
+    /// Callback that wakes the render loop for async/background updates.
+    /// Set by Hex1bApp during reconciliation. Call after MarkDirty() when
+    /// the change originates outside the input→render cycle (e.g., LSP notifications).
+    /// </summary>
+    internal Action? AppInvalidate { get; set; }
+
+    /// <summary>
     /// Configures the default input bindings for this node type.
     /// Override in derived classes to add default key bindings.
     /// These bindings can be inspected and modified by the user's callback.

@@ -36,4 +36,89 @@ public interface IEditorSession
     /// Returns all currently active overlays.
     /// </summary>
     IReadOnlyList<EditorOverlay> ActiveOverlays { get; }
+
+    /// <summary>
+    /// Pushes inline hints (virtual text rendered inline without modifying the document).
+    /// Replaces any previously pushed hints.
+    /// </summary>
+    void PushInlineHints(IReadOnlyList<InlineHint> hints);
+
+    /// <summary>
+    /// Clears all inline hints.
+    /// </summary>
+    void ClearInlineHints();
+
+    /// <summary>
+    /// Returns all currently active inline hints.
+    /// </summary>
+    IReadOnlyList<InlineHint> ActiveInlineHints { get; }
+
+    /// <summary>
+    /// Pushes range highlights (temporary background-colored document ranges).
+    /// Replaces any previously pushed highlights.
+    /// </summary>
+    void PushRangeHighlights(IReadOnlyList<RangeHighlight> highlights);
+
+    /// <summary>
+    /// Clears all range highlights.
+    /// </summary>
+    void ClearRangeHighlights();
+
+    /// <summary>
+    /// Returns all currently active range highlights.
+    /// </summary>
+    IReadOnlyList<RangeHighlight> ActiveRangeHighlights { get; }
+
+    /// <summary>
+    /// Pushes gutter decorations (icons/markers in the editor margin).
+    /// Replaces any previously pushed gutter decorations.
+    /// </summary>
+    void PushGutterDecorations(IReadOnlyList<GutterDecoration> decorations);
+
+    /// <summary>
+    /// Clears all gutter decorations.
+    /// </summary>
+    void ClearGutterDecorations();
+
+    /// <summary>
+    /// Returns all currently active gutter decorations.
+    /// </summary>
+    IReadOnlyList<GutterDecoration> ActiveGutterDecorations { get; }
+
+    /// <summary>
+    /// Sets folding regions (collapsible code regions).
+    /// Replaces any previously set regions.
+    /// </summary>
+    void SetFoldingRegions(IReadOnlyList<FoldingRegion> regions);
+
+    /// <summary>
+    /// Returns all currently defined folding regions.
+    /// </summary>
+    IReadOnlyList<FoldingRegion> FoldingRegions { get; }
+
+    /// <summary>
+    /// Sets breadcrumb data (hierarchical document symbols for navigation).
+    /// </summary>
+    void SetBreadcrumbs(BreadcrumbData? data);
+
+    /// <summary>
+    /// Returns the current breadcrumb data, or null if none set.
+    /// </summary>
+    BreadcrumbData? Breadcrumbs { get; }
+
+    /// <summary>
+    /// Shows an action menu popup at the specified position.
+    /// Returns the selected item's ID, or null if dismissed.
+    /// </summary>
+    Task<string?> ShowActionMenuAsync(ActionMenu menu);
+
+    /// <summary>
+    /// Shows a signature help panel.
+    /// </summary>
+    void ShowSignaturePanel(SignaturePanel panel);
+
+    /// <summary>
+    /// Dismisses the signature help panel.
+    /// </summary>
+    void DismissSignaturePanel();
 }

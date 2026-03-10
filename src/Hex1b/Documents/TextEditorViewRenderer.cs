@@ -16,7 +16,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     public static TextEditorViewRenderer Instance { get; } = new();
 
     /// <inheritdoc />
-    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false)
+    public void Render(Hex1bRenderContext context, EditorState state, Rect viewport, int scrollOffset, int horizontalScrollOffset, bool isFocused, char? pendingNibble = null, IReadOnlyList<ITextDecorationProvider>? decorationProviders = null, IReadOnlyList<InlineHint>? inlineHints = null, bool wordWrap = false, IReadOnlyList<FoldingRegion>? foldingRegions = null)
     {
         if (wordWrap)
         {
@@ -78,7 +78,7 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
 
         for (var viewLine = 0; viewLine < viewportLines; viewLine++)
         {
-            var docLine = scrollOffset + viewLine;
+            var docLine = MapViewLineToDocLine(scrollOffset + viewLine, foldingRegions);
             var screenY = viewport.Y + viewLine;
             var screenX = viewport.X;
 
@@ -109,6 +109,20 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
                 var emptyLine = "~".PadRight(viewportColumns);
                 RenderLine(context, screenX, screenY, emptyLine, fg, bg, cursorFg, cursorBg, selFg, selBg, null, null);
                 continue;
+            }
+
+            // If this line starts a collapsed region, append the placeholder
+            if (foldingRegions != null)
+            {
+                foreach (var region in foldingRegions)
+                {
+                    if (region.IsCollapsed && region.StartLine == docLine)
+                    {
+                        var placeholder = context.Theme.Get(FoldingTheme.CollapsedPlaceholder);
+                        lineText = lineText.TrimEnd() + " " + placeholder;
+                        break;
+                    }
+                }
             }
 
             // Apply horizontal scroll offset
@@ -223,6 +237,92 @@ public sealed class TextEditorViewRenderer : IEditorViewRenderer
     /// Represents a single display row produced by wrapping a document line.
     /// </summary>
     internal readonly record struct WrappedLine(int DocLine, string Text, int StartColumn, bool IsContinuation);
+
+    /// <summary>
+    /// Maps a visual line number (1-based, accounting for collapsed regions) to a document line.
+    /// Collapsed regions are treated as occupying a single visual line (their start line).
+    /// </summary>
+    internal static int MapViewLineToDocLine(int viewLine, IReadOnlyList<FoldingRegion>? foldingRegions)
+    {
+        if (foldingRegions == null || foldingRegions.Count == 0)
+            return viewLine;
+
+        var docLine = 0;
+        var remaining = viewLine;
+
+        while (remaining > 0)
+        {
+            docLine++;
+            remaining--;
+
+            // After consuming this visual line, if docLine starts a collapsed region,
+            // advance past the hidden lines so the NEXT iteration lands after the fold.
+            if (remaining > 0)
+            {
+                for (var i = 0; i < foldingRegions.Count; i++)
+                {
+                    var region = foldingRegions[i];
+                    if (region.IsCollapsed && region.StartLine == docLine)
+                    {
+                        // Skip from start line to end line (hidden lines = EndLine - StartLine)
+                        docLine = region.EndLine;
+                        break;
+                    }
+                }
+            }
+        }
+
+        return docLine;
+    }
+
+    /// <summary>
+    /// Returns the number of visual lines after accounting for collapsed regions.
+    /// </summary>
+    internal static int GetVisualLineCount(int totalDocLines, IReadOnlyList<FoldingRegion>? foldingRegions)
+    {
+        if (foldingRegions == null || foldingRegions.Count == 0)
+            return totalDocLines;
+
+        var hidden = 0;
+        foreach (var region in foldingRegions)
+        {
+            if (region.IsCollapsed && region.EndLine > region.StartLine)
+                hidden += region.EndLine - region.StartLine;
+        }
+
+        return totalDocLines - hidden;
+    }
+
+    /// <summary>
+    /// Maps a 1-based document line to a 1-based visual line, accounting for collapsed regions.
+    /// Lines hidden inside a collapsed region map to the visual line of the region's start line.
+    /// </summary>
+    internal static int MapDocLineToViewLine(int docLine, IReadOnlyList<FoldingRegion>? foldingRegions)
+    {
+        if (foldingRegions == null || foldingRegions.Count == 0)
+            return docLine;
+
+        var hidden = 0;
+        foreach (var region in foldingRegions)
+        {
+            if (!region.IsCollapsed) continue;
+            if (region.StartLine >= docLine) continue;
+
+            if (docLine > region.EndLine)
+            {
+                // Entire collapsed region is before this line
+                hidden += region.EndLine - region.StartLine;
+            }
+            else
+            {
+                // docLine is inside this collapsed region — map to the start line
+                hidden += docLine - region.StartLine - 1;
+                // The -1 accounts for the start line itself which IS visible
+            }
+        }
+
+        return docLine - hidden;
+    }
 
     /// <summary>
     /// Wraps a single line of text into multiple display lines based on viewport width.

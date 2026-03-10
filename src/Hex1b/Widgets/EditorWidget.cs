@@ -109,6 +109,9 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     /// <summary>Rebindable action: Scroll right.</summary>
     public static readonly ActionId ScrollRight = new($"{nameof(EditorWidget)}.{nameof(ScrollRight)}");
 
+    /// <summary>Rebindable action: Toggle fold at cursor line.</summary>
+    public static readonly ActionId ToggleFold = new($"{nameof(EditorWidget)}.{nameof(ToggleFold)}");
+
     /// <summary>
     /// Internal handler for text changed events.
     /// </summary>

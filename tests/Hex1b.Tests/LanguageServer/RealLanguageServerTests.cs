@@ -204,5 +204,22 @@ public class RealLanguageServerTests : IAsyncLifetime
         public void PushOverlay(EditorOverlay overlay) { }
         public void DismissOverlay(string id) { }
         public IReadOnlyList<EditorOverlay> ActiveOverlays => [];
+
+        public void PushInlineHints(IReadOnlyList<InlineHint> hints) { }
+        public void ClearInlineHints() { }
+        public IReadOnlyList<InlineHint> ActiveInlineHints => [];
+        public void PushRangeHighlights(IReadOnlyList<RangeHighlight> highlights) { }
+        public void ClearRangeHighlights() { }
+        public IReadOnlyList<RangeHighlight> ActiveRangeHighlights => [];
+        public void PushGutterDecorations(IReadOnlyList<GutterDecoration> decorations) { }
+        public void ClearGutterDecorations() { }
+        public IReadOnlyList<GutterDecoration> ActiveGutterDecorations => [];
+        public void SetFoldingRegions(IReadOnlyList<FoldingRegion> regions) { }
+        public IReadOnlyList<FoldingRegion> FoldingRegions => [];
+        public void SetBreadcrumbs(BreadcrumbData? data) { }
+        public BreadcrumbData? Breadcrumbs => null;
+        public Task<string?> ShowActionMenuAsync(ActionMenu menu) => Task.FromResult<string?>(null);
+        public void ShowSignaturePanel(SignaturePanel panel) { }
+        public void DismissSignaturePanel() { }
     }
 }

@@ -655,7 +655,7 @@ workspace.MapDecorationProvider("*.patch", "git-diff");
 
 // ── Application state ────────────────────────────────────────────────────────
 var ideState = new IdeState();
-var statusMessage = "Ready — Ctrl+Space for completions, '.' to trigger, Esc to dismiss";
+var statusMessage = "Ready — Ctrl+Space: completions, Ctrl+K: hover, F12: definition, Shift+F12: references, F4: toggle fold";
 
 // Build file tree from workspace — walk directories recursively
 BuildFileTree(tempWorkspace, "", ideState.Files);

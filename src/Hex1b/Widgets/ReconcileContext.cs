@@ -285,6 +285,9 @@ public sealed class ReconcileContext
         // Set metrics reference for per-node recording
         node.Metrics = Metrics;
         
+        // Set app invalidation callback for async updates (e.g., LSP notifications)
+        node.AppInvalidate = InvalidateCallback;
+        
         // Record per-node reconcile duration (after MetricName/parent are set so path is correct)
         if (recordReconcileMetric)
         {
