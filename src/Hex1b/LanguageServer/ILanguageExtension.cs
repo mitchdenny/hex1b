@@ -1,5 +1,6 @@
 using Hex1b.Documents;
 using Hex1b.LanguageServer.Protocol;
+using Hex1b.Widgets;
 
 namespace Hex1b.LanguageServer;
 

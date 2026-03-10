@@ -1,6 +1,7 @@
 using Hex1b;
 using Hex1b.Documents;
 using Hex1b.Theming;
+using Hex1b.Widgets;
 
 namespace LanguageServerDemo;
 

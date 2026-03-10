@@ -1,4 +1,6 @@
-namespace Hex1b.Documents;
+using Hex1b.Documents;
+
+namespace Hex1b.Widgets;
 
 /// <summary>
 /// A popup menu of selectable actions displayed at a document position.

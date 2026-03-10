@@ -1,6 +1,7 @@
+using Hex1b.Documents;
 using Hex1b.Theming;
 
-namespace Hex1b.Documents;
+namespace Hex1b.Widgets;
 
 /// <summary>
 /// Describes a floating UI element anchored to a document position in the editor.

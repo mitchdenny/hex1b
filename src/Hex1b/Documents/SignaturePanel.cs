@@ -1,4 +1,4 @@
-namespace Hex1b.Documents;
+namespace Hex1b.Widgets;
 
 /// <summary>
 /// Displays function signature information with the active parameter highlighted.

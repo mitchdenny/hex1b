@@ -1,8 +1,7 @@
-using Hex1b.Documents;
 using Hex1b.Layout;
 using Hex1b.Theming;
 
-namespace Hex1b;
+namespace Hex1b.Documents;
 
 /// <summary>
 /// A gutter provider that renders <see cref="GutterDecoration"/> icons pushed via
