@@ -127,12 +127,34 @@ public static class DockerContainerExtensions
             startInfo.ArgumentList.Add(arg);
         }
 
-        using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Failed to start docker build process.");
+        using var process = new System.Diagnostics.Process { StartInfo = startInfo, EnableRaisingEvents = true };
 
-        // Read streams before WaitForExit to avoid deadlock when buffers fill
-        var stdout = process.StandardOutput.ReadToEnd();
-        var stderr = process.StandardError.ReadToEnd();
+        // Use event-based async reading to avoid the classic deadlock where
+        // sequential ReadToEnd() calls block when both pipe buffers fill.
+        // Docker BuildKit sends all build progress to stderr; on Windows
+        // the pipe buffer is only 4 KB and overflows quickly.
+        var stdout = new System.Text.StringBuilder();
+        var stderr = new System.Text.StringBuilder();
+
+        process.OutputDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+            {
+                stdout.AppendLine(e.Data);
+            }
+        };
+
+        process.ErrorDataReceived += (_, e) =>
+        {
+            if (e.Data is not null)
+            {
+                stderr.AppendLine(e.Data);
+            }
+        };
+
+        process.Start();
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
         process.WaitForExit();
 
         if (process.ExitCode != 0)
