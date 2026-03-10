@@ -584,7 +584,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     // inherits the new layer number and its images land on the
                     // same layer as the occluder (preventing self-occlusion).
                     PushKgpLayer();
-                    var occluderLayer = _kgpLayer;
+                    // Use the registry's current layer (not the context-local _kgpLayer)
+                    // because nested children rendered via path 2 may have pushed
+                    // additional layers on the shared registry without advancing this
+                    // context's _kgpLayer. The registry layer accurately reflects the
+                    // global layer ordering needed for correct occlusion.
+                    var occluderLayer = _kgpRegistry?.CurrentLayer ?? _kgpLayer;
 
                     var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                     {

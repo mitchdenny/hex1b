@@ -492,8 +492,10 @@ public class KgpOcclusionIntegrationTests
         Assert.NotNull(beforeMenu);
         Assert.True(beforeMenu.KgpPlacements.Count >= 1,
             $"Expected KGP placement before menu open, got {beforeMenu.KgpPlacements.Count}");
+        var placementsBeforeMenu = beforeMenu.KgpPlacements.Count;
 
         // Open the File menu via Alt+F, then capture — image should still be visible
+        // but sliced around the menu popup area
         var afterMenu = await new Hex1bTerminalInputSequenceBuilder()
             .Alt().Key(Hex1bKey.F)
             .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(5))
@@ -508,5 +510,10 @@ public class KgpOcclusionIntegrationTests
         Assert.NotNull(afterMenu);
         Assert.True(afterMenu.KgpPlacements.Count >= 1,
             $"Expected KGP placement with menu open, got {afterMenu.KgpPlacements.Count}");
+
+        // The menu popup should occlude part of the image, causing the occlusion
+        // solver to slice it into more fragments than the original single placement.
+        Assert.True(afterMenu.KgpPlacements.Count > placementsBeforeMenu,
+            $"Expected image to be sliced by menu occluder: before={placementsBeforeMenu}, after={afterMenu.KgpPlacements.Count}");
     }
 }
