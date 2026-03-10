@@ -460,6 +460,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         return c switch
         {
+            '\0' => new Hex1bKeyEvent(Hex1bKey.Spacebar, c, Hex1bModifiers.Control), // Ctrl+Space sends NUL
             '\r' or '\n' => new Hex1bKeyEvent(Hex1bKey.Enter, c, Hex1bModifiers.None),
             '\t' => new Hex1bKeyEvent(Hex1bKey.Tab, c, Hex1bModifiers.None),
             '\x1b' => new Hex1bKeyEvent(Hex1bKey.Escape, c, Hex1bModifiers.None),
