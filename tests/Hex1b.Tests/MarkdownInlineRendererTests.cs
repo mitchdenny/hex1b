@@ -848,4 +848,28 @@ public class MarkdownInlineRendererTests
             Assert.Equal(result0.Lines[i], resultDefault.Lines[i]);
         }
     }
+
+    [Fact]
+    public void WrapLinesWithLinks_HangingIndent_LongFirstWord_CharacterBreaks()
+    {
+        // "• " (2 chars) + "Accessibility" (13 chars) = 15 > maxWidth 14
+        // Should character-break "Accessibility" instead of leaving "• " alone
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("• Accessibility is important")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 14, hangingIndent: 2);
+        var lines = result.Lines;
+
+        // First line should have the marker AND some of the word (not marker alone)
+        var firstLineWidth = DisplayWidth.GetStringWidth(lines[0]);
+        Assert.True(firstLineWidth > 2,
+            $"First line should have marker + partial word, not marker alone. Width={firstLineWidth}");
+
+        // All lines fit within maxWidth
+        foreach (var line in lines)
+        {
+            var w = DisplayWidth.GetStringWidth(line);
+            Assert.True(w <= 14, $"Line exceeds maxWidth: width={w}");
+        }
+    }
 }

@@ -430,22 +430,82 @@ internal static class MarkdownInlineRenderer
             }
             else if (currentX + spaceNeeded + wordWidth > lineWidth)
             {
-                // Word doesn't fit on current line — wrap
-                lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
-                lineIndex++;
-                lineFragments = [];
-                if (hangingIndent > 0)
+                // Word doesn't fit on current line.
+                // If only the marker/indent is on this line, character-break the
+                // word to avoid leaving the marker alone on a line.
+                var onlyMarkerOnLine = hangingIndent > 0 && currentX <= hangingIndent;
+
+                if (onlyMarkerOnLine)
                 {
-                    lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
-                    lineFragments.AddRange(word.Fragments);
-                    currentX = hangingIndent + wordWidth;
-                    TrackLinkFragments(word.Fragments, hangingIndent);
+                    // Add space after marker if needed
+                    if (spaceNeeded > 0)
+                    {
+                        lineFragments.Add(new MarkdownTextRun(" ", null, null, CellAttributes.None));
+                        currentX += 1;
+                    }
+
+                    TrackLinkFragments(word.Fragments, currentX);
+
+                    // Character-break: fill remaining space on current line
+                    var ansiWord = RenderFragmentsToAnsi(word.Fragments, focusedLinkId);
+                    var remaining = ansiWord;
+                    var remainingWidth = wordWidth;
+
+                    var sliceWidth = lineWidth - currentX;
+                    if (sliceWidth > 0)
+                    {
+                        var (chunk, cols, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, sliceWidth);
+                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId);
+                        lines.Add(prefix + chunk);
+                        lineFragments = [];
+                        remaining = remaining[chunk.Length..];
+                        remainingWidth -= cols;
+                        lineIndex++;
+                    }
+
+                    // Continue remainder on subsequent lines with hanging indent
+                    var contWidth = Math.Max(1, maxWidth - hangingIndent);
+                    while (remainingWidth > contWidth)
+                    {
+                        var (chunk2, cols2, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, contWidth);
+                        lines.Add(new string(' ', hangingIndent) + chunk2);
+                        remaining = remaining[chunk2.Length..];
+                        remainingWidth -= cols2;
+                        lineIndex++;
+                    }
+
+                    // Last piece goes into the current line fragments
+                    if (remaining.Length > 0)
+                    {
+                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(remaining, null, null, CellAttributes.None));
+                        currentX = hangingIndent + remainingWidth;
+                    }
+                    else
+                    {
+                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        currentX = hangingIndent;
+                    }
                 }
                 else
                 {
-                    lineFragments = [.. word.Fragments];
-                    currentX = wordWidth;
-                    TrackLinkFragments(word.Fragments, 0);
+                    // Normal wrap — there's real content on this line already
+                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                    lineIndex++;
+                    lineFragments = [];
+                    if (hangingIndent > 0)
+                    {
+                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.AddRange(word.Fragments);
+                        currentX = hangingIndent + wordWidth;
+                        TrackLinkFragments(word.Fragments, hangingIndent);
+                    }
+                    else
+                    {
+                        lineFragments = [.. word.Fragments];
+                        currentX = wordWidth;
+                        TrackLinkFragments(word.Fragments, 0);
+                    }
                 }
             }
             else
