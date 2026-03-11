@@ -154,7 +154,7 @@ public class PickerIntegrationTests
     [Fact]
     public async Task Picker_ClickOnPopupContent_DoesNotDismiss()
     {
-        // Arrange & Act
+        // Arrange
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) =>
             {
@@ -168,24 +168,55 @@ public class PickerIntegrationTests
             .Build();
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-        
+
+        // Open the popup and wait for the list content to render.
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple"), TimeSpan.FromSeconds(5), "picker to render")
-            .Enter()  // Open the picker popup
+            .Enter()
             .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"), TimeSpan.FromSeconds(5), "popup to open")
-            // Click somewhere on the popup content (we'll click on the first visible item area)
-            // The popup list is rendered somewhere in the middle-ish of the screen
-            // Just click on a middle area where the list would be
-            .ClickAt(5, 5, MouseButton.Left)
-            .Wait(100)  // Wait a bit to make sure click was processed
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        using var popupSnapshot = terminal.CreateSnapshot();
+        (int Line, int Column)? popupApple = null;
+        foreach (var match in popupSnapshot.FindText("Apple"))
+        {
+            if (match.Line > 0)
+            {
+                popupApple = match;
+                break;
+            }
+        }
+
+        Assert.True(
+            popupApple.HasValue,
+            $"Expected to find the popup's selected Apple item.\nScreen:\n{popupSnapshot.GetText()}");
+
+        var popupBorderX = popupApple.Value.Column;
+        var popupBorderY = popupApple.Value.Line - 1;
+        Assert.True(
+            popupBorderY >= 0,
+            $"Expected popup border row above selected item.\nScreen:\n{popupSnapshot.GetText()}");
+
+        // Click the popup border itself. If that click wrongly dismisses the popup, the
+        // subsequent Enter will reopen it instead of selecting the focused item.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(popupBorderX, popupBorderY, MouseButton.Left)
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Apple ▼") && !s.ContainsText("Cherry"), TimeSpan.FromSeconds(5), "popup to close after selecting current item")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        using var finalSnapshot = terminal.CreateSnapshot();
+
+        await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // The popup should still be visible after clicking on its content
-        // (unless the click selected an item, which would close it)
-        // This test verifies that the click-away logic correctly identifies content bounds
+        Assert.True(finalSnapshot.ContainsText("Apple ▼"));
+        Assert.False(finalSnapshot.ContainsText("Cherry"));
     }
 
     [Fact]
