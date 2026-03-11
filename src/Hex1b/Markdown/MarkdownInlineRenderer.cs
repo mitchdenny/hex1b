@@ -89,17 +89,19 @@ internal static class MarkdownInlineRenderer
                         link.Text,
                         linkFg,
                         bg,
-                        attrs | CellAttributes.Underline));
+                        attrs | CellAttributes.Underline,
+                        link.Url));
                     break;
 
                 case ImageInline image:
-                    // Phase 2: render as [alt text] with link styling
+                    // Render as [alt text] with link styling; URL for clickability
                     var imgFg = Hex1bColor.FromRgb(100, 160, 255);
                     runs.Add(new MarkdownTextRun(
                         $"[{image.AltText}]",
                         imgFg,
                         bg,
-                        attrs | CellAttributes.Italic));
+                        attrs | CellAttributes.Italic,
+                        image.Url));
                     break;
 
                 case LineBreakInline lineBreak:
@@ -184,7 +186,7 @@ internal static class MarkdownInlineRenderer
                 var segment = text[wordStart..i];
                 var segmentWidth = DisplayWidth.GetStringWidth(segment);
 
-                currentFragments.Add(new MarkdownTextRun(segment, run.Foreground, run.Background, run.Attributes));
+                currentFragments.Add(new MarkdownTextRun(segment, run.Foreground, run.Background, run.Attributes, run.Url));
                 currentWidth += segmentWidth;
             }
         }
@@ -294,6 +296,7 @@ internal static class MarkdownInlineRenderer
     /// <summary>
     /// Render a list of styled fragments into a single ANSI-embedded string.
     /// Adjacent fragments with the same style are merged to reduce escape sequences.
+    /// Fragments with URLs are wrapped in OSC 8 hyperlink sequences.
     /// </summary>
     internal static string RenderFragmentsToAnsi(IReadOnlyList<MarkdownTextRun> fragments)
     {
@@ -304,11 +307,30 @@ internal static class MarkdownInlineRenderer
         Hex1bColor? activeFg = null;
         Hex1bColor? activeBg = null;
         var activeAttrs = CellAttributes.None;
+        string? activeUrl = null;
 
         foreach (var fragment in fragments)
         {
             if (fragment.Text.Length == 0)
                 continue;
+
+            // Handle URL transitions (OSC 8 is independent of SGR)
+            if (fragment.Url != activeUrl)
+            {
+                if (activeUrl != null)
+                {
+                    // End previous hyperlink
+                    sb.Append("\x1b]8;;\x1b\\");
+                }
+
+                if (fragment.Url != null)
+                {
+                    // Start new hyperlink
+                    sb.Append($"\x1b]8;;{fragment.Url}\x1b\\");
+                }
+
+                activeUrl = fragment.Url;
+            }
 
             // Emit style changes
             EmitStyleTransition(sb, activeFg, activeBg, activeAttrs,
@@ -319,6 +341,12 @@ internal static class MarkdownInlineRenderer
             activeFg = fragment.Foreground;
             activeBg = fragment.Background;
             activeAttrs = fragment.Attributes;
+        }
+
+        // End any active hyperlink
+        if (activeUrl != null)
+        {
+            sb.Append("\x1b]8;;\x1b\\");
         }
 
         // Reset all active styles at end

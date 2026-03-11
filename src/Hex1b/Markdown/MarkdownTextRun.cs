@@ -11,7 +11,8 @@ internal readonly record struct MarkdownTextRun(
     string Text,
     Hex1bColor? Foreground,
     Hex1bColor? Background,
-    CellAttributes Attributes);
+    CellAttributes Attributes,
+    string? Url = null);
 
 /// <summary>
 /// A word (or non-breakable unit) composed of one or more styled fragments.

@@ -81,7 +81,7 @@ public class MarkdownInlineRendererTests
     }
 
     [Fact]
-    public void FlattenInlines_Link_SetsUnderlineAndColor()
+    public void FlattenInlines_Link_SetsUnderlineColorAndUrl()
     {
         var inlines = new MarkdownInline[] { new LinkInline("click", "https://example.com") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
@@ -90,10 +90,11 @@ public class MarkdownInlineRendererTests
         Assert.Equal("click", run.Text);
         Assert.True((run.Attributes & CellAttributes.Underline) != 0);
         Assert.NotNull(run.Foreground);
+        Assert.Equal("https://example.com", run.Url);
     }
 
     [Fact]
-    public void FlattenInlines_Image_SetsAltTextWithBrackets()
+    public void FlattenInlines_Image_SetsAltTextWithBracketsAndUrl()
     {
         var inlines = new MarkdownInline[] { new ImageInline("logo", "img.png") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
@@ -101,6 +102,7 @@ public class MarkdownInlineRendererTests
         var run = Assert.Single(runs);
         Assert.Equal("[logo]", run.Text);
         Assert.True((run.Attributes & CellAttributes.Italic) != 0);
+        Assert.Equal("img.png", run.Url);
     }
 
     [Fact]
@@ -636,5 +638,149 @@ public class MarkdownInlineRendererTests
         // Should be a single word (code spans are atomic)
         var word = Assert.Single(words);
         Assert.Equal("int x", word.Fragments[0].Text);
+    }
+
+    // ==========================================================================
+    // OSC 8 Clickable Links
+    // ==========================================================================
+
+    [Fact]
+    public void RenderFragmentsToAnsi_LinkFragment_EmitsOsc8()
+    {
+        var fragments = new MarkdownTextRun[]
+        {
+            new("click", Hex1bColor.FromRgb(100, 160, 255), null, CellAttributes.Underline, "https://example.com")
+        };
+        var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
+
+        // Should contain OSC 8 start and end sequences
+        Assert.Contains("\x1b]8;;https://example.com\x1b\\", result);  // OSC 8 start
+        Assert.Contains("click", result);
+        Assert.Contains("\x1b]8;;\x1b\\", result);  // OSC 8 end
+    }
+
+    [Fact]
+    public void RenderFragmentsToAnsi_PlainThenLink_TransitionsOsc8()
+    {
+        var fragments = new MarkdownTextRun[]
+        {
+            new("Hello ", null, null, CellAttributes.None),
+            new("click", Hex1bColor.FromRgb(100, 160, 255), null, CellAttributes.Underline, "https://example.com"),
+            new(" world", null, null, CellAttributes.None)
+        };
+        var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
+
+        // OSC 8 should wrap only "click"
+        var osc8Start = "\x1b]8;;https://example.com\x1b\\";
+        var osc8End = "\x1b]8;;\x1b\\";
+
+        var startIdx = result.IndexOf(osc8Start);
+        var endIdx = result.IndexOf(osc8End, startIdx);
+
+        Assert.True(startIdx >= 0, "OSC 8 start sequence not found");
+        Assert.True(endIdx > startIdx, "OSC 8 end sequence not found after start");
+
+        // "Hello" should be before OSC 8 start
+        var helloIdx = result.IndexOf("Hello");
+        Assert.True(helloIdx < startIdx, "Hello should be before OSC 8 start");
+
+        // "world" should be after OSC 8 end
+        var worldIdx = result.IndexOf("world");
+        Assert.True(worldIdx > endIdx, "world should be after OSC 8 end");
+    }
+
+    [Fact]
+    public void RenderFragmentsToAnsi_AdjacentLinkFragments_ShareOsc8()
+    {
+        // Two fragments with same URL should share the OSC 8 wrapper
+        var url = "https://example.com";
+        var fragments = new MarkdownTextRun[]
+        {
+            new("click", Hex1bColor.FromRgb(100, 160, 255), null, CellAttributes.Underline, url),
+            new("here", Hex1bColor.FromRgb(100, 160, 255), null, CellAttributes.Underline, url)
+        };
+        var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
+
+        // Count OSC 8 start sequences — should be exactly 1
+        var osc8Start = $"\x1b]8;;{url}\x1b\\";
+        var count = 0;
+        var idx = 0;
+        while ((idx = result.IndexOf(osc8Start, idx)) >= 0)
+        {
+            count++;
+            idx += osc8Start.Length;
+        }
+        Assert.Equal(1, count);
+    }
+
+    [Fact]
+    public void RenderFragmentsToAnsi_DifferentUrls_SeparateOsc8()
+    {
+        var fragments = new MarkdownTextRun[]
+        {
+            new("first", null, null, CellAttributes.Underline, "https://first.com"),
+            new("second", null, null, CellAttributes.Underline, "https://second.com")
+        };
+        var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
+
+        Assert.Contains("\x1b]8;;https://first.com\x1b\\", result);
+        Assert.Contains("\x1b]8;;https://second.com\x1b\\", result);
+    }
+
+    [Fact]
+    public void RenderFragmentsToAnsi_NoUrl_NoOsc8()
+    {
+        var fragments = new MarkdownTextRun[]
+        {
+            new("hello", null, null, CellAttributes.None)
+        };
+        var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
+
+        Assert.DoesNotContain("\x1b]8", result);
+    }
+
+    [Fact]
+    public void RenderLines_Link_ContainsOsc8()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new TextInline("Visit "),
+            new LinkInline("example", "https://example.com"),
+            new TextInline(" now")
+        };
+        var lines = MarkdownInlineRenderer.RenderLines(inlines, 80);
+
+        var line = Assert.Single(lines);
+        Assert.Contains("\x1b]8;;https://example.com\x1b\\", line);
+        Assert.Contains("example", line);
+        Assert.Contains("\x1b]8;;\x1b\\", line);
+    }
+
+    [Fact]
+    public void RenderLines_MultiWordLink_WrappedLines_EachHasOsc8()
+    {
+        // "click here" at width 8 should wrap — each line should have its own OSC 8
+        var inlines = new MarkdownInline[]
+        {
+            new LinkInline("click here", "https://example.com")
+        };
+        var lines = MarkdownInlineRenderer.RenderLines(inlines, 8);
+
+        Assert.Equal(2, lines.Count);
+        // Each line should have its own OSC 8 start and end
+        foreach (var line in lines)
+        {
+            Assert.Contains("\x1b]8;;https://example.com\x1b\\", line);
+            Assert.Contains("\x1b]8;;\x1b\\", line);
+        }
+    }
+
+    [Fact]
+    public void FlattenInlines_PlainText_NoUrl()
+    {
+        var inlines = new MarkdownInline[] { new TextInline("hello") };
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+
+        Assert.Null(Assert.Single(runs).Url);
     }
 }

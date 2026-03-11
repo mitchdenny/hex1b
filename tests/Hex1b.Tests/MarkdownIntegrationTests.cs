@@ -437,4 +437,35 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task Markdown_Link_HasHyperlinkData()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Visit [example](https://example.com) now"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Visit"))
+                    return false;
+                // "Visit " = 6 chars, "example" starts at col 6
+                var cell = s.GetCell(6, 0);
+                return cell.Character == "e"
+                    && cell.TrackedHyperlink != null
+                    && cell.TrackedHyperlink.Data.Uri == "https://example.com";
+            }, TimeSpan.FromSeconds(5), "link has clickable hyperlink data")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }
