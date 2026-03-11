@@ -13,8 +13,10 @@ var sampleMarkdown = """
     - Headings (h1 through h6)
     - Paragraphs with word wrap
     - Fenced code blocks with language tags
-    - Block quotes
+    - Block quotes with word wrap
     - Ordered and unordered lists
+      - Including nested lists
+      - With alternate bullet characters
     - Thematic breaks
     - [Clickable links](https://github.com) with Tab navigation
 
@@ -27,14 +29,16 @@ var sampleMarkdown = """
         .Build();
     ```
 
-    > This is a block quote.
-    > It can span multiple lines.
+    > This is a block quote that demonstrates word wrapping.
+    > When the content is long enough it will wrap to multiple
+    > lines with the bar character on each line.
 
     ## Links
 
     - External: [GitHub](https://github.com)
     - External: [.NET Documentation](https://learn.microsoft.com/dotnet)
     - Intra-document: [Back to top](#markdown-preview-demo)
+    - Intra-document: [Jump to lists](#lists)
 
     Use **Tab** / **Shift+Tab** to cycle through links.
     Press **Enter** to activate the focused link.
@@ -45,9 +49,11 @@ var sampleMarkdown = """
     2. Second item
     3. Third item
 
-    - Bullet one
-    - Bullet two
-    - Bullet three
+    - Top level bullet
+      - Nested bullet (◦)
+        - Deeply nested (▪)
+      - Another nested item
+    - Back to top level
 
     ---
 

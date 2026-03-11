@@ -74,6 +74,14 @@ public static class MarkdownTheme
     public static readonly Hex1bThemeElement<Hex1bColor> LinkForegroundColor =
         new($"{nameof(MarkdownTheme)}.{nameof(LinkForegroundColor)}", () => Hex1bColor.FromRgb(100, 160, 255));
 
+    // --- Focus highlight ---
+
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedLinkForegroundColor =
+        new($"{nameof(MarkdownTheme)}.{nameof(FocusedLinkForegroundColor)}", () => Hex1bColor.FromRgb(0, 0, 0));
+
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedLinkBackgroundColor =
+        new($"{nameof(MarkdownTheme)}.{nameof(FocusedLinkBackgroundColor)}", () => Hex1bColor.FromRgb(100, 160, 255));
+
     // --- Emphasis ---
 
     public static readonly Hex1bThemeElement<Hex1bColor> BoldForegroundColor =

@@ -960,4 +960,73 @@ public class MarkdownInlineRendererTests
             Assert.True(w <= 14, $"Line exceeds maxWidth: width={w}");
         }
     }
+
+    // ==========================================================================
+    // ContinuationPrefix
+    // ==========================================================================
+
+    [Fact]
+    public void WrapLinesWithLinks_ContinuationPrefix_AppearsOnAllWrappedLines()
+    {
+        // Simulate block quote: "│ " prefix on first inline, hanging indent 2, continuation prefix "│ "
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("│ hello world this is a block quote")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(
+            words, 15, hangingIndent: 2, continuationPrefix: "│ ");
+        var lines = result.Lines;
+
+        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+
+        // Every line (including continuation) should start with "│ "
+        foreach (var line in lines)
+        {
+            var stripped = StripAnsi(line);
+            Assert.StartsWith("│ ", stripped);
+        }
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_ContinuationPrefix_LinesRespectMaxWidth()
+    {
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("│ alpha beta gamma delta epsilon")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(
+            words, 12, hangingIndent: 2, continuationPrefix: "│ ");
+        var lines = result.Lines;
+
+        foreach (var line in lines)
+        {
+            var w = DisplayWidth.GetStringWidth(line);
+            Assert.True(w <= 12, $"Line exceeds maxWidth 12: width={w}");
+        }
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_NoContinuationPrefix_UsesSpaces()
+    {
+        // Without continuation prefix, continuation lines should use spaces (existing behavior)
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("• one two three four five")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(
+            words, 15, hangingIndent: 2, continuationPrefix: null);
+        var lines = result.Lines;
+
+        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+
+        // Continuation lines should start with spaces, not "│ "
+        for (int i = 1; i < lines.Count; i++)
+        {
+            var stripped = StripAnsi(lines[i]);
+            Assert.StartsWith("  ", stripped);
+            Assert.False(stripped.StartsWith("│"), $"Line {i} should not start with │");
+        }
+    }
+
+    private static string StripAnsi(string s)
+    {
+        return System.Text.RegularExpressions.Regex.Replace(s, @"\x1b\[[0-9;]*m", "");
+    }
 }

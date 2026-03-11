@@ -426,4 +426,59 @@ public class MarkdownParserTests
         var doc = MarkdownParser.Parse("   \n   \n   ");
         Assert.Empty(doc.Blocks);
     }
+
+    // --- Diagnostic: nested list parsing ---
+
+    [Fact]
+    public void Parse_NestedList_ProducesNestedStructure()
+    {
+        var md = "- Item 1\n  - Nested A\n  - Nested B\n- Item 2";
+        var doc = MarkdownParser.Parse(md);
+
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(2, list.Items.Count);
+
+        // Item 1 should have a paragraph + nested list
+        var item1 = list.Items[0];
+        Assert.True(item1.Children.Count >= 2,
+            $"Expected paragraph + nested list, got {item1.Children.Count} children: " +
+            string.Join(", ", item1.Children.Select(c => c.GetType().Name)));
+
+        var nestedList = item1.Children.OfType<ListBlock>().FirstOrDefault();
+        Assert.NotNull(nestedList);
+        Assert.Equal(2, nestedList.Items.Count);
+    }
+
+    [Fact]
+    public void Parse_NestedList_ThreeLevels()
+    {
+        var md = "- Level 0\n  - Level 1\n    - Level 2";
+        var doc = MarkdownParser.Parse(md);
+
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        var item0 = list.Items[0];
+
+        var level1List = item0.Children.OfType<ListBlock>().FirstOrDefault();
+        Assert.NotNull(level1List);
+
+        var level1Item = level1List.Items[0];
+        var level2List = level1Item.Children.OfType<ListBlock>().FirstOrDefault();
+        Assert.NotNull(level2List);
+        Assert.Single(level2List.Items);
+    }
+
+    [Fact]
+    public void Parse_NestedOrderedInUnordered()
+    {
+        var md = "- Item\n  1. First\n  2. Second";
+        var doc = MarkdownParser.Parse(md);
+
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        var item = list.Items[0];
+
+        var orderedList = item.Children.OfType<ListBlock>().FirstOrDefault();
+        Assert.NotNull(orderedList);
+        Assert.True(orderedList.IsOrdered);
+        Assert.Equal(2, orderedList.Items.Count);
+    }
 }

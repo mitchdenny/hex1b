@@ -23,6 +23,11 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
     private CellAttributes _lastBaseAttributes;
     private int _lastFocusedLinkId = -1;
     private int _lastHangingIndent;
+    private string? _lastContinuationPrefix;
+    private MarkdownColors _lastColors = MarkdownColors.Default;
+
+    // Resolved theme colors (set during Render from context.Theme)
+    private MarkdownColors _resolvedColors = MarkdownColors.Default;
 
     // Link region child nodes (created when FocusableLinks is true)
     private List<MarkdownLinkRegionNode> _linkRegionNodes = [];
@@ -61,6 +66,19 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
     /// Number of columns to indent continuation lines (for list items).
     /// </summary>
     public int HangingIndent { get; set; }
+
+    /// <summary>
+    /// Optional prefix string to prepend on continuation lines instead of spaces.
+    /// When set, continuation lines use this prefix (e.g., "│ " for block quotes)
+    /// instead of <c>new string(' ', HangingIndent)</c>.
+    /// </summary>
+    public string? ContinuationPrefix { get; set; }
+
+    /// <summary>
+    /// Optional anchor identifier for this node (set on heading nodes for
+    /// intra-document link navigation).
+    /// </summary>
+    public string? AnchorId { get; set; }
 
     public override bool IsFocusable => false;
 
@@ -113,6 +131,13 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
+        _resolvedColors = new MarkdownColors(
+            LinkForeground: context.Theme.Get(MarkdownTheme.LinkForegroundColor),
+            InlineCodeForeground: context.Theme.Get(MarkdownTheme.InlineCodeForegroundColor),
+            InlineCodeBackground: context.Theme.Get(MarkdownTheme.InlineCodeBackgroundColor),
+            FocusedLinkForeground: context.Theme.Get(MarkdownTheme.FocusedLinkForegroundColor),
+            FocusedLinkBackground: context.Theme.Get(MarkdownTheme.FocusedLinkBackgroundColor));
+
         var wrapResult = GetWrapResult(Bounds.Width);
         var lines = wrapResult.Lines;
 
@@ -168,13 +193,16 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
             && ColorsEqual(_lastBaseForeground, BaseForeground)
             && _lastBaseAttributes == BaseAttributes
             && _lastFocusedLinkId == focusedLinkId
-            && _lastHangingIndent == HangingIndent)
+            && _lastHangingIndent == HangingIndent
+            && _lastContinuationPrefix == ContinuationPrefix
+            && _lastColors == _resolvedColors)
         {
             return _cachedWrapResult.Value;
         }
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(
-            Inlines, maxWidth, BaseForeground, BaseAttributes, focusedLinkId, HangingIndent);
+            Inlines, maxWidth, BaseForeground, BaseAttributes, focusedLinkId, HangingIndent,
+            ContinuationPrefix, _resolvedColors);
 
         _cachedWrapResult = result;
         _wrappedLines = result.Lines.ToList();
@@ -184,6 +212,8 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
         _lastBaseAttributes = BaseAttributes;
         _lastFocusedLinkId = focusedLinkId;
         _lastHangingIndent = HangingIndent;
+        _lastContinuationPrefix = ContinuationPrefix;
+        _lastColors = _resolvedColors;
 
         return result;
     }
@@ -297,7 +327,7 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
                 break;
 
             case MarkdownLinkKind.IntraDocument:
-                // TODO: scroll to heading (requires heading anchor tracking)
+                ScrollToHeading(linkInfo.Url);
                 break;
 
             case MarkdownLinkKind.Custom:
@@ -314,5 +344,54 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
             && a.Value.R == b.Value.R
             && a.Value.G == b.Value.G
             && a.Value.B == b.Value.B;
+    }
+
+    /// <summary>
+    /// Finds the heading node for the given #slug URL and scrolls the nearest
+    /// ancestor <see cref="ScrollPanelNode"/> to bring the heading into view.
+    /// </summary>
+    private void ScrollToHeading(string url)
+    {
+        var slug = url.TrimStart('#');
+        if (string.IsNullOrEmpty(slug))
+            return;
+
+        // Walk up to find the MarkdownNode ancestor
+        MarkdownNode? markdownNode = null;
+        for (var ancestor = Parent; ancestor != null; ancestor = ancestor.Parent)
+        {
+            if (ancestor is MarkdownNode md)
+            {
+                markdownNode = md;
+                break;
+            }
+        }
+
+        if (markdownNode == null)
+            return;
+
+        if (!markdownNode.HeadingAnchors.TryGetValue(slug, out var headingNode))
+            return;
+
+        // Walk up from the heading node to find the nearest ScrollPanelNode
+        for (var ancestor = headingNode.Parent; ancestor != null; ancestor = ancestor.Parent)
+        {
+            if (ancestor is ScrollPanelNode scrollPanel)
+            {
+                // Unfocus any currently focused descendant so EnsureFocusedVisible
+                // in the next ArrangeCore won't scroll back to the old position.
+                foreach (var focusable in scrollPanel.GetFocusableNodes())
+                {
+                    if (focusable != scrollPanel && focusable.IsFocused)
+                    {
+                        focusable.IsFocused = false;
+                        break;
+                    }
+                }
+
+                scrollPanel.SetOffset(headingNode.Bounds.Y - scrollPanel.Bounds.Y);
+                return;
+            }
+        }
     }
 }

@@ -47,7 +47,8 @@ internal static class MarkdownWidgetRenderer
         ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
         bool focusableChildren = false,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler = null,
-        MarkdownWidget? sourceWidget = null)
+        MarkdownWidget? sourceWidget = null,
+        int listDepth = 0)
     {
         var blockType = block.GetType();
 
@@ -62,7 +63,7 @@ internal static class MarkdownWidgetRenderer
         // Build the chain: last registered = first called
         // The innermost handler is the built-in default
         Func<MarkdownBlock, Hex1bWidget> currentDefault = b =>
-            RenderBlockDefault(b, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget);
+            RenderBlockDefault(b, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, listDepth);
 
         // Wrap from first-registered to last-registered so last is outermost
         foreach (var handler in matchingHandlers)
@@ -88,7 +89,8 @@ internal static class MarkdownWidgetRenderer
         ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
         bool focusableChildren,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
-        MarkdownWidget? sourceWidget)
+        MarkdownWidget? sourceWidget,
+        int listDepth = 0)
     {
         return block switch
         {
@@ -99,7 +101,7 @@ internal static class MarkdownWidgetRenderer
             BlockQuoteBlock blockQuote => RenderBlockQuote(
                 blockQuote, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget),
             ListBlock list => RenderList(
-                list, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget),
+                list, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, listDepth),
             ThematicBreakBlock => RenderThematicBreak(),
             _ => new TextBlockWidget(block.ToString() ?? "")
         };
@@ -145,8 +147,29 @@ internal static class MarkdownWidgetRenderer
             BaseForeground = headingFg,
             FocusableLinks = focusableChildren,
             LinkActivatedHandler = linkActivatedHandler,
-            SourceWidget = sourceWidget
+            SourceWidget = sourceWidget,
+            AnchorId = GenerateSlug(heading.Text)
         };
+    }
+
+    /// <summary>
+    /// Generates a GitHub-style heading slug from the given text.
+    /// Lowercases, replaces spaces with hyphens, and strips non-alphanumeric
+    /// characters (except hyphens).
+    /// </summary>
+    internal static string GenerateSlug(string text)
+    {
+        var sb = new StringBuilder(text.Length);
+        foreach (var ch in text)
+        {
+            if (char.IsLetterOrDigit(ch))
+                sb.Append(char.ToLowerInvariant(ch));
+            else if (ch == ' ' || ch == '-')
+                sb.Append('-');
+            // else: strip
+        }
+
+        return sb.ToString();
     }
 
     private static Hex1bWidget RenderParagraph(
@@ -183,29 +206,56 @@ internal static class MarkdownWidgetRenderer
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
         MarkdownWidget? sourceWidget)
     {
-        var children = new List<Hex1bWidget>();
+        const string prefix = "│ ";
+        const int prefixWidth = 2;
+
+        var blockWidgets = new List<Hex1bWidget>();
         foreach (var child in blockQuote.Children)
         {
-            children.Add(RenderBlock(child, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget));
+            if (child is ParagraphBlock paragraph)
+            {
+                // Prepend "│ " to the paragraph inlines and use hanging indent
+                // with continuation prefix so every line starts with "│ ".
+                var prefixedInlines = new List<MarkdownInline>();
+                prefixedInlines.Add(new TextInline(prefix));
+                prefixedInlines.AddRange(paragraph.Inlines);
+
+                blockWidgets.Add(new MarkdownTextBlockWidget(prefixedInlines)
+                {
+                    HangingIndent = prefixWidth,
+                    ContinuationPrefix = prefix,
+                    FocusableLinks = focusableChildren,
+                    LinkActivatedHandler = linkActivatedHandler,
+                    SourceWidget = sourceWidget
+                });
+            }
+            else
+            {
+                // Non-paragraph block (code block, nested list, nested block quote, etc.)
+                // — render normally and indent with "│ " prefix via padding.
+                var childWidget = RenderBlock(child, blockHandlers, focusableChildren,
+                    linkActivatedHandler, sourceWidget);
+                blockWidgets.Add(new HStackWidget([
+                    new TextBlockWidget(prefix),
+                    childWidget
+                ]));
+            }
         }
 
-        var innerContent = children.Count == 1
-            ? children[0]
-            : new VStackWidget(children);
-
-        // Render as: "│ " + content
-        return new HStackWidget([
-            new TextBlockWidget("│ "),
-            innerContent
-        ]);
+        return blockWidgets.Count == 1
+            ? blockWidgets[0]
+            : new VStackWidget(blockWidgets);
     }
+
+    private static readonly string[] UnorderedBullets = ["• ", "◦ ", "▪ "];
 
     private static Hex1bWidget RenderList(
         ListBlock list,
         ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
         bool focusableChildren,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
-        MarkdownWidget? sourceWidget)
+        MarkdownWidget? sourceWidget,
+        int listDepth = 0)
     {
         var items = new List<Hex1bWidget>();
         for (int i = 0; i < list.Items.Count; i++)
@@ -213,7 +263,7 @@ internal static class MarkdownWidgetRenderer
             var item = list.Items[i];
             var marker = list.IsOrdered
                 ? $"{list.StartNumber + i}. "
-                : "• ";
+                : UnorderedBullets[listDepth % UnorderedBullets.Length];
             var markerWidth = DisplayWidth.GetStringWidth(marker);
 
             // For list items whose first child is a paragraph, prepend the marker
@@ -244,7 +294,7 @@ internal static class MarkdownWidgetRenderer
                     for (int j = 1; j < item.Children.Count; j++)
                     {
                         var childWidget = RenderBlock(item.Children[j], blockHandlers,
-                            focusableChildren, linkActivatedHandler, sourceWidget);
+                            focusableChildren, linkActivatedHandler, sourceWidget, listDepth + 1);
                         // Indent continuation blocks to align with the text
                         blockWidgets.Add(new PaddingWidget(markerWidth, 0, 0, 0, childWidget));
                     }
@@ -258,7 +308,7 @@ internal static class MarkdownWidgetRenderer
                 foreach (var child in item.Children)
                 {
                     itemChildren.Add(RenderBlock(child, blockHandlers, focusableChildren,
-                        linkActivatedHandler, sourceWidget));
+                        linkActivatedHandler, sourceWidget, listDepth + 1));
                 }
                 var content = itemChildren.Count == 1
                     ? itemChildren[0]

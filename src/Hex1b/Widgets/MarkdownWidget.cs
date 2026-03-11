@@ -94,6 +94,9 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
         node.ContentChild = await context.ReconcileChildAsync(
             node.ContentChild, contentWidget, node);
 
+        // Rebuild heading anchor map for intra-document link navigation
+        node.RebuildHeadingAnchors();
+
         return node;
     }
 

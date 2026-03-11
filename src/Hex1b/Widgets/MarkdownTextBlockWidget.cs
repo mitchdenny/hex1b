@@ -44,6 +44,19 @@ internal sealed record MarkdownTextBlockWidget(
     /// </summary>
     internal int HangingIndent { get; init; }
 
+    /// <summary>
+    /// Optional prefix string to prepend on continuation lines instead of spaces.
+    /// When set, continuation lines use this prefix (e.g., "│ " for block quotes)
+    /// instead of <c>new string(' ', HangingIndent)</c>.
+    /// </summary>
+    internal string? ContinuationPrefix { get; init; }
+
+    /// <summary>
+    /// Optional anchor identifier for heading nodes, used for intra-document
+    /// link navigation (e.g., "getting-started" for a "Getting Started" heading).
+    /// </summary>
+    internal string? AnchorId { get; init; }
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as MarkdownTextBlockNode ?? new MarkdownTextBlockNode();
@@ -53,7 +66,8 @@ internal sealed record MarkdownTextBlockWidget(
             || !ColorsEqual(node.BaseForeground, BaseForeground)
             || node.BaseAttributes != BaseAttributes
             || node.FocusableLinks != FocusableLinks
-            || node.HangingIndent != HangingIndent)
+            || node.HangingIndent != HangingIndent
+            || node.ContinuationPrefix != ContinuationPrefix)
         {
             node.MarkDirty();
         }
@@ -65,6 +79,8 @@ internal sealed record MarkdownTextBlockWidget(
         node.LinkActivatedHandler = LinkActivatedHandler;
         node.SourceWidget = SourceWidget;
         node.HangingIndent = HangingIndent;
+        node.ContinuationPrefix = ContinuationPrefix;
+        node.AnchorId = AnchorId;
 
         // Create/update link region nodes during reconciliation
         // so they exist for the FocusRing before MeasureCore runs

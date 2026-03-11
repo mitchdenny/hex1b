@@ -47,6 +47,12 @@ public sealed class MarkdownNode : Hex1bNode
     /// </summary>
     public Hex1bNode? ContentChild { get; set; }
 
+    /// <summary>
+    /// Mapping of heading slug to the corresponding heading node, used for
+    /// intra-document link navigation.
+    /// </summary>
+    internal Dictionary<string, Hex1bNode> HeadingAnchors { get; } = new(StringComparer.Ordinal);
+
     public override bool IsFocusable => false;
 
     /// <summary>
@@ -98,6 +104,34 @@ public sealed class MarkdownNode : Hex1bNode
         {
             foreach (var focusable in ContentChild.GetFocusableNodes())
                 yield return focusable;
+        }
+    }
+
+    /// <summary>
+    /// Walks the child node tree and rebuilds the <see cref="HeadingAnchors"/> map
+    /// from all <see cref="MarkdownTextBlockNode"/> nodes that have an
+    /// <see cref="MarkdownTextBlockNode.AnchorId"/>.
+    /// </summary>
+    internal void RebuildHeadingAnchors()
+    {
+        HeadingAnchors.Clear();
+        if (ContentChild != null)
+        {
+            CollectAnchors(ContentChild);
+        }
+    }
+
+    private void CollectAnchors(Hex1bNode node)
+    {
+        if (node is MarkdownTextBlockNode textBlock && textBlock.AnchorId != null)
+        {
+            // First occurrence wins (matches GitHub behaviour for duplicate headings)
+            HeadingAnchors.TryAdd(textBlock.AnchorId, textBlock);
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            CollectAnchors(child);
         }
     }
 }

@@ -101,6 +101,39 @@ public class MarkdownIntegrationTests
     }
 
     [Fact]
+    public async Task Markdown_BlockQuoteWraps_WithBarOnEveryLine()
+    {
+        // Use a narrow terminal so the block quote text must wrap
+        var longQuote = "> This is a longer block quote that should wrap across multiple lines in a narrow terminal";
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(25, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown(longQuote),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                // Verify that "│ " appears on multiple lines (wrapping works)
+                var text = s.GetText();
+                var lines = text.Split('\n');
+                var barLines = lines.Count(l => l.TrimEnd().Contains("│"));
+                return barLines >= 2;
+            }, TimeSpan.FromSeconds(5),
+                "blockquote wraps with bar on multiple lines")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
     public async Task Markdown_RendersList()
     {
         var source = "- Alpha\n- Beta\n- Gamma";
@@ -749,5 +782,130 @@ public class MarkdownIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         await runTask;
+    }
+
+    [Theory]
+    [InlineData("Getting Started", "getting-started")]
+    [InlineData("Hello World", "hello-world")]
+    [InlineData("  Spaces  Around  ", "--spaces--around--")]
+    [InlineData("ALL CAPS HEADING", "all-caps-heading")]
+    [InlineData("Special!@#Characters$%", "specialcharacters")]
+    [InlineData("hyphen-ated", "hyphen-ated")]
+    [InlineData("Mix 123 Numbers", "mix-123-numbers")]
+    [InlineData("", "")]
+    public void GenerateSlug_ProducesGitHubStyleSlug(string input, string expected)
+    {
+        var slug = MarkdownWidgetRenderer.GenerateSlug(input);
+        Assert.Equal(expected, slug);
+    }
+
+    [Fact]
+    public async Task Markdown_NestedList_RendersWithAlternateBullets()
+    {
+        var md = "- Item 1\n  - Nested A\n  - Nested B\n- Item 2";
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown(md),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        Hex1bTerminalSnapshot? snapshot = null;
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "nested list rendered")
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        snapshot = terminal.CreateSnapshot();
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Top-level items use "•", nested items use "◦"
+        Assert.NotNull(snapshot);
+        Assert.True(snapshot.ContainsText("•"), "Top-level bullet (•) should be present");
+        Assert.True(snapshot.ContainsText("◦"), "Nested bullet (◦) should be present");
+        Assert.True(snapshot.ContainsText("Nested A"), "Nested item A should be present");
+        Assert.True(snapshot.ContainsText("Item 2"), "Second top-level item should be present");
+    }
+
+    [Fact]
+    public async Task Markdown_IntraDocumentLink_ScrollsToHeading()
+    {
+        // Build a tall document: link at top, target heading far below
+        var lines = new List<string>
+        {
+            "# Top",
+            "",
+            "[Go to target](#target-heading)",
+            ""
+        };
+
+        // Add enough filler to push the target heading well off screen
+        for (int i = 0; i < 30; i++)
+        {
+            lines.Add($"Filler paragraph {i}.");
+            lines.Add("");
+        }
+
+        lines.Add("## Target Heading");
+        lines.Add("");
+        lines.Add("You made it here.");
+
+        var source = string.Join("\n", lines);
+
+        string? activatedUrl = null;
+        Events.MarkdownLinkKind? activatedKind = null;
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VScrollPanel(
+                ctx.Markdown(source).Focusable(children: true)
+                    .OnLinkActivated(args =>
+                    {
+                        activatedUrl = args.Url;
+                        activatedKind = args.Kind;
+                        // Do NOT set Handled — let default ScrollToHeading run
+                    })),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            // Wait for the markdown to render
+            .WaitUntil(s => s.ContainsText("Go to target"), TimeSpan.FromSeconds(5),
+                "markdown rendered")
+            // Tab to move focus to the link
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            // Activate the intra-document link
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(500))
+            // Check if activation happened by verifying URL was captured
+            .WaitUntil(s => activatedUrl != null, TimeSpan.FromSeconds(5),
+                "link activated callback fired")
+            // Now wait for the target heading to scroll into view
+            .WaitUntil(s => s.ContainsText("Target Heading"), TimeSpan.FromSeconds(5),
+                "target heading visible after intra-document link activation")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal("#target-heading", activatedUrl);
+        Assert.Equal(Events.MarkdownLinkKind.IntraDocument, activatedKind);
     }
 }

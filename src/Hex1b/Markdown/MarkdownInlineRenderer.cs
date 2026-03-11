@@ -41,14 +41,17 @@ internal static class MarkdownInlineRenderer
         Hex1bColor? baseForeground = null,
         CellAttributes baseAttributes = CellAttributes.None,
         int focusedLinkId = -1,
-        int hangingIndent = 0)
+        int hangingIndent = 0,
+        string? continuationPrefix = null,
+        MarkdownColors? colors = null)
     {
         if (maxWidth <= 0)
             return new WrapResult([""], []);
 
-        var runs = FlattenInlines(inlines, baseForeground, baseAttributes);
+        var c = colors ?? MarkdownColors.Default;
+        var runs = FlattenInlines(inlines, baseForeground, baseAttributes, c);
         var words = SplitIntoWords(runs);
-        return WrapLinesWithLinks(words, maxWidth, focusedLinkId, hangingIndent);
+        return WrapLinesWithLinks(words, maxWidth, focusedLinkId, hangingIndent, continuationPrefix, c);
     }
 
     /// <summary>
@@ -58,11 +61,13 @@ internal static class MarkdownInlineRenderer
     internal static List<MarkdownTextRun> FlattenInlines(
         IReadOnlyList<MarkdownInline> inlines,
         Hex1bColor? baseForeground = null,
-        CellAttributes baseAttributes = CellAttributes.None)
+        CellAttributes baseAttributes = CellAttributes.None,
+        MarkdownColors? colors = null)
     {
         var runs = new List<MarkdownTextRun>();
         var linkIdCounter = 0;
-        FlattenCore(inlines, baseForeground, null, baseAttributes, runs, ref linkIdCounter);
+        var c = colors ?? MarkdownColors.Default;
+        FlattenCore(inlines, baseForeground, null, baseAttributes, runs, ref linkIdCounter, c);
         return runs;
     }
 
@@ -107,7 +112,8 @@ internal static class MarkdownInlineRenderer
         Hex1bColor? bg,
         CellAttributes attrs,
         List<MarkdownTextRun> runs,
-        ref int linkIdCounter)
+        ref int linkIdCounter,
+        MarkdownColors colors)
     {
         foreach (var inline in inlines)
         {
@@ -122,25 +128,22 @@ internal static class MarkdownInlineRenderer
                     var emphasisAttrs = emphasis.IsStrong
                         ? attrs | CellAttributes.Bold
                         : attrs | CellAttributes.Italic;
-                    FlattenCore(emphasis.Children, fg, bg, emphasisAttrs, runs, ref linkIdCounter);
+                    FlattenCore(emphasis.Children, fg, bg, emphasisAttrs, runs, ref linkIdCounter, colors);
                     break;
 
                 case CodeInline code:
-                    // Code spans get their own fg/bg but no word-splitting
                     runs.Add(new MarkdownTextRun(
                         code.Code,
-                        Hex1bColor.FromRgb(220, 170, 120),  // InlineCodeForeground default
-                        Hex1bColor.FromRgb(50, 50, 50),     // InlineCodeBackground default
+                        colors.InlineCodeForeground,
+                        colors.InlineCodeBackground,
                         attrs & ~(CellAttributes.Bold | CellAttributes.Italic)));
                     break;
 
                 case LinkInline link:
-                    // Links get colored + underlined text
-                    var linkFg = Hex1bColor.FromRgb(100, 160, 255);  // LinkForeground default
                     var linkId = linkIdCounter++;
                     runs.Add(new MarkdownTextRun(
                         link.Text,
-                        linkFg,
+                        colors.LinkForeground,
                         bg,
                         attrs | CellAttributes.Underline,
                         link.Url,
@@ -148,12 +151,10 @@ internal static class MarkdownInlineRenderer
                     break;
 
                 case ImageInline image:
-                    // Render as [alt text] with link styling; URL for clickability
-                    var imgFg = Hex1bColor.FromRgb(100, 160, 255);
                     var imgLinkId = linkIdCounter++;
                     runs.Add(new MarkdownTextRun(
                         $"[{image.AltText}]",
-                        imgFg,
+                        colors.LinkForeground,
                         bg,
                         attrs | CellAttributes.Italic,
                         image.Url,
@@ -161,7 +162,6 @@ internal static class MarkdownInlineRenderer
                     break;
 
                 case LineBreakInline lineBreak:
-                    // Hard break = newline; soft break = space
                     runs.Add(new MarkdownTextRun(
                         lineBreak.IsHard ? "\n" : " ",
                         fg, bg, attrs));
@@ -283,8 +283,10 @@ internal static class MarkdownInlineRenderer
     /// </summary>
     internal static WrapResult WrapLinesWithLinks(
         List<StyledWord> words, int maxWidth, int focusedLinkId = -1,
-        int hangingIndent = 0)
+        int hangingIndent = 0, string? continuationPrefix = null,
+        MarkdownColors? colors = null)
     {
+        var c = colors ?? MarkdownColors.Default;
         var lines = new List<string>();
         var lineFragments = new List<MarkdownTextRun>();
         var currentX = 0;
@@ -299,6 +301,9 @@ internal static class MarkdownInlineRenderer
 
         // First line uses full maxWidth; continuation lines are reduced by hangingIndent
         int LineWidth() => lineIndex == 0 ? maxWidth : Math.Max(1, maxWidth - hangingIndent);
+
+        // Indent text for continuation lines: use continuationPrefix if set, else spaces
+        string IndentText() => continuationPrefix ?? new string(' ', hangingIndent);
 
         void TrackLinkFragments(IReadOnlyList<MarkdownTextRun> fragments, int wordStartX)
         {
@@ -328,13 +333,13 @@ internal static class MarkdownInlineRenderer
             // Handle explicit line breaks
             if (word.Fragments.Count == 1 && word.Fragments[0].Text == "\n")
             {
-                lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId, c));
                 lineFragments = [];
                 lineIndex++;
                 // Continuation lines after a line break get hanging indent
                 if (hangingIndent > 0 && lineIndex > 0)
                 {
-                    lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                    lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                     currentX = hangingIndent;
                 }
                 else
@@ -353,12 +358,12 @@ internal static class MarkdownInlineRenderer
                 // Word is wider than the entire line — must character-break
                 if (currentX > (lineIndex == 0 ? 0 : hangingIndent))
                 {
-                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId, c));
                     lineFragments = [];
                     lineIndex++;
                     if (hangingIndent > 0)
                     {
-                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                         currentX = hangingIndent;
                     }
                     else
@@ -381,12 +386,12 @@ internal static class MarkdownInlineRenderer
                     var sliceWidth = lineWidth - (currentX > 0 ? currentX : 0);
                     if (sliceWidth <= 0)
                     {
-                        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId, c));
                         lineFragments = [];
                         lineIndex++;
                         if (hangingIndent > 0)
                         {
-                            lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                            lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                             currentX = hangingIndent;
                         }
                         else
@@ -399,7 +404,7 @@ internal static class MarkdownInlineRenderer
                     var (chunk, cols, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, sliceWidth);
                     if (lineFragments.Count > 0)
                     {
-                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId);
+                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId, c);
                         lines.Add(prefix + chunk);
                     }
                     else
@@ -412,7 +417,7 @@ internal static class MarkdownInlineRenderer
                     lineIndex++;
                     if (hangingIndent > 0)
                     {
-                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                         currentX = hangingIndent;
                     }
                     else
@@ -455,7 +460,7 @@ internal static class MarkdownInlineRenderer
                     if (sliceWidth > 0)
                     {
                         var (chunk, cols, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, sliceWidth);
-                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId);
+                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId, c);
                         lines.Add(prefix + chunk);
                         lineFragments = [];
                         remaining = remaining[chunk.Length..];
@@ -468,7 +473,7 @@ internal static class MarkdownInlineRenderer
                     while (remainingWidth > contWidth)
                     {
                         var (chunk2, cols2, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, contWidth);
-                        lines.Add(new string(' ', hangingIndent) + chunk2);
+                        lines.Add(IndentText() + chunk2);
                         remaining = remaining[chunk2.Length..];
                         remainingWidth -= cols2;
                         lineIndex++;
@@ -477,25 +482,25 @@ internal static class MarkdownInlineRenderer
                     // Last piece goes into the current line fragments
                     if (remaining.Length > 0)
                     {
-                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                         lineFragments.Add(new MarkdownTextRun(remaining, null, null, CellAttributes.None));
                         currentX = hangingIndent + remainingWidth;
                     }
                     else
                     {
-                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                         currentX = hangingIndent;
                     }
                 }
                 else
                 {
                     // Normal wrap — there's real content on this line already
-                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId, c));
                     lineIndex++;
                     lineFragments = [];
                     if (hangingIndent > 0)
                     {
-                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        lineFragments.Add(new MarkdownTextRun(IndentText(), null, null, CellAttributes.None));
                         lineFragments.AddRange(word.Fragments);
                         currentX = hangingIndent + wordWidth;
                         TrackLinkFragments(word.Fragments, hangingIndent);
@@ -543,7 +548,7 @@ internal static class MarkdownInlineRenderer
         }
 
         // Emit final line
-        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId, c));
 
         if (lines.Count == 0)
             lines.Add("");
@@ -596,11 +601,13 @@ internal static class MarkdownInlineRenderer
     /// are rendered with reverse video for focus highlighting.
     /// </summary>
     internal static string RenderFragmentsToAnsi(
-        IReadOnlyList<MarkdownTextRun> fragments, int focusedLinkId = -1)
+        IReadOnlyList<MarkdownTextRun> fragments, int focusedLinkId = -1,
+        MarkdownColors? colors = null)
     {
         if (fragments.Count == 0)
             return "";
 
+        var c = colors ?? MarkdownColors.Default;
         var sb = new StringBuilder();
         Hex1bColor? activeFg = null;
         Hex1bColor? activeBg = null;
@@ -618,9 +625,8 @@ internal static class MarkdownInlineRenderer
             var effectiveAttrs = fragment.Attributes;
             if (focusedLinkId >= 0 && fragment.LinkId == focusedLinkId)
             {
-                // Reverse video: swap fg/bg, add bold for visibility
-                effectiveFg = fragment.Background ?? Hex1bColor.FromRgb(0, 0, 0);
-                effectiveBg = fragment.Foreground ?? Hex1bColor.FromRgb(100, 160, 255);
+                effectiveFg = fragment.Background ?? c.FocusedLinkForeground;
+                effectiveBg = fragment.Foreground ?? c.FocusedLinkBackground;
                 effectiveAttrs = effectiveAttrs | CellAttributes.Bold;
             }
 

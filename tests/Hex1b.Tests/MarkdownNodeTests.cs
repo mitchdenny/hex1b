@@ -54,13 +54,13 @@ public class MarkdownNodeTests
     }
 
     [Fact]
-    public void BuildWidgetTree_BlockQuote_ProducesHStack()
+    public void BuildWidgetTree_BlockQuote_ProducesMarkdownTextBlock()
     {
         var node = new MarkdownNode { Source = "> Quote text" };
         var widget = node.BuildWidgetTree();
 
         var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.IsType<HStackWidget>(Assert.Single(vstack.Children));
+        Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
     }
 
     [Fact]
