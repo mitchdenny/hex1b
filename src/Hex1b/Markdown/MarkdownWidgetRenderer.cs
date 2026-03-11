@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using Hex1b.Events;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -19,13 +20,16 @@ internal static class MarkdownWidgetRenderer
     /// </summary>
     public static Hex1bWidget Render(
         MarkdownDocument document,
-        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers)
+        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
+        bool focusableChildren = false,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler = null,
+        MarkdownWidget? sourceWidget = null)
     {
         var widgets = new List<Hex1bWidget>();
 
         foreach (var block in document.Blocks)
         {
-            var widget = RenderBlock(block, blockHandlers);
+            var widget = RenderBlock(block, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget);
             widgets.Add(widget);
         }
 
@@ -40,7 +44,10 @@ internal static class MarkdownWidgetRenderer
     /// </summary>
     internal static Hex1bWidget RenderBlock(
         MarkdownBlock block,
-        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers)
+        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
+        bool focusableChildren = false,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler = null,
+        MarkdownWidget? sourceWidget = null)
     {
         var blockType = block.GetType();
 
@@ -54,7 +61,8 @@ internal static class MarkdownWidgetRenderer
 
         // Build the chain: last registered = first called
         // The innermost handler is the built-in default
-        Func<MarkdownBlock, Hex1bWidget> currentDefault = b => RenderBlockDefault(b, blockHandlers);
+        Func<MarkdownBlock, Hex1bWidget> currentDefault = b =>
+            RenderBlockDefault(b, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget);
 
         // Wrap from first-registered to last-registered so last is outermost
         foreach (var handler in matchingHandlers)
@@ -77,22 +85,31 @@ internal static class MarkdownWidgetRenderer
     /// </summary>
     private static Hex1bWidget RenderBlockDefault(
         MarkdownBlock block,
-        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers)
+        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
     {
         return block switch
         {
-            HeadingBlock heading => RenderHeading(heading),
-            ParagraphBlock paragraph => RenderParagraph(paragraph),
+            HeadingBlock heading => RenderHeading(heading, focusableChildren, linkActivatedHandler, sourceWidget),
+            ParagraphBlock paragraph => RenderParagraph(paragraph, focusableChildren, linkActivatedHandler, sourceWidget),
             FencedCodeBlock fencedCode => RenderFencedCode(fencedCode),
             IndentedCodeBlock indentedCode => RenderIndentedCode(indentedCode),
-            BlockQuoteBlock blockQuote => RenderBlockQuote(blockQuote, blockHandlers),
-            ListBlock list => RenderList(list, blockHandlers),
+            BlockQuoteBlock blockQuote => RenderBlockQuote(
+                blockQuote, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget),
+            ListBlock list => RenderList(
+                list, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget),
             ThematicBreakBlock => RenderThematicBreak(),
             _ => new TextBlockWidget(block.ToString() ?? "")
         };
     }
 
-    private static Hex1bWidget RenderHeading(HeadingBlock heading)
+    private static Hex1bWidget RenderHeading(
+        HeadingBlock heading,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
     {
         // Prepend heading marker as a text inline
         var prefix = heading.Level switch
@@ -125,13 +142,25 @@ internal static class MarkdownWidgetRenderer
         return new MarkdownTextBlockWidget(inlines)
         {
             BaseAttributes = baseAttrs,
-            BaseForeground = headingFg
+            BaseForeground = headingFg,
+            FocusableLinks = focusableChildren,
+            LinkActivatedHandler = linkActivatedHandler,
+            SourceWidget = sourceWidget
         };
     }
 
-    private static Hex1bWidget RenderParagraph(ParagraphBlock paragraph)
+    private static Hex1bWidget RenderParagraph(
+        ParagraphBlock paragraph,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
     {
-        return new MarkdownTextBlockWidget(paragraph.Inlines);
+        return new MarkdownTextBlockWidget(paragraph.Inlines)
+        {
+            FocusableLinks = focusableChildren,
+            LinkActivatedHandler = linkActivatedHandler,
+            SourceWidget = sourceWidget
+        };
     }
 
     private static Hex1bWidget RenderFencedCode(FencedCodeBlock code)
@@ -149,12 +178,15 @@ internal static class MarkdownWidgetRenderer
 
     private static Hex1bWidget RenderBlockQuote(
         BlockQuoteBlock blockQuote,
-        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers)
+        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
     {
         var children = new List<Hex1bWidget>();
         foreach (var child in blockQuote.Children)
         {
-            children.Add(RenderBlock(child, blockHandlers));
+            children.Add(RenderBlock(child, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget));
         }
 
         var innerContent = children.Count == 1
@@ -170,7 +202,10 @@ internal static class MarkdownWidgetRenderer
 
     private static Hex1bWidget RenderList(
         ListBlock list,
-        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers)
+        ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
     {
         var items = new List<Hex1bWidget>();
         for (int i = 0; i < list.Items.Count; i++)
@@ -183,7 +218,7 @@ internal static class MarkdownWidgetRenderer
             var itemChildren = new List<Hex1bWidget>();
             foreach (var child in item.Children)
             {
-                itemChildren.Add(RenderBlock(child, blockHandlers));
+                itemChildren.Add(RenderBlock(child, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget));
             }
 
             var content = itemChildren.Count == 1

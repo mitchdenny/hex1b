@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hex1b.Events;
 using Hex1b.Markdown;
 using Hex1b.Nodes;
 
@@ -21,6 +22,18 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
         = ImmutableList<(Type, Delegate)>.Empty;
 
     /// <summary>
+    /// When <c>true</c>, links within the markdown content become focusable nodes
+    /// that participate in Tab/Shift+Tab navigation.
+    /// </summary>
+    internal bool FocusableChildren { get; init; }
+
+    /// <summary>
+    /// Handler invoked when a link is activated (Enter key on focused link).
+    /// Set <see cref="MarkdownLinkActivatedEventArgs.Handled"/> to suppress default behavior.
+    /// </summary>
+    internal Func<MarkdownLinkActivatedEventArgs, Task>? LinkActivatedHandler { get; init; }
+
+    /// <summary>
     /// Registers a handler for a specific block type. Multiple handlers for the same
     /// type form a middleware chain: the last registered is called first. Call
     /// <see cref="MarkdownBlockContext.Default"/> within your handler to invoke the
@@ -36,6 +49,27 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
         where TBlock : MarkdownBlock
         => this with { BlockHandlers = BlockHandlers.Add((typeof(TBlock), handler)) };
 
+    /// <summary>
+    /// Enables or disables focusable children (links) in the markdown content.
+    /// When enabled, links become Tab-focusable and the containing scroll panel
+    /// auto-scrolls to show the focused link.
+    /// </summary>
+    /// <param name="children">Whether child links should be focusable.</param>
+    public MarkdownWidget Focusable(bool children = false)
+        => this with { FocusableChildren = children };
+
+    /// <summary>
+    /// Registers a synchronous handler for link activation events.
+    /// </summary>
+    public MarkdownWidget OnLinkActivated(Action<MarkdownLinkActivatedEventArgs> handler)
+        => this with { LinkActivatedHandler = args => { handler(args); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Registers an asynchronous handler for link activation events.
+    /// </summary>
+    public MarkdownWidget OnLinkActivated(Func<MarkdownLinkActivatedEventArgs, Task> handler)
+        => this with { LinkActivatedHandler = handler };
+
     internal override async Task<Hex1bNode> ReconcileAsync(
         Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -49,6 +83,9 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
         }
 
         node.BlockHandlers = BlockHandlers;
+        node.FocusableChildren = FocusableChildren;
+        node.LinkActivatedHandler = LinkActivatedHandler;
+        node.SourceWidget = this;
 
         // Build the widget tree from parsed markdown
         var contentWidget = node.BuildWidgetTree();

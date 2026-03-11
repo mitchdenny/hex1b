@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Markdown;
 using Hex1b.Widgets;
@@ -27,6 +28,21 @@ public sealed class MarkdownNode : Hex1bNode
         = ImmutableList<(Type, Delegate)>.Empty;
 
     /// <summary>
+    /// When <c>true</c>, links within the content become focusable nodes.
+    /// </summary>
+    public bool FocusableChildren { get; set; }
+
+    /// <summary>
+    /// Handler invoked when a link is activated.
+    /// </summary>
+    public Func<MarkdownLinkActivatedEventArgs, Task>? LinkActivatedHandler { get; set; }
+
+    /// <summary>
+    /// The source widget for building event args.
+    /// </summary>
+    public MarkdownWidget? SourceWidget { get; set; }
+
+    /// <summary>
     /// The reconciled child node (typically a VStackNode).
     /// </summary>
     public Hex1bNode? ContentChild { get; set; }
@@ -45,7 +61,8 @@ public sealed class MarkdownNode : Hex1bNode
             _lastParsedSource = Source;
         }
 
-        return MarkdownWidgetRenderer.Render(_cachedDocument, BlockHandlers);
+        return MarkdownWidgetRenderer.Render(
+            _cachedDocument, BlockHandlers, FocusableChildren, LinkActivatedHandler, SourceWidget);
     }
 
     protected override Size MeasureCore(Constraints constraints)
@@ -73,5 +90,14 @@ public sealed class MarkdownNode : Hex1bNode
     {
         if (ContentChild != null)
             yield return ContentChild;
+    }
+
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (ContentChild != null)
+        {
+            foreach (var focusable in ContentChild.GetFocusableNodes())
+                yield return focusable;
+        }
     }
 }

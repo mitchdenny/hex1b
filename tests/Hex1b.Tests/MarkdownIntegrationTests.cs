@@ -468,4 +468,204 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    // ==========================================================================
+    // Focus Navigation Integration Tests
+    // ==========================================================================
+
+    [Fact]
+    public async Task Markdown_FocusableLinks_TabMovesToFirstLink()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Click [here](https://example.com) for info")
+                .Focusable(children: true),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(5),
+                "markdown rendered")
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .WaitUntil(s =>
+            {
+                // "Click " = 6 chars, "here" starts at col 6
+                var cell = s.GetCell(6, 0);
+                // When focused, the link should have bold attribute (reverse video adds bold)
+                return cell.Character == "h" && cell.Attributes.HasFlag(CellAttributes.Bold);
+            }, TimeSpan.FromSeconds(5), "link to be focused with highlight")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_FocusableLinks_TabCyclesThroughLinks()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("See [first](https://a.com) and [second](https://b.com)")
+                .Focusable(children: true),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // EnsureFocus auto-focuses the first link, so wait for that
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                var positions = s.FindText("first");
+                if (positions.Count == 0) return false;
+                var cell = s.GetCell(positions[0].Column, positions[0].Line);
+                return cell.Attributes.HasFlag(CellAttributes.Bold);
+            }, TimeSpan.FromSeconds(5), "first link auto-focused via EnsureFocus")
+            // Tab to move focus to the second link
+            .Tab()
+            .WaitUntil(s =>
+            {
+                var positions = s.FindText("second");
+                if (positions.Count == 0) return false;
+                var cell = s.GetCell(positions[0].Column, positions[0].Line);
+                return cell.Attributes.HasFlag(CellAttributes.Bold);
+            }, TimeSpan.FromSeconds(5), "second link focused after Tab")
+            // Tab again to wrap back to first link
+            .Tab()
+            .WaitUntil(s =>
+            {
+                var positions = s.FindText("first");
+                if (positions.Count == 0) return false;
+                var cell = s.GetCell(positions[0].Column, positions[0].Line);
+                if (!cell.Attributes.HasFlag(CellAttributes.Bold)) return false;
+                // Also verify second link lost focus
+                var secondPositions = s.FindText("second");
+                if (secondPositions.Count == 0) return false;
+                var secondCell = s.GetCell(secondPositions[0].Column, secondPositions[0].Line);
+                return !secondCell.Attributes.HasFlag(CellAttributes.Bold);
+            }, TimeSpan.FromSeconds(5), "first link re-focused after wrap-around Tab")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_FocusableLinks_EnterActivatesLink()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        string? activatedUrl = null;
+        string? activatedText = null;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Click [here](https://example.com) now")
+                .Focusable(children: true)
+                .OnLinkActivated(args =>
+                {
+                    activatedUrl = args.Url;
+                    activatedText = args.Text;
+                    args.Handled = true; // prevent default browser open
+                }),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(5),
+                "markdown rendered")
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal("https://example.com", activatedUrl);
+        Assert.Equal("here", activatedText);
+    }
+
+    [Fact]
+    public async Task Markdown_FocusableLinks_OnLinkActivatedReceivesCorrectKind()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        Events.MarkdownLinkKind? receivedKind = null;
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Go to [docs](https://docs.example.com)")
+                .Focusable(children: true)
+                .OnLinkActivated(args =>
+                {
+                    receivedKind = args.Kind;
+                    args.Handled = true;
+                }),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Go to"), TimeSpan.FromSeconds(5),
+                "markdown rendered")
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.Enter)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal(Events.MarkdownLinkKind.External, receivedKind);
+    }
+
+    [Fact]
+    public async Task Markdown_NotFocusable_TabDoesNotFocusLinks()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        // Without Focusable(children: true), links should not be focusable
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Click [here](https://example.com) now"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Click"), TimeSpan.FromSeconds(5),
+                "markdown rendered")
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .WaitUntil(s =>
+            {
+                // "Click " = 6, "here" at col 6
+                // Link should NOT have bold (focus highlight)
+                var cell = s.GetCell(6, 0);
+                return cell.Character == "h" && !cell.Attributes.HasFlag(CellAttributes.Bold);
+            }, TimeSpan.FromSeconds(2), "link not focused")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }

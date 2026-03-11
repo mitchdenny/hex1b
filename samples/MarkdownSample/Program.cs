@@ -16,6 +16,7 @@ var sampleMarkdown = """
     - Block quotes
     - Ordered and unordered lists
     - Thematic breaks
+    - [Clickable links](https://github.com) with Tab navigation
 
     ## Code Example
 
@@ -28,6 +29,15 @@ var sampleMarkdown = """
 
     > This is a block quote.
     > It can span multiple lines.
+
+    ## Links
+
+    - External: [GitHub](https://github.com)
+    - External: [.NET Documentation](https://learn.microsoft.com/dotnet)
+    - Intra-document: [Back to top](#markdown-preview-demo)
+
+    Use **Tab** / **Shift+Tab** to cycle through links.
+    Press **Enter** to activate the focused link.
 
     ## Lists
 
@@ -54,9 +64,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ctx.HSplitter(
                 // Left pane: Editor
                 ctx.Editor(editorState).LineNumbers(),
-                // Right pane: Markdown preview in scroll panel
+                // Right pane: Markdown preview in scroll panel with focusable links
                 ctx.VScrollPanel(
                     ctx.Markdown(document.GetText())
+                        .Focusable(children: true)
+                        .OnLinkActivated(args =>
+                        {
+                            // Log link activation to the status bar
+                            // For external links, the default handler opens the browser
+                            // Set args.Handled = true to suppress default behavior
+                        })
                 ),
                 leftWidth: 45
             );

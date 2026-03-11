@@ -28,12 +28,26 @@ internal static class MarkdownInlineRenderer
         Hex1bColor? baseForeground = null,
         CellAttributes baseAttributes = CellAttributes.None)
     {
+        return RenderLinesWithLinks(inlines, maxWidth, baseForeground, baseAttributes).Lines.ToList();
+    }
+
+    /// <summary>
+    /// Render inline AST elements into word-wrapped lines with embedded ANSI styling,
+    /// returning both the rendered lines and link position metadata.
+    /// </summary>
+    public static WrapResult RenderLinesWithLinks(
+        IReadOnlyList<MarkdownInline> inlines,
+        int maxWidth,
+        Hex1bColor? baseForeground = null,
+        CellAttributes baseAttributes = CellAttributes.None,
+        int focusedLinkId = -1)
+    {
         if (maxWidth <= 0)
-            return [""];
+            return new WrapResult([""], []);
 
         var runs = FlattenInlines(inlines, baseForeground, baseAttributes);
         var words = SplitIntoWords(runs);
-        return WrapLines(words, maxWidth);
+        return WrapLinesWithLinks(words, maxWidth, focusedLinkId);
     }
 
     /// <summary>
@@ -46,8 +60,44 @@ internal static class MarkdownInlineRenderer
         CellAttributes baseAttributes = CellAttributes.None)
     {
         var runs = new List<MarkdownTextRun>();
-        FlattenCore(inlines, baseForeground, null, baseAttributes, runs);
+        var linkIdCounter = 0;
+        FlattenCore(inlines, baseForeground, null, baseAttributes, runs, ref linkIdCounter);
         return runs;
+    }
+
+    /// <summary>
+    /// Extract link metadata from the inline AST without full flattening.
+    /// Used during reconciliation to create link region nodes before layout.
+    /// </summary>
+    internal static List<(int LinkId, string Url, string Text)> ExtractLinks(
+        IReadOnlyList<MarkdownInline> inlines)
+    {
+        var links = new List<(int, string, string)>();
+        var linkIdCounter = 0;
+        ExtractLinksCore(inlines, links, ref linkIdCounter);
+        return links;
+    }
+
+    private static void ExtractLinksCore(
+        IReadOnlyList<MarkdownInline> inlines,
+        List<(int LinkId, string Url, string Text)> links,
+        ref int linkIdCounter)
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case EmphasisInline emphasis:
+                    ExtractLinksCore(emphasis.Children, links, ref linkIdCounter);
+                    break;
+                case LinkInline link:
+                    links.Add((linkIdCounter++, link.Url, link.Text));
+                    break;
+                case ImageInline image:
+                    links.Add((linkIdCounter++, image.Url, $"[{image.AltText}]"));
+                    break;
+            }
+        }
     }
 
     private static void FlattenCore(
@@ -55,7 +105,8 @@ internal static class MarkdownInlineRenderer
         Hex1bColor? fg,
         Hex1bColor? bg,
         CellAttributes attrs,
-        List<MarkdownTextRun> runs)
+        List<MarkdownTextRun> runs,
+        ref int linkIdCounter)
     {
         foreach (var inline in inlines)
         {
@@ -70,7 +121,7 @@ internal static class MarkdownInlineRenderer
                     var emphasisAttrs = emphasis.IsStrong
                         ? attrs | CellAttributes.Bold
                         : attrs | CellAttributes.Italic;
-                    FlattenCore(emphasis.Children, fg, bg, emphasisAttrs, runs);
+                    FlattenCore(emphasis.Children, fg, bg, emphasisAttrs, runs, ref linkIdCounter);
                     break;
 
                 case CodeInline code:
@@ -85,23 +136,27 @@ internal static class MarkdownInlineRenderer
                 case LinkInline link:
                     // Links get colored + underlined text
                     var linkFg = Hex1bColor.FromRgb(100, 160, 255);  // LinkForeground default
+                    var linkId = linkIdCounter++;
                     runs.Add(new MarkdownTextRun(
                         link.Text,
                         linkFg,
                         bg,
                         attrs | CellAttributes.Underline,
-                        link.Url));
+                        link.Url,
+                        linkId));
                     break;
 
                 case ImageInline image:
                     // Render as [alt text] with link styling; URL for clickability
                     var imgFg = Hex1bColor.FromRgb(100, 160, 255);
+                    var imgLinkId = linkIdCounter++;
                     runs.Add(new MarkdownTextRun(
                         $"[{image.AltText}]",
                         imgFg,
                         bg,
                         attrs | CellAttributes.Italic,
-                        image.Url));
+                        image.Url,
+                        imgLinkId));
                     break;
 
                 case LineBreakInline lineBreak:
@@ -186,7 +241,7 @@ internal static class MarkdownInlineRenderer
                 var segment = text[wordStart..i];
                 var segmentWidth = DisplayWidth.GetStringWidth(segment);
 
-                currentFragments.Add(new MarkdownTextRun(segment, run.Foreground, run.Background, run.Attributes, run.Url));
+                currentFragments.Add(new MarkdownTextRun(segment, run.Foreground, run.Background, run.Attributes, run.Url, run.LinkId));
                 currentWidth += segmentWidth;
             }
         }
@@ -218,18 +273,60 @@ internal static class MarkdownInlineRenderer
     /// </summary>
     internal static List<string> WrapLines(List<StyledWord> words, int maxWidth)
     {
+        return WrapLinesWithLinks(words, maxWidth).Lines.ToList();
+    }
+
+    /// <summary>
+    /// Wrap styled words into lines, returning both rendered ANSI lines and
+    /// link position metadata for each unique link.
+    /// </summary>
+    internal static WrapResult WrapLinesWithLinks(
+        List<StyledWord> words, int maxWidth, int focusedLinkId = -1)
+    {
         var lines = new List<string>();
         var lineFragments = new List<MarkdownTextRun>();
         var currentX = 0;
+        var lineIndex = 0;
+
+        // Track the first position of each link (by LinkId)
+        var linkFirstPositions = new Dictionary<int, (string Url, int LineIndex, int ColumnOffset)>();
+        // Track total text per link
+        var linkTexts = new Dictionary<int, List<string>>();
+        // Track total display width per link
+        var linkWidths = new Dictionary<int, int>();
+
+        void TrackLinkFragments(IReadOnlyList<MarkdownTextRun> fragments, int wordStartX)
+        {
+            var fragmentX = wordStartX;
+            foreach (var fragment in fragments)
+            {
+                var fragmentWidth = DisplayWidth.GetStringWidth(fragment.Text);
+                if (fragment.Url != null && fragment.LinkId >= 0)
+                {
+                    if (!linkFirstPositions.ContainsKey(fragment.LinkId))
+                    {
+                        linkFirstPositions[fragment.LinkId] = (fragment.Url, lineIndex, fragmentX);
+                        linkTexts[fragment.LinkId] = [];
+                        linkWidths[fragment.LinkId] = 0;
+                    }
+
+                    linkTexts[fragment.LinkId].Add(fragment.Text);
+                    linkWidths[fragment.LinkId] += fragmentWidth;
+                }
+
+                fragmentX += fragmentWidth;
+            }
+        }
 
         foreach (var word in words)
         {
             // Handle explicit line breaks
             if (word.Fragments.Count == 1 && word.Fragments[0].Text == "\n")
             {
-                lines.Add(RenderFragmentsToAnsi(lineFragments));
+                lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
                 lineFragments = [];
                 currentX = 0;
+                lineIndex++;
                 continue;
             }
 
@@ -241,13 +338,17 @@ internal static class MarkdownInlineRenderer
                 // Word is wider than the entire line — must character-break
                 if (currentX > 0)
                 {
-                    lines.Add(RenderFragmentsToAnsi(lineFragments));
+                    lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
                     lineFragments = [];
                     currentX = 0;
+                    lineIndex++;
                 }
 
+                // Track link positions before character-breaking
+                TrackLinkFragments(word.Fragments, 0);
+
                 // Build ANSI string for the word, then slice by display width
-                var ansiWord = RenderFragmentsToAnsi(word.Fragments);
+                var ansiWord = RenderFragmentsToAnsi(word.Fragments, focusedLinkId);
                 var remaining = ansiWord;
                 var remainingWidth = wordWidth;
 
@@ -257,11 +358,11 @@ internal static class MarkdownInlineRenderer
                     lines.Add(chunk);
                     remaining = remaining[chunk.Length..];
                     remainingWidth -= cols;
+                    lineIndex++;
                 }
 
                 if (remaining.Length > 0)
                 {
-                    // Parse the remaining back into a text run for fragment tracking
                     lineFragments = [new MarkdownTextRun(remaining, null, null, CellAttributes.None)];
                     currentX = remainingWidth;
                 }
@@ -269,36 +370,64 @@ internal static class MarkdownInlineRenderer
             else if (currentX + spaceNeeded + wordWidth > maxWidth)
             {
                 // Word doesn't fit on current line — wrap
-                lines.Add(RenderFragmentsToAnsi(lineFragments));
+                lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
                 lineFragments = [.. word.Fragments];
                 currentX = wordWidth;
+                lineIndex++;
+
+                TrackLinkFragments(word.Fragments, 0);
             }
             else
             {
                 // Word fits — append (with space if needed)
+                var wordStartX = currentX;
                 if (spaceNeeded > 0)
                 {
                     lineFragments.Add(new MarkdownTextRun(" ", null, null, CellAttributes.None));
                     currentX += 1;
+                    wordStartX = currentX;
                 }
 
                 lineFragments.AddRange(word.Fragments);
+                TrackLinkFragments(word.Fragments, wordStartX);
                 currentX += wordWidth;
             }
         }
 
         // Emit final line
-        lines.Add(RenderFragmentsToAnsi(lineFragments));
+        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
 
-        return lines.Count > 0 ? lines : [""];
+        if (lines.Count == 0)
+            lines.Add("");
+
+        // Build link region info from tracked positions
+        var linkRegions = new List<LinkRegionInfo>();
+        foreach (var (linkId, (url, firstLine, firstCol)) in linkFirstPositions)
+        {
+            var fullText = string.Join(" ", linkTexts[linkId]);
+            // Use the first fragment's width for the region (multi-word links
+            // may have fragments on different lines; the first position is used
+            // for focus scrolling)
+            var firstFragmentWidth = linkWidths[linkId];
+            linkRegions.Add(new LinkRegionInfo(
+                linkId, url, fullText, firstLine, firstCol, firstFragmentWidth));
+        }
+
+        // Sort by LinkId to maintain document order
+        linkRegions.Sort((a, b) => a.LinkId.CompareTo(b.LinkId));
+
+        return new WrapResult(lines, linkRegions);
     }
 
     /// <summary>
     /// Render a list of styled fragments into a single ANSI-embedded string.
     /// Adjacent fragments with the same style are merged to reduce escape sequences.
     /// Fragments with URLs are wrapped in OSC 8 hyperlink sequences.
+    /// When <paramref name="focusedLinkId"/> is set, fragments matching that link ID
+    /// are rendered with reverse video for focus highlighting.
     /// </summary>
-    internal static string RenderFragmentsToAnsi(IReadOnlyList<MarkdownTextRun> fragments)
+    internal static string RenderFragmentsToAnsi(
+        IReadOnlyList<MarkdownTextRun> fragments, int focusedLinkId = -1)
     {
         if (fragments.Count == 0)
             return "";
@@ -313,6 +442,18 @@ internal static class MarkdownInlineRenderer
         {
             if (fragment.Text.Length == 0)
                 continue;
+
+            // Determine effective styling — apply reverse video for focused link
+            var effectiveFg = fragment.Foreground;
+            var effectiveBg = fragment.Background;
+            var effectiveAttrs = fragment.Attributes;
+            if (focusedLinkId >= 0 && fragment.LinkId == focusedLinkId)
+            {
+                // Reverse video: swap fg/bg, add bold for visibility
+                effectiveFg = fragment.Background ?? Hex1bColor.FromRgb(0, 0, 0);
+                effectiveBg = fragment.Foreground ?? Hex1bColor.FromRgb(100, 160, 255);
+                effectiveAttrs = effectiveAttrs | CellAttributes.Bold;
+            }
 
             // Handle URL transitions (OSC 8 is independent of SGR)
             if (fragment.Url != activeUrl)
@@ -334,13 +475,13 @@ internal static class MarkdownInlineRenderer
 
             // Emit style changes
             EmitStyleTransition(sb, activeFg, activeBg, activeAttrs,
-                fragment.Foreground, fragment.Background, fragment.Attributes);
+                effectiveFg, effectiveBg, effectiveAttrs);
 
             sb.Append(fragment.Text);
 
-            activeFg = fragment.Foreground;
-            activeBg = fragment.Background;
-            activeAttrs = fragment.Attributes;
+            activeFg = effectiveFg;
+            activeBg = effectiveBg;
+            activeAttrs = effectiveAttrs;
         }
 
         // End any active hyperlink

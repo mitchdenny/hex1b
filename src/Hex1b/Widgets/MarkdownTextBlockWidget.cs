@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Markdown;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -22,6 +23,21 @@ internal sealed record MarkdownTextBlockWidget(
     /// </summary>
     internal CellAttributes BaseAttributes { get; init; }
 
+    /// <summary>
+    /// When <c>true</c>, links within the text become focusable nodes.
+    /// </summary>
+    internal bool FocusableLinks { get; init; }
+
+    /// <summary>
+    /// Handler invoked when a link is activated.
+    /// </summary>
+    internal Func<MarkdownLinkActivatedEventArgs, Task>? LinkActivatedHandler { get; init; }
+
+    /// <summary>
+    /// The source markdown widget (for building event args).
+    /// </summary>
+    internal MarkdownWidget? SourceWidget { get; init; }
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as MarkdownTextBlockNode ?? new MarkdownTextBlockNode();
@@ -29,7 +45,8 @@ internal sealed record MarkdownTextBlockWidget(
         // Check if content changed
         if (!ReferenceEquals(node.Inlines, Inlines)
             || !ColorsEqual(node.BaseForeground, BaseForeground)
-            || node.BaseAttributes != BaseAttributes)
+            || node.BaseAttributes != BaseAttributes
+            || node.FocusableLinks != FocusableLinks)
         {
             node.MarkDirty();
         }
@@ -37,6 +54,20 @@ internal sealed record MarkdownTextBlockWidget(
         node.Inlines = Inlines;
         node.BaseForeground = BaseForeground;
         node.BaseAttributes = BaseAttributes;
+        node.FocusableLinks = FocusableLinks;
+        node.LinkActivatedHandler = LinkActivatedHandler;
+        node.SourceWidget = SourceWidget;
+
+        // Create/update link region nodes during reconciliation
+        // so they exist for the FocusRing before MeasureCore runs
+        if (FocusableLinks)
+        {
+            node.ReconcileLinkRegions(Inlines);
+        }
+        else
+        {
+            node.ClearLinkRegions();
+        }
 
         return Task.FromResult<Hex1bNode>(node);
     }
