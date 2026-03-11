@@ -1,0 +1,928 @@
+using System.Text;
+
+namespace Hex1b.Markdown;
+
+/// <summary>
+/// A lightweight markdown parser that produces a <see cref="MarkdownDocument"/> AST.
+/// Supports headings, paragraphs, fenced/indented code blocks, block quotes,
+/// ordered/unordered lists, and thematic breaks.
+/// </summary>
+public static class MarkdownParser
+{
+    /// <summary>
+    /// Parse a markdown string into a document AST.
+    /// </summary>
+    public static MarkdownDocument Parse(string source)
+    {
+        if (string.IsNullOrEmpty(source))
+            return new MarkdownDocument([]);
+
+        var lines = SplitLines(source);
+        var blocks = ParseBlocks(lines, 0, lines.Count);
+        return new MarkdownDocument(blocks);
+    }
+
+    /// <summary>
+    /// Parse markdown from a <see cref="ReadOnlyMemory{T}"/> into a document AST.
+    /// </summary>
+    public static MarkdownDocument Parse(ReadOnlyMemory<char> source)
+        => Parse(source.Span.ToString());
+
+    private static List<string> SplitLines(string source)
+    {
+        var lines = new List<string>();
+        int start = 0;
+        for (int i = 0; i < source.Length; i++)
+        {
+            if (source[i] == '\n')
+            {
+                var end = i > 0 && source[i - 1] == '\r' ? i - 1 : i;
+                lines.Add(source[start..end]);
+                start = i + 1;
+            }
+        }
+
+        if (start <= source.Length)
+            lines.Add(source[start..]);
+
+        return lines;
+    }
+
+    private static List<MarkdownBlock> ParseBlocks(List<string> lines, int start, int end)
+    {
+        var blocks = new List<MarkdownBlock>();
+        int i = start;
+
+        while (i < end)
+        {
+            // Skip blank lines
+            if (IsBlankLine(lines[i]))
+            {
+                i++;
+                continue;
+            }
+
+            // Try each block type in order of precedence
+            if (TryParseThematicBreak(lines, i, out var thematicBreak))
+            {
+                blocks.Add(thematicBreak);
+                i++;
+                continue;
+            }
+
+            if (TryParseHeading(lines, i, out var heading))
+            {
+                blocks.Add(heading);
+                i++;
+                continue;
+            }
+
+            if (TryParseFencedCodeBlock(lines, i, end, out var fencedCode, out var fencedEnd))
+            {
+                blocks.Add(fencedCode);
+                i = fencedEnd;
+                continue;
+            }
+
+            if (TryParseBlockQuote(lines, i, end, out var blockQuote, out var bqEnd))
+            {
+                blocks.Add(blockQuote);
+                i = bqEnd;
+                continue;
+            }
+
+            if (TryParseList(lines, i, end, out var list, out var listEnd))
+            {
+                blocks.Add(list);
+                i = listEnd;
+                continue;
+            }
+
+            if (TryParseIndentedCodeBlock(lines, i, end, out var indentedCode, out var indentedEnd))
+            {
+                blocks.Add(indentedCode);
+                i = indentedEnd;
+                continue;
+            }
+
+            // Default: paragraph (consume until blank line or other block start)
+            {
+                var paraEnd = FindParagraphEnd(lines, i, end);
+                var paraLines = new List<string>();
+                for (int j = i; j < paraEnd; j++)
+                    paraLines.Add(lines[j]);
+
+                var text = string.Join(" ", paraLines.Select(l => l.Trim()));
+                var inlines = ParseInlines(text);
+                blocks.Add(new ParagraphBlock(inlines, FlattenInlinesToText(inlines)));
+                i = paraEnd;
+            }
+        }
+
+        return blocks;
+    }
+
+    // --- Thematic Break ---
+
+    private static bool TryParseThematicBreak(List<string> lines, int index, out ThematicBreakBlock block)
+    {
+        block = null!;
+        var line = lines[index].Trim();
+        if (line.Length < 3) return false;
+
+        char marker = line[0];
+        if (marker != '-' && marker != '*' && marker != '_') return false;
+
+        int count = 0;
+        foreach (var c in line)
+        {
+            if (c == marker) count++;
+            else if (c != ' ') return false;
+        }
+
+        if (count < 3) return false;
+
+        block = new ThematicBreakBlock();
+        return true;
+    }
+
+    // --- Heading ---
+
+    private static bool TryParseHeading(List<string> lines, int index, out HeadingBlock heading)
+    {
+        heading = null!;
+        var line = lines[index];
+        if (line.Length == 0 || line[0] != '#') return false;
+
+        int level = 0;
+        while (level < line.Length && level < 6 && line[level] == '#')
+            level++;
+
+        if (level == 0 || level > 6) return false;
+        if (level < line.Length && line[level] != ' ') return false;
+
+        var content = level < line.Length ? line[(level + 1)..].Trim() : "";
+
+        // Remove optional closing #s
+        if (content.Length > 0)
+        {
+            var trimEnd = content.Length - 1;
+            while (trimEnd >= 0 && content[trimEnd] == '#')
+                trimEnd--;
+            if (trimEnd >= 0 && content[trimEnd] == ' ')
+                content = content[..trimEnd].TrimEnd();
+            else if (trimEnd < 0)
+                content = "";
+        }
+
+        var inlines = ParseInlines(content);
+        heading = new HeadingBlock(level, inlines, FlattenInlinesToText(inlines));
+        return true;
+    }
+
+    // --- Fenced Code Block ---
+
+    private static bool TryParseFencedCodeBlock(
+        List<string> lines, int start, int end,
+        out FencedCodeBlock codeBlock, out int blockEnd)
+    {
+        codeBlock = null!;
+        blockEnd = start;
+        var line = lines[start];
+        var trimmed = line.TrimStart();
+        var indent = line.Length - trimmed.Length;
+        if (indent > 3) return false;
+
+        char fence;
+        int fenceLength;
+        if (trimmed.Length >= 3 && trimmed[0] == '`' && !trimmed.Contains('`', 3))
+        {
+            fence = '`';
+            fenceLength = CountLeading(trimmed, '`');
+        }
+        else if (trimmed.Length >= 3 && trimmed[0] == '~')
+        {
+            fence = '~';
+            fenceLength = CountLeading(trimmed, '~');
+        }
+        else
+        {
+            return false;
+        }
+
+        if (fenceLength < 3) return false;
+
+        // Parse info string (language + extra)
+        var infoString = trimmed[fenceLength..].Trim();
+        var language = "";
+        var extra = "";
+        if (infoString.Length > 0)
+        {
+            var spaceIdx = infoString.IndexOf(' ');
+            if (spaceIdx >= 0)
+            {
+                language = infoString[..spaceIdx];
+                extra = infoString[(spaceIdx + 1)..].Trim();
+            }
+            else
+            {
+                language = infoString;
+            }
+        }
+
+        // Find closing fence
+        var content = new StringBuilder();
+        int i = start + 1;
+        while (i < end)
+        {
+            var closeLine = lines[i].TrimStart();
+            var closeIndent = lines[i].Length - closeLine.Length;
+            if (closeIndent <= 3 &&
+                closeLine.Length >= fenceLength &&
+                CountLeading(closeLine, fence) >= fenceLength &&
+                closeLine.Trim(fence).Trim().Length == 0)
+            {
+                i++;
+                break;
+            }
+
+            // Remove up to 'indent' leading spaces from content lines
+            var contentLine = RemoveIndent(lines[i], indent);
+            if (content.Length > 0)
+                content.Append('\n');
+            content.Append(contentLine);
+            i++;
+        }
+
+        codeBlock = new FencedCodeBlock(language, content.ToString(), extra);
+        blockEnd = i;
+        return true;
+    }
+
+    private static bool Contains(this string s, char c, int startIndex)
+    {
+        for (int i = startIndex; i < s.Length; i++)
+            if (s[i] == c) return true;
+        return false;
+    }
+
+    // --- Indented Code Block ---
+
+    private static bool TryParseIndentedCodeBlock(
+        List<string> lines, int start, int end,
+        out IndentedCodeBlock codeBlock, out int blockEnd)
+    {
+        codeBlock = null!;
+        blockEnd = start;
+
+        if (!HasIndent(lines[start], 4)) return false;
+
+        var content = new StringBuilder();
+        int i = start;
+        int lastNonBlank = start;
+
+        while (i < end)
+        {
+            if (IsBlankLine(lines[i]))
+            {
+                content.Append('\n');
+                i++;
+                continue;
+            }
+
+            if (!HasIndent(lines[i], 4))
+                break;
+
+            if (content.Length > 0)
+                content.Append('\n');
+            content.Append(RemoveIndent(lines[i], 4));
+            lastNonBlank = i;
+            i++;
+        }
+
+        // Trim trailing blank lines from content
+        var result = content.ToString().TrimEnd('\n');
+        if (result.Length == 0) return false;
+
+        codeBlock = new IndentedCodeBlock(result);
+        blockEnd = lastNonBlank + 1;
+
+        // Advance past any trailing blank lines consumed
+        while (blockEnd < i)
+            blockEnd++;
+
+        return true;
+    }
+
+    // --- Block Quote ---
+
+    private static bool TryParseBlockQuote(
+        List<string> lines, int start, int end,
+        out BlockQuoteBlock blockQuote, out int blockEnd)
+    {
+        blockQuote = null!;
+        blockEnd = start;
+
+        if (!IsBlockQuoteLine(lines[start])) return false;
+
+        var innerLines = new List<string>();
+        int i = start;
+
+        while (i < end)
+        {
+            if (IsBlockQuoteLine(lines[i]))
+            {
+                innerLines.Add(StripBlockQuotePrefix(lines[i]));
+                i++;
+            }
+            else if (!IsBlankLine(lines[i]) && innerLines.Count > 0)
+            {
+                // Lazy continuation: non-blank line without > prefix
+                // Only continue if it's not a block-level construct start
+                if (IsBlockStart(lines[i]))
+                    break;
+                innerLines.Add(lines[i]);
+                i++;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        var children = ParseBlocks(innerLines, 0, innerLines.Count);
+        blockQuote = new BlockQuoteBlock(children);
+        blockEnd = i;
+        return true;
+    }
+
+    private static bool IsBlockQuoteLine(string line)
+    {
+        var trimmed = line.TrimStart();
+        return trimmed.Length > 0 && trimmed[0] == '>';
+    }
+
+    private static string StripBlockQuotePrefix(string line)
+    {
+        var trimmed = line.TrimStart();
+        if (trimmed.Length > 0 && trimmed[0] == '>')
+        {
+            var rest = trimmed[1..];
+            if (rest.Length > 0 && rest[0] == ' ')
+                return rest[1..];
+            return rest;
+        }
+
+        return line;
+    }
+
+    // --- Lists ---
+
+    private static bool TryParseList(
+        List<string> lines, int start, int end,
+        out ListBlock list, out int listEnd)
+    {
+        list = null!;
+        listEnd = start;
+
+        if (!TryGetListMarker(lines[start], out var isOrdered, out var startNumber, out var markerWidth))
+            return false;
+
+        var items = new List<ListItemBlock>();
+        int i = start;
+
+        while (i < end)
+        {
+            if (IsBlankLine(lines[i]))
+            {
+                // A blank line might separate list items or end the list
+                if (i + 1 < end && TryGetListMarker(lines[i + 1], out var nextOrdered, out _, out _) &&
+                    nextOrdered == isOrdered)
+                {
+                    i++;
+                    continue;
+                }
+
+                break;
+            }
+
+            if (TryGetListMarker(lines[i], out var itemOrdered, out _, out var itemMarkerWidth) &&
+                itemOrdered == isOrdered)
+            {
+                // Start of a new list item
+                var itemLines = new List<string>();
+                var contentPart = lines[i][itemMarkerWidth..];
+                itemLines.Add(contentPart);
+                i++;
+
+                // Continuation lines: indented by at least markerWidth or blank
+                while (i < end)
+                {
+                    if (IsBlankLine(lines[i]))
+                    {
+                        // Blank line within list item
+                        if (i + 1 < end && HasIndent(lines[i + 1], itemMarkerWidth))
+                        {
+                            itemLines.Add("");
+                            i++;
+                            continue;
+                        }
+
+                        break;
+                    }
+
+                    if (HasIndent(lines[i], itemMarkerWidth))
+                    {
+                        itemLines.Add(RemoveIndent(lines[i], itemMarkerWidth));
+                        i++;
+                    }
+                    else if (TryGetListMarker(lines[i], out var nextItemOrdered, out _, out _) &&
+                             nextItemOrdered == isOrdered)
+                    {
+                        break;
+                    }
+                    else if (!IsBlockStart(lines[i]))
+                    {
+                        // Lazy continuation
+                        itemLines.Add(lines[i]);
+                        i++;
+                    }
+                    else
+                    {
+                        break;
+                    }
+                }
+
+                var children = ParseBlocks(itemLines, 0, itemLines.Count);
+                items.Add(new ListItemBlock(children));
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        if (items.Count == 0) return false;
+
+        list = new ListBlock(isOrdered, startNumber, items);
+        listEnd = i;
+        return true;
+    }
+
+    private static bool TryGetListMarker(
+        string line, out bool isOrdered, out int startNumber, out int markerWidth)
+    {
+        isOrdered = false;
+        startNumber = 1;
+        markerWidth = 0;
+
+        var trimmed = line.TrimStart();
+        var indent = line.Length - trimmed.Length;
+        if (indent > 3 || trimmed.Length == 0) return false;
+
+        // Unordered: -, *, +
+        if (trimmed.Length >= 2 && (trimmed[0] == '-' || trimmed[0] == '*' || trimmed[0] == '+') &&
+            trimmed[1] == ' ')
+        {
+            // Make sure '-' isn't a thematic break
+            if (trimmed[0] == '-' && trimmed.Trim().All(c => c == '-' || c == ' ') && trimmed.Count(c => c == '-') >= 3)
+                return false;
+
+            isOrdered = false;
+            markerWidth = indent + 2;
+            return true;
+        }
+
+        // Ordered: 1. or 1)
+        int numEnd = 0;
+        while (numEnd < trimmed.Length && char.IsAsciiDigit(trimmed[numEnd]))
+            numEnd++;
+
+        if (numEnd > 0 && numEnd <= 9 && numEnd < trimmed.Length &&
+            (trimmed[numEnd] == '.' || trimmed[numEnd] == ')') &&
+            numEnd + 1 < trimmed.Length && trimmed[numEnd + 1] == ' ')
+        {
+            isOrdered = true;
+            startNumber = int.Parse(trimmed[..numEnd]);
+            markerWidth = indent + numEnd + 2; // digits + delimiter + space
+            return true;
+        }
+
+        return false;
+    }
+
+    // --- Paragraph ---
+
+    private static int FindParagraphEnd(List<string> lines, int start, int end)
+    {
+        int i = start;
+        while (i < end)
+        {
+            if (IsBlankLine(lines[i])) break;
+            if (i > start && IsBlockStart(lines[i])) break;
+            i++;
+        }
+
+        return i;
+    }
+
+    private static bool IsBlockStart(string line)
+    {
+        var trimmed = line.TrimStart();
+        if (trimmed.Length == 0) return false;
+
+        // Heading
+        if (trimmed[0] == '#') return true;
+
+        // Fenced code
+        if (trimmed.Length >= 3 && (trimmed[0] == '`' || trimmed[0] == '~'))
+        {
+            var c = trimmed[0];
+            if (CountLeading(trimmed, c) >= 3) return true;
+        }
+
+        // Block quote
+        if (trimmed[0] == '>') return true;
+
+        // Thematic break
+        if (trimmed[0] == '-' || trimmed[0] == '*' || trimmed[0] == '_')
+        {
+            if (TryParseThematicBreak([line], 0, out _)) return true;
+        }
+
+        // List marker
+        if (TryGetListMarker(line, out _, out _, out _)) return true;
+
+        return false;
+    }
+
+    // --- Inline Parsing ---
+
+    internal static List<MarkdownInline> ParseInlines(string text)
+    {
+        var inlines = new List<MarkdownInline>();
+        if (string.IsNullOrEmpty(text))
+            return inlines;
+
+        ParseInlinesCore(text.AsSpan(), inlines);
+        return inlines;
+    }
+
+    private static void ParseInlinesCore(ReadOnlySpan<char> text, List<MarkdownInline> result)
+    {
+        int i = 0;
+        int textStart = 0;
+
+        while (i < text.Length)
+        {
+            // Code span: `code`
+            if (text[i] == '`')
+            {
+                FlushText(text, textStart, i, result);
+
+                var backtickCount = CountLeadingSpan(text[i..], '`');
+                var contentStart = i + backtickCount;
+                var closeIdx = FindClosingBackticks(text, contentStart, backtickCount);
+
+                if (closeIdx >= 0)
+                {
+                    var code = text[contentStart..closeIdx].ToString().Trim();
+                    result.Add(new CodeInline(code));
+                    i = closeIdx + backtickCount;
+                    textStart = i;
+                    continue;
+                }
+
+                // No closing backticks — treat as literal text
+                i += backtickCount;
+                continue;
+            }
+
+            // Emphasis: ** or * or __ or _
+            if ((text[i] == '*' || text[i] == '_') && i + 1 < text.Length)
+            {
+                var marker = text[i];
+                var count = CountLeadingSpan(text[i..], marker);
+
+                if (count >= 2 && TryParseEmphasis(text, i, marker, 2, out var strongContent, out var strongEnd))
+                {
+                    FlushText(text, textStart, i, result);
+                    var children = new List<MarkdownInline>();
+                    ParseInlinesCore(strongContent, children);
+                    result.Add(new EmphasisInline(true, children));
+                    i = strongEnd;
+                    textStart = i;
+                    continue;
+                }
+
+                if (count >= 1 && TryParseEmphasis(text, i, marker, 1, out var emContent, out var emEnd))
+                {
+                    FlushText(text, textStart, i, result);
+                    var children = new List<MarkdownInline>();
+                    ParseInlinesCore(emContent, children);
+                    result.Add(new EmphasisInline(false, children));
+                    i = emEnd;
+                    textStart = i;
+                    continue;
+                }
+
+                i++;
+                continue;
+            }
+
+            // Link: [text](url) or [text](url "title")
+            if (text[i] == '[')
+            {
+                if (TryParseLink(text, i, out var link, out var linkEnd))
+                {
+                    FlushText(text, textStart, i, result);
+                    result.Add(link);
+                    i = linkEnd;
+                    textStart = i;
+                    continue;
+                }
+
+                i++;
+                continue;
+            }
+
+            // Image: ![alt](url)
+            if (text[i] == '!' && i + 1 < text.Length && text[i + 1] == '[')
+            {
+                if (TryParseImage(text, i, out var image, out var imgEnd))
+                {
+                    FlushText(text, textStart, i, result);
+                    result.Add(image);
+                    i = imgEnd;
+                    textStart = i;
+                    continue;
+                }
+
+                i++;
+                continue;
+            }
+
+            // Hard line break: two trailing spaces before newline, or backslash before newline
+            if (text[i] == '\\' && i + 1 < text.Length && text[i + 1] == '\n')
+            {
+                FlushText(text, textStart, i, result);
+                result.Add(new LineBreakInline(true));
+                i += 2;
+                textStart = i;
+                continue;
+            }
+
+            if (text[i] == '\n')
+            {
+                // Check for hard break (two spaces before newline)
+                var isHard = i >= 2 && text[i - 1] == ' ' && text[i - 2] == ' ';
+                FlushText(text, textStart, isHard ? i - 2 : i, result);
+                result.Add(new LineBreakInline(isHard));
+                i++;
+                textStart = i;
+                continue;
+            }
+
+            i++;
+        }
+
+        FlushText(text, textStart, text.Length, result);
+    }
+
+    private static void FlushText(ReadOnlySpan<char> text, int start, int end, List<MarkdownInline> result)
+    {
+        if (end > start)
+        {
+            result.Add(new TextInline(text[start..end].ToString()));
+        }
+    }
+
+    private static bool TryParseEmphasis(
+        ReadOnlySpan<char> text, int start, char marker, int markerCount,
+        out ReadOnlySpan<char> content, out int end)
+    {
+        content = default;
+        end = start;
+
+        var openEnd = start + markerCount;
+        if (openEnd >= text.Length) return false;
+
+        // Find matching closing markers
+        for (int i = openEnd; i <= text.Length - markerCount; i++)
+        {
+            if (text[i] == marker && CountLeadingSpan(text[i..], marker) >= markerCount)
+            {
+                content = text[openEnd..i];
+                end = i + markerCount;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static bool TryParseLink(
+        ReadOnlySpan<char> text, int start,
+        out LinkInline link, out int end)
+    {
+        link = null!;
+        end = start;
+
+        // [text](url) or [text](url "title")
+        var closeBracket = FindUnescaped(text, start + 1, ']');
+        if (closeBracket < 0) return false;
+
+        var linkText = text[(start + 1)..closeBracket].ToString();
+
+        if (closeBracket + 1 >= text.Length || text[closeBracket + 1] != '(')
+            return false;
+
+        var closeParen = FindUnescaped(text, closeBracket + 2, ')');
+        if (closeParen < 0) return false;
+
+        var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
+
+        // Parse optional title
+        string? title = null;
+        var quoteStart = urlPart.IndexOf('"');
+        if (quoteStart >= 0)
+        {
+            var quoteEnd = urlPart.LastIndexOf('"');
+            if (quoteEnd > quoteStart)
+            {
+                title = urlPart[(quoteStart + 1)..quoteEnd];
+                urlPart = urlPart[..quoteStart].Trim();
+            }
+        }
+
+        link = new LinkInline(linkText, urlPart, title);
+        end = closeParen + 1;
+        return true;
+    }
+
+    private static bool TryParseImage(
+        ReadOnlySpan<char> text, int start,
+        out ImageInline image, out int end)
+    {
+        image = null!;
+        end = start;
+
+        // ![alt](url)
+        if (start + 1 >= text.Length || text[start + 1] != '[')
+            return false;
+
+        var closeBracket = FindUnescaped(text, start + 2, ']');
+        if (closeBracket < 0) return false;
+
+        var altText = text[(start + 2)..closeBracket].ToString();
+
+        if (closeBracket + 1 >= text.Length || text[closeBracket + 1] != '(')
+            return false;
+
+        var closeParen = FindUnescaped(text, closeBracket + 2, ')');
+        if (closeParen < 0) return false;
+
+        var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
+
+        string? title = null;
+        var quoteStart = urlPart.IndexOf('"');
+        if (quoteStart >= 0)
+        {
+            var quoteEnd = urlPart.LastIndexOf('"');
+            if (quoteEnd > quoteStart)
+            {
+                title = urlPart[(quoteStart + 1)..quoteEnd];
+                urlPart = urlPart[..quoteStart].Trim();
+            }
+        }
+
+        image = new ImageInline(altText, urlPart, title);
+        end = closeParen + 1;
+        return true;
+    }
+
+    private static int FindClosingBackticks(ReadOnlySpan<char> text, int start, int count)
+    {
+        for (int i = start; i <= text.Length - count; i++)
+        {
+            if (text[i] == '`' && CountLeadingSpan(text[i..], '`') == count)
+                return i;
+        }
+
+        return -1;
+    }
+
+    private static int FindUnescaped(ReadOnlySpan<char> text, int start, char target)
+    {
+        for (int i = start; i < text.Length; i++)
+        {
+            if (text[i] == '\\' && i + 1 < text.Length)
+            {
+                i++; // skip escaped char
+                continue;
+            }
+
+            if (text[i] == target)
+                return i;
+        }
+
+        return -1;
+    }
+
+    // --- Utility ---
+
+    internal static string FlattenInlinesToText(IReadOnlyList<MarkdownInline> inlines)
+    {
+        var sb = new StringBuilder();
+        FlattenInlinesCore(inlines, sb);
+        return sb.ToString();
+    }
+
+    private static void FlattenInlinesCore(IReadOnlyList<MarkdownInline> inlines, StringBuilder sb)
+    {
+        foreach (var inline in inlines)
+        {
+            switch (inline)
+            {
+                case TextInline text:
+                    sb.Append(text.Text);
+                    break;
+                case EmphasisInline emphasis:
+                    FlattenInlinesCore(emphasis.Children, sb);
+                    break;
+                case CodeInline code:
+                    sb.Append(code.Code);
+                    break;
+                case LinkInline link:
+                    sb.Append(link.Text);
+                    break;
+                case ImageInline image:
+                    sb.Append(image.AltText);
+                    break;
+                case LineBreakInline:
+                    sb.Append(' ');
+                    break;
+            }
+        }
+    }
+
+    private static bool IsBlankLine(string line) => line.Trim().Length == 0;
+
+    private static int CountLeading(string s, char c)
+    {
+        int count = 0;
+        while (count < s.Length && s[count] == c)
+            count++;
+        return count;
+    }
+
+    private static int CountLeadingSpan(ReadOnlySpan<char> s, char c)
+    {
+        int count = 0;
+        while (count < s.Length && s[count] == c)
+            count++;
+        return count;
+    }
+
+    private static bool HasIndent(string line, int spaces)
+    {
+        if (line.Length == 0) return false;
+
+        int counted = 0;
+        foreach (var c in line)
+        {
+            if (c == ' ') counted++;
+            else if (c == '\t') counted += 4;
+            else break;
+
+            if (counted >= spaces) return true;
+        }
+
+        return false;
+    }
+
+    private static string RemoveIndent(string line, int spaces)
+    {
+        int removed = 0;
+        int i = 0;
+        while (i < line.Length && removed < spaces)
+        {
+            if (line[i] == ' ')
+            {
+                removed++;
+                i++;
+            }
+            else if (line[i] == '\t')
+            {
+                removed += 4;
+                i++;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        return i < line.Length ? line[i..] : "";
+    }
+}
