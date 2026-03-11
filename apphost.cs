@@ -122,6 +122,10 @@ var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
 var pasteDemo = builder.AddCSharpApp("paste-demo", "./samples/PasteDemo")
     .ExcludeFromManifest();
 
+// KGP (Kitty Graphics Protocol) demo
+var kgpDemo = builder.AddCSharpApp("kgp-demo", "./samples/KgpDemo")
+    .ExcludeFromManifest();
+
 // Tile panel demo
 var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
     .ExcludeFromManifest();

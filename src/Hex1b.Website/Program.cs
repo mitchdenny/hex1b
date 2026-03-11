@@ -157,6 +157,9 @@ builder.Services.AddSingleton<IGalleryExample, SurfaceBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceLayersExample>();
 builder.Services.AddSingleton<IGalleryExample, SurfaceMouseExample>();
 
+// KGP Image examples
+builder.Services.AddSingleton<IGalleryExample, KgpImageBasicExample>();
+
 // Drag & Drop examples
 builder.Services.AddSingleton<IGalleryExample, DragDropBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, DragDropGhostExample>();
@@ -382,7 +385,7 @@ async Task HandleHex1bExampleAsync(WebSocket webSocket, IGalleryExample example,
     await using var presentation = new WebSocketPresentationAdapter(webSocket, 80, 24, enableMouse: example.EnableMouse);
     
     // Create the workload adapter that Hex1bApp will use
-    var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
+    var workload = new Hex1bAppWorkloadAdapter(presentation);
     
     // Create terminal options
     var metricsOptions = new Hex1bMetricsOptions();

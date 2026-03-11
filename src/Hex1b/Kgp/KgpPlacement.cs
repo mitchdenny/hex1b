@@ -44,6 +44,22 @@ public sealed class KgpPlacement
     /// <summary>Cell Y offset in pixels.</summary>
     public uint CellOffsetY { get; }
 
+    /// <summary>
+    /// Creates a new KGP placement anchored at the specified cell position.
+    /// </summary>
+    /// <param name="imageId">The image this placement refers to.</param>
+    /// <param name="placementId">The placement ID (0 if not specified).</param>
+    /// <param name="row">Row where the placement origin is anchored.</param>
+    /// <param name="column">Column where the placement origin is anchored.</param>
+    /// <param name="displayColumns">Number of columns the placement spans.</param>
+    /// <param name="displayRows">Number of rows the placement spans.</param>
+    /// <param name="sourceX">Source rectangle X offset in pixels.</param>
+    /// <param name="sourceY">Source rectangle Y offset in pixels.</param>
+    /// <param name="sourceWidth">Source rectangle width in pixels (0 = full).</param>
+    /// <param name="sourceHeight">Source rectangle height in pixels (0 = full).</param>
+    /// <param name="zIndex">Z-index for stacking order.</param>
+    /// <param name="cellOffsetX">Cell X offset in pixels.</param>
+    /// <param name="cellOffsetY">Cell Y offset in pixels.</param>
     public KgpPlacement(
         uint imageId,
         uint placementId,

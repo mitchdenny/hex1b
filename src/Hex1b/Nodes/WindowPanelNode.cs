@@ -462,7 +462,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             context.RenderChild(BackgroundNode);
         }
 
-        // Render windows in z-order (bottom to top)
+        // Render windows in z-order (bottom to top).
         foreach (var windowNode in WindowNodes)
         {
             context.RenderChild(windowNode);

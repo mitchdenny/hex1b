@@ -21,6 +21,17 @@ public class EditorNodeRenderingTests
     // so we need Nullable.Equals for comparisons.
     private static bool ColorEquals(Hex1bColor? a, Hex1bColor? b) => Nullable.Equals(a, b);
 
+    private static bool HasTildeMarkers(Hex1bTerminalSnapshot snapshot, int startY, int endY)
+    {
+        for (var y = startY; y <= endY; y++)
+        {
+            if (snapshot.GetCell(0, y).Character != "~")
+                return false;
+        }
+
+        return true;
+    }
+
     private static (Hex1bColor? textFg, Hex1bColor? textBg, Hex1bColor? cursorFg, Hex1bColor? cursorBg) GetThemeColors(Hex1bTheme theme)
     {
         return (
@@ -70,8 +81,10 @@ public class EditorNodeRenderingTests
                       && ColorEquals(ctx.Cell.Background, cursorBg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(cursorPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "cursor cell at (0,0) with cursor colors")
+            .WaitUntil(
+                s => s.SearchPattern(cursorPattern).HasMatches && HasTildeMarkers(s, 1, 4),
+                TimeSpan.FromSeconds(2),
+                "cursor cell at (0,0) with cursor colors and tilde markers")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -107,8 +120,10 @@ public class EditorNodeRenderingTests
 
         var textPattern = new CellPatternSearcher().Find("Hello");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(textPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "Hello text on line 0")
+            .WaitUntil(
+                s => s.SearchPattern(textPattern).HasMatches && HasTildeMarkers(s, 1, 4),
+                TimeSpan.FromSeconds(2),
+                "Hello text on line 0 and tilde markers")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -151,8 +166,10 @@ public class EditorNodeRenderingTests
 
         var pattern = new CellPatternSearcher().Find("CCC");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "all 3 lines rendered")
+            .WaitUntil(
+                s => s.SearchPattern(pattern).HasMatches && HasTildeMarkers(s, 3, 4),
+                TimeSpan.FromSeconds(2),
+                "all 3 lines and trailing tilde markers rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

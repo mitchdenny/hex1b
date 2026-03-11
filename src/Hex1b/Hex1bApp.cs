@@ -133,6 +133,28 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // Surface rendering double-buffer
     private Surface? _currentSurface;
     private Surface? _previousSurface;
+    
+    // KGP placement lifecycle tracker (persists across frames)
+    private readonly Kgp.KgpPlacementTracker _kgpTracker = new();
+
+    // When terminal resize invalidates Kitty placements, repaint text first and
+    // retransmit image data on a follow-up frame without another clear-screen pass.
+    private bool _kgpRetransmitPendingAfterResize;
+
+    // The follow-up KGP retransmit is intentionally deferred by one timer tick so Kitty
+    // can settle the resized text frame before receiving fresh APC graphics commands.
+    private bool _kgpRetransmitScheduledAfterResize;
+
+    // Bumps the derived Kitty image IDs after terminal resize so the same image bytes
+    // can be reintroduced under fresh terminal-side identities.
+    private uint _kgpImageEpoch;
+
+    // Monotonic generation for deferred KGP retransmit timers. Only the latest
+    // resize is allowed to arm the follow-up KGP retransmit frame.
+    private uint _kgpResizeRetransmitGeneration;
+
+    // KGP image registry for occlusion tracking (cleared per frame)
+    private readonly Kgp.KgpImageRegistry _kgpRegistry = new();
 
     // Optional pool for temporary surfaces (SurfaceWidget layers, effect panels, etc.)
     private readonly SurfacePool? _surfacePool;
@@ -194,7 +216,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             // Default: create console terminal using new architecture
             var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
-            var workload = new Hex1bAppWorkloadAdapter(presentation.Capabilities);
+            var workload = new Hex1bAppWorkloadAdapter(presentation);
             _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
             {
                 PresentationAdapter = presentation,
@@ -798,9 +820,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
 
         // Step 4: Layout - measure and arrange the node tree
+        // Capture terminal dimensions once for the entire frame so layout and surface
+        // rendering use the same size even if a resize lands mid-frame.
+        var frameWidth = _adapter.Width;
+        var frameHeight = _adapter.Height;
+        var frameCapabilities = _adapter.Capabilities;
         if (_rootNode != null)
         {
-            var terminalSize = new Size(_context.Width, _context.Height);
+            var terminalSize = new Size(frameWidth, frameHeight);
             var constraints = Constraints.Tight(terminalSize);
             _rootNode.Measure(constraints);
             _rootNode.Arrange(Rect.FromSize(terminalSize));
@@ -823,7 +850,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _context.MouseY = _mouseY;
 
         // Check if anything needs rendering before doing expensive output operations
-        var needsRender = _isFirstFrame || (_rootNode?.NeedsRender() ?? false);
+        var needsRender = _isFirstFrame
+            || _kgpRetransmitPendingAfterResize
+            || (_rootNode?.NeedsRender() ?? false);
         long renderTicks = 0;
         
         // Step 6.5-9: Only do render output if something actually changed
@@ -839,7 +868,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             {
                 long renderFrameStart = Stopwatch.GetTimestamp();
                 
-                RenderFrameWithSurface();
+                RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
                 
                 renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
                 if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
@@ -873,16 +902,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>
     /// Renders the frame using Surface-based rendering with efficient diffing.
     /// </summary>
-    private void RenderFrameWithSurface()
+    private void RenderFrameWithSurface(int width, int height, TerminalCapabilities caps)
     {
-        var width = _adapter.Width;
-        var height = _adapter.Height;
-
         _surfacePool?.NextFrame();
         
         // Get cell metrics from terminal capabilities
         // Use actual (floating-point) cell width for precise sixel sizing
-        var caps = _adapter.Capabilities;
         var cellMetrics = new CellMetrics(caps.EffectiveCellPixelWidth, caps.CellPixelHeight);
         
         // Ensure we have surfaces of the correct size and cell metrics
@@ -893,9 +918,43 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
         if (needNewSurfaces)
         {
-            // Reset attributes and clear screen on resize to remove artifacts from old layout
+            // Clear all visible KGP placements before clearing text cells. Some terminals
+            // invalidate placements on resize. Repaint the resized text frame first, then
+            // retransmit image data on an immediate follow-up frame without another clear.
+            if (_kgpTracker.HasEverTransmitted)
+            {
+                _adapter.Write("\x1b_Ga=d,d=a,q=2\x1b\\");
+                Kgp.KgpDebugLog.Write($"frame-resize delete-all-placements size={width}x{height}");
+                _kgpRetransmitPendingAfterResize = false;
+                _kgpRetransmitScheduledAfterResize = true;
+                var retransmitGeneration = ++_kgpResizeRetransmitGeneration;
+                Kgp.KgpDebugLog.Write(
+                    $"frame-resize schedule-retransmit gen={retransmitGeneration} " +
+                    $"delayMs={_animationTimer.MinimumInterval.TotalMilliseconds:0.###} size={width}x{height}");
+                ScheduleTimer(_animationTimer.MinimumInterval, () =>
+                {
+                    if (retransmitGeneration != _kgpResizeRetransmitGeneration)
+                    {
+                        Kgp.KgpDebugLog.Write(
+                            $"frame-resize retransmit-timer-skipped staleGen={retransmitGeneration} " +
+                            $"currentGen={_kgpResizeRetransmitGeneration}");
+                        return;
+                    }
+
+                    _kgpRetransmitScheduledAfterResize = false;
+                    _kgpRetransmitPendingAfterResize = true;
+                    Kgp.KgpDebugLog.Write($"frame-resize retransmit-timer-fired gen={retransmitGeneration}");
+                    Invalidate();
+                });
+            }
+            else
+            {
+                _kgpRetransmitPendingAfterResize = false;
+                _kgpRetransmitScheduledAfterResize = false;
+            }
+
             _adapter.Write("\x1b[0m\x1b[2J");
-            
+
             _currentSurface = new Surface(width, height, cellMetrics);
             _previousSurface = new Surface(width, height, cellMetrics);
             _isFirstFrame = true;
@@ -905,21 +964,39 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // After the needNewSurfaces block, both surfaces are guaranteed non-null
         (_previousSurface, _currentSurface) = (_currentSurface!, _previousSurface!);
         _currentSurface.Clear();
+
+        if (_kgpRetransmitPendingAfterResize && !needNewSurfaces)
+        {
+            _kgpImageEpoch++;
+            _kgpRetransmitPendingAfterResize = false;
+            Kgp.KgpDebugLog.Write($"frame-post-resize image-epoch={_kgpImageEpoch} size={width}x{height}");
+        }
         
         // Create surface-backed render context and render
+        _kgpRegistry.Clear();
         var surfaceContext = new SurfaceRenderContext(_currentSurface, _context.Theme)
         {
+            KgpImageEpoch = _kgpImageEpoch,
             MouseX = _mouseX,
             MouseY = _mouseY,
             CellMetrics = cellMetrics,
             CachingEnabled = _enableRenderCaching,
             Metrics = _metrics.NodeRenderDuration != null ? _metrics : null,
-            SurfacePool = _surfacePool
+            SurfacePool = _surfacePool,
+            KgpRegistry = _kgpRegistry
         };
+        surfaceContext.SetCapabilities(caps);
         
         if (_rootNode != null)
         {
             RenderTreeToSurface(_rootNode, surfaceContext);
+        }
+
+        if (_kgpRegistry.Images.Count > 0 || _currentSurface.HasKgp)
+        {
+            Kgp.KgpDebugLog.Write(
+                $"frame-rendered size={width}x{height} images={_kgpRegistry.Images.Count} " +
+                $"occluders={_kgpRegistry.Occluders.Count} surfaceHasKgp={_currentSurface.HasKgp}");
         }
         
         // Diff current vs previous and emit changes
@@ -931,29 +1008,83 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         _metrics.OutputCellsChanged.Record(diff.Count);
         
-        if (!diff.IsEmpty)
+        var suppressKgpOnResizeFrame = (_kgpRetransmitPendingAfterResize || _kgpRetransmitScheduledAfterResize) && needNewSurfaces;
+
+        // Generate KGP placement commands via the occlusion solver + tracker.
+        // The solver computes visible fragments (shredding images around higher-z windows),
+        // and the tracker manages lifecycle (transmit-once, minimal delete/place per frame).
+        var hasKgp = _kgpRegistry.Images.Count > 0 || _currentSurface.HasKgp || _kgpTracker.ActivePlacementCount > 0;
+        var kgpBefore = new List<Tokens.AnsiToken>();
+        var kgpAfter = new List<Tokens.AnsiToken>();
+        if (hasKgp && !suppressKgpOnResizeFrame)
         {
-            // Generate tokens then serialize — captures both counts for metrics
+            if (_kgpRegistry.Images.Count > 0)
+            {
+                // Use occlusion solver for fragment-based placement
+                var fragments = Kgp.KgpOcclusionSolver.ComputeFragments(_kgpRegistry);
+                Kgp.KgpDebugLog.Write(
+                    $"frame-fragments images={_kgpRegistry.Images.Count} occluders={_kgpRegistry.Occluders.Count} " +
+                    $"fragments={fragments.Count} trackerImages={_kgpTracker.ActivePlacementCount} " +
+                    $"trackerFragments={_kgpTracker.ActiveFragmentCount}");
+                (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(fragments);
+            }
+            else
+            {
+                // Fallback: scan surface directly (no occlusion data)
+                Kgp.KgpDebugLog.Write(
+                    $"frame-scan-fallback surfaceHasKgp={_currentSurface.HasKgp} " +
+                    $"trackerImages={_kgpTracker.ActivePlacementCount} trackerFragments={_kgpTracker.ActiveFragmentCount}");
+                (kgpBefore, kgpAfter) = _kgpTracker.GenerateCommands(_currentSurface);
+            }
+        }
+        else if (suppressKgpOnResizeFrame)
+        {
+            Kgp.KgpDebugLog.Write(
+                $"frame-resize suppress-kgp size={width}x{height} " +
+                $"images={_kgpRegistry.Images.Count} surfaceHasKgp={_currentSurface.HasKgp} " +
+                $"trackerImages={_kgpTracker.ActivePlacementCount} trackerFragments={_kgpTracker.ActiveFragmentCount}");
+        }
+        var hasKgpChanges = kgpBefore.Count > 0 || kgpAfter.Count > 0;
+        
+        if (!diff.IsEmpty || hasKgpChanges)
+        {
+            // Generate text/sixel tokens (KGP emission skipped — handled by tracker above)
             var tokensStart = Stopwatch.GetTimestamp();
-            var tokens = SurfaceComparer.ToTokens(diff, _currentSurface);
+            var textTokens = diff.IsEmpty
+                ? Array.Empty<Tokens.AnsiToken>()
+                : SurfaceComparer.ToTokens(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp);
             _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
             
+            // Merge: KGP before-text + text tokens + KGP after-text
+            List<Tokens.AnsiToken> tokens;
+            if (hasKgpChanges)
+            {
+                tokens = new List<Tokens.AnsiToken>(kgpBefore.Count + textTokens.Count + kgpAfter.Count);
+                tokens.AddRange(kgpBefore);
+                tokens.AddRange(textTokens);
+                tokens.AddRange(kgpAfter);
+            }
+            else
+            {
+                tokens = textTokens is List<Tokens.AnsiToken> list ? list : new List<Tokens.AnsiToken>(textTokens);
+            }
+            
             var serializeStart = Stopwatch.GetTimestamp();
-             var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
-             _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
-             
-             if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
-             {
-                 workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
-             }
-             else
-             {
-                 _adapter.Write(ansiOutput);
-             }
-             
-             _metrics.OutputTokens.Record(tokens.Count);
-             _metrics.OutputBytes.Record(ansiOutput.Length);
-         }
+            var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+            
+            if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
+            {
+                workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
+            }
+            else
+            {
+                _adapter.Write(ansiOutput);
+            }
+            
+            _metrics.OutputTokens.Record(tokens.Count);
+            _metrics.OutputBytes.Record(ansiOutput.Length);
+        }
         
         _isFirstFrame = false;
     }

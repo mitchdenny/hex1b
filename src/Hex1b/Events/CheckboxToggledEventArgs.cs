@@ -55,8 +55,9 @@ public sealed class CheckboxToggledEventArgs
         Widget = widget;
         Node = node;
         Context = context;
-        PreviousState = node.State;
-        // Toggle: Checked -> Unchecked, anything else -> Checked
-        NewState = node.State == CheckboxState.Checked ? CheckboxState.Unchecked : CheckboxState.Checked;
+        // node.State has already been toggled by CheckboxNode.Toggle(),
+        // so it represents the NEW state. Derive the previous state.
+        NewState = node.State;
+        PreviousState = node.State == CheckboxState.Checked ? CheckboxState.Unchecked : CheckboxState.Checked;
     }
 }

@@ -62,6 +62,22 @@ public sealed class CompositeSurface : ISurfaceSource
     }
 
     /// <summary>
+    /// Gets whether any layer in this composite contains KGP images.
+    /// </summary>
+    public bool HasKgp
+    {
+        get
+        {
+            foreach (var layer in _layers)
+            {
+                if (layer.Source.HasKgp)
+                    return true;
+            }
+            return false;
+        }
+    }
+
+    /// <summary>
     /// Gets the number of layers in this composite.
     /// </summary>
     public int LayerCount => _layers.Count;
@@ -243,8 +259,11 @@ public sealed class CompositeSurface : ISurfaceSource
         if (above.Character == SurfaceCells.UnwrittenMarker)
             return below;
         
-        // Cells with sixels are always opaque - return as-is
+        // Cells with sixels or KGP images are always opaque - return as-is
         if (above.HasSixel)
+            return above;
+        
+        if (above.HasKgp)
             return above;
         
         if (above.Character != " " || above.Background is not null)
@@ -255,7 +274,8 @@ public sealed class CompositeSurface : ISurfaceSource
             Character = below.Character,
             Foreground = below.Foreground,
             Attributes = below.Attributes | above.Attributes,
-            Sixel = below.Sixel  // Preserve sixel from below if any
+            Sixel = below.Sixel,  // Preserve sixel from below if any
+            Kgp = below.Kgp      // Preserve KGP from below if any
         };
     }
 
@@ -591,6 +611,7 @@ public sealed class CompositeSurface : ISurfaceSource
         public int Height { get; }
         public CellMetrics CellMetrics => CellMetrics.Default;
         public bool HasSixels => false; // Computed layers don't have sixels directly
+        public bool HasKgp => false; // Computed layers don't have KGP directly
 
         public ComputedLayerSource(int width, int height)
         {
@@ -770,6 +791,61 @@ public sealed class CompositeSurface : ISurfaceSource
             return null;
         }
 
+        /// <summary>
+        /// Finds a KGP image at the specified position in layers below the given layer.
+        /// </summary>
+        public (KgpCellData Data, int AnchorX, int AnchorY)? FindKgpAtPosition(int x, int y, int maxLayerIndex)
+        {
+            for (var i = Math.Min(maxLayerIndex - 1, _composite._layers.Count - 1); i >= 0; i--)
+            {
+                var layer = _composite._layers[i];
+                if (!layer.Source.HasKgp)
+                    continue;
+
+                var result = FindKgpInLayer(layer, x, y);
+                if (result is not null)
+                    return result;
+            }
+
+            return null;
+        }
+
+        private static (KgpCellData Data, int AnchorX, int AnchorY)? FindKgpInLayer(Layer layer, int x, int y)
+        {
+            var source = layer.Source;
+            const int maxKgpSpan = 100;
+
+            var srcX = x - layer.OffsetX;
+            var srcY = y - layer.OffsetY;
+
+            var startCheckX = Math.Max(0, srcX - maxKgpSpan + 1);
+            var startCheckY = Math.Max(0, srcY - maxKgpSpan + 1);
+            var endCheckX = Math.Min(source.Width, srcX + 1);
+            var endCheckY = Math.Min(source.Height, srcY + 1);
+
+            for (var checkY = startCheckY; checkY < endCheckY; checkY++)
+            {
+                for (var checkX = startCheckX; checkX < endCheckX; checkX++)
+                {
+                    var cell = source.GetCell(checkX, checkY);
+                    if (cell.Kgp is null)
+                        continue;
+
+                    var kgpData = cell.Kgp.Data;
+                    var anchorGlobalX = checkX + layer.OffsetX;
+                    var anchorGlobalY = checkY + layer.OffsetY;
+
+                    if (x >= anchorGlobalX && x < anchorGlobalX + kgpData.WidthInCells &&
+                        y >= anchorGlobalY && y < anchorGlobalY + kgpData.HeightInCells)
+                    {
+                        return (kgpData, anchorGlobalX, anchorGlobalY);
+                    }
+                }
+            }
+
+            return null;
+        }
+
         private SurfaceCell ResolveComputedCell(int x, int y, int layerIndex, CellCompute compute)
         {
             var key = (x, y, layerIndex);
@@ -822,6 +898,12 @@ public sealed class CompositeSurface : ISurfaceSource
             
             // Cells with sixels are always opaque - return as-is
             if (above.HasSixel)
+            {
+                return above;
+            }
+            
+            // Cells with KGP images are always opaque - return as-is
+            if (above.HasKgp)
             {
                 return above;
             }

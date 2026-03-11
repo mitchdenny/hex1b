@@ -128,6 +128,21 @@ public static class SurfaceComparer
     /// <param name="currentSurface">The current surface, used to find sixels that need re-rendering when their region is dirty.</param>
     /// <returns>A list of ANSI tokens that will render the changes.</returns>
     public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface)
+        => ToTokens(diff, currentSurface, previousSurface: null);
+
+    /// <summary>
+    /// Generates a list of ANSI tokens to render the diff, with sixel and KGP awareness.
+    /// When a previous surface is provided, KGP images that have moved or been removed
+    /// will emit delete commands so the terminal cleans up stale placements.
+    /// </summary>
+    /// <param name="diff">The surface diff to render.</param>
+    /// <param name="currentSurface">The current surface, used to find images that need re-rendering when their region is dirty.</param>
+    /// <param name="previousSurface">The previous surface, used to detect KGP images that need to be deleted.</param>
+    /// <param name="skipKgpEmission">When true, KGP region detection is still performed (for text skipping)
+    /// but no KGP delete/transmit/placement tokens are emitted. Use this when a
+    /// <see cref="Hex1b.Kgp.KgpPlacementTracker"/> handles KGP lifecycle externally.</param>
+    /// <returns>A list of ANSI tokens that will render the changes.</returns>
+    public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface, bool skipKgpEmission = false)
     {
         ArgumentNullException.ThrowIfNull(diff);
 
@@ -136,9 +151,68 @@ public static class SurfaceComparer
 
         var tokens = new List<AnsiToken>();
         
+        // Emit KGP delete commands for images that were in the previous surface but have
+        // moved or been removed. KGP placements persist in the terminal until explicitly
+        // deleted with a=d, so we must clean up stale placements before emitting new ones.
+        // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+        if (!skipKgpEmission && previousSurface != null && previousSurface.HasKgp)
+        {
+            // Collect all KGP image IDs and their anchor positions from the previous surface
+            var previousKgpAnchors = new Dictionary<uint, (int X, int Y)>();
+            for (var y = 0; y < previousSurface.Height; y++)
+            {
+                for (var x = 0; x < previousSurface.Width; x++)
+                {
+                    var cell = previousSurface[x, y];
+                    if (cell.HasKgp && cell.Kgp?.Data is not null)
+                    {
+                        previousKgpAnchors.TryAdd(cell.Kgp.Data.ImageId, (x, y));
+                    }
+                }
+            }
+
+            if (previousKgpAnchors.Count > 0)
+            {
+                // Collect current KGP anchors
+                var currentKgpAnchors = new Dictionary<uint, (int X, int Y)>();
+                if (currentSurface != null && currentSurface.HasKgp)
+                {
+                    for (var y = 0; y < currentSurface.Height; y++)
+                    {
+                        for (var x = 0; x < currentSurface.Width; x++)
+                        {
+                            var cell = currentSurface[x, y];
+                            if (cell.HasKgp && cell.Kgp?.Data is not null)
+                            {
+                                currentKgpAnchors.TryAdd(cell.Kgp.Data.ImageId, (x, y));
+                            }
+                        }
+                    }
+                }
+
+                // Delete KGP placements that moved or disappeared
+                foreach (var (imageId, prevPos) in previousKgpAnchors)
+                {
+                    if (!currentKgpAnchors.TryGetValue(imageId, out var curPos) || curPos != prevPos)
+                    {
+                        // Image moved or was removed — delete all placements for this image ID
+                        tokens.Add(new UnrecognizedSequenceToken($"\x1b_Ga=d,d=i,i={imageId},q=2\x1b\\"));
+                    }
+                }
+            }
+        }
+
         // Track regions covered by sixels (we need to skip cells under sixels)
         // Each entry is (x, y, width, height, cell) of a sixel region
         var sixelRegions = new List<(int X, int Y, int Width, int Height, SurfaceCell Cell)>();
+        
+        // Track regions covered by KGP images (we need to skip cells under KGP)
+        var kgpRegions = new List<(int X, int Y, int Width, int Height, SurfaceCell Cell)>();
+        
+        // Collect below-text KGP placements to emit before text
+        var belowTextKgp = new List<(int X, int Y, KgpCellData Data)>();
+        // Collect above-text KGP placements to emit after text
+        var aboveTextKgp = new List<(int X, int Y, KgpCellData Data)>();
         
         // If we have the current surface, find sixels whose regions intersect with dirty cells
         // These sixels need to be re-emitted even if their anchor cell hasn't changed
@@ -273,6 +347,64 @@ public static class SurfaceComparer
             }
         }
 
+        // If we have the current surface, find KGP images whose regions intersect dirty cells
+        if (currentSurface != null && currentSurface.HasKgp)
+        {
+            var dirtyCells = new HashSet<(int, int)>();
+            foreach (var change in diff.ChangedCells)
+            {
+                dirtyCells.Add((change.X, change.Y));
+            }
+            
+            for (var y = 0; y < currentSurface.Height; y++)
+            {
+                for (var x = 0; x < currentSurface.Width; x++)
+                {
+                    var cell = currentSurface[x, y];
+                    if (cell.HasKgp && cell.Kgp?.Data is not null)
+                    {
+                        var kgpData = cell.Kgp.Data;
+                        var regionHasDirtyCell = false;
+                        
+                        for (var ky = y; ky < y + kgpData.HeightInCells && ky < currentSurface.Height; ky++)
+                        {
+                            for (var kx = x; kx < x + kgpData.WidthInCells && kx < currentSurface.Width; kx++)
+                            {
+                                if (dirtyCells.Contains((kx, ky)))
+                                {
+                                    regionHasDirtyCell = true;
+                                    break;
+                                }
+                            }
+                            if (regionHasDirtyCell) break;
+                        }
+                        
+                        if (regionHasDirtyCell)
+                        {
+                            kgpRegions.Add((x, y, kgpData.WidthInCells, kgpData.HeightInCells, cell));
+                            
+                            // Sort into below-text (emit before text) or above-text (emit after text)
+                            if (kgpData.ZIndex < 0)
+                                belowTextKgp.Add((x, y, kgpData));
+                            else
+                                aboveTextKgp.Add((x, y, kgpData));
+                        }
+                    }
+                }
+            }
+            
+            // Emit below-text KGP placements BEFORE text (like sixels)
+            // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+            if (!skipKgpEmission)
+            {
+                foreach (var (kx, ky, data) in belowTextKgp)
+                {
+                    tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
+                    EmitKgpTokens(tokens, data);
+                }
+            }
+        }
+
         // Track current state to minimize redundant tokens
         int cursorX = -1;
         int cursorY = -1;
@@ -293,6 +425,13 @@ public static class SurfaceComparer
             // Skip cells that are covered by a sixel (either from diff or pre-emitted)
             // Only skip if the cell has no content to render over the sixel
             if (IsCoveredBySixelRegion(change.X, change.Y, change.Cell, sixelRegions))
+                continue;
+            
+            // Skip cells covered by a KGP image region (same logic as sixels).
+            // Only skip when the comparer handles KGP placement itself — when KGP
+            // emission is external (skipKgpEmission=true), we must still emit clears
+            // so stale text doesn't obscure below-text KGP placements.
+            if (!skipKgpEmission && IsCoveredByKgpRegion(change.X, change.Y, change.Cell, kgpRegions))
                 continue;
 
             // Position cursor if needed
@@ -378,6 +517,41 @@ public static class SurfaceComparer
                 continue;
             }
 
+            // Check if this cell has KGP data
+            if (change.Cell.HasKgp && change.Cell.Kgp?.Data is not null)
+            {
+                // Check if already emitted in the pre-loop
+                bool alreadyEmitted = false;
+                foreach (var (kx, ky, _, _, _) in kgpRegions)
+                {
+                    if (kx == change.X && ky == change.Y)
+                    {
+                        alreadyEmitted = true;
+                        break;
+                    }
+                }
+                
+                if (!alreadyEmitted)
+                {
+                    var kgpData = change.Cell.Kgp.Data;
+                    kgpRegions.Add((change.X, change.Y, kgpData.WidthInCells, kgpData.HeightInCells, change.Cell));
+                    
+                    // KGP below-text gets emitted inline; above-text deferred to end
+                    if (kgpData.ZIndex >= 0)
+                        aboveTextKgp.Add((change.X, change.Y, kgpData));
+                    else if (!skipKgpEmission)
+                        EmitKgpTokens(tokens, kgpData);
+                }
+
+                if (!skipKgpEmission)
+                {
+                    // When the comparer handles KGP directly, skip the anchor cell's text
+                    continue;
+                }
+                // When an external tracker handles KGP placement, fall through
+                // to emit the space character so stale text at the anchor is cleared.
+            }
+
             // Output the character (convert unwritten marker to space)
             var charToOutput = change.Cell.Character == SurfaceCells.UnwrittenMarker 
                 ? " " 
@@ -406,9 +580,37 @@ public static class SurfaceComparer
             tokens.Add(new OscToken("8", "", "", UseEscBackslash: true));
         }
 
+        // Emit above-text KGP placements AFTER all text tokens
+        // Skip when KGP emission is handled externally by a KgpPlacementTracker.
+        if (!skipKgpEmission)
+        {
+            foreach (var (kx, ky, data) in aboveTextKgp)
+            {
+                tokens.Add(new CursorPositionToken(ky + 1, kx + 1));
+                EmitKgpTokens(tokens, data);
+            }
+        }
+
         return tokens;
     }
     
+    /// <summary>
+    /// Emits KGP transmit and placement tokens for a KGP cell.
+    /// Transmit data is chunked per KGP protocol (max 4096 bytes per APC) so that
+    /// terminals don't truncate the payload. Each chunk and the placement are emitted
+    /// as separate tokens so that <see cref="Hex1bTerminal.NormalizePreTokenizedTokens"/>
+    /// can convert them to <see cref="KgpToken"/> individually.
+    /// </summary>
+    private static void EmitKgpTokens(List<AnsiToken> tokens, KgpCellData data)
+    {
+        var chunks = data.BuildTransmitChunks();
+        foreach (var chunk in chunks)
+        {
+            tokens.Add(new UnrecognizedSequenceToken(chunk));
+        }
+        tokens.Add(new UnrecognizedSequenceToken(data.BuildPlacementPayload()));
+    }
+
     /// <summary>
     /// Checks if a cell position is covered by any sixel region.
     /// </summary>
@@ -429,6 +631,29 @@ public static class SurfaceComparer
                 continue;
                 
             if (x >= sx && x < sx + sw && y >= sy && y < sy + sh)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// Checks if a cell position is covered by any KGP image region.
+    /// </summary>
+    private static bool IsCoveredByKgpRegion(int x, int y, SurfaceCell cell, List<(int X, int Y, int Width, int Height, SurfaceCell Cell)> regions)
+    {
+        if (regions.Count == 0)
+            return false;
+            
+        // If the cell has actual content, it should be rendered over the KGP image
+        if (cell.Character != " " && cell.Character != string.Empty && cell.Character != SurfaceCells.UnwrittenMarker)
+            return false;
+        
+        foreach (var (kx, ky, kw, kh, _) in regions)
+        {
+            if (x == kx && y == ky)
+                continue;
+                
+            if (x >= kx && x < kx + kw && y >= ky && y < ky + kh)
                 return true;
         }
         return false;
@@ -506,6 +731,10 @@ public static class SurfaceComparer
         if (!SixelsEqual(a.Sixel, b.Sixel))
             return false;
         
+        // Compare KGP
+        if (!KgpEqual(a.Kgp, b.Kgp))
+            return false;
+        
         // Compare hyperlinks by content (URI and parameters)
         return HyperlinksEqual(a.Hyperlink, b.Hyperlink);
     }
@@ -517,6 +746,15 @@ public static class SurfaceComparer
         
         // Compare by content hash
         return SixelData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
+    }
+    
+    private static bool KgpEqual(TrackedObject<KgpCellData>? a, TrackedObject<KgpCellData>? b)
+    {
+        if (a is null && b is null) return true;
+        if (a is null || b is null) return false;
+        
+        // Compare by content hash
+        return KgpCellData.HashEquals(a.Data.ContentHash, b.Data.ContentHash);
     }
     
     private static bool HyperlinksEqual(TrackedObject<HyperlinkData>? a, TrackedObject<HyperlinkData>? b)

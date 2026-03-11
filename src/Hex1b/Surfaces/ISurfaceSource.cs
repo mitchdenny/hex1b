@@ -46,6 +46,11 @@ public interface ISurfaceSource
     bool HasSixels { get; }
 
     /// <summary>
+    /// Gets whether this surface contains any KGP (Kitty Graphics Protocol) images.
+    /// </summary>
+    bool HasKgp { get; }
+
+    /// <summary>
     /// Gets the cell at the specified position.
     /// </summary>
     /// <remarks>

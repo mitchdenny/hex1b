@@ -23,6 +23,9 @@ internal sealed class TrackedObjectStore
     // Content-addressable storage for hyperlink data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<HyperlinkData>> _hyperlinkByHash = new(ByteArrayComparer.Instance);
     
+    // Content-addressable storage for KGP data, keyed by content hash
+    private readonly Dictionary<byte[], TrackedObject<KgpCellData>> _kgpByHash = new(ByteArrayComparer.Instance);
+    
     private readonly object _lock = new();
 
     /// <summary>
@@ -49,6 +52,20 @@ internal sealed class TrackedObjectStore
             lock (_lock)
             {
                 return _hyperlinkByHash.Count;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets the number of tracked KGP objects currently in the store.
+    /// </summary>
+    public int KgpCount
+    {
+        get
+        {
+            lock (_lock)
+            {
+                return _kgpByHash.Count;
             }
         }
     }
@@ -156,6 +173,34 @@ internal sealed class TrackedObjectStore
     }
 
     /// <summary>
+    /// Gets or creates a tracked KGP object for the given cell data.
+    /// If an identical KGP image (by content hash) already exists, adds a reference and returns it.
+    /// Otherwise, creates a new tracked object with refcount 1.
+    /// </summary>
+    /// <param name="kgpData">The KGP cell data to track.</param>
+    /// <returns>A tracked KGP object (new or existing with added ref).</returns>
+    public TrackedObject<KgpCellData> GetOrCreateKgp(KgpCellData kgpData)
+    {
+        var hash = kgpData.ContentHash;
+
+        lock (_lock)
+        {
+            if (_kgpByHash.TryGetValue(hash, out var existing))
+            {
+                existing.AddRef();
+                return existing;
+            }
+
+            var tracked = new TrackedObject<KgpCellData>(
+                kgpData,
+                onZeroRefs: obj => RemoveKgp(obj.Data));
+
+            _kgpByHash[hash] = tracked;
+            return tracked;
+        }
+    }
+
+    /// <summary>
     /// Clears all tracked objects, resetting the store.
     /// </summary>
     /// <remarks>
@@ -168,6 +213,7 @@ internal sealed class TrackedObjectStore
         {
             _sixelByHash.Clear();
             _hyperlinkByHash.Clear();
+            _kgpByHash.Clear();
         }
     }
 
@@ -184,6 +230,14 @@ internal sealed class TrackedObjectStore
         lock (_lock)
         {
             _hyperlinkByHash.Remove(hyperlink.ContentHash);
+        }
+    }
+
+    private void RemoveKgp(KgpCellData kgp)
+    {
+        lock (_lock)
+        {
+            _kgpByHash.Remove(kgp.ContentHash);
         }
     }
 

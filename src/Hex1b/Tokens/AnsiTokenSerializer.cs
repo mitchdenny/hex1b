@@ -65,6 +65,7 @@ public static class AnsiTokenSerializer
             SgrMouseToken mouse => SerializeSgrMouse(mouse),
             SpecialKeyToken special => SerializeSpecialKey(special),
             UnrecognizedSequenceToken unrec => unrec.Sequence,
+            KgpToken kgp => SerializeKgp(kgp),
             DeviceStatusReportToken dsr => $"\x1b[{dsr.Type}n",
             _ => throw new ArgumentException($"Unknown token type: {token.GetType().Name}", nameof(token))
         };
@@ -204,6 +205,14 @@ public static class AnsiTokenSerializer
     {
         // ESC P payload ESC \
         return $"\x1bP{token.Payload}\x1b\\";
+    }
+
+    private static string SerializeKgp(KgpToken token)
+    {
+        // APC G controlData ; payload ESC \
+        if (string.IsNullOrEmpty(token.Payload))
+            return $"\x1b_G{token.ControlData}\x1b\\";
+        return $"\x1b_G{token.ControlData};{token.Payload}\x1b\\";
     }
 
     private static string SerializeApc(string content)

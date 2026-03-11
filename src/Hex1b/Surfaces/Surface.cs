@@ -32,6 +32,17 @@ public sealed class Surface : ISurfaceSource
     // Track if any cells contain sixel graphics
     private int _sixelCount;
     
+    // Track if any cells contain KGP graphics
+    private int _kgpCount;
+    
+    // Track the bounding box of written (non-empty) cells.
+    // Used by KGP occlusion to register occluders at the actual content area
+    // rather than the full surface bounds.
+    private int _contentMaxX = -1;
+    private int _contentMinX;
+    private int _contentMaxY = -1;
+    private int _contentMinY;
+    
     /// <summary>
     /// Gets the width of the surface in columns.
     /// </summary>
@@ -57,6 +68,24 @@ public sealed class Surface : ISurfaceSource
     /// </summary>
     public bool HasSixels => _sixelCount > 0;
     
+    /// <summary>
+    /// Gets whether this surface contains any KGP (Kitty Graphics Protocol) images.
+    /// </summary>
+    public bool HasKgp => _kgpCount > 0;
+    
+    /// <summary>
+    /// Gets whether any cells have been written (are not <see cref="SurfaceCells.Empty"/>).
+    /// </summary>
+    internal bool HasWrittenContent => _contentMaxX >= 0;
+
+    /// <summary>
+    /// Gets the bounding rectangle of all written cells in surface-local coordinates.
+    /// Returns a zero-size rectangle if no cells have been written.
+    /// </summary>
+    internal Rect WrittenContentBounds => _contentMaxX >= 0
+        ? new Rect(_contentMinX, _contentMinY, _contentMaxX - _contentMinX + 1, _contentMaxY - _contentMinY + 1)
+        : new Rect(0, 0, 0, 0);
+
     /// <summary>
     /// Gets the total number of cells in the surface.
     /// </summary>
@@ -93,6 +122,8 @@ public sealed class Surface : ISurfaceSource
         
         // Initialize all cells to empty
         Array.Fill(_cells, SurfaceCells.Empty);
+        _contentMinX = width;
+        _contentMinY = height;
     }
 
     /// <summary>
@@ -120,6 +151,16 @@ public sealed class Surface : ISurfaceSource
                 _sixelCount--;
             else if (!oldCell.HasSixel && value.HasSixel)
                 _sixelCount++;
+            
+            // Track KGP count changes
+            if (oldCell.HasKgp && !value.HasKgp)
+                _kgpCount--;
+            else if (!oldCell.HasKgp && value.HasKgp)
+                _kgpCount++;
+            
+            // Track content bounding box
+            if (value != SurfaceCells.Empty)
+                ExpandContentBounds(x, y);
             
             _cells[index] = value;
         }
@@ -172,6 +213,16 @@ public sealed class Surface : ISurfaceSource
             else if (!oldCell.HasSixel && cell.HasSixel)
                 _sixelCount++;
             
+            // Track KGP count changes
+            if (oldCell.HasKgp && !cell.HasKgp)
+                _kgpCount--;
+            else if (!oldCell.HasKgp && cell.HasKgp)
+                _kgpCount++;
+            
+            // Track content bounding box
+            if (cell != SurfaceCells.Empty)
+                ExpandContentBounds(x, y);
+            
             _cells[index] = cell;
             return true;
         }
@@ -194,6 +245,8 @@ public sealed class Surface : ISurfaceSource
     {
         Array.Fill(_cells, SurfaceCells.Empty);
         _sixelCount = 0;
+        _kgpCount = 0;
+        ResetContentBounds();
     }
 
     /// <summary>
@@ -210,11 +263,14 @@ public sealed class Surface : ISurfaceSource
         {
             var cell = cells[i];
             cell.Sixel?.Release();
+            cell.Kgp?.Release();
             cell.Hyperlink?.Release();
             cells[i] = SurfaceCells.Empty;
         }
 
         _sixelCount = 0;
+        _kgpCount = 0;
+        ResetContentBounds();
     }
 
     /// <summary>
@@ -225,6 +281,11 @@ public sealed class Surface : ISurfaceSource
     {
         Array.Fill(_cells, cell);
         _sixelCount = cell.HasSixel ? CellCount : 0;
+        _kgpCount = cell.HasKgp ? CellCount : 0;
+        if (cell != SurfaceCells.Empty && Width > 0 && Height > 0)
+            SetContentBoundsToFull();
+        else
+            ResetContentBounds();
     }
 
     /// <summary>
@@ -241,6 +302,12 @@ public sealed class Surface : ISurfaceSource
         var endX = Math.Min(Width, region.Right);
         var endY = Math.Min(Height, region.Bottom);
 
+        if (cell != SurfaceCells.Empty && startX < endX && startY < endY)
+        {
+            ExpandContentBounds(startX, startY);
+            ExpandContentBounds(endX - 1, endY - 1);
+        }
+
         for (var y = startY; y < endY; y++)
         {
             var rowStart = y * Width;
@@ -254,6 +321,12 @@ public sealed class Surface : ISurfaceSource
                     _sixelCount--;
                 else if (!oldCell.HasSixel && cell.HasSixel)
                     _sixelCount++;
+                
+                // Track KGP count changes
+                if (oldCell.HasKgp && !cell.HasKgp)
+                    _kgpCount--;
+                else if (!oldCell.HasKgp && cell.HasKgp)
+                    _kgpCount++;
                 
                 _cells[index] = cell;
             }
@@ -292,6 +365,7 @@ public sealed class Surface : ISurfaceSource
 
         var currentX = x;
         var columnsWritten = 0;
+        var startX = -1;
         var enumerator = StringInfo.GetTextElementEnumerator(text);
 
         while (enumerator.MoveNext())
@@ -317,6 +391,7 @@ public sealed class Surface : ISurfaceSource
                 // Fill remaining space with spaces
                 while (currentX < Width)
                 {
+                    if (startX < 0) startX = currentX;
                     _cells[y * Width + currentX] = new SurfaceCell(" ", foreground, background, attributes, 1);
                     currentX++;
                     columnsWritten++;
@@ -326,6 +401,7 @@ public sealed class Surface : ISurfaceSource
 
             // Write the primary cell
             var cell = new SurfaceCell(grapheme, foreground, background, attributes, graphemeWidth);
+            if (startX < 0) startX = currentX;
             _cells[y * Width + currentX] = cell;
             currentX++;
             columnsWritten++;
@@ -340,6 +416,12 @@ public sealed class Surface : ISurfaceSource
                     columnsWritten++;
                 }
             }
+        }
+
+        if (columnsWritten > 0 && startX >= 0)
+        {
+            ExpandContentBounds(startX, y);
+            ExpandContentBounds(Math.Min(currentX - 1, Width - 1), y);
         }
 
         return columnsWritten;
@@ -361,6 +443,7 @@ public sealed class Surface : ISurfaceSource
             return false;
 
         _cells[y * Width + x] = new SurfaceCell(character.ToString(), foreground, background, attributes, 1);
+        ExpandContentBounds(x, y);
         return true;
     }
 
@@ -385,6 +468,9 @@ public sealed class Surface : ISurfaceSource
                 _cells[i] = cell with { Background = background };
             }
         }
+        // After FillBackground, every cell has content (either rendered or bgCell)
+        if (Width > 0 && Height > 0)
+            SetContentBoundsToFull();
     }
 
     /// <summary>
@@ -398,6 +484,12 @@ public sealed class Surface : ISurfaceSource
         var startY = Math.Max(0, regionY);
         var endX = Math.Min(Width, regionX + regionWidth);
         var endY = Math.Min(Height, regionY + regionHeight);
+
+        if (startX < endX && startY < endY)
+        {
+            ExpandContentBounds(startX, startY);
+            ExpandContentBounds(endX - 1, endY - 1);
+        }
 
         for (int y = startY; y < endY; y++)
         {
@@ -467,6 +559,12 @@ public sealed class Surface : ISurfaceSource
         if (destStartX >= destEndX || destStartY >= destEndY)
             return;
 
+        Dictionary<(int X, int Y), SurfaceCell>? kgpOverrides = null;
+        if (source.HasKgp)
+        {
+            kgpOverrides = BuildKgpCompositeOverrides(source, offsetX, offsetY, clipRect);
+        }
+
         for (var destY = destStartY; destY < destEndY; destY++)
         {
             var srcY = destY - offsetY;
@@ -475,7 +573,9 @@ public sealed class Surface : ISurfaceSource
             for (var destX = destStartX; destX < destEndX; destX++)
             {
                 var srcX = destX - offsetX;
-                var srcCell = source.GetCell(srcX, srcY);
+                var srcCell = kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var overrideCell)
+                    ? overrideCell
+                    : source.GetCell(srcX, srcY);
                 
                 // Skip cells that are exactly the initial empty state - these are unwritten cells
                 // that should not overwrite anything. We compare the full cell struct, not just
@@ -514,6 +614,12 @@ public sealed class Surface : ISurfaceSource
                             $"  After clip: REMOVED\n");
                     }
                 }
+                
+                // Clip KGP images that would extend beyond destination bounds
+                if (srcCell.HasKgp && srcCell.Kgp?.Data is not null)
+                {
+                    srcCell = ClipKgpCell(srcCell, destX, destY);
+                }
 
                 var index = destRowStart + destX;
                 
@@ -523,10 +629,81 @@ public sealed class Surface : ISurfaceSource
                     _sixelCount--;
                 else if (!oldCell.HasSixel && srcCell.HasSixel)
                     _sixelCount++;
+                
+                // Track KGP count changes
+                if (oldCell.HasKgp && !srcCell.HasKgp)
+                    _kgpCount--;
+                else if (!oldCell.HasKgp && srcCell.HasKgp)
+                    _kgpCount++;
 
                 _cells[index] = srcCell;
+                ExpandContentBounds(destX, destY);
             }
         }
+    }
+
+    private Dictionary<(int X, int Y), SurfaceCell> BuildKgpCompositeOverrides(
+        ISurfaceSource source,
+        int offsetX,
+        int offsetY,
+        Rect clipRect)
+    {
+        var overrides = new Dictionary<(int X, int Y), SurfaceCell>();
+
+        for (var srcY = 0; srcY < source.Height; srcY++)
+        {
+            for (var srcX = 0; srcX < source.Width; srcX++)
+            {
+                var anchorCell = source.GetCell(srcX, srcY);
+                if (!anchorCell.HasKgp || anchorCell.Kgp?.Data is not KgpCellData kgpData)
+                    continue;
+
+                var destAnchorX = offsetX + srcX;
+                var destAnchorY = offsetY + srcY;
+
+                var visibleLeft = Math.Max(0, Math.Max(destAnchorX, clipRect.X));
+                var visibleTop = Math.Max(0, Math.Max(destAnchorY, clipRect.Y));
+                var visibleRight = Math.Min(Width, Math.Min(destAnchorX + kgpData.WidthInCells, clipRect.Right));
+                var visibleBottom = Math.Min(Height, Math.Min(destAnchorY + kgpData.HeightInCells, clipRect.Bottom));
+
+                if (visibleLeft >= visibleRight || visibleTop >= visibleBottom)
+                    continue;
+
+                // If the original anchor cell is still visible, the normal composite loop will
+                // carry the KGP metadata. Overrides are only needed when clipping trims the
+                // image from the left and/or top, which would otherwise skip the anchor cell.
+                if (visibleLeft == destAnchorX && visibleTop == destAnchorY)
+                    continue;
+
+                var effectiveClipW = kgpData.ClipW > 0 ? kgpData.ClipW : (int)kgpData.SourcePixelWidth;
+                var effectiveClipH = kgpData.ClipH > 0 ? kgpData.ClipH : (int)kgpData.SourcePixelHeight;
+                var leftClippedCells = visibleLeft - destAnchorX;
+                var topClippedCells = visibleTop - destAnchorY;
+                var newCellWidth = visibleRight - visibleLeft;
+                var newCellHeight = visibleBottom - visibleTop;
+
+                var newClipX = kgpData.ClipX + (int)((long)leftClippedCells * effectiveClipW / kgpData.WidthInCells);
+                var newClipY = kgpData.ClipY + (int)((long)topClippedCells * effectiveClipH / kgpData.HeightInCells);
+                var newClipW = (int)((long)newCellWidth * effectiveClipW / kgpData.WidthInCells);
+                var newClipH = (int)((long)newCellHeight * effectiveClipH / kgpData.HeightInCells);
+
+                if (newClipW <= 0 || newClipH <= 0)
+                    continue;
+
+                var clippedData = kgpData.WithClip(
+                    newClipX,
+                    newClipY,
+                    newClipW,
+                    newClipH,
+                    newCellWidth,
+                    newCellHeight);
+                var tracked = new TrackedObject<KgpCellData>(clippedData, _ => { });
+
+                overrides[(visibleLeft, visibleTop)] = new SurfaceCell(" ", null, null, Kgp: tracked);
+            }
+        }
+
+        return overrides;
     }
 
     /// <summary>
@@ -598,6 +775,49 @@ public sealed class Surface : ISurfaceSource
     }
 
     /// <summary>
+    /// Clips a KGP cell so it doesn't extend beyond the surface bounds.
+    /// Unlike sixel clipping (which re-encodes pixels), KGP clipping adjusts
+    /// the source rectangle placement parameters — a pure metadata operation.
+    /// </summary>
+    private SurfaceCell ClipKgpCell(SurfaceCell cell, int destX, int destY)
+    {
+        var kgpData = cell.Kgp!.Data;
+        var kgpWidth = kgpData.WidthInCells;
+        var kgpHeight = kgpData.HeightInCells;
+        
+        // Check if KGP image extends beyond bounds
+        var extendsRight = destX + kgpWidth > Width;
+        var extendsDown = destY + kgpHeight > Height;
+        
+        if (!extendsRight && !extendsDown)
+            return cell;
+        
+        // Calculate the visible portion in cells
+        var visibleCellWidth = Math.Min(kgpWidth, Width - destX);
+        var visibleCellHeight = Math.Min(kgpHeight, Height - destY);
+        
+        if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+            return cell with { Kgp = null };
+        
+        // Calculate pixel clip rect from cell dimensions
+        var sourceWidth = kgpData.SourcePixelWidth > 0 ? (int)kgpData.SourcePixelWidth : kgpWidth * CellMetrics.PixelWidth;
+        var sourceHeight = kgpData.SourcePixelHeight > 0 ? (int)kgpData.SourcePixelHeight : kgpHeight * CellMetrics.PixelHeight;
+        
+        // Compute visible pixel region proportionally
+        var clipW = (int)(sourceWidth * visibleCellWidth / (double)kgpWidth);
+        var clipH = (int)(sourceHeight * visibleCellHeight / (double)kgpHeight);
+        
+        // Apply clip via WithClip (preserves transmit payload and z-index)
+        var clippedData = kgpData.WithClip(
+            kgpData.ClipX, kgpData.ClipY,
+            clipW, clipH,
+            visibleCellWidth, visibleCellHeight);
+        
+        var clippedTracked = new TrackedObject<KgpCellData>(clippedData, _ => { });
+        return cell with { Kgp = clippedTracked };
+    }
+
+    /// <summary>
     /// Gets a read-only span over all cells in row-major order.
     /// </summary>
     /// <returns>A span of all cells.</returns>
@@ -626,6 +846,7 @@ public sealed class Surface : ISurfaceSource
         var clone = new Surface(Width, Height, CellMetrics);
         _cells.AsSpan().CopyTo(clone._cells);
         clone._sixelCount = _sixelCount;
+        clone._kgpCount = _kgpCount;
         return clone;
     }
 
@@ -644,5 +865,29 @@ public sealed class Surface : ISurfaceSource
             throw new ArgumentOutOfRangeException(nameof(x), x, $"X must be between 0 and {Width - 1}");
         if (y < 0 || y >= Height)
             throw new ArgumentOutOfRangeException(nameof(y), y, $"Y must be between 0 and {Height - 1}");
+    }
+
+    private void ExpandContentBounds(int x, int y)
+    {
+        if (x < _contentMinX) _contentMinX = x;
+        if (y < _contentMinY) _contentMinY = y;
+        if (x > _contentMaxX) _contentMaxX = x;
+        if (y > _contentMaxY) _contentMaxY = y;
+    }
+
+    private void SetContentBoundsToFull()
+    {
+        _contentMinX = 0;
+        _contentMinY = 0;
+        _contentMaxX = Width - 1;
+        _contentMaxY = Height - 1;
+    }
+
+    private void ResetContentBounds()
+    {
+        _contentMinX = Width;
+        _contentMinY = Height;
+        _contentMaxX = -1;
+        _contentMaxY = -1;
     }
 }

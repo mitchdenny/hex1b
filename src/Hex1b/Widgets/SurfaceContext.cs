@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 
@@ -65,9 +66,18 @@ public class SurfaceLayerContext
     public CellMetrics CellMetrics { get; }
 
     /// <summary>
+    /// Gets the terminal capabilities available for rendering.
+    /// </summary>
+    /// <remarks>
+    /// Use this to check whether graphics protocols like KGP or Sixel are supported
+    /// before creating graphics data in layers.
+    /// </remarks>
+    public TerminalCapabilities Capabilities { get; }
+
+    /// <summary>
     /// Creates a new SurfaceLayerContext.
     /// </summary>
-    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme, TrackedObjectStore? store = null, CellMetrics? cellMetrics = null)
+    internal SurfaceLayerContext(int width, int height, int mouseX, int mouseY, Hex1bTheme theme, TrackedObjectStore? store = null, CellMetrics? cellMetrics = null, TerminalCapabilities? capabilities = null)
     {
         Width = width;
         Height = height;
@@ -76,6 +86,7 @@ public class SurfaceLayerContext
         Theme = theme;
         _store = store;
         CellMetrics = cellMetrics ?? CellMetrics.Default;
+        Capabilities = capabilities ?? TerminalCapabilities.Modern;
     }
 
     /// <summary>
@@ -173,4 +184,67 @@ public class SurfaceLayerContext
             
         return _store.GetOrCreateSixel(payload, widthInCells, heightInCells);
     }
+
+    /// <summary>
+    /// Creates a tracked KGP image from structured cell data.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The KGP data is tracked for proper lifecycle management and content-hash deduplication.
+    /// The returned TrackedObject should be assigned to SurfaceCell.Kgp.
+    /// </para>
+    /// <para>
+    /// Note: If no store is available (e.g., in tests), this returns null.
+    /// </para>
+    /// </remarks>
+    /// <param name="kgpData">The KGP cell data to track.</param>
+    /// <returns>A tracked KGP object, or null if KGP creation is not available.</returns>
+    public TrackedObject<KgpCellData>? CreateKgp(KgpCellData kgpData)
+    {
+        if (_store is null)
+            return null;
+            
+        return _store.GetOrCreateKgp(kgpData);
+    }
+
+    /// <summary>
+    /// Creates a tracked KGP image from raw pixel data.
+    /// </summary>
+    /// <param name="imageData">Raw RGBA32 pixel data.</param>
+    /// <param name="pixelWidth">Width in pixels.</param>
+    /// <param name="pixelHeight">Height in pixels.</param>
+    /// <param name="zOrder">Z-ordering relative to text (below or above).</param>
+    /// <returns>A tracked KGP object, or null if KGP creation is not available.</returns>
+    public TrackedObject<KgpCellData>? CreateKgp(
+        byte[] imageData,
+        int pixelWidth,
+        int pixelHeight,
+        KgpZOrder zOrder = KgpZOrder.BelowText)
+    {
+        if (_store is null)
+            return null;
+
+        var (cellWidth, cellHeight) = CellMetrics.PixelToCellSpan(pixelWidth, pixelHeight);
+        var contentHash = SHA256.HashData(imageData);
+        var imageId = (uint)Interlocked.Increment(ref s_nextImageId);
+        var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
+
+        // Base64-encode the image data for the transmit payload
+        var base64 = Convert.ToBase64String(imageData);
+        var transmitPayload = $"\x1b_Ga=t,f=32,s={pixelWidth},v={pixelHeight},i={imageId},t=d;{base64}\x1b\\";
+
+        var kgpData = new KgpCellData(
+            transmitPayload,
+            imageId,
+            cellWidth,
+            cellHeight,
+            (uint)pixelWidth,
+            (uint)pixelHeight,
+            contentHash,
+            zIndex: zIndex);
+
+        return _store.GetOrCreateKgp(kgpData);
+    }
+
+    private static int s_nextImageId;
 }

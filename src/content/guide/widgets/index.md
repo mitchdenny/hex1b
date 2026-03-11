@@ -51,6 +51,7 @@ Widgets for presenting information.
 - **[Spinner](/guide/widgets/spinner)** — Animated activity indicators
 - **[Hyperlink](/guide/widgets/hyperlink)** — Clickable terminal hyperlinks (OSC 8)
 - **[QrCode](/guide/widgets/qrcode)** — Render QR codes in the terminal
+- **[KgpImage](/guide/widgets/kgpimage)** — Display pixel images via the Kitty Graphics Protocol
 
 ## Utility Widgets
 
