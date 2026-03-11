@@ -142,6 +142,18 @@ public class KgpTerminalTests
         Assert.Equal(0, terminal.KgpImageStore.ImageCount);
     }
 
+    [Fact]
+    public void Transmit_WithAppWorkload_DoesNotInjectKgpResponseIntoInputEvents()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = CreateTerminal(workload);
+
+        SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
+
+        var sawInput = SpinWait.SpinUntil(() => workload.InputEvents.TryRead(out _), TimeSpan.FromMilliseconds(100));
+        Assert.False(sawInput);
+    }
+
     // =============================================
     // Delete tests
     // =============================================

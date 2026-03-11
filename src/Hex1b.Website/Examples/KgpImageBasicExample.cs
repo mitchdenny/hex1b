@@ -6,7 +6,7 @@ namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// KGP Image Documentation: Basic Usage
-/// Demonstrates KGP image creation with a generated gradient and fallback text.
+/// Demonstrates KGP image creation with a generated gradient and fallback content.
 /// </summary>
 /// <remarks>
 /// MIRROR WARNING: This example must stay in sync with the basicCode sample in:
@@ -19,7 +19,7 @@ public class KgpImageBasicExample(ILogger<KgpImageBasicExample> logger) : Hex1bE
 
     public override string Id => "kgpimage-basic";
     public override string Title => "KGP Image - Basic Usage";
-    public override string Description => "Demonstrates KGP image creation with a gradient and fallback";
+    public override string Description => "Demonstrates KGP image creation with a gradient and builder-based fallback";
 
     public override Func<Hex1bWidget> CreateWidgetBuilder()
     {
@@ -46,7 +46,8 @@ public class KgpImageBasicExample(ILogger<KgpImageBasicExample> logger) : Hex1bE
             return ctx.VStack(v => [
                 v.Text("KGP Image Demo"),
                 v.Text(""),
-                v.KgpImage(pixels, width, height, "Terminal does not support graphics")
+                v.KgpImage(pixels, width, height,
+                    img => img.Text("Terminal does not support graphics"))
             ]);
         };
     }

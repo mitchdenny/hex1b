@@ -42,6 +42,9 @@ public class SurfaceRenderContext : Hex1bRenderContext
     // WriteKgp can clip images to the closest container, not just the surface.
     private Rect? _kgpClipRect;
 
+    private static string FormatRect(Rect? rect)
+        => rect.HasValue ? $"{rect.Value.X},{rect.Value.Y} {rect.Value.Width}x{rect.Value.Height}" : "null";
+
     // Maximum dimension for a child surface to prevent overflow in width*height allocation.
     // Real terminal content rarely exceeds 10000 rows; this prevents int.MaxValue-sized children
     // (from unconstrained measure passes) from causing OverflowException in Surface allocation.
@@ -117,6 +120,22 @@ public class SurfaceRenderContext : Hex1bRenderContext
     private int KgpLayer => _kgpLayer;
 
     /// <summary>
+    /// Intersects two rectangles, returning the overlapping region if any.
+    /// </summary>
+    private static Rect? IntersectRects(Rect a, Rect b)
+    {
+        var left = Math.Max(a.X, b.X);
+        var top = Math.Max(a.Y, b.Y);
+        var right = Math.Min(a.X + a.Width, b.X + b.Width);
+        var bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
+
+        if (right <= left || bottom <= top)
+            return null;
+
+        return new Rect(left, top, right - left, bottom - top);
+    }
+
+    /// <summary>
     /// Intersects the current KGP clip rect with another rect, returning the
     /// overlapping region. If there is no current clip, returns <paramref name="bounds"/>.
     /// </summary>
@@ -125,16 +144,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
         if (!current.HasValue)
             return bounds;
 
-        var c = current.Value;
-        var left = Math.Max(c.X, bounds.X);
-        var top = Math.Max(c.Y, bounds.Y);
-        var right = Math.Min(c.X + c.Width, bounds.X + bounds.Width);
-        var bottom = Math.Min(c.Y + c.Height, bounds.Y + bounds.Height);
+        return IntersectRects(current.Value, bounds) ?? new Rect(bounds.X, bounds.Y, 0, 0);
+    }
 
-        if (right <= left || bottom <= top)
-            return new Rect(left, top, 0, 0);
-
-        return new Rect(left, top, right - left, bottom - top);
+    private Rect GetEffectiveCurrentClipRect()
+    {
+        return CurrentLayoutProvider is null
+            ? new Rect(_offsetX, _offsetY, _surface.Width, _surface.Height)
+            : LayoutProviderHelper.GetEffectiveClipRect(CurrentLayoutProvider);
     }
 
     /// <summary>
@@ -147,16 +164,29 @@ public class SurfaceRenderContext : Hex1bRenderContext
     /// </summary>
     /// <param name="childSurface">The surface the child rendered into.</param>
     /// <param name="child">The child node.</param>
+    /// <param name="visibleBounds">The portion of the child that was actually composited.</param>
     /// <param name="layer">The KGP layer to register the occluder at (pushed before rendering).</param>
-    private void RegisterOccluderFromContent(Surface childSurface, Hex1bNode child, int layer)
+    private void RegisterOccluderFromContent(Surface childSurface, Hex1bNode child, Rect? visibleBounds, int layer)
     {
-        if (_kgpRegistry == null || !childSurface.HasWrittenContent)
+        if (_kgpRegistry == null || !childSurface.HasWrittenContent || visibleBounds is null)
             return;
 
         var cb = childSurface.WrittenContentBounds;
+        var contentBounds = new Rect(
+            child.Bounds.X + cb.X,
+            child.Bounds.Y + cb.Y,
+            cb.Width,
+            cb.Height);
+        var clippedBounds = IntersectRects(contentBounds, visibleBounds.Value);
+        if (clippedBounds is null)
+            return;
+
         _kgpRegistry.RegisterOccluder(
-            child.Bounds.X + cb.X, child.Bounds.Y + cb.Y,
-            cb.Width, cb.Height, layer);
+            clippedBounds.Value.X,
+            clippedBounds.Value.Y,
+            clippedBounds.Value.Width,
+            clippedBounds.Value.Height,
+            layer);
     }
 
     /// <summary>
@@ -264,7 +294,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
         var writeY = anchorY - _offsetY;
 
         if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
+        {
+            Kgp.KgpDebugLog.Write(
+                $"write-skip bounds anchor={anchorX},{anchorY} write={writeX},{writeY} " +
+                $"surface={_surface.Width}x{_surface.Height} offset={_offsetX},{_offsetY} clip={FormatRect(_kgpClipRect)}");
             return;
+        }
 
         // ── Surface-bounds clipping ──
         // Clip cell dimensions so the KGP placement stays within the surface.
@@ -272,7 +307,13 @@ public class SurfaceRenderContext : Hex1bRenderContext
         var visibleCellHeight = Math.Min(cellHeight, _surface.Height - writeY);
 
         if (visibleCellWidth <= 0 || visibleCellHeight <= 0)
+        {
+            Kgp.KgpDebugLog.Write(
+                $"write-skip surface-clip anchor={anchorX},{anchorY} write={writeX},{writeY} " +
+                $"requested={cellWidth}x{cellHeight} visible={visibleCellWidth}x{visibleCellHeight} " +
+                $"surface={_surface.Width}x{_surface.Height} offset={_offsetX},{_offsetY} clip={FormatRect(_kgpClipRect)}");
             return;
+        }
 
         if (visibleCellWidth < cellWidth || visibleCellHeight < cellHeight)
         {
@@ -299,7 +340,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // No overlap at all → drop the image.
             if (anchorX >= clipRight || anchorY >= clipBottom ||
                 anchorX + cellWidth <= clip.X || anchorY + cellHeight <= clip.Y)
+            {
+                Kgp.KgpDebugLog.Write(
+                    $"write-skip hierarchy-no-overlap anchor={anchorX},{anchorY} cell={cellWidth}x{cellHeight} " +
+                    $"clip={FormatRect(_kgpClipRect)} offset={_offsetX},{_offsetY}");
                 return;
+            }
 
             var newLeft   = Math.Max(anchorX, clip.X);
             var newTop    = Math.Max(anchorY, clip.Y);
@@ -310,7 +356,12 @@ public class SurfaceRenderContext : Hex1bRenderContext
             var newCellH = newBottom - newTop;
 
             if (newCellW <= 0 || newCellH <= 0)
+            {
+                Kgp.KgpDebugLog.Write(
+                    $"write-skip hierarchy-zero-cells anchor={anchorX},{anchorY} newCell={newCellW}x{newCellH} " +
+                    $"clip={FormatRect(_kgpClipRect)} offset={_offsetX},{_offsetY}");
                 return;
+            }
 
             if (newCellW != cellWidth || newCellH != cellHeight ||
                 newLeft != anchorX || newTop != anchorY)
@@ -327,7 +378,13 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 var newClipH = (int)((long)newCellH * effH / cellHeight);
 
                 if (newClipW <= 0 || newClipH <= 0)
+                {
+                    Kgp.KgpDebugLog.Write(
+                        $"write-skip hierarchy-zero-clip anchor={anchorX},{anchorY} " +
+                        $"newClip={newClipX},{newClipY} {newClipW}x{newClipH} clip={FormatRect(_kgpClipRect)} " +
+                        $"offset={_offsetX},{_offsetY}");
                     return;
+                }
 
                 clipX = newClipX;
                 clipY = newClipY;
@@ -345,10 +402,15 @@ public class SurfaceRenderContext : Hex1bRenderContext
         }
 
         if (cellWidth <= 0 || cellHeight <= 0)
+        {
+            Kgp.KgpDebugLog.Write(
+                $"write-skip final-zero-cells anchor={anchorX},{anchorY} cell={cellWidth}x{cellHeight} " +
+                $"clip={FormatRect(_kgpClipRect)} offset={_offsetX},{_offsetY}");
             return;
+        }
 
         var contentHash = System.Security.Cryptography.SHA256.HashData(imageData);
-        var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
+        var imageId = ComputeKgpImageId(contentHash);
         var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
 
         var base64 = Convert.ToBase64String(imageData);
@@ -372,6 +434,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
         // Register with the occlusion registry (if active) using absolute coordinates
         _kgpRegistry?.RegisterImage(kgpData, anchorX, anchorY);
+
+        Kgp.KgpDebugLog.Write(
+            $"write-ok image={imageId} anchor={anchorX},{anchorY} write={writeX},{writeY} " +
+            $"cell={cellWidth}x{cellHeight} clipPx={clipX},{clipY} {clipW}x{clipH} " +
+            $"surface={_surface.Width}x{_surface.Height} offset={_offsetX},{_offsetY} clip={FormatRect(_kgpClipRect)}");
 
         // Anchor cell carries the KGP metadata
         tracked.AddRef();
@@ -591,9 +658,11 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     // global layer ordering needed for correct occlusion.
                     var occluderLayer = _kgpRegistry?.CurrentLayer ?? _kgpLayer;
 
+                    var childClip = IntersectKgpClip(_kgpClipRect, child.Bounds);
                     var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
                     {
                         CachingEnabled = false,
+                        KgpImageEpoch = KgpImageEpoch,
                         MouseX = MouseX,
                         MouseY = MouseY,
                         CellMetrics = CellMetrics,
@@ -602,9 +671,14 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         _capabilities = _capabilities,
                         _kgpRegistry = _kgpRegistry,
                         _kgpLayer = _kgpLayer,
-                        _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds)
+                        _kgpClipRect = childClip
+                    };
+                    childContext.CurrentLayoutProvider = new RectLayoutProvider(child.Bounds)
+                    {
+                        ParentLayoutProvider = CurrentLayoutProvider
                     };
                     childContext.SetCursorPosition(child.Bounds.X, child.Bounds.Y);
+                    var imageCountBefore = _kgpRegistry?.Images.Count ?? 0;
                     RenderChildTimed(child, childContext);
 
                     if (!child.FillBackground.IsDefault)
@@ -612,12 +686,29 @@ public class SurfaceRenderContext : Hex1bRenderContext
                         childSurface.FillBackground(child.FillBackground);
                     }
 
-                    // Register occluder AFTER rendering, using the child surface's
-                    // actual content bounds. This prevents transparent containers
-                    // (e.g. BackdropNode) from registering full-screen occluders.
-                    RegisterOccluderFromContent(childSurface, child, occluderLayer);
+                    var providerClip = GetEffectiveCurrentClipRect();
+                    var visibleBounds = IntersectRects(child.Bounds, providerClip);
 
-                    var providerClip = CurrentLayoutProvider.ClipRect;
+                    // Register occluder AFTER rendering, using the child surface's
+                    // actual content bounds, constrained to what will really be
+                    // composited. This prevents clipped-off subcontent from
+                    // registering invisible occluders.
+                    RegisterOccluderFromContent(childSurface, child, visibleBounds, occluderLayer);
+
+                    var imageCountAfter = _kgpRegistry?.Images.Count ?? 0;
+                    if (childSurface.HasKgp || imageCountAfter != imageCountBefore)
+                    {
+                        var contentBounds = childSurface.HasWrittenContent
+                            ? FormatRect(childSurface.WrittenContentBounds)
+                            : "none";
+                        Kgp.KgpDebugLog.Write(
+                            $"render-child node={child.GetType().Name} bounds={FormatRect(child.Bounds)} " +
+                            $"parentClip={FormatRect(_kgpClipRect)} childClip={FormatRect(childClip)} " +
+                            $"visible={FormatRect(visibleBounds)} surface={childSurface.Width}x{childSurface.Height} " +
+                            $"hasKgp={childSurface.HasKgp} " +
+                            $"content={contentBounds} imagesAdded={imageCountAfter - imageCountBefore}");
+                    }
+
                     var clipRect = new Rect(
                         providerClip.X - _offsetX,
                         providerClip.Y - _offsetY,
@@ -670,8 +761,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
             if (subtreeIsClean)
             {
-                var cacheHintAllowsReuse = child.CachePredicate?.Invoke(new RenderCacheContext(child, this)) ?? true;
-                if (cacheHintAllowsReuse)
+                if (child.CachePredicate?.Invoke(new RenderCacheContext(child, this)) ?? true)
                 {
                     // Cache hit - composite cached surface at RELATIVE position
                     // (child.Bounds are absolute, but _surface may have its own offset)
@@ -681,7 +771,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                     if (CurrentLayoutProvider != null)
                     {
                         // Convert ClipRect to surface-relative coordinates
-                        var providerClip = CurrentLayoutProvider.ClipRect;
+                        var providerClip = GetEffectiveCurrentClipRect();
                         clipRect = new Rect(
                             providerClip.X - _offsetX,
                             providerClip.Y - _offsetY,
@@ -709,14 +799,13 @@ public class SurfaceRenderContext : Hex1bRenderContext
             var subtreeVersionBeforeRender = child.SubtreeRenderVersion;
             
             // Create context with offset so child's absolute coordinates map to surface (0,0)
-            // Share the tracked object store so sixels created by children are properly tracked
-            // Note: We don't pass CurrentLayoutProvider to the child context because:
-            // 1. The child surface already represents the child's bounds
-            // 2. The parent's layout provider would clip incorrectly
-            // 3. Clipping happens implicitly via surface bounds
+            // Share the tracked object store so graphics created by children are properly tracked.
+            // Seed the child context with a RectLayoutProvider for the child bounds that chains
+            // to the current provider so nested descendants honor the full ancestor clip chain.
             var childContext = new SurfaceRenderContext(childSurface, child.Bounds.X, child.Bounds.Y, Theme, _trackedObjects)
             {
                 CachingEnabled = CachingEnabled,
+                KgpImageEpoch = KgpImageEpoch,
                 MouseX = MouseX,  // Pass mouse position to children
                 MouseY = MouseY,
                 CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
@@ -725,7 +814,10 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 _kgpRegistry = _kgpRegistry,
                 _kgpLayer = _kgpLayer,
                 _kgpClipRect = IntersectKgpClip(_kgpClipRect, child.Bounds)
-                // CurrentLayoutProvider intentionally not set - child renders in its own coordinate space
+            };
+            childContext.CurrentLayoutProvider = new RectLayoutProvider(child.Bounds)
+            {
+                ParentLayoutProvider = CurrentLayoutProvider
             };
             
             // Set cursor position to child's origin so Write() calls work correctly
@@ -756,7 +848,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
             if (CurrentLayoutProvider != null)
             {
                 // Convert ClipRect to surface-relative coordinates
-                var providerClip = CurrentLayoutProvider.ClipRect;
+                var providerClip = GetEffectiveCurrentClipRect();
                 clipRect = new Rect(
                     providerClip.X - _offsetX,
                     providerClip.Y - _offsetY,

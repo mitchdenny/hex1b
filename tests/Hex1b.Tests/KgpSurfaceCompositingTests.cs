@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 using Hex1b.Layout;
+using Hex1b.Nodes;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 
@@ -141,6 +142,109 @@ public class KgpSurfaceCompositingTests
         Assert.Equal(3, parent[1, 0].Kgp!.Data.ZIndex);
     }
 
+    [Fact]
+    public void Composite_KgpImage_ClippedByClipRect_ReanchorsVisibleRegion()
+    {
+        var parent = new Surface(10, 5, DefaultMetrics);
+        var child = new Surface(6, 4, DefaultMetrics);
+
+        var kgpData = CreateKgpData(widthInCells: 6, heightInCells: 4, sourcePixelWidth: 60, sourcePixelHeight: 80);
+        child[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(kgpData));
+
+        parent.Composite(child, offsetX: 0, offsetY: 0, clip: new Rect(2, 1, 8, 4));
+
+        Assert.False(parent[0, 0].HasKgp);
+        Assert.True(parent[2, 1].HasKgp);
+        Assert.Equal(4, parent[2, 1].Kgp!.Data.WidthInCells);
+        Assert.Equal(3, parent[2, 1].Kgp!.Data.HeightInCells);
+        Assert.Equal(20, parent[2, 1].Kgp!.Data.ClipX);
+        Assert.Equal(20, parent[2, 1].Kgp!.Data.ClipY);
+        Assert.Equal(40, parent[2, 1].Kgp!.Data.ClipW);
+        Assert.Equal(60, parent[2, 1].Kgp!.Data.ClipH);
+    }
+
+    [Fact]
+    public void Composite_KgpImage_WithNegativeOffset_ReanchorsVisibleRegion()
+    {
+        var parent = new Surface(10, 5, DefaultMetrics);
+        var child = new Surface(6, 4, DefaultMetrics);
+
+        var kgpData = CreateKgpData(widthInCells: 6, heightInCells: 4, sourcePixelWidth: 60, sourcePixelHeight: 80);
+        child[0, 0] = new SurfaceCell(" ", null, null, Kgp: Track(kgpData));
+
+        parent.Composite(child, offsetX: -2, offsetY: -1);
+
+        Assert.True(parent[0, 0].HasKgp);
+        Assert.Equal(4, parent[0, 0].Kgp!.Data.WidthInCells);
+        Assert.Equal(3, parent[0, 0].Kgp!.Data.HeightInCells);
+        Assert.Equal(20, parent[0, 0].Kgp!.Data.ClipX);
+        Assert.Equal(20, parent[0, 0].Kgp!.Data.ClipY);
+        Assert.Equal(40, parent[0, 0].Kgp!.Data.ClipW);
+        Assert.Equal(60, parent[0, 0].Kgp!.Data.ClipH);
+    }
+
+    [Fact]
+    public void RenderChild_OccluderContent_IsClippedToVisibleCompositeRegion()
+    {
+        var parent = new Surface(12, 12, DefaultMetrics);
+        var registry = new Hex1b.Kgp.KgpImageRegistry();
+        var context = new SurfaceRenderContext(parent, Hex1bThemes.Default)
+        {
+            CachingEnabled = false,
+            KgpRegistry = registry,
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 0, 6, 5))
+        };
+
+        var child = new TestWritingNode((0, 1, "VISIBLE"), (1, 7, "BTN"));
+        child.Arrange(new Rect(0, 0, 10, 10));
+
+        context.RenderChild(child);
+
+        var occluder = Assert.Single(registry.Occluders);
+        Assert.Equal(new Rect(0, 1, 6, 4), occluder.Bounds);
+    }
+
+    [Fact]
+    public void RenderChild_HiddenNestedButtonRow_DoesNotRegisterOffscreenOccluder()
+    {
+        var parent = new Surface(20, 12, DefaultMetrics);
+        var registry = new Hex1b.Kgp.KgpImageRegistry();
+        var context = new SurfaceRenderContext(parent, Hex1bThemes.Default)
+        {
+            CachingEnabled = false,
+            KgpRegistry = registry,
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 0, 12, 5))
+        };
+
+        var child = new VStackNode
+        {
+            Children =
+            [
+                new TextBlockNode { Text = "Line 1" },
+                new TextBlockNode { Text = "Line 2" },
+                new TextBlockNode { Text = "Line 3" },
+                new TextBlockNode { Text = "Line 4" },
+                new TextBlockNode { Text = "Line 5" },
+                new TextBlockNode { Text = "Line 6" },
+                new HStackNode
+                {
+                    Children =
+                    [
+                        new TextBlockNode { Text = " " },
+                        new ButtonNode { Label = "Close" }
+                    ]
+                }
+            ]
+        };
+
+        child.Measure(new Constraints(0, 12, 0, 10));
+        child.Arrange(new Rect(0, 0, 12, 10));
+
+        context.RenderChild(child);
+
+        Assert.DoesNotContain(registry.Occluders, o => o.Bounds.Y >= 5);
+    }
+
     #endregion
 
     #region CompositeSurface KGP Layer Resolution
@@ -217,6 +321,20 @@ public class KgpSurfaceCompositingTests
         var resolved = composite.GetCell(0, 0);
         Assert.True(resolved.HasKgp);
         Assert.Equal(1u, resolved.Kgp!.Data.ImageId);
+    }
+
+    private sealed class TestWritingNode(params (int X, int Y, string Text)[] writes) : Hex1bNode
+    {
+        protected override Size MeasureCore(Constraints constraints) => new(Bounds.Width, Bounds.Height);
+
+        public override void Render(Hex1bRenderContext context)
+        {
+            foreach (var (x, y, text) in writes)
+            {
+                context.SetCursorPosition(Bounds.X + x, Bounds.Y + y);
+                context.Write(text);
+            }
+        }
     }
 
     #endregion

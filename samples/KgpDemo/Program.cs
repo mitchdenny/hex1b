@@ -79,22 +79,16 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     }
                     items.Add(m.Separator());
                     items.Add(m.MenuItem("Text Window").OnActivated(e => OpenTextWindow(e)));
+                    items.Add(m.MenuItem("Large Text Window").OnActivated(e => OpenTextWindow(e, large: true)));
+                    items.Add(m.MenuItem("Bare KGP Window").OnActivated(e => OpenBareImageWindow(e, "Circle", circleImage, 64, 64)));
                     items.Add(m.Separator());
                     items.Add(m.MenuItem("Quit").OnActivated(e => e.Context.RequestStop()));
                     return items;
                 }),
             ]),
 
-            // WindowPanel with KGP background image
+            // WindowPanel without background graphics for resize debugging
             outer.WindowPanel()
-                .Background(bg =>
-                    bg.KgpImage(circleImage, 64, 64,
-                        bg.Surface(s =>
-                        [
-                            s.Layer(surf => DrawAsciiArtFallback(surf))
-                        ]).Width(SizeHint.Fill).Height(SizeHint.Fill),
-                        width: 40, height: 20)
-                )
                 .Fill(),
 
             // Info bar at bottom
@@ -120,6 +114,8 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
     windowCount++;
     var num = windowCount;
     var stretch = KgpImageStretch.Fit;
+    var renderKgp = true;
+    var renderTextBody = false;
     var alignEnabled = false;
     var hAlignIndex = 0; // Left
     var vAlignIndex = 0; // Top
@@ -138,43 +134,72 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
         {
             return w.VStack(v =>
             {
-                // Build image widget with optional explicit cell dimensions
-                var kgpImage = v.KgpImage(imageData, pixelW, pixelH,
-                    v.Text($" [KGP not supported - {name} fallback]"))
-                    .WithStretch(stretch);
-
-                if (sizeEnabled
-                    && int.TryParse(widthText, out var cw) && cw > 0
-                    && int.TryParse(heightText, out var ch) && ch > 0)
+                Hex1bWidget image;
+                if (renderTextBody)
                 {
-                    if (maintainAspectRatio)
-                    {
-                        // Compute height from width preserving pixel aspect ratio
-                        // Account for terminal cell aspect (~10px wide, ~20px tall)
-                        var aspectRatio = (double)pixelW / pixelH;
-                        ch = Math.Max(1, (int)Math.Round(cw / aspectRatio * 0.5));
-                    }
-                    kgpImage = kgpImage.WithWidth(cw).WithHeight(ch);
+                    image = v.VStack(msg =>
+                    [
+                        msg.Text($" {name} diagnostic text mode"),
+                        msg.Text(" This keeps the same large window"),
+                        msg.Text(" and control panel, but removes"),
+                        msg.Text(" the KGP/placeholder body subtree."),
+                        msg.Text(""),
+                        msg.Text(" Move the window, resize the terminal,"),
+                        msg.Text(" and compare this with placeholder"),
+                        msg.Text(" and KGP rendering modes.")
+                    ]).Width(SizeHint.Fill).Height(SizeHint.Fill);
                 }
-
-                Hex1bWidget image = kgpImage.Width(SizeHint.Fill).Height(SizeHint.Fill);
-
-                // Wrap in Align if enabled
-                if (alignEnabled)
+                else if (renderKgp)
                 {
-                    var hAlign = hAlignIndex switch
+                    // Build image widget with optional explicit cell dimensions
+                    var kgpImage = v.KgpImage(imageData, pixelW, pixelH,
+                        img => img.Text($" [KGP not supported - {name} fallback]"))
+                        .WithStretch(stretch);
+
+                    if (sizeEnabled
+                        && int.TryParse(widthText, out var cw) && cw > 0
+                        && int.TryParse(heightText, out var ch) && ch > 0)
                     {
-                        1 => Alignment.HCenter,
-                        2 => Alignment.Right,
-                        _ => Alignment.Left
-                    };
-                    var vAlign = vAlignIndex switch
+                        if (maintainAspectRatio)
+                        {
+                            // Compute height from width preserving pixel aspect ratio
+                            // Account for terminal cell aspect (~10px wide, ~20px tall)
+                            var aspectRatio = (double)pixelW / pixelH;
+                            ch = Math.Max(1, (int)Math.Round(cw / aspectRatio * 0.5));
+                        }
+                        kgpImage = kgpImage.WithWidth(cw).WithHeight(ch);
+                    }
+
+                    image = kgpImage.Width(SizeHint.Fill).Height(SizeHint.Fill);
+
+                    // Wrap in Align if enabled
+                    if (alignEnabled)
                     {
-                        1 => Alignment.VCenter,
-                        2 => Alignment.Bottom,
-                        _ => Alignment.Top
-                    };
-                    image = v.Align(hAlign | vAlign, image)
+                        var hAlign = hAlignIndex switch
+                        {
+                            1 => Alignment.HCenter,
+                            2 => Alignment.Right,
+                            _ => Alignment.Left
+                        };
+                        var vAlign = vAlignIndex switch
+                        {
+                            1 => Alignment.VCenter,
+                            2 => Alignment.Bottom,
+                            _ => Alignment.Top
+                        };
+                        image = v.Align(hAlign | vAlign, image)
+                            .Width(SizeHint.Fill).Height(SizeHint.Fill);
+                    }
+                }
+                else
+                {
+                    image = v.Align(Alignment.Center,
+                            v.VStack(msg =>
+                            [
+                                msg.Text("KGP rendering disabled"),
+                                msg.Text("Resize the terminal, then"),
+                                msg.Text("re-enable to compare behavior.")
+                            ]))
                         .Width(SizeHint.Fill).Height(SizeHint.Fill);
                 }
 
@@ -186,6 +211,10 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                         [
                             p.HStack(h =>
                             [
+                                h.Checkbox(renderKgp, "Render KGP")
+                                    .OnToggled(_ => renderKgp = !renderKgp),
+                                h.Checkbox(renderTextBody, "Text body")
+                                    .OnToggled(_ => renderTextBody = !renderTextBody),
                                 h.Text(" Stretch: "),
                                 h.ToggleSwitch(stretchOptions, (int)stretch)
                                     .OnSelectionChanged(ev => stretch = (KgpImageStretch)ev.SelectedIndex),
@@ -263,33 +292,90 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
     statusMessage = $"Opened {name} window #{num}";
 }
 
-void OpenTextWindow(MenuItemActivatedEventArgs e)
+void OpenTextWindow(MenuItemActivatedEventArgs e, bool large = false)
 {
     windowCount++;
     var num = windowCount;
+    var title = large ? $"Large Text #{num}" : $"Text #{num}";
+    var size = large ? (Width: 46, Height: 22) : (Width: 36, Height: 11);
+    var offsetX = large ? num * 3 : num * 4;
+    var offsetY = large ? num * 2 : -num;
+
+    var bodyLines = large
+        ? new[]
+        {
+            "",
+            "  Diagnostic large plain text window.",
+            "  Same outer size as the image window,",
+            "  but without DragBarPanel, toggles,",
+            "  text boxes, alignment, or KGP body.",
+            "",
+            "  If this survives move+resize while the",
+            "  image window still disappears, the bug",
+            "  is likely inside the image window shell",
+            "  or its body subtree rather than size alone.",
+            "",
+            $"  Window #{num}",
+            "",
+        }
+        : new[]
+        {
+            "",
+            "  This is a plain text window.",
+            "  Drag it over the background",
+            "  KGP image to test occlusion.",
+            "",
+            $"  Window #{num}",
+            "",
+        };
+
     var window = e.Windows.Window(w => w.VStack(v =>
-    [
-        v.Text(""),
-        v.Text("  This is a plain text window."),
-        v.Text("  Drag it over the background"),
-        v.Text("  KGP image to test occlusion."),
-        v.Text(""),
-        v.Text($"  Window #{num}"),
-        v.Text(""),
-        v.HStack(h =>
+    {
+        var widgets = new List<Hex1bWidget>(bodyLines.Length + 1);
+        foreach (var line in bodyLines)
+        {
+            widgets.Add(v.Text(line));
+        }
+
+        widgets.Add(v.HStack(h =>
         [
             h.Text(" "),
             h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
-        ])
-    ]))
-    .Title($"Text #{num}")
-    .Size(36, 11)
+        ]));
+
+        return widgets.ToArray();
+    }))
+    .Title(title)
+    .Size(size.Width, size.Height)
     .Resizable()
     .Position(new WindowPositionSpec(WindowPosition.Center,
-        OffsetX: num * 4, OffsetY: -num));
+        OffsetX: offsetX, OffsetY: offsetY));
 
     e.Windows.Open(window);
-    statusMessage = $"Opened text window #{num}";
+    statusMessage = large
+        ? $"Opened large text window #{num}"
+        : $"Opened text window #{num}";
+}
+
+void OpenBareImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData, int pixelW, int pixelH)
+{
+    windowCount++;
+    var num = windowCount;
+
+    var window = e.Windows.Window(w =>
+        w.KgpImage(imageData, pixelW, pixelH,
+                img => img.Text($" [KGP not supported - {name} fallback]"))
+            .WithStretch(KgpImageStretch.Fit)
+            .Width(SizeHint.Fill)
+            .Height(SizeHint.Fill))
+        .Title($"Bare {name} #{num}")
+        .Size(24, 12)
+        .Resizable()
+        .Position(new WindowPositionSpec(WindowPosition.Center,
+            OffsetX: num * 2, OffsetY: num));
+
+    e.Windows.Open(window);
+    statusMessage = $"Opened bare {name} window #{num}";
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -398,36 +484,4 @@ static byte[] GenerateCircle(int w, int h)
         }
     }
     return data;
-}
-
-static void DrawAsciiArtFallback(Surface surface)
-{
-    var msg = new[]
-    {
-        "╔══════════════════════════════════════╗",
-        "║   KGP Not Supported - ASCII Art     ║",
-        "║                                      ║",
-        "║       ████████████████████           ║",
-        "║     ██                    ██         ║",
-        "║   ██    ██          ██      ██       ║",
-        "║   ██                        ██       ║",
-        "║   ██    ██              ██  ██       ║",
-        "║     ██    ████████████    ██         ║",
-        "║       ████████████████████           ║",
-        "║                                      ║",
-        "║  Drag windows over this background   ║",
-        "║  to test occlusion behavior.         ║",
-        "╚══════════════════════════════════════╝"
-    };
-
-    for (var y = 0; y < Math.Min(msg.Length, surface.Height); y++)
-    {
-        for (var x = 0; x < Math.Min(msg[y].Length, surface.Width); x++)
-        {
-            surface[x, y] = new SurfaceCell(
-                msg[y][x].ToString(),
-                Hex1bColor.FromRgb(100, 180, 255),
-                Hex1bColor.FromRgb(20, 20, 40));
-        }
-    }
 }

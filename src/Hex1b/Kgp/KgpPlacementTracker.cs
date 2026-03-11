@@ -41,14 +41,15 @@ internal class KgpPlacementTracker
 
     /// <summary>
     /// Images that have been transmitted to the terminal (image ID → true).
-    /// Since we use <c>d=i</c> (delete placements only, keep data), transmitted
-    /// images remain in the terminal's store until evicted by its LRU policy.
+    /// Images that disappear completely are removed from this cache so they
+    /// will be re-transmitted if they later reappear.
     /// </summary>
     private readonly HashSet<uint> _transmittedImages = new();
 
     /// <summary>
     /// Active fragments from the previous frame, grouped by image ID.
-    /// Used to determine which images need delete + re-emit.
+    /// Fragment order within each list corresponds to stable placement slots
+    /// (p=1, p=2, ...) for incremental updates.
     /// </summary>
     private readonly Dictionary<uint, List<KgpFragment>> _previousFragments = new();
 
@@ -70,6 +71,9 @@ internal class KgpPlacementTracker
     {
         var beforeText = new List<AnsiToken>();
         var afterText = new List<AnsiToken>();
+        var deletes = 0;
+        var transmits = 0;
+        var placements = 0;
 
         // Group current fragments by image ID
         var currentByImage = new Dictionary<uint, List<KgpFragment>>();
@@ -83,28 +87,31 @@ internal class KgpPlacementTracker
             list.Add(fragment);
         }
 
-        // 1. Delete placements for images that changed or disappeared
-        foreach (var (imageId, _) in _previousFragments)
+        foreach (var list in currentByImage.Values)
         {
-            if (!currentByImage.TryGetValue(imageId, out var currentList) ||
-                !FragmentListsEqual(_previousFragments[imageId], currentList))
+            SortFragments(list);
+        }
+
+        // 1. Delete images that disappeared entirely.
+        // Use d=I (free data) so epoch changes and true removals do not leak terminal-side
+        // image storage under orphaned image IDs.
+        foreach (var (imageId, previousList) in _previousFragments)
+        {
+            if (!currentByImage.ContainsKey(imageId) && previousList.Count > 0)
             {
                 beforeText.Add(new UnrecognizedSequenceToken(
-                    $"\x1b_Ga=d,d=i,i={imageId},q=2\x1b\\"));
+                    $"\x1b_Ga=d,d=I,i={imageId},q=2\x1b\\"));
+                deletes++;
+                _transmittedImages.Remove(imageId);
             }
         }
 
-        // 2. Emit placements for new or changed images
+        // 2. Emit transmits, placement updates, and placement deletes for each active image.
         foreach (var (imageId, currentList) in currentByImage)
         {
+            _previousFragments.TryGetValue(imageId, out var previousList);
             var needsTransmit = !_transmittedImages.Contains(imageId);
-            var needsPlace = !_previousFragments.TryGetValue(imageId, out var prevList) ||
-                             !FragmentListsEqual(prevList, currentList);
 
-            if (!needsTransmit && !needsPlace)
-                continue; // Unchanged — skip entirely
-
-            // For the first fragment, handle transmit if needed
             if (needsTransmit && currentList.Count > 0)
             {
                 var firstFragment = currentList[0];
@@ -118,19 +125,40 @@ internal class KgpPlacementTracker
                 }
                 _transmittedImages.Add(imageId);
                 _hasEverTransmitted = true;
+                transmits++;
             }
 
-            // Emit all fragment placements
-            foreach (var fragment in currentList)
+            for (var i = 0; i < currentList.Count; i++)
             {
+                var fragment = currentList[i];
+                var placementId = (uint)(i + 1);
+                var needsPlace = needsTransmit ||
+                    previousList is null ||
+                    i >= previousList.Count ||
+                    !FragmentsEqual(previousList[i], fragment);
+
+                if (!needsPlace)
+                    continue;
+
                 var targetList = fragment.Data.ZIndex < 0 ? beforeText : afterText;
                 targetList.Add(new CursorPositionToken(fragment.AbsoluteY + 1, fragment.AbsoluteX + 1));
 
-                // Build placement with fragment-specific clip parameters
                 var placementData = fragment.Data.WithClip(
                     fragment.ClipX, fragment.ClipY, fragment.ClipW, fragment.ClipH,
                     fragment.CellWidth, fragment.CellHeight);
-                targetList.Add(new UnrecognizedSequenceToken(placementData.BuildPlacementPayload()));
+                targetList.Add(new UnrecognizedSequenceToken(placementData.BuildPlacementPayload(placementId)));
+                placements++;
+            }
+
+            if (previousList is not null && previousList.Count > currentList.Count)
+            {
+                for (var i = currentList.Count; i < previousList.Count; i++)
+                {
+                    var placementId = i + 1;
+                    beforeText.Add(new UnrecognizedSequenceToken(
+                        $"\x1b_Ga=d,d=i,i={imageId},p={placementId},q=2\x1b\\"));
+                    deletes++;
+                }
             }
         }
 
@@ -140,6 +168,11 @@ internal class KgpPlacementTracker
         {
             _previousFragments[imageId] = new List<KgpFragment>(list);
         }
+
+        KgpDebugLog.Write(
+            $"tracker fragments={fragments.Count} images={currentByImage.Count} deletes={deletes} " +
+            $"transmits={transmits} placements={placements} activeImages={_previousFragments.Count} " +
+            $"activeFragments={ActiveFragmentCount}");
 
         return (beforeText, afterText);
     }
@@ -207,6 +240,16 @@ internal class KgpPlacementTracker
     }
 
     /// <summary>
+    /// Clears active placement state while preserving the transmitted-image cache.
+    /// Use this when placements are deleted externally but the terminal still retains
+    /// the underlying image data.
+    /// </summary>
+    public void ResetPlacements()
+    {
+        _previousFragments.Clear();
+    }
+
+    /// <summary>
     /// Gets whether any KGP images have been transmitted in the current frame state.
     /// </summary>
     internal bool HasTransmittedImages => _transmittedImages.Count > 0;
@@ -237,28 +280,42 @@ internal class KgpPlacementTracker
     }
 
     /// <summary>
-    /// Compares two fragment lists for equality (same count, same positions and clips).
+    /// Sorts fragments into a stable order so placement IDs remain predictable.
     /// </summary>
-    private static bool FragmentListsEqual(List<KgpFragment> a, List<KgpFragment> b)
+    private static void SortFragments(List<KgpFragment> fragments)
     {
-        if (a.Count != b.Count)
-            return false;
-
-        for (var i = 0; i < a.Count; i++)
+        fragments.Sort(static (a, b) =>
         {
-            if (a[i].AbsoluteX != b[i].AbsoluteX ||
-                a[i].AbsoluteY != b[i].AbsoluteY ||
-                a[i].CellWidth != b[i].CellWidth ||
-                a[i].CellHeight != b[i].CellHeight ||
-                a[i].ClipX != b[i].ClipX ||
-                a[i].ClipY != b[i].ClipY ||
-                a[i].ClipW != b[i].ClipW ||
-                a[i].ClipH != b[i].ClipH)
-            {
-                return false;
-            }
-        }
+            var cmp = a.AbsoluteY.CompareTo(b.AbsoluteY);
+            if (cmp != 0) return cmp;
+            cmp = a.AbsoluteX.CompareTo(b.AbsoluteX);
+            if (cmp != 0) return cmp;
+            cmp = a.ClipY.CompareTo(b.ClipY);
+            if (cmp != 0) return cmp;
+            cmp = a.ClipX.CompareTo(b.ClipX);
+            if (cmp != 0) return cmp;
+            cmp = a.CellHeight.CompareTo(b.CellHeight);
+            if (cmp != 0) return cmp;
+            cmp = a.CellWidth.CompareTo(b.CellWidth);
+            if (cmp != 0) return cmp;
+            cmp = a.ClipH.CompareTo(b.ClipH);
+            if (cmp != 0) return cmp;
+            return a.ClipW.CompareTo(b.ClipW);
+        });
+    }
 
-        return true;
+    /// <summary>
+    /// Compares two fragments for equality.
+    /// </summary>
+    private static bool FragmentsEqual(KgpFragment a, KgpFragment b)
+    {
+        return a.AbsoluteX == b.AbsoluteX &&
+            a.AbsoluteY == b.AbsoluteY &&
+            a.CellWidth == b.CellWidth &&
+            a.CellHeight == b.CellHeight &&
+            a.ClipX == b.ClipX &&
+            a.ClipY == b.ClipY &&
+            a.ClipW == b.ClipW &&
+            a.ClipH == b.ClipH;
     }
 }

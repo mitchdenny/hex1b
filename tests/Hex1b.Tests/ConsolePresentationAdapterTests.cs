@@ -1,3 +1,4 @@
+using System.Text;
 
 namespace Hex1b.Tests;
 
@@ -73,6 +74,64 @@ public class ConsolePresentationAdapterTests
 #pragma warning restore CA1416
         }
     }
+
+    [Fact]
+    public async Task EnterRawModeAsync_WhenKgpQueryResponds_EnablesKgpSupport()
+    {
+        using var driver = new FakeConsoleDriver($"\x1b_Gi=2147483647;OK\x1b\\");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        Assert.False(adapter.Capabilities.SupportsKgp);
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(adapter.Capabilities.SupportsKgp);
+        Assert.Contains("\x1b_Gi=2147483647,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\", driver.WrittenText);
+    }
+
+    [Fact]
+    public async Task EnterRawModeAsync_WhenProbeTimesOut_LeavesKgpDisabled()
+    {
+        using var driver = new FakeConsoleDriver();
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+
+        Assert.False(adapter.Capabilities.SupportsKgp);
+    }
+
+    [Fact]
+    public async Task EnterRawModeAsync_WhenProbeReadsMixedInput_PreservesNonProbeBytes()
+    {
+        using var driver = new FakeConsoleDriver($"\x1b_Gi=2147483647;OK\x1b\\abc");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.Equal("abc", Encoding.ASCII.GetString(input.Span));
+    }
+
+    [Fact]
+    public async Task EnterRawModeAsync_WhenProbeResponseIsSplitAcrossReads_EnablesKgpAndPreservesTrailingBytes()
+    {
+        using var driver = new FakeConsoleDriver("\x1b_Gi=2147483647", ";OK\x1b\\abc");
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.True(adapter.Capabilities.SupportsKgp);
+        Assert.Equal("abc", Encoding.ASCII.GetString(input.Span));
+    }
 }
 
 public class Hex1bTerminalTests_Workload
@@ -138,5 +197,84 @@ public class Hex1bTerminalTests_Workload
         Assert.NotNull(caps);
         Assert.True(caps.SupportsMouse);
         Assert.True(caps.SupportsTrueColor);
+    }
+}
+
+internal sealed class FakeConsoleDriver : IConsoleDriver
+{
+    private readonly Queue<byte[]> _readChunks = new();
+    private readonly List<byte> _written = new();
+
+    public FakeConsoleDriver(params string[] readChunks)
+    {
+        foreach (var chunk in readChunks)
+        {
+            _readChunks.Enqueue(Encoding.ASCII.GetBytes(chunk));
+        }
+    }
+
+    public bool DataAvailable => _readChunks.Count > 0;
+
+    public int Width => 80;
+
+    public int Height => 24;
+
+    public string WrittenText => Encoding.ASCII.GetString(_written.ToArray());
+
+    public event Action<int, int>? Resized
+    {
+        add { }
+        remove { }
+    }
+
+    public void EnterRawMode(bool preserveOPost = false)
+    {
+    }
+
+    public void ExitRawMode()
+    {
+    }
+
+    public ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken ct = default)
+    {
+        if (_readChunks.Count > 0)
+        {
+            var chunk = _readChunks.Dequeue();
+            chunk.AsSpan().CopyTo(buffer.Span);
+            return ValueTask.FromResult(chunk.Length);
+        }
+
+        return WaitForCancellationAsync(ct);
+    }
+
+    public void Write(ReadOnlySpan<byte> data)
+    {
+        _written.AddRange(data.ToArray());
+    }
+
+    public void Flush()
+    {
+    }
+
+    public void DrainInput()
+    {
+        _readChunks.Clear();
+    }
+
+    public void Dispose()
+    {
+    }
+
+    private static async ValueTask<int> WaitForCancellationAsync(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(Timeout.InfiniteTimeSpan, ct);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        return 0;
     }
 }

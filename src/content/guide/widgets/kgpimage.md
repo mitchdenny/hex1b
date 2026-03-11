@@ -28,7 +28,8 @@ for (int y = 0; y < height; y++)
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("KGP Image Demo"),
-        v.KgpImage(pixels, width, height, "Terminal does not support graphics")
+        v.KgpImage(pixels, width, height,
+            img => img.Text("Terminal does not support graphics"))
     ]))
     .Build();
 
@@ -45,7 +46,7 @@ KGP is supported by [Kitty](https://sw.kovidgoyal.net/kitty/), [WezTerm](https:/
 
 ## Basic Usage
 
-Create a KGP image from raw RGBA32 pixel data with a text fallback:
+Create a KGP image from raw RGBA32 pixel data with a fallback builder:
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="kgpimage-basic" exampleTitle="KGP Image - Basic Usage" />
 
@@ -53,7 +54,7 @@ The image data must be in **RGBA32 format** — 4 bytes per pixel (red, green, b
 
 ## Fallback Content
 
-Every `KgpImage` requires a fallback — a widget displayed when the terminal does not support KGP. You can provide either a string or a full widget:
+Every `KgpImage` requires a fallback builder. It produces the widget displayed when the terminal does not support KGP, whether that's a simple text label or a richer widget tree:
 
 <StaticTerminalPreview svgPath="/svg/kgpimage-fallback.svg" :code="fallbackSnippet" />
 
@@ -80,19 +81,19 @@ By default, the image size is calculated from the pixel dimensions (roughly 10 p
 
 ```csharp
 // Explicit size in character cells
-v.KgpImage(pixels, width, height, "fallback")
+v.KgpImage(pixels, width, height, img => img.Text("fallback"))
     .WithWidth(20)
     .WithHeight(10)
 
 // Or set size at creation time
-v.KgpImage(pixels, width, height, "fallback", width: 20, height: 10)
+v.KgpImage(pixels, width, height, img => img.Text("fallback"), width: 20, height: 10)
 ```
 
 Use layout size hints to make the image fill available space:
 
 ```csharp
 // Fill the parent container
-v.KgpImage(pixels, width, height, "fallback")
+v.KgpImage(pixels, width, height, img => img.Text("fallback"))
     .Width(SizeHint.Fill)
     .Height(SizeHint.Fill)
 ```
@@ -103,10 +104,10 @@ KGP images can be rendered above or below the text layer:
 
 ```csharp
 // Render behind text (default)
-v.KgpImage(pixels, width, height, "fallback").BelowText()
+v.KgpImage(pixels, width, height, img => img.Text("fallback")).BelowText()
 
 // Render on top of text
-v.KgpImage(pixels, width, height, "fallback").AboveText()
+v.KgpImage(pixels, width, height, img => img.Text("fallback")).AboveText()
 ```
 
 When placed below text, the image acts as a background — any text widgets overlapping the image area will be visible on top.
@@ -125,7 +126,7 @@ var w = bitmap.Width;
 var h = bitmap.Height;
 
 // Use in your widget tree
-v.KgpImage(pixels, w, h, "Photo description")
+v.KgpImage(pixels, w, h, img => img.Text("Photo description"))
     .Fit()
     .Width(SizeHint.Fill)
 ```

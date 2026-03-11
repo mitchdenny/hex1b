@@ -559,6 +559,12 @@ public sealed class Surface : ISurfaceSource
         if (destStartX >= destEndX || destStartY >= destEndY)
             return;
 
+        Dictionary<(int X, int Y), SurfaceCell>? kgpOverrides = null;
+        if (source.HasKgp)
+        {
+            kgpOverrides = BuildKgpCompositeOverrides(source, offsetX, offsetY, clipRect);
+        }
+
         for (var destY = destStartY; destY < destEndY; destY++)
         {
             var srcY = destY - offsetY;
@@ -567,7 +573,9 @@ public sealed class Surface : ISurfaceSource
             for (var destX = destStartX; destX < destEndX; destX++)
             {
                 var srcX = destX - offsetX;
-                var srcCell = source.GetCell(srcX, srcY);
+                var srcCell = kgpOverrides != null && kgpOverrides.TryGetValue((destX, destY), out var overrideCell)
+                    ? overrideCell
+                    : source.GetCell(srcX, srcY);
                 
                 // Skip cells that are exactly the initial empty state - these are unwritten cells
                 // that should not overwrite anything. We compare the full cell struct, not just
@@ -632,6 +640,70 @@ public sealed class Surface : ISurfaceSource
                 ExpandContentBounds(destX, destY);
             }
         }
+    }
+
+    private Dictionary<(int X, int Y), SurfaceCell> BuildKgpCompositeOverrides(
+        ISurfaceSource source,
+        int offsetX,
+        int offsetY,
+        Rect clipRect)
+    {
+        var overrides = new Dictionary<(int X, int Y), SurfaceCell>();
+
+        for (var srcY = 0; srcY < source.Height; srcY++)
+        {
+            for (var srcX = 0; srcX < source.Width; srcX++)
+            {
+                var anchorCell = source.GetCell(srcX, srcY);
+                if (!anchorCell.HasKgp || anchorCell.Kgp?.Data is not KgpCellData kgpData)
+                    continue;
+
+                var destAnchorX = offsetX + srcX;
+                var destAnchorY = offsetY + srcY;
+
+                var visibleLeft = Math.Max(0, Math.Max(destAnchorX, clipRect.X));
+                var visibleTop = Math.Max(0, Math.Max(destAnchorY, clipRect.Y));
+                var visibleRight = Math.Min(Width, Math.Min(destAnchorX + kgpData.WidthInCells, clipRect.Right));
+                var visibleBottom = Math.Min(Height, Math.Min(destAnchorY + kgpData.HeightInCells, clipRect.Bottom));
+
+                if (visibleLeft >= visibleRight || visibleTop >= visibleBottom)
+                    continue;
+
+                // If the original anchor cell is still visible, the normal composite loop will
+                // carry the KGP metadata. Overrides are only needed when clipping trims the
+                // image from the left and/or top, which would otherwise skip the anchor cell.
+                if (visibleLeft == destAnchorX && visibleTop == destAnchorY)
+                    continue;
+
+                var effectiveClipW = kgpData.ClipW > 0 ? kgpData.ClipW : (int)kgpData.SourcePixelWidth;
+                var effectiveClipH = kgpData.ClipH > 0 ? kgpData.ClipH : (int)kgpData.SourcePixelHeight;
+                var leftClippedCells = visibleLeft - destAnchorX;
+                var topClippedCells = visibleTop - destAnchorY;
+                var newCellWidth = visibleRight - visibleLeft;
+                var newCellHeight = visibleBottom - visibleTop;
+
+                var newClipX = kgpData.ClipX + (int)((long)leftClippedCells * effectiveClipW / kgpData.WidthInCells);
+                var newClipY = kgpData.ClipY + (int)((long)topClippedCells * effectiveClipH / kgpData.HeightInCells);
+                var newClipW = (int)((long)newCellWidth * effectiveClipW / kgpData.WidthInCells);
+                var newClipH = (int)((long)newCellHeight * effectiveClipH / kgpData.HeightInCells);
+
+                if (newClipW <= 0 || newClipH <= 0)
+                    continue;
+
+                var clippedData = kgpData.WithClip(
+                    newClipX,
+                    newClipY,
+                    newClipW,
+                    newClipH,
+                    newCellWidth,
+                    newCellHeight);
+                var tracked = new TrackedObject<KgpCellData>(clippedData, _ => { });
+
+                overrides[(visibleLeft, visibleTop)] = new SurfaceCell(" ", null, null, Kgp: tracked);
+            }
+        }
+
+        return overrides;
     }
 
     /// <summary>

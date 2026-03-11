@@ -112,11 +112,12 @@ public sealed class KgpCellData
     /// <summary>
     /// Builds the placement command (a=p) with current clip parameters.
     /// </summary>
-    internal string BuildPlacementPayload()
+    internal string BuildPlacementPayload(uint placementId = 0)
     {
         var sb = new StringBuilder();
         sb.Append("\x1b_G");
         sb.Append($"a=p,i={ImageId},c={WidthInCells},r={HeightInCells}");
+        if (placementId > 0) sb.Append($",p={placementId}");
         if (ClipX > 0) sb.Append($",x={ClipX}");
         if (ClipY > 0) sb.Append($",y={ClipY}");
         if (ClipW > 0) sb.Append($",w={ClipW}");

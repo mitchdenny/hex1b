@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using System.Buffers.Binary;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -24,6 +25,12 @@ public class Hex1bRenderContext
     }
 
     public Hex1bTheme Theme { get; set; }
+
+    /// <summary>
+    /// Logical KGP image epoch. Incrementing this forces the same pixel content to map
+    /// to a different Kitty image ID on subsequent renders.
+    /// </summary>
+    public uint KgpImageEpoch { get; set; }
     
     /// <summary>
     /// The current mouse X position (0-based column), or -1 if mouse is not tracked.
@@ -81,7 +88,7 @@ public class Hex1bRenderContext
     {
         var base64 = Convert.ToBase64String(imageData);
         var contentHash = SHA256.HashData(imageData);
-        var imageId = (uint)(contentHash[0] << 24 | contentHash[1] << 16 | contentHash[2] << 8 | contentHash[3]);
+        var imageId = ComputeKgpImageId(contentHash);
         var zIndex = zOrder == KgpZOrder.AboveText ? 1 : -1;
 
         // Chunk the base64 payload per KGP protocol (max 4096 bytes per APC)
@@ -121,6 +128,17 @@ public class Hex1bRenderContext
         if (clipH > 0) sb.Append($",h={clipH}");
         sb.Append($",q=2,z={zIndex}\x1b\\");
         Write(sb.ToString());
+    }
+
+    /// <summary>
+    /// Maps image content to a Kitty image ID, salted by <see cref="KgpImageEpoch"/>
+    /// so the same bytes can be reintroduced under a fresh ID after a terminal resize.
+    /// </summary>
+    protected uint ComputeKgpImageId(byte[] contentHash)
+    {
+        var baseId = BinaryPrimitives.ReadUInt32BigEndian(contentHash);
+        var imageId = baseId ^ KgpImageEpoch;
+        return imageId == 0 ? 1u : imageId;
     }
     public virtual int Width => _adapter?.Width ?? 0;
     public virtual int Height => _adapter?.Height ?? 0;

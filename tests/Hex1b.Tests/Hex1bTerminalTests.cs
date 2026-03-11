@@ -1,4 +1,7 @@
+using System.Text;
+using System.Threading.Channels;
 using Hex1b.Input;
+using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
@@ -7,6 +10,60 @@ namespace Hex1b.Tests;
 /// </summary>
 public class Hex1bTerminalTests
 {
+    private sealed class QueuedInputPresentationAdapter : IHex1bTerminalPresentationAdapter
+    {
+        private readonly Channel<ReadOnlyMemory<byte>> _input = Channel.CreateUnbounded<ReadOnlyMemory<byte>>();
+
+        public int Width => 80;
+        public int Height => 24;
+        public TerminalCapabilities Capabilities => new()
+        {
+            SupportsMouse = true,
+            Supports256Colors = true,
+            SupportsTrueColor = true
+        };
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public void EnqueueInput(string text)
+            => _input.Writer.TryWrite(Encoding.UTF8.GetBytes(text));
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public async ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            while (await _input.Reader.WaitToReadAsync(ct))
+            {
+                if (_input.Reader.TryRead(out var data))
+                    return data;
+            }
+
+            return ReadOnlyMemory<byte>.Empty;
+        }
+
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+
+        public ValueTask DisposeAsync()
+        {
+            _input.Writer.TryComplete();
+            return ValueTask.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -47,6 +104,134 @@ public class Hex1bTerminalTests
         Assert.Equal("Hello", snapshot.GetLineTrimmed(0));
         Assert.Equal(5, snapshot.CursorX);
         Assert.Equal(0, snapshot.CursorY);
+    }
+
+    [Theory]
+    [InlineData("\x1b_Gi=123", ";OK\x1b\\")]
+    [InlineData("\x1b_Gi=123;OK\x1b", "\\")]
+    public async Task PresentationInput_SplitKgpResponse_DoesNotEmitEscapeKeyEvent(string firstChunk, string secondChunk)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput(firstChunk);
+        presentation.EnqueueInput(secondChunk);
+        presentation.EnqueueInput("a");
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
+        Assert.Equal(Hex1bKey.A, keyEvent.Key);
+        Assert.Equal("a", keyEvent.Text);
+        Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
+        Assert.False(workload.InputEvents.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task PresentationInput_SplitSs3Sequence_DoesNotEmitAltKeyEvent()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput("\x1bO");
+        presentation.EnqueueInput("A");
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
+
+        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
+        Assert.Equal(Hex1bKey.UpArrow, keyEvent.Key);
+        Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
+        Assert.False(workload.InputEvents.TryRead(out _));
+    }
+
+    [Theory]
+    [InlineData("\x1b_Gi=123", ";OK\x1b\\")]
+    [InlineData("\x1b_Gi=123;OK\x1b", "\\")]
+    public async Task AppInput_SplitKgpResponse_DoesNotTriggerEscapeBinding(string firstChunk, string secondChunk)
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        var normalKeyHandled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var escapeTriggered = false;
+        var status = "Ready";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new VStackWidget([
+                    new TextBlockWidget(status)
+                ]).WithInputBindings(bindings =>
+                {
+                    bindings.Key(Hex1bKey.Escape).Action(_ =>
+                    {
+                        escapeTriggered = true;
+                        status = "Escape triggered";
+                        return Task.CompletedTask;
+                    }, "Escape binding");
+
+                    bindings.Key(Hex1bKey.A).Action(_ =>
+                    {
+                        status = "Normal key handled";
+                        normalKeyHandled.TrySetResult();
+                        return Task.CompletedTask;
+                    }, "A binding");
+                })
+            ),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableDefaultCtrlCExit = false
+            }
+        );
+
+        using var cts = new CancellationTokenSource();
+        var runTask = app.RunAsync(cts.Token);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(2), "initial render")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        presentation.EnqueueInput(firstChunk);
+        presentation.EnqueueInput(secondChunk);
+        presentation.EnqueueInput("a");
+
+        await normalKeyHandled.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Normal key handled"), TimeSpan.FromSeconds(2), "normal key handled")
+            .Capture("after-split-kgp-response")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.False(escapeTriggered);
+        Assert.True(snapshot.ContainsText("Normal key handled"));
+
+        cts.Cancel();
+        await runTask;
     }
 
     [Fact]

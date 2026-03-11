@@ -91,8 +91,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private bool _cursorSaved; // Whether cursor has been saved (for restore without prior save)
     private bool _savedPendingWrap; // Saved pending wrap state for DECSC/DECRC
     private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
-    private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across reads
-    private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across reads
+    private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
+    private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
+    private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
+    private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
     
     // Scrollback buffer (opt-in via WithScrollback)
     private readonly ScrollbackBuffer? _scrollbackBuffer;
@@ -539,10 +541,27 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
                 _metrics.TerminalInputBytes.Record(data.Length);
 
-                // Tokenize input the same way we tokenize output
-                var text = Encoding.UTF8.GetString(data.Span);
-                
-                var tokens = AnsiTokenizer.Tokenize(text);
+                // Tokenize input the same way we tokenize output, preserving
+                // incomplete escape sequences across read boundaries. Kitty KGP
+                // responses (APC: ESC _ G ... ST) may be split across reads; if
+                // we tokenize each chunk independently, the leading ESC becomes a
+                // spurious Escape key event and can close focused windows.
+                var charCount = _inputUtf8Decoder.GetCharCount(data.Span, flush: false);
+                var chars = new char[charCount];
+                _inputUtf8Decoder.GetChars(data.Span, chars, flush: false);
+                var decodedText = new string(chars);
+
+                var text = _incompleteInputSequenceBuffer + decodedText;
+                _incompleteInputSequenceBuffer = "";
+
+                var extracted = ExtractIncompleteEscapeSequence(text);
+                var completeText = extracted.completeText;
+                _incompleteInputSequenceBuffer = extracted.incompleteSequence;
+
+                if (string.IsNullOrEmpty(completeText))
+                    continue;
+
+                var tokens = AnsiTokenizer.Tokenize(completeText);
                 
                 _metrics.TerminalInputTokens.Record(tokens.Count);
                 
@@ -695,6 +714,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             
             // Control characters (Enter, Tab, etc.)
             ControlCharacterToken ctrl => ControlCharToKeyEvent(ctrl),
+
+            // Kitty graphics responses are terminal protocol traffic, not user input.
+            KgpToken => null,
             
             // Unrecognized sequences may contain Alt+key combinations or bare Escape
             UnrecognizedSequenceToken unrec => UnrecognizedToKeyEvent(unrec),
@@ -5757,80 +5779,138 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         if (string.IsNullOrEmpty(text))
             return (text, "");
-        
-        // Find the last ESC character
-        int lastEsc = text.LastIndexOf('\x1b');
-        if (lastEsc < 0)
-            return (text, ""); // No escape sequences
-        
-        // Check if the sequence starting at lastEsc is complete
-        var potentialSequence = text[lastEsc..];
-        
-        if (IsCompleteEscapeSequence(potentialSequence))
-            return (text, ""); // The sequence is complete
-        
-        // The sequence is incomplete - split it off
-        return (text[..lastEsc], potentialSequence);
+
+        var incompleteStart = FindTrailingIncompleteEscapeSequenceStart(text);
+        return incompleteStart < 0
+            ? (text, "")
+            : (text[..incompleteStart], text[incompleteStart..]);
     }
-    
-    /// <summary>
-    /// Determines if an escape sequence is complete.
-    /// </summary>
-    private static bool IsCompleteEscapeSequence(string seq)
+
+    private static int FindTrailingIncompleteEscapeSequenceStart(string text)
     {
-        if (seq.Length < 2)
-            return false; // Just ESC, need more
-        
-        var second = seq[1];
-        
+        for (int i = 0; i < text.Length; i++)
+        {
+            if (!IsEscapeSequenceIntroducer(text[i]))
+                continue;
+
+            if (TryFindEscapeSequenceEnd(text, i, out var endExclusive))
+            {
+                i = endExclusive - 1;
+                continue;
+            }
+
+            return i;
+        }
+
+        return -1;
+    }
+
+    private static bool IsEscapeSequenceIntroducer(char c)
+        => c is '\x1b' or '\x90' or '\x9d' or '\x9f';
+
+    private static bool TryFindEscapeSequenceEnd(string text, int start, out int endExclusive)
+    {
+        endExclusive = start + 1;
+
+        return text[start] switch
+        {
+            '\x90' => TryFindStringTerminator(text, start + 1, allowBellTerminator: false, out endExclusive),
+            '\x9d' => TryFindStringTerminator(text, start + 1, allowBellTerminator: true, out endExclusive),
+            '\x9f' => TryFindStringTerminator(text, start + 1, allowBellTerminator: false, out endExclusive),
+            '\x1b' => TryFindEscapeSequenceEndAfterEsc(text, start, out endExclusive),
+            _ => true
+        };
+    }
+
+    private static bool TryFindEscapeSequenceEndAfterEsc(string text, int start, out int endExclusive)
+    {
+        endExclusive = start + 1;
+
+        if (start + 1 >= text.Length)
+            return false;
+
+        var second = text[start + 1];
         switch (second)
         {
-            case '[': // CSI sequence
-                // Need a letter to terminate (but not 'O' which could be SS3)
-                for (int i = 2; i < seq.Length; i++)
-                {
-                    var c = seq[i];
-                    // CSI sequences end with a letter (@ through ~, i.e., 0x40-0x7E)
-                    if (c >= '@' && c <= '~')
-                        return true;
-                }
-                return false; // No terminator found
-                
-            case ']': // OSC sequence
-                // Terminated by ST (ESC \) or BEL (\x07)
-                if (seq.Contains('\x07'))
-                    return true;
-                if (seq.Contains("\x1b\\"))
-                    return true;
-                return false;
-                
-            case 'P': // DCS sequence
-            case '_': // APC sequence
-                // Terminated by ST (ESC \)
-                return seq.Contains("\x1b\\");
-                
-            case '7': // DECSC
-            case '8': // DECRC
-            case 'c': // RIS
-            case 'D': // IND
-            case 'E': // NEL
-            case 'H': // HTS
-            case 'M': // RI
-            case 'N': // SS2
-            case 'O': // SS3
-            case 'Z': // DECID
-            case '=': // DECKPAM (application keypad)
-            case '>': // DECKPNM (normal keypad)
-                return true; // Two-character sequences are complete
-            
-            case '(': // G0 character set designation (ESC ( X)
-            case ')': // G1 character set designation (ESC ) X)
-                return seq.Length >= 3; // Need 3 characters total
-                
+            case '[':
+                return TryFindCsiTerminator(text, start + 2, out endExclusive);
+
+            case ']':
+                return TryFindStringTerminator(text, start + 2, allowBellTerminator: true, out endExclusive);
+
+            case 'P':
+            case '_':
+                return TryFindStringTerminator(text, start + 2, allowBellTerminator: false, out endExclusive);
+
+            case 'O':
+            case 'N':
+            case '(':
+            case ')':
+            case '*':
+            case '+':
+            case '#':
+                if (start + 2 >= text.Length)
+                    return false;
+
+                endExclusive = start + 3;
+                return true;
+
             default:
-                // Unknown sequence type - assume complete
+                endExclusive = start + 2;
                 return true;
         }
+    }
+
+    private static bool TryFindCsiTerminator(string text, int start, out int endExclusive)
+    {
+        for (int i = start; i < text.Length; i++)
+        {
+            var c = text[i];
+            if (c >= '@' && c <= '~')
+            {
+                endExclusive = i + 1;
+                return true;
+            }
+        }
+
+        endExclusive = text.Length;
+        return false;
+    }
+
+    private static bool TryFindStringTerminator(string text, int start, bool allowBellTerminator, out int endExclusive)
+    {
+        for (int i = start; i < text.Length; i++)
+        {
+            if (allowBellTerminator && text[i] == '\x07')
+            {
+                endExclusive = i + 1;
+                return true;
+            }
+
+            if (text[i] == '\x9c')
+            {
+                endExclusive = i + 1;
+                return true;
+            }
+
+            if (text[i] == '\x1b')
+            {
+                if (i + 1 >= text.Length)
+                {
+                    endExclusive = i;
+                    return false;
+                }
+
+                if (text[i + 1] == '\\')
+                {
+                    endExclusive = i + 2;
+                    return true;
+                }
+            }
+        }
+
+        endExclusive = text.Length;
+        return false;
     }
 
     // ---- KGP (Kitty Graphics Protocol) ----
@@ -6129,6 +6209,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         // q=1 suppresses OK, q=2 suppresses all responses
         if (quiet >= 2) return;
         if (quiet >= 1 && message == "OK") return;
+
+        // App-style workloads consume high-level input events, not raw terminal
+        // protocol replies. Feeding APC responses back through WriteInputAsync()
+        // causes them to be misparsed as key presses.
+        if (_workload is IHex1bAppTerminalWorkloadAdapter)
+            return;
 
         var response = new StringBuilder();
         response.Append("\x1b_G");

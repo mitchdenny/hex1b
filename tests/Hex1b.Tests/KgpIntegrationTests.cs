@@ -1,4 +1,7 @@
+using System.Buffers.Binary;
+using System.Security.Cryptography;
 using Hex1b.Input;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -20,6 +23,19 @@ public class KgpIntegrationTests
             data[i + 3] = 255; // A
         }
         return data;
+    }
+
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
+    private static uint ComputeExpectedImageId(byte[] imageData, uint epoch)
+    {
+        var contentHash = SHA256.HashData(imageData);
+        var baseId = BinaryPrimitives.ReadUInt32BigEndian(contentHash);
+        var imageId = baseId ^ epoch;
+        return imageId == 0 ? 1u : imageId;
     }
 
     [Fact]
@@ -321,7 +337,7 @@ public class KgpIntegrationTests
     }
 
     [Fact]
-    public async Task App_KgpImageWidget_SurvivesResize()
+    public async Task App_KgpImageWidget_RehydratesAfterResizeWhenTerminalLosesKgpState()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
         {
@@ -349,31 +365,38 @@ public class KgpIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for initial render, verify KGP placement exists
-        var beforeResize = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.InAlternateScreen && terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
-            .Capture("before-resize")
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen && terminal.KgpPlacements.Count > 0 && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(beforeResize);
         var placementsBefore = terminal.KgpPlacements;
         Assert.NotEmpty(placementsBefore);
+        var initialImageId = placementsBefore.Select(p => p.ImageId).Distinct().Single();
 
-        // Resize the terminal — resize both buffer and workload adapter
+        // Kitty-family terminals can invalidate both placements and image data on resize.
+        // Clear the terminal-side KGP state first so this test proves the app fully rehydrates it.
         terminal.Resize(60, 15);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
+        Assert.Empty(terminal.KgpPlacements);
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+
         await workload.ResizeAsync(60, 15, TestContext.Current.CancellationToken);
 
-        // Wait for re-render to complete with KGP placements present at new size
-        var afterResize = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Width == 60 && s.Height == 15 && terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
-            .Capture("after-resize")
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 60
+                            && s.Height == 15
+                            && terminal.KgpPlacements.Count > 0
+                            && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
             .Build()
-            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(afterResize);
         var placementsAfter = terminal.KgpPlacements;
         Assert.NotEmpty(placementsAfter);
+        var retransmittedImageId = placementsAfter.Select(p => p.ImageId).Distinct().Single();
+        Assert.NotEqual(initialImageId, retransmittedImageId);
 
         // Stop the app
         app.RequestStop();
@@ -413,30 +436,105 @@ public class KgpIntegrationTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for KGP placements after initial render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(_ => terminal.KgpPlacements.Count > 0, TimeSpan.FromSeconds(5))
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-
-        Assert.NotEmpty(terminal.KgpPlacements);
-
-        // Resize the terminal — must resize BOTH terminal buffer and workload adapter.
-        // In a real scenario, the OS resizes the presentation adapter which triggers both
-        // via Hex1bTerminal.ResizeWithWorkload().
-        terminal.Resize(80, 25);
-        await workload.ResizeAsync(80, 25, TestContext.Current.CancellationToken);
-
-        // Wait for re-render at new size with KGP placements
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Width == 80 && s.Height == 25 && terminal.KgpPlacements.Count > 0,
+            .WaitUntil(_ => terminal.KgpPlacements.Count > 0 && terminal.KgpImageStore.ImageCount > 0,
                 TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotEmpty(terminal.KgpPlacements);
+        var placementsBefore = terminal.KgpPlacements;
+        Assert.NotEmpty(placementsBefore);
+        var initialImageId = placementsBefore.Select(p => p.ImageId).Distinct().Single();
+
+        // Simulate a Kitty-style resize that invalidates terminal-side KGP state.
+        terminal.Resize(80, 25);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
+        Assert.Empty(terminal.KgpPlacements);
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        await workload.ResizeAsync(80, 25, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 80
+                            && s.Height == 25
+                            && terminal.KgpPlacements.Count > 0
+                            && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var placementsAfter = terminal.KgpPlacements;
+        Assert.NotEmpty(placementsAfter);
+        var retransmittedImageId = placementsAfter.Select(p => p.ImageId).Distinct().Single();
+        Assert.NotEqual(initialImageId, retransmittedImageId);
 
         // Stop the app
+        app.RequestStop();
+        await runTask;
+    }
+
+    [Fact]
+    public async Task App_KgpImageWidget_MultipleResizeEventsBeforeRetransmit_OnlyBumpsImageEpochOnce()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithDimensions(40, 10)
+            .Build();
+
+        var imageData = CreateTestImage();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
+                    .WithWidth(4)
+                    .WithHeight(2)
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => terminal.KgpPlacements.Count > 0 && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var initialImageId = terminal.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
+        Assert.Equal(ComputeExpectedImageId(imageData, 0), initialImageId);
+
+        terminal.Resize(60, 15);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
+        Assert.Empty(terminal.KgpPlacements);
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        await workload.ResizeAsync(60, 15, TestContext.Current.CancellationToken);
+
+        terminal.Resize(60, 14);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
+        Assert.Empty(terminal.KgpPlacements);
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        await workload.ResizeAsync(60, 14, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.Width == 60
+                            && s.Height == 14
+                            && terminal.KgpPlacements.Count > 0
+                            && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var finalImageId = terminal.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
+        Assert.Equal(ComputeExpectedImageId(imageData, 1), finalImageId);
+
         app.RequestStop();
         await runTask;
     }

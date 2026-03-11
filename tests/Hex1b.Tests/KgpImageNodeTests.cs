@@ -1,3 +1,4 @@
+using Hex1b;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
@@ -91,6 +92,32 @@ public class KgpImageNodeTests
             new TextBlockWidget("fallback"));
 
         Assert.Equal(typeof(KgpImageNode), widget.GetExpectedNodeType());
+    }
+
+    [Fact]
+    public void KgpImage_BuilderFallback_CreatesFallbackWidget()
+    {
+        var ctx = new RootContext();
+
+        var widget = ctx.KgpImage(CreateTestImage(), 4, 4, kgp => kgp.Text("fallback"));
+
+        var fallback = Assert.IsType<TextBlockWidget>(widget.Fallback);
+        Assert.Equal("fallback", fallback.Text);
+    }
+
+    [Fact]
+    public void KgpImage_BuilderFallback_PreservesRequestedDimensions()
+    {
+        var ctx = new RootContext();
+
+        var widget = ctx.KgpImage(
+            CreateTestImage(), 4, 4,
+            kgp => kgp.Text("fallback"),
+            width: 20,
+            height: 10);
+
+        Assert.Equal(20, widget.Width);
+        Assert.Equal(10, widget.Height);
     }
 
     #endregion

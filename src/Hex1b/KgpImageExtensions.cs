@@ -8,46 +8,29 @@ using Hex1b.Widgets;
 public static class KgpImageExtensions
 {
     /// <summary>
-    /// Creates a KgpImageWidget with the specified RGBA32 pixel data and fallback widget.
+    /// Creates a <see cref="KgpImageWidget"/> with the specified RGBA32 pixel data and fallback builder.
     /// </summary>
     /// <param name="ctx">The widget context.</param>
     /// <param name="imageData">Raw RGBA32 pixel data.</param>
     /// <param name="pixelWidth">Width of the image in pixels.</param>
     /// <param name="pixelHeight">Height of the image in pixels.</param>
-    /// <param name="fallback">A widget to display if KGP is not supported.</param>
+    /// <param name="fallbackBuilder">Builds the widget displayed when KGP is not supported.</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
+    /// <returns>A new <see cref="KgpImageWidget"/>.</returns>
     public static KgpImageWidget KgpImage<TParent>(
         this WidgetContext<TParent> ctx,
         byte[] imageData,
         int pixelWidth,
         int pixelHeight,
-        Hex1bWidget fallback,
+        Func<WidgetContext<KgpImageWidget>, Hex1bWidget> fallbackBuilder,
         int? width = null,
         int? height = null)
         where TParent : Hex1bWidget
-        => new(imageData, pixelWidth, pixelHeight, fallback, width, height);
-
-    /// <summary>
-    /// Creates a KgpImageWidget with the specified RGBA32 pixel data and a text fallback.
-    /// </summary>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="imageData">Raw RGBA32 pixel data.</param>
-    /// <param name="pixelWidth">Width of the image in pixels.</param>
-    /// <param name="pixelHeight">Height of the image in pixels.</param>
-    /// <param name="fallbackText">Text to display if KGP is not supported.</param>
-    /// <param name="width">Optional width in character cells.</param>
-    /// <param name="height">Optional height in character cells.</param>
-    public static KgpImageWidget KgpImage<TParent>(
-        this WidgetContext<TParent> ctx,
-        byte[] imageData,
-        int pixelWidth,
-        int pixelHeight,
-        string fallbackText,
-        int? width = null,
-        int? height = null)
-        where TParent : Hex1bWidget
-        => new(imageData, pixelWidth, pixelHeight, new TextBlockWidget(fallbackText), width, height);
+    {
+        var fallbackCtx = new WidgetContext<KgpImageWidget>();
+        return new(imageData, pixelWidth, pixelHeight, fallbackBuilder(fallbackCtx), width, height);
+    }
 
     /// <summary>
     /// Sets the z-ordering to above text (image renders on top of text).

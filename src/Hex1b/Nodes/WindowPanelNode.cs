@@ -463,8 +463,6 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         }
 
         // Render windows in z-order (bottom to top).
-        // KGP occlusion is handled automatically by SurfaceRenderContext.RenderChild()
-        // at the compositing boundary — no manual layer/occluder registration needed.
         foreach (var windowNode in WindowNodes)
         {
             context.RenderChild(windowNode);

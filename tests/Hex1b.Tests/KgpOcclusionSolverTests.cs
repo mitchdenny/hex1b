@@ -336,8 +336,10 @@ public class KgpOcclusionSolverTests
             new(1, 0, 10, 20, 5, 0, 100, 200, 50, data) // bottom strip doesn't exist, but for test
         };
         var (before2, _) = tracker.GenerateCommands(fragments2);
-        // Should delete old placement + emit 2 new placements
-        Assert.Contains(before2, t => t is UnrecognizedSequenceToken u && u.Sequence.Contains("a=d"));
+        // Should reuse the image transmission and replace placement slots in place.
+        Assert.DoesNotContain(before2, t => t is UnrecognizedSequenceToken u && u.Sequence.Contains("a=t"));
+        Assert.DoesNotContain(before2, t => t is UnrecognizedSequenceToken u && u.Sequence.Contains("a=d"));
+        Assert.Equal(2, before2.OfType<UnrecognizedSequenceToken>().Count(u => u.Sequence.Contains("a=p")));
     }
 
     [Fact]

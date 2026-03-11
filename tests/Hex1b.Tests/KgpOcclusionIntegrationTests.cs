@@ -1,6 +1,7 @@
 using Hex1b.Input;
 using Hex1b.Kgp;
 using Hex1b.Layout;
+using Hex1b.Tokens;
 using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
@@ -36,6 +37,11 @@ public class KgpOcclusionIntegrationTests
             imageId, cellW, cellH, (uint)pixelW, (uint)pixelH, hash);
     }
 
+    private static void SendKgp(Hex1bTerminal terminal, string escapeSequence)
+    {
+        terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
+    }
+
     [Fact]
     public async Task WindowPanel_KgpBackground_NoWindows_FullImagePlaced()
     {
@@ -59,7 +65,7 @@ public class KgpOcclusionIntegrationTests
                 ctx.WindowPanel()
                     .Background(bg =>
                         bg.KgpImage(imageData, 32, 32,
-                            bg.Text("[fallback]"),
+                            img => img.Text("[fallback]"),
                             width: 10, height: 5))
                     .Fill()
             ),
@@ -120,7 +126,7 @@ public class KgpOcclusionIntegrationTests
                     outer.WindowPanel()
                         .Background(bg =>
                             bg.KgpImage(imageData, 64, 64,
-                                bg.Text("[fallback]"),
+                                img => img.Text("[fallback]"),
                                 width: 30, height: 15))
                         .Fill()
                 ])
@@ -182,7 +188,7 @@ public class KgpOcclusionIntegrationTests
                                 [
                                     v.Text(" Window with KGP:"),
                                     v.KgpImage(imageData, 16, 16,
-                                        v.Text("[fallback]"),
+                                        img => img.Text("[fallback]"),
                                         width: 10, height: 5)
                                 ]))
                             .Title("KGP Window")
@@ -243,10 +249,10 @@ public class KgpOcclusionIntegrationTests
                 ctx.VStack(outer =>
                 [
                     outer.KgpImage(image1, 16, 16,
-                        outer.Text("[img1]"),
+                        img => img.Text("[img1]"),
                         width: 10, height: 4),
                     outer.KgpImage(image2, 24, 24,
-                        outer.Text("[img2]"),
+                        img => img.Text("[img2]"),
                         width: 12, height: 5)
                 ])
             ),
@@ -471,7 +477,7 @@ public class KgpOcclusionIntegrationTests
                     outer.WindowPanel()
                         .Background(bg =>
                             bg.KgpImage(imageData, 64, 64,
-                                bg.Text("[fallback]"),
+                                img => img.Text("[fallback]"),
                                 width: 30, height: 15))
                         .Fill()
                 ])
@@ -548,7 +554,7 @@ public class KgpOcclusionIntegrationTests
                                 [
                                     v.Text("KGP-Content"),
                                     v.KgpImage(imageData, 16, 16,
-                                        v.Text("[fallback]"),
+                                        img => img.Text("[fallback]"),
                                         width: 10, height: 3)
                                 ]))
                             .Title("DragMe")
@@ -592,13 +598,24 @@ public class KgpOcclusionIntegrationTests
         Assert.NotNull(afterDrag);
         Assert.True(afterDrag.ContainsText("DragMe"), "Window title should be visible after drag");
         Assert.True(afterDrag.ContainsText("KGP-Content"), "Window content should be visible after drag");
+        var imageIdBeforeResize = afterDrag.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
 
-        // Now resize the terminal by 1 row
+        // Now resize the terminal by 1 row. Simulate a Kitty-style resize that
+        // invalidates terminal-side KGP state so the app must fully rehydrate it.
         terminal.Resize(60, 19);
+        SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
+        Assert.Empty(terminal.KgpPlacements);
+        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
         await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
 
         var afterResize = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.Width == 60 && s.Height == 19, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.Width == 60
+                            && s.Height == 19
+                            && s.ContainsText("DragMe")
+                            && s.ContainsText("KGP-Content")
+                            && terminal.KgpPlacements.Count > 0
+                            && terminal.KgpImageStore.ImageCount > 0,
+                TimeSpan.FromSeconds(5))
             .Wait(TimeSpan.FromMilliseconds(300))
             .Capture("after-resize")
             .Build()
@@ -615,6 +632,8 @@ public class KgpOcclusionIntegrationTests
         // KGP placements should exist after resize
         Assert.True(afterResize.KgpPlacements.Count >= 1,
             $"Expected KGP placement after drag+resize, got {afterResize.KgpPlacements.Count}");
+        var imageIdAfterResize = afterResize.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
+        Assert.NotEqual(imageIdBeforeResize, imageIdAfterResize);
 
         app.RequestStop();
         await runTask;
@@ -699,5 +718,283 @@ public class KgpOcclusionIntegrationTests
 
         app.RequestStop();
         await runTask;
+    }
+
+    [Fact]
+    public async Task WindowPanel_KgpWindowDragCloseReopen_WindowRendersAgain()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless(new TerminalCapabilities { SupportsKgp = true })
+            .WithMouse()
+            .WithDimensions(60, 20)
+            .Build();
+
+        var imageData = CreateTestImage(16, 16);
+        WindowHandle? currentWindow = null;
+        var openCount = 0;
+        var closeCount = 0;
+        var statusText = "Ready";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer =>
+                [
+                    outer.Text(statusText),
+                    outer.WindowPanel().Fill()
+                ]).WithInputBindings(bindings =>
+                {
+                    bindings.Ctrl().Key(Hex1bKey.O).Action(e =>
+                    {
+                        if (currentWindow is not null)
+                            return Task.CompletedTask;
+
+                        var window = e.Windows.Window(w =>
+                                w.VStack(v =>
+                                [
+                                    v.Text("KGP-Content"),
+                                    v.KgpImage(imageData, 16, 16,
+                                        img => img.Text("[fallback]"),
+                                        width: 10, height: 3)
+                                ]))
+                            .Title("DragMe")
+                            .Size(20, 8)
+                            .Position(new WindowPositionSpec(WindowPosition.Center))
+                            .OnClose(() =>
+                            {
+                                currentWindow = null;
+                                closeCount++;
+                                statusText = $"Closed {closeCount}";
+                            });
+
+                        currentWindow = window;
+                        e.Windows.Open(window);
+                        openCount++;
+                        statusText = $"Opened {openCount}";
+                        return Task.CompletedTask;
+                    }, "Open KGP window");
+
+                    bindings.Ctrl().Key(Hex1bKey.X).Action(_ =>
+                    {
+                        currentWindow?.Cancel();
+                        return Task.CompletedTask;
+                    }, "Close KGP window");
+                })
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var initial = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Ready"), TimeSpan.FromSeconds(5), "app ready")
+            .Key(Hex1bKey.O, Hex1bModifiers.Control)
+            .WaitUntil(s => s.ContainsText("Opened 1")
+                            && s.ContainsText("DragMe")
+                            && s.ContainsText("KGP-Content")
+                            && terminal.KgpPlacements.Count > 0,
+                TimeSpan.FromSeconds(5), "window opened")
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("before-drag-close-reopen")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, openCount);
+        Assert.NotNull(initial);
+        Assert.True(initial.KgpPlacements.Count >= 1, "Expected KGP placement after initial open.");
+
+        var afterDrag = await new Hex1bTerminalInputSequenceBuilder()
+            .Drag(30, 7, 35, 10)
+            .WaitUntil(s => s.ContainsText("DragMe") && s.ContainsText("KGP-Content"),
+                TimeSpan.FromSeconds(5), "window dragged")
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-drag-before-close")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(afterDrag);
+        Assert.True(afterDrag.KgpPlacements.Count >= 1, "Expected KGP placement after drag.");
+
+        var afterClose = await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.X, Hex1bModifiers.Control)
+            .WaitUntil(s => s.ContainsText("Closed 1")
+                            && !s.ContainsText("DragMe")
+                            && terminal.KgpPlacements.Count == 0,
+                TimeSpan.FromSeconds(5), "window closed")
+            .Capture("after-close-before-reopen")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal(1, closeCount);
+        Assert.NotNull(afterClose);
+        Assert.False(afterClose.ContainsText("DragMe"));
+        Assert.Empty(afterClose.KgpPlacements);
+
+        var afterReopen = await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.O, Hex1bModifiers.Control)
+            .WaitUntil(s => s.ContainsText("Opened 2")
+                            && s.ContainsText("DragMe")
+                            && s.ContainsText("KGP-Content")
+                            && terminal.KgpPlacements.Count > 0,
+                TimeSpan.FromSeconds(5), "window reopened")
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-reopen")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal(2, openCount);
+        Assert.Equal(1, closeCount);
+        Assert.NotNull(afterReopen);
+        Assert.True(afterReopen.ContainsText("DragMe"));
+        Assert.True(afterReopen.ContainsText("KGP-Content"));
+        Assert.True(afterReopen.KgpPlacements.Count >= 1,
+            $"Expected KGP placement after reopen, got {afterReopen.KgpPlacements.Count}");
+    }
+
+    [Fact]
+    public async Task ResizeFrame_WithKgp_DeletesPlacementsBeforeClear_ThenRetransmitsOnFollowUpFrame()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
+        {
+            SupportsKgp = true,
+            SupportsTrueColor = true,
+            Supports256Colors = true,
+        });
+
+        await workload.ResizeAsync(60, 20, TestContext.Current.CancellationToken);
+
+        var imageData = CreateTestImage(64, 64);
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.WindowPanel()
+                    .Background(bg =>
+                        bg.KgpImage(imageData, 64, 64,
+                            img => img.Text("[fallback]"),
+                            width: 20, height: 8))
+                    .Fill()
+            ),
+            new Hex1bAppOptions
+            {
+                WorkloadAdapter = workload,
+                EnableInputCoalescing = false,
+            }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var initialFrameOutput = await ReadNextOutputContainingAsync(
+            workload,
+            "\x1b_Ga=t,",
+            TestContext.Current.CancellationToken);
+        var initialFrameText = System.Text.Encoding.UTF8.GetString(initialFrameOutput.Span);
+        var initialImageId = ExtractFirstTransmitImageId(initialFrameText);
+
+        await DrainWorkloadOutputAsync(workload, TestContext.Current.CancellationToken);
+
+        await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
+
+        var deleteOutput = await workload.ReadOutputAsync(TestContext.Current.CancellationToken);
+        var clearOutput = await workload.ReadOutputAsync(TestContext.Current.CancellationToken);
+        var postResizeOutput = await ReadNextNonEmptyOutputAsync(workload, TestContext.Current.CancellationToken);
+
+        var deleteText = System.Text.Encoding.UTF8.GetString(deleteOutput.Span);
+        var clearText = System.Text.Encoding.UTF8.GetString(clearOutput.Span);
+        var postResizeText = System.Text.Encoding.UTF8.GetString(postResizeOutput.Span);
+
+        string retransmitText;
+        if (postResizeText.Contains("\x1b_Ga=t,", StringComparison.Ordinal))
+        {
+            retransmitText = postResizeText;
+        }
+        else
+        {
+            Assert.DoesNotContain("\x1b_Ga=t,", postResizeText);
+            Assert.DoesNotContain("\x1b_Ga=p,", postResizeText);
+
+            var retransmitOutput = await ReadNextNonEmptyOutputAsync(workload, TestContext.Current.CancellationToken);
+            retransmitText = System.Text.Encoding.UTF8.GetString(retransmitOutput.Span);
+        }
+
+        Assert.Equal("\x1b_Ga=d,d=a,q=2\x1b\\", deleteText);
+        Assert.Equal("\x1b[0m\x1b[2J", clearText);
+        Assert.DoesNotContain("\x1b_Ga=d,d=i,", postResizeText);
+        Assert.Contains("\x1b_Ga=t,", retransmitText);
+        Assert.Contains("\x1b_Ga=p,", retransmitText);
+        Assert.Contains($"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\", retransmitText);
+        Assert.NotEqual(initialImageId, ExtractFirstTransmitImageId(retransmitText));
+
+        app.RequestStop();
+        await runTask;
+    }
+
+    private static async Task<ReadOnlyMemory<byte>> ReadNextNonEmptyOutputAsync(
+        Hex1bAppWorkloadAdapter workload,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var output = await workload.ReadOutputAsync(cancellationToken);
+            if (!output.IsEmpty)
+                return output;
+        }
+    }
+
+    private static async Task<ReadOnlyMemory<byte>> ReadNextOutputContainingAsync(
+        Hex1bAppWorkloadAdapter workload,
+        string expectedText,
+        CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var output = await ReadNextNonEmptyOutputAsync(workload, cancellationToken);
+            var text = System.Text.Encoding.UTF8.GetString(output.Span);
+            if (text.Contains(expectedText, StringComparison.Ordinal))
+                return output;
+        }
+    }
+
+    private static async Task DrainWorkloadOutputAsync(Hex1bAppWorkloadAdapter workload, CancellationToken cancellationToken)
+    {
+        while (true)
+        {
+            var drainedAny = false;
+            while (workload.TryReadOutput(out _))
+            {
+                drainedAny = true;
+            }
+
+            if (!drainedAny && workload.OutputQueueDepth == 0)
+                return;
+
+            await Task.Delay(50, cancellationToken);
+        }
+    }
+
+    private static uint ExtractFirstTransmitImageId(string text)
+    {
+        var transmitIndex = text.IndexOf("\x1b_Ga=t,", StringComparison.Ordinal);
+        Assert.True(transmitIndex >= 0, "Expected KGP output to contain a transmit sequence.");
+
+        var index = text.IndexOf("i=", transmitIndex, StringComparison.Ordinal);
+        Assert.True(index >= 0, "Expected KGP transmit output to contain an image id.");
+
+        index += 2;
+        var end = index;
+        while (end < text.Length && char.IsDigit(text[end]))
+            end++;
+
+        Assert.True(end > index, "Expected KGP image id digits after `i=`.");
+        return uint.Parse(text[index..end], System.Globalization.CultureInfo.InvariantCulture);
     }
 }
