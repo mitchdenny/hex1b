@@ -470,6 +470,88 @@ public class MarkdownIntegrationTests
     }
 
     // ==========================================================================
+    // List Wrapping Tests
+    // ==========================================================================
+
+    [Fact]
+    public async Task Markdown_BulletList_WrapsWithHangingIndent()
+    {
+        // Terminal is 30 chars wide — "• " takes 2 chars, text wraps at 28
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("- This is a long list item that should wrap to multiple lines"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("This") && s.ContainsText("long"),
+                TimeSpan.FromSeconds(5), "list rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Line 1 should start with "• " marker
+        Assert.Contains("This", screenText);
+
+        var lines = screenText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length >= 2, $"Expected at least 2 lines for wrapped text, got {lines.Length}. Screen:\n{screenText}");
+
+        // Second line starts with spaces (hanging indent)
+        var secondLine = lines[1];
+        Assert.True(secondLine.StartsWith("  "), $"Continuation line should be indented. Got: '{secondLine}'");
+    }
+
+    [Fact]
+    public async Task Markdown_OrderedList_WrapsWithHangingIndent()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(30, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("1. This is a long ordered list item that should wrap correctly"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("1.") && s.ContainsText("long"),
+                TimeSpan.FromSeconds(5), "list rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var screenText = snapshot.GetScreenText();
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var lines = screenText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
+        Assert.True(lines.Length >= 2, $"Expected at least 2 lines. Screen:\n{screenText}");
+
+        // First line starts with "1. "
+        Assert.StartsWith("1.", lines[0].TrimEnd());
+
+        // Second line indented by 3 chars (length of "1. ")
+        Assert.True(lines[1].StartsWith("   "), $"Continuation should indent 3 chars. Got: '{lines[1]}'");
+    }
+
+    // ==========================================================================
     // Focus Navigation Integration Tests
     // ==========================================================================
 

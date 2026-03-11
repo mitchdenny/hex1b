@@ -214,21 +214,61 @@ internal static class MarkdownWidgetRenderer
             var marker = list.IsOrdered
                 ? $"{list.StartNumber + i}. "
                 : "• ";
+            var markerWidth = DisplayWidth.GetStringWidth(marker);
 
-            var itemChildren = new List<Hex1bWidget>();
-            foreach (var child in item.Children)
+            // For list items whose first child is a paragraph, prepend the marker
+            // to the paragraph inlines and use hanging indent so continuation
+            // lines align with the text, not the marker.
+            if (item.Children.Count >= 1 && item.Children[0] is ParagraphBlock firstParagraph)
             {
-                itemChildren.Add(RenderBlock(child, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget));
+                var prefixedInlines = new List<MarkdownInline>();
+                prefixedInlines.Add(new TextInline(marker));
+                prefixedInlines.AddRange(firstParagraph.Inlines);
+
+                var firstWidget = new MarkdownTextBlockWidget(prefixedInlines)
+                {
+                    HangingIndent = markerWidth,
+                    FocusableLinks = focusableChildren,
+                    LinkActivatedHandler = linkActivatedHandler,
+                    SourceWidget = sourceWidget
+                };
+
+                if (item.Children.Count == 1)
+                {
+                    items.Add(firstWidget);
+                }
+                else
+                {
+                    // Multiple blocks in the list item: first paragraph + rest
+                    var blockWidgets = new List<Hex1bWidget> { firstWidget };
+                    for (int j = 1; j < item.Children.Count; j++)
+                    {
+                        var childWidget = RenderBlock(item.Children[j], blockHandlers,
+                            focusableChildren, linkActivatedHandler, sourceWidget);
+                        // Indent continuation blocks to align with the text
+                        blockWidgets.Add(new PaddingWidget(markerWidth, 0, 0, 0, childWidget));
+                    }
+                    items.Add(new VStackWidget(blockWidgets));
+                }
             }
-
-            var content = itemChildren.Count == 1
-                ? itemChildren[0]
-                : new VStackWidget(itemChildren);
-
-            items.Add(new HStackWidget([
-                new TextBlockWidget(marker),
-                content
-            ]));
+            else
+            {
+                // Non-paragraph list item (e.g., nested list only) — use padding
+                var itemChildren = new List<Hex1bWidget>();
+                foreach (var child in item.Children)
+                {
+                    itemChildren.Add(RenderBlock(child, blockHandlers, focusableChildren,
+                        linkActivatedHandler, sourceWidget));
+                }
+                var content = itemChildren.Count == 1
+                    ? itemChildren[0]
+                    : new VStackWidget(itemChildren);
+                items.Add(new PaddingWidget(markerWidth, 0, 0, 0,
+                    new VStackWidget([
+                        new MarkdownTextBlockWidget([new TextInline(marker)]) { HangingIndent = markerWidth },
+                        content
+                    ])));
+            }
         }
 
         return new VStackWidget(items);

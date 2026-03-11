@@ -38,6 +38,12 @@ internal sealed record MarkdownTextBlockWidget(
     /// </summary>
     internal MarkdownWidget? SourceWidget { get; init; }
 
+    /// <summary>
+    /// Number of columns to indent continuation lines (used for list items
+    /// where the marker occupies the first N columns of line 1).
+    /// </summary>
+    internal int HangingIndent { get; init; }
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as MarkdownTextBlockNode ?? new MarkdownTextBlockNode();
@@ -46,7 +52,8 @@ internal sealed record MarkdownTextBlockWidget(
         if (!ReferenceEquals(node.Inlines, Inlines)
             || !ColorsEqual(node.BaseForeground, BaseForeground)
             || node.BaseAttributes != BaseAttributes
-            || node.FocusableLinks != FocusableLinks)
+            || node.FocusableLinks != FocusableLinks
+            || node.HangingIndent != HangingIndent)
         {
             node.MarkDirty();
         }
@@ -57,6 +64,7 @@ internal sealed record MarkdownTextBlockWidget(
         node.FocusableLinks = FocusableLinks;
         node.LinkActivatedHandler = LinkActivatedHandler;
         node.SourceWidget = SourceWidget;
+        node.HangingIndent = HangingIndent;
 
         // Create/update link region nodes during reconciliation
         // so they exist for the FocusRing before MeasureCore runs

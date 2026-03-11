@@ -783,4 +783,69 @@ public class MarkdownInlineRendererTests
 
         Assert.Null(Assert.Single(runs).Url);
     }
+
+    // ==========================================================================
+    // HangingIndent
+    // ==========================================================================
+
+    [Fact]
+    public void WrapLinesWithLinks_HangingIndent_FirstLineFullWidth()
+    {
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("• one two three four five")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 15, hangingIndent: 2);
+        var lines = result.Lines;
+
+        // Should produce multiple lines
+        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+
+        // First line uses full width
+        Assert.True(DisplayWidth.GetStringWidth(lines[0]) <= 15);
+
+        // Continuation lines have 2-char space prefix (after ANSI reset codes)
+        // The raw ANSI string may have escape codes before the spaces, but
+        // the display output should start with spaces
+        for (int i = 1; i < lines.Count; i++)
+        {
+            var lineWidth = DisplayWidth.GetStringWidth(lines[i]);
+            Assert.True(lineWidth <= 15, $"Line {i} exceeds maxWidth: {lineWidth}");
+        }
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_HangingIndent_ContinuationReducedWidth()
+    {
+        // "1. " = 3 chars indent; maxWidth=12 → continuation lines use 9 chars
+        var runs = MarkdownInlineRenderer.FlattenInlines(
+            [new TextInline("1. alpha beta gamma delta")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 12, hangingIndent: 3);
+        var lines = result.Lines;
+
+        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+
+        // Each line should not exceed maxWidth
+        foreach (var line in lines)
+        {
+            var w = DisplayWidth.GetStringWidth(line);
+            Assert.True(w <= 12, $"Line exceeds maxWidth 12: width={w}");
+        }
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_NoHangingIndent_DefaultBehavior()
+    {
+        var runs = MarkdownInlineRenderer.FlattenInlines([new TextInline("one two three four")]);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result0 = MarkdownInlineRenderer.WrapLinesWithLinks(words, 10, hangingIndent: 0);
+        var resultDefault = MarkdownInlineRenderer.WrapLinesWithLinks(words, 10);
+
+        // With hangingIndent=0, behavior should be identical to default
+        Assert.Equal(result0.Lines.Count, resultDefault.Lines.Count);
+        for (int i = 0; i < result0.Lines.Count; i++)
+        {
+            Assert.Equal(result0.Lines[i], resultDefault.Lines[i]);
+        }
+    }
 }

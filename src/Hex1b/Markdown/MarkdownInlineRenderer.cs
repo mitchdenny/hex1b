@@ -40,14 +40,15 @@ internal static class MarkdownInlineRenderer
         int maxWidth,
         Hex1bColor? baseForeground = null,
         CellAttributes baseAttributes = CellAttributes.None,
-        int focusedLinkId = -1)
+        int focusedLinkId = -1,
+        int hangingIndent = 0)
     {
         if (maxWidth <= 0)
             return new WrapResult([""], []);
 
         var runs = FlattenInlines(inlines, baseForeground, baseAttributes);
         var words = SplitIntoWords(runs);
-        return WrapLinesWithLinks(words, maxWidth, focusedLinkId);
+        return WrapLinesWithLinks(words, maxWidth, focusedLinkId, hangingIndent);
     }
 
     /// <summary>
@@ -281,7 +282,8 @@ internal static class MarkdownInlineRenderer
     /// link position metadata for each unique link.
     /// </summary>
     internal static WrapResult WrapLinesWithLinks(
-        List<StyledWord> words, int maxWidth, int focusedLinkId = -1)
+        List<StyledWord> words, int maxWidth, int focusedLinkId = -1,
+        int hangingIndent = 0)
     {
         var lines = new List<string>();
         var lineFragments = new List<MarkdownTextRun>();
@@ -294,6 +296,9 @@ internal static class MarkdownInlineRenderer
         var linkTexts = new Dictionary<int, List<string>>();
         // Track total display width per link
         var linkWidths = new Dictionary<int, int>();
+
+        // First line uses full maxWidth; continuation lines are reduced by hangingIndent
+        int LineWidth() => lineIndex == 0 ? maxWidth : Math.Max(1, maxWidth - hangingIndent);
 
         void TrackLinkFragments(IReadOnlyList<MarkdownTextRun> fragments, int wordStartX)
         {
@@ -325,57 +330,123 @@ internal static class MarkdownInlineRenderer
             {
                 lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
                 lineFragments = [];
-                currentX = 0;
                 lineIndex++;
+                // Continuation lines after a line break get hanging indent
+                if (hangingIndent > 0 && lineIndex > 0)
+                {
+                    lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                    currentX = hangingIndent;
+                }
+                else
+                {
+                    currentX = 0;
+                }
                 continue;
             }
 
             var wordWidth = word.DisplayWidth;
             var spaceNeeded = (currentX > 0 && word.PrecededBySpace) ? 1 : 0;
+            var lineWidth = LineWidth();
 
-            if (wordWidth > maxWidth)
+            if (wordWidth > lineWidth)
             {
                 // Word is wider than the entire line — must character-break
-                if (currentX > 0)
+                if (currentX > (lineIndex == 0 ? 0 : hangingIndent))
                 {
                     lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
                     lineFragments = [];
-                    currentX = 0;
                     lineIndex++;
+                    if (hangingIndent > 0)
+                    {
+                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        currentX = hangingIndent;
+                    }
+                    else
+                    {
+                        currentX = 0;
+                    }
                 }
 
                 // Track link positions before character-breaking
-                TrackLinkFragments(word.Fragments, 0);
+                TrackLinkFragments(word.Fragments, currentX);
 
                 // Build ANSI string for the word, then slice by display width
                 var ansiWord = RenderFragmentsToAnsi(word.Fragments, focusedLinkId);
                 var remaining = ansiWord;
                 var remainingWidth = wordWidth;
+                lineWidth = LineWidth();
 
-                while (remainingWidth > maxWidth)
+                while (remainingWidth > lineWidth - (lineIndex == 0 ? 0 : 0))
                 {
-                    var (chunk, cols, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, maxWidth);
-                    lines.Add(chunk);
+                    var sliceWidth = lineWidth - (currentX > 0 ? currentX : 0);
+                    if (sliceWidth <= 0)
+                    {
+                        lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
+                        lineFragments = [];
+                        lineIndex++;
+                        if (hangingIndent > 0)
+                        {
+                            lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                            currentX = hangingIndent;
+                        }
+                        else
+                        {
+                            currentX = 0;
+                        }
+                        lineWidth = LineWidth();
+                        sliceWidth = lineWidth;
+                    }
+                    var (chunk, cols, _, _) = DisplayWidth.SliceByDisplayWidthWithAnsi(remaining, 0, sliceWidth);
+                    if (lineFragments.Count > 0)
+                    {
+                        var prefix = RenderFragmentsToAnsi(lineFragments, focusedLinkId);
+                        lines.Add(prefix + chunk);
+                    }
+                    else
+                    {
+                        lines.Add(chunk);
+                    }
+                    lineFragments = [];
                     remaining = remaining[chunk.Length..];
                     remainingWidth -= cols;
                     lineIndex++;
+                    if (hangingIndent > 0)
+                    {
+                        lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                        currentX = hangingIndent;
+                    }
+                    else
+                    {
+                        currentX = 0;
+                    }
+                    lineWidth = LineWidth();
                 }
 
                 if (remaining.Length > 0)
                 {
-                    lineFragments = [new MarkdownTextRun(remaining, null, null, CellAttributes.None)];
-                    currentX = remainingWidth;
+                    lineFragments.Add(new MarkdownTextRun(remaining, null, null, CellAttributes.None));
+                    currentX += remainingWidth;
                 }
             }
-            else if (currentX + spaceNeeded + wordWidth > maxWidth)
+            else if (currentX + spaceNeeded + wordWidth > lineWidth)
             {
                 // Word doesn't fit on current line — wrap
                 lines.Add(RenderFragmentsToAnsi(lineFragments, focusedLinkId));
-                lineFragments = [.. word.Fragments];
-                currentX = wordWidth;
                 lineIndex++;
-
-                TrackLinkFragments(word.Fragments, 0);
+                lineFragments = [];
+                if (hangingIndent > 0)
+                {
+                    lineFragments.Add(new MarkdownTextRun(new string(' ', hangingIndent), null, null, CellAttributes.None));
+                    lineFragments.AddRange(word.Fragments);
+                    currentX = hangingIndent + wordWidth;
+                    TrackLinkFragments(word.Fragments, hangingIndent);
+                }
+                else
+                {
+                    lineFragments = [.. word.Fragments];
+                    currentX = wordWidth;
+                    TrackLinkFragments(word.Fragments, 0);
+                }
             }
             else
             {

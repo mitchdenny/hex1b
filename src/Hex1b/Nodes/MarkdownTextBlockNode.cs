@@ -22,6 +22,7 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
     private Hex1bColor? _lastBaseForeground;
     private CellAttributes _lastBaseAttributes;
     private int _lastFocusedLinkId = -1;
+    private int _lastHangingIndent;
 
     // Link region child nodes (created when FocusableLinks is true)
     private List<MarkdownLinkRegionNode> _linkRegionNodes = [];
@@ -55,6 +56,11 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
     /// The source markdown widget (for building event args).
     /// </summary>
     public MarkdownWidget? SourceWidget { get; set; }
+
+    /// <summary>
+    /// Number of columns to indent continuation lines (for list items).
+    /// </summary>
+    public int HangingIndent { get; set; }
 
     public override bool IsFocusable => false;
 
@@ -161,13 +167,14 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
             && ReferenceEquals(_lastInlines, Inlines)
             && ColorsEqual(_lastBaseForeground, BaseForeground)
             && _lastBaseAttributes == BaseAttributes
-            && _lastFocusedLinkId == focusedLinkId)
+            && _lastFocusedLinkId == focusedLinkId
+            && _lastHangingIndent == HangingIndent)
         {
             return _cachedWrapResult.Value;
         }
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(
-            Inlines, maxWidth, BaseForeground, BaseAttributes, focusedLinkId);
+            Inlines, maxWidth, BaseForeground, BaseAttributes, focusedLinkId, HangingIndent);
 
         _cachedWrapResult = result;
         _wrappedLines = result.Lines.ToList();
@@ -176,6 +183,7 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
         _lastBaseForeground = BaseForeground;
         _lastBaseAttributes = BaseAttributes;
         _lastFocusedLinkId = focusedLinkId;
+        _lastHangingIndent = HangingIndent;
 
         return result;
     }
