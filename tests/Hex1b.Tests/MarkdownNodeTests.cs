@@ -31,15 +31,16 @@ public class MarkdownNodeTests
     }
 
     [Fact]
-    public void BuildWidgetTree_Paragraph_ProducesWrappingTextBlock()
+    public void BuildWidgetTree_Paragraph_ProducesMarkdownTextBlock()
     {
         var node = new MarkdownNode { Source = "Hello world" };
         var widget = node.BuildWidgetTree();
 
         var vstack = Assert.IsType<VStackWidget>(widget);
-        var text = Assert.IsType<TextBlockWidget>(Assert.Single(vstack.Children));
-        Assert.Contains("Hello world", text.Text);
-        Assert.Equal(TextOverflow.Wrap, text.Overflow);
+        var mdTextBlock = Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
+        // Verify the inlines contain the text
+        var textInline = Assert.IsType<TextInline>(Assert.Single(mdTextBlock.Inlines));
+        Assert.Equal("Hello world", textInline.Text);
     }
 
     [Fact]
@@ -116,8 +117,9 @@ public class MarkdownNodeTests
         node.Source = "New paragraph";
         var widget2 = node.BuildWidgetTree();
         var vstack = Assert.IsType<VStackWidget>(widget2);
-        var text = Assert.IsType<TextBlockWidget>(Assert.Single(vstack.Children));
-        Assert.Contains("New paragraph", text.Text);
+        var mdTextBlock = Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
+        var textInline = Assert.IsType<TextInline>(Assert.Single(mdTextBlock.Inlines));
+        Assert.Equal("New paragraph", textInline.Text);
     }
 
     // --- OnBlock Handler ---

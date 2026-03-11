@@ -269,4 +269,172 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    // ==========================================================================
+    // Phase 2: Styled inline rendering integration tests
+    // ==========================================================================
+
+    [Fact]
+    public async Task Markdown_BoldText_RendersBold()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Hello **bold** world"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Hello"))
+                    return false;
+                // Find the 'b' in 'bold' and verify it has Bold attribute
+                // "Hello " = 6 chars, then "bold" starts at column 6
+                var cell = s.GetCell(6, 0);
+                return cell.Character == "b"
+                    && (cell.Attributes & CellAttributes.Bold) != 0;
+            }, TimeSpan.FromSeconds(5), "bold text rendered with attribute")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ItalicText_RendersItalic()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Hello *italic* world"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Hello"))
+                    return false;
+                // "Hello " = 6 chars, "italic" starts at col 6
+                var cell = s.GetCell(6, 0);
+                return cell.Character == "i"
+                    && (cell.Attributes & CellAttributes.Italic) != 0;
+            }, TimeSpan.FromSeconds(5), "italic text rendered with attribute")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_InlineCode_HasBackground()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Use `code` here"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Use"))
+                    return false;
+                // "Use " = 4 chars, "code" starts at col 4
+                var cell = s.GetCell(4, 0);
+                return cell.Character == "c" && cell.Background != null;
+            }, TimeSpan.FromSeconds(5), "inline code rendered with background")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_MixedInlines_AllStyled()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(80, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Normal **bold** *italic* `code` end"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Normal"))
+                    return false;
+
+                // "Normal " = 7 chars
+                var normalCell = s.GetCell(0, 0);
+                var boldCell = s.GetCell(7, 0);     // 'b' of 'bold'
+                var italicCell = s.GetCell(12, 0);  // 'i' of 'italic' (after "Normal bold ")
+                var codeCell = s.GetCell(19, 0);    // 'c' of 'code' (after "Normal bold italic ")
+
+                return normalCell.Character == "N"
+                    && (normalCell.Attributes & CellAttributes.Bold) == 0
+                    && boldCell.Character == "b"
+                    && (boldCell.Attributes & CellAttributes.Bold) != 0
+                    && italicCell.Character == "i"
+                    && (italicCell.Attributes & CellAttributes.Italic) != 0
+                    && codeCell.Character == "c"
+                    && codeCell.Background != null;
+            }, TimeSpan.FromSeconds(5), "mixed inlines all styled correctly")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_HeadingWithBold_ComposesStyles()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("# Heading Text"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("Heading"))
+                    return false;
+                // h1 has "▌ " prefix (▌ is 1 col + space = 2 cols)
+                // Then "Heading" starts at col 2
+                // h1 should have Bold attribute and foreground color
+                var cell = s.GetCell(2, 0);
+                return cell.Character == "H"
+                    && (cell.Attributes & CellAttributes.Bold) != 0
+                    && cell.Foreground != null;
+            }, TimeSpan.FromSeconds(5), "heading styled with bold and color")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }

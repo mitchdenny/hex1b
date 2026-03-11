@@ -1,5 +1,6 @@
 using System.Collections.Immutable;
 using System.Text;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b.Markdown;
@@ -93,7 +94,7 @@ internal static class MarkdownWidgetRenderer
 
     private static Hex1bWidget RenderHeading(HeadingBlock heading)
     {
-        // Phase 1: render as plain text with heading prefix marker
+        // Prepend heading marker as a text inline
         var prefix = heading.Level switch
         {
             1 => "▌ ",
@@ -101,23 +102,36 @@ internal static class MarkdownWidgetRenderer
             _ => ""
         };
 
-        var text = $"{prefix}{heading.Text}";
-        var widget = new TextBlockWidget(text) { Overflow = TextOverflow.Wrap };
+        var inlines = new List<MarkdownInline>();
+        if (prefix.Length > 0)
+            inlines.Add(new TextInline(prefix));
+        inlines.AddRange(heading.Inlines);
 
-        // Apply bold for h1/h2 using ANSI (theme colors applied in Phase 2)
-        if (heading.Level <= 2)
+        // h1/h2 get bold base attributes
+        var baseAttrs = heading.Level <= 2 ? CellAttributes.Bold : CellAttributes.None;
+
+        // Heading color from theme defaults
+        var headingFg = heading.Level switch
         {
-            text = $"\x1b[1m{prefix}{heading.Text}\x1b[22m";
-            widget = new TextBlockWidget(text) { Overflow = TextOverflow.Wrap };
-        }
+            1 => Hex1bColor.FromRgb(100, 200, 255),
+            2 => Hex1bColor.FromRgb(130, 210, 240),
+            3 => Hex1bColor.FromRgb(160, 200, 220),
+            4 => Hex1bColor.FromRgb(180, 190, 210),
+            5 => Hex1bColor.FromRgb(180, 180, 200),
+            6 => Hex1bColor.FromRgb(160, 160, 180),
+            _ => (Hex1bColor?)null
+        };
 
-        return widget;
+        return new MarkdownTextBlockWidget(inlines)
+        {
+            BaseAttributes = baseAttrs,
+            BaseForeground = headingFg
+        };
     }
 
     private static Hex1bWidget RenderParagraph(ParagraphBlock paragraph)
     {
-        var text = RenderInlinesToPlainText(paragraph.Inlines);
-        return new TextBlockWidget(text) { Overflow = TextOverflow.Wrap };
+        return new MarkdownTextBlockWidget(paragraph.Inlines);
     }
 
     private static Hex1bWidget RenderFencedCode(FencedCodeBlock code)
