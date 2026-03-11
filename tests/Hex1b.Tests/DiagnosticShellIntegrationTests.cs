@@ -332,9 +332,8 @@ public class DiagnosticShellIntegrationTests
                 catch (OperationCanceledException) { }
             });
             
-            // Give inner terminal time to initialize, then start the diagnostic shell
-            // so it writes the initial greeting and prompt to the output channel.
-            await Task.Delay(100);
+            // The diagnostic shell writes to an unbounded channel, so we can prime the
+            // initial greeting/prompt immediately without relying on a timing delay.
             DiagShell.Start();
             
             Tracer.Log("Test", "Starting outer terminal");
@@ -342,8 +341,12 @@ public class DiagnosticShellIntegrationTests
             // Start the outer terminal (runs the Hex1bApp)
             _runTask = OuterTerminal.RunAsync(_cts.Token);
             
-            // Wait for initial render — should now find "diag>" quickly since Start() was called
-            await WaitForTextAsync("diag>", TimeSpan.FromSeconds(5));
+            var promptVisible = await WaitForTextAsync("diag>", TimeSpan.FromSeconds(5));
+            if (!promptVisible)
+            {
+                throw new TimeoutException(
+                    $"Timed out waiting for diagnostic shell to appear in outer terminal.\nOuter:\n{GetOuterContent()}\nInner:\n{GetInnerContent()}");
+            }
             
             Tracer.Log("Test", "Initial render complete");
         }
@@ -355,21 +358,33 @@ public class DiagnosticShellIntegrationTests
         {
             Tracer.Log("Test", $"Sending command: {command}");
             
-            // Type the command character by character through the workload adapter
-            foreach (var c in command)
-            {
-                await DiagShell.WriteInputAsync(new byte[] { (byte)c });
-                await Task.Delay(5); // Small delay between chars
-            }
-            
-            // Press Enter
-            await DiagShell.WriteInputAsync(new byte[] { 0x0D }); // CR
-            
-            // Small delay after Enter to allow shell to start processing
-            // This helps avoid race conditions when running in parallel with other tests
-            await Task.Delay(50);
+            // Only send a new command once the current prompt is the active bottom line.
+            await WaitForPromptAsync(TimeSpan.FromSeconds(5));
+
+            // Send the whole command in a single write. The workload still processes the
+            // bytes one-by-one, but the test no longer depends on inter-character delays.
+            await DiagShell.WriteInputAsync(Encoding.UTF8.GetBytes(command + "\r"));
             
             Tracer.Log("Test", "Command sent");
+        }
+
+        public async Task WaitForPromptAsync(TimeSpan timeout)
+        {
+            var deadline = DateTimeOffset.Now + timeout;
+            while (DateTimeOffset.Now < deadline)
+            {
+                using var snapshot = InnerTerminal.CreateSnapshot();
+                if (GetLastNonEmptyLine(snapshot) == "diag>")
+                {
+                    Tracer.Log("Test", "Prompt ready");
+                    return;
+                }
+                await Task.Delay(50);
+            }
+
+            Tracer.Log("Test", "Timeout waiting for prompt");
+            throw new TimeoutException(
+                $"Timed out waiting for diagnostic prompt.\nOuter:\n{GetOuterContent()}\nInner:\n{GetInnerContent()}");
         }
         
         /// <summary>
@@ -425,6 +440,17 @@ public class DiagnosticShellIntegrationTests
             }
             return sb.ToString();
         }
+
+        private static string GetLastNonEmptyLine(Hex1bTerminalSnapshot snapshot)
+        {
+            var lastNonEmptyLine = "";
+            foreach (var line in snapshot.GetNonEmptyLines())
+            {
+                lastNonEmptyLine = line.TrimEnd();
+            }
+
+            return lastNonEmptyLine;
+        }
         
         public async ValueTask DisposeAsync()
         {
@@ -456,19 +482,17 @@ public class DiagnosticShellIntegrationTests
         
         // Act - send help command
         await ctx.SendCommandAsync("help");
-        
-        // Wait for help output to appear
-        var foundPing = await ctx.WaitForTextAsync("ping", TimeSpan.FromSeconds(5));
-        var foundCapture = await ctx.WaitForTextAsync("capture", TimeSpan.FromSeconds(1));
-        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(1));
-        
-        // Get final content for assertion
+
+        // Wait for the last expected help entry so assertions observe the full render.
+        var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(5));
+        Assert.True(foundDump, $"Should find 'dump' in help output\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+
         var content = ctx.GetOuterContent();
         
         // Assert - help should show all commands
-        Assert.True(foundPing, "Should find 'ping' in help output");
-        Assert.True(foundCapture, "Should find 'capture' in help output");
-        Assert.True(foundDump, "Should find 'dump' in help output");
+        Assert.Contains("ping", content);
+        Assert.Contains("capture", content);
+        Assert.Contains("dump", content);
     }
     
     [Fact(Skip = "Flaky - timing-sensitive diagnostic shell test")]
@@ -517,28 +541,23 @@ public class DiagnosticShellIntegrationTests
     private static string Truncate(string s, int maxLen) 
         => s.Length <= maxLen ? s.Replace("\n", "\\n").Replace("\r", "\\r") : s[..maxLen].Replace("\n", "\\n").Replace("\r", "\\r") + "...";
     
-    [Fact(Skip = "Flaky in CI - timing-sensitive multi-command test that fails intermittently under load")]
+    [Fact]
     public async Task DiagnosticShell_MultipleCommands_AllRender()
     {
         // Arrange
         await using var ctx = DiagnosticTestContext.Create();
         await ctx.StartAsync();
         
-        // Act - send multiple commands, waiting for prompt between each
-        // to ensure the rendering pipeline has fully processed each command's output
+        // Act - Send commands sequentially. SendCommandAsync waits for the active prompt
+        // before typing, so the next command can't race the previous render.
         await ctx.SendCommandAsync("echo hello");
         var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(5));
         Assert.True(foundHello, $"Should find 'hello'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
-        
-        // Wait for prompt to ensure previous command fully rendered before sending next
-        await ctx.WaitForTextAsync("diag>", TimeSpan.FromSeconds(3));
-        
+
         await ctx.SendCommandAsync("echo world");
         var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(5));
         Assert.True(foundWorld, $"Should find 'world'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
-        
-        await ctx.WaitForTextAsync("diag>", TimeSpan.FromSeconds(3));
-        
+
         await ctx.SendCommandAsync("ping");
         var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
         
@@ -579,7 +598,8 @@ public class DiagnosticShellIntegrationTests
         
         // Act
         await ctx.SendCommandAsync("ping");
-        await Task.Delay(500); // Give time for processing
+        var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
+        Assert.True(foundPong, "Should receive PONG output before checking trace events");
         
         // Get events
         var allEvents = ctx.Tracer.GetEvents();

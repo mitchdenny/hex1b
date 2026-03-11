@@ -343,11 +343,34 @@ public class UnicodeBorderAlignmentTests
         
         var runTask = app.RunAsync(cancellationToken);
         
-        // Wait for render, then capture - don't use Capture() to avoid duplicate name issues
+        string? previousFrameText = null;
+        var stableFrameCount = 0;
+
+        // Wait for render to settle before capturing. CI runners can observe the END MARKER
+        // before the full bordered frame has finished flushing to the terminal snapshot.
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("END MARKER"), TimeSpan.FromSeconds(5), "render complete")
-            // CI can capture mid-frame; give the renderer a moment to flush the final diff.
-            .Wait(50)
+            .WaitUntil(s =>
+            {
+                if (!s.ContainsText("END MARKER"))
+                {
+                    previousFrameText = null;
+                    stableFrameCount = 0;
+                    return false;
+                }
+
+                var currentFrameText = s.GetText();
+                if (currentFrameText == previousFrameText)
+                {
+                    stableFrameCount++;
+                }
+                else
+                {
+                    previousFrameText = currentFrameText;
+                    stableFrameCount = 1;
+                }
+
+                return stableFrameCount >= 3;
+            }, TimeSpan.FromSeconds(5), "render to stabilize")
             .Build()
             .ApplyAsync(terminal, cancellationToken);
         
