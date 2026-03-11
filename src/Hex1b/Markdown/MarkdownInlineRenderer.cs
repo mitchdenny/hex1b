@@ -514,7 +514,24 @@ internal static class MarkdownInlineRenderer
                 var wordStartX = currentX;
                 if (spaceNeeded > 0)
                 {
-                    lineFragments.Add(new MarkdownTextRun(" ", null, null, CellAttributes.None));
+                    // If the space joins two parts of the same link, style it
+                    // so the underline/highlight is continuous across words.
+                    var prevLinkFragment = GetLastLinkFragment(lineFragments);
+                    var nextLinkFragment = GetFirstLinkFragment(word.Fragments);
+                    if (prevLinkFragment != null && nextLinkFragment != null
+                        && prevLinkFragment.Value.LinkId == nextLinkFragment.Value.LinkId
+                        && prevLinkFragment.Value.LinkId >= 0)
+                    {
+                        var lf = prevLinkFragment.Value;
+                        lineFragments.Add(new MarkdownTextRun(
+                            " ", lf.Foreground, lf.Background, lf.Attributes, lf.Url, lf.LinkId));
+                        if (linkWidths.ContainsKey(lf.LinkId))
+                            linkWidths[lf.LinkId] += 1;
+                    }
+                    else
+                    {
+                        lineFragments.Add(new MarkdownTextRun(" ", null, null, CellAttributes.None));
+                    }
                     currentX += 1;
                     wordStartX = currentX;
                 }
@@ -548,6 +565,27 @@ internal static class MarkdownInlineRenderer
         linkRegions.Sort((a, b) => a.LinkId.CompareTo(b.LinkId));
 
         return new WrapResult(lines, linkRegions);
+    }
+
+    /// <summary>
+    /// Returns the last fragment in the list that belongs to a link, or null.
+    /// Only checks the very last fragment (the one immediately before the space).
+    /// </summary>
+    private static MarkdownTextRun? GetLastLinkFragment(List<MarkdownTextRun> fragments)
+    {
+        if (fragments.Count > 0 && fragments[^1].LinkId >= 0)
+            return fragments[^1];
+        return null;
+    }
+
+    /// <summary>
+    /// Returns the first fragment in the list that belongs to a link, or null.
+    /// </summary>
+    private static MarkdownTextRun? GetFirstLinkFragment(IReadOnlyList<MarkdownTextRun> fragments)
+    {
+        if (fragments.Count > 0 && fragments[0].LinkId >= 0)
+            return fragments[0];
+        return null;
     }
 
     /// <summary>

@@ -628,6 +628,94 @@ public class MarkdownInlineRendererTests
     }
 
     [Fact]
+    public void RenderLines_MultiWordLink_SpaceBetweenWordsIsUnderlined()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new LinkInline("click here", "https://example.com")
+        };
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80);
+
+        var line = Assert.Single(result.Lines);
+
+        // The space between "click" and "here" should be styled as part of the link.
+        // Strip all ANSI escapes (SGR and OSC 8) and verify plain text is "click here"
+        var plain = System.Text.RegularExpressions.Regex.Replace(line, @"\x1b(\[[^a-zA-Z]*[a-zA-Z]|\][^\x1b]*\x1b\\)", "");
+        Assert.Equal("click here", plain);
+
+        // The OSC 8 hyperlink should NOT be closed and reopened between words.
+        // With continuous styling, there's only one OSC 8 open + one close.
+        var osc8Start = "\x1b]8;;https://example.com\x1b\\";
+        var osc8End = "\x1b]8;;\x1b\\";
+        var startCount = CountOccurrences(line, osc8Start);
+        var endCount = CountOccurrences(line, osc8End);
+        Assert.Equal(1, startCount);
+        Assert.Equal(1, endCount);
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_MultiWordLink_SpaceHasLinkId()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new LinkInline("click here", "https://example.com")
+        };
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+
+        // Use a wide width so both words fit on one line
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80);
+
+        // The link region width should include the space (5 + 1 + 4 = 10)
+        var link = Assert.Single(result.LinkRegions);
+        Assert.Equal("click here", link.Text);
+        Assert.Equal(10, link.DisplayWidth); // "click" + space + "here"
+    }
+
+    [Fact]
+    public void WrapLinesWithLinks_MultiWordLink_FocusHighlightsSpace()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new LinkInline("click here", "https://example.com")
+        };
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+        var words = MarkdownInlineRenderer.SplitIntoWords(runs);
+        var linkId = runs[0].LinkId;
+
+        // Render with focus on this link
+        var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80, focusedLinkId: linkId);
+        var line = Assert.Single(result.Lines);
+
+        // Bold is applied for focus. There should be no style gap between "click" and "here".
+        // Count reset codes — if the space inherits link styling, we won't see
+        // a reset+re-apply between the two words.
+        var resetCode = "\x1b[0m";
+
+        // Find the area between "click" and "here" in the ANSI output
+        var clickIdx = line.IndexOf("click");
+        var hereIdx = line.IndexOf("here", clickIdx + 5);
+        var between = line[clickIdx..(hereIdx + 4)]; // "click...here" with ANSI
+
+        // Should contain "click here" (with space) and no reset between them
+        Assert.DoesNotContain(resetCode, between);
+    }
+
+    private static int CountOccurrences(string text, string pattern)
+    {
+        int count = 0;
+        int idx = 0;
+        while ((idx = text.IndexOf(pattern, idx)) >= 0)
+        {
+            count++;
+            idx += pattern.Length;
+        }
+        return count;
+    }
+
+    [Fact]
     public void RenderLines_CodeSpanNotSplit()
     {
         // Code span "int x = 0" at width 6 should not split on spaces
