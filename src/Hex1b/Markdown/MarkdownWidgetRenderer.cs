@@ -27,11 +27,16 @@ internal static class MarkdownWidgetRenderer
         MarkdownWidget? sourceWidget = null)
     {
         var widgets = new List<Hex1bWidget>();
+        MarkdownBlock? previousBlock = null;
 
         foreach (var block in document.Blocks)
         {
+            if (NeedsSpacingBefore(previousBlock, block))
+                widgets.Add(new TextBlockWidget("").FixedHeight(1));
+
             var widget = RenderBlock(block, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget);
             widgets.Add(widget);
+            previousBlock = block;
         }
 
         if (widgets.Count == 0)
@@ -452,5 +457,22 @@ internal static class MarkdownWidgetRenderer
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Determines whether a blank spacer row should be inserted before <paramref name="current"/>
+    /// given the <paramref name="previous"/> block. Returns false for the first block (previous is null)
+    /// and when a paragraph follows a heading (text starts immediately below the heading).
+    /// </summary>
+    internal static bool NeedsSpacingBefore(MarkdownBlock? previous, MarkdownBlock current)
+    {
+        if (previous is null)
+            return false;
+
+        // Paragraph flows immediately after a heading
+        if (previous is HeadingBlock && current is ParagraphBlock)
+            return false;
+
+        return true;
     }
 }

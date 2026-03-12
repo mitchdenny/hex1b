@@ -268,6 +268,96 @@ public class MarkdownIntegrationTests
     }
 
     [Fact]
+    public async Task Markdown_HeadingThenParagraph_NoBlankLineBetween()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("# Title\nParagraph text"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                var text = s.GetText();
+                var lines = text.Split('\n');
+                // Heading on line 0, paragraph immediately on line 1 (no blank line)
+                var headingLine = Array.FindIndex(lines, l => l.Contains("Title"));
+                var paragraphLine = Array.FindIndex(lines, l => l.Contains("Paragraph"));
+                return headingLine >= 0 && paragraphLine == headingLine + 1;
+            }, TimeSpan.FromSeconds(5), "heading then paragraph with no gap")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ParagraphThenList_HasBlankLineBetween()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Some text\n\n- Item one"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                var text = s.GetText();
+                var lines = text.Split('\n');
+                var textLine = Array.FindIndex(lines, l => l.Contains("Some text"));
+                var itemLine = Array.FindIndex(lines, l => l.Contains("Item one"));
+                // There should be a blank line between paragraph and list
+                return textLine >= 0 && itemLine >= 0 && itemLine == textLine + 2;
+            }, TimeSpan.FromSeconds(5), "paragraph then list with gap")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_CodeBlockHasSpacingAround()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Before\n\n```\ncode\n```\n\nAfter"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s =>
+            {
+                var text = s.GetText();
+                var lines = text.Split('\n');
+                var beforeLine = Array.FindIndex(lines, l => l.Contains("Before"));
+                var afterLine = Array.FindIndex(lines, l => l.Contains("After"));
+                // code block (border = 3 rows) + 1 blank before + 1 blank after = 5 rows between
+                return beforeLine >= 0 && afterLine >= 0 && afterLine > beforeLine + 3;
+            }, TimeSpan.FromSeconds(5), "code block has spacing around it")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
     public async Task Markdown_InScrollPanel_Scrollable()
     {
         // Generate enough content to exceed viewport
