@@ -24,7 +24,8 @@ internal static class MarkdownWidgetRenderer
         ImmutableList<(Type BlockType, Delegate Handler)> blockHandlers,
         bool focusableChildren = false,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler = null,
-        MarkdownWidget? sourceWidget = null)
+        MarkdownWidget? sourceWidget = null,
+        MarkdownImageLoader? imageLoader = null)
     {
         var widgets = new List<Hex1bWidget>();
         MarkdownBlock? previousBlock = null;
@@ -34,7 +35,7 @@ internal static class MarkdownWidgetRenderer
             if (NeedsSpacingBefore(previousBlock, block))
                 widgets.Add(new TextBlockWidget("").FixedHeight(1));
 
-            var widget = RenderBlock(block, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget);
+            var widget = RenderBlock(block, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, imageLoader: imageLoader);
             widgets.Add(widget);
             previousBlock = block;
         }
@@ -54,7 +55,8 @@ internal static class MarkdownWidgetRenderer
         bool focusableChildren = false,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler = null,
         MarkdownWidget? sourceWidget = null,
-        int listDepth = 0)
+        int listDepth = 0,
+        MarkdownImageLoader? imageLoader = null)
     {
         var blockType = block.GetType();
 
@@ -69,7 +71,7 @@ internal static class MarkdownWidgetRenderer
         // Build the chain: last registered = first called
         // The innermost handler is the built-in default
         Func<MarkdownBlock, Hex1bWidget> currentDefault = b =>
-            RenderBlockDefault(b, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, listDepth);
+            RenderBlockDefault(b, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, listDepth, imageLoader);
 
         // Wrap from first-registered to last-registered so last is outermost
         foreach (var handler in matchingHandlers)
@@ -96,12 +98,13 @@ internal static class MarkdownWidgetRenderer
         bool focusableChildren,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
         MarkdownWidget? sourceWidget,
-        int listDepth = 0)
+        int listDepth = 0,
+        MarkdownImageLoader? imageLoader = null)
     {
         return block switch
         {
             HeadingBlock heading => RenderHeading(heading, focusableChildren, linkActivatedHandler, sourceWidget),
-            ParagraphBlock paragraph => RenderParagraph(paragraph, focusableChildren, linkActivatedHandler, sourceWidget),
+            ParagraphBlock paragraph => RenderParagraph(paragraph, focusableChildren, linkActivatedHandler, sourceWidget, imageLoader),
             FencedCodeBlock fencedCode => RenderFencedCode(fencedCode),
             IndentedCodeBlock indentedCode => RenderIndentedCode(indentedCode),
             BlockQuoteBlock blockQuote => RenderBlockQuote(
@@ -183,14 +186,37 @@ internal static class MarkdownWidgetRenderer
         ParagraphBlock paragraph,
         bool focusableChildren,
         Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
-        MarkdownWidget? sourceWidget)
+        MarkdownWidget? sourceWidget,
+        MarkdownImageLoader? imageLoader = null)
     {
+        // Image-only paragraph: render as block-level KgpImageWidget
+        if (imageLoader != null && TryGetSoleImage(paragraph, out var image))
+        {
+            return new MarkdownImageWidget(image!.Url, image.AltText, imageLoader,
+                focusableChildren, linkActivatedHandler, sourceWidget);
+        }
+
         return new MarkdownTextBlockWidget(paragraph.Inlines)
         {
             FocusableLinks = focusableChildren,
             LinkActivatedHandler = linkActivatedHandler,
             SourceWidget = sourceWidget
         };
+    }
+
+    /// <summary>
+    /// Returns true if the paragraph contains exactly one inline element that is an <see cref="ImageInline"/>.
+    /// </summary>
+    private static bool TryGetSoleImage(ParagraphBlock paragraph, out ImageInline? image)
+    {
+        if (paragraph.Inlines.Count == 1 && paragraph.Inlines[0] is ImageInline img)
+        {
+            image = img;
+            return true;
+        }
+
+        image = null;
+        return false;
     }
 
     private static Hex1bWidget RenderFencedCode(FencedCodeBlock code)

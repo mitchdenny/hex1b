@@ -34,6 +34,13 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
     internal Func<MarkdownLinkActivatedEventArgs, Task>? LinkActivatedHandler { get; init; }
 
     /// <summary>
+    /// Callback for loading and decoding images referenced in markdown content.
+    /// When set, image-only paragraphs are rendered as <see cref="Hex1b.Widgets.KgpImageWidget"/>
+    /// instances. When null or when the callback returns null, images fall back to text rendering.
+    /// </summary>
+    internal MarkdownImageLoader? ImageLoader { get; init; }
+
+    /// <summary>
     /// Registers a handler for a specific block type. Multiple handlers for the same
     /// type form a middleware chain: the last registered is called first. Call
     /// <see cref="MarkdownBlockContext.Default"/> within your handler to invoke the
@@ -70,6 +77,14 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
     public MarkdownWidget OnLinkActivated(Func<MarkdownLinkActivatedEventArgs, Task> handler)
         => this with { LinkActivatedHandler = handler };
 
+    /// <summary>
+    /// Registers an image loader callback for rendering embedded images.
+    /// The callback receives a <see cref="Uri"/> (relative or absolute) and the alt text,
+    /// and should return decoded RGBA pixel data, or <c>null</c> to fall back to text rendering.
+    /// </summary>
+    public MarkdownWidget OnImageLoad(MarkdownImageLoader loader)
+        => this with { ImageLoader = loader };
+
     internal override async Task<Hex1bNode> ReconcileAsync(
         Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -85,6 +100,7 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
         node.BlockHandlers = BlockHandlers;
         node.FocusableChildren = FocusableChildren;
         node.LinkActivatedHandler = LinkActivatedHandler;
+        node.ImageLoader = ImageLoader;
         node.SourceWidget = this;
 
         // Build the widget tree from parsed markdown

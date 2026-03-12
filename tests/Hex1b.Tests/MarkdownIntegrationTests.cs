@@ -357,6 +357,148 @@ public class MarkdownIntegrationTests
     }
 
     [Fact]
+    public async Task Markdown_ImageOnlyParagraph_WithLoader_RendersKgpImage()
+    {
+        // Create a 2x2 red RGBA image (16 bytes)
+        var rgba = new byte[] {
+            255, 0, 0, 255,  255, 0, 0, 255,
+            255, 0, 0, 255,  255, 0, 0, 255
+        };
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("![Red square](test.png)")
+                .OnImageLoad((uri, alt) =>
+                    Task.FromResult<Hex1b.Markdown.MarkdownImageData?>(
+                        new Hex1b.Markdown.MarkdownImageData(rgba, 2, 2))),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // In headless mode (no KGP), the fallback text [Red square] should appear
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Red square"),
+                TimeSpan.FromSeconds(5), "image fallback text rendered")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ImageOnlyParagraph_LoaderReturnsNull_FallsBackToText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("![Alt text](missing.png)")
+                .OnImageLoad((uri, alt) =>
+                    Task.FromResult<Hex1b.Markdown.MarkdownImageData?>(null)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Alt text"),
+                TimeSpan.FromSeconds(5), "image fallback when loader returns null")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ImageInMixedParagraph_NoLoader_RendersAsInlineText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        // Image mixed with text — should stay inline, not become KgpImage
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("Here is an image ![photo](pic.png) in a sentence"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("photo") && s.ContainsText("sentence"),
+                TimeSpan.FromSeconds(5), "inline image renders as text in paragraph")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ImageOnlyParagraph_NoLoader_RendersAsText()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        // No OnImageLoad — should render as text fallback
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("![My image](photo.png)"),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("My image"),
+                TimeSpan.FromSeconds(5), "image without loader renders as text")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_ImageLoader_ReceivesCorrectUri()
+    {
+        Uri? capturedUri = null;
+        string? capturedAlt = null;
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown("![Sunset](./images/sunset.png)")
+                .OnImageLoad((uri, alt) =>
+                {
+                    capturedUri = uri;
+                    capturedAlt = alt;
+                    return Task.FromResult<Hex1b.Markdown.MarkdownImageData?>(null);
+                }),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Sunset"),
+                TimeSpan.FromSeconds(5), "image loader was called")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.NotNull(capturedUri);
+        Assert.Equal("./images/sunset.png", capturedUri!.OriginalString);
+        Assert.Equal("Sunset", capturedAlt);
+    }
+
+    [Fact]
     public async Task Markdown_InScrollPanel_Scrollable()
     {
         // Generate enough content to exceed viewport

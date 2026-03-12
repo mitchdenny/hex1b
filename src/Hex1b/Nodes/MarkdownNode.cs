@@ -43,6 +43,11 @@ public sealed class MarkdownNode : Hex1bNode
     public MarkdownWidget? SourceWidget { get; set; }
 
     /// <summary>
+    /// Callback for loading and decoding images.
+    /// </summary>
+    public MarkdownImageLoader? ImageLoader { get; set; }
+
+    /// <summary>
     /// The reconciled child node (typically a VStackNode).
     /// </summary>
     public Hex1bNode? ContentChild { get; set; }
@@ -68,7 +73,7 @@ public sealed class MarkdownNode : Hex1bNode
         }
 
         return MarkdownWidgetRenderer.Render(
-            _cachedDocument, BlockHandlers, FocusableChildren, LinkActivatedHandler, SourceWidget);
+            _cachedDocument, BlockHandlers, FocusableChildren, LinkActivatedHandler, SourceWidget, ImageLoader);
     }
 
     protected override Size MeasureCore(Constraints constraints)
