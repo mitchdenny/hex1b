@@ -129,7 +129,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ctx.Editor(editorState).LineNumbers(),
                 // Right pane: Markdown preview in scroll panel with focusable links
                 ctx.VScrollPanel(
-                    ctx.Markdown(document.GetText())
+                    ctx.Markdown(document)
                         .Focusable(children: true)
                         .OnImageLoad((uri, alt) =>
                             Task.FromResult<MarkdownImageData?>(CreateGradientImage(120, 60)))

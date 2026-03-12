@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hex1b.Documents;
 using Hex1b.Events;
 using Hex1b.Markdown;
 using Hex1b.Nodes;
@@ -13,6 +14,25 @@ namespace Hex1b.Widgets;
 /// <param name="Source">The markdown source text.</param>
 public sealed record MarkdownWidget(string Source) : Hex1bWidget
 {
+    /// <summary>
+    /// Creates a <see cref="MarkdownWidget"/> that reads its content from an
+    /// <see cref="IHex1bDocument"/>. The document's <see cref="IHex1bDocument.Version"/>
+    /// is used for efficient change detection; re-parsing only occurs when the
+    /// version advances.
+    /// </summary>
+    /// <param name="document">The document to render as markdown.</param>
+    public MarkdownWidget(IHex1bDocument document) : this(document.GetText())
+    {
+        Document = document;
+    }
+
+    /// <summary>
+    /// The backing document, if constructed from an <see cref="IHex1bDocument"/>.
+    /// When set, <see cref="IHex1bDocument.Version"/> is used for change detection
+    /// instead of string equality.
+    /// </summary>
+    internal IHex1bDocument? Document { get; init; }
+
     /// <summary>
     /// Registered block handlers as (BlockType, Delegate) pairs.
     /// Last entry is called first; each can invoke <see cref="MarkdownBlockContext.Default"/>
@@ -90,11 +110,27 @@ public sealed record MarkdownWidget(string Source) : Hex1bWidget
     {
         var node = existingNode as MarkdownNode ?? new MarkdownNode();
 
-        // Update source and handler chain
-        if (node.Source != Source)
+        if (Document != null)
         {
-            node.Source = Source;
-            node.MarkDirty();
+            // Document-backed: use version for efficient change detection
+            var currentVersion = Document.Version;
+            if (node.Document != Document || node.DocumentVersion != currentVersion)
+            {
+                node.Document = Document;
+                node.DocumentVersion = currentVersion;
+                node.Source = Document.GetText();
+                node.MarkDirty();
+            }
+        }
+        else
+        {
+            // String-backed: compare source text directly
+            if (node.Source != Source)
+            {
+                node.Source = Source;
+                node.Document = null;
+                node.MarkDirty();
+            }
         }
 
         node.BlockHandlers = BlockHandlers;

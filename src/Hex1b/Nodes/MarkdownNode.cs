@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using Hex1b.Documents;
 using Hex1b.Events;
 using Hex1b.Layout;
 using Hex1b.Markdown;
@@ -20,6 +21,17 @@ public sealed class MarkdownNode : Hex1bNode
     /// The markdown source text.
     /// </summary>
     public string Source { get; set; } = "";
+
+    /// <summary>
+    /// The backing <see cref="IHex1bDocument"/>, if the widget was constructed from one.
+    /// </summary>
+    public IHex1bDocument? Document { get; set; }
+
+    /// <summary>
+    /// The <see cref="IHex1bDocument.Version"/> at the time the source was last extracted.
+    /// Used for efficient change detection.
+    /// </summary>
+    public long DocumentVersion { get; set; }
 
     /// <summary>
     /// The block handler chain from the widget.

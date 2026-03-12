@@ -1,3 +1,4 @@
+using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Markdown;
 using Hex1b.Widgets;
@@ -1381,6 +1382,71 @@ public class MarkdownIntegrationTests
         Assert.Contains("│", text);
 
         await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_AcceptsIHex1bDocument()
+    {
+        var doc = new Hex1bDocument("# Document Heading\n\nParagraph from document.");
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            (Func<RootContext, Hex1bWidget>)(ctx => ctx.Markdown(doc)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Document Heading") && s.ContainsText("Paragraph from document"),
+                TimeSpan.FromSeconds(5), "document heading and paragraph rendered")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
+
+    [Fact]
+    public async Task Markdown_DocumentUpdatesReflected()
+    {
+        var doc = new Hex1bDocument("# Before");
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 12).Build();
+
+        using var app = new Hex1bApp(
+            (Func<RootContext, Hex1bWidget>)(ctx => ctx.Markdown(doc)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Before"), TimeSpan.FromSeconds(5),
+                "initial content rendered")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Modify the document
+        doc.Apply(new ReplaceOperation(
+            new DocumentRange(
+                new DocumentOffset(0),
+                new DocumentOffset(doc.Length)),
+            "# After"));
+
+        // Send a key to trigger a rebuild cycle
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Tab)
+            .WaitUntil(s => s.ContainsText("After"), TimeSpan.FromSeconds(5),
+                "updated content rendered")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
