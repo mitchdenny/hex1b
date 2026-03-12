@@ -342,26 +342,13 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
         // Default behavior
         switch (kind)
         {
-            case MarkdownLinkKind.External:
-                try
-                {
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo(linkInfo.Url)
-                    {
-                        UseShellExecute = true
-                    });
-                }
-                catch
-                {
-                    // Silently ignore if browser launch fails
-                }
-                break;
-
             case MarkdownLinkKind.IntraDocument:
                 ScrollToHeading(linkInfo.Url);
                 break;
 
+            case MarkdownLinkKind.External:
             case MarkdownLinkKind.Custom:
-                // No default action for custom schemes
+                // No default action — applications handle these via OnLinkActivated
                 break;
         }
     }
