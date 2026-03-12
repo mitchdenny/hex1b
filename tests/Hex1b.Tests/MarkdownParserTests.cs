@@ -663,4 +663,136 @@ public class MarkdownParserTests
         var text = Assert.IsType<TextInline>(Assert.Single(cellInlines));
         Assert.Equal("a|b", text.Text);
     }
+
+    // ==========================================================================
+    // Reference-style links
+    // ==========================================================================
+
+    [Fact]
+    public void Parse_ReferenceLink_ResolvesToLinkInline()
+    {
+        var doc = MarkdownParser.Parse("Click [here][link1]\n\n[link1]: https://example.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(2, para.Inlines.Count);
+        var link = Assert.IsType<LinkInline>(para.Inlines[1]);
+        Assert.Equal("here", link.Text);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_CaseInsensitive()
+    {
+        var doc = MarkdownParser.Parse("[Click][LINK]\n\n[link]: https://example.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_CollapsedForm()
+    {
+        // [text][] means ref = text
+        var doc = MarkdownParser.Parse("[example][]\n\n[example]: https://example.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("example", link.Text);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_ShortcutForm()
+    {
+        // [text] with no following brackets
+        var doc = MarkdownParser.Parse("[example]\n\n[example]: https://example.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("example", link.Text);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_WithTitle()
+    {
+        var doc = MarkdownParser.Parse("[click][ref]\n\n[ref]: https://example.com \"My Title\"");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("https://example.com", link.Url);
+        Assert.Equal("My Title", link.Title);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_DefinitionNotRendered()
+    {
+        var doc = MarkdownParser.Parse("Text\n\n[ref]: https://example.com");
+        // Only the paragraph should remain; definition is consumed
+        Assert.Single(doc.Blocks);
+        Assert.IsType<ParagraphBlock>(doc.Blocks[0]);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_MultipleDefinitions()
+    {
+        var doc = MarkdownParser.Parse(
+            "[a][ref1] and [b][ref2]\n\n[ref1]: https://one.com\n[ref2]: https://two.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link1 = Assert.IsType<LinkInline>(para.Inlines[0]);
+        var link2 = Assert.IsType<LinkInline>(para.Inlines[2]);
+        Assert.Equal("https://one.com", link1.Url);
+        Assert.Equal("https://two.com", link2.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_UndefinedRef_NotParsedAsLink()
+    {
+        var doc = MarkdownParser.Parse("[text][undefined]");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        // Should NOT produce a LinkInline — treated as plain text
+        Assert.DoesNotContain(para.Inlines, i => i is LinkInline);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_FirstDefinitionWins()
+    {
+        var doc = MarkdownParser.Parse("[click][ref]\n\n[ref]: https://first.com\n[ref]: https://second.com");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("https://first.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_AngleBracketUrl()
+    {
+        var doc = MarkdownParser.Parse("[click][ref]\n\n[ref]: <https://example.com>");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(para.Inlines[0]);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceImage_ResolvesToImageInline()
+    {
+        var doc = MarkdownParser.Parse("![logo][img]\n\n[img]: https://example.com/logo.png");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var image = Assert.IsType<ImageInline>(para.Inlines[0]);
+        Assert.Equal("logo", image.AltText);
+        Assert.Equal("https://example.com/logo.png", image.Url);
+    }
+
+    [Fact]
+    public void Parse_ReferenceLink_InHeading()
+    {
+        var doc = MarkdownParser.Parse("# [Click here][ref]\n\n[ref]: https://example.com");
+        var heading = Assert.IsType<HeadingBlock>(Assert.Single(doc.Blocks));
+        var link = Assert.IsType<LinkInline>(heading.Inlines[0]);
+        Assert.Equal("https://example.com", link.Url);
+    }
+
+    [Fact]
+    public void Parse_LinkDefinitions_StoredOnDocument()
+    {
+        var doc = MarkdownParser.Parse("[ref]: https://example.com \"Title\"");
+        Assert.True(doc.LinkDefinitions.ContainsKey("ref"));
+        Assert.Equal("https://example.com", doc.LinkDefinitions["ref"].Url);
+        Assert.Equal("Title", doc.LinkDefinitions["ref"].Title);
+    }
 }

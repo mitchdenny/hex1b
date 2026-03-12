@@ -18,8 +18,9 @@ public static class MarkdownParser
             return new MarkdownDocument([]);
 
         var lines = SplitLines(source);
-        var blocks = ParseBlocks(lines, 0, lines.Count);
-        return new MarkdownDocument(blocks);
+        var linkDefs = ExtractLinkDefinitions(lines);
+        var blocks = ParseBlocks(lines, 0, lines.Count, linkDefs);
+        return new MarkdownDocument(blocks, linkDefs);
     }
 
     /// <summary>
@@ -48,7 +49,96 @@ public static class MarkdownParser
         return lines;
     }
 
-    private static List<MarkdownBlock> ParseBlocks(List<string> lines, int start, int end)
+    /// <summary>
+    /// Extract link reference definitions ([label]: url "title") from the document.
+    /// Definitions are removed from the line list so they don't appear as content.
+    /// </summary>
+    private static Dictionary<string, LinkDefinition> ExtractLinkDefinitions(List<string> lines)
+    {
+        var defs = new Dictionary<string, LinkDefinition>(StringComparer.OrdinalIgnoreCase);
+
+        for (int i = lines.Count - 1; i >= 0; i--)
+        {
+            var line = lines[i].TrimStart();
+            if (TryParseLinkDefinition(line, out var label, out var url, out var title))
+            {
+                // Iterating backwards, so later definitions are seen first.
+                // Overwriting ensures the first (topmost) definition wins.
+                defs[label] = new LinkDefinition(url, title);
+                lines.RemoveAt(i);
+            }
+        }
+
+        return defs;
+    }
+
+    private static bool TryParseLinkDefinition(
+        string line, out string label, out string url, out string? title)
+    {
+        label = "";
+        url = "";
+        title = null;
+
+        // Must start with [
+        if (line.Length < 5 || line[0] != '[') return false;
+
+        // Find closing ]
+        var closeBracket = line.IndexOf(']', 1);
+        if (closeBracket < 1) return false;
+
+        // Must be followed by :
+        if (closeBracket + 1 >= line.Length || line[closeBracket + 1] != ':')
+            return false;
+
+        label = line[1..closeBracket].Trim();
+        if (label.Length == 0) return false;
+
+        var rest = line[(closeBracket + 2)..].Trim();
+        if (rest.Length == 0) return false;
+
+        // Check for optional title in quotes
+        // URL may be followed by "title", 'title', or (title)
+        var quoteStart = -1;
+        char quoteChar = '"';
+
+        for (int i = 0; i < rest.Length; i++)
+        {
+            if (rest[i] == '"' || rest[i] == '\'')
+            {
+                quoteStart = i;
+                quoteChar = rest[i];
+                break;
+            }
+        }
+
+        if (quoteStart > 0)
+        {
+            var quoteEnd = rest.LastIndexOf(quoteChar);
+            if (quoteEnd > quoteStart)
+            {
+                title = rest[(quoteStart + 1)..quoteEnd];
+                url = rest[..quoteStart].Trim();
+            }
+            else
+            {
+                url = rest;
+            }
+        }
+        else
+        {
+            url = rest;
+        }
+
+        // Strip angle brackets from URL: <url>
+        if (url.StartsWith('<') && url.EndsWith('>'))
+            url = url[1..^1];
+
+        return url.Length > 0;
+    }
+
+    private static List<MarkdownBlock> ParseBlocks(
+        List<string> lines, int start, int end,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         var blocks = new List<MarkdownBlock>();
         int i = start;
@@ -70,7 +160,7 @@ public static class MarkdownParser
                 continue;
             }
 
-            if (TryParseHeading(lines, i, out var heading))
+            if (TryParseHeading(lines, i, out var heading, linkDefs))
             {
                 blocks.Add(heading);
                 i++;
@@ -84,21 +174,21 @@ public static class MarkdownParser
                 continue;
             }
 
-            if (TryParseBlockQuote(lines, i, end, out var blockQuote, out var bqEnd))
+            if (TryParseBlockQuote(lines, i, end, out var blockQuote, out var bqEnd, linkDefs))
             {
                 blocks.Add(blockQuote);
                 i = bqEnd;
                 continue;
             }
 
-            if (TryParseTable(lines, i, end, out var table, out var tableEnd))
+            if (TryParseTable(lines, i, end, out var table, out var tableEnd, linkDefs))
             {
                 blocks.Add(table);
                 i = tableEnd;
                 continue;
             }
 
-            if (TryParseList(lines, i, end, out var list, out var listEnd))
+            if (TryParseList(lines, i, end, out var list, out var listEnd, linkDefs))
             {
                 blocks.Add(list);
                 i = listEnd;
@@ -120,7 +210,7 @@ public static class MarkdownParser
                     paraLines.Add(lines[j]);
 
                 var text = string.Join(" ", paraLines.Select(l => l.Trim()));
-                var inlines = ParseInlines(text);
+                var inlines = ParseInlines(text, linkDefs);
                 blocks.Add(new ParagraphBlock(inlines, FlattenInlinesToText(inlines)));
                 i = paraEnd;
             }
@@ -155,7 +245,9 @@ public static class MarkdownParser
 
     // --- Heading ---
 
-    private static bool TryParseHeading(List<string> lines, int index, out HeadingBlock heading)
+    private static bool TryParseHeading(
+        List<string> lines, int index, out HeadingBlock heading,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         heading = null!;
         var line = lines[index];
@@ -182,7 +274,7 @@ public static class MarkdownParser
                 content = "";
         }
 
-        var inlines = ParseInlines(content);
+        var inlines = ParseInlines(content, linkDefs);
         heading = new HeadingBlock(level, inlines, FlattenInlinesToText(inlines));
         return true;
     }
@@ -325,7 +417,8 @@ public static class MarkdownParser
 
     private static bool TryParseBlockQuote(
         List<string> lines, int start, int end,
-        out BlockQuoteBlock blockQuote, out int blockEnd)
+        out BlockQuoteBlock blockQuote, out int blockEnd,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         blockQuote = null!;
         blockEnd = start;
@@ -357,7 +450,7 @@ public static class MarkdownParser
             }
         }
 
-        var children = ParseBlocks(innerLines, 0, innerLines.Count);
+        var children = ParseBlocks(innerLines, 0, innerLines.Count, linkDefs);
         blockQuote = new BlockQuoteBlock(children);
         blockEnd = i;
         return true;
@@ -387,7 +480,8 @@ public static class MarkdownParser
 
     private static bool TryParseTable(
         List<string> lines, int start, int end,
-        out TableBlock table, out int tableEnd)
+        out TableBlock table, out int tableEnd,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         table = null!;
         tableEnd = start;
@@ -404,7 +498,7 @@ public static class MarkdownParser
         if (!TryParseTableDelimiterRow(delimLine, out var alignments)) return false;
 
         // Parse header cells
-        var headerCells = ParseTableRow(headerLine);
+        var headerCells = ParseTableRow(headerLine, linkDefs);
 
         // Column count must match (pad or trim to delimiter count)
         var colCount = alignments.Count;
@@ -422,7 +516,7 @@ public static class MarkdownParser
             if (string.IsNullOrEmpty(line) || !line.Contains('|'))
                 break;
 
-            var rowCells = ParseTableRow(line);
+            var rowCells = ParseTableRow(line, linkDefs);
             // Pad or trim to column count
             while (rowCells.Count < colCount)
                 rowCells.Add([]);
@@ -470,14 +564,15 @@ public static class MarkdownParser
         return true;
     }
 
-    private static List<IReadOnlyList<MarkdownInline>> ParseTableRow(string line)
+    private static List<IReadOnlyList<MarkdownInline>> ParseTableRow(
+        string line, Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         var cells = SplitTableRow(line);
         var result = new List<IReadOnlyList<MarkdownInline>>();
         foreach (var cell in cells)
         {
             var trimmed = cell.Trim();
-            result.Add(ParseInlines(trimmed));
+            result.Add(ParseInlines(trimmed, linkDefs));
         }
         return result;
     }
@@ -532,7 +627,8 @@ public static class MarkdownParser
 
     private static bool TryParseList(
         List<string> lines, int start, int end,
-        out ListBlock list, out int listEnd)
+        out ListBlock list, out int listEnd,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         list = null!;
         listEnd = start;
@@ -605,7 +701,7 @@ public static class MarkdownParser
                     }
                 }
 
-                var children = ParseBlocks(itemLines, 0, itemLines.Count);
+                var children = ParseBlocks(itemLines, 0, itemLines.Count, linkDefs);
                 var isChecked = ExtractTaskListCheckbox(children);
                 items.Add(new ListItemBlock(children, isChecked));
             }
@@ -711,17 +807,20 @@ public static class MarkdownParser
 
     // --- Inline Parsing ---
 
-    internal static List<MarkdownInline> ParseInlines(string text)
+    internal static List<MarkdownInline> ParseInlines(
+        string text, Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         var inlines = new List<MarkdownInline>();
         if (string.IsNullOrEmpty(text))
             return inlines;
 
-        ParseInlinesCore(text.AsSpan(), inlines);
+        ParseInlinesCore(text.AsSpan(), inlines, linkDefs);
         return inlines;
     }
 
-    private static void ParseInlinesCore(ReadOnlySpan<char> text, List<MarkdownInline> result)
+    private static void ParseInlinesCore(
+        ReadOnlySpan<char> text, List<MarkdownInline> result,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         int i = 0;
         int textStart = 0;
@@ -761,7 +860,7 @@ public static class MarkdownParser
                 {
                     FlushText(text, textStart, i, result);
                     var children = new List<MarkdownInline>();
-                    ParseInlinesCore(strongContent, children);
+                    ParseInlinesCore(strongContent, children, linkDefs);
                     result.Add(new EmphasisInline(true, children));
                     i = strongEnd;
                     textStart = i;
@@ -772,7 +871,7 @@ public static class MarkdownParser
                 {
                     FlushText(text, textStart, i, result);
                     var children = new List<MarkdownInline>();
-                    ParseInlinesCore(emContent, children);
+                    ParseInlinesCore(emContent, children, linkDefs);
                     result.Add(new EmphasisInline(false, children));
                     i = emEnd;
                     textStart = i;
@@ -790,7 +889,7 @@ public static class MarkdownParser
                 {
                     FlushText(text, textStart, i, result);
                     var children = new List<MarkdownInline>();
-                    ParseInlinesCore(strikeContent, children);
+                    ParseInlinesCore(strikeContent, children, linkDefs);
                     result.Add(new StrikethroughInline(children));
                     i = strikeEnd;
                     textStart = i;
@@ -801,10 +900,10 @@ public static class MarkdownParser
                 continue;
             }
 
-            // Link: [text](url) or [text](url "title")
+            // Link: [text](url), [text][ref], or [text][]
             if (text[i] == '[')
             {
-                if (TryParseLink(text, i, out var link, out var linkEnd))
+                if (TryParseLink(text, i, out var link, out var linkEnd, linkDefs))
                 {
                     FlushText(text, textStart, i, result);
                     result.Add(link);
@@ -820,7 +919,7 @@ public static class MarkdownParser
             // Image: ![alt](url)
             if (text[i] == '!' && i + 1 < text.Length && text[i + 1] == '[')
             {
-                if (TryParseImage(text, i, out var image, out var imgEnd))
+                if (TryParseImage(text, i, out var image, out var imgEnd, linkDefs))
                 {
                     FlushText(text, textStart, i, result);
                     result.Add(image);
@@ -894,51 +993,87 @@ public static class MarkdownParser
 
     private static bool TryParseLink(
         ReadOnlySpan<char> text, int start,
-        out LinkInline link, out int end)
+        out LinkInline link, out int end,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         link = null!;
         end = start;
 
-        // [text](url) or [text](url "title")
         var closeBracket = FindUnescaped(text, start + 1, ']');
         if (closeBracket < 0) return false;
 
         var linkText = text[(start + 1)..closeBracket].ToString();
 
-        if (closeBracket + 1 >= text.Length || text[closeBracket + 1] != '(')
-            return false;
-
-        var closeParen = FindUnescaped(text, closeBracket + 2, ')');
-        if (closeParen < 0) return false;
-
-        var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
-
-        // Parse optional title
-        string? title = null;
-        var quoteStart = urlPart.IndexOf('"');
-        if (quoteStart >= 0)
+        // [text](url) or [text](url "title")
+        if (closeBracket + 1 < text.Length && text[closeBracket + 1] == '(')
         {
-            var quoteEnd = urlPart.LastIndexOf('"');
-            if (quoteEnd > quoteStart)
+            var closeParen = FindUnescaped(text, closeBracket + 2, ')');
+            if (closeParen < 0) return false;
+
+            var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
+
+            string? title = null;
+            var quoteStart = urlPart.IndexOf('"');
+            if (quoteStart >= 0)
             {
-                title = urlPart[(quoteStart + 1)..quoteEnd];
-                urlPart = urlPart[..quoteStart].Trim();
+                var quoteEnd = urlPart.LastIndexOf('"');
+                if (quoteEnd > quoteStart)
+                {
+                    title = urlPart[(quoteStart + 1)..quoteEnd];
+                    urlPart = urlPart[..quoteStart].Trim();
+                }
+            }
+
+            link = new LinkInline(linkText, urlPart, title);
+            end = closeParen + 1;
+            return true;
+        }
+
+        // Reference-style: [text][ref] or [text][]
+        if (linkDefs != null && closeBracket + 1 < text.Length && text[closeBracket + 1] == '[')
+        {
+            var refClose = FindUnescaped(text, closeBracket + 2, ']');
+            if (refClose >= 0)
+            {
+                var refLabel = text[(closeBracket + 2)..refClose].ToString().Trim();
+                // [text][] means ref = text
+                if (refLabel.Length == 0)
+                    refLabel = linkText;
+
+                if (linkDefs.TryGetValue(refLabel, out var def))
+                {
+                    link = new LinkInline(linkText, def.Url, def.Title);
+                    end = refClose + 1;
+                    return true;
+                }
             }
         }
 
-        link = new LinkInline(linkText, urlPart, title);
-        end = closeParen + 1;
-        return true;
+        // Shortcut reference: [text] (no following brackets/parens)
+        if (linkDefs != null && linkDefs.TryGetValue(linkText, out var shortcutDef))
+        {
+            // Only match if next char is NOT [ or ( — those are handled above
+            if (closeBracket + 1 >= text.Length ||
+                (text[closeBracket + 1] != '(' && text[closeBracket + 1] != '['))
+            {
+                link = new LinkInline(linkText, shortcutDef.Url, shortcutDef.Title);
+                end = closeBracket + 1;
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static bool TryParseImage(
         ReadOnlySpan<char> text, int start,
-        out ImageInline image, out int end)
+        out ImageInline image, out int end,
+        Dictionary<string, LinkDefinition>? linkDefs = null)
     {
         image = null!;
         end = start;
 
-        // ![alt](url)
+        // ![alt]...
         if (start + 1 >= text.Length || text[start + 1] != '[')
             return false;
 
@@ -947,29 +1082,51 @@ public static class MarkdownParser
 
         var altText = text[(start + 2)..closeBracket].ToString();
 
-        if (closeBracket + 1 >= text.Length || text[closeBracket + 1] != '(')
-            return false;
-
-        var closeParen = FindUnescaped(text, closeBracket + 2, ')');
-        if (closeParen < 0) return false;
-
-        var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
-
-        string? title = null;
-        var quoteStart = urlPart.IndexOf('"');
-        if (quoteStart >= 0)
+        // ![alt](url)
+        if (closeBracket + 1 < text.Length && text[closeBracket + 1] == '(')
         {
-            var quoteEnd = urlPart.LastIndexOf('"');
-            if (quoteEnd > quoteStart)
+            var closeParen = FindUnescaped(text, closeBracket + 2, ')');
+            if (closeParen < 0) return false;
+
+            var urlPart = text[(closeBracket + 2)..closeParen].ToString().Trim();
+
+            string? title = null;
+            var quoteStart = urlPart.IndexOf('"');
+            if (quoteStart >= 0)
             {
-                title = urlPart[(quoteStart + 1)..quoteEnd];
-                urlPart = urlPart[..quoteStart].Trim();
+                var quoteEnd = urlPart.LastIndexOf('"');
+                if (quoteEnd > quoteStart)
+                {
+                    title = urlPart[(quoteStart + 1)..quoteEnd];
+                    urlPart = urlPart[..quoteStart].Trim();
+                }
+            }
+
+            image = new ImageInline(altText, urlPart, title);
+            end = closeParen + 1;
+            return true;
+        }
+
+        // ![alt][ref] or ![alt][]
+        if (linkDefs != null && closeBracket + 1 < text.Length && text[closeBracket + 1] == '[')
+        {
+            var refClose = FindUnescaped(text, closeBracket + 2, ']');
+            if (refClose >= 0)
+            {
+                var refLabel = text[(closeBracket + 2)..refClose].ToString().Trim();
+                if (refLabel.Length == 0)
+                    refLabel = altText;
+
+                if (linkDefs.TryGetValue(refLabel, out var def))
+                {
+                    image = new ImageInline(altText, def.Url, def.Title);
+                    end = refClose + 1;
+                    return true;
+                }
             }
         }
 
-        image = new ImageInline(altText, urlPart, title);
-        end = closeParen + 1;
-        return true;
+        return false;
     }
 
     private static int FindClosingBackticks(ReadOnlySpan<char> text, int start, int count)

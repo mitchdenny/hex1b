@@ -10,9 +10,33 @@ public sealed class MarkdownDocument
     /// </summary>
     public IReadOnlyList<MarkdownBlock> Blocks { get; }
 
-    public MarkdownDocument(IReadOnlyList<MarkdownBlock> blocks)
+    /// <summary>
+    /// Reference link definitions collected from the document (case-insensitive keys).
+    /// </summary>
+    public IReadOnlyDictionary<string, LinkDefinition> LinkDefinitions { get; }
+
+    public MarkdownDocument(
+        IReadOnlyList<MarkdownBlock> blocks,
+        IReadOnlyDictionary<string, LinkDefinition>? linkDefinitions = null)
     {
         Blocks = blocks;
+        LinkDefinitions = linkDefinitions
+            ?? new Dictionary<string, LinkDefinition>(StringComparer.OrdinalIgnoreCase);
+    }
+}
+
+/// <summary>
+/// A reference link definition: [label]: url "optional title"
+/// </summary>
+public sealed class LinkDefinition
+{
+    public string Url { get; }
+    public string? Title { get; }
+
+    public LinkDefinition(string url, string? title = null)
+    {
+        Url = url;
+        Title = title;
     }
 }
 
