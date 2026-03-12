@@ -1,4 +1,5 @@
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Markdown;
 using Hex1b.Theming;
@@ -100,6 +101,11 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
                 MarkDirty();
             }
         }
+    }
+
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        MarkdownScrollHelper.AddScrollBindings(this, bindings);
     }
 
     protected override Size MeasureCore(Constraints constraints)

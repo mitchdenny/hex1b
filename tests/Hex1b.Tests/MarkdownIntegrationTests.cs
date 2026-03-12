@@ -981,4 +981,63 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task Markdown_FocusedLink_ArrowKeysScrollDocument()
+    {
+        var lines = new List<string> { "## Top", "" };
+        for (int i = 0; i < 40; i++)
+        {
+            lines.Add($"Line {i}.");
+            lines.Add("");
+        }
+
+        lines.Add("[Link](#top)");
+        lines.Add("");
+        lines.Add("## Bottom");
+
+        var source = string.Join("\n", lines);
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VScrollPanel(
+                ctx.Markdown(source).Focusable(children: true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5), "initial render")
+            // Tab to focus the heading
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(300))
+            // Down arrows scroll incrementally
+            .Key(Hex1bKey.DownArrow)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.DownArrow)
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.DownArrow)
+            .Wait(TimeSpan.FromMilliseconds(300))
+            // "Top" should no longer be visible (scrolled past)
+            .WaitUntil(s => !s.ContainsText("Top"), TimeSpan.FromSeconds(2),
+                "scrolled down by arrows")
+            // End should jump to the bottom
+            .Key(Hex1bKey.End)
+            .Wait(TimeSpan.FromMilliseconds(500))
+            .WaitUntil(s => s.ContainsText("Bottom"), TimeSpan.FromSeconds(5),
+                "scrolled to end")
+            // Home should jump back to the top
+            .Key(Hex1bKey.Home)
+            .Wait(TimeSpan.FromMilliseconds(500))
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5),
+                "scrolled to start")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }

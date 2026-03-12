@@ -83,6 +83,8 @@ internal sealed class MarkdownLinkRegionNode : Hex1bNode
             bindings.Key(Hex1bKey.Enter)
                 .Triggers(Activate, ActivateCallback, "Activate link");
         }
+
+        MarkdownScrollHelper.AddScrollBindings(this, bindings);
     }
 
     /// <summary>
