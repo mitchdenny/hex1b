@@ -454,7 +454,8 @@ public static class MarkdownParser
                 }
 
                 var children = ParseBlocks(itemLines, 0, itemLines.Count);
-                items.Add(new ListItemBlock(children));
+                var isChecked = ExtractTaskListCheckbox(children);
+                items.Add(new ListItemBlock(children, isChecked));
             }
             else
             {
@@ -622,6 +623,24 @@ public static class MarkdownParser
                     ParseInlinesCore(emContent, children);
                     result.Add(new EmphasisInline(false, children));
                     i = emEnd;
+                    textStart = i;
+                    continue;
+                }
+
+                i++;
+                continue;
+            }
+
+            // Strikethrough: ~~text~~
+            if (text[i] == '~' && i + 1 < text.Length && text[i + 1] == '~')
+            {
+                if (TryParseEmphasis(text, i, '~', 2, out var strikeContent, out var strikeEnd))
+                {
+                    FlushText(text, textStart, i, result);
+                    var children = new List<MarkdownInline>();
+                    ParseInlinesCore(strikeContent, children);
+                    result.Add(new StrikethroughInline(children));
+                    i = strikeEnd;
                     textStart = i;
                     continue;
                 }
@@ -864,6 +883,40 @@ public static class MarkdownParser
                     break;
             }
         }
+    }
+
+    /// <summary>
+    /// Detects task list checkbox ([ ] or [x]/[X]) at the start of the first paragraph's
+    /// inline content. If found, strips the checkbox prefix from the text and returns
+    /// the checked state. Returns null for normal list items.
+    /// </summary>
+    private static bool? ExtractTaskListCheckbox(List<MarkdownBlock> children)
+    {
+        if (children.Count == 0) return null;
+        if (children[0] is not ParagraphBlock para || para.Inlines.Count == 0) return null;
+        if (para.Inlines[0] is not TextInline firstText) return null;
+
+        var text = firstText.Text;
+        bool? checkedState = null;
+
+        if (text.StartsWith("[ ] ", StringComparison.Ordinal))
+            checkedState = false;
+        else if (text.Length >= 4 && text[0] == '[' && (text[1] == 'x' || text[1] == 'X') && text[2] == ']' && text[3] == ' ')
+            checkedState = true;
+
+        if (checkedState == null) return null;
+
+        var newInlines = new List<MarkdownInline>(para.Inlines);
+        var remainder = text[4..];
+        if (remainder.Length > 0)
+            newInlines[0] = new TextInline(remainder);
+        else
+            newInlines.RemoveAt(0);
+
+        // Reconstruct the plain text without the checkbox prefix
+        var newText = para.Text.Length >= 4 ? para.Text[4..] : "";
+        children[0] = new ParagraphBlock(newInlines, newText);
+        return checkedState;
     }
 
     private static bool IsBlankLine(string line) => line.Trim().Length == 0;

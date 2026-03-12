@@ -481,4 +481,101 @@ public class MarkdownParserTests
         Assert.True(orderedList.IsOrdered);
         Assert.Equal(2, orderedList.Items.Count);
     }
+
+    // ==========================================================================
+    // Strikethrough parsing
+    // ==========================================================================
+
+    [Fact]
+    public void Parse_Strikethrough_ProducesStrikethroughInline()
+    {
+        var doc = MarkdownParser.Parse("~~deleted~~");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var strike = Assert.IsType<StrikethroughInline>(Assert.Single(para.Inlines));
+        var text = Assert.IsType<TextInline>(Assert.Single(strike.Children));
+        Assert.Equal("deleted", text.Text);
+    }
+
+    [Fact]
+    public void Parse_StrikethroughInSentence_PreservesContext()
+    {
+        var doc = MarkdownParser.Parse("This is ~~old~~ text");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(3, para.Inlines.Count);
+        Assert.IsType<TextInline>(para.Inlines[0]);
+        Assert.IsType<StrikethroughInline>(para.Inlines[1]);
+        Assert.IsType<TextInline>(para.Inlines[2]);
+    }
+
+    [Fact]
+    public void Parse_SingleTilde_NotStrikethrough()
+    {
+        var doc = MarkdownParser.Parse("~not strike~");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        // Should be plain text, not strikethrough
+        Assert.All(para.Inlines, i => Assert.IsType<TextInline>(i));
+    }
+
+    [Fact]
+    public void Parse_StrikethroughWithBold_NestsCorrectly()
+    {
+        var doc = MarkdownParser.Parse("~~**both**~~");
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(doc.Blocks));
+        var strike = Assert.IsType<StrikethroughInline>(Assert.Single(para.Inlines));
+        var emphasis = Assert.IsType<EmphasisInline>(Assert.Single(strike.Children));
+        Assert.True(emphasis.IsStrong);
+    }
+
+    // ==========================================================================
+    // Task list parsing
+    // ==========================================================================
+
+    [Fact]
+    public void Parse_UncheckedTaskItem_SetsIsCheckedFalse()
+    {
+        var doc = MarkdownParser.Parse("- [ ] Todo item");
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        var item = Assert.Single(list.Items);
+        Assert.False(item.IsChecked);
+        // The checkbox prefix should be stripped from the text
+        var para = Assert.IsType<ParagraphBlock>(Assert.Single(item.Children));
+        var text = Assert.IsType<TextInline>(Assert.Single(para.Inlines));
+        Assert.Equal("Todo item", text.Text);
+    }
+
+    [Fact]
+    public void Parse_CheckedTaskItem_SetsIsCheckedTrue()
+    {
+        var doc = MarkdownParser.Parse("- [x] Done item");
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        var item = Assert.Single(list.Items);
+        Assert.True(item.IsChecked);
+    }
+
+    [Fact]
+    public void Parse_CheckedUppercaseX_SetsIsCheckedTrue()
+    {
+        var doc = MarkdownParser.Parse("- [X] Also done");
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        Assert.True(list.Items[0].IsChecked);
+    }
+
+    [Fact]
+    public void Parse_NormalListItem_HasNullIsChecked()
+    {
+        var doc = MarkdownParser.Parse("- Normal item");
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        Assert.Null(list.Items[0].IsChecked);
+    }
+
+    [Fact]
+    public void Parse_MixedTaskAndNormalList()
+    {
+        var doc = MarkdownParser.Parse("- [x] Done\n- [ ] Todo\n- Normal");
+        var list = Assert.IsType<ListBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(3, list.Items.Count);
+        Assert.True(list.Items[0].IsChecked);
+        Assert.False(list.Items[1].IsChecked);
+        Assert.Null(list.Items[2].IsChecked);
+    }
 }

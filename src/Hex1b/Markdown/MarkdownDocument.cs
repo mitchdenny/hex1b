@@ -169,9 +169,16 @@ public sealed class ListItemBlock : MarkdownBlock
     /// </summary>
     public IReadOnlyList<MarkdownBlock> Children { get; }
 
-    public ListItemBlock(IReadOnlyList<MarkdownBlock> children)
+    /// <summary>
+    /// Task list checkbox state. <c>null</c> for normal list items,
+    /// <c>true</c> for checked (<c>[x]</c>), <c>false</c> for unchecked (<c>[ ]</c>).
+    /// </summary>
+    public bool? IsChecked { get; }
+
+    public ListItemBlock(IReadOnlyList<MarkdownBlock> children, bool? isChecked = null)
     {
         Children = children;
+        IsChecked = isChecked;
     }
 }
 
@@ -221,6 +228,22 @@ public sealed class EmphasisInline : MarkdownInline
     public EmphasisInline(bool isStrong, IReadOnlyList<MarkdownInline> children)
     {
         IsStrong = isStrong;
+        Children = children;
+    }
+}
+
+/// <summary>
+/// Strikethrough text (~~text~~).
+/// </summary>
+public sealed class StrikethroughInline : MarkdownInline
+{
+    /// <summary>
+    /// The inline content within the strikethrough.
+    /// </summary>
+    public IReadOnlyList<MarkdownInline> Children { get; }
+
+    public StrikethroughInline(IReadOnlyList<MarkdownInline> children)
+    {
         Children = children;
     }
 }

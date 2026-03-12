@@ -1029,4 +1029,59 @@ public class MarkdownInlineRendererTests
     {
         return System.Text.RegularExpressions.Regex.Replace(s, @"\x1b\[[0-9;]*m", "");
     }
+
+    // ==========================================================================
+    // Strikethrough
+    // ==========================================================================
+
+    [Fact]
+    public void FlattenInlines_Strikethrough_SetsStrikethroughAttribute()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new StrikethroughInline([new TextInline("deleted")])
+        };
+
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+
+        Assert.Single(runs);
+        Assert.Equal("deleted", runs[0].Text);
+        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
+    }
+
+    [Fact]
+    public void FlattenInlines_StrikethroughWithBold_CombinesAttributes()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new StrikethroughInline([
+                new EmphasisInline(true, [new TextInline("bold+strike")])
+            ])
+        };
+
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+
+        Assert.Single(runs);
+        Assert.Equal("bold+strike", runs[0].Text);
+        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Bold));
+    }
+
+    [Fact]
+    public void FlattenInlines_StrikethroughContainingLink_ExtractsLink()
+    {
+        var inlines = new MarkdownInline[]
+        {
+            new StrikethroughInline([
+                new LinkInline("click", "https://example.com")
+            ])
+        };
+
+        var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
+
+        Assert.Single(runs);
+        Assert.Equal("click", runs[0].Text);
+        Assert.Equal("https://example.com", runs[0].Url);
+        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Underline));
+    }
 }

@@ -17,6 +17,7 @@ var sampleMarkdown = """
     - Ordered and unordered lists
       - Including nested lists
       - With alternate bullet characters
+    - ~~Removed features~~ Strikethrough support
     - Thematic breaks
     - [Clickable links](https://github.com) with Tab navigation
 
@@ -32,6 +33,20 @@ var sampleMarkdown = """
     > This is a block quote that demonstrates word wrapping.
     > When the content is long enough it will wrap to multiple
     > lines with the bar character on each line.
+
+    ## Strikethrough
+
+    This text has ~~deleted content~~ in it. You can also combine
+    ~~**bold strikethrough**~~ and ~~*italic strikethrough*~~ styles.
+
+    ## Task Lists
+
+    - [x] Implement parser
+    - [x] Add inline styling
+    - [x] Focusable links
+    - [x] Strikethrough support
+    - [ ] Table support
+    - [ ] Syntax highlighting in code blocks
 
     ## Links
 

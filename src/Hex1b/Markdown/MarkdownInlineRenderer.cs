@@ -96,6 +96,9 @@ internal static class MarkdownInlineRenderer
                 case EmphasisInline emphasis:
                     ExtractLinksCore(emphasis.Children, links, ref linkIdCounter);
                     break;
+                case StrikethroughInline strikethrough:
+                    ExtractLinksCore(strikethrough.Children, links, ref linkIdCounter);
+                    break;
                 case LinkInline link:
                     links.Add((linkIdCounter++, link.Url, link.Text));
                     break;
@@ -129,6 +132,10 @@ internal static class MarkdownInlineRenderer
                         ? attrs | CellAttributes.Bold
                         : attrs | CellAttributes.Italic;
                     FlattenCore(emphasis.Children, fg, bg, emphasisAttrs, runs, ref linkIdCounter, colors);
+                    break;
+
+                case StrikethroughInline strikethrough:
+                    FlattenCore(strikethrough.Children, fg, bg, attrs | CellAttributes.Strikethrough, runs, ref linkIdCounter, colors);
                     break;
 
                 case CodeInline code:

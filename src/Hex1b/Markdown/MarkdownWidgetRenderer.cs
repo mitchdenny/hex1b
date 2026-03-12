@@ -264,6 +264,12 @@ internal static class MarkdownWidgetRenderer
             var marker = list.IsOrdered
                 ? $"{list.StartNumber + i}. "
                 : UnorderedBullets[listDepth % UnorderedBullets.Length];
+
+            // Task list checkbox
+            if (item.IsChecked is bool isChecked)
+            {
+                marker += isChecked ? "☑ " : "☐ ";
+            }
             var markerWidth = DisplayWidth.GetStringWidth(marker);
 
             // For list items whose first child is a paragraph, prepend the marker
