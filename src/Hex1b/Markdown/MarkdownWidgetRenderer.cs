@@ -190,15 +190,14 @@ internal static class MarkdownWidgetRenderer
 
     private static Hex1bWidget RenderFencedCode(FencedCodeBlock code)
     {
-        var content = new TextBlockWidget(code.Content);
-        var border = new BorderWidget(content);
+        var editor = new MarkdownCodeBlockWidget(code.Content);
+        var border = new BorderWidget(editor);
         return string.IsNullOrEmpty(code.Language) ? border : border.Title(code.Language);
     }
 
     private static Hex1bWidget RenderIndentedCode(IndentedCodeBlock code)
     {
-        var content = new TextBlockWidget(code.Content);
-        return new PaddingWidget(4, 0, 0, 0, content);
+        return new MarkdownCodeBlockWidget(code.Content);
     }
 
     private static Hex1bWidget RenderBlockQuote(
