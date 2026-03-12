@@ -389,7 +389,11 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
                     }
                 }
 
-                scrollPanel.SetOffset(headingNode.Bounds.Y - scrollPanel.Bounds.Y);
+                // Bounds.Y is in viewport coordinates (scroll offset already
+                // subtracted during ArrangeCore). Convert back to content-space
+                // by adding the current offset.
+                var contentY = headingNode.Bounds.Y - scrollPanel.Bounds.Y + scrollPanel.Offset;
+                scrollPanel.SetOffset(contentY);
                 return;
             }
         }
