@@ -12,11 +12,11 @@ public class MarkdownBlockSpacingTests
     }
 
     [Fact]
-    public void NeedsSpacingBefore_HeadingThenParagraph_ReturnsFalse()
+    public void NeedsSpacingBefore_HeadingThenParagraph_ReturnsTrue()
     {
         var heading = new HeadingBlock(1, [], "Title");
         var paragraph = new ParagraphBlock([], "Text");
-        Assert.False(MarkdownWidgetRenderer.NeedsSpacingBefore(heading, paragraph));
+        Assert.True(MarkdownWidgetRenderer.NeedsSpacingBefore(heading, paragraph));
     }
 
     [Fact]

@@ -268,7 +268,7 @@ public class MarkdownIntegrationTests
     }
 
     [Fact]
-    public async Task Markdown_HeadingThenParagraph_NoBlankLineBetween()
+    public async Task Markdown_HeadingThenParagraph_HasBlankLineBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
@@ -285,11 +285,10 @@ public class MarkdownIntegrationTests
             {
                 var text = s.GetText();
                 var lines = text.Split('\n');
-                // Heading on line 0, paragraph immediately on line 1 (no blank line)
                 var headingLine = Array.FindIndex(lines, l => l.Contains("Title"));
                 var paragraphLine = Array.FindIndex(lines, l => l.Contains("Paragraph"));
-                return headingLine >= 0 && paragraphLine == headingLine + 1;
-            }, TimeSpan.FromSeconds(5), "heading then paragraph with no gap")
+                return headingLine >= 0 && paragraphLine == headingLine + 2;
+            }, TimeSpan.FromSeconds(5), "heading then paragraph with gap")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
