@@ -45,15 +45,22 @@ var sampleMarkdown = """
     - [x] Add inline styling
     - [x] Focusable links
     - [x] Strikethrough support
-    - [ ] Table support
+    - [x] Table support
+    - [x] Reference-style links
     - [ ] Syntax highlighting in code blocks
 
     ## Links
 
     - External: [GitHub](https://github.com)
     - External: [.NET Documentation](https://learn.microsoft.com/dotnet)
+    - Reference: [Hex1b repo][hex1b] uses reference-style links
+    - Reference: [See the docs][docs] with a title
+    - Collapsed: [hex1b][] also works
     - Intra-document: [Back to top](#markdown-preview-demo)
     - Intra-document: [Jump to lists](#lists)
+
+    [hex1b]: https://github.com/hex1b/hex1b
+    [docs]: https://hex1b.dev "Hex1b Documentation"
 
     Use **Tab** / **Shift+Tab** to cycle through links.
     Press **Enter** to activate the focused link.
