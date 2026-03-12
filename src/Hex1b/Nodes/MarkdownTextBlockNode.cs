@@ -80,7 +80,27 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
     /// </summary>
     public string? AnchorId { get; set; }
 
-    public override bool IsFocusable => false;
+    private bool _isFocused;
+
+    /// <summary>
+    /// Heading nodes (those with an <see cref="AnchorId"/>) are focusable when
+    /// link focus is enabled so that intra-document links can transfer focus to
+    /// the heading and <c>EnsureFocusedVisible</c> scrolls it into view.
+    /// </summary>
+    public override bool IsFocusable => AnchorId != null && FocusableLinks;
+
+    public override bool IsFocused
+    {
+        get => _isFocused;
+        set
+        {
+            if (_isFocused != value)
+            {
+                _isFocused = value;
+                MarkDirty();
+            }
+        }
+    }
 
     protected override Size MeasureCore(Constraints constraints)
     {
@@ -158,6 +178,10 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
+        // Heading nodes (with AnchorId) are focusable navigation anchors
+        if (IsFocusable)
+            yield return this;
+
         if (FocusableLinks)
         {
             foreach (var linkRegion in _linkRegionNodes)
@@ -378,8 +402,11 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
         {
             if (ancestor is ScrollPanelNode scrollPanel)
             {
-                // Unfocus any currently focused descendant so EnsureFocusedVisible
-                // in the next ArrangeCore won't scroll back to the old position.
+                // Unfocus the current link and transfer focus to the heading.
+                // This keeps focus in the markdown panel (preventing
+                // FocusRing.EnsureFocus from auto-focusing the first element,
+                // e.g. an editor in the other pane) and lets
+                // EnsureFocusedVisible scroll the heading into view naturally.
                 foreach (var focusable in scrollPanel.GetFocusableNodes())
                 {
                     if (focusable != scrollPanel && focusable.IsFocused)
@@ -389,11 +416,7 @@ internal sealed class MarkdownTextBlockNode : Hex1bNode
                     }
                 }
 
-                // Bounds.Y is in viewport coordinates (scroll offset already
-                // subtracted during ArrangeCore). Convert back to content-space
-                // by adding the current offset.
-                var contentY = headingNode.Bounds.Y - scrollPanel.Bounds.Y + scrollPanel.Offset;
-                scrollPanel.SetOffset(contentY);
+                headingNode.IsFocused = true;
                 return;
             }
         }

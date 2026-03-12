@@ -887,7 +887,9 @@ public class MarkdownIntegrationTests
             // Wait for the markdown to render
             .WaitUntil(s => s.ContainsText("Go to target"), TimeSpan.FromSeconds(5),
                 "markdown rendered")
-            // Tab to move focus to the link
+            // Tab to move focus to the link (skip past heading which is now focusable)
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(200))
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(200))
             // Activate the intra-document link
@@ -912,10 +914,6 @@ public class MarkdownIntegrationTests
     [Fact]
     public async Task Markdown_IntraDocumentLink_ScrollsToHeading_WhenAlreadyScrolled()
     {
-        // Regression test: when the scroll panel is already scrolled (offset != 0),
-        // the viewport-relative Bounds.Y must be converted back to content-space
-        // before calling SetOffset. Place the link in the MIDDLE of the doc so the
-        // user must scroll down to reach it, giving a non-zero offset.
         var lines = new List<string>
         {
             "## Target Heading",
@@ -924,7 +922,6 @@ public class MarkdownIntegrationTests
             ""
         };
 
-        // Filler to push the link off-screen
         for (int i = 0; i < 30; i++)
         {
             lines.Add($"Filler paragraph {i}.");
@@ -934,7 +931,6 @@ public class MarkdownIntegrationTests
         lines.Add("[Jump to top](#target-heading)");
         lines.Add("");
 
-        // More filler so MaxOffset is large enough
         for (int i = 0; i < 10; i++)
         {
             lines.Add($"Trailing filler {i}.");
@@ -943,13 +939,19 @@ public class MarkdownIntegrationTests
 
         var source = string.Join("\n", lines);
 
+        string? activatedUrl = null;
+
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
 
         using var app = new Hex1bApp(
             ctx => ctx.VScrollPanel(
-                ctx.Markdown(source).Focusable(children: true)),
+                ctx.Markdown(source).Focusable(children: true)
+                    .OnLinkActivated(args =>
+                    {
+                        activatedUrl = args.Url;
+                    })),
             new Hex1bAppOptions { WorkloadAdapter = workload });
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -957,15 +959,19 @@ public class MarkdownIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Target Heading"), TimeSpan.FromSeconds(5),
                 "initial render")
-            // Scroll down until the link is visible (Tab will focus it and
-            // EnsureFocusedVisible will scroll to it)
+            // Tab past heading, then to the link
+            .Tab()
+            .Wait(TimeSpan.FromMilliseconds(300))
             .Tab()
             .Wait(TimeSpan.FromMilliseconds(300))
             .WaitUntil(s => s.ContainsText("Jump to top"), TimeSpan.FromSeconds(5),
                 "link scrolled into view")
-            // Now the scroll offset is non-zero. Activate the link.
+            // Activate the link
             .Key(Hex1bKey.Enter)
             .Wait(TimeSpan.FromMilliseconds(500))
+            // Verify callback fired
+            .WaitUntil(s => activatedUrl != null, TimeSpan.FromSeconds(5),
+                "link activated callback fired")
             // The target heading should scroll into view
             .WaitUntil(s => s.ContainsText("Target Heading"), TimeSpan.FromSeconds(5),
                 "target heading visible after scrolled intra-doc link activation")
