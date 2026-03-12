@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Documents;
+using Hex1b.Markdown;
 using Hex1b.Widgets;
 
 var sampleMarkdown = """
@@ -47,6 +48,7 @@ var sampleMarkdown = """
     - [x] Strikethrough support
     - [x] Table support
     - [x] Reference-style links
+    - [x] Image embedding
     - [ ] Syntax highlighting in code blocks
 
     ## Links
@@ -85,7 +87,12 @@ var sampleMarkdown = """
     | Inline styles | ✅ Done | High |
     | Links | ✅ Done | Medium |
     | Tables | ✅ Done | Medium |
+    | Images | ✅ Done | Medium |
     | Syntax highlighting | 🔄 Planned | Low |
+
+    ## Images
+
+    ![Gradient](gradient.png)
 
     ---
 
@@ -94,6 +101,24 @@ var sampleMarkdown = """
 
 var document = new Hex1bDocument(sampleMarkdown);
 var editorState = new EditorState(document);
+
+// Generate a simple gradient image for the demo (no external files needed)
+static MarkdownImageData CreateGradientImage(int width, int height)
+{
+    var rgba = new byte[width * height * 4];
+    for (int y = 0; y < height; y++)
+    {
+        for (int x = 0; x < width; x++)
+        {
+            int i = (y * width + x) * 4;
+            rgba[i] = (byte)(x * 255 / width);      // R: left-to-right
+            rgba[i + 1] = (byte)(y * 255 / height);  // G: top-to-bottom
+            rgba[i + 2] = 128;                        // B: constant
+            rgba[i + 3] = 255;                        // A: opaque
+        }
+    }
+    return new MarkdownImageData(rgba, width, height);
+}
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
@@ -106,6 +131,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 ctx.VScrollPanel(
                     ctx.Markdown(document.GetText())
                         .Focusable(children: true)
+                        .OnImageLoad((uri, alt) =>
+                            Task.FromResult<MarkdownImageData?>(CreateGradientImage(120, 60)))
                         .OnLinkActivated(args =>
                         {
                             // Log link activation to the status bar
