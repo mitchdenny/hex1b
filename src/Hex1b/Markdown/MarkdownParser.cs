@@ -91,6 +91,13 @@ public static class MarkdownParser
                 continue;
             }
 
+            if (TryParseTable(lines, i, end, out var table, out var tableEnd))
+            {
+                blocks.Add(table);
+                i = tableEnd;
+                continue;
+            }
+
             if (TryParseList(lines, i, end, out var list, out var listEnd))
             {
                 blocks.Add(list);
@@ -374,6 +381,151 @@ public static class MarkdownParser
         }
 
         return line;
+    }
+
+    // --- Tables ---
+
+    private static bool TryParseTable(
+        List<string> lines, int start, int end,
+        out TableBlock table, out int tableEnd)
+    {
+        table = null!;
+        tableEnd = start;
+
+        // Need at least 2 lines (header + delimiter)
+        if (start + 1 >= end) return false;
+
+        // First line must contain pipe
+        var headerLine = lines[start].Trim();
+        if (!headerLine.Contains('|')) return false;
+
+        // Second line must be a valid delimiter row
+        var delimLine = lines[start + 1].Trim();
+        if (!TryParseTableDelimiterRow(delimLine, out var alignments)) return false;
+
+        // Parse header cells
+        var headerCells = ParseTableRow(headerLine);
+
+        // Column count must match (pad or trim to delimiter count)
+        var colCount = alignments.Count;
+        while (headerCells.Count < colCount)
+            headerCells.Add([]);
+        if (headerCells.Count > colCount)
+            headerCells = headerCells.Take(colCount).ToList();
+
+        // Parse data rows
+        var rows = new List<IReadOnlyList<IReadOnlyList<MarkdownInline>>>();
+        int i = start + 2;
+        while (i < end)
+        {
+            var line = lines[i].Trim();
+            if (string.IsNullOrEmpty(line) || !line.Contains('|'))
+                break;
+
+            var rowCells = ParseTableRow(line);
+            // Pad or trim to column count
+            while (rowCells.Count < colCount)
+                rowCells.Add([]);
+            if (rowCells.Count > colCount)
+                rowCells = rowCells.Take(colCount).ToList();
+
+            rows.Add(rowCells);
+            i++;
+        }
+
+        table = new TableBlock(headerCells, alignments, rows);
+        tableEnd = i;
+        return true;
+    }
+
+    private static bool TryParseTableDelimiterRow(string line, out List<TableColumnAlignment> alignments)
+    {
+        alignments = null!;
+        var cells = SplitTableRow(line);
+        if (cells.Count == 0) return false;
+
+        var result = new List<TableColumnAlignment>();
+        foreach (var cell in cells)
+        {
+            var trimmed = cell.Trim();
+            if (trimmed.Length == 0) return false;
+
+            // Must be dashes with optional colons
+            var leftColon = trimmed.StartsWith(':');
+            var rightColon = trimmed.EndsWith(':');
+            var inner = trimmed.TrimStart(':').TrimEnd(':');
+            if (inner.Length == 0 || !inner.All(c => c == '-')) return false;
+
+            if (leftColon && rightColon)
+                result.Add(TableColumnAlignment.Center);
+            else if (rightColon)
+                result.Add(TableColumnAlignment.Right);
+            else if (leftColon)
+                result.Add(TableColumnAlignment.Left);
+            else
+                result.Add(TableColumnAlignment.None);
+        }
+
+        alignments = result;
+        return true;
+    }
+
+    private static List<IReadOnlyList<MarkdownInline>> ParseTableRow(string line)
+    {
+        var cells = SplitTableRow(line);
+        var result = new List<IReadOnlyList<MarkdownInline>>();
+        foreach (var cell in cells)
+        {
+            var trimmed = cell.Trim();
+            result.Add(ParseInlines(trimmed));
+        }
+        return result;
+    }
+
+    private static List<string> SplitTableRow(string line)
+    {
+        // Strip leading/trailing pipes
+        var trimmed = line.Trim();
+        if (trimmed.StartsWith('|'))
+            trimmed = trimmed[1..];
+        if (trimmed.EndsWith('|') && !trimmed.EndsWith("\\|"))
+            trimmed = trimmed[..^1];
+
+        var cells = new List<string>();
+        var current = new System.Text.StringBuilder();
+        bool escaped = false;
+        bool inCode = false;
+
+        for (int i = 0; i < trimmed.Length; i++)
+        {
+            if (escaped)
+            {
+                current.Append(trimmed[i]);
+                escaped = false;
+                continue;
+            }
+            if (trimmed[i] == '\\')
+            {
+                escaped = true;
+                continue;
+            }
+            if (trimmed[i] == '`')
+            {
+                inCode = !inCode;
+                current.Append(trimmed[i]);
+                continue;
+            }
+            if (trimmed[i] == '|' && !inCode)
+            {
+                cells.Add(current.ToString());
+                current.Clear();
+                continue;
+            }
+            current.Append(trimmed[i]);
+        }
+        cells.Add(current.ToString());
+
+        return cells;
     }
 
     // --- Lists ---

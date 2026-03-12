@@ -70,6 +70,16 @@ var sampleMarkdown = """
       - Another nested item
     - Back to top level
 
+    ## Tables
+
+    | Feature | Status | Priority |
+    |:--------|:------:|----------:|
+    | Parser | ✅ Done | High |
+    | Inline styles | ✅ Done | High |
+    | Links | ✅ Done | Medium |
+    | Tables | ✅ Done | Medium |
+    | Syntax highlighting | 🔄 Planned | Low |
+
     ---
 
     *Edit the markdown on the left to see changes here.*

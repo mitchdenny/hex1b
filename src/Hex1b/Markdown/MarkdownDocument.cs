@@ -187,6 +187,46 @@ public sealed class ListItemBlock : MarkdownBlock
 /// </summary>
 public sealed class ThematicBreakBlock : MarkdownBlock;
 
+/// <summary>
+/// Column alignment for GFM table columns.
+/// </summary>
+public enum TableColumnAlignment
+{
+    /// <summary>No explicit alignment (default left).</summary>
+    None,
+    /// <summary>Left-aligned (:---).</summary>
+    Left,
+    /// <summary>Center-aligned (:---:).</summary>
+    Center,
+    /// <summary>Right-aligned (---:).</summary>
+    Right,
+}
+
+/// <summary>
+/// A GFM table with header row, column alignments, and data rows.
+/// </summary>
+public sealed class TableBlock : MarkdownBlock
+{
+    /// <summary>Header cells (inline content per column).</summary>
+    public IReadOnlyList<IReadOnlyList<MarkdownInline>> HeaderCells { get; }
+
+    /// <summary>Column alignment specifications from the delimiter row.</summary>
+    public IReadOnlyList<TableColumnAlignment> Alignments { get; }
+
+    /// <summary>Data rows (each row is a list of inline-content cells).</summary>
+    public IReadOnlyList<IReadOnlyList<IReadOnlyList<MarkdownInline>>> Rows { get; }
+
+    public TableBlock(
+        IReadOnlyList<IReadOnlyList<MarkdownInline>> headerCells,
+        IReadOnlyList<TableColumnAlignment> alignments,
+        IReadOnlyList<IReadOnlyList<IReadOnlyList<MarkdownInline>>> rows)
+    {
+        HeaderCells = headerCells;
+        Alignments = alignments;
+        Rows = rows;
+    }
+}
+
 // --- Inline elements ---
 
 /// <summary>

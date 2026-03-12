@@ -578,4 +578,89 @@ public class MarkdownParserTests
         Assert.False(list.Items[1].IsChecked);
         Assert.Null(list.Items[2].IsChecked);
     }
+
+    // ==========================================================================
+    // GFM Table parsing
+    // ==========================================================================
+
+    [Fact]
+    public void Parse_SimpleTable_ProducesTableBlock()
+    {
+        var doc = MarkdownParser.Parse("| A | B |\n|---|---|\n| 1 | 2 |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(2, table.Alignments.Count);
+        Assert.Equal(2, table.HeaderCells.Count);
+        Assert.Single(table.Rows);
+    }
+
+    [Fact]
+    public void Parse_TableAlignment_DetectsCorrectly()
+    {
+        var doc = MarkdownParser.Parse("| L | C | R | N |\n|:---|:---:|---:|---|\n| a | b | c | d |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(TableColumnAlignment.Left, table.Alignments[0]);
+        Assert.Equal(TableColumnAlignment.Center, table.Alignments[1]);
+        Assert.Equal(TableColumnAlignment.Right, table.Alignments[2]);
+        Assert.Equal(TableColumnAlignment.None, table.Alignments[3]);
+    }
+
+    [Fact]
+    public void Parse_TableHeaderContent_ParsesInlines()
+    {
+        var doc = MarkdownParser.Parse("| **Bold** | `code` |\n|---|---|\n| x | y |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.IsType<EmphasisInline>(table.HeaderCells[0][0]);
+        Assert.IsType<CodeInline>(table.HeaderCells[1][0]);
+    }
+
+    [Fact]
+    public void Parse_TableMultipleRows()
+    {
+        var doc = MarkdownParser.Parse("| H |\n|---|\n| A |\n| B |\n| C |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(3, table.Rows.Count);
+    }
+
+    [Fact]
+    public void Parse_TableEndedByBlankLine()
+    {
+        var doc = MarkdownParser.Parse("| H |\n|---|\n| A |\n\nParagraph");
+        Assert.Equal(2, doc.Blocks.Count);
+        Assert.IsType<TableBlock>(doc.Blocks[0]);
+        Assert.IsType<ParagraphBlock>(doc.Blocks[1]);
+    }
+
+    [Fact]
+    public void Parse_TableWithoutLeadingPipes()
+    {
+        var doc = MarkdownParser.Parse("A | B\n---|---\n1 | 2");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(2, table.Alignments.Count);
+    }
+
+    [Fact]
+    public void Parse_TablePadsShortRows()
+    {
+        var doc = MarkdownParser.Parse("| A | B | C |\n|---|---|---|\n| 1 |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        Assert.Equal(3, table.Rows[0].Count); // padded to 3
+    }
+
+    [Fact]
+    public void Parse_NotATable_MissingDelimiter()
+    {
+        var doc = MarkdownParser.Parse("| A | B |\n| 1 | 2 |");
+        // Without delimiter row, this should be paragraphs, not a table
+        Assert.DoesNotContain(doc.Blocks, b => b is TableBlock);
+    }
+
+    [Fact]
+    public void Parse_TableWithEscapedPipe()
+    {
+        var doc = MarkdownParser.Parse("| A |\n|---|\n| a\\|b |");
+        var table = Assert.IsType<TableBlock>(Assert.Single(doc.Blocks));
+        var cellInlines = table.Rows[0][0];
+        var text = Assert.IsType<TextInline>(Assert.Single(cellInlines));
+        Assert.Equal("a|b", text.Text);
+    }
 }

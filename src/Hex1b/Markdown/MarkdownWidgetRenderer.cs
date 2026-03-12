@@ -1,6 +1,7 @@
 using System.Collections.Immutable;
 using System.Text;
 using Hex1b.Events;
+using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -103,6 +104,7 @@ internal static class MarkdownWidgetRenderer
             ListBlock list => RenderList(
                 list, blockHandlers, focusableChildren, linkActivatedHandler, sourceWidget, listDepth),
             ThematicBreakBlock => RenderThematicBreak(),
+            TableBlock table => RenderTable(table, focusableChildren, linkActivatedHandler, sourceWidget),
             _ => new TextBlockWidget(block.ToString() ?? "")
         };
     }
@@ -333,6 +335,85 @@ internal static class MarkdownWidgetRenderer
     private static Hex1bWidget RenderThematicBreak()
     {
         return new SeparatorWidget();
+    }
+
+    private static Hex1bWidget RenderTable(
+        TableBlock table,
+        bool focusableChildren,
+        Func<MarkdownLinkActivatedEventArgs, Task>? linkActivatedHandler,
+        MarkdownWidget? sourceWidget)
+    {
+        var colCount = table.Alignments.Count;
+        var totalRows = 1 + table.Rows.Count; // header + data rows
+
+        var cells = new List<GridCellWidget>();
+
+        // Header row (row 0) — bold text
+        for (int col = 0; col < colCount; col++)
+        {
+            var headerInlines = col < table.HeaderCells.Count
+                ? table.HeaderCells[col]
+                : (IReadOnlyList<MarkdownInline>)[];
+
+            // Wrap header content in bold
+            var boldInlines = new List<MarkdownInline>
+            {
+                new EmphasisInline(true, headerInlines.ToList())
+            };
+
+            var cellWidget = new MarkdownTextBlockWidget(boldInlines)
+            {
+                FocusableLinks = focusableChildren,
+                LinkActivatedHandler = linkActivatedHandler,
+                SourceWidget = sourceWidget
+            };
+
+            cells.Add(new GridCellWidget(cellWidget) { RowIndex = 0, ColumnIndex = col });
+        }
+
+        // Data rows
+        for (int row = 0; row < table.Rows.Count; row++)
+        {
+            var rowData = table.Rows[row];
+            for (int col = 0; col < colCount; col++)
+            {
+                var cellInlines = col < rowData.Count
+                    ? rowData[col]
+                    : (IReadOnlyList<MarkdownInline>)[];
+
+                var cellWidget = new MarkdownTextBlockWidget(cellInlines)
+                {
+                    FocusableLinks = focusableChildren,
+                    LinkActivatedHandler = linkActivatedHandler,
+                    SourceWidget = sourceWidget
+                };
+
+                cells.Add(new GridCellWidget(cellWidget)
+                {
+                    RowIndex = row + 1,
+                    ColumnIndex = col
+                });
+            }
+        }
+
+        // All columns fill equally
+        var colDefs = new List<GridColumnDefinition>();
+        for (int col = 0; col < colCount; col++)
+        {
+            colDefs.Add(new GridColumnDefinition(SizeHint.Fill));
+        }
+
+        // All rows are content-sized
+        var rowDefs = new List<GridRowDefinition>();
+        for (int row = 0; row < totalRows; row++)
+        {
+            rowDefs.Add(new GridRowDefinition(SizeHint.Content));
+        }
+
+        return new GridWidget(cells, colDefs, rowDefs)
+        {
+            GridLines = GridLinesMode.All
+        };
     }
 
     /// <summary>

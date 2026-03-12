@@ -1040,4 +1040,53 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task Markdown_Table_RendersWithGridLines()
+    {
+        var markdown = "| Name | Value |\n|------|-------|\n| Foo  | 42    |\n| Bar  | 99    |";
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 12).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.Markdown(markdown),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Foo"), TimeSpan.FromSeconds(5),
+                "table rendered with data")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = terminal.CreateSnapshot();
+        var text = snapshot.GetScreenText();
+
+        // Verify table structure is present
+        Assert.Contains("Name", text);
+        Assert.Contains("Value", text);
+        Assert.Contains("Foo", text);
+        Assert.Contains("42", text);
+        Assert.Contains("Bar", text);
+        Assert.Contains("99", text);
+
+        // Verify gridline characters are rendered
+        Assert.Contains("┌", text);
+        Assert.Contains("┐", text);
+        Assert.Contains("└", text);
+        Assert.Contains("┘", text);
+        Assert.Contains("─", text);
+        Assert.Contains("│", text);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }
