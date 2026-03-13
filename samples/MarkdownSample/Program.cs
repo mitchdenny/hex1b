@@ -9,54 +9,50 @@ var sampleMarkdown = """
     This is a **live preview** of markdown content. Edit the text on the left
     and watch the rendered output update on the right.
 
-    ## Features
+    ## Inline Styles
 
-    - Headings (h1 through h6)
-    - Paragraphs with word wrap
-    - Fenced code blocks with language tags
-    - Block quotes with word wrap
-    - Ordered and unordered lists
-      - Including nested lists
-      - With alternate bullet characters
-    - ~~Removed features~~ Strikethrough support
-    - Thematic breaks
-    - [Clickable links](https://github.com) with Tab navigation
+    You can use **bold**, *italic*, ***bold italic***, `inline code`,
+    and ~~strikethrough~~ text. Combine them: ~~**bold strikethrough**~~
+    and ~~*italic strikethrough*~~ work too.
 
-    ## Code Example
+    ## Code Blocks
+
+    Fenced code blocks render as read-only editors with line numbers:
 
     ```csharp
     var app = Hex1bTerminal.CreateBuilder()
         .WithHex1bApp((app, options) => ctx =>
             ctx.Markdown("# Hello World"))
         .Build();
+    await app.RunAsync();
     ```
+
+    Indented code blocks (4 spaces) also work:
+
+        $ dotnet add package Hex1b
+        $ dotnet run
+
+    ## Block Quotes
 
     > This is a block quote that demonstrates word wrapping.
     > When the content is long enough it will wrap to multiple
     > lines with the bar character on each line.
 
-    ## Strikethrough
-
-    This text has ~~deleted content~~ in it. You can also combine
-    ~~**bold strikethrough**~~ and ~~*italic strikethrough*~~ styles.
-
     ## Task Lists
 
     - [x] Implement parser
-    - [x] Add inline styling
-    - [x] Focusable links
-    - [x] Strikethrough support
-    - [x] Table support
+    - [x] Inline styling (bold, italic, code, strikethrough)
+    - [x] Focusable links with Tab navigation
+    - [x] GFM tables with column alignment
     - [x] Reference-style links
-    - [x] Image embedding
+    - [x] Image embedding via KGP
+    - [x] Live document editing
     - [ ] Syntax highlighting in code blocks
 
     ## Links
 
     - External: [GitHub](https://github.com)
-    - External: [.NET Documentation](https://learn.microsoft.com/dotnet)
     - Reference: [Hex1b repo][hex1b] uses reference-style links
-    - Reference: [See the docs][docs] with a title
     - Collapsed: [hex1b][] also works
     - Intra-document: [Back to top](#markdown-preview-demo)
     - Intra-document: [Jump to lists](#lists)
@@ -69,9 +65,9 @@ var sampleMarkdown = """
 
     ## Lists
 
-    1. First item
-    2. Second item
-    3. Third item
+    1. First ordered item
+    2. Second ordered item
+    3. Third ordered item
 
     - Top level bullet
       - Nested bullet (◦)
@@ -88,11 +84,21 @@ var sampleMarkdown = """
     | Links | ✅ Done | Medium |
     | Tables | ✅ Done | Medium |
     | Images | ✅ Done | Medium |
+    | Live editing | ✅ Done | Medium |
     | Syntax highlighting | 🔄 Planned | Low |
 
     ## Images
 
     ![Gradient](gradient.png)
+
+    ### Heading Levels
+
+    # Heading 1
+    ## Heading 2
+    ### Heading 3
+    #### Heading 4
+    ##### Heading 5
+    ###### Heading 6
 
     ---
 
