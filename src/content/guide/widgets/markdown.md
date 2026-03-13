@@ -199,6 +199,10 @@ ctx.Markdown(source)
 
 Images are rendered using the Kitty Graphics Protocol. When the loader returns `null`, the image alt text is shown as a text fallback.
 
+::: tip Image Rendering Customization
+The `.OnImageLoad()` callback controls data loading but not how the image widget is rendered. To customize image rendering, use `.OnBlock<MarkdownDocument.ParagraphBlock>()` to intercept image-only paragraphs. A dedicated image rendering hook is planned — see [#242](https://github.com/mitchdenny/hex1b/issues/242).
+:::
+
 ## Document Source
 
 For live-updating markdown (e.g., an editor preview), pass an `IHex1bDocument` instead of a string. The widget uses `IHex1bDocument.Version` for efficient change detection—re-parsing only occurs when the version advances:
