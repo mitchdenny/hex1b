@@ -1505,4 +1505,49 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task Markdown_MouseScrollOverFocusableLink_ScrollsParentPanel()
+    {
+        var lines = new List<string>
+        {
+            "# Top",
+            "",
+            "Click [this link](https://example.com) to visit.",
+            ""
+        };
+
+        for (int i = 0; i < 30; i++)
+            lines.Add($"Filler line {i}.");
+
+        lines.Add("");
+        lines.Add("## Bottom");
+
+        var source = string.Join("\n", lines);
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VScrollPanel(ctx.Markdown(source).Focusable(true)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5), "initial render")
+            // Position mouse over the link text (row 2, within the link)
+            .MouseMoveTo(10, 2)
+            // Scroll down with the mouse wheel over the link
+            .ScrollDown(10)
+            .Wait(TimeSpan.FromMilliseconds(500))
+            .WaitUntil(s => !s.ContainsText("Top"), TimeSpan.FromSeconds(3),
+                "parent panel scrolled past Top")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }

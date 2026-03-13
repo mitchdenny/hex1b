@@ -4,10 +4,9 @@ using Hex1b.Widgets;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// Adds scroll key bindings (Up/Down/PgUp/PgDn/Home/End) to focusable
-/// markdown nodes (headings and link regions) so that the user can scroll
-/// the containing <see cref="ScrollPanelNode"/> while a child element
-/// has focus.
+/// Adds scroll bindings (keyboard and mouse wheel) to focusable markdown
+/// nodes (headings and link regions) so that the user can scroll the
+/// containing <see cref="ScrollPanelNode"/> while a child element has focus.
 /// </summary>
 internal static class MarkdownScrollHelper
 {
@@ -25,6 +24,11 @@ internal static class MarkdownScrollHelper
             .Triggers(ScrollPanelWidget.ScrollToStartAction, _ => ScrollTo(node, 0), "Scroll to top");
         bindings.Key(Hex1bKey.End)
             .Triggers(ScrollPanelWidget.ScrollToEndAction, _ => ScrollToEnd(node), "Scroll to bottom");
+
+        bindings.Mouse(MouseButton.ScrollUp)
+            .Triggers(ScrollPanelWidget.MouseScrollUpAction, _ => Scroll(node, -3), "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown)
+            .Triggers(ScrollPanelWidget.MouseScrollDownAction, _ => Scroll(node, 3), "Scroll down");
     }
 
     private static ScrollPanelNode? FindAncestorScrollPanel(Hex1bNode node)
