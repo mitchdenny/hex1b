@@ -482,4 +482,67 @@ public class WindowFocusIntegrationTests
 
         Assert.True(windowClosed, $"Frameless window should have been closed by ESC. FocusPath={InputRouter.LastPathDebug}");
     }
+
+    /// <summary>
+    /// Tests that Escape closes a window when opened from a menu inside a NotificationPanel.
+    /// This matches the exact widget tree structure of the WindowingDemo sample app:
+    /// VStack → NotificationPanel(VStack(MenuBar, ..., WindowPanel))
+    /// </summary>
+    [Fact]
+    public async Task Window_OpenedViaMenu_WithNotificationPanel_ClosesWithEscape()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowClosed = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.NotificationPanel(outer.VStack(main => [
+                        main.MenuBar(m => [
+                            m.Menu("File", menu => [
+                                menu.MenuItem("New Window").OnActivated(e =>
+                                {
+                                    var handle = e.Windows.Window(w => w.VStack(v => [
+                                            v.Text("Window content"),
+                                            v.Text("Press Escape to close"),
+                                            v.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                        ]))
+                                        .Title("Test Window")
+                                        .Size(40, 10)
+                                        .OnClose(() => windowClosed = true);
+                                    e.Windows.Open(handle);
+                                })
+                            ])
+                        ]),
+                        main.WindowPanel().Height(SizeHint.Fill)
+                    ])).Height(SizeHint.Fill)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Window content"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(s => windowClosed, TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(windowClosed, $"Window should have been closed by ESC with NotificationPanel wrapper. FocusPath={InputRouter.LastPathDebug}");
+    }
 }

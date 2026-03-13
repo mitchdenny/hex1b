@@ -527,18 +527,54 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     // === I/O Pump Tasks ===
 
+    /// <summary>
+    /// How long to wait for additional bytes after a bare ESC before treating
+    /// it as a standalone Escape key press.  Most real terminals deliver
+    /// multi-byte escape sequences within a few milliseconds; a human pressing
+    /// Escape produces a single 0x1B with no follow-up.  50 ms is the standard
+    /// threshold used by ncurses, crossterm, and similar TUI libraries.
+    /// </summary>
+    internal static readonly TimeSpan EscapeSequenceTimeout = TimeSpan.FromMilliseconds(50);
+
     private async Task PumpPresentationInputAsync(CancellationToken ct)
     {
         try
         {
+            // A pending read task that survives across loop iterations.
+            // We never cancel a read — doing so can corrupt stdin on Linux.
+            Task<ReadOnlyMemory<byte>>? pendingRead = null;
+
             while (!ct.IsCancellationRequested && _presentation != null)
             {
-                var data = await _presentation.ReadInputAsync(ct);
-                if (data.IsEmpty)
+                // Start a read if we don't already have one in flight.
+                pendingRead ??= ReadPresentationInputAsync(ct);
+
+                if (_incompleteInputSequenceBuffer.Length > 0)
                 {
-                    break;
+                    // We have a buffered incomplete escape sequence.  Race
+                    // the pending read against a short timeout — if nothing
+                    // arrives, flush the buffer as a bare Escape key press.
+                    var completed = await Task.WhenAny(
+                        pendingRead,
+                        Task.Delay(EscapeSequenceTimeout, ct));
+
+                    if (completed != pendingRead)
+                    {
+                        // Timeout won — flush the buffered bytes.
+                        var flushed = _incompleteInputSequenceBuffer;
+                        _incompleteInputSequenceBuffer = "";
+                        await DispatchCompleteInputTextAsync(flushed, ReadOnlyMemory<byte>.Empty, ct);
+                        // pendingRead is still alive — reuse it next iteration
+                        continue;
+                    }
                 }
-                
+
+                var data = await pendingRead;
+                pendingRead = null; // consumed — will start a new read next iteration
+
+                if (data.IsEmpty)
+                    break;
+
                 _metrics.TerminalInputBytes.Record(data.Length);
 
                 // Tokenize input the same way we tokenize output, preserving
@@ -561,31 +597,57 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 if (string.IsNullOrEmpty(completeText))
                     continue;
 
-                var tokens = AnsiTokenizer.Tokenize(completeText);
-                
-                _metrics.TerminalInputTokens.Record(tokens.Count);
-                
-                // Notify presentation filters of input FROM presentation
-                await NotifyPresentationFiltersInputAsync(tokens);
-
-                // Notify workload filters of input going TO workload
-                await NotifyWorkloadFiltersInputAsync(tokens);
-
-                // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
-                if (_workload is Hex1bAppWorkloadAdapter appWorkload)
-                {
-                    await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
-                }
-                else
-                {
-                    // For other workloads, forward raw bytes
-                    await _workload.WriteInputAsync(data, ct);
-                }
+                await DispatchCompleteInputTextAsync(completeText, data, ct);
             }
         }
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+    }
+
+    /// <summary>
+    /// Wraps the presentation read so the result can be stored as a Task
+    /// and reused across loop iterations without re-awaiting a ValueTask.
+    /// </summary>
+    private async Task<ReadOnlyMemory<byte>> ReadPresentationInputAsync(CancellationToken ct)
+    {
+        return await _presentation!.ReadInputAsync(ct);
+    }
+
+    /// <summary>
+    /// Tokenizes complete input text and dispatches it to the appropriate workload.
+    /// </summary>
+    private async Task DispatchCompleteInputTextAsync(string completeText, ReadOnlyMemory<byte> rawData, CancellationToken ct)
+    {
+        var tokens = AnsiTokenizer.Tokenize(completeText);
+
+        _metrics.TerminalInputTokens.Record(tokens.Count);
+
+        // Notify presentation filters of input FROM presentation
+        await NotifyPresentationFiltersInputAsync(tokens);
+
+        // Notify workload filters of input going TO workload
+        await NotifyWorkloadFiltersInputAsync(tokens);
+
+        // For Hex1bAppWorkloadAdapter, convert tokens to events and dispatch
+        if (_workload is Hex1bAppWorkloadAdapter appWorkload)
+        {
+            await DispatchTokensAsEventsAsync(tokens, appWorkload, ct);
+        }
+        else
+        {
+            // For other workloads, forward raw bytes
+            if (!rawData.IsEmpty)
+            {
+                await _workload.WriteInputAsync(rawData, ct);
+            }
+            else
+            {
+                // Flushed from incomplete buffer — re-encode to bytes
+                var bytes = Encoding.UTF8.GetBytes(completeText);
+                await _workload.WriteInputAsync(bytes, ct);
+            }
         }
     }
     
