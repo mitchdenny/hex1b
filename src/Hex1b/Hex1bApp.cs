@@ -220,7 +220,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
             {
                 PresentationAdapter = presentation,
-                WorkloadAdapter = workload
+                WorkloadAdapter = workload,
+                EscapeSequenceTimeout = options.EscapeSequenceTimeout
             });
             _adapter = workload;
         }

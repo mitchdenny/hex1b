@@ -149,4 +149,25 @@ public class Hex1bAppOptions
     /// Default is 120.
     /// </summary>
     public int SurfacePoolMaxIdleFrames { get; set; } = 120;
+
+    /// <summary>
+    /// How long to wait for additional bytes after a bare ESC (0x1B) before treating
+    /// it as a standalone Escape key press. Traditional terminals use ESC as both the
+    /// Escape key and the first byte of multi-byte ANSI sequences; this timeout
+    /// disambiguates the two cases.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// When null (the default), uses a 50 ms threshold — the standard value used by
+    /// ncurses, vim, crossterm and other TUI frameworks. Real terminal emulators
+    /// deliver multi-byte sequences within a few milliseconds, while a human pressing
+    /// the Escape key produces a single 0x1B with no follow-up.
+    /// </para>
+    /// <para>
+    /// Set to <see cref="TimeSpan.Zero"/> to disable the timeout entirely. This is
+    /// appropriate when the Kitty keyboard protocol is active, since it sends
+    /// unambiguous CSI u sequences for every key including Escape.
+    /// </para>
+    /// </remarks>
+    public TimeSpan? EscapeSequenceTimeout { get; set; }
 }
