@@ -47,6 +47,7 @@ public sealed class Hex1bTerminalBuilder
     private bool _enableMouse;
     private bool _preserveOPost;
     private bool _diagnosticsEnabled;
+    private TimeSpan? _escapeTimeout;
     private Diagnostics.Hex1bMetrics? _metrics;
     private Diagnostics.Hex1bMetricsOptions? _metricsOptions;
     private int? _scrollbackCapacity;
@@ -641,6 +642,17 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
+    /// <summary>
+    /// Sets the timeout for disambiguating a bare ESC byte from the start of an ANSI
+    /// escape sequence. The default is 50 ms; set to <see cref="TimeSpan.Zero"/> to
+    /// disable (e.g. when the Kitty keyboard protocol is active).
+    /// </summary>
+    public Hex1bTerminalBuilder WithEscapeTimeout(TimeSpan timeout)
+    {
+        _escapeTimeout = timeout;
+        return this;
+    }
+
     // === Recording and Optimization ===
 
     /// <summary>
@@ -1196,7 +1208,8 @@ public sealed class Hex1bTerminalBuilder
             RunCallback = runCallback,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
-            Metrics = ResolveMetrics()
+            Metrics = ResolveMetrics(),
+            EscapeSequenceTimeout = _escapeTimeout
         };
         
         foreach (var filter in _workloadFilters)

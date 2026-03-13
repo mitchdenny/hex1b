@@ -96,6 +96,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
     private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
     
+    // Escape-sequence timeout: channel-based architecture for zero-alloc disambiguation.
+    // A background reader writes data events, and a reusable timer writes timeout
+    // sentinels into the same channel.  The processing loop reads from one place.
+    private readonly TimeSpan _escapeTimeout;
+    private readonly Channel<PresentationInputEvent> _presentationInputChannel =
+        Channel.CreateUnbounded<PresentationInputEvent>(
+            new UnboundedChannelOptions { SingleReader = true, SingleWriter = false });
+    private ITimer? _escapeFlushTimer;
+    
     // Scrollback buffer (opt-in via WithScrollback)
     private readonly ScrollbackBuffer? _scrollbackBuffer;
     private readonly Action<ScrollbackRowEventArgs>? _scrollbackCallback;
@@ -280,6 +289,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
+        _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -528,54 +538,93 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // === I/O Pump Tasks ===
 
     /// <summary>
-    /// How long to wait for additional bytes after a bare ESC before treating
-    /// it as a standalone Escape key press.  Most real terminals deliver
-    /// multi-byte escape sequences within a few milliseconds; a human pressing
-    /// Escape produces a single 0x1B with no follow-up.  50 ms is the standard
-    /// threshold used by ncurses, crossterm, and similar TUI libraries.
+    /// Lightweight value type written into <see cref="_presentationInputChannel"/>.
+    /// Either carries raw input data or signals that the escape-sequence timeout fired.
     /// </summary>
-    internal static readonly TimeSpan EscapeSequenceTimeout = TimeSpan.FromMilliseconds(50);
+    private readonly struct PresentationInputEvent
+    {
+        public readonly ReadOnlyMemory<byte> Data;
+        public readonly bool IsTimeout;
+
+        private PresentationInputEvent(ReadOnlyMemory<byte> data, bool isTimeout)
+        {
+            Data = data;
+            IsTimeout = isTimeout;
+        }
+
+        public static PresentationInputEvent FromData(ReadOnlyMemory<byte> data) => new(data, false);
+        public static readonly PresentationInputEvent TimeoutSentinel = new(default, true);
+    }
+
+    /// <summary>
+    /// Tiny background loop that reads raw bytes from the presentation adapter and
+    /// posts them into <see cref="_presentationInputChannel"/>.  Runs for the lifetime
+    /// of the terminal.  This loop does NO tokenization, no state mutation — it only
+    /// moves bytes from the blocking <see cref="IHex1bTerminalPresentationAdapter.ReadInputAsync"/>
+    /// call into the channel so that the processing loop can race reads against the
+    /// escape-sequence timeout without allocating.
+    /// </summary>
+    private async Task PumpPresentationReaderAsync(CancellationToken ct)
+    {
+        try
+        {
+            while (!ct.IsCancellationRequested && _presentation != null)
+            {
+                var data = await _presentation.ReadInputAsync(ct);
+                if (data.IsEmpty)
+                    break;
+                _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(data));
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Normal shutdown
+        }
+        finally
+        {
+            _presentationInputChannel.Writer.TryComplete();
+        }
+    }
+
+    /// <summary>
+    /// Timer callback that fires when the escape-sequence timeout expires.
+    /// Writes a <see cref="PresentationInputEvent.TimeoutSentinel"/> into the
+    /// channel so the processing loop can flush the incomplete buffer.
+    /// Zero-alloc: only sets a field on the existing channel entry.
+    /// </summary>
+    private void OnEscapeFlushTimerFired(object? _)
+    {
+        _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.TimeoutSentinel);
+    }
 
     private async Task PumpPresentationInputAsync(CancellationToken ct)
     {
         try
         {
-            // A pending read task that survives across loop iterations.
-            // We never cancel a read — doing so can corrupt stdin on Linux.
-            Task<ReadOnlyMemory<byte>>? pendingRead = null;
+            // Spin up the background reader that feeds raw data into the channel.
+            _ = Task.Run(() => PumpPresentationReaderAsync(ct), ct);
 
-            while (!ct.IsCancellationRequested && _presentation != null)
+            await foreach (var item in _presentationInputChannel.Reader.ReadAllAsync(ct))
             {
-                // Start a read if we don't already have one in flight.
-                pendingRead ??= ReadPresentationInputAsync(ct);
-
-                if (_incompleteInputSequenceBuffer.Length > 0)
+                if (item.IsTimeout)
                 {
-                    // We have a buffered incomplete escape sequence.  Race
-                    // the pending read against a short timeout — if nothing
-                    // arrives, flush the buffer as a bare Escape key press.
-                    var completed = await Task.WhenAny(
-                        pendingRead,
-                        Task.Delay(EscapeSequenceTimeout, ct));
-
-                    if (completed != pendingRead)
+                    // Timer fired — flush the incomplete buffer as a bare Escape key
+                    // (or whatever partial sequence was pending).  Guard against a
+                    // spurious timeout that arrives after data already cleared the buffer.
+                    if (_incompleteInputSequenceBuffer.Length > 0)
                     {
-                        // Timeout won — flush the buffered bytes.
                         var flushed = _incompleteInputSequenceBuffer;
                         _incompleteInputSequenceBuffer = "";
                         await DispatchCompleteInputTextAsync(flushed, ReadOnlyMemory<byte>.Empty, ct);
-                        // pendingRead is still alive — reuse it next iteration
-                        continue;
                     }
+                    continue;
                 }
 
-                var data = await pendingRead;
-                pendingRead = null; // consumed — will start a new read next iteration
-
-                if (data.IsEmpty)
-                    break;
-
+                var data = item.Data;
                 _metrics.TerminalInputBytes.Record(data.Length);
+
+                // Cancel any pending escape-sequence timeout — real data arrived.
+                _escapeFlushTimer?.Change(Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
 
                 // Tokenize input the same way we tokenize output, preserving
                 // incomplete escape sequences across read boundaries. Kitty KGP
@@ -594,25 +643,26 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var completeText = extracted.completeText;
                 _incompleteInputSequenceBuffer = extracted.incompleteSequence;
 
-                if (string.IsNullOrEmpty(completeText))
-                    continue;
+                if (!string.IsNullOrEmpty(completeText))
+                {
+                    await DispatchCompleteInputTextAsync(completeText, data, ct);
+                }
 
-                await DispatchCompleteInputTextAsync(completeText, data, ct);
+                // If there is an incomplete escape sequence and the timeout is enabled,
+                // start (or restart) the reusable timer.
+                if (_incompleteInputSequenceBuffer.Length > 0 && _escapeTimeout > TimeSpan.Zero)
+                {
+                    _escapeFlushTimer ??= _timeProvider.CreateTimer(
+                        OnEscapeFlushTimerFired, null,
+                        Timeout.InfiniteTimeSpan, Timeout.InfiniteTimeSpan);
+                    _escapeFlushTimer.Change(_escapeTimeout, Timeout.InfiniteTimeSpan);
+                }
             }
         }
         catch (OperationCanceledException)
         {
             // Normal shutdown
         }
-    }
-
-    /// <summary>
-    /// Wraps the presentation read so the result can be stored as a Task
-    /// and reused across loop iterations without re-awaiting a ValueTask.
-    /// </summary>
-    private async Task<ReadOnlyMemory<byte>> ReadPresentationInputAsync(CancellationToken ct)
-    {
-        return await _presentation!.ReadInputAsync(ct);
     }
 
     /// <summary>
@@ -5701,6 +5751,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         await _workload.DisposeAsync();
+
+        _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();

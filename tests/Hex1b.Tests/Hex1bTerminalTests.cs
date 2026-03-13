@@ -275,9 +275,9 @@ public class Hex1bTerminalTests
         // Send two bare escapes back-to-back, then a normal key.
         // The pump must survive both timeouts and still dispatch the 'a'.
         presentation.EnqueueInput("\x1b");
-        await Task.Delay(Hex1bTerminal.EscapeSequenceTimeout + TimeSpan.FromMilliseconds(20));
+        await Task.Delay(TimeSpan.FromMilliseconds(70));
         presentation.EnqueueInput("\x1b");
-        await Task.Delay(Hex1bTerminal.EscapeSequenceTimeout + TimeSpan.FromMilliseconds(20));
+        await Task.Delay(TimeSpan.FromMilliseconds(70));
         presentation.EnqueueInput("a");
 
         var events = new List<Hex1bKeyEvent>();
@@ -291,6 +291,64 @@ public class Hex1bTerminalTests
         Assert.Equal(Hex1bKey.Escape, events[0].Key);
         Assert.Equal(Hex1bKey.Escape, events[1].Key);
         Assert.Equal(Hex1bKey.A, events[2].Key);
+    }
+
+    [Fact]
+    public async Task PresentationInput_CustomEscapeTimeout_UsesConfiguredValue()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24,
+            EscapeSequenceTimeout = TimeSpan.FromMilliseconds(10)
+        });
+
+        presentation.EnqueueInput("\x1b");
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
+        Assert.Equal(Hex1bKey.Escape, keyEvent.Key);
+    }
+
+    [Fact]
+    public async Task PresentationInput_ZeroEscapeTimeout_DisablesFlush()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
+
+        // Send bare \x1b — with timeout disabled, it should stay buffered.
+        presentation.EnqueueInput("\x1b");
+
+        // Wait well beyond the default 50ms timeout
+        await Task.Delay(150);
+
+        // No event should have been dispatched
+        Assert.False(workload.InputEvents.TryRead(out _),
+            "With EscapeSequenceTimeout=Zero, bare ESC should stay buffered");
+
+        // Sending a continuation byte should produce the combined sequence (Alt+A)
+        presentation.EnqueueInput("a");
+
+        var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
+        Assert.Equal(Hex1bKey.A, keyEvent.Key);
+        Assert.Equal(Hex1bModifiers.Alt, keyEvent.Modifiers);
     }
 
     [Fact]
