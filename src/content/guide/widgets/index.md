@@ -45,6 +45,7 @@ Widgets for presenting information.
 - **[Charts](/guide/widgets/charts)** — Column, bar, breakdown, time series, and scatter charts
 - **[Icon](/guide/widgets/icon)** — Single character or emoji display with optional click
 - **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
+- **[Markdown](/guide/widgets/markdown)** — Rich markdown content with headings, code blocks, tables, and links
 - **[Notifications](/guide/widgets/notifications)** — Floating notifications with actions and drawer
 - **[Text](/guide/widgets/text)** — Rich text with styling and formatting
 - **[Progress](/guide/widgets/progress)** — Progress bars for known completion amounts
