@@ -260,6 +260,40 @@ public class Hex1bTerminalTests
     }
 
     [Fact]
+    public async Task PresentationInput_DoubleEscape_DoesNotKillEventPump()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        // Send two bare escapes back-to-back, then a normal key.
+        // The pump must survive both timeouts and still dispatch the 'a'.
+        presentation.EnqueueInput("\x1b");
+        await Task.Delay(Hex1bTerminal.EscapeSequenceTimeout + TimeSpan.FromMilliseconds(20));
+        presentation.EnqueueInput("\x1b");
+        await Task.Delay(Hex1bTerminal.EscapeSequenceTimeout + TimeSpan.FromMilliseconds(20));
+        presentation.EnqueueInput("a");
+
+        var events = new List<Hex1bKeyEvent>();
+        for (int i = 0; i < 3; i++)
+        {
+            var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
+                .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+            events.Add(Assert.IsType<Hex1bKeyEvent>(evt));
+        }
+
+        Assert.Equal(Hex1bKey.Escape, events[0].Key);
+        Assert.Equal(Hex1bKey.Escape, events[1].Key);
+        Assert.Equal(Hex1bKey.A, events[2].Key);
+    }
+
+    [Fact]
     public async Task AppInput_BareEscape_TriggersEscapeBinding()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
