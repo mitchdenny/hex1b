@@ -157,6 +157,10 @@ Block quotes support inline formatting and can span multiple lines:
 
 <StaticTerminalPreview svgPath="/svg/markdown-blockquote.svg" :code="blockquoteSnippet" />
 
+### Images
+
+Inline images (`![alt](url)`) are rendered using the Kitty Graphics Protocol when an image loader is provided via `.OnImageLoad()`. When no loader is configured or the loader returns `null`, the alt text is displayed as a text fallback. See [Image Loading](#image-loading) for configuration details.
+
 ### Thematic Breaks
 
 Horizontal rules (`---`, `***`, `___`) render as full-width dividers between content sections.
