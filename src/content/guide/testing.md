@@ -15,8 +15,9 @@ Hex1b's testing APIs work with any .NET testing framework. This guide uses **xUn
 Testing a Hex1b app involves:
 
 1. **Hex1bTerminal** - A virtual terminal that captures screen output
-2. **Hex1bInputSequenceBuilder** - A fluent API to simulate user input
-3. **Your test framework** - To run tests and make assertions
+2. **Hex1bTerminalInputSequenceBuilder** - A fluent API to build and run input sequences
+3. **Hex1bTerminalAutomator** - An imperative async API for complex tests with rich error diagnostics
+4. **Your test framework** - To run tests and make assertions
 
 ```csharp
 // The pattern
@@ -452,6 +453,223 @@ var sequence = new Hex1bInputSequenceBuilder()
     .Wait(200)  // Wait for debounce
     .Build();
 ```
+
+## Imperative Testing with Hex1bTerminalAutomator
+
+For complex integration tests, the `Hex1bTerminalAutomator` provides an imperative, async API that executes each step immediately. When a step fails, the exception includes a full breadcrumb trail of completed steps with timings and a terminal snapshot — making failures much easier to diagnose.
+
+### When to Use the Automator
+
+| Approach | Best For |
+|----------|----------|
+| `Hex1bTerminalInputSequenceBuilder` | Short, self-contained sequences (5-10 steps) |
+| `Hex1bTerminalAutomator` | Long integration tests, multi-step workflows, tests where debugging failures matters |
+
+### Basic Usage
+
+```csharp
+using Hex1b;
+using Hex1b.Automation;
+using Hex1b.Input;
+using Hex1b.Widgets;
+
+[Fact]
+public async Task MenuItem_NavigatesToNextItem()
+{
+    await using var terminal = Hex1bTerminal.CreateBuilder()
+        .WithHex1bApp((app, options) => ctx => CreateMenuBar(ctx))
+        .WithHeadless()
+        .WithDimensions(80, 24)
+        .Build();
+
+    var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+    var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromSeconds(5));
+
+    // Each line executes and completes before the next
+    await auto.WaitUntilTextAsync("File");       // step 1
+    await auto.EnterAsync();                      // step 2 - open menu
+    await auto.WaitUntilTextAsync("New");          // step 3
+    await auto.DownAsync();                        // step 4 - navigate to Open
+    await auto.WaitUntilAsync(                     // step 5
+        s => s.ContainsText("▶ Open"),
+        description: "Open to be selected");
+    await auto.EnterAsync();                       // step 6 - activate
+
+    await auto.Ctrl().KeyAsync(Hex1bKey.C);
+    await runTask;
+}
+```
+
+### Rich Error Diagnostics
+
+When a step fails, `Hex1bAutomationException` includes everything you need to diagnose the failure:
+
+```
+Hex1b.Automation.Hex1bAutomationException: Step 5 of 5 failed — WaitUntil timed out after 00:00:05
+  Condition: Open to be selected
+  at MenuBarTests.cs:42
+
+Completed steps (4 of 5):
+  [1] WaitUntilText("File")           — 120ms   ✓
+  [2] Key(Enter)                       — 0ms     ✓
+  [3] WaitUntilText("New")             — 340ms   ✓
+  [4] Key(DownArrow)                   — 0ms     ✓
+  [5] WaitUntil("Open to be selected") — FAILED after 5,000ms
+
+Total elapsed: 5,460ms
+
+Terminal snapshot at failure (80x24, cursor at 5,3, alternate screen):
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ File  Edit  View  Help                                                     │
+│┌─────────┐                                                                 │
+││ New     │                                                                 │
+││ Open    │                                                                 │
+│└─────────┘                                                                 │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+The exception also exposes structured properties for programmatic inspection:
+
+```csharp
+catch (Hex1bAutomationException ex)
+{
+    ex.FailedStepIndex        // 1-based index of the failing step
+    ex.FailedStepDescription  // e.g., "WaitUntilText(\"File\")"
+    ex.CompletedSteps         // IReadOnlyList<AutomationStepRecord>
+    ex.TotalElapsed           // Total time across all steps
+    ex.TerminalSnapshot       // Terminal state at failure
+    ex.CallerFilePath         // Source file where the step was called
+    ex.CallerLineNumber       // Line number where the step was called
+    ex.InnerException         // Original exception (e.g., WaitUntilTimeoutException)
+}
+```
+
+### Automator API
+
+#### Waiting
+
+```csharp
+// Wait for a condition
+await auto.WaitUntilAsync(s => s.ContainsText("Ready"), description: "app to be ready");
+
+// Convenience methods
+await auto.WaitUntilTextAsync("Hello");        // Wait for text to appear
+await auto.WaitUntilNoTextAsync("Loading");    // Wait for text to disappear
+await auto.WaitUntilAlternateScreenAsync();    // Wait for alternate screen
+
+// Custom timeout (overrides the default)
+await auto.WaitUntilTextAsync("Slow result", timeout: TimeSpan.FromSeconds(30));
+```
+
+#### Keyboard
+
+```csharp
+// Individual keys
+await auto.EnterAsync();
+await auto.TabAsync();
+await auto.EscapeAsync();
+await auto.SpaceAsync();
+await auto.BackspaceAsync();
+await auto.DeleteAsync();
+
+// Arrow keys
+await auto.UpAsync();
+await auto.DownAsync();
+await auto.LeftAsync();
+await auto.RightAsync();
+
+// Navigation
+await auto.HomeAsync();
+await auto.EndAsync();
+await auto.PageUpAsync();
+await auto.PageDownAsync();
+
+// Any key
+await auto.KeyAsync(Hex1bKey.F1);
+
+// Modifiers (consumed by the next key call)
+await auto.Ctrl().KeyAsync(Hex1bKey.S);           // Ctrl+S
+await auto.Shift().TabAsync();                     // Shift+Tab
+await auto.Ctrl().Shift().KeyAsync(Hex1bKey.Z);   // Ctrl+Shift+Z
+
+// Typing
+await auto.TypeAsync("Hello World");               // Fast type
+await auto.SlowTypeAsync("search", delay: TimeSpan.FromMilliseconds(50));
+```
+
+#### Mouse
+
+```csharp
+await auto.ClickAtAsync(10, 5);
+await auto.DoubleClickAtAsync(10, 5);
+await auto.MouseMoveToAsync(20, 10);
+await auto.DragAsync(10, 10, 30, 10);
+await auto.ScrollUpAsync(3);
+await auto.ScrollDownAsync();
+```
+
+#### Timing and Snapshots
+
+```csharp
+// Pause between steps
+await auto.WaitAsync(100);                          // 100ms
+await auto.WaitAsync(TimeSpan.FromSeconds(1));      // 1 second
+
+// Inspect the terminal at any point
+using var snapshot = auto.CreateSnapshot();
+
+// Review completed steps
+foreach (var step in auto.CompletedSteps)
+{
+    Console.WriteLine($"[{step.Index}] {step.Description} — {step.Elapsed.TotalMilliseconds}ms");
+}
+```
+
+#### Composability with SequenceAsync
+
+You can run a pre-built sequence or inline builder through the automator. The sequence is tracked as a single step in the automator's history:
+
+```csharp
+// Inline builder
+await auto.SequenceAsync(b => b
+    .Type("aspire new")
+    .Enter(),
+    description: "Run aspire new command");
+
+// Pre-built sequence
+var openMenu = new Hex1bTerminalInputSequenceBuilder()
+    .Enter()
+    .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(5))
+    .Build();
+
+await auto.SequenceAsync(openMenu, description: "Open file menu");
+```
+
+### Building Extension Methods
+
+The automator is designed for domain-specific extension methods. This is how you build reusable test helpers for your application:
+
+```csharp
+public static class MyAppAutomatorExtensions
+{
+    public static async Task LoginAsync(
+        this Hex1bTerminalAutomator auto, string username, string password)
+    {
+        await auto.WaitUntilTextAsync("Username:");
+        await auto.TypeAsync(username);
+        await auto.TabAsync();
+        await auto.TypeAsync(password);
+        await auto.EnterAsync();
+        await auto.WaitUntilTextAsync("Welcome");
+    }
+}
+
+// Usage in tests:
+await auto.LoginAsync("admin", "secret");
+await auto.WaitUntilTextAsync("Dashboard");
+```
+
+Each call inside the extension method is individually tracked in the step history, so if `LoginAsync` fails at the password tab, you'll see exactly which step timed out.
 
 ## Complete Example
 
