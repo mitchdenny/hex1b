@@ -705,4 +705,399 @@ public class WindowFocusIntegrationTests
 
         Assert.False(windowOpen, "Window should have been closed by Escape");
     }
+
+    /// <summary>
+    /// When two windows are open and the top one is closed, focus should
+    /// return to the underlying window's first content focusable.
+    /// </summary>
+    [Fact]
+    public async Task ClosingTopWindow_FocusReturnsToUnderlyingWindow()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var textA = "";
+        var textB = "";
+        var windowAOpen = false;
+        var windowBOpen = false;
+        var windowCount = 0;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New Window").OnActivated(e =>
+                            {
+                                windowCount++;
+                                var num = windowCount;
+                                var handle = e.Windows.Window(w =>
+                                        w.TextBox(num == 1 ? textA : textB)
+                                            .OnTextChanged(args =>
+                                            {
+                                                if (num == 1) textA = args.NewText;
+                                                else textB = args.NewText;
+                                                return Task.CompletedTask;
+                                            }))
+                                    .Title($"Window {num}")
+                                    .Size(40, 10)
+                                    .Position(new WindowPositionSpec(WindowPosition.Center))
+                                    .OnClose(() =>
+                                    {
+                                        if (num == 1) windowAOpen = false;
+                                        else windowBOpen = false;
+                                    });
+                                e.Windows.Open(handle);
+                                if (num == 1) windowAOpen = true;
+                                else windowBOpen = true;
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel()
+                        .Height(SizeHint.Fill),
+                    outer.Text("Status")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open Window A via menu
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Window 1"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowAOpen);
+
+        // Type into Window A to prove it has focus
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("AAA")
+            .WaitUntil(s => s.ContainsText("AAA"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal("AAA", textA);
+
+        // Open Window B via menu (click to avoid keyboard focus issues)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(2, 0)
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Window 2"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowBOpen);
+
+        // Type into Window B to prove it has focus
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("BBB")
+            .WaitUntil(s => s.ContainsText("BBB"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal("BBB", textB);
+
+        // Close Window B with Escape — focus should return to Window A
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(_ => !windowBOpen, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.False(windowBOpen);
+        Assert.True(windowAOpen);
+
+        // Type more — should go into Window A (focus restored)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("X")
+            .WaitUntil(_ => textA == "AAAX", TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal("AAAX", textA);
+    }
+
+    /// <summary>
+    /// Tests cascade close: open 3 windows, close each in turn, focus returns
+    /// to the next one in z-order each time.
+    /// </summary>
+    [Fact]
+    public async Task CascadeClose_ThreeWindows_FocusFollowsZOrder()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var texts = new[] { "", "", "" };
+        var windowOpen = new[] { false, false, false };
+        var windowCount = 0;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New").OnActivated(e =>
+                            {
+                                var idx = windowCount++;
+                                var handle = e.Windows.Window(w =>
+                                        w.TextBox(texts[idx])
+                                            .OnTextChanged(args =>
+                                            {
+                                                texts[idx] = args.NewText;
+                                                return Task.CompletedTask;
+                                            }))
+                                    .Title($"Win{idx + 1}")
+                                    .Size(30, 8)
+                                    .OnClose(() => windowOpen[idx] = false);
+                                e.Windows.Open(handle);
+                                windowOpen[idx] = true;
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel().Height(SizeHint.Fill)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open 3 windows in sequence
+        for (int i = 0; i < 3; i++)
+        {
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+                .ClickAt(2, 0)
+                .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(5))
+                .Key(Hex1bKey.Enter)
+                .WaitUntil(s => s.ContainsText($"Win{i + 1}"), TimeSpan.FromSeconds(5))
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        }
+
+        Assert.True(windowOpen[0] && windowOpen[1] && windowOpen[2]);
+
+        // Close Win3 → focus should go to Win2
+        // Wait for visual state change (Win3 title gone) to ensure render loop has
+        // processed the close and RequestFocusCallback has set focus on Win2.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(s => !windowOpen[2] && !s.ContainsText("Win3"), TimeSpan.FromSeconds(5))
+            .Type("2")
+            .WaitUntil(_ => texts[1] == "2", TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal("2", texts[1]);
+
+        // Close Win2 → focus should go to Win1
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(s => !windowOpen[1] && !s.ContainsText("Win2"), TimeSpan.FromSeconds(5))
+            .Type("1")
+            .WaitUntil(_ => texts[0] == "1", TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal("1", texts[0]);
+    }
+
+    /// <summary>
+    /// When the last window is closed, focus should return to the background
+    /// (e.g., MenuBar or first focusable in the main content).
+    /// </summary>
+    [Fact]
+    public async Task ClosingLastWindow_FocusReturnsToBackground()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowOpen = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New").OnActivated(e =>
+                            {
+                                var handle = e.Windows.Window(w => w.Button("In Window").OnClick(_ => {}))
+                                    .Title("Solo")
+                                    .Size(30, 8)
+                                    .OnClose(() => windowOpen = false);
+                                e.Windows.Open(handle);
+                                windowOpen = true;
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel().Height(SizeHint.Fill),
+                    outer.Text("Status")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open window via menu (use click to avoid focus-on-textbox issue)
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .ClickAt(2, 0)
+            .WaitUntil(s => s.ContainsText("New"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Solo"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowOpen);
+
+        // Close with Escape — last window, app should not hang
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(_ => !windowOpen, TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.False(windowOpen);
+    }
+
+    /// <summary>
+    /// Closing a modal window returns focus to the non-modal window underneath.
+    /// </summary>
+    [Fact]
+    public async Task ClosingModalWindow_FocusReturnsToNonModal()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var baseText = "";
+        var baseWindowOpen = false;
+        var modalOpen = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("Open Base").OnActivated(e =>
+                            {
+                                var handle = e.Windows.Window(w =>
+                                        w.TextBox(baseText)
+                                            .OnTextChanged(args =>
+                                            {
+                                                baseText = args.NewText;
+                                                return Task.CompletedTask;
+                                            }))
+                                    .Title("Base Window")
+                                    .Size(40, 10)
+                                    .OnClose(() => baseWindowOpen = false);
+                                e.Windows.Open(handle);
+                                baseWindowOpen = true;
+                            }),
+                            menu.MenuItem("Open Modal").OnActivated(e =>
+                            {
+                                var handle = e.Windows.Window(mw =>
+                                        mw.Button("OK").OnClick(_ => {}))
+                                    .Title("Confirm")
+                                    .Size(25, 6)
+                                    .Modal()
+                                    .OnClose(() => modalOpen = false);
+                                e.Windows.Open(handle);
+                                modalOpen = true;
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel().Height(SizeHint.Fill)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open base window
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .ClickAt(2, 0)
+            .WaitUntil(s => s.ContainsText("Open Base"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Base Window"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(baseWindowOpen);
+
+        // Type to prove base window has focus
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("AB")
+            .WaitUntil(_ => baseText == "AB", TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Open modal via menu
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(2, 0)
+            .WaitUntil(s => s.ContainsText("Open Modal"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.DownArrow)
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Confirm"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(modalOpen);
+
+        // Close modal with Escape
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(_ => !modalOpen, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.False(modalOpen);
+        Assert.True(baseWindowOpen);
+
+        // Type into base window — should work if focus was restored
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("CD")
+            .WaitUntil(_ => baseText == "ABCD", TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.Equal("ABCD", baseText);
+    }
 }

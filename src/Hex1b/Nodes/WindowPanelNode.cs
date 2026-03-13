@@ -152,11 +152,13 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
             }
         }
 
-        // Track removed windows for bounds clearing
+        // Track removed windows for bounds clearing and detect closures
+        var hasClosedWindow = false;
         foreach (var oldNode in WindowNodes)
         {
             if (!newWindowNodes.Any(n => n.Entry?.Id == oldNode.Entry?.Id))
             {
+                hasClosedWindow = true;
                 if (oldNode.Bounds.Width > 0 && oldNode.Bounds.Height > 0)
                 {
                     AddOrphanedChildBounds(oldNode.Bounds);
@@ -168,11 +170,15 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         WindowNodes.AddRange(newWindowNodes);
 
         // Focus management for windows.
-        // New windows must receive focus. We use the RequestFocusCallback when available
-        // so focus is set AFTER FocusRing.Rebuild with correct focusable state.
-        // This avoids stale FocusRing issues where popup items or menu nodes still
-        // appear focused from the previous cycle.
-        if (hasNewWindow && activeWindow?.Node != null)
+        // When a window is opened or closed, focus must move to the active window's
+        // first content focusable. We use RequestFocusCallback so focus is set AFTER
+        // FocusRing.Rebuild with correct focusable state.
+        // 
+        // For new windows: prevents stale FocusRing issues where popup/menu items
+        // still appear focused from the previous cycle.
+        // For closed windows: ensures focus returns to the next window in z-order
+        // instead of falling back to EnsureFocus which picks _focusables[0] (MenuBar).
+        if ((hasNewWindow || hasClosedWindow) && activeWindow?.Node != null)
         {
             var targetNode = activeWindow.Node;
             if (context.RequestFocusCallback != null)
