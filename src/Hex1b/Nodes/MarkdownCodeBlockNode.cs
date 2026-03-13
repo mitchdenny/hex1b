@@ -44,10 +44,9 @@ internal sealed class MarkdownCodeBlockNode : Hex1bNode
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        if (EditorChild != null)
-        {
-            foreach (var focusable in EditorChild.GetFocusableNodes())
-                yield return focusable;
-        }
+        // Code block editors are read-only display elements that should not
+        // participate in the focus ring. This ensures mouse scroll events
+        // pass through to the parent ScrollPanel instead of being consumed.
+        yield break;
     }
 }

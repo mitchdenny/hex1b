@@ -1453,4 +1453,56 @@ public class MarkdownIntegrationTests
 
         await runTask;
     }
+
+    [Fact]
+    public async Task Markdown_MouseScrollOverCodeBlock_ScrollsParentPanel()
+    {
+        // Build markdown with enough content to require scrolling, including a code block.
+        var lines = new List<string>
+        {
+            "# Top",
+            "",
+            "```csharp",
+            "var x = 1;",
+            "var y = 2;",
+            "var z = 3;",
+            "```",
+            ""
+        };
+
+        // Add lines to push "Bottom" well below the fold
+        for (int i = 0; i < 30; i++)
+            lines.Add($"Filler line {i}.");
+
+        lines.Add("");
+        lines.Add("## Bottom");
+
+        var source = string.Join("\n", lines);
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(60, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => ctx.VScrollPanel(ctx.Markdown(source)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Top"), TimeSpan.FromSeconds(5), "initial render")
+            // Position mouse over where the code block renders (roughly row 3-5)
+            .MouseMoveTo(10, 3)
+            // Scroll down with the mouse wheel over the code block area
+            .ScrollDown(10)
+            .Wait(TimeSpan.FromMilliseconds(500))
+            // After scrolling, "Top" should no longer be visible and filler should be
+            .WaitUntil(s => !s.ContainsText("Top"), TimeSpan.FromSeconds(3),
+                "parent panel scrolled past Top")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+    }
 }

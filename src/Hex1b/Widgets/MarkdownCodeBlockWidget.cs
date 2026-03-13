@@ -27,7 +27,17 @@ internal sealed record MarkdownCodeBlockWidget(string Content) : Hex1bWidget
 
         var editorWidget = new EditorWidget(node.CachedState!)
             .LineNumbers()
-            .FixedHeight(node.LineCount);
+            .FixedHeight(node.LineCount)
+            .WithInputBindings(bindings =>
+            {
+                // Remove scroll bindings so scroll events pass through to the
+                // parent ScrollPanel. These editors are sized exactly to their
+                // content, so scrolling within them is meaningless.
+                bindings.Remove(EditorWidget.ScrollUp);
+                bindings.Remove(EditorWidget.ScrollDown);
+                bindings.Remove(EditorWidget.ScrollLeft);
+                bindings.Remove(EditorWidget.ScrollRight);
+            });
 
         node.EditorChild = await context.ReconcileChildAsync(
             node.EditorChild, editorWidget, node);
