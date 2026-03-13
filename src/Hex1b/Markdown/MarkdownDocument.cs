@@ -329,7 +329,7 @@ public sealed class CodeInline : MarkdownInline
 }
 
 /// <summary>
-/// An inline link ([text](url)).
+/// An inline link (<c>[text](url)</c>).
 /// </summary>
 public sealed class LinkInline : MarkdownInline
 {
@@ -357,7 +357,7 @@ public sealed class LinkInline : MarkdownInline
 }
 
 /// <summary>
-/// An inline image (![alt](url)).
+/// An inline image (<c>![alt](url)</c>).
 /// </summary>
 public sealed class ImageInline : MarkdownInline
 {
