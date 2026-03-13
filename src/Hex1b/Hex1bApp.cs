@@ -1637,7 +1637,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
         // Create the root reconcile context with timer scheduling callback
         var context = ReconcileContext.CreateRoot(_focusRing, cancellationToken, Invalidate,
-            CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry);
+            CaptureInput, ReleaseCapture, ScheduleTimer, _windowManagerRegistry, RequestFocus);
         context.IsNew = existingNode is null || existingNode.GetType() != widget.GetExpectedNodeType();
         context.DiagnosticTimingEnabled = _diagnosticTimingEnabled;
         context.Metrics = _metrics.NodeReconcileDuration != null ? _metrics : null;

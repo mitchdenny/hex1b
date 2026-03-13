@@ -545,4 +545,164 @@ public class WindowFocusIntegrationTests
 
         Assert.True(windowClosed, $"Window should have been closed by ESC with NotificationPanel wrapper. FocusPath={InputRouter.LastPathDebug}");
     }
+
+    /// <summary>
+    /// Reproduction test matching the exact WindowingDemo widget tree, including
+    /// .Background(), .Unbounded(), .Fill() and NotificationPanel wrapping.
+    /// Verifies that a window opened via menu receives focus and can be closed with Escape.
+    /// </summary>
+    [Fact]
+    public async Task Window_ExactDemoTree_ReceivesFocusAndClosesWithEscape()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowClosed = false;
+        string? focusPathAtEscape = null;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.NotificationPanel(outer.VStack(main => [
+                        main.MenuBar(m => [
+                            m.Menu("File", menu => [
+                                menu.MenuItem("New Window").OnActivated(e =>
+                                {
+                                    var handle = e.Windows.Window(w => w.VStack(v => [
+                                            v.Text(""),
+                                            v.Text("  This is Window #1"),
+                                            v.Text(""),
+                                            v.Text("  Press Escape to close"),
+                                            v.Text(""),
+                                            v.HStack(h => [
+                                                h.Text("  "),
+                                                h.Button("Action").OnClick(_ => {}),
+                                                h.Text(" "),
+                                                h.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                            ])
+                                        ]))
+                                        .Title("Window 1")
+                                        .Size(45, 12)
+                                        .OnClose(() => windowClosed = true);
+                                    e.Windows.Open(handle);
+                                })
+                            ])
+                        ]),
+                        main.Text("Main content area"),
+                        main.WindowPanel()
+                            .Background(b => b.Text("background"))
+                            .Unbounded().Fill()
+                    ])).Fill()
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Window #1"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(s => windowClosed, TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(windowClosed,
+            $"Window should have been closed by ESC. FocusPathBeforeEsc={focusPathAtEscape}, FocusPathAfterEsc={InputRouter.LastPathDebug}");
+    }
+
+    /// <summary>
+    /// End-to-end test proving that opening a window via menu gives focus to
+    /// its first focusable child (TextBox), so typing works immediately.
+    /// Also proves Escape closes the window.
+    /// </summary>
+    [Fact]
+    public async Task Window_OpenedViaMenu_TextBoxReceivesFocus_CanTypeImmediately()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowOpen = false;
+        var typedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New Window").OnActivated(e =>
+                            {
+                                var handle = e.Windows.Window(w =>
+                                        w.TextBox(typedText).OnTextChanged(args =>
+                                        {
+                                            typedText = args.NewText;
+                                            return Task.CompletedTask;
+                                        }))
+                                    .Title("Input Window")
+                                    .Size(40, 10)
+                                    .Position(new WindowPositionSpec(WindowPosition.Center))
+                                    .OnClose(() => { windowOpen = false; });
+                                e.Windows.Open(handle);
+                                windowOpen = true;
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel()
+                        .Height(SizeHint.Fill),
+                    outer.Text("Status bar")
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open window via menu: Enter on File menu, Enter on New Window
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("New Window"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Input Window"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(windowOpen, "Window should be open");
+
+        // Type immediately — if focus is correct, text should appear in the TextBox
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Type("Hello")
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.Equal("Hello", typedText);
+
+        // Escape closes the window
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(_ => !windowOpen, TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.False(windowOpen, "Window should have been closed by Escape");
+    }
 }

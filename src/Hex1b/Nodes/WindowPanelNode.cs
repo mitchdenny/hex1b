@@ -168,42 +168,36 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         WindowNodes.AddRange(newWindowNodes);
 
         // Focus management for windows.
-        // New windows always get focus (even when a parent declares ManagesChildFocus,
-        // like VStack does). Without this, windows opened from menus never receive focus
-        // because the menu node retains stale focus and the VStack blocks focus transfer.
-        // For existing windows, respect the ParentManagesFocus convention (e.g., when
-        // popups are open and ZStack manages focus).
-        if (activeWindow?.Node != null)
+        // New windows must receive focus. We use the RequestFocusCallback when available
+        // so focus is set AFTER FocusRing.Rebuild with correct focusable state.
+        // This avoids stale FocusRing issues where popup items or menu nodes still
+        // appear focused from the previous cycle.
+        if (hasNewWindow && activeWindow?.Node != null)
         {
-            var focusables = activeWindow.Node.GetFocusableNodes().ToList();
-            var shouldSetFocus = hasNewWindow || !context.ParentManagesFocus();
-            
-            if (shouldSetFocus && focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
+            var targetNode = activeWindow.Node;
+            if (context.RequestFocusCallback != null)
             {
-                // Clear any existing external focus (e.g., from a menu node)
-                // so that only the active window has focus and receives input
-                var currentFocused = context.FocusRing.FocusedNode;
-                if (currentFocused != null)
+                // Deferred focus: runs after FocusRing.Rebuild with correct state.
+                // FocusWhere properly clears old focus and calls SyncAncestorFocusState.
+                // Target the first content focusable (skip WindowNode itself and title bar).
+                var contentNode = targetNode.Content;
+                if (contentNode != null)
                 {
-                    ReconcileContext.SetNodeFocus(currentFocused, false);
-                }
-
-                // Clear focus from other windows (not the active one)
-                foreach (var windowNode in WindowNodes)
-                {
-                    if (!ReferenceEquals(windowNode, activeWindow.Node))
+                    context.RequestFocusCallback(n =>
                     {
-                        foreach (var focusable in windowNode.GetFocusableNodes())
-                        {
-                            if (focusable.IsFocused)
-                            {
-                                ReconcileContext.SetNodeFocus(focusable, false);
-                            }
-                        }
-                    }
+                        var contentFocusables = contentNode.GetFocusableNodes();
+                        return contentFocusables.Any(f => ReferenceEquals(f, n));
+                    });
                 }
-
-                ReconcileContext.SetNodeFocus(focusables[0], true);
+            }
+            else
+            {
+                // Fallback for tests without Hex1bApp (direct node tests)
+                var focusables = targetNode.GetFocusableNodes().ToList();
+                if (focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
+                {
+                    ReconcileContext.SetNodeFocus(focusables[0], true);
+                }
             }
         }
     }
