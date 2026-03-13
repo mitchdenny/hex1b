@@ -464,8 +464,10 @@ public partial class YamlToMarkdownConverter
     private static string? CleanSummary(string? summary)
     {
         if (string.IsNullOrEmpty(summary)) return null;
-        // Remove XML tags and normalize whitespace
-        var clean = XmlTagRegex().Replace(summary, "");
+        // Convert <c>/<code> to backtick-wrapped code before stripping other XML tags
+        var clean = Regex.Replace(summary, @"<(?:c|code)>(.*?)</(?:c|code)>", "`$1`");
+        // Remove remaining XML tags and normalize whitespace
+        clean = XmlTagRegex().Replace(clean, "");
         clean = WhitespaceRegex().Replace(clean, " ").Trim();
         return clean;
     }

@@ -218,6 +218,10 @@ builder.Services.AddSingleton<IGalleryExample, FloatAlignmentExample>();
 // Register TilePanel widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, TilePanelBasicExample>();
 
+// Register Markdown widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, MarkdownBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, MarkdownLinksExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets

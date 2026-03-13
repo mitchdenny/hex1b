@@ -15,6 +15,12 @@ public sealed record GridWidget(
     IReadOnlyList<GridColumnDefinition> ColumnDefinitions,
     IReadOnlyList<GridRowDefinition> RowDefinitions) : Hex1bWidget
 {
+    /// <summary>
+    /// Controls whether box-drawing gridlines are rendered between cells.
+    /// Defaults to <see cref="Hex1b.GridLinesMode.None"/>.
+    /// </summary>
+    internal GridLinesMode GridLines { get; init; } = GridLinesMode.None;
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as GridNode ?? new GridNode();
@@ -93,6 +99,7 @@ public sealed record GridWidget(
         node.RowCount = rowCount;
         node.EffectiveColumnHints = effectiveColumns;
         node.EffectiveRowHints = effectiveRows;
+        node.GridLines = GridLines;
 
         return node;
     }

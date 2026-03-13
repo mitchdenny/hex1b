@@ -129,6 +129,8 @@ var kgpDemo = builder.AddCSharpApp("kgp-demo", "./samples/KgpDemo")
 // Tile panel demo
 var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
     .ExcludeFromManifest();
+var markdownSample = builder.AddCSharpApp("markdown-sample", "./samples/MarkdownSample")
+    .ExcludeFromManifest();
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)

@@ -63,6 +63,15 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// The maximum scroll offset.
     /// </summary>
     public int MaxOffset => Math.Max(0, ContentSize - ViewportSize);
+
+    /// <summary>
+    /// When set, <see cref="EnsureFocusedVisible"/> is suppressed as long as
+    /// this node remains the focused descendant. This allows child nodes
+    /// (e.g. markdown headings) to scroll the panel via <see cref="SetOffset"/>
+    /// without the layout phase immediately scrolling back. Cleared
+    /// automatically when focus moves to a different node.
+    /// </summary>
+    internal Hex1bNode? SuppressEnsureFocusedVisibleFor { get; set; }
     
     /// <summary>
     /// The scroll action to invoke when scrolling occurs.
@@ -405,6 +414,34 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// Must be called after Arrange so descendant Bounds are set.
     /// Returns true if offset changed (caller should re-arrange).
     /// </summary>
+    /// <summary>
+    /// Returns <c>false</c> when a child has suppressed auto-scroll and that
+    /// child is still the focused descendant.
+    /// </summary>
+    private bool ShouldEnsureFocusedVisible()
+    {
+        if (SuppressEnsureFocusedVisibleFor == null)
+            return true;
+
+        // Check if the suppressing node is still focused
+        foreach (var node in GetFocusableNodes())
+        {
+            if (node.IsFocused)
+            {
+                if (node == SuppressEnsureFocusedVisibleFor)
+                    return false; // still suppressed
+
+                // Focus moved to a different node — clear suppression
+                SuppressEnsureFocusedVisibleFor = null;
+                return true;
+            }
+        }
+
+        // Nothing is focused — clear suppression
+        SuppressEnsureFocusedVisibleFor = null;
+        return true;
+    }
+
     private bool EnsureFocusedVisible(int viewportStart, int viewportSize)
     {
         // Find the focused descendant
@@ -627,8 +664,9 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
             var childY = bounds.Y - Offset;
             Child.Arrange(new Rect(bounds.X, childY, viewportWidth, _contentSize.Height));
 
-            // Scroll to keep the focused descendant visible
-            if (EnsureFocusedVisible(bounds.Y, viewportHeight))
+            // Scroll to keep the focused descendant visible (unless suppressed
+            // by a child that is explicitly scrolling the panel).
+            if (ShouldEnsureFocusedVisible() && EnsureFocusedVisible(bounds.Y, viewportHeight))
             {
                 childY = bounds.Y - Offset;
                 Child.Arrange(new Rect(bounds.X, childY, viewportWidth, _contentSize.Height));
@@ -640,7 +678,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
             var childX = bounds.X - Offset;
             Child.Arrange(new Rect(childX, bounds.Y, _contentSize.Width, viewportHeight));
 
-            if (EnsureFocusedVisible(bounds.X, viewportWidth))
+            if (ShouldEnsureFocusedVisible() && EnsureFocusedVisible(bounds.X, viewportWidth))
             {
                 childX = bounds.X - Offset;
                 Child.Arrange(new Rect(childX, bounds.Y, _contentSize.Width, viewportHeight));
