@@ -88,6 +88,22 @@ public sealed class FocusRing
             _previouslyFocusedNode.IsFocused = false;
             _previouslyFocusedNode = null;
         }
+        
+        // Safety net: resolve multiple focused nodes (can happen when reconciliation
+        // sets focus on a new window without clearing stale focus from other nodes).
+        // Keep only the last focused node in tree order.
+        int lastFocusedIdx = -1;
+        for (int i = 0; i < _focusables.Count; i++)
+        {
+            if (_focusables[i].IsFocused)
+            {
+                if (lastFocusedIdx >= 0)
+                {
+                    _focusables[lastFocusedIdx].IsFocused = false;
+                }
+                lastFocusedIdx = i;
+            }
+        }
     }
 
     /// <summary>

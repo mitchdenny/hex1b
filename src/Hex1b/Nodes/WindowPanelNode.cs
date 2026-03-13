@@ -130,6 +130,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         var entries = Windows.All;
         var activeWindow = Windows.ActiveWindow;
         var newWindowNodes = new List<WindowNode>();
+        var hasNewWindow = false;
 
         for (int i = 0; i < entries.Count; i++)
         {
@@ -137,6 +138,7 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
 
             // Find existing node for this entry
             var existingNode = WindowNodes.FirstOrDefault(n => n.Entry?.Id == entry.Id);
+            if (existingNode == null) hasNewWindow = true;
 
             // Create the window widget and reconcile
             var windowWidget = new WindowWidget(entry);
@@ -165,13 +167,27 @@ public sealed class WindowPanelNode : Hex1bNode, IWindowHost, ILayoutProvider
         WindowNodes.Clear();
         WindowNodes.AddRange(newWindowNodes);
 
-        // Focus management: if windows exist, focus the active window's first focusable
-        // But ONLY if parent is not managing focus (e.g., when popups are open, ZStack manages focus)
-        if (activeWindow?.Node != null && !context.ParentManagesFocus())
+        // Focus management for windows.
+        // New windows always get focus (even when a parent declares ManagesChildFocus,
+        // like VStack does). Without this, windows opened from menus never receive focus
+        // because the menu node retains stale focus and the VStack blocks focus transfer.
+        // For existing windows, respect the ParentManagesFocus convention (e.g., when
+        // popups are open and ZStack manages focus).
+        if (activeWindow?.Node != null)
         {
             var focusables = activeWindow.Node.GetFocusableNodes().ToList();
-            if (focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
+            var shouldSetFocus = hasNewWindow || !context.ParentManagesFocus();
+            
+            if (shouldSetFocus && focusables.Count > 0 && !focusables.Any(f => f.IsFocused))
             {
+                // Clear any existing external focus (e.g., from a menu node)
+                // so that only the active window has focus and receives input
+                var currentFocused = context.FocusRing.FocusedNode;
+                if (currentFocused != null)
+                {
+                    ReconcileContext.SetNodeFocus(currentFocused, false);
+                }
+
                 // Clear focus from other windows (not the active one)
                 foreach (var windowNode in WindowNodes)
                 {

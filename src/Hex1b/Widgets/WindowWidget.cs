@@ -33,11 +33,20 @@ internal sealed record WindowWidget(WindowEntry Entry) : Hex1bWidget
         Entry.Node = node;
 
         // Focus first focusable in new windows
+        // Note: Focus is primarily managed by WindowPanelNode.ReconcileWindowsAsync.
+        // This is a fallback for cases where WindowPanel doesn't manage focus.
         if (context.IsNew && !context.ParentManagesFocus())
         {
             var focusables = node.GetFocusableNodes().ToList();
             if (focusables.Count > 0)
             {
+                // Clear any existing focus (e.g., from a menu node that opened this window)
+                // so that only the new window has focus and receives input
+                var currentFocused = context.FocusRing.FocusedNode;
+                if (currentFocused != null)
+                {
+                    ReconcileContext.SetNodeFocus(currentFocused, false);
+                }
                 ReconcileContext.SetNodeFocus(focusables[0], true);
             }
         }

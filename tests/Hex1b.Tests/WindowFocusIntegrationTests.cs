@@ -346,7 +346,7 @@ public class WindowFocusIntegrationTests
         Assert.False(window2Closed, "Window 2 should NOT have been closed");
     }
 
-    [Fact(Skip = "Focus management changed - WindowPanel no longer has Content, focus doesn't auto-transfer from sibling widgets")]
+    [Fact]
     public async Task OpeningWindowsViaMenu_SecondWindowGetsEscaped()
     {
         // This test mimics the actual user scenario - opening windows via menu bar
@@ -422,5 +422,64 @@ public class WindowFocusIntegrationTests
         // Window 2 should be closed (it was active), Window 1 should still be open
         Assert.True(window2Closed, $"Window 2 should have been closed by ESC. W1Closed={window1Closed}, W2Closed={window2Closed}. FocusPath={focusPath}");
         Assert.False(window1Closed, $"Window 1 should NOT have been closed. FocusPath={focusPath}");
+    }
+
+    /// <summary>
+    /// Tests that a frameless window (NoTitleBar) opened from a menu can be closed with Escape.
+    /// This is the exact scenario reported as broken in the WindowingDemo.
+    /// </summary>
+    [Fact]
+    public async Task FramelessWindow_OpenedViaMenu_ClosesWithEscape()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        var windowClosed = false;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("File", menu => [
+                            menu.MenuItem("New Frameless").OnActivated(e =>
+                            {
+                                var handle = e.Windows.Window(w => w.VStack(v => [
+                                        v.Text("Frameless content"),
+                                        v.Button("Close").OnClick(ev => ev.Windows.Close(w.Window))
+                                    ]))
+                                    .Size(30, 8)
+                                    .NoTitleBar()
+                                    .OnClose(() => windowClosed = true);
+                                e.Windows.Open(handle);
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel().Height(SizeHint.Fill)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("File"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("New Frameless"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Enter)
+            .WaitUntil(s => s.ContainsText("Frameless content"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Escape)
+            .WaitUntil(s => windowClosed, TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        Assert.True(windowClosed, $"Frameless window should have been closed by ESC. FocusPath={InputRouter.LastPathDebug}");
     }
 }
