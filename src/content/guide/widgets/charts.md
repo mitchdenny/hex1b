@@ -305,14 +305,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             .Value(d =&gt; d.Budget)
             .Title("Department Budgets")
             .ShowValues()
-            .FormatValue(v =&gt; $"\\${v / 1_000_000:F1}M"),
+            .FormatValue(v =&gt; "$" + (v / 1_000_000).ToString("F1") + "M"),
         v.BreakdownChart(budgets)
             .Label(d =&gt; d.Name)
             .Value(d =&gt; d.Budget)
             .Title("Budget Allocation")
             .ShowValues()
             .ShowPercentages()
-            .FormatValue(v =&gt; $"\\${v / 1_000:N0}K"),
+            .FormatValue(v =&gt; "$" + (v / 1_000).ToString("N0") + "K"),
     ]))
     .Build();
 
