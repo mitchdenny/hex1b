@@ -809,9 +809,10 @@ public class WindowFocusIntegrationTests
         Assert.Equal("BBB", textB);
 
         // Close Window B with Escape — focus should return to Window A
+        // Wait for Window 2 title to disappear (proves render completed with focus restored)
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Escape)
-            .WaitUntil(_ => !windowBOpen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => !s.ContainsText("Window 2"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -1079,9 +1080,10 @@ public class WindowFocusIntegrationTests
         Assert.True(modalOpen);
 
         // Close modal with Escape
+        // Wait for "Confirm" title to disappear (proves render completed with focus restored)
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.Escape)
-            .WaitUntil(_ => !modalOpen, TimeSpan.FromSeconds(5))
+            .WaitUntil(s => !s.ContainsText("Confirm"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
