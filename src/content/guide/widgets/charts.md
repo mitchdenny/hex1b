@@ -88,11 +88,13 @@ var diskUsage = new[]
 };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.BreakdownChart(diskUsage)
-        .Title("Disk Usage")
-        .ShowPercentages()
-        .ShowValues()
-    )
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.BreakdownChart(diskUsage)
+            .Title("Disk Usage"),
+        v.Legend(diskUsage)
+            .ShowPercentages()
+            .ShowValues(),
+    ]))
     .Build();
 
 await terminal.RunAsync();`
@@ -309,7 +311,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         v.BreakdownChart(budgets)
             .Label(d =&gt; d.Name)
             .Value(d =&gt; d.Budget)
-            .Title("Budget Allocation")
+            .Title("Budget Allocation"),
+        v.Legend(budgets)
+            .Label(d =&gt; d.Name)
+            .Value(d =&gt; d.Budget)
             .ShowValues()
             .ShowPercentages()
             .FormatValue(v =&gt; "$" + (v / 1_000).ToString("N0") + "K"),
@@ -320,11 +325,94 @@ await terminal.RunAsync();
 
 record Department(string Name, double Budget);`
 
+const donutBasicCode = `using Hex1b;
+using Hex1b.Charts;
+
+var languages = new[]
+{
+    new ChartItem("Go", 42),
+    new ChartItem("Rust", 28),
+    new ChartItem("C#", 30),
+    new ChartItem("Python", 55),
+    new ChartItem("Java", 38),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.DonutChart(languages)
+            .Title("Language Popularity")
+            .FillHeight(),
+        v.Legend(languages)
+            .ShowPercentages(),
+    ]))
+    .Build();
+
+await terminal.RunAsync();`
+
+const donutPieCode = `using Hex1b;
+using Hex1b.Charts;
+
+var expenses = new[]
+{
+    new ChartItem("Rent", 1200),
+    new ChartItem("Food", 450),
+    new ChartItem("Transport", 180),
+    new ChartItem("Utilities", 120),
+    new ChartItem("Entertainment", 200),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.DonutChart(expenses)
+            .HoleSize(0)
+            .Title("Monthly Expenses")
+            .FillHeight(),
+        v.Legend(expenses)
+            .ShowValues()
+            .ShowPercentages()
+            .FormatValue(v =&gt; "$" + v.ToString("N0")),
+    ]))
+    .Build();
+
+await terminal.RunAsync();`
+
+const legendCode = `using Hex1b;
+using Hex1b.Charts;
+
+var data = new[]
+{
+    new ChartItem("Engineering", 2_450_000),
+    new ChartItem("Marketing", 875_000),
+    new ChartItem("Sales", 1_200_000),
+    new ChartItem("Operations", 340_000),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+        v.HStack(h => [
+            h.DonutChart(data)
+                .Title("Budget Allocation")
+                .FillHeight(),
+            h.Legend(data)
+                .ShowValues()
+                .ShowPercentages()
+                .FormatValue(v =&gt; "$" + (v / 1_000).ToString("N0") + "K"),
+        ]),
+        v.BreakdownChart(data)
+            .Title("Budget Breakdown"),
+        v.Legend(data)
+            .Horizontal()
+            .ShowPercentages(),
+    ]))
+    .Build();
+
+await terminal.RunAsync();`
+
 </script>
 
 # Charts
 
-Visualize data with column charts, bar charts, breakdown charts, time series line charts, and scatter plots. All chart widgets use a generic data-binding pattern that works with any data type, with convenience overloads for ad-hoc data using `ChartItem`.
+Visualize data with column charts, bar charts, breakdown charts, donut/pie charts, time series line charts, and scatter plots. All chart widgets use a generic data-binding pattern that works with any data type, with convenience overloads for ad-hoc data using `ChartItem`. Use the standalone [Legend](#legend) widget to display labeled color swatches alongside any chart.
 
 ## Column Chart
 
@@ -363,9 +451,53 @@ Bar charts support all the same layouts and multi-series features as column char
 
 ## Breakdown Chart
 
-Display a proportional segmented bar showing how parts contribute to a whole. Each segment's width is proportional to its value relative to the total. Unlike column and bar charts, breakdown charts only support a single series.
+Display a proportional segmented bar showing how parts contribute to a whole. Each segment's width is proportional to its value relative to the total. Unlike column and bar charts, breakdown charts only support a single series. Pair with a [Legend](#legend) widget to display labels, values, and percentages.
 
 <CodeBlock lang="csharp" :code="breakdownCode" command="dotnet run" example="chart-breakdown" exampleTitle="Breakdown Chart" />
+
+## Donut Chart
+
+Display proportional data as colored arc segments around a ring. Each segment's arc length is proportional to its value relative to the total. The chart uses Unicode half-block characters (▀/▄) with independent foreground and background colors to achieve smooth circular shapes in the terminal.
+
+### Basic Usage
+
+<CodeBlock lang="csharp" :code="donutBasicCode" command="dotnet run" example="chart-donut-basic" exampleTitle="Donut Chart - Basic Usage" />
+
+### Pie Chart
+
+Set `.HoleSize(0)` to fill the center and render a solid pie chart instead of a ring:
+
+<CodeBlock lang="csharp" :code="donutPieCode" command="dotnet run" example="chart-donut-pie" exampleTitle="Pie Chart" />
+
+### Hole Size
+
+The `.HoleSize()` method controls the inner radius as a fraction of the outer radius:
+
+| Value | Effect |
+|-------|--------|
+| `0.0` | Solid pie chart (no hole) |
+| `0.3` | Thick ring with small center hole |
+| `0.5` | Classic donut (default) |
+| `0.8` | Thin ring with large center hole |
+
+## Legend
+
+The Legend widget displays labeled color swatches that can be placed anywhere in the widget tree. It uses the same data-binding pattern as chart widgets, making it easy to pair a legend with any chart. The legend uses a colored square swatch (■) for each item.
+
+<CodeBlock lang="csharp" :code="legendCode" command="dotnet run" example="chart-legend" exampleTitle="Legend Widget" />
+
+### Orientation
+
+By default, legend items are displayed vertically (one item per row). Call `.Horizontal()` to render all items on a single row, separated by spacing — useful when placing a legend below a chart.
+
+### Display Options
+
+| Method | Description |
+|--------|-------------|
+| `.ShowValues()` | Display the absolute numeric value next to each label |
+| `.ShowPercentages()` | Display the percentage of each value relative to the total |
+| `.FormatValue(double → string)` | Custom formatter for displayed values |
+| `.Horizontal()` | Render items on a single row instead of one per row |
 
 ## Time Series Chart
 
@@ -425,11 +557,11 @@ Override the default formatting with `.FormatValue()` to display values in any f
 
 <CodeBlock lang="csharp" :code="formattingCode" command="dotnet run" example="chart-formatting" exampleTitle="Charts - Custom Value Formatting" />
 
-Column, bar, and time series charts apply the formatter to Y-axis labels and data point values. Scatter charts provide separate `.FormatX()` and `.FormatY()` for each axis. Breakdown charts apply the formatter to values shown in the legend.
+Column, bar, and time series charts apply the formatter to Y-axis labels and data point values. Scatter charts provide separate `.FormatX()` and `.FormatY()` for each axis. The Legend widget applies the formatter to values displayed alongside each label.
 
 ## Generic Data Binding
 
-All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`, `TimeSeriesChartWidget<T>`, `ScatterChartWidget<T>`). Bind any data type by providing selector functions:
+All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`, `DonutChartWidget<T>`, `TimeSeriesChartWidget<T>`, `ScatterChartWidget<T>`). Bind any data type by providing selector functions:
 
 <CodeBlock lang="csharp" :code="genericBindingCode" command="dotnet run" example="chart-bar-grouped" exampleTitle="Bar Chart - Grouped with Generic Binding" />
 
@@ -509,9 +641,26 @@ var terminal = Hex1bTerminal.CreateBuilder()
 | `.Label(T → string)` | Segment label selector |
 | `.Value(T → double)` | Segment value selector |
 | `.Title(string)` | Chart title |
-| `.ShowValues(bool)` | Show absolute values in legend |
-| `.ShowPercentages(bool)` | Show percentages in legend |
-| `.FormatValue(double → string)` | Custom value formatter for legend |
+
+### Donut Chart Methods
+
+| Method | Description |
+|--------|-------------|
+| `.Label(T → string)` | Segment label selector |
+| `.Value(T → double)` | Segment value selector |
+| `.Title(string)` | Chart title |
+| `.HoleSize(double)` | Inner radius ratio (0.0 = pie, 0.5 = donut, default) |
+
+### Legend Methods
+
+| Method | Description |
+|--------|-------------|
+| `.Label(T → string)` | Item label selector |
+| `.Value(T → double)` | Item value selector |
+| `.ShowValues(bool)` | Display absolute values |
+| `.ShowPercentages(bool)` | Display percentages |
+| `.FormatValue(double → string)` | Custom value formatter |
+| `.Horizontal(bool)` | Render items on a single row |
 
 ### Time Series Methods
 
@@ -549,6 +698,7 @@ Charts render using the [Surface](/guide/widgets/surface) API internally. They u
 
 - **Column charts**: Vertical blocks (`▁▂▃▄▅▆▇█`) for fractional top edges
 - **Bar charts**: Horizontal blocks (`▏▎▍▌▋▊▉█`) for fractional right edges, vertical blocks for bar height edges
+- **Donut/pie charts**: Half-block characters (`▀▄`) with independent foreground/background colors for 2× vertical resolution, producing smooth circular shapes
 - **Time series &amp; scatter charts**: Braille characters (`U+2800–U+28FF`) with a 2×4 dot grid per cell for sub-cell point and line plotting
 - **Stacked segments**: Complementary foreground/background colors at segment boundaries for smooth visual transitions
 
