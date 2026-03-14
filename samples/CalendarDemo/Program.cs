@@ -4,6 +4,7 @@ var currentMonth = DateOnly.FromDateTime(DateTime.Today);
 var selectedDate = "None";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
     {
         return ctx.TabPanel(tp => [
