@@ -294,6 +294,20 @@ var terminal = Hex1bTerminal.CreateBuilder()
                         ];
                     })
             ]),
+            tp.Tab("Donut", t => [
+                t.DonutChart(diskUsage)
+                    .Title("Disk Usage")
+                    .ShowPercentages()
+                    .ShowValues()
+                    .FillHeight(),
+            ]),
+            tp.Tab("Pie", t => [
+                t.DonutChart(diskUsage)
+                    .Title("Disk Usage (Pie)")
+                    .HoleSize(0)
+                    .ShowPercentages()
+                    .FillHeight(),
+            ]),
             tp.Tab("Time Series", t => [
                 t.TimeSeriesChart(temperatureData)
                     .Label(d => d.Month)
