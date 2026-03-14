@@ -1,4 +1,3 @@
-using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Widgets;
 
@@ -6,8 +5,10 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// Render node for <see cref="CalendarWidget"/>. Wraps an internally-built
-/// <see cref="GridNode"/> that contains the actual calendar cells, and manages
-/// focus, selection state, and keyboard navigation.
+/// <see cref="GridNode"/> that contains interactive day cells. The grid's
+/// child <see cref="InteractableNode"/>s handle focus and click events
+/// individually — this node delegates layout, rendering, and focus traversal
+/// to the child grid.
 /// </summary>
 public sealed class CalendarNode : Hex1bNode
 {
@@ -54,86 +55,7 @@ public sealed class CalendarNode : Hex1bNode
         }
     }
 
-    /// <summary>
-    /// The async action to execute when a day is selected.
-    /// </summary>
-    internal Func<InputBindingActionContext, Task>? SelectAction { get; set; }
-
-    private bool _isFocused;
-    public override bool IsFocused
-    {
-        get => _isFocused;
-        set
-        {
-            if (_isFocused != value)
-            {
-                _isFocused = value;
-                MarkDirty();
-            }
-        }
-    }
-
-    private bool _isHovered;
-    public override bool IsHovered
-    {
-        get => _isHovered;
-        set
-        {
-            if (_isHovered != value)
-            {
-                _isHovered = value;
-                MarkDirty();
-            }
-        }
-    }
-
-    public override bool IsFocusable => true;
-
-    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
-    {
-        bindings.Key(Hex1bKey.LeftArrow).Triggers(CalendarWidget.MoveLeft, NavigateLeft, "Previous day");
-        bindings.Key(Hex1bKey.RightArrow).Triggers(CalendarWidget.MoveRight, NavigateRight, "Next day");
-        bindings.Key(Hex1bKey.UpArrow).Triggers(CalendarWidget.MoveUp, NavigateUp, "Previous week");
-        bindings.Key(Hex1bKey.DownArrow).Triggers(CalendarWidget.MoveDown, NavigateDown, "Next week");
-        bindings.Key(Hex1bKey.Enter).Triggers(CalendarWidget.Select, SelectDay, "Select day");
-        bindings.Key(Hex1bKey.Spacebar).Triggers(CalendarWidget.Select, SelectDay, "Select day");
-    }
-
-    private Task NavigateLeft(InputBindingActionContext ctx)
-    {
-        if (SelectedDay > 1)
-            SelectedDay--;
-        return Task.CompletedTask;
-    }
-
-    private Task NavigateRight(InputBindingActionContext ctx)
-    {
-        if (SelectedDay < DaysInMonth)
-            SelectedDay++;
-        return Task.CompletedTask;
-    }
-
-    private Task NavigateUp(InputBindingActionContext ctx)
-    {
-        if (SelectedDay > 7)
-            SelectedDay -= 7;
-        return Task.CompletedTask;
-    }
-
-    private Task NavigateDown(InputBindingActionContext ctx)
-    {
-        if (SelectedDay + 7 <= DaysInMonth)
-            SelectedDay += 7;
-        return Task.CompletedTask;
-    }
-
-    private async Task SelectDay(InputBindingActionContext ctx)
-    {
-        if (SelectAction != null)
-        {
-            await SelectAction(ctx);
-        }
-    }
+    public override bool IsFocusable => false;
 
     protected override Size MeasureCore(Constraints constraints)
     {
@@ -160,8 +82,18 @@ public sealed class CalendarNode : Hex1bNode
             yield return Child;
     }
 
+    /// <summary>
+    /// Delegates focusable nodes to the child grid so individual day cells
+    /// (wrapped in <see cref="InteractableNode"/>) appear in the focus ring.
+    /// </summary>
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        yield return this;
+        if (Child != null)
+        {
+            foreach (var focusable in Child.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
     }
 }

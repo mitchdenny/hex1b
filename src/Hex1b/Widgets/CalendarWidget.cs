@@ -1,6 +1,5 @@
 using System.Globalization;
 using Hex1b.Events;
-using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Theming;
@@ -15,16 +14,6 @@ namespace Hex1b.Widgets;
 /// <param name="Month">The month to display. Only the Year and Month components are used.</param>
 public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 {
-    /// <summary>Rebindable action: Move selection left (previous day).</summary>
-    public static readonly ActionId MoveLeft = new($"{nameof(CalendarWidget)}.{nameof(MoveLeft)}");
-    /// <summary>Rebindable action: Move selection right (next day).</summary>
-    public static readonly ActionId MoveRight = new($"{nameof(CalendarWidget)}.{nameof(MoveRight)}");
-    /// <summary>Rebindable action: Move selection up (previous week).</summary>
-    public static readonly ActionId MoveUp = new($"{nameof(CalendarWidget)}.{nameof(MoveUp)}");
-    /// <summary>Rebindable action: Move selection down (next week).</summary>
-    public static readonly ActionId MoveDown = new($"{nameof(CalendarWidget)}.{nameof(MoveDown)}");
-    /// <summary>Rebindable action: Select the current day.</summary>
-    public static readonly ActionId Select = new($"{nameof(CalendarWidget)}.{nameof(Select)}");
 
     /// <summary>
     /// Whether to show the day-of-week header row (Sun, Mon, Tue, etc.). Defaults to true.
@@ -88,23 +77,8 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
             node.SelectedDay = daysInMonth;
         }
 
-        // Wire up the select action
-        if (SelectedHandler != null)
-        {
-            node.SelectAction = async ctx =>
-            {
-                var selectedDate = new DateOnly(Month.Year, Month.Month, node.SelectedDay);
-                var args = new CalendarDateSelectedEventArgs(this, node, ctx, selectedDate);
-                await SelectedHandler(args);
-            };
-        }
-        else
-        {
-            node.SelectAction = null;
-        }
-
-        // Build the inner grid widget
-        var gridWidget = BuildGridWidget(node.SelectedDay, daysInMonth);
+        // Build the inner grid widget with interactive day cells
+        var gridWidget = BuildGridWidget(node, daysInMonth);
 
         // Reconcile the grid as a child of this node
         node.Child = await context.ReconcileChildAsync(node.Child, gridWidget, node);
@@ -116,9 +90,12 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 
     /// <summary>
     /// Builds the internal <see cref="GridWidget"/> representing the calendar month layout.
+    /// Each day cell is wrapped in an <see cref="InteractableWidget"/> so it is individually
+    /// focusable, clickable, and hoverable.
     /// </summary>
-    internal GridWidget BuildGridWidget(int selectedDay, int daysInMonth)
+    internal GridWidget BuildGridWidget(CalendarNode node, int daysInMonth)
     {
+        var selectedDay = node.SelectedDay;
         var firstOfMonth = new DateOnly(Month.Year, Month.Month, 1);
         var today = Today ?? DateOnly.FromDateTime(DateTime.Today);
 
@@ -150,7 +127,7 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
             currentRow++;
         }
 
-        // Day cells
+        // Day cells — each wrapped in InteractableWidget for click/focus support
         for (int day = 1; day <= daysInMonth; day++)
         {
             var dayOffset = firstDayOffset + (day - 1);
@@ -159,35 +136,45 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 
             var dateForDay = new DateOnly(Month.Year, Month.Month, day);
             var isToday = dateForDay == today;
-            var isSelected = day == selectedDay;
             var isWeekend = dateForDay.DayOfWeek is DayOfWeek.Saturday or DayOfWeek.Sunday;
 
-            // Build the day number text with ANSI styling
-            var dayText = BuildDayText(day, isToday, isSelected);
+            // Capture for closure
+            var capturedDay = day;
+            var capturedDate = dateForDay;
 
-            // Check for Day builder content
-            Hex1bWidget cellContent;
-            if (DayBuilder != null)
+            var interactable = new InteractableWidget(ic =>
             {
-                var dayContext = new CalendarDayContext(dateForDay, isToday, isSelected, isWeekend, dateForDay.DayOfWeek);
-                var customContent = DayBuilder(dayContext);
+                var isSelected = capturedDay == node.SelectedDay;
+                var dayText = BuildDayText(capturedDay, isToday, isSelected, ic.IsFocused);
 
-                if (customContent != null)
+                if (DayBuilder != null)
                 {
-                    // HStack: [day number, custom content]
-                    cellContent = new HStackWidget([new TextBlockWidget(dayText), customContent]);
+                    var dayContext = new CalendarDayContext(capturedDate, isToday, isSelected, isWeekend, capturedDate.DayOfWeek);
+                    var customContent = DayBuilder(dayContext);
+
+                    if (customContent != null)
+                    {
+                        return new HStackWidget([new TextBlockWidget(dayText), customContent]);
+                    }
                 }
-                else
-                {
-                    cellContent = new TextBlockWidget(dayText);
-                }
-            }
-            else
+
+                return new TextBlockWidget(dayText);
+            })
+            .OnClick(args =>
             {
-                cellContent = new TextBlockWidget(dayText);
-            }
+                node.SelectedDay = capturedDay;
 
-            cells.Add(new GridCellWidget(cellContent)
+                if (SelectedHandler != null)
+                {
+                    var selectedDate = new DateOnly(Month.Year, Month.Month, capturedDay);
+                    var eventArgs = new CalendarDateSelectedEventArgs(this, node, args.Context, selectedDate);
+                    return SelectedHandler(eventArgs);
+                }
+
+                return Task.CompletedTask;
+            });
+
+            cells.Add(new GridCellWidget(interactable)
                 .Row(row).Column(col));
         }
 
@@ -219,28 +206,15 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
     /// <summary>
     /// Builds the ANSI-styled text for a day number.
     /// </summary>
-    private static string BuildDayText(int day, bool isToday, bool isSelected)
+    private static string BuildDayText(int day, bool isToday, bool isSelected, bool isFocused)
     {
         var dayStr = day.ToString().PadLeft(2);
 
-        if (isToday && isSelected)
+        if (isToday || isSelected || isFocused)
         {
-            // Both today and selected: use reverse video
             return $"\x1b[7m {dayStr} \x1b[0m";
         }
-        else if (isToday)
-        {
-            // Today: inverted
-            return $"\x1b[7m {dayStr} \x1b[0m";
-        }
-        else if (isSelected)
-        {
-            // Selected: reverse video (visually distinct when focused)
-            return $"\x1b[7m {dayStr} \x1b[0m";
-        }
-        else
-        {
-            return $" {dayStr} ";
-        }
+
+        return $" {dayStr} ";
     }
 }
