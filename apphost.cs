@@ -79,6 +79,10 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
         }
     });
 
+// Calendar demo
+var calendarDemo = builder.AddCSharpApp("calendar-demo", "./samples/CalendarDemo")
+    .ExcludeFromManifest();
+
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
