@@ -237,11 +237,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Creates a new terminal with the specified options.
     /// </summary>
     /// <param name="options">Terminal configuration options.</param>
-    /// <param name="escapeSequenceTimeout">
-    /// How long to wait after a bare ESC byte before treating it as a standalone Escape key.
-    /// Defaults to 50 ms. Set to <see cref="TimeSpan.Zero"/> to disable.
-    /// </param>
-    public Hex1bTerminal(Hex1bTerminalOptions options, TimeSpan? escapeSequenceTimeout = null)
+    public Hex1bTerminal(Hex1bTerminalOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);
         
@@ -293,7 +289,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
         
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
-        _escapeTimeout = escapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
+        _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;

@@ -303,8 +303,9 @@ public class Hex1bTerminalTests
             PresentationAdapter = presentation,
             WorkloadAdapter = workload,
             Width = 80,
-            Height = 24
-        }, escapeSequenceTimeout: TimeSpan.FromMilliseconds(10));
+            Height = 24,
+            EscapeSequenceTimeout = TimeSpan.FromMilliseconds(10)
+        });
 
         presentation.EnqueueInput("\x1b");
 
@@ -325,8 +326,9 @@ public class Hex1bTerminalTests
             PresentationAdapter = presentation,
             WorkloadAdapter = workload,
             Width = 80,
-            Height = 24
-        }, escapeSequenceTimeout: TimeSpan.Zero);
+            Height = 24,
+            EscapeSequenceTimeout = TimeSpan.Zero
+        });
 
         // Send bare \x1b — with timeout disabled, it should stay buffered.
         presentation.EnqueueInput("\x1b");

@@ -221,7 +221,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             {
                 PresentationAdapter = presentation,
                 WorkloadAdapter = workload
-            }, escapeSequenceTimeout: options.EscapeSequenceTimeout);
+            });
             _adapter = workload;
         }
         
