@@ -20,22 +20,18 @@ public sealed class DonutChartNode<T> : Hex1bNode
     public IReadOnlyList<T>? Data { get; set; }
     public Func<T, string>? LabelSelector { get; set; }
     public Func<T, double>? ValueSelector { get; set; }
-    public bool ShowValues { get; set; }
-    public bool ShowPercentages { get; set; }
     public string? Title { get; set; }
     public double HoleSizeRatio { get; set; } = 0.5;
-    public Func<double, string>? ValueFormatter { get; set; }
 
     /// <inheritdoc />
     protected override Size MeasureCore(Constraints constraints)
     {
-        var legendRows = Data?.Count ?? 0;
         var titleHeight = Title is not null ? 1 : 0;
 
         var availWidth = constraints.MaxWidth == int.MaxValue ? 40 : constraints.MaxWidth;
         // Donut diameter in pixels = availWidth, cell rows = ceil(diameter / 2)
         var donutCellRows = (availWidth + 1) / 2;
-        var idealHeight = titleHeight + donutCellRows + legendRows;
+        var idealHeight = titleHeight + donutCellRows;
 
         var width = availWidth;
         var height = Math.Min(idealHeight, constraints.MaxHeight);
@@ -88,8 +84,7 @@ public sealed class DonutChartNode<T> : Hex1bNode
         }
 
         // Calculate donut dimensions
-        var legendRows = segments.Count;
-        var donutCellRows = Math.Max(1, height - titleHeight - legendRows);
+        var donutCellRows = Math.Max(1, height - titleHeight);
         var donutPixelHeight = donutCellRows * 2; // half-block gives 2 pixels per cell row
         var donutPixelWidth = width;
 
@@ -129,14 +124,18 @@ public sealed class DonutChartNode<T> : Hex1bNode
                 if (dist < innerRadius || dist > outerRadius)
                     continue;
 
+                // Single segment covers the full circle
+                if (segments.Count == 1)
+                {
+                    pixels[px, py] = 0;
+                    continue;
+                }
+
                 var angle = Math.Atan2(dy, dx);
 
                 // Find which segment this angle belongs to
                 for (int i = 0; i < segments.Count; i++)
                 {
-                    var startAngle = NormalizeAngle(segmentAngles[i]);
-                    var endAngle = NormalizeAngle(segmentAngles[i + 1]);
-
                     if (AngleInRange(angle, segmentAngles[i], segmentAngles[i + 1]))
                     {
                         pixels[px, py] = i;
@@ -190,10 +189,6 @@ public sealed class DonutChartNode<T> : Hex1bNode
             }
         }
 
-        // Draw legend
-        var legendStartY = donutStartY + donutCellRows;
-        DrawLegend(surface, segments, colors, total, legendStartY, width, height);
-
         // Composite
         if (context is SurfaceRenderContext surfCtx)
         {
@@ -209,60 +204,6 @@ public sealed class DonutChartNode<T> : Hex1bNode
         yield break;
     }
 
-    private void DrawLegend(
-        Surface surface,
-        List<DonutSegment> segments,
-        Hex1bColor[] colors,
-        double total,
-        int startY,
-        int width,
-        int height)
-    {
-        var labelColor = Hex1bColor.FromRgb(200, 200, 200);
-        var dimColor = Hex1bColor.FromRgb(140, 140, 140);
-
-        for (int i = 0; i < segments.Count; i++)
-        {
-            var y = startY + i;
-            if (y >= height) break;
-
-            var seg = segments[i];
-            var color = colors[i % colors.Length];
-
-            // Color swatch
-            if (0 < width) surface[0, y] = new SurfaceCell("█", color, null);
-            if (1 < width) surface[1, y] = new SurfaceCell(" ", null, null);
-
-            // Label
-            var x = 2;
-            WriteText(surface, x, y, seg.Label, labelColor);
-            x += seg.Label.Length;
-
-            // Value / percentage
-            if (ShowValues || ShowPercentages)
-            {
-                var fmt = ValueFormatter ?? ChartFormatters.FormatValue;
-                var suffix = "";
-                if (ShowValues && ShowPercentages)
-                {
-                    var pct = seg.Value / total * 100;
-                    suffix = $" ({fmt(seg.Value)}, {pct:F1}%)";
-                }
-                else if (ShowValues)
-                {
-                    suffix = $" ({fmt(seg.Value)})";
-                }
-                else if (ShowPercentages)
-                {
-                    var pct = seg.Value / total * 100;
-                    suffix = $" ({pct:F1}%)";
-                }
-
-                WriteText(surface, x, y, suffix, dimColor);
-            }
-        }
-    }
-
     private static void WriteText(Surface surface, int x, int y, string text, Hex1bColor color)
     {
         if (y < 0 || y >= surface.Height) return;
@@ -271,16 +212,6 @@ public sealed class DonutChartNode<T> : Hex1bNode
             if (x + i < 0) continue;
             surface[x + i, y] = new SurfaceCell(text[i].ToString(), color, null);
         }
-    }
-
-    /// <summary>
-    /// Normalizes an angle to the range [-π, π).
-    /// </summary>
-    private static double NormalizeAngle(double angle)
-    {
-        while (angle > Math.PI) angle -= 2 * Math.PI;
-        while (angle <= -Math.PI) angle += 2 * Math.PI;
-        return angle;
     }
 
     /// <summary>

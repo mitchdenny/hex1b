@@ -38,10 +38,13 @@ public class ChartBreakdownExample(ILogger<ChartBreakdownExample> logger) : Hex1
         return () =>
         {
             var ctx = new RootContext();
-            return ctx.BreakdownChart(diskUsage)
-                .Title("Disk Usage")
-                .ShowPercentages()
-                .ShowValues();
+            return ctx.VStack(v => [
+                v.BreakdownChart(diskUsage)
+                    .Title("Disk Usage"),
+                v.Legend(diskUsage)
+                    .ShowPercentages()
+                    .ShowValues(),
+            ]);
         };
     }
 }

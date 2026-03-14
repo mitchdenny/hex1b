@@ -5,7 +5,7 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// A widget that displays a proportional segmented bar with an optional legend.
+/// A widget that displays a proportional segmented bar.
 /// </summary>
 /// <typeparam name="T">The type of data item bound to the chart.</typeparam>
 /// <remarks>
@@ -17,16 +17,21 @@ namespace Hex1b.Widgets;
 /// Unlike <see cref="ColumnChartWidget{T}"/> and <see cref="BarChartWidget{T}"/>,
 /// this widget only supports a single series — no grouped or stacked modes.
 /// </para>
+/// <para>
+/// Use <see cref="LegendWidget{T}"/> to display a legend alongside this chart.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// ctx.BreakdownChart([new("Data", 42), new("Packages", 18), new("Temp", 9)])
-///     .ShowPercentages()
 ///     .Title("Disk Usage")
+/// ctx.Legend([new("Data", 42), new("Packages", 18), new("Temp", 9)])
+///     .ShowPercentages()
 /// </code>
 /// </example>
 /// <seealso cref="ColumnChartWidget{T}"/>
 /// <seealso cref="BarChartWidget{T}"/>
+/// <seealso cref="LegendWidget{T}"/>
 public sealed record BreakdownChartWidget<T> : Hex1bWidget
 {
     /// <summary>
@@ -45,25 +50,9 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
     internal Func<T, double>? ValueSelector { get; init; }
 
     /// <summary>
-    /// Gets whether to display absolute values in the legend.
-    /// </summary>
-    internal bool IsShowingValues { get; init; }
-
-    /// <summary>
-    /// Gets whether to display percentages in the legend.
-    /// </summary>
-    internal bool IsShowingPercentages { get; init; }
-
-    /// <summary>
     /// Gets the optional chart title displayed above the bar.
     /// </summary>
     internal string? ChartTitle { get; init; }
-
-    /// <summary>
-    /// Gets the custom value formatter for legend display.
-    /// When <see langword="null"/>, the default chart formatter is used.
-    /// </summary>
-    public Func<double, string>? ValueFormatter { get; init; }
 
     #region Fluent Methods
 
@@ -80,35 +69,10 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
         => this with { ValueSelector = selector };
 
     /// <summary>
-    /// Sets whether to display absolute values in the legend.
-    /// </summary>
-    public BreakdownChartWidget<T> ShowValues(bool show = true)
-        => this with { IsShowingValues = show };
-
-    /// <summary>
-    /// Sets whether to display percentages in the legend.
-    /// </summary>
-    public BreakdownChartWidget<T> ShowPercentages(bool show = true)
-        => this with { IsShowingPercentages = show };
-
-    /// <summary>
     /// Sets the chart title displayed above the bar.
     /// </summary>
     public BreakdownChartWidget<T> Title(string title)
         => this with { ChartTitle = title };
-
-    /// <summary>
-    /// Sets a custom value formatter for legend display.
-    /// </summary>
-    /// <example>
-    /// <code>
-    /// ctx.BreakdownChart(data)
-    ///     .ShowValues()
-    ///     .FormatValue(v =&gt; $"${v:F2}")
-    /// </code>
-    /// </example>
-    public BreakdownChartWidget<T> FormatValue(Func<double, string> formatter)
-        => this with { ValueFormatter = formatter };
 
     #endregion
 
@@ -121,10 +85,7 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
         node.Data = Data;
         node.LabelSelector = LabelSelector;
         node.ValueSelector = ValueSelector;
-        node.ShowValues = IsShowingValues;
-        node.ShowPercentages = IsShowingPercentages;
         node.Title = ChartTitle;
-        node.ValueFormatter = ValueFormatter;
 
         return Task.FromResult<Hex1bNode>(node);
     }

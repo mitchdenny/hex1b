@@ -48,7 +48,10 @@ public class ChartFormattingExample(ILogger<ChartFormattingExample> logger) : He
                 v.BreakdownChart(budgets)
                     .Label(d => d.Name)
                     .Value(d => d.Budget)
-                    .Title("Budget Allocation")
+                    .Title("Budget Allocation"),
+                v.Legend(budgets)
+                    .Label(d => d.Name)
+                    .Value(d => d.Budget)
                     .ShowValues()
                     .ShowPercentages()
                     .FormatValue(v => "$" + (v / 1_000).ToString("N0") + "K"),

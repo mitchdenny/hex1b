@@ -20,15 +20,20 @@ namespace Hex1b.Widgets;
 /// Set <see cref="HoleSizeRatio"/> to <c>0.0</c> for a solid pie chart or leave at the
 /// default <c>0.5</c> for a classic donut.
 /// </para>
+/// <para>
+/// Use <see cref="LegendWidget{T}"/> to display a legend alongside this chart.
+/// </para>
 /// </remarks>
 /// <example>
 /// <code>
 /// ctx.DonutChart([new("Go", 42), new("Rust", 28), new("C#", 30)])
 ///     .Title("Languages")
+/// ctx.Legend([new("Go", 42), new("Rust", 28), new("C#", 30)])
 ///     .ShowPercentages()
 /// </code>
 /// </example>
 /// <seealso cref="BreakdownChartWidget{T}"/>
+/// <seealso cref="LegendWidget{T}"/>
 public sealed record DonutChartWidget<T> : Hex1bWidget
 {
     /// <summary>
@@ -47,16 +52,6 @@ public sealed record DonutChartWidget<T> : Hex1bWidget
     internal Func<T, double>? ValueSelector { get; init; }
 
     /// <summary>
-    /// Gets whether to display absolute values in the legend.
-    /// </summary>
-    internal bool IsShowingValues { get; init; }
-
-    /// <summary>
-    /// Gets whether to display percentages in the legend.
-    /// </summary>
-    internal bool IsShowingPercentages { get; init; }
-
-    /// <summary>
     /// Gets the optional chart title displayed above the donut.
     /// </summary>
     internal string? ChartTitle { get; init; }
@@ -66,12 +61,6 @@ public sealed record DonutChartWidget<T> : Hex1bWidget
     /// Default is 0.5.
     /// </summary>
     internal double HoleSizeRatio { get; init; } = 0.5;
-
-    /// <summary>
-    /// Gets the custom value formatter for legend display.
-    /// When <see langword="null"/>, the default chart formatter is used.
-    /// </summary>
-    public Func<double, string>? ValueFormatter { get; init; }
 
     #region Fluent Methods
 
@@ -88,18 +77,6 @@ public sealed record DonutChartWidget<T> : Hex1bWidget
         => this with { ValueSelector = selector };
 
     /// <summary>
-    /// Sets whether to display absolute values in the legend.
-    /// </summary>
-    public DonutChartWidget<T> ShowValues(bool show = true)
-        => this with { IsShowingValues = show };
-
-    /// <summary>
-    /// Sets whether to display percentages in the legend.
-    /// </summary>
-    public DonutChartWidget<T> ShowPercentages(bool show = true)
-        => this with { IsShowingPercentages = show };
-
-    /// <summary>
     /// Sets the chart title displayed above the donut.
     /// </summary>
     public DonutChartWidget<T> Title(string title)
@@ -114,19 +91,6 @@ public sealed record DonutChartWidget<T> : Hex1bWidget
     public DonutChartWidget<T> HoleSize(double ratio)
         => this with { HoleSizeRatio = Math.Clamp(ratio, 0.0, 0.95) };
 
-    /// <summary>
-    /// Sets a custom value formatter for legend display.
-    /// </summary>
-    /// <example>
-    /// <code>
-    /// ctx.DonutChart(data)
-    ///     .ShowValues()
-    ///     .FormatValue(v =&gt; $"${v:F2}")
-    /// </code>
-    /// </example>
-    public DonutChartWidget<T> FormatValue(Func<double, string> formatter)
-        => this with { ValueFormatter = formatter };
-
     #endregion
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
@@ -138,11 +102,8 @@ public sealed record DonutChartWidget<T> : Hex1bWidget
         node.Data = Data;
         node.LabelSelector = LabelSelector;
         node.ValueSelector = ValueSelector;
-        node.ShowValues = IsShowingValues;
-        node.ShowPercentages = IsShowingPercentages;
         node.Title = ChartTitle;
         node.HoleSizeRatio = HoleSizeRatio;
-        node.ValueFormatter = ValueFormatter;
 
         return Task.FromResult<Hex1bNode>(node);
     }

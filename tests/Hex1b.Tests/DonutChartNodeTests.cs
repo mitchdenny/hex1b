@@ -10,8 +10,6 @@ public class DonutChartNodeTests
     private static DonutChartNode<ChartItem> CreateNode(
         IReadOnlyList<ChartItem> data,
         string? title = null,
-        bool showValues = false,
-        bool showPercentages = false,
         double holeSize = 0.5)
     {
         return new DonutChartNode<ChartItem>
@@ -20,8 +18,6 @@ public class DonutChartNodeTests
             LabelSelector = i => i.Label,
             ValueSelector = i => i.Value,
             Title = title,
-            ShowValues = showValues,
-            ShowPercentages = showPercentages,
             HoleSizeRatio = holeSize,
         };
     }
@@ -67,7 +63,7 @@ public class DonutChartNodeTests
     }
 
     [Fact]
-    public void Measure_IncludesLegendRows()
+    public void Measure_SameHeight_RegardlessOfDataCount()
     {
         var threeItems = CreateNode(SampleData);
         var fiveItems = CreateNode([
@@ -77,7 +73,8 @@ public class DonutChartNodeTests
         var size3 = threeItems.Measure(new Constraints(0, 40, 0, 100));
         var size5 = fiveItems.Measure(new Constraints(0, 40, 0, 100));
 
-        Assert.True(size5.Height > size3.Height);
+        // Without built-in legend, donut height depends only on width, not data count
+        Assert.Equal(size3.Height, size5.Height);
     }
 
     [Fact]
@@ -128,38 +125,6 @@ public class DonutChartNodeTests
 
         var titleRow = GetRowText(surface, 0);
         Assert.Contains("Languages", titleRow);
-    }
-
-    [Fact]
-    public void Render_Legend_ShowsLabels()
-    {
-        var node = CreateNode(SampleData);
-        var (surface, size) = RenderNode(node, 40, 30);
-
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("Go", allText);
-        Assert.Contains("Rust", allText);
-        Assert.Contains("C#", allText);
-    }
-
-    [Fact]
-    public void Render_ShowPercentages_DisplaysPercent()
-    {
-        var node = CreateNode(SampleData, showPercentages: true);
-        var (surface, size) = RenderNode(node, 40, 30);
-
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("%", allText);
-    }
-
-    [Fact]
-    public void Render_ShowValues_DisplaysValues()
-    {
-        var node = CreateNode(SampleData, showValues: true);
-        var (surface, size) = RenderNode(node, 40, 30);
-
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("42", allText);
     }
 
     [Fact]
@@ -261,9 +226,16 @@ public class DonutChartNodeTests
         var node = CreateNode([new("Only", 100)]);
         var (surface, size) = RenderNode(node, 30, 25);
 
-        // With one segment, every donut pixel should be the same color
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("Only", allText);
+        // With one segment, the donut ring should be rendered
+        // Just verify it has colored content
+        var hasColor = false;
+        for (int y = 0; y < size.Height && !hasColor; y++)
+        for (int x = 0; x < size.Width && !hasColor; x++)
+        {
+            if (surface[x, y].Background is not null || surface[x, y].Foreground is not null)
+                hasColor = true;
+        }
+        Assert.True(hasColor, "Single segment donut should have colored content");
     }
 
     [Fact]
@@ -291,21 +263,9 @@ public class DonutChartNodeTests
         var node = CreateNode(data);
         var (surface, size) = RenderNode(node, 40, 30);
 
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("Visible", allText);
-        Assert.Contains("Also Visible", allText);
-        Assert.DoesNotContain("Zero", allText);
-    }
-
-    [Fact]
-    public void Render_CustomValueFormatter_UsedInLegend()
-    {
-        var node = CreateNode(SampleData, showValues: true);
-        node.ValueFormatter = v => $"${v:F0}";
-
-        var (surface, size) = RenderNode(node, 50, 30);
-        var allText = GetAllText(surface, size.Height);
-        Assert.Contains("$42", allText);
+        // Donut no longer renders labels — those are in LegendWidget
+        // Just verify the render didn't crash
+        Assert.True(size.Width > 0);
     }
 
     #endregion
