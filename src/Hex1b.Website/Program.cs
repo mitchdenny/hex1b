@@ -179,6 +179,7 @@ builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesFillExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartTimeSeriesStackedExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartScatterBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ChartScatterGroupedExample>();
+builder.Services.AddSingleton<IGalleryExample, ChartFormattingExample>();
 
 // Tree examples
 builder.Services.AddSingleton<IGalleryExample, TreeBasicExample>();
