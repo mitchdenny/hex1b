@@ -99,6 +99,9 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
         var firstOfMonth = new DateOnly(Month.Year, Month.Month, 1);
         var today = Today ?? DateOnly.FromDateTime(DateTime.Today);
 
+        // In compact mode, skip the Day builder entirely
+        var dayBuilder = IsCompact ? null : DayBuilder;
+
         // Calculate the offset of day 1 in the grid
         var firstDayOffset = ((int)firstOfMonth.DayOfWeek - (int)FirstDayOfWeek + 7) % 7;
 
@@ -147,10 +150,10 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
                 var isSelected = capturedDay == node.SelectedDay;
                 var dayText = BuildDayText(capturedDay, isToday, isSelected, ic.IsFocused);
 
-                if (DayBuilder != null)
+                if (dayBuilder != null)
                 {
                     var dayContext = new CalendarDayContext(capturedDate, isToday, isSelected, isWeekend, capturedDate.DayOfWeek);
-                    var customContent = DayBuilder(dayContext);
+                    var customContent = dayBuilder(dayContext);
 
                     if (customContent != null)
                     {
@@ -178,19 +181,23 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
                 .Row(row).Column(col));
         }
 
-        // Build column definitions: 7 columns, all content-sized
+        // Column sizing: Fill distributes space evenly so all columns are uniform.
+        // In compact mode, use Content sizing since all day cells are the same width.
+        var colHint = IsCompact ? SizeHint.Content : SizeHint.Fill;
         var columnDefs = new GridColumnDefinition[7];
         for (int i = 0; i < 7; i++)
         {
-            columnDefs[i] = new GridColumnDefinition(SizeHint.Content);
+            columnDefs[i] = new GridColumnDefinition(colHint);
         }
 
-        // Build row definitions
+        // Row sizing: Fill distributes space evenly for uniform row heights.
+        // In compact mode, use Content sizing for minimal height.
+        var rowHint = IsCompact ? SizeHint.Content : SizeHint.Fill;
         var totalRows = currentRow + weekRows;
         var rowDefs = new GridRowDefinition[totalRows];
         for (int i = 0; i < totalRows; i++)
         {
-            rowDefs[i] = new GridRowDefinition(SizeHint.Content);
+            rowDefs[i] = new GridRowDefinition(rowHint);
         }
 
         var gridWidget = new GridWidget(cells, columnDefs, rowDefs);
