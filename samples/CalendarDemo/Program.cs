@@ -19,7 +19,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     }),
                 t.Text(""),
                 t.Text($"  Selected: {selectedDate}"),
-            ]).Selected(),
+            ]),
 
             tp.Tab("Bordered", t => [
                 t.Text($"  {currentMonth:MMMM yyyy}"),
