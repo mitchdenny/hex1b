@@ -194,6 +194,60 @@ public class CalendarWidgetTests
     }
 
     [Fact]
+    public void BuildGridWidget_CompactMode_SkipsDayBuilder()
+    {
+        var builderCalled = false;
+        var widget = new CalendarWidget(new DateOnly(2026, 3, 1))
+        {
+            Today = new DateOnly(2099, 1, 1),
+            IsCompact = true,
+            DayBuilder = ctx =>
+            {
+                builderCalled = true;
+                return new TextBlockWidget("Event");
+            }
+        };
+        var (grid, node) = BuildGrid(widget);
+
+        // Force the InteractableWidget builders to run
+        var dayCells = grid.Cells.Skip(7).ToList();
+        var interactable = Assert.IsType<InteractableWidget>(dayCells[0].Child);
+        var dummyNode = new InteractableNode();
+        var ic = new InteractableContext(dummyNode);
+        interactable.Builder(ic);
+
+        Assert.False(builderCalled, "Day builder should not be called in compact mode");
+    }
+
+    [Fact]
+    public void BuildGridWidget_NonCompact_UsesFillSizing()
+    {
+        var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
+        var (grid, _) = BuildGrid(widget);
+
+        foreach (var col in grid.ColumnDefinitions)
+        {
+            Assert.True(col.Width.IsFill, "Non-compact columns should use Fill sizing");
+        }
+        foreach (var row in grid.RowDefinitions)
+        {
+            Assert.True(row.Height.IsFill, "Non-compact rows should use Fill sizing");
+        }
+    }
+
+    [Fact]
+    public void BuildGridWidget_Compact_UsesContentSizing()
+    {
+        var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { IsCompact = true };
+        var (grid, _) = BuildGrid(widget);
+
+        foreach (var col in grid.ColumnDefinitions)
+        {
+            Assert.True(col.Width.IsContent, "Compact columns should use Content sizing");
+        }
+    }
+
+    [Fact]
     public void BuildGridWidget_DayBuilder_ReceivesCorrectContext()
     {
         CalendarDayContext? capturedContext = null;
