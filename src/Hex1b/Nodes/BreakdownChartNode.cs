@@ -20,6 +20,7 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
     public bool ShowValues { get; set; }
     public bool ShowPercentages { get; set; }
     public string? Title { get; set; }
+    public Func<double, string>? ValueFormatter { get; set; }
 
     /// <inheritdoc />
     protected override Size MeasureCore(Constraints constraints)
@@ -173,15 +174,16 @@ public sealed class BreakdownChartNode<T> : Hex1bNode
             // Value / percentage
             if (ShowValues || ShowPercentages)
             {
+                var fmt = ValueFormatter ?? ChartFormatters.FormatValue;
                 var suffix = "";
                 if (ShowValues && ShowPercentages)
                 {
                     var pct = seg.Value / total * 100;
-                    suffix = $" ({seg.Value:G4}, {pct:F1}%)";
+                    suffix = $" ({fmt(seg.Value)}, {pct:F1}%)";
                 }
                 else if (ShowValues)
                 {
-                    suffix = $" ({seg.Value:G4})";
+                    suffix = $" ({fmt(seg.Value)})";
                 }
                 else if (ShowPercentages)
                 {

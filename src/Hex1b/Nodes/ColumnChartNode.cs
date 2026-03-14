@@ -475,7 +475,7 @@ public sealed class ColumnChartNode<T> : Hex1bNode
         // Value labels above columns
         if (ShowValues && valueHeight > 0)
         {
-            var formatter = ValueFormatter ?? (v => v.ToString("G4"));
+            var formatter = ValueFormatter ?? ChartFormatters.FormatValue;
             var valuesY = titleHeight;
 
             for (int i = 0; i < categoryCount; i++)

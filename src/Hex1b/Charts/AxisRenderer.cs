@@ -48,7 +48,7 @@ internal static class AxisRenderer
         Surface surface, ChartScaler scaler, int labelWidth, int topOffset, int chartHeight,
         Func<double, string>? formatter = null)
     {
-        var fmt = formatter ?? (v => v.ToString("G4"));
+        var fmt = formatter ?? ChartFormatters.FormatValue;
         var ticks = ComputeNiceTicks(scaler.Minimum, scaler.Maximum, Math.Min(6, chartHeight / 2));
 
         foreach (var tick in ticks)

@@ -104,6 +104,24 @@ var ageGroupData = Enumerable.Range(0, 90).Select(i =>
 // Stacked area state
 var stackedFillStyle = FillStyle.Solid;
 
+// Formatting demo data — large values that benefit from smart formatting
+var revenueData = new[]
+{
+    new RevenueRecord("Q1 2024", 1_250_000, 890_000),
+    new RevenueRecord("Q2 2024", 1_480_000, 1_020_000),
+    new RevenueRecord("Q3 2024", 2_150_000, 1_340_000),
+    new RevenueRecord("Q4 2024", 1_870_000, 1_560_000),
+};
+
+var budgetBreakdown = new[]
+{
+    new ChartItem("Engineering", 2_450_000),
+    new ChartItem("Marketing", 875_000),
+    new ChartItem("Sales", 1_200_000),
+    new ChartItem("Operations", 340_000),
+    new ChartItem("R&D", 1_680_000),
+};
+
 // Three-series data for stacked area
 var regionData = new[]
 {
@@ -334,6 +352,31 @@ var terminal = Hex1bTerminal.CreateBuilder()
                     .Title("Regional Sales (Stacked)")
                     .ShowGridLines()
                     .FillHeight(),
+            ]),
+            tp.Tab("Formatting", t => [
+                t.ColumnChart(revenueData)
+                    .Label(d => d.Quarter)
+                    .Series("Revenue", d => d.Revenue, blue)
+                    .Series("Costs", d => d.Costs, red)
+                    .Layout(ChartLayout.Grouped)
+                    .Title("Quarterly Financials")
+                    .ShowValues()
+                    .FormatValue(v => $"${v / 1_000_000:F1}M")
+                    .FillHeight(),
+                t.Separator(),
+                t.BreakdownChart(budgetBreakdown)
+                    .Title("Department Budgets")
+                    .ShowValues()
+                    .ShowPercentages()
+                    .FormatValue(v => $"${v / 1_000:N0}K"),
+                t.Separator(),
+                t.TimeSeriesChart(revenueData)
+                    .Label(d => d.Quarter.Length > 7 ? d.Quarter[..7] : d.Quarter)
+                    .Value(d => d.Revenue)
+                    .Title("Revenue Trend")
+                    .FormatValue(v => $"${v / 1_000_000:F1}M")
+                    .ShowGridLines()
+                    .FillHeight(),
             ])
         ])
     )
@@ -349,3 +392,4 @@ record HourlyRequests(string Hour, double Requests);
 record Measurement(double Height, double Weight);
 record DemographicPoint(double Income, double Spending, string Group);
 record RegionSales(string Month, double North, double South, double West);
+record RevenueRecord(string Quarter, double Revenue, double Costs);

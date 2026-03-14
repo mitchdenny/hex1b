@@ -283,6 +283,43 @@ await terminal.RunAsync();
 
 record DemoPoint(double Income, double Spending, string Group);`
 
+const formattingCode = `using Hex1b;
+using Hex1b.Charts;
+using Hex1b.Theming;
+
+var budgets = new[]
+{
+    new Department("Engineering", 2_450_000),
+    new Department("Marketing", 875_000),
+    new Department("Sales", 1_200_000),
+    new Department("Operations", 340_000),
+};
+
+var blue = Hex1bColor.FromRgb(66, 133, 244);
+var red = Hex1bColor.FromRgb(234, 67, 53);
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx =&gt; ctx.VStack(v =&gt; [
+        v.ColumnChart(budgets)
+            .Label(d =&gt; d.Name)
+            .Value(d =&gt; d.Budget)
+            .Title("Department Budgets")
+            .ShowValues()
+            .FormatValue(v =&gt; "$" + (v / 1_000_000).ToString("F1") + "M"),
+        v.BreakdownChart(budgets)
+            .Label(d =&gt; d.Name)
+            .Value(d =&gt; d.Budget)
+            .Title("Budget Allocation")
+            .ShowValues()
+            .ShowPercentages()
+            .FormatValue(v =&gt; "$" + (v / 1_000).ToString("N0") + "K"),
+    ]))
+    .Build();
+
+await terminal.RunAsync();
+
+record Department(string Name, double Budget);`
+
 </script>
 
 # Charts
@@ -370,6 +407,26 @@ Use `.GroupBy()` to color-code data points by category:
 
 <CodeBlock lang="csharp" :code="scatterGroupedCode" command="dotnet run" example="chart-scatter-grouped" exampleTitle="Scatter Chart - Grouped" />
 
+## Value Formatting
+
+All chart types use smart default formatting for numeric labels — values are displayed with grouped digits, and large values use compact suffixes:
+
+| Value | Default Display |
+|-------|----------------|
+| `1234` | `1,234` |
+| `12345` | `12.3K` |
+| `1500000` | `1.5M` |
+| `2500000000` | `2.5B` |
+| `0.42` | `0.42` |
+
+### Custom Formatters
+
+Override the default formatting with `.FormatValue()` to display values in any format — currency, percentages, units, etc. Every chart type supports this:
+
+<CodeBlock lang="csharp" :code="formattingCode" command="dotnet run" example="chart-formatting" exampleTitle="Charts - Custom Value Formatting" />
+
+Column, bar, and time series charts apply the formatter to Y-axis labels and data point values. Scatter charts provide separate `.FormatX()` and `.FormatY()` for each axis. Breakdown charts apply the formatter to values shown in the legend.
+
 ## Generic Data Binding
 
 All chart widgets are generic (`ColumnChartWidget<T>`, `BarChartWidget<T>`, `BreakdownChartWidget<T>`, `TimeSeriesChartWidget<T>`, `ScatterChartWidget<T>`). Bind any data type by providing selector functions:
@@ -454,6 +511,7 @@ var terminal = Hex1bTerminal.CreateBuilder()
 | `.Title(string)` | Chart title |
 | `.ShowValues(bool)` | Show absolute values in legend |
 | `.ShowPercentages(bool)` | Show percentages in legend |
+| `.FormatValue(double → string)` | Custom value formatter for legend |
 
 ### Time Series Methods
 
