@@ -1,3 +1,4 @@
+using Hex1b.Events;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -61,8 +62,21 @@ public static class CalendarExtensions
         => widget with { Today = today };
 
     /// <summary>
-    /// Sets an optional title displayed above the calendar (e.g. "March 2026").
+    /// Enables compact mode (no gridlines). Ideal for embedding in a DatePicker.
     /// </summary>
-    public static CalendarWidget Title(this CalendarWidget widget, string title)
-        => widget with { Title = title };
+    public static CalendarWidget Compact(this CalendarWidget widget)
+        => widget with { IsCompact = true };
+
+    /// <summary>
+    /// Provides a callback to build custom content for each day cell.
+    /// The callback receives a <see cref="CalendarDayContext"/> with information about the day
+    /// and returns an optional widget rendered alongside the day number.
+    /// </summary>
+    /// <param name="widget">The calendar widget.</param>
+    /// <param name="builder">A callback that receives day context and returns optional content.</param>
+    /// <returns>A configured <see cref="CalendarWidget"/>.</returns>
+    public static CalendarWidget Day(
+        this CalendarWidget widget,
+        Func<CalendarDayContext, Hex1bWidget?> builder)
+        => widget with { DayBuilder = builder };
 }
