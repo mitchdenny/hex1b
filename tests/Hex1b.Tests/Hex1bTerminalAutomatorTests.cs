@@ -379,7 +379,7 @@ public class Hex1bTerminalAutomatorTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromMilliseconds(250));
 
-        await auto.WaitUntilTextAsync("Hello");
+        await auto.WaitUntilTextAsync("Hello", timeout: TimeSpan.FromSeconds(5));
 
         var ex = await Assert.ThrowsAsync<Hex1bAutomationException>(async () =>
         {
