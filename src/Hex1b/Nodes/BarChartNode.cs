@@ -461,7 +461,7 @@ public sealed class BarChartNode<T> : Hex1bNode
         var totalRows = categoryCount * rowsPerCategory + (categoryCount - 1) * spacing;
         if (totalRows > chartHeight) spacing = 0;
 
-        var formatter = ValueFormatter ?? (v => v.ToString("G4"));
+        var formatter = ValueFormatter ?? ChartFormatters.FormatValue;
 
         for (int catIdx = 0; catIdx < categoryCount; catIdx++)
         {

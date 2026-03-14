@@ -49,6 +49,7 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
     internal double? Minimum { get; init; }
     internal double? Maximum { get; init; }
     internal Func<double, string>? ValueFormatter { get; init; }
+    internal Func<string, string>? LabelFormatter { get; init; }
 
     #region Fluent Methods
 
@@ -123,6 +124,20 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
     public TimeSeriesChartWidget<T> FormatValue(Func<double, string> formatter)
         => this with { ValueFormatter = formatter };
 
+    /// <summary>
+    /// Sets a custom X-axis label formatter for post-processing labels produced by <see cref="Label"/>.
+    /// Useful for truncating, reformatting, or transforming date/time strings.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.TimeSeriesChart(data)
+    ///     .Label(d =&gt; d.Date.ToString())
+    ///     .FormatLabel(s =&gt; s.Length &gt; 10 ? s[..10] : s)
+    /// </code>
+    /// </example>
+    public TimeSeriesChartWidget<T> FormatLabel(Func<string, string> formatter)
+        => this with { LabelFormatter = formatter };
+
     #endregion
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
@@ -141,6 +156,7 @@ public sealed record TimeSeriesChartWidget<T> : Hex1bWidget
         node.Minimum = Minimum;
         node.Maximum = Maximum;
         node.ValueFormatter = ValueFormatter;
+        node.LabelFormatter = LabelFormatter;
         return Task.FromResult<Hex1bNode>(node);
     }
 

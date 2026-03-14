@@ -59,6 +59,12 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
     /// </summary>
     internal string? ChartTitle { get; init; }
 
+    /// <summary>
+    /// Gets the custom value formatter for legend display.
+    /// When <see langword="null"/>, the default chart formatter is used.
+    /// </summary>
+    public Func<double, string>? ValueFormatter { get; init; }
+
     #region Fluent Methods
 
     /// <summary>
@@ -91,6 +97,19 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
     public BreakdownChartWidget<T> Title(string title)
         => this with { ChartTitle = title };
 
+    /// <summary>
+    /// Sets a custom value formatter for legend display.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.BreakdownChart(data)
+    ///     .ShowValues()
+    ///     .FormatValue(v =&gt; $"${v:F2}")
+    /// </code>
+    /// </example>
+    public BreakdownChartWidget<T> FormatValue(Func<double, string> formatter)
+        => this with { ValueFormatter = formatter };
+
     #endregion
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
@@ -105,6 +124,7 @@ public sealed record BreakdownChartWidget<T> : Hex1bWidget
         node.ShowValues = IsShowingValues;
         node.ShowPercentages = IsShowingPercentages;
         node.Title = ChartTitle;
+        node.ValueFormatter = ValueFormatter;
 
         return Task.FromResult<Hex1bNode>(node);
     }

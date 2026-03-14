@@ -124,7 +124,7 @@ public class ScatterChartNode<T> : Hex1bNode
 
         // X-axis labels (using tick values from xScaler)
         var xTicks = AxisRenderer.ComputeNiceTicks(xScaler.Minimum, xScaler.Maximum, chartWidth / 8);
-        var xLabels = xTicks.Select(v => XFormatter is not null ? XFormatter(v) : v.ToString("G3")).ToList();
+        var xLabels = xTicks.Select(v => XFormatter is not null ? XFormatter(v) : ChartFormatters.FormatValue(v)).ToList();
         AxisRenderer.DrawXAxisLabels(surface, xLabels, chartLeft, chartWidth, chartTop + chartHeight,
             maxLabels: chartWidth / 6);
 
