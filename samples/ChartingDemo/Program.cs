@@ -371,11 +371,10 @@ var terminal = Hex1bTerminal.CreateBuilder()
                     .FormatValue(v => $"${v / 1_000:N0}K"),
                 t.Separator(),
                 t.TimeSeriesChart(revenueData)
-                    .Label(d => d.Quarter)
+                    .Label(d => d.Quarter.Length > 7 ? d.Quarter[..7] : d.Quarter)
                     .Value(d => d.Revenue)
                     .Title("Revenue Trend")
                     .FormatValue(v => $"${v / 1_000_000:F1}M")
-                    .FormatLabel(s => s.Length > 7 ? s[..7] : s)
                     .ShowGridLines()
                     .FillHeight(),
             ])

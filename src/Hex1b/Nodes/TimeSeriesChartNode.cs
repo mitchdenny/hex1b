@@ -23,7 +23,6 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     public double? Minimum { get; set; }
     public double? Maximum { get; set; }
     public Func<double, string>? ValueFormatter { get; set; }
-    public Func<string, string>? LabelFormatter { get; set; }
 
     protected override Size MeasureCore(Constraints constraints)
     {
@@ -231,13 +230,7 @@ public class TimeSeriesChartNode<T> : Hex1bNode
     private List<string> ResolveLabels()
     {
         if (Data is null || LabelSelector is null) return [];
-        var labels = Data.Select(LabelSelector).ToList();
-        if (LabelFormatter is not null)
-        {
-            for (int i = 0; i < labels.Count; i++)
-                labels[i] = LabelFormatter(labels[i]);
-        }
-        return labels;
+        return Data.Select(LabelSelector).ToList();
     }
 
     #endregion
