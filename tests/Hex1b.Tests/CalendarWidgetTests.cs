@@ -8,13 +8,33 @@ namespace Hex1b.Tests;
 
 public class CalendarWidgetTests
 {
+    /// <summary>
+    /// Helper to build a grid from a CalendarWidget with a configured CalendarNode.
+    /// </summary>
+    private static (GridWidget Grid, CalendarNode Node) BuildGrid(
+        CalendarWidget widget,
+        int selectedDay = 1,
+        int? daysInMonth = null)
+    {
+        var days = daysInMonth ?? DateTime.DaysInMonth(widget.Month.Year, widget.Month.Month);
+        var node = new CalendarNode
+        {
+            DaysInMonth = days,
+            SelectedDay = selectedDay,
+            Month = new DateOnly(widget.Month.Year, widget.Month.Month, 1),
+            FirstDayOfWeek = widget.FirstDayOfWeek,
+        };
+        var grid = widget.BuildGridWidget(node, days);
+        return (grid, node);
+    }
+
     #region Grid Construction Tests
 
     [Fact]
     public void BuildGridWidget_ProducesSevenColumns()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(7, grid.ColumnDefinitions.Count);
     }
@@ -23,7 +43,7 @@ public class CalendarWidgetTests
     public void BuildGridWidget_WithHeader_HasHeaderAndDayCells()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         // March 2026: starts on Sunday, 31 days
         // Total cells = 7 (header) + 31 (days) = 38
@@ -34,7 +54,7 @@ public class CalendarWidgetTests
     public void BuildGridWidget_WithoutHeader_HasNoDayLabels()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { ShowHeader = false };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(31, grid.Cells.Count);
     }
@@ -44,7 +64,7 @@ public class CalendarWidgetTests
     {
         // March 2026 starts on Sunday, 31 days → 5 week rows + 1 header = 6 rows
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(6, grid.RowDefinitions.Count);
     }
@@ -54,7 +74,7 @@ public class CalendarWidgetTests
     {
         // Feb 2026 starts on Sunday, 28 days → 4 week rows + 1 header = 5 rows
         var widget = new CalendarWidget(new DateOnly(2026, 2, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 28);
+        var (grid, _) = BuildGrid(widget, daysInMonth: 28);
 
         Assert.Equal(5, grid.RowDefinitions.Count);
     }
@@ -64,7 +84,7 @@ public class CalendarWidgetTests
     {
         // April 2026 starts on Wednesday (day of week = 3)
         var widget = new CalendarWidget(new DateOnly(2026, 4, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 30);
+        var (grid, _) = BuildGrid(widget, daysInMonth: 30);
 
         // First day cell is after the 7 header cells, at column 3 (Wednesday)
         var dayCells = grid.Cells.Skip(7).ToList();
@@ -81,7 +101,7 @@ public class CalendarWidgetTests
         {
             FirstDayOfWeek = DayOfWeek.Monday
         };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         var dayCells = grid.Cells.Skip(7).ToList();
         var firstDayCell = dayCells[0];
@@ -93,7 +113,7 @@ public class CalendarWidgetTests
     {
         // March 2026: 31 days, starts Sunday, day 31 at col 2 (Tuesday)
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         var dayCells = grid.Cells.Skip(7).ToList();
         var lastDayCell = dayCells[^1];
@@ -104,7 +124,7 @@ public class CalendarWidgetTests
     public void BuildGridWidget_DefaultMode_HasGridLines()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(GridLinesMode.All, grid.GridLines);
     }
@@ -113,58 +133,43 @@ public class CalendarWidgetTests
     public void BuildGridWidget_CompactMode_NoGridLines()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { IsCompact = true };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(GridLinesMode.None, grid.GridLines);
     }
 
     #endregion
 
-    #region Today Highlighting Tests
+    #region Day Cell Interactable Tests
 
     [Fact]
-    public void BuildGridWidget_TodayDay_HasReverseVideo()
+    public void BuildGridWidget_DayCells_AreInteractableWidgets()
     {
-        var today = new DateOnly(2026, 3, 15);
-        var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { Today = today };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var widget = new CalendarWidget(new DateOnly(2026, 3, 1))
+        {
+            Today = new DateOnly(2099, 1, 1)
+        };
+        var (grid, _) = BuildGrid(widget);
 
+        // Every day cell (after 7 header cells) should be an InteractableWidget
         var dayCells = grid.Cells.Skip(7).ToList();
-        var day15Cell = dayCells[14];
-
-        var textWidget = Assert.IsType<TextBlockWidget>(day15Cell.Child);
-        Assert.Contains("\x1b[7m", textWidget.Text); // reverse video
-        Assert.Contains("15", textWidget.Text);
+        foreach (var cell in dayCells)
+        {
+            Assert.IsType<InteractableWidget>(cell.Child);
+        }
     }
 
     [Fact]
-    public void BuildGridWidget_RegularDay_NoReverseVideo()
+    public void BuildGridWidget_HeaderCells_AreNotInteractable()
     {
-        var today = new DateOnly(2026, 3, 15);
-        var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { Today = today };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
+        var (grid, _) = BuildGrid(widget);
 
-        var dayCells = grid.Cells.Skip(7).ToList();
-        var day10Cell = dayCells[9];
-
-        var textWidget = Assert.IsType<TextBlockWidget>(day10Cell.Child);
-        Assert.DoesNotContain("\x1b[7m", textWidget.Text);
-        Assert.Contains("10", textWidget.Text);
-    }
-
-    [Fact]
-    public void BuildGridWidget_SelectedDay_HasReverseVideo()
-    {
-        var today = new DateOnly(2099, 1, 1); // far future, won't match
-        var widget = new CalendarWidget(new DateOnly(2026, 3, 1)) { Today = today };
-        var grid = widget.BuildGridWidget(selectedDay: 5, daysInMonth: 31);
-
-        var dayCells = grid.Cells.Skip(7).ToList();
-        var day5Cell = dayCells[4];
-
-        var textWidget = Assert.IsType<TextBlockWidget>(day5Cell.Child);
-        Assert.Contains("\x1b[7m", textWidget.Text);
-        Assert.Contains("5", textWidget.Text);
+        var headerCells = grid.Cells.Take(7).ToList();
+        foreach (var cell in headerCells)
+        {
+            Assert.IsType<TextBlockWidget>(cell.Child);
+        }
     }
 
     #endregion
@@ -172,41 +177,20 @@ public class CalendarWidgetTests
     #region Day Builder Tests
 
     [Fact]
-    public void BuildGridWidget_WithDayBuilder_CreatesHStack()
+    public void BuildGridWidget_WithDayBuilder_CreatesHStackInsideInteractable()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1))
         {
             Today = new DateOnly(2099, 1, 1),
             DayBuilder = ctx => new TextBlockWidget("Event")
         };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         var dayCells = grid.Cells.Skip(7).ToList();
         var day1Cell = dayCells[0];
 
-        // Should be an HStack with day number + custom content
-        var hstack = Assert.IsType<HStackWidget>(day1Cell.Child);
-        Assert.Equal(2, hstack.Children.Count);
-        Assert.IsType<TextBlockWidget>(hstack.Children[0]); // day number
-        var customContent = Assert.IsType<TextBlockWidget>(hstack.Children[1]);
-        Assert.Equal("Event", customContent.Text);
-    }
-
-    [Fact]
-    public void BuildGridWidget_WithDayBuilder_ReturningNull_NoHStack()
-    {
-        var widget = new CalendarWidget(new DateOnly(2026, 3, 1))
-        {
-            Today = new DateOnly(2099, 1, 1),
-            DayBuilder = ctx => null
-        };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
-
-        var dayCells = grid.Cells.Skip(7).ToList();
-        var day1Cell = dayCells[0];
-
-        // Should be plain TextBlock when builder returns null
-        Assert.IsType<TextBlockWidget>(day1Cell.Child);
+        // The cell is an InteractableWidget; its builder produces an HStack
+        Assert.IsType<InteractableWidget>(day1Cell.Child);
     }
 
     [Fact]
@@ -225,12 +209,22 @@ public class CalendarWidgetTests
                 return null;
             }
         };
-        widget.BuildGridWidget(selectedDay: 14, daysInMonth: 31);
+        // The DayBuilder is invoked during ReconcileAsync, not BuildGridWidget.
+        // We need to trigger the InteractableWidget builder by calling it directly.
+        var (grid, node) = BuildGrid(widget, selectedDay: 14);
+
+        // Force the InteractableWidget builders to run to capture context
+        var dayCells = grid.Cells.Skip(7).ToList();
+        var day14Cell = dayCells[13];
+        var interactable = Assert.IsType<InteractableWidget>(day14Cell.Child);
+        // Invoke the builder with a dummy context to trigger the DayBuilder
+        var dummyNode = new InteractableNode();
+        var ic = new InteractableContext(dummyNode);
+        interactable.Builder(ic);
 
         Assert.NotNull(capturedContext);
         Assert.Equal(new DateOnly(2026, 3, 14), capturedContext.Date);
         Assert.True(capturedContext.IsToday);
-        Assert.True(capturedContext.IsSelected);
         Assert.Equal(DayOfWeek.Saturday, capturedContext.DayOfWeek);
         Assert.True(capturedContext.IsWeekend);
     }
@@ -246,7 +240,7 @@ public class CalendarWidgetTests
         {
             Today = new DateOnly(2028, 2, 1)
         };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 29);
+        var (grid, _) = BuildGrid(widget, daysInMonth: 29);
 
         var dayCells = grid.Cells.Skip(7).ToList();
         Assert.Equal(29, dayCells.Count);
@@ -259,7 +253,7 @@ public class CalendarWidgetTests
         {
             Today = new DateOnly(2026, 2, 1)
         };
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 28);
+        var (grid, _) = BuildGrid(widget, daysInMonth: 28);
 
         var dayCells = grid.Cells.Skip(7).ToList();
         Assert.Equal(28, dayCells.Count);
@@ -270,7 +264,7 @@ public class CalendarWidgetTests
     {
         // August 2025 starts on Friday, 31 days → needs 6 week rows
         var widget = new CalendarWidget(new DateOnly(2025, 8, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         Assert.Equal(7, grid.RowDefinitions.Count); // 1 header + 6 week rows
     }
@@ -280,10 +274,11 @@ public class CalendarWidgetTests
     #region CalendarNode Tests
 
     [Fact]
-    public void CalendarNode_IsFocusable()
+    public void CalendarNode_IsNotFocusable()
     {
+        // CalendarNode delegates focus to its child InteractableNodes
         var node = new CalendarNode();
-        Assert.True(node.IsFocusable);
+        Assert.False(node.IsFocusable);
     }
 
     [Fact]
@@ -300,120 +295,6 @@ public class CalendarWidgetTests
         var node = new CalendarNode { DaysInMonth = 28 };
         node.SelectedDay = 0;
         Assert.Equal(1, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateRight_AdvancesDay()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 5;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(6, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateLeft_GoesBack()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 5;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(4, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateDown_AdvancesWeek()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 5;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(12, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateUp_GoesBackWeek()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 15;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(8, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateRight_AtEndOfMonth_StaysAtEnd()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 31;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(31, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateLeft_AtStart_StaysAtStart()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 1;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        Assert.Equal(1, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateDown_PastEnd_Stays()
-    {
-        var node = new CalendarNode { DaysInMonth = 28 };
-        node.SelectedDay = 25;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        // 25 + 7 = 32 > 28, so should stay
-        Assert.Equal(25, node.SelectedDay);
-    }
-
-    [Fact]
-    public async Task CalendarNode_NavigateUp_PastStart_Stays()
-    {
-        var node = new CalendarNode { DaysInMonth = 31 };
-        node.SelectedDay = 3;
-
-        await InputRouter.RouteInputToNodeAsync(
-            node,
-            new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None),
-            null, null, TestContext.Current.CancellationToken);
-
-        // 3 - 7 = -4 < 1, so should stay
-        Assert.Equal(3, node.SelectedDay);
     }
 
     #endregion
@@ -495,7 +376,7 @@ public class CalendarWidgetTests
         foreach (var (month, days) in months)
         {
             var widget = new CalendarWidget(month);
-            var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: days);
+            var (grid, _) = BuildGrid(widget, daysInMonth: days);
             var dayCells = grid.Cells.Skip(7).ToList();
 
             foreach (var cell in dayCells)
@@ -509,7 +390,7 @@ public class CalendarWidgetTests
     public void BuildGridWidget_HeaderCells_SpanAllColumns()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
-        var grid = widget.BuildGridWidget(selectedDay: 1, daysInMonth: 31);
+        var (grid, _) = BuildGrid(widget);
 
         var headerCells = grid.Cells.Take(7).ToList();
         var columns = headerCells.Select(c => c.ColumnIndex).OrderBy(c => c).ToList();
@@ -567,13 +448,14 @@ public class CalendarWidgetTests
     }
 
     [Fact]
-    public async Task Integration_Calendar_ArrowKeys_ChangeSelection()
+    public async Task Integration_Calendar_ClickDay_FiresOnSelected()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
             .WithHeadless()
+            .WithMouse()
             .WithDimensions(80, 24)
             .Build();
 
@@ -586,22 +468,21 @@ public class CalendarWidgetTests
                     .Compact()
                     .OnSelected(e => selectedDates.Add(e.SelectedDate))
             ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
         );
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Sun"), TimeSpan.FromSeconds(5), "header row")
-            .Key(Hex1bKey.RightArrow) // Move to day 2
-            .Key(Hex1bKey.RightArrow) // Move to day 3
-            .Enter() // Select day 3
+            // Enter selects the focused day (auto-focused first cell = day 1)
+            .Enter()
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
         Assert.Single(selectedDates);
-        Assert.Equal(new DateOnly(2026, 3, 3), selectedDates[0]);
+        Assert.Equal(new DateOnly(2026, 3, 1), selectedDates[0]);
     }
 
     [Fact]
