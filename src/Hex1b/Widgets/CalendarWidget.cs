@@ -1,8 +1,7 @@
-using System.Globalization;
 using Hex1b.Events;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -38,6 +37,12 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
     internal bool IsCompact { get; init; }
 
     /// <summary>
+    /// When true, highlights the current day (from <see cref="Today"/>) with theme colors.
+    /// Defaults to false (opt-in).
+    /// </summary>
+    internal bool HighlightCurrentDay { get; init; }
+
+    /// <summary>
     /// Optional callback to provide custom content for each day cell.
     /// The callback receives a <see cref="CalendarDayContext"/> and returns
     /// an optional widget to render alongside the day number.
@@ -48,6 +53,12 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
     /// The async handler for day selection events.
     /// </summary>
     internal Func<CalendarDateSelectedEventArgs, Task>? SelectedHandler { get; init; }
+
+    /// <summary>
+    /// The initial day to pre-select when the calendar is first created.
+    /// If null (default), no day is selected until the user picks one.
+    /// </summary>
+    internal int? InitialSelectedDay { get; init; }
 
     /// <summary>
     /// Sets a synchronous handler for day selection events.
@@ -63,6 +74,7 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
+        var isNewNode = existingNode is not CalendarNode;
         var node = existingNode as CalendarNode ?? new CalendarNode();
 
         var daysInMonth = DateTime.DaysInMonth(Month.Year, Month.Month);
@@ -70,6 +82,12 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
         node.DaysInMonth = daysInMonth;
         node.FirstDayOfWeek = FirstDayOfWeek;
         node.SourceWidget = this;
+
+        // Apply initial selected day on first creation
+        if (isNewNode && InitialSelectedDay.HasValue)
+        {
+            node.SelectedDay = InitialSelectedDay.Value;
+        }
 
         // Clamp selected day to valid range after month change
         if (node.SelectedDay > daysInMonth)
@@ -115,15 +133,11 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
         // Header row with day-of-week labels
         if (ShowHeader)
         {
+            var columnTracker = new HeaderColumnTracker();
             for (int col = 0; col < 7; col++)
             {
                 var dayOfWeek = (DayOfWeek)(((int)FirstDayOfWeek + col) % 7);
-                var label = CultureInfo.CurrentCulture.DateTimeFormat.AbbreviatedDayNames[(int)dayOfWeek];
-                // Pad to 3 chars, center-ish in 4-char cell
-                var headerText = label.Length > 3 ? label[..3] : label;
-                headerText = headerText.PadLeft(3).PadRight(4);
-
-                cells.Add(new GridCellWidget(new TextBlockWidget(headerText))
+                cells.Add(new GridCellWidget(new CalendarHeaderWidget(dayOfWeek, columnTracker))
                     .Row(currentRow).Column(col));
             }
 
@@ -148,7 +162,8 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
             var interactable = new InteractableWidget(ic =>
             {
                 var isSelected = capturedDay == node.SelectedDay;
-                var dayText = BuildDayText(capturedDay, isToday, isSelected, ic.IsFocused);
+                var showCurrentDay = HighlightCurrentDay && isToday;
+                var dayWidget = new CalendarDayWidget(capturedDay, showCurrentDay, isSelected, ic.IsFocused, ic.IsHovered);
 
                 if (dayBuilder != null)
                 {
@@ -157,11 +172,11 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 
                     if (customContent != null)
                     {
-                        return new HStackWidget([new TextBlockWidget(dayText), customContent]);
+                        return new HStackWidget([dayWidget, customContent]);
                     }
                 }
 
-                return new TextBlockWidget(dayText);
+                return dayWidget;
             })
             .OnClick(args =>
             {
@@ -175,6 +190,13 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
                 }
 
                 return Task.CompletedTask;
+            })
+            .WithInputBindings(bindings =>
+            {
+                bindings.Key(Hex1bKey.LeftArrow).Action(ctx => NavigateCalendarGrid(ctx, -1, daysInMonth), "Left");
+                bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateCalendarGrid(ctx, 1, daysInMonth), "Right");
+                bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateCalendarGrid(ctx, -7, daysInMonth), "Up");
+                bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateCalendarGrid(ctx, 7, daysInMonth), "Down");
             });
 
             cells.Add(new GridCellWidget(interactable)
@@ -190,14 +212,14 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
             columnDefs[i] = new GridColumnDefinition(colHint);
         }
 
-        // Row sizing: Fill distributes space evenly for uniform row heights.
-        // In compact mode, use Content sizing for minimal height.
-        var rowHint = IsCompact ? SizeHint.Content : SizeHint.Fill;
+        // Row sizing: Content keeps rows sized to their content. Fill rows would
+        // expand to consume all available height, which causes lockups when a
+        // parent (e.g. VStack) passes unconstrained MaxHeight.
         var totalRows = currentRow + weekRows;
         var rowDefs = new GridRowDefinition[totalRows];
         for (int i = 0; i < totalRows; i++)
         {
-            rowDefs[i] = new GridRowDefinition(rowHint);
+            rowDefs[i] = new GridRowDefinition(SizeHint.Content);
         }
 
         var gridWidget = new GridWidget(cells, columnDefs, rowDefs);
@@ -211,17 +233,30 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
     }
 
     /// <summary>
-    /// Builds the ANSI-styled text for a day number.
+    /// Moves focus by <paramref name="delta"/> positions relative to the currently
+    /// focused node in the focusables list.
     /// </summary>
-    private static string BuildDayText(int day, bool isToday, bool isSelected, bool isFocused)
+    private static Task NavigateCalendarGrid(InputBindingActionContext ctx, int delta, int cellCount)
     {
-        var dayStr = day.ToString().PadLeft(2);
+        var focusables = ctx.Focusables;
+        var focused = ctx.FocusedNode;
+        if (focused == null) return Task.CompletedTask;
 
-        if (isToday || isSelected || isFocused)
+        var idx = -1;
+        for (int i = 0; i < focusables.Count; i++)
         {
-            return $"\x1b[7m {dayStr} \x1b[0m";
+            if (focusables[i] == focused) { idx = i; break; }
         }
 
-        return $" {dayStr} ";
+        if (idx < 0) return Task.CompletedTask;
+
+        var target = idx + delta;
+        if (target >= 0 && target < focusables.Count)
+        {
+            ctx.Focus(focusables[target]);
+        }
+
+        return Task.CompletedTask;
     }
+
 }

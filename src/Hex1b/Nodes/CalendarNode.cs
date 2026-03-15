@@ -38,15 +38,18 @@ public sealed class CalendarNode : Hex1bNode
     public CalendarWidget? SourceWidget { get; set; }
 
     /// <summary>
-    /// The currently selected day (1-based). Preserved across reconciliation.
+    /// The currently selected day (1-based), or null if no day is selected.
+    /// Preserved across reconciliation.
     /// </summary>
-    private int _selectedDay = 1;
-    public int SelectedDay
+    private int? _selectedDay;
+    public int? SelectedDay
     {
         get => _selectedDay;
         set
         {
-            var clamped = Math.Clamp(value, 1, Math.Max(1, DaysInMonth));
+            var clamped = value.HasValue
+                ? Math.Clamp(value.Value, 1, Math.Max(1, DaysInMonth))
+                : (int?)null;
             if (_selectedDay != clamped)
             {
                 _selectedDay = clamped;

@@ -68,6 +68,14 @@ public static class CalendarExtensions
         => widget with { IsCompact = true };
 
     /// <summary>
+    /// Enables highlighting of the current day with theme colors from
+    /// <see cref="Hex1b.Theming.CalendarTheme.CurrentDayForegroundColor"/> and
+    /// <see cref="Hex1b.Theming.CalendarTheme.CurrentDayBackgroundColor"/>.
+    /// </summary>
+    public static CalendarWidget HighlightCurrent(this CalendarWidget widget)
+        => widget with { HighlightCurrentDay = true };
+
+    /// <summary>
     /// Provides a callback to build custom content for each day cell.
     /// The callback receives a <see cref="CalendarDayContext"/> with information about the day
     /// and returns an optional widget rendered alongside the day number.

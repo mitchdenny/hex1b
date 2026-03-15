@@ -209,15 +209,15 @@ public sealed class GridNode : Hex1bNode, ILayoutProvider
                     var endCol = Math.Min(entry.Column + entry.ColumnSpan, ColumnCount);
                     var endRow = Math.Min(entry.Row + entry.RowSpan, RowCount);
 
-                    // For spanning cells, width spans across dividers too
+                    // Exclude the trailing divider from cell width
                     var w = colOffsets[endCol] - x;
-                    if (HasGridLines && entry.ColumnSpan > 1 && endCol < ColumnCount)
-                        w -= 1; // Don't include the trailing divider
+                    if (HasGridLines && endCol < ColumnCount)
+                        w -= 1;
                     else if (HasOuterBorder && endCol == ColumnCount)
                         { } // Don't subtract — already excluded by offsets
 
                     var h = rowOffsets[endRow] - y;
-                    if (GridLines == GridLinesMode.All && entry.RowSpan > 1 && endRow < RowCount)
+                    if (GridLines == GridLinesMode.All && endRow < RowCount)
                         h -= 1;
 
                     entry.Node.Arrange(new Rect(x, y, Math.Max(0, w), Math.Max(0, h)));

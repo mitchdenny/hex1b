@@ -160,7 +160,7 @@ public class CalendarWidgetTests
     }
 
     [Fact]
-    public void BuildGridWidget_HeaderCells_AreNotInteractable()
+    public void BuildGridWidget_HeaderCells_AreCalendarHeaderWidgets()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
         var (grid, _) = BuildGrid(widget);
@@ -168,7 +168,7 @@ public class CalendarWidgetTests
         var headerCells = grid.Cells.Take(7).ToList();
         foreach (var cell in headerCells)
         {
-            Assert.IsType<TextBlockWidget>(cell.Child);
+            Assert.IsType<CalendarHeaderWidget>(cell.Child);
         }
     }
 
@@ -220,7 +220,7 @@ public class CalendarWidgetTests
     }
 
     [Fact]
-    public void BuildGridWidget_NonCompact_UsesFillSizing()
+    public void BuildGridWidget_NonCompact_UsesFillColumnsContentRows()
     {
         var widget = new CalendarWidget(new DateOnly(2026, 3, 1));
         var (grid, _) = BuildGrid(widget);
@@ -231,7 +231,7 @@ public class CalendarWidgetTests
         }
         foreach (var row in grid.RowDefinitions)
         {
-            Assert.True(row.Height.IsFill, "Non-compact rows should use Fill sizing");
+            Assert.True(row.Height.IsContent, "Non-compact rows should use Content sizing");
         }
     }
 
@@ -349,6 +349,13 @@ public class CalendarWidgetTests
         var node = new CalendarNode { DaysInMonth = 28 };
         node.SelectedDay = 0;
         Assert.Equal(1, node.SelectedDay);
+    }
+
+    [Fact]
+    public void CalendarNode_SelectedDay_DefaultsToNull()
+    {
+        var node = new CalendarNode { DaysInMonth = 28 };
+        Assert.Null(node.SelectedDay);
     }
 
     #endregion
@@ -489,15 +496,15 @@ public class CalendarWidgetTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Sun"), TimeSpan.FromSeconds(5), "header row")
+            .WaitUntil(s => s.ContainsText("Su"), TimeSpan.FromSeconds(5), "header row")
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Sun"));
-        Assert.True(snapshot.ContainsText("Mon"));
+        Assert.True(snapshot.ContainsText("Su"));
+        Assert.True(snapshot.ContainsText("Mo"));
         Assert.True(snapshot.ContainsText("31")); // March has 31 days
     }
 
@@ -527,7 +534,7 @@ public class CalendarWidgetTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Sun"), TimeSpan.FromSeconds(5), "header row")
+            .WaitUntil(s => s.ContainsText("Su"), TimeSpan.FromSeconds(5), "header row")
             // Enter selects the focused day (auto-focused first cell = day 1)
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
