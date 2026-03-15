@@ -118,8 +118,12 @@ public sealed record DatePickerWidget : Hex1bWidget
     {
         var currentYear = DateTime.Today.Year;
         var selectedYear = node.SelectedDate?.Year;
-        // Focus target: selected year if present, else current year
-        var focusYear = selectedYear ?? currentYear;
+
+        // If a page transition set a focus cell index, use that; otherwise target selected/current year
+        int? focusCellOverride = node.YearFocusCellIndex;
+        node.YearFocusCellIndex = null;
+
+        var focusYear = focusCellOverride == null ? (selectedYear ?? currentYear) : (int?)null;
 
         var cells = new List<GridCellWidget>();
         for (int i = 0; i < 12; i++)
@@ -128,9 +132,10 @@ public sealed record DatePickerWidget : Hex1bWidget
             var capturedYear = year;
             var isSelected = year == selectedYear;
             var isCurrent = year == currentYear;
-            var isFocusTarget = year == focusYear;
+            var isFocusTarget = focusCellOverride != null ? (i == focusCellOverride) : (year == focusYear);
 
             var cellIndex = i;
+            var row = i / 4;
             var interactable = new InteractableWidget(ic =>
             {
                 var label = capturedYear.ToString();
@@ -148,12 +153,24 @@ public sealed record DatePickerWidget : Hex1bWidget
                 var col = cellIndex % 4;
                 bindings.Key(Hex1bKey.LeftArrow).Action(ctx =>
                 {
-                    if (col == 0) { node.PageYearsBackward(); return Task.CompletedTask; }
+                    if (col == 0)
+                    {
+                        // Land on rightmost column, same row
+                        node.YearFocusCellIndex = row * 4 + 3;
+                        node.PageYearsBackward();
+                        return Task.CompletedTask;
+                    }
                     return NavigateGrid(ctx, -1, 12);
                 }, "Left");
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx =>
                 {
-                    if (col == 3) { node.PageYearsForward(); return Task.CompletedTask; }
+                    if (col == 3)
+                    {
+                        // Land on leftmost column, same row
+                        node.YearFocusCellIndex = row * 4;
+                        node.PageYearsForward();
+                        return Task.CompletedTask;
+                    }
                     return NavigateGrid(ctx, 1, 12);
                 }, "Right");
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
@@ -167,9 +184,7 @@ public sealed record DatePickerWidget : Hex1bWidget
                 interactable = interactable with { RequestFocus = true };
             }
 
-            var row = i / 4;
-            var col = i % 4;
-            cells.Add(new GridCellWidget(interactable).Row(row).Column(col));
+            cells.Add(new GridCellWidget(interactable).Row(row).Column(cellIndex % 4));
         }
 
         var columnDefs = Enumerable.Range(0, 4)

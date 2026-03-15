@@ -57,6 +57,12 @@ public sealed class DatePickerNode : Hex1bNode
     public int YearPageStart { get; set; }
 
     /// <summary>
+    /// Cell index (0–11) to focus after a year page change, or null for default targeting.
+    /// Cleared after each rebuild so it only applies once.
+    /// </summary>
+    public int? YearFocusCellIndex { get; set; }
+
+    /// <summary>
     /// Whether the initial date has been applied from the widget.
     /// </summary>
     public bool HasAppliedInitialDate { get; set; }
