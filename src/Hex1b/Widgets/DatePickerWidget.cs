@@ -130,6 +130,7 @@ public sealed record DatePickerWidget : Hex1bWidget
             var isCurrent = year == currentYear;
             var isFocusTarget = year == focusYear;
 
+            var cellIndex = i;
             var interactable = new InteractableWidget(ic =>
             {
                 var label = capturedYear.ToString();
@@ -144,8 +145,17 @@ public sealed record DatePickerWidget : Hex1bWidget
             })
             .WithInputBindings(bindings =>
             {
-                bindings.Key(Hex1bKey.LeftArrow).Action(ctx => NavigateGrid(ctx, -1, 12), "Left");
-                bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateGrid(ctx, 1, 12), "Right");
+                var col = cellIndex % 4;
+                bindings.Key(Hex1bKey.LeftArrow).Action(ctx =>
+                {
+                    if (col == 0) { node.PageYearsBackward(); return Task.CompletedTask; }
+                    return NavigateGrid(ctx, -1, 12);
+                }, "Left");
+                bindings.Key(Hex1bKey.RightArrow).Action(ctx =>
+                {
+                    if (col == 3) { node.PageYearsForward(); return Task.CompletedTask; }
+                    return NavigateGrid(ctx, 1, 12);
+                }, "Right");
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateGrid(ctx, 4, 12), "Down");
                 bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
