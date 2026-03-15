@@ -36,6 +36,12 @@ public sealed class InteractableNode : Hex1bNode
     /// </summary>
     public Action<bool>? HoverChangedAction { get; set; }
 
+    /// <summary>
+    /// Tracks whether RequestFocus was already applied, preventing
+    /// repeated focus override on subsequent render frames.
+    /// </summary>
+    internal bool HasAppliedRequestFocus { get; set; }
+
     private bool _isFocused;
     public override bool IsFocused
     {

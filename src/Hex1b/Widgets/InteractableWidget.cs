@@ -121,11 +121,21 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
             node.HoverChangedAction = null;
         }
 
-        // Apply focus request — sets IsFocused before EnsureFocus runs,
-        // so the focus ring sees this node as already focused.
+        // Apply focus request only once. After the initial application,
+        // HasAppliedRequestFocus prevents subsequent frames from overriding
+        // user-driven focus changes (arrow key navigation, etc.).
+        // Resets when RequestFocus becomes false (different cell targeted).
         if (RequestFocus)
         {
-            node.IsFocused = true;
+            if (!node.HasAppliedRequestFocus)
+            {
+                node.IsFocused = true;
+                node.HasAppliedRequestFocus = true;
+            }
+        }
+        else
+        {
+            node.HasAppliedRequestFocus = false;
         }
 
         return node;

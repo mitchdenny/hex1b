@@ -410,7 +410,6 @@ public sealed record DatePickerWidget : Hex1bWidget
         var focused = ctx.FocusedNode;
         if (focused == null) return Task.CompletedTask;
 
-        // Find the focused node's index in the full focusables list
         var idx = -1;
         for (int i = 0; i < focusables.Count; i++)
         {
