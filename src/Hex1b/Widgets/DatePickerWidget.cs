@@ -118,6 +118,8 @@ public sealed record DatePickerWidget : Hex1bWidget
     {
         var currentYear = DateTime.Today.Year;
         var selectedYear = node.SelectedDate?.Year;
+        // Focus target: selected year if present, else current year
+        var focusYear = selectedYear ?? currentYear;
 
         var cells = new List<GridCellWidget>();
         for (int i = 0; i < 12; i++)
@@ -126,6 +128,7 @@ public sealed record DatePickerWidget : Hex1bWidget
             var capturedYear = year;
             var isSelected = year == selectedYear;
             var isCurrent = year == currentYear;
+            var isFocusTarget = year == focusYear;
 
             var interactable = new InteractableWidget(ic =>
             {
@@ -145,7 +148,14 @@ public sealed record DatePickerWidget : Hex1bWidget
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateGrid(ctx, 1, 12), "Right");
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateGrid(ctx, 4, 12), "Down");
+                bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
+                bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusPrevious(ctx), "Previous widget");
             });
+
+            if (isFocusTarget)
+            {
+                interactable = interactable with { RequestFocus = true };
+            }
 
             var row = i / 4;
             var col = i % 4;
@@ -216,6 +226,10 @@ public sealed record DatePickerWidget : Hex1bWidget
         var today = DateTime.Today;
         var selectedMonth = node.SelectedDate?.Month;
         var dtf = CultureInfo.CurrentCulture.DateTimeFormat;
+        // Focus target: selected month if viewing selected year, else current month if viewing current year
+        int? focusMonth = (node.DisplayYear == node.SelectedDate?.Year) ? selectedMonth
+                        : (node.DisplayYear == today.Year) ? today.Month
+                        : null;
 
         var cells = new List<GridCellWidget>();
         for (int i = 0; i < 12; i++)
@@ -224,6 +238,7 @@ public sealed record DatePickerWidget : Hex1bWidget
             var capturedMonth = month;
             var isSelected = node.DisplayYear == node.SelectedDate?.Year && month == selectedMonth;
             var isCurrent = node.DisplayYear == today.Year && month == today.Month;
+            var isFocusTarget = month == focusMonth;
             var label = dtf.AbbreviatedMonthNames[i];
 
             var interactable = new InteractableWidget(ic =>
@@ -243,7 +258,14 @@ public sealed record DatePickerWidget : Hex1bWidget
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateGrid(ctx, 1, 12), "Right");
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateGrid(ctx, 4, 12), "Down");
+                bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
+                bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusPrevious(ctx), "Previous widget");
             });
+
+            if (isFocusTarget)
+            {
+                interactable = interactable with { RequestFocus = true };
+            }
 
             var row = i / 4;
             var col = i % 4;
@@ -315,6 +337,27 @@ public sealed record DatePickerWidget : Hex1bWidget
             calendar = calendar with { InitialSelectedDay = sel.Day };
         }
 
+        // Focus target: selected day if viewing selected month, else today if viewing current month
+        int? focusDay = null;
+        if (node.SelectedDate is { } s && s.Year == node.DisplayYear && s.Month == node.DisplayMonth)
+        {
+            focusDay = s.Day;
+        }
+        else if (node.DisplayYear == today.Year && node.DisplayMonth == today.Month)
+        {
+            focusDay = today.Day;
+        }
+
+        calendar = calendar with
+        {
+            FocusDay = focusDay,
+            CellTabBindings = bindings =>
+            {
+                bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
+                bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusPrevious(ctx), "Previous widget");
+            }
+        };
+
         var headerText = $"{CultureInfo.CurrentCulture.DateTimeFormat.GetMonthName(node.DisplayMonth)} {node.DisplayYear}";
         var headerLabel = new TextBlockWidget(headerText);
 
@@ -357,6 +400,26 @@ public sealed record DatePickerWidget : Hex1bWidget
             ctx.Focus(focusables[target]);
         }
 
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Dismisses the DatePicker popup and moves focus to the next sibling widget.
+    /// </summary>
+    private static Task DismissAndFocusNext(InputBindingActionContext ctx)
+    {
+        ctx.Popups.Pop();
+        ctx.FocusNext();
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Dismisses the DatePicker popup and moves focus to the previous sibling widget.
+    /// </summary>
+    private static Task DismissAndFocusPrevious(InputBindingActionContext ctx)
+    {
+        ctx.Popups.Pop();
+        ctx.FocusPrevious();
         return Task.CompletedTask;
     }
 }
