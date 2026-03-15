@@ -139,21 +139,39 @@ public sealed record ZStackWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWi
         
         if (shouldFocusTopmost)
         {
-            // First, clear focus on ALL nodes in the tree (recursively)
+            // Check if any node in the topmost popup layer already has focus
+            // (e.g., via RequestFocus during reconciliation). If so, preserve it.
+            Hex1bNode? existingFocusedInPopup = null;
+            if (node.Children.Count > 0)
+            {
+                var topmostChild = node.Children[^1];
+                existingFocusedInPopup = topmostChild.GetFocusableNodes()
+                    .FirstOrDefault(n => n.IsFocused && n is not BackdropNode);
+            }
+
+            // Clear focus on ALL nodes in the tree (recursively)
             // This ensures only the new popup content has focus
             foreach (var child in node.Children)
             {
                 ClearFocusRecursive(child);
             }
             
-            // Set focus on first focusable in topmost layer
-            for (int i = node.Children.Count - 1; i >= 0; i--)
+            if (existingFocusedInPopup != null)
             {
-                var focusables = node.Children[i].GetFocusableNodes().ToList();
-                if (focusables.Count > 0)
+                // Restore the RequestFocus target
+                ReconcileContext.SetNodeFocus(existingFocusedInPopup, true);
+            }
+            else
+            {
+                // Set focus on first focusable in topmost layer
+                for (int i = node.Children.Count - 1; i >= 0; i--)
                 {
-                    ReconcileContext.SetNodeFocus(focusables[0], true);
-                    break;
+                    var focusables = node.Children[i].GetFocusableNodes().ToList();
+                    if (focusables.Count > 0)
+                    {
+                        ReconcileContext.SetNodeFocus(focusables[0], true);
+                        break;
+                    }
                 }
             }
         }

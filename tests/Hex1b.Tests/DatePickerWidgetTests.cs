@@ -443,11 +443,75 @@ public class DatePickerWidgetTests
         Assert.Single(selectedDates);
 
         var date = selectedDates[0];
-        // The selected date should NOT be the first cell in each grid
-        // because we navigated with arrows before pressing Enter
+        // Focus starts at currentYear (index 5 in the 12-year grid).
+        // Right(2) → index 7, Down(4) → index 11
         var today = DateTime.Today;
-        var expectedYear = today.Year - 5 + 6; // first year + right(2) + down(4) = index 6
+        var expectedYear = today.Year - 5 + 11; // YearPageStart + 11 = currentYear + 6
         Assert.Equal(expectedYear, date.Year);
+    }
+
+    [Fact]
+    public async Task Integration_DatePicker_YearGrid_EdgeNavigation_PageTransitions()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var currentYear = DateTime.Today.Year;
+        var firstPageStart = currentYear - 5;
+        var prevPageStart = firstPageStart - 12;
+
+        // 2026 at index 5 (row 1, col 1): Left twice → col 0, then page back
+        var sequence = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            .Capture("initial")
+            // Left to col 0
+            .Left()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle")
+            // Left from col 0 → page backward
+            .Left()
+            .WaitUntil(s => s.ContainsText($"{prevPageStart}"), TimeSpan.FromSeconds(3), "page back")
+            .Capture("after_page_back")
+            // Right from col 3 → page forward
+            .Right()
+            .WaitUntil(s => s.ContainsText($"{firstPageStart}–"), TimeSpan.FromSeconds(3), "page forward")
+            .Capture("after_page_forward")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build();
+
+        await sequence.ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var captures = sequence.Steps.OfType<CaptureStep>().ToList();
+        var output = TestContext.Current.TestOutputHelper;
+        foreach (var cap in captures)
+        {
+            output?.WriteLine($"=== {cap.Name} ===");
+            output?.WriteLine(cap.CapturedSnapshot!.GetScreenText());
+        }
+
+        Assert.True(captures[0].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"),
+            "Initial should be on first page");
+        Assert.True(captures[1].CapturedSnapshot!.ContainsText($"{prevPageStart}–{prevPageStart + 11}"),
+            $"After page back should show {prevPageStart}–{prevPageStart + 11}");
+        Assert.True(captures[2].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"),
+            "After page forward should be back on first page");
     }
 
     #endregion
