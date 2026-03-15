@@ -61,6 +61,18 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
     internal int? InitialSelectedDay { get; init; }
 
     /// <summary>
+    /// The day to focus when the calendar is rendered. Used by DatePicker to
+    /// direct focus to the selected or current day cell.
+    /// </summary>
+    internal int? FocusDay { get; init; }
+
+    /// <summary>
+    /// Optional Tab/Shift-Tab handler added to each day cell.
+    /// Used by DatePicker to dismiss the popup on Tab instead of cycling cells.
+    /// </summary>
+    internal Action<InputBindingsBuilder>? CellTabBindings { get; init; }
+
+    /// <summary>
     /// Sets a synchronous handler for day selection events.
     /// </summary>
     public CalendarWidget OnSelected(Action<CalendarDateSelectedEventArgs> handler)
@@ -197,7 +209,13 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateCalendarGrid(ctx, 1, daysInMonth), "Right");
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateCalendarGrid(ctx, -7, daysInMonth), "Up");
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateCalendarGrid(ctx, 7, daysInMonth), "Down");
+                CellTabBindings?.Invoke(bindings);
             });
+
+            if (FocusDay == capturedDay)
+            {
+                interactable = interactable with { RequestFocus = true };
+            }
 
             cells.Add(new GridCellWidget(interactable)
                 .Row(row).Column(col));

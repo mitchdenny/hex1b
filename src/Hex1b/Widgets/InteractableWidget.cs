@@ -65,6 +65,13 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
     public InteractableWidget OnHoverChanged(Action<InteractableHoverChangedEventArgs> handler)
         => this with { HoverChangedHandler = handler };
 
+    /// <summary>
+    /// When true, the node will request focus during reconciliation.
+    /// Used by container builders (e.g., DatePicker) to direct initial focus
+    /// to a specific cell before <c>EnsureFocus</c> runs.
+    /// </summary>
+    internal bool RequestFocus { get; init; }
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as InteractableNode ?? new InteractableNode();
@@ -112,6 +119,13 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
         else
         {
             node.HoverChangedAction = null;
+        }
+
+        // Apply focus request — sets IsFocused before EnsureFocus runs,
+        // so the focus ring sees this node as already focused.
+        if (RequestFocus)
+        {
+            node.IsFocused = true;
         }
 
         return node;
