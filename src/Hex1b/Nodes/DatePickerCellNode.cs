@@ -33,7 +33,7 @@ internal sealed class DatePickerCellNode : Hex1bNode
             fg = theme.Get(DatePickerTheme.SelectedCellForegroundColor);
             bg = theme.Get(DatePickerTheme.SelectedCellBackgroundColor);
         }
-        else if (IsCellHovered)
+        else if (IsCellHovered || IsCellFocused)
         {
             fg = theme.Get(DatePickerTheme.CellForegroundColor);
             bg = theme.Get(DatePickerTheme.HoverBackgroundColor);

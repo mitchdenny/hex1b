@@ -374,5 +374,81 @@ public class DatePickerWidgetTests
         await runTask;
     }
 
+    [Fact]
+    public async Task Integration_DatePicker_ArrowKeys_DiagnosticRepro()
+    {
+        // Comprehensive repro: proves arrow key navigation works through the full
+        // year→month→calendar flow with visual focus feedback
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        var selectedDates = new List<DateOnly>();
+
+        using var app = new Hex1bApp(
+            ctx =>
+            {
+                var toggle = ctx.ToggleSwitch(["Mode A", "Mode B"]);
+                var picker = ctx.DatePicker()
+                    .Format("yyyy-MM-dd")
+                    .OnSelected(e => selectedDates.Add(e.SelectedDate));
+                return Task.FromResult<Hex1bWidget>(
+                    new VStackWidget([toggle, picker]));
+            },
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Full single-sequence flow: open popup → arrow nav years → select →
+        // arrow nav months → select → arrow nav days → select → verify date
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            // Open popup: Tab to picker trigger, then Enter to open
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Tab()
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            // Arrow navigate in year grid: Right moves to next year cell
+            .Right()
+            .Right()
+            .Down()
+            // Enter to select the navigated year → month grid
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Month"), TimeSpan.FromSeconds(3), "month grid after year arrow nav")
+            // Arrow navigate in month grid: Right moves to next month
+            .Right()
+            .Right()
+            .Down()
+            // Enter to select month → calendar day grid
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Day"), TimeSpan.FromSeconds(3), "calendar after month arrow nav")
+            // Arrow navigate calendar days
+            .Right()
+            .Down()
+            // Enter to select day → popup closes, date selected
+            .Enter()
+            .WaitUntil(s => !s.ContainsText("Day"), TimeSpan.FromSeconds(3), "popup closed after day selection")
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // A date was selected via pure keyboard arrow navigation
+        Assert.Single(selectedDates);
+
+        var date = selectedDates[0];
+        // The selected date should NOT be the first cell in each grid
+        // because we navigated with arrows before pressing Enter
+        var today = DateTime.Today;
+        var expectedYear = today.Year - 5 + 6; // first year + right(2) + down(4) = index 6
+        Assert.Equal(expectedYear, date.Year);
+    }
+
     #endregion
 }

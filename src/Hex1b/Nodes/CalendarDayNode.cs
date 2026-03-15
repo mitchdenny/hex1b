@@ -36,7 +36,7 @@ internal sealed class CalendarDayNode : Hex1bNode
             fg = theme.Get(CalendarTheme.SelectedForegroundColor);
             bg = theme.Get(CalendarTheme.SelectedBackgroundColor);
         }
-        else if (IsCellHovered)
+        else if (IsCellHovered || IsCellFocused)
         {
             fg = theme.Get(CalendarTheme.HoverForegroundColor);
             bg = theme.Get(CalendarTheme.HoverBackgroundColor);
