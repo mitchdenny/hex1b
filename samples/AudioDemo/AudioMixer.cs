@@ -188,8 +188,8 @@ public sealed class AudioMixer : IDisposable
         var dy = state.Row - _listenerRow;
         var distance = MathF.Sqrt(dx * dx + dy * dy);
 
-        // Gentle logarithmic-style rolloff: audible up to ~30 cells away
-        var attenuation = 1.0f / (1.0f + distance * 0.15f);
+        // Smooth rolloff: falls to ~50% at 5 cells, ~20% at 15 cells, near-zero at 30+
+        var attenuation = 1.0f / (1.0f + distance * distance * 0.02f);
         var effectiveVolume = state.BaseVolume * attenuation;
 
         state.Provider.Volume = Math.Clamp(effectiveVolume, 0f, 1f);

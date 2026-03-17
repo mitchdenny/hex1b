@@ -48,7 +48,7 @@ for (var idx = 0; idx < producers.Length; idx++)
 {
     var p = producers[idx];
     mixer.PlaceProducer(p.ClipId, (uint)(idx + 1),
-        p.Col, p.Row, 80, loop: true);
+        p.Col, p.Row, 40, loop: true);
 }
 
 // Start listener at map center so audio is audible immediately

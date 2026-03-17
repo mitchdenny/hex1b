@@ -32,19 +32,20 @@ public static class AudioSamples
         var samples = new short[numSamples];
         var rng = new Random(42);
         var envelope = 0f;
+        var lpState = 0f; // low-pass filter state
 
         for (var i = 0; i < numSamples; i++)
         {
-            // Random crackle bursts
-            if (rng.NextDouble() < 0.005)
-                envelope = 0.9f;
+            // Occasional crackle bursts
+            if (rng.NextDouble() < 0.002)
+                envelope = 0.6f;
 
-            envelope *= 0.998f;
+            envelope *= 0.9995f;
 
             var noise = (float)(rng.NextDouble() * 2 - 1);
-            // Simple low-pass filter
-            var filtered = noise * envelope;
-            samples[i] = (short)(filtered * short.MaxValue * 0.7f);
+            // Two-pole low-pass filter to remove harshness
+            lpState += 0.05f * (noise * envelope - lpState);
+            samples[i] = (short)(lpState * short.MaxValue * 0.3f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -74,7 +75,7 @@ public static class AudioSamples
             // Ambient stream noise
             var noise = (float)(rng.NextDouble() * 2 - 1) * 0.05f;
 
-            samples[i] = (short)((drip + noise) * short.MaxValue * 0.6f);
+            samples[i] = (short)((drip + noise) * short.MaxValue * 0.3f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -99,7 +100,7 @@ public static class AudioSamples
                         0.2f * MathF.Sin(2 * MathF.PI * 733 * t) +
                         0.1f * MathF.Sin(2 * MathF.PI * 1047 * t);
 
-            samples[i] = (short)(sound * envelope * short.MaxValue * 0.6f);
+            samples[i] = (short)(sound * envelope * short.MaxValue * 0.25f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -130,7 +131,7 @@ public static class AudioSamples
             // Subtle noise
             var noise = (float)(rng.NextDouble() * 2 - 1) * 0.02f;
 
-            samples[i] = (short)((hum + noise) * short.MaxValue * 0.4f);
+            samples[i] = (short)((hum + noise) * short.MaxValue * 0.2f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
