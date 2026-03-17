@@ -14,7 +14,7 @@ public sealed class AudioMixer : IDisposable
     private readonly object _lock = new();
     private readonly WaveFormat _outputFormat = WaveFormat.CreateIeeeFloatWaveFormat(44100, 2);
 
-    private WaveOutEvent? _waveOut;
+    private PipeWireOutput? _output;
     private MixingSampleProvider? _mixer;
     private int _listenerCol;
     private int _listenerRow;
@@ -49,14 +49,14 @@ public sealed class AudioMixer : IDisposable
 
         try
         {
-            _waveOut = new WaveOutEvent();
-            _waveOut.Init(_mixer);
-            _waveOut.Play();
+            _output = new PipeWireOutput(_outputFormat.SampleRate, _outputFormat.Channels);
+            _output.Init(_mixer);
+            _output.Play();
         }
         catch (Exception)
         {
             // Audio device not available — run silently
-            _waveOut = null;
+            _output = null;
         }
     }
 
@@ -186,10 +186,10 @@ public sealed class AudioMixer : IDisposable
 
         var dx = state.Column - _listenerCol;
         var dy = state.Row - _listenerRow;
-        var distSq = dx * dx + dy * dy;
+        var distance = MathF.Sqrt(dx * dx + dy * dy);
 
-        // Inverse square attenuation
-        var attenuation = 1.0f / (1.0f + distSq);
+        // Gentle logarithmic-style rolloff: audible up to ~30 cells away
+        var attenuation = 1.0f / (1.0f + distance * 0.15f);
         var effectiveVolume = state.BaseVolume * attenuation;
 
         state.Provider.Volume = Math.Clamp(effectiveVolume, 0f, 1f);
@@ -235,8 +235,8 @@ public sealed class AudioMixer : IDisposable
 
     public void Dispose()
     {
-        _waveOut?.Stop();
-        _waveOut?.Dispose();
+        _output?.Stop();
+        _output?.Dispose();
     }
 
     private record struct ProducerKey(uint ClipId, uint PlacementId);

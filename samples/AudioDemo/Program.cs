@@ -51,6 +51,11 @@ for (var idx = 0; idx < producers.Length; idx++)
         p.Col, p.Row, 80, loop: true);
 }
 
+// Start listener at map center so audio is audible immediately
+mixer.ListenerCol = MapWidth / 2;
+mixer.ListenerRow = MapHeight / 2;
+mixer.UpdateAllVolumes();
+
 // ── Terminal Setup ──
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithPresentation(audioAdapter)

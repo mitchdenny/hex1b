@@ -36,15 +36,15 @@ public static class AudioSamples
         for (var i = 0; i < numSamples; i++)
         {
             // Random crackle bursts
-            if (rng.NextDouble() < 0.003)
-                envelope = 0.6f;
+            if (rng.NextDouble() < 0.005)
+                envelope = 0.9f;
 
-            envelope *= 0.999f;
+            envelope *= 0.998f;
 
             var noise = (float)(rng.NextDouble() * 2 - 1);
             // Simple low-pass filter
             var filtered = noise * envelope;
-            samples[i] = (short)(filtered * short.MaxValue * 0.4f);
+            samples[i] = (short)(filtered * short.MaxValue * 0.7f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -74,7 +74,7 @@ public static class AudioSamples
             // Ambient stream noise
             var noise = (float)(rng.NextDouble() * 2 - 1) * 0.05f;
 
-            samples[i] = (short)((drip + noise) * short.MaxValue * 0.3f);
+            samples[i] = (short)((drip + noise) * short.MaxValue * 0.6f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -99,7 +99,7 @@ public static class AudioSamples
                         0.2f * MathF.Sin(2 * MathF.PI * 733 * t) +
                         0.1f * MathF.Sin(2 * MathF.PI * 1047 * t);
 
-            samples[i] = (short)(sound * envelope * short.MaxValue * 0.3f);
+            samples[i] = (short)(sound * envelope * short.MaxValue * 0.6f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
@@ -130,7 +130,7 @@ public static class AudioSamples
             // Subtle noise
             var noise = (float)(rng.NextDouble() * 2 - 1) * 0.02f;
 
-            samples[i] = (short)((hum + noise) * short.MaxValue * 0.15f);
+            samples[i] = (short)((hum + noise) * short.MaxValue * 0.4f);
         }
 
         return EncodeWav(samples, sampleRate, channels: 1);
