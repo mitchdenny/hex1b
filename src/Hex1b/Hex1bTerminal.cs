@@ -63,6 +63,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly TimeProvider _timeProvider;
     private readonly KgpImageStore _kgpImageStore = new();
     private readonly List<KgpPlacement> _kgpPlacements = new();
+    private readonly AudioClipStore _audioClipStore = new();
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -1400,6 +1401,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     replacement = new KgpToken(kgpControlData, kgpPayload);
                 }
+                else if (TryExtractAudioToken(unrec.Sequence, out var audioControlData, out var audioPayload))
+                {
+                    replacement = new AudioToken(audioControlData, audioPayload);
+                }
 
                 if (replacement != null)
                 {
@@ -1532,6 +1537,113 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         return true;
+    }
+
+    private static bool TryExtractAudioToken(string sequence, out string controlData, out string payload)
+    {
+        controlData = "";
+        payload = "";
+
+        // Check for APC start: ESC _ (0x1b 0x5f) or 8-bit form (0x9f)
+        int dataStart;
+        if (sequence.Length >= 2 && sequence[0] == '\x1b' && sequence[1] == '_')
+        {
+            dataStart = 2;
+        }
+        else if (sequence.Length >= 1 && sequence[0] == '\x9f')
+        {
+            dataStart = 1;
+        }
+        else
+        {
+            return false;
+        }
+
+        // Must start with 'A' to be an audio protocol sequence
+        if (dataStart >= sequence.Length || sequence[dataStart] != 'A')
+            return false;
+
+        dataStart++; // Skip 'A'
+
+        // Find ST: ESC \ or 0x9C
+        int dataEnd = -1;
+        for (int i = dataStart; i < sequence.Length; i++)
+        {
+            if (i + 1 < sequence.Length && sequence[i] == '\x1b' && sequence[i + 1] == '\\')
+            {
+                dataEnd = i;
+                break;
+            }
+            if (sequence[i] == '\x9c')
+            {
+                dataEnd = i;
+                break;
+            }
+        }
+
+        if (dataEnd < 0)
+            return false;
+
+        var content = sequence.Substring(dataStart, dataEnd - dataStart);
+
+        var semicolonIndex = content.IndexOf(';');
+        if (semicolonIndex < 0)
+        {
+            controlData = content;
+            payload = "";
+        }
+        else
+        {
+            controlData = content.Substring(0, semicolonIndex);
+            payload = content.Substring(semicolonIndex + 1);
+        }
+
+        return true;
+    }
+
+    private void ProcessAudioCommand(AudioToken token)
+    {
+        var command = AudioCommand.Parse(token.ControlData);
+
+        switch (command.Action)
+        {
+            case AudioAction.Transmit:
+                ProcessAudioTransmit(command, token.Payload);
+                break;
+            case AudioAction.Place:
+            case AudioAction.Stop:
+            case AudioAction.Delete:
+                // Place/Stop/Delete are handled by the AudioPresentationAdapter
+                // which intercepts the raw output stream. The terminal just stores clips.
+                break;
+        }
+    }
+
+    private void ProcessAudioTransmit(AudioCommand command, string base64Payload)
+    {
+        byte[] decodedData;
+        try
+        {
+            decodedData = Convert.FromBase64String(base64Payload);
+        }
+        catch (FormatException)
+        {
+            return;
+        }
+
+        if (command.MoreData == 1 || _audioClipStore.IsChunkedTransferInProgress)
+        {
+            var clip = _audioClipStore.ProcessChunk(command, decodedData);
+            if (clip is not null)
+            {
+                _audioClipStore.StoreClip(clip);
+            }
+            return;
+        }
+
+        var clipId = command.ClipId == 0 ? _audioClipStore.AllocateId() : command.ClipId;
+        var newClip = new AudioClipData(clipId, decodedData, command.Format, command.SampleRate);
+        _audioClipStore.StoreClip(newClip);
     }
 
     private async Task ParseAndDispatchInputAsync(ReadOnlyMemory<byte> data, Hex1bAppWorkloadAdapter workload, CancellationToken ct)
@@ -2733,6 +2845,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 
             case KgpToken kgpToken:
                 ProcessKgpCommand(kgpToken);
+                break;
+
+            case AudioToken audioToken:
+                ProcessAudioCommand(audioToken);
                 break;
                 
             case TabClearToken tabClear:
@@ -6033,6 +6149,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Gets the KGP image store for testing and inspection.
     /// </summary>
     internal KgpImageStore KgpImageStore => _kgpImageStore;
+
+    /// <summary>
+    /// Gets the audio clip store for testing and inspection.
+    /// </summary>
+    internal AudioClipStore AudioClipStore => _audioClipStore;
 
     /// <summary>
     /// Gets the active KGP placements for testing and inspection.

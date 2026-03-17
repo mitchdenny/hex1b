@@ -25,6 +25,7 @@ namespace Hex1b.Surfaces;
 /// <param name="Sixel">Optional tracked reference to Sixel graphics data.</param>
 /// <param name="Kgp">Optional tracked reference to KGP (Kitty Graphics Protocol) image data.</param>
 /// <param name="Hyperlink">Optional tracked reference to hyperlink data.</param>
+/// <param name="Audio">Optional tracked reference to spatial audio producer data.</param>
 /// <param name="UnderlineStyle">The underline style (single, double, curly, dotted, dashed). Only meaningful when Attributes has Underline flag.</param>
 /// <param name="UnderlineColor">The underline color (independent of foreground), or null for default (foreground color).</param>
 public readonly record struct SurfaceCell(
@@ -36,6 +37,7 @@ public readonly record struct SurfaceCell(
     TrackedObject<SixelData>? Sixel = null,
     TrackedObject<KgpCellData>? Kgp = null,
     TrackedObject<HyperlinkData>? Hyperlink = null,
+    TrackedObject<AudioCellData>? Audio = null,
     UnderlineStyle UnderlineStyle = UnderlineStyle.None,
     Hex1bColor? UnderlineColor = null)
 {
@@ -81,6 +83,11 @@ public readonly record struct SurfaceCell(
     /// Gets whether this cell contains hyperlink data.
     /// </summary>
     public bool HasHyperlink => Hyperlink is not null;
+
+    /// <summary>
+    /// Gets whether this cell contains spatial audio producer data.
+    /// </summary>
+    public bool HasAudio => Audio is not null;
 
     /// <summary>
     /// Creates a new cell with the specified foreground color.

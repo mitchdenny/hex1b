@@ -25,6 +25,9 @@ internal sealed class TrackedObjectStore
     
     // Content-addressable storage for KGP data, keyed by content hash
     private readonly Dictionary<byte[], TrackedObject<KgpCellData>> _kgpByHash = new(ByteArrayComparer.Instance);
+
+    // Audio cell data tracked by clip ID
+    private readonly Dictionary<uint, TrackedObject<AudioCellData>> _audioByClipId = new();
     
     private readonly object _lock = new();
 
@@ -201,6 +204,29 @@ internal sealed class TrackedObjectStore
     }
 
     /// <summary>
+    /// Gets or creates a tracked audio cell data object for the given clip ID.
+    /// If the same clip ID already exists, adds a reference and returns it.
+    /// </summary>
+    public TrackedObject<AudioCellData> GetOrCreateAudio(AudioCellData audioData)
+    {
+        lock (_lock)
+        {
+            if (_audioByClipId.TryGetValue(audioData.ClipId, out var existing))
+            {
+                existing.AddRef();
+                return existing;
+            }
+
+            var tracked = new TrackedObject<AudioCellData>(
+                audioData,
+                onZeroRefs: obj => RemoveAudio(obj.Data));
+
+            _audioByClipId[audioData.ClipId] = tracked;
+            return tracked;
+        }
+    }
+
+    /// <summary>
     /// Clears all tracked objects, resetting the store.
     /// </summary>
     /// <remarks>
@@ -214,6 +240,7 @@ internal sealed class TrackedObjectStore
             _sixelByHash.Clear();
             _hyperlinkByHash.Clear();
             _kgpByHash.Clear();
+            _audioByClipId.Clear();
         }
     }
 
@@ -238,6 +265,14 @@ internal sealed class TrackedObjectStore
         lock (_lock)
         {
             _kgpByHash.Remove(kgp.ContentHash);
+        }
+    }
+
+    private void RemoveAudio(AudioCellData audio)
+    {
+        lock (_lock)
+        {
+            _audioByClipId.Remove(audio.ClipId);
         }
     }
 

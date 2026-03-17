@@ -131,6 +131,55 @@ public class Hex1bRenderContext
     }
 
     /// <summary>
+    /// Writes an audio producer tag at the current cursor position.
+    /// In the base context, this emits ESC_A placement sequences directly.
+    /// In SurfaceRenderContext, this tags the cell with AudioCellData.
+    /// </summary>
+    /// <param name="clipId">The audio clip ID to play.</param>
+    /// <param name="audioData">The raw audio data (WAV/PCM) to transmit, or null if already transmitted.</param>
+    /// <param name="volume">Volume percentage (0-100).</param>
+    /// <param name="loop">Whether playback should loop.</param>
+    /// <param name="format">Audio data format.</param>
+    /// <param name="sampleRate">Sample rate in Hz.</param>
+    public virtual void WriteAudio(uint clipId, byte[]? audioData,
+        int volume = 100, bool loop = false,
+        AudioFormat format = AudioFormat.Wav, uint sampleRate = 44100)
+    {
+        // Base implementation: emit escape sequences directly
+        if (audioData is not null)
+        {
+            var base64 = Convert.ToBase64String(audioData);
+            const int maxChunk = 4096;
+            if (base64.Length <= maxChunk)
+            {
+                Write($"\x1b_Aa=t,i={clipId},f={(int)format},r={sampleRate},q=2;{base64}\x1b\\");
+            }
+            else
+            {
+                var offset = 0;
+                var isFirst = true;
+                while (offset < base64.Length)
+                {
+                    var remaining = base64.Length - offset;
+                    var chunkLen = Math.Min(remaining, maxChunk);
+                    var isLast = offset + chunkLen >= base64.Length;
+                    var chunk = base64.Substring(offset, chunkLen);
+
+                    if (isFirst)
+                        Write($"\x1b_Aa=t,i={clipId},f={(int)format},r={sampleRate},q=2,m=1;{chunk}\x1b\\");
+                    else if (isLast)
+                        Write($"\x1b_Am=0;{chunk}\x1b\\");
+                    else
+                        Write($"\x1b_Am=1;{chunk}\x1b\\");
+
+                    offset += chunkLen;
+                    isFirst = false;
+                }
+            }
+        }
+    }
+
+    /// <summary>
     /// Maps image content to a Kitty image ID, salted by <see cref="KgpImageEpoch"/>
     /// so the same bytes can be reintroduced under a fresh ID after a terminal resize.
     /// </summary>

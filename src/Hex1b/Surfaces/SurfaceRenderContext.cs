@@ -460,6 +460,36 @@ public class SurfaceRenderContext : Hex1bRenderContext
     }
 
     /// <summary>
+    /// Tags the cell at the current cursor position with audio producer data.
+    /// The cell will be detected by the AudioPlacementTracker during rendering.
+    /// </summary>
+    public override void WriteAudio(uint clipId, byte[]? audioData,
+        int volume = 100, bool loop = false,
+        AudioFormat format = AudioFormat.Wav, uint sampleRate = 44100)
+    {
+        var writeX = _cursorX - _offsetX;
+        var writeY = _cursorY - _offsetY;
+
+        if (writeX < 0 || writeY < 0 || writeX >= _surface.Width || writeY >= _surface.Height)
+            return;
+
+        string? transmitPayload = null;
+        if (audioData is not null)
+        {
+            var base64 = Convert.ToBase64String(audioData);
+            transmitPayload = $"a=t,i={clipId},f={(int)format},r={sampleRate},q=2;{base64}";
+        }
+
+        var audioCell = new AudioCellData(clipId, volume, loop, transmitPayload, format, sampleRate);
+        var tracked = _trackedObjects.GetOrCreateAudio(audioCell);
+        tracked.AddRef();
+
+        // Tag the existing cell with audio data (preserve existing character/colors)
+        var existing = _surface[writeX, writeY];
+        _surface[writeX, writeY] = existing with { Audio = tracked };
+    }
+
+    /// <summary>
     /// Writes text at the specified position, respecting the current layout provider's clipping.
     /// </summary>
     public override void WriteClipped(int x, int y, string text)
