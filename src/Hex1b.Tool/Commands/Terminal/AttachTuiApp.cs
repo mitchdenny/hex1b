@@ -1,10 +1,7 @@
 using System.IO.Pipelines;
-using System.Net.Sockets;
 using System.Runtime.Versioning;
 using System.Text;
-using System.Text.Json;
 using Hex1b;
-using Hex1b.Diagnostics;
 using Hex1b.Theming;
 using Hex1b.Tokens;
 using Hex1b.Tool.Infrastructure;
@@ -20,17 +17,11 @@ namespace Hex1b.Tool.Commands.Terminal;
 [SupportedOSPlatform("macos")]
 internal sealed class AttachTuiApp : IAsyncDisposable
 {
-    private readonly string _socketPath;
+    private readonly IAttachTransport _transport;
     private readonly string _displayId;
     private readonly TerminalClient _client;
     private readonly bool _initialResize;
     private readonly bool _claimLead;
-
-    // Network state
-    private Socket? _socket;
-    private NetworkStream? _networkStream;
-    private StreamReader? _reader;
-    private StreamWriter? _writer;
 
     // Pipe bridging network output → StreamWorkloadAdapter
     private readonly Pipe _outputPipe = new();
@@ -50,9 +41,9 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     private TerminalWidgetHandle? _handle;
     private CancellationTokenSource? _appCts;
 
-    public AttachTuiApp(string socketPath, string displayId, TerminalClient client, bool resize, bool lead)
+    public AttachTuiApp(IAttachTransport transport, string displayId, TerminalClient client, bool resize, bool lead)
     {
-        _socketPath = socketPath;
+        _transport = transport;
         _displayId = displayId;
         _client = client;
         _initialResize = resize;
@@ -61,70 +52,44 @@ internal sealed class AttachTuiApp : IAsyncDisposable
 
     public async Task<int> RunAsync(CancellationToken cancellationToken)
     {
-        // 1. Connect to the remote terminal
-        _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        try
+        // 1. Connect to the remote terminal via the transport
+        var connectResult = await _transport.ConnectAsync(cancellationToken);
+        if (!connectResult.Success)
         {
-            await _socket.ConnectAsync(new UnixDomainSocketEndPoint(_socketPath), cancellationToken);
-        }
-        catch (Exception ex)
-        {
-            Console.Error.WriteLine($"Error: Cannot connect: {ex.Message}");
-            _socket.Dispose();
+            Console.Error.WriteLine($"Error: {connectResult.Error}");
             return 1;
         }
 
-        _networkStream = new NetworkStream(_socket, ownsSocket: true);
-        _reader = new StreamReader(_networkStream, Encoding.UTF8);
-        _writer = new StreamWriter(_networkStream, Encoding.UTF8) { AutoFlush = true };
+        _isLeader = connectResult.IsLeader;
+        _remoteWidth = connectResult.Width;
+        _remoteHeight = connectResult.Height;
 
-        // 2. Send attach request and get initial state
-        var request = new DiagnosticsRequest { Method = "attach" };
-        var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonOptions.Default);
-        await _writer.WriteLineAsync(requestJson.AsMemory(), cancellationToken);
-
-        var responseLine = await _reader.ReadLineAsync(cancellationToken);
-        if (string.IsNullOrEmpty(responseLine))
-        {
-            Console.Error.WriteLine("Error: Empty response from terminal");
-            return 1;
-        }
-
-        var response = JsonSerializer.Deserialize<DiagnosticsResponse>(responseLine, DiagnosticsJsonOptions.Default);
-        if (response is not { Success: true })
-        {
-            Console.Error.WriteLine($"Error: {response?.Error ?? "Attach failed"}");
-            return 1;
-        }
-
-        _isLeader = response.Leader == true;
-        _remoteWidth = response.Width ?? 80;
-        _remoteHeight = response.Height ?? 24;
-
-        // 3. Claim leadership if requested
+        // 2. Claim leadership if requested
         if (_claimLead && !_isLeader)
         {
-            await _writer.WriteLineAsync("lead".AsMemory(), cancellationToken);
+            await _transport.ClaimLeadAsync(cancellationToken);
 
             // Read frames until we get leader confirmation,
-            // forwarding any o: frames (like mode replay) to the output pipe
-            while (true)
+            // forwarding any output frames (like mode replay) to the output pipe
+            await foreach (var frame in _transport.ReadFramesAsync(cancellationToken))
             {
-                var frameLine = await _reader.ReadLineAsync(cancellationToken);
-                if (frameLine == null) break;
-                if (frameLine == "leader:true") { _isLeader = true; break; }
-                if (frameLine.StartsWith("o:"))
+                if (frame.Kind == AttachFrameKind.LeaderChanged)
                 {
-                    var frameBytes = Convert.FromBase64String(frameLine[2..]);
-                    await _outputPipe.Writer.WriteAsync(frameBytes, cancellationToken);
+                    _isLeader = frame.GetIsLeader();
+                    break;
+                }
+
+                if (frame.Kind == AttachFrameKind.Output)
+                {
+                    await _outputPipe.Writer.WriteAsync(frame.Data, cancellationToken);
                 }
             }
         }
 
-        // 5. Write initial screen content into the output pipe so the embedded terminal parses it
-        if (response.Data != null)
+        // 3. Write initial screen content into the output pipe so the embedded terminal parses it
+        if (connectResult.InitialScreen != null)
         {
-            var initialBytes = Encoding.UTF8.GetBytes(response.Data);
+            var initialBytes = Encoding.UTF8.GetBytes(connectResult.InitialScreen);
             await _outputPipe.Writer.WriteAsync(initialBytes, cancellationToken);
         }
 
@@ -178,12 +143,12 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             // Send detach or shutdown
             if (_shutdownRequested)
             {
-                try { await _writer.WriteLineAsync("shutdown"); } catch { }
+                try { await _transport.ShutdownAsync(CancellationToken.None); } catch { }
                 Console.Error.WriteLine($"Terminated remote session {_displayId}.");
             }
             else
             {
-                try { await _writer.WriteLineAsync("detach"); } catch { }
+                try { await _transport.DetachAsync(CancellationToken.None); } catch { }
                 Console.Error.WriteLine($"Detached from {_displayId}{(_isLeader ? " (leader)" : "")}.");
             }
 
@@ -219,7 +184,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                     v.Text(""),
                     v.Button("Take Lead & Resize").OnClick(async _ =>
                     {
-                        try { await _writer!.WriteLineAsync("lead"); } catch { }
+                        try { await _transport.ClaimLeadAsync(CancellationToken.None); } catch { }
                     })
                 ]));
         }
@@ -239,19 +204,19 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                 [
                     m.MenuItem("Lead").OnActivated(async _ =>
                     {
-                        try { await _writer!.WriteLineAsync("lead"); } catch { }
+                        try { await _transport.ClaimLeadAsync(CancellationToken.None); } catch { }
                     }),
                     m.Separator(),
                     m.MenuItem("Stop").OnActivated(async _ =>
                     {
                         _shutdownRequested = true;
-                        try { await _writer!.WriteLineAsync("shutdown"); } catch { }
+                        try { await _transport.ShutdownAsync(CancellationToken.None); } catch { }
                         _app?.RequestStop();
                     }),
                     m.Separator(),
                     m.MenuItem("Exit (Detach)").OnActivated(async _ =>
                     {
-                        try { await _writer!.WriteLineAsync("detach"); } catch { }
+                        try { await _transport.DetachAsync(CancellationToken.None); } catch { }
                         _app?.RequestStop();
                     })
                 ])
@@ -272,61 +237,49 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     }
 
     /// <summary>
-    /// Reads o:/leader:/exit frames from the network and writes decoded output into the pipe
+    /// Reads frames from the transport and writes decoded output into the pipe
     /// for the embedded terminal to parse.
     /// </summary>
     private async Task PumpNetworkOutputAsync(CancellationToken ct)
     {
         try
         {
-            while (!ct.IsCancellationRequested)
+            await foreach (var frame in _transport.ReadFramesAsync(ct))
             {
-                var line = await _reader!.ReadLineAsync(ct);
-                if (line == null)
+                switch (frame.Kind)
                 {
-                    _app?.RequestStop();
-                    return;
-                }
+                    case AttachFrameKind.Output:
+                        await _outputPipe.Writer.WriteAsync(frame.Data, ct);
+                        await _outputPipe.Writer.FlushAsync(ct);
+                        break;
 
-                if (line.StartsWith("o:"))
-                {
-                    var bytes = Convert.FromBase64String(line[2..]);
-                    await _outputPipe.Writer.WriteAsync(bytes, ct);
-                    await _outputPipe.Writer.FlushAsync(ct);
-                }
-                else if (line.StartsWith("r:"))
-                {
-                    // Remote terminal was resized (by leader) — update embedded terminal
-                    var parts = line[2..].Split(',');
-                    if (parts.Length == 2 && int.TryParse(parts[0], out var w) && int.TryParse(parts[1], out var h))
-                    {
+                    case AttachFrameKind.Resize:
+                        var (w, h) = frame.GetResize();
                         _remoteWidth = w;
                         _remoteHeight = h;
                         _handle?.Resize(w, h);
                         _embeddedTerminal?.Resize(w, h);
                         _app?.Invalidate();
-                    }
-                }
-                else if (line == "exit")
-                {
-                    _app?.RequestStop();
-                    return;
-                }
-                else if (line == "leader:true")
-                {
-                    _isLeader = true;
-                    await SendResizeForCurrentDisplayAsync();
-                    _app?.Invalidate();
-                }
-                else if (line == "leader:false")
-                {
-                    _isLeader = false;
-                    _app?.Invalidate();
+                        break;
+
+                    case AttachFrameKind.Exit:
+                        _app?.RequestStop();
+                        return;
+
+                    case AttachFrameKind.LeaderChanged:
+                        _isLeader = frame.GetIsLeader();
+                        if (_isLeader)
+                            await SendResizeForCurrentDisplayAsync();
+                        _app?.Invalidate();
+                        break;
                 }
             }
+
+            // Stream ended — connection closed
+            _app?.RequestStop();
         }
         catch (OperationCanceledException) { }
-        catch (IOException) { _app?.RequestStop(); }
+        catch (Exception) { _app?.RequestStop(); }
         finally
         {
             _outputPipe.Writer.Complete();
@@ -345,7 +298,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                 break;
 
             case (byte)'l':
-                try { await _writer!.WriteLineAsync("lead"); } catch { }
+                try { await _transport.ClaimLeadAsync(CancellationToken.None); } catch { }
                 break;
 
             case (byte)'q':
@@ -354,19 +307,17 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                 break;
 
             case 0x1D: // literal Ctrl+]
-                var b64 = Convert.ToBase64String([0x1D]);
-                try { await _writer!.WriteLineAsync($"i:{b64}"); } catch { }
+                try { await _transport.SendInputAsync(new byte[] { 0x1D }, CancellationToken.None); } catch { }
                 break;
         }
     }
 
     /// <summary>
-    /// Sends input bytes to the remote terminal as i: frames.
+    /// Sends input bytes to the remote terminal via the transport.
     /// </summary>
     internal async Task SendInputAsync(byte[] data, int offset, int count)
     {
-        var b64 = Convert.ToBase64String(data, offset, count);
-        try { await _writer!.WriteLineAsync($"i:{b64}"); } catch { }
+        try { await _transport.SendInputAsync(data.AsMemory(offset, count), CancellationToken.None); } catch { }
     }
 
     public async ValueTask DisposeAsync()
@@ -380,11 +331,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         if (_embeddedTerminal != null)
             await _embeddedTerminal.DisposeAsync();
 
-        _reader?.Dispose();
-        if (_writer != null)
-            await _writer.DisposeAsync();
-        if (_networkStream != null)
-            await _networkStream.DisposeAsync();
+        await _transport.DisposeAsync();
     }
 
     /// <summary>
@@ -415,7 +362,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _handle?.Resize(termWidth, termHeight);
         _embeddedTerminal?.Resize(termWidth, termHeight);
 
-        try { await _writer!.WriteLineAsync($"r:{termWidth},{termHeight}"); } catch { }
+        try { await _transport.SendResizeAsync(termWidth, termHeight, CancellationToken.None); } catch { }
         _app?.Invalidate();
     }
 

@@ -1,4 +1,5 @@
 using System.CommandLine;
+using System.Diagnostics;
 using System.Runtime.Versioning;
 using Hex1b.Tool.Infrastructure;
 using Microsoft.Extensions.Logging;
@@ -11,11 +12,12 @@ namespace Hex1b.Tool.Commands.Terminal;
 /// </summary>
 internal sealed class TerminalAttachCommand : BaseCommand
 {
-    private static readonly Argument<string> s_idArgument = new("id") { Description = "Terminal ID (or prefix)" };
+    private static readonly Argument<string?> s_idArgument = new("id") { Description = "Terminal ID (or prefix)", Arity = ArgumentArity.ZeroOrOne };
     private static readonly Option<bool> s_resizeOption = new("--resize") { Description = "Resize remote terminal to match local terminal dimensions" };
     private static readonly Option<bool> s_leadOption = new("--lead") { Description = "Claim resize leadership (only the leader's resize events control the remote terminal)" };
     private static readonly Option<bool> s_webOption = new("--web") { Description = "Attach via a web browser using xterm.js instead of the TUI" };
-    private static readonly Option<int> s_portOption = new("--port") { Description = "Port for the web server (0 for random, default: 0). Only used with --web" };
+    private static readonly Option<int> s_webPortOption = new("--web-port") { Description = "Port for the web server (0 for random, default: 0). Only used with --web" };
+    private static readonly Option<int> s_portOption = new("--port") { Description = "Connect to a WebSocket-exposed host at ws://localhost:{port}/ws/attach" };
 
     private readonly TerminalIdResolver _resolver;
     private readonly TerminalClient _client;
@@ -34,6 +36,7 @@ internal sealed class TerminalAttachCommand : BaseCommand
         Options.Add(s_resizeOption);
         Options.Add(s_leadOption);
         Options.Add(s_webOption);
+        Options.Add(s_webPortOption);
         Options.Add(s_portOption);
     }
 
@@ -45,11 +48,37 @@ internal sealed class TerminalAttachCommand : BaseCommand
             return 1;
         }
 
-        var id = parseResult.GetValue(s_idArgument)!;
+        var id = parseResult.GetValue(s_idArgument);
         var resize = parseResult.GetValue(s_resizeOption);
         var lead = parseResult.GetValue(s_leadOption);
         var web = parseResult.GetValue(s_webOption);
+        var webPort = parseResult.GetValue(s_webPortOption);
         var port = parseResult.GetValue(s_portOption);
+
+        if (port > 0)
+        {
+            // WebSocket transport — no PID-based discovery needed
+            var displayId = id ?? $"localhost:{port}";
+
+            if (web)
+            {
+                // Open browser directly to the host's web interface
+                var url = $"http://localhost:{port}";
+                Console.Error.WriteLine($"Opening {url} ...");
+                try { Process.Start(new ProcessStartInfo(url) { UseShellExecute = true }); } catch { }
+                return 0;
+            }
+
+            var transport = new WebSocketAttachTransport(new Uri($"ws://localhost:{port}/ws/attach"));
+            return await RunAttachAsync(transport, displayId, _client, resize, lead, cancellationToken);
+        }
+
+        // Unix socket transport — resolve terminal by ID
+        if (string.IsNullOrEmpty(id))
+        {
+            Formatter.WriteError("Terminal ID is required (or use --port for WebSocket connection)");
+            return 1;
+        }
 
         var resolved = _resolver.Resolve(id);
         if (!resolved.Success)
@@ -60,10 +89,11 @@ internal sealed class TerminalAttachCommand : BaseCommand
 
         if (web)
         {
-            return await RunWebAttachAsync(resolved.SocketPath!, resolved.Id!, _client, port, cancellationToken);
+            return await RunWebAttachAsync(resolved.SocketPath!, resolved.Id!, _client, webPort, cancellationToken);
         }
 
-        return await RunAttachAsync(resolved.SocketPath!, resolved.Id!, _client, resize, lead, cancellationToken);
+        var socketTransport = new UnixSocketAttachTransport(resolved.SocketPath!);
+        return await RunAttachAsync(socketTransport, resolved.Id!, _client, resize, lead, cancellationToken);
     }
 
     /// <summary>
@@ -72,10 +102,10 @@ internal sealed class TerminalAttachCommand : BaseCommand
     [SupportedOSPlatform("linux")]
     [SupportedOSPlatform("macos")]
     internal static async Task<int> RunAttachAsync(
-        string socketPath, string displayId, TerminalClient client,
+        IAttachTransport transport, string displayId, TerminalClient client,
         bool resize, bool lead, CancellationToken cancellationToken)
     {
-        await using var app = new AttachTuiApp(socketPath, displayId, client, resize, lead);
+        await using var app = new AttachTuiApp(transport, displayId, client, resize, lead);
         return await app.RunAsync(cancellationToken);
     }
 

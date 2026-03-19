@@ -34,4 +34,16 @@ internal sealed class TerminalHostConfig
     /// Optional path to record the session as asciinema .cast file.
     /// </summary>
     public string? RecordPath { get; set; }
+
+    /// <summary>
+    /// When true, runs in passthru mode: PTY bridges directly to the current terminal's
+    /// stdin/stdout with no chrome. The outer terminal defines resolution and controls screen size.
+    /// </summary>
+    public bool Passthru { get; set; }
+
+    /// <summary>
+    /// Optional port for a WebSocket diagnostics listener. When set, the host exposes
+    /// itself over HTTP WebSocket in addition to the Unix domain socket.
+    /// </summary>
+    public int? Port { get; set; }
 }

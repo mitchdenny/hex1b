@@ -32,9 +32,9 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private readonly CancellationTokenSource _cts = new();
     private readonly List<byte> _pendingInput = [];
     private readonly object _inputLock = new();
-    private readonly List<Channel<string>> _attachedClients = [];
+    private readonly List<AttachSession> _sessions = [];
     private readonly object _attachLock = new();
-    private Channel<string>? _leaderChannel;
+    private AttachSession? _leaderSession;
     
     // Terminal mode state for attach replay
     private bool _mouseTrackingEnabled;
@@ -51,6 +51,21 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     /// Gets the socket path for this diagnostics filter.
     /// </summary>
     public string SocketPath => _socketPath;
+
+    /// <summary>
+    /// Gets the application name.
+    /// </summary>
+    public string AppName => _appName;
+
+    /// <summary>
+    /// Gets the current terminal width, or 0 if not initialized.
+    /// </summary>
+    public int TerminalWidth => _terminal?.Width ?? 0;
+
+    /// <summary>
+    /// Gets the current terminal height, or 0 if not initialized.
+    /// </summary>
+    public int TerminalHeight => _terminal?.Height ?? 0;
 
     /// <summary>
     /// Gets a token that is cancelled when a shutdown request is received.
@@ -141,17 +156,18 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
         // Broadcast to attached clients if any
         lock (_attachLock)
         {
-            if (_attachedClients.Count > 0)
+            if (_sessions.Count > 0)
             {
                 var ansi = AnsiTokenSerializer.Serialize(tokens);
                 if (ansi.Length > 0)
                 {
-                    for (var i = _attachedClients.Count - 1; i >= 0; i--)
+                    var frame = new AttachFrame(AttachFrameType.Output, ansi);
+                    for (var i = _sessions.Count - 1; i >= 0; i--)
                     {
-                        if (!_attachedClients[i].Writer.TryWrite(ansi))
+                        if (!_sessions[i].Channel.Writer.TryWrite(frame))
                         {
                             // Channel full or completed — remove dead client
-                            _attachedClients.RemoveAt(i);
+                            _sessions.RemoveAt(i);
                         }
                     }
                 }
@@ -271,6 +287,56 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     }
 
     /// <summary>
+    /// Creates an attach session that receives terminal output and can send input.
+    /// Used by external listeners (e.g., WebSocket) to integrate with the attach system.
+    /// </summary>
+    /// <returns>An <see cref="AttachSession"/> that must be disposed when the client disconnects.</returns>
+    /// <exception cref="InvalidOperationException">The terminal is not initialized.</exception>
+    public AttachSession CreateAttachSession()
+    {
+        if (_terminal == null)
+            throw new InvalidOperationException("Terminal not initialized");
+
+        var channel = Channel.CreateBounded<AttachFrame>(new BoundedChannelOptions(1000)
+        {
+            FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        // Capture initial screen
+        using var snapshot = _terminal.CreateSnapshot();
+        var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
+        {
+            IncludeClearScreen = true,
+            IncludeTrailingNewline = true
+        });
+
+        bool isLeader;
+        var session = new AttachSession(this, channel, _terminal.Width, _terminal.Height, false, initialAnsi);
+
+        lock (_attachLock)
+        {
+            _sessions.Add(session);
+            if (_leaderSession == null)
+            {
+                _leaderSession = session;
+                session.IsLeader = true;
+            }
+            isLeader = _leaderSession == session;
+        }
+
+        // Write mode replay as the first frame
+        var modeReplay = BuildModeReplaySequence();
+        if (modeReplay.Length > 0)
+        {
+            channel.Writer.TryWrite(new AttachFrame(AttachFrameType.Output, modeReplay));
+        }
+
+        return session;
+    }
+
+    /// <summary>
     /// Handles an attach session — bidirectional streaming over a persistent connection.
     /// Protocol: Server sends initial ANSI capture, then streams output lines prefixed with "o:".
     /// Client sends input lines prefixed with "i:". Either side can send "detach" to end.
@@ -283,103 +349,63 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             return;
         }
 
-        // Create a channel for this client's output
-        var channel = Channel.CreateBounded<string>(new BoundedChannelOptions(1000)
+        await using var session = CreateAttachSession();
+
+        // Send attach response with terminal dimensions and leader status
+        var attachResponse = new DiagnosticsResponse
         {
-            FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = false
-        });
+            Success = true,
+            Width = session.Width,
+            Height = session.Height,
+            Data = session.InitialScreen,
+            Leader = session.IsLeader
+        };
+        var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
+        await writer.WriteLineAsync(responseJson.AsMemory(), ct);
 
-        lock (_attachLock)
-        {
-            _attachedClients.Add(channel);
-            // First attacher becomes leader automatically
-            _leaderChannel ??= channel;
-        }
+        // Run two tasks: output streaming and input forwarding
+        using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
 
-        try
-        {
-            // Send initial full-screen capture as ANSI
-            using var snapshot = _terminal.CreateSnapshot();
-            var initialAnsi = snapshot.ToAnsi(new TerminalAnsiOptions
-            {
-                IncludeClearScreen = true,
-                IncludeTrailingNewline = true
-            });
+        var outputTask = StreamOutputFromSessionAsync(session, writer, detachCts.Token);
+        var inputTask = StreamInputToSessionAsync(session, reader, writer, detachCts);
 
-            bool isLeader;
-            lock (_attachLock) { isLeader = _leaderChannel == channel; }
+        // Wait for either task to complete (detach or disconnect)
+        await Task.WhenAny(outputTask, inputTask);
+        await detachCts.CancelAsync();
 
-            // Send attach response with terminal dimensions and leader status
-            var attachResponse = new DiagnosticsResponse
-            {
-                Success = true,
-                Width = _terminal.Width,
-                Height = _terminal.Height,
-                Data = initialAnsi,
-                Leader = isLeader
-            };
-            var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
-            await writer.WriteLineAsync(responseJson.AsMemory(), ct);
-
-            // Replay terminal mode state so late-joining clients get mouse/paste modes
-            var modeReplay = BuildModeReplaySequence();
-            if (modeReplay.Length > 0)
-            {
-                var modeBase64 = Convert.ToBase64String(System.Text.Encoding.UTF8.GetBytes(modeReplay));
-                await writer.WriteLineAsync($"o:{modeBase64}".AsMemory(), ct);
-            }
-
-            // Run two tasks: output streaming and input forwarding
-            using var detachCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-
-            var outputTask = StreamOutputAsync(channel.Reader, writer, detachCts.Token);
-            var inputTask = StreamInputAsync(reader, channel, writer, detachCts);
-
-            // Wait for either task to complete (detach or disconnect)
-            await Task.WhenAny(outputTask, inputTask);
-            await detachCts.CancelAsync();
-
-            // Allow tasks to finish cleanly
-            try { await Task.WhenAll(outputTask, inputTask); }
-            catch (OperationCanceledException) { }
-        }
-        finally
-        {
-            channel.Writer.TryComplete();
-            lock (_attachLock)
-            {
-                _attachedClients.Remove(channel);
-                if (_leaderChannel == channel)
-                    _leaderChannel = _attachedClients.Count > 0 ? _attachedClients[0] : null;
-            }
-        }
+        // Allow tasks to finish cleanly
+        try { await Task.WhenAll(outputTask, inputTask); }
+        catch (OperationCanceledException) { }
     }
 
-    private async Task StreamOutputAsync(ChannelReader<string> reader, StreamWriter writer, CancellationToken ct)
+    private static async Task StreamOutputFromSessionAsync(AttachSession session, StreamWriter writer, CancellationToken ct)
     {
         try
         {
-            await foreach (var message in reader.ReadAllAsync(ct))
+            await foreach (var frame in session.Frames.ReadAllAsync(ct))
             {
-                if (message.StartsWith("r:") || message.StartsWith("leader:"))
+                switch (frame.Type)
                 {
-                    // Control frame — pass through as-is
-                    await writer.WriteLineAsync(message.AsMemory(), ct);
-                }
-                else
-                {
-                    // ANSI output — convert to base64 to avoid newline issues
-                    var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(message));
-                    await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+                    case AttachFrameType.Output:
+                        var base64 = Convert.ToBase64String(Encoding.UTF8.GetBytes(frame.Data ?? ""));
+                        await writer.WriteLineAsync($"o:{base64}".AsMemory(), ct);
+                        break;
+                    case AttachFrameType.Resize:
+                        await writer.WriteLineAsync($"r:{frame.Data}".AsMemory(), ct);
+                        break;
+                    case AttachFrameType.LeaderChanged:
+                        await writer.WriteLineAsync($"leader:{frame.Data}".AsMemory(), ct);
+                        break;
+                    case AttachFrameType.Exit:
+                        await writer.WriteLineAsync("exit".AsMemory(), ct);
+                        return;
                 }
             }
         }
         catch (OperationCanceledException) { }
     }
 
-    private async Task StreamInputAsync(StreamReader reader, Channel<string> channel, StreamWriter writer, CancellationTokenSource detachCts)
+    private async Task StreamInputToSessionAsync(AttachSession session, StreamReader reader, StreamWriter writer, CancellationTokenSource detachCts)
     {
         try
         {
@@ -394,65 +420,112 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
 
                 if (line == "shutdown")
                 {
-                    // Client requested remote session termination
-                    _ = Task.Run(async () =>
-                    {
-                        await Task.Delay(100);
-                        await _cts.CancelAsync();
-                    });
+                    session.RequestShutdown();
                     await detachCts.CancelAsync();
                     return;
                 }
 
                 if (line.StartsWith("i:") && _terminal != null)
                 {
-                    var base64 = line[2..];
-                    var bytes = Convert.FromBase64String(base64);
-                    await _terminal.SendInputAsync(bytes);
+                    var inputBase64 = line[2..];
+                    var bytes = Convert.FromBase64String(inputBase64);
+                    await session.SendInputAsync(bytes);
                 }
-                else if (line.StartsWith("r:") && _terminal != null)
+                else if (line.StartsWith("r:"))
                 {
-                    // Only the leader can resize the terminal
-                    bool isLeader;
-                    lock (_attachLock) { isLeader = _leaderChannel == channel; }
-                    if (!isLeader) continue;
-
                     var parts = line[2..].Split(',');
                     if (parts.Length == 2 && int.TryParse(parts[0], out var width) && int.TryParse(parts[1], out var height))
                     {
-                        _terminal.ResizeWithWorkload(width, height);
-
-                        // Broadcast new dimensions to all attached clients except the sender
-                        var resizeFrame = $"r:{width},{height}";
-                        lock (_attachLock)
-                        {
-                            foreach (var client in _attachedClients)
-                            {
-                                if (client != channel)
-                                    client.Writer.TryWrite(resizeFrame);
-                            }
-                        }
+                        await session.SendResizeAsync(width, height);
                     }
                 }
                 else if (line == "lead")
                 {
-                    Channel<string>? oldLeader;
-                    lock (_attachLock)
-                    {
-                        oldLeader = _leaderChannel;
-                        _leaderChannel = channel;
-                    }
-
-                    // Notify old leader they've been demoted
-                    if (oldLeader != null && oldLeader != channel)
-                        oldLeader.Writer.TryWrite("leader:false");
-
-                    await writer.WriteLineAsync("leader:true".AsMemory(), detachCts.Token);
+                    await session.ClaimLeadAsync();
                 }
             }
         }
         catch (OperationCanceledException) { }
         catch (IOException) { await detachCts.CancelAsync(); }
+    }
+
+    // === Internal methods called by AttachSession ===
+
+    internal Task SendInputFromSessionAsync(AttachSession session, byte[] data)
+    {
+        if (_terminal == null) return Task.CompletedTask;
+        return _terminal.SendInputAsync(data);
+    }
+
+    internal Task SendResizeFromSessionAsync(AttachSession session, int width, int height)
+    {
+        if (_terminal == null) return Task.CompletedTask;
+
+        bool isLeader;
+        lock (_attachLock) { isLeader = _leaderSession == session; }
+        if (!isLeader) return Task.CompletedTask;
+
+        _terminal.ResizeWithWorkload(width, height);
+
+        // Broadcast new dimensions to all attached sessions except the sender
+        var frame = new AttachFrame(AttachFrameType.Resize, $"{width},{height}");
+        lock (_attachLock)
+        {
+            foreach (var s in _sessions)
+            {
+                if (s != session)
+                    s.Channel.Writer.TryWrite(frame);
+            }
+        }
+
+        return Task.CompletedTask;
+    }
+
+    internal Task ClaimLeadFromSessionAsync(AttachSession session)
+    {
+        AttachSession? oldLeader;
+        lock (_attachLock)
+        {
+            oldLeader = _leaderSession;
+            _leaderSession = session;
+            session.IsLeader = true;
+        }
+
+        if (oldLeader != null && oldLeader != session)
+        {
+            oldLeader.IsLeader = false;
+            oldLeader.Channel.Writer.TryWrite(new AttachFrame(AttachFrameType.LeaderChanged, "false"));
+        }
+
+        session.Channel.Writer.TryWrite(new AttachFrame(AttachFrameType.LeaderChanged, "true"));
+        return Task.CompletedTask;
+    }
+
+    internal void RequestShutdownFromSession()
+    {
+        _ = Task.Run(async () =>
+        {
+            await Task.Delay(100);
+            await _cts.CancelAsync();
+        });
+    }
+
+    internal void RemoveSession(AttachSession session)
+    {
+        lock (_attachLock)
+        {
+            _sessions.Remove(session);
+            if (_leaderSession == session)
+            {
+                _leaderSession = _sessions.Count > 0 ? _sessions[0] : null;
+                // Notify new leader
+                if (_leaderSession != null)
+                {
+                    _leaderSession.IsLeader = true;
+                    _leaderSession.Channel.Writer.TryWrite(new AttachFrame(AttachFrameType.LeaderChanged, "true"));
+                }
+            }
+        }
     }
 
     private async Task<DiagnosticsResponse> HandleRequestAsync(DiagnosticsRequest request)
