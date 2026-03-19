@@ -140,9 +140,30 @@ internal sealed class TerminalHost
         if (!config.Port.HasValue || filter == null)
             return null;
 
-        var listener = new WebSocketDiagnosticsListener(config.Port.Value, filter);
+        var bindAddress = ParseBindAddress(config.BindAddress);
+        var listener = new WebSocketDiagnosticsListener(config.Port.Value, filter, bindAddress);
         await listener.StartAsync(cancellationToken);
         return listener;
+    }
+
+    /// <summary>
+    /// Parses a bind address string into an <see cref="System.Net.IPAddress"/>.
+    /// Supports "0.0.0.0", "*", "::", "localhost", or any valid IP address.
+    /// Returns <c>null</c> (Loopback default) for null/empty input.
+    /// </summary>
+    internal static System.Net.IPAddress? ParseBindAddress(string? bindAddress)
+    {
+        if (string.IsNullOrWhiteSpace(bindAddress))
+            return null;
+
+        return bindAddress.Trim() switch
+        {
+            "*" or "0.0.0.0" => System.Net.IPAddress.Any,
+            "::" => System.Net.IPAddress.IPv6Any,
+            "localhost" or "127.0.0.1" => System.Net.IPAddress.Loopback,
+            "::1" => System.Net.IPAddress.IPv6Loopback,
+            _ => System.Net.IPAddress.TryParse(bindAddress, out var ip) ? ip : System.Net.IPAddress.Loopback
+        };
     }
 
     private static void ConfigurePtyProcess(Hex1bTerminalBuilder builder, TerminalHostConfig config)

@@ -19,6 +19,7 @@ internal sealed class TerminalStartCommand : BaseCommand
     private static readonly Option<bool> s_attachOption = new("--attach") { Description = "Immediately attach to the terminal after starting" };
     private static readonly Option<bool> s_passthruOption = new("--passthru") { Description = "Run in passthru mode: PTY bridges directly to the current terminal with no chrome" };
     private static readonly Option<int?> s_portOption = new("--port") { Description = "Port for WebSocket diagnostics listener" };
+    private static readonly Option<string?> s_bindOption = new("--bind") { Description = "Bind address for the WebSocket listener (default: 127.0.0.1, use 0.0.0.0 for containers)" };
     private static readonly Argument<string[]> s_commandArgument = new("command") { Description = "Command and arguments to run (after --)" };
 
     private readonly TerminalClient _client;
@@ -38,6 +39,7 @@ internal sealed class TerminalStartCommand : BaseCommand
         Options.Add(s_attachOption);
         Options.Add(s_passthruOption);
         Options.Add(s_portOption);
+        Options.Add(s_bindOption);
         Arguments.Add(s_commandArgument);
     }
 
@@ -49,6 +51,7 @@ internal sealed class TerminalStartCommand : BaseCommand
         var record = parseResult.GetValue(s_recordOption);
         var passthru = parseResult.GetValue(s_passthruOption);
         var port = parseResult.GetValue(s_portOption);
+        var bind = parseResult.GetValue(s_bindOption);
         var command = parseResult.GetValue(s_commandArgument) is { Length: > 0 } cmd ? cmd : ["/bin/bash"];
 
         if (passthru && parseResult.GetValue(s_attachOption))
@@ -59,7 +62,7 @@ internal sealed class TerminalStartCommand : BaseCommand
 
         if (passthru)
         {
-            return await RunPassthruAsync(parseResult, width, height, cwd, record, port, command, cancellationToken);
+            return await RunPassthruAsync(parseResult, width, height, cwd, record, port, bind, command, cancellationToken);
         }
 
         // Build args for the host process
@@ -75,6 +78,10 @@ internal sealed class TerminalStartCommand : BaseCommand
         if (port.HasValue)
         {
             hostArgs.AddRange(["--port", port.Value.ToString()]);
+        }
+        if (bind != null)
+        {
+            hostArgs.AddRange(["--bind", bind]);
         }
         hostArgs.AddRange(command);
 
@@ -204,7 +211,7 @@ internal sealed class TerminalStartCommand : BaseCommand
         ParseResult parseResult,
         int width, int height,
         string? cwd, string? record,
-        int? port,
+        int? port, string? bind,
         string[] command,
         CancellationToken cancellationToken)
     {
@@ -220,6 +227,7 @@ internal sealed class TerminalStartCommand : BaseCommand
             Arguments = command.Length > 1 ? command[1..] : [],
             Passthru = true,
             Port = port,
+            BindAddress = bind,
             WorkingDirectory = cwd,
             RecordPath = record
         };
