@@ -16,6 +16,7 @@ internal sealed class TerminalHostCommand : BaseCommand
     private static readonly Option<string?> s_cwdOption = new("--cwd") { Description = "Working directory" };
     private static readonly Option<string?> s_recordOption = new("--record") { Description = "Record to asciinema file" };
     private static readonly Option<int?> s_portOption = new("--port") { Description = "Port for WebSocket diagnostics listener" };
+    private static readonly Option<string?> s_bindOption = new("--bind") { Description = "Bind address for the WebSocket listener (default: 127.0.0.1, use 0.0.0.0 for containers)" };
     private static readonly Argument<string[]> s_commandArgument = new("command") { Description = "Command and arguments to run" };
 
     public TerminalHostCommand(
@@ -30,6 +31,7 @@ internal sealed class TerminalHostCommand : BaseCommand
         Options.Add(s_cwdOption);
         Options.Add(s_recordOption);
         Options.Add(s_portOption);
+        Options.Add(s_bindOption);
         Arguments.Add(s_commandArgument);
     }
 
@@ -40,6 +42,7 @@ internal sealed class TerminalHostCommand : BaseCommand
         var cwd = parseResult.GetValue(s_cwdOption);
         var record = parseResult.GetValue(s_recordOption);
         var port = parseResult.GetValue(s_portOption);
+        var bind = parseResult.GetValue(s_bindOption);
         var command = parseResult.GetValue(s_commandArgument) is { Length: > 0 } cmd ? cmd : ["/bin/bash"];
 
         var config = new TerminalHostConfig
@@ -50,7 +53,8 @@ internal sealed class TerminalHostCommand : BaseCommand
             Height = height,
             WorkingDirectory = cwd,
             RecordPath = record,
-            Port = port
+            Port = port,
+            BindAddress = bind
         };
 
         Logger.LogInformation("Starting terminal host: {Command} ({Width}x{Height})", config.Command, config.Width, config.Height);

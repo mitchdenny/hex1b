@@ -46,4 +46,10 @@ internal sealed class TerminalHostConfig
     /// itself over HTTP WebSocket in addition to the Unix domain socket.
     /// </summary>
     public int? Port { get; set; }
+
+    /// <summary>
+    /// Bind address for the WebSocket listener. Defaults to loopback (127.0.0.1).
+    /// Set to "0.0.0.0" or "*" to listen on all interfaces (e.g. for container scenarios).
+    /// </summary>
+    public string? BindAddress { get; set; }
 }

@@ -22,12 +22,14 @@ internal sealed class WebSocketDiagnosticsListener : IAsyncDisposable
     };
 
     private readonly int _port;
+    private readonly IPAddress _bindAddress;
     private readonly McpDiagnosticsPresentationFilter _filter;
     private WebApplication? _app;
 
-    public WebSocketDiagnosticsListener(int port, McpDiagnosticsPresentationFilter filter)
+    public WebSocketDiagnosticsListener(int port, McpDiagnosticsPresentationFilter filter, IPAddress? bindAddress = null)
     {
         _port = port;
+        _bindAddress = bindAddress ?? IPAddress.Loopback;
         _filter = filter;
     }
 
@@ -39,7 +41,7 @@ internal sealed class WebSocketDiagnosticsListener : IAsyncDisposable
         var builder = WebApplication.CreateSlimBuilder();
         builder.WebHost.ConfigureKestrel(options =>
         {
-            options.Listen(IPAddress.Loopback, _port);
+            options.Listen(_bindAddress, _port);
         });
         builder.Logging.ClearProviders();
 
