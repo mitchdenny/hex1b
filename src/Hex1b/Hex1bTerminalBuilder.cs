@@ -626,6 +626,114 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
+    // === Remote Terminal ===
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint
+    /// (e.g. <c>ws://localhost:8080/ws/attach</c>).
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// This connects to a terminal host that was started with <c>--port</c> and exposes
+    /// a <c>WebSocketDiagnosticsListener</c>. The local terminal bridges I/O over
+    /// native WebSocket framing: binary frames for terminal data, JSON text frames
+    /// for control messages (resize, leader, exit).
+    /// </para>
+    /// <para>
+    /// The adapter automatically claims resize leadership so that the local terminal
+    /// dimensions control the remote terminal size.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Connect to a remote terminal host
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(new Uri("ws://localhost:8080/ws/attach"))
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+
+        SetWorkloadFactory(_ =>
+        {
+            var adapter = new RemoteTerminalWorkloadAdapter(uri);
+
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await adapter.ConnectAsync(ct);
+
+                // Wait for the remote terminal to disconnect
+                var tcs = new TaskCompletionSource<int>();
+                adapter.Disconnected += () => tcs.TrySetResult(0);
+
+                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+                return await tcs.Task;
+            };
+
+            return new Hex1bTerminalBuildContext(adapter, runCallback);
+        });
+
+        return this;
+    }
+
+    /// <summary>
+    /// Configures the terminal to connect to a remote terminal host over WebSocket,
+    /// providing access to the adapter for advanced control.
+    /// </summary>
+    /// <param name="uri">
+    /// WebSocket URI of the remote host's attach endpoint.
+    /// </param>
+    /// <param name="adapter">
+    /// When this method returns, contains the adapter instance for querying
+    /// remote state (dimensions, leadership) or sending shutdown commands.
+    /// </param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithRemoteTerminal(new Uri("ws://localhost:8080/ws/attach"), out var remote)
+    ///     .Build();
+    ///
+    /// // remote.RemoteWidth, remote.RemoteHeight, remote.IsLeader available after RunAsync starts
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithRemoteTerminal(Uri uri, out RemoteTerminalWorkloadAdapter adapter)
+    {
+        ArgumentNullException.ThrowIfNull(uri);
+
+        var remoteAdapter = new RemoteTerminalWorkloadAdapter(uri);
+        adapter = remoteAdapter;
+
+        SetWorkloadFactory(_ =>
+        {
+            Func<CancellationToken, Task<int>> runCallback = async ct =>
+            {
+                await remoteAdapter.ConnectAsync(ct);
+
+                var tcs = new TaskCompletionSource<int>();
+                remoteAdapter.Disconnected += () => tcs.TrySetResult(0);
+
+                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
+
+                return await tcs.Task;
+            };
+
+            return new Hex1bTerminalBuildContext(remoteAdapter, runCallback);
+        });
+
+        return this;
+    }
+
     /// <summary>
     /// Enables mouse input for the Hex1bApp.
     /// </summary>

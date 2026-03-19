@@ -21,6 +21,7 @@ namespace Hex1b;
 /// <list type="bullet">
 ///   <item><see cref="Hex1bAppWorkloadAdapter"/> - For Hex1bApp TUI applications</item>
 ///   <item><see cref="StreamWorkloadAdapter"/> - For testing with raw streams</item>
+///   <item><see cref="RemoteTerminalWorkloadAdapter"/> - For connecting to a remote terminal over WebSocket</item>
 ///   <item>ProcessWorkloadAdapter (future) - For PTY-connected processes</item>
 /// </list>
 /// </para>
