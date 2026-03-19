@@ -348,7 +348,7 @@ public class UnicodeBorderAlignmentTests
 
         // Wait for render to settle before capturing. CI runners can observe the END MARKER
         // before the full bordered frame has finished flushing to the terminal snapshot.
-        await new Hex1bTerminalInputSequenceBuilder()
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s =>
             {
                 if (!s.ContainsText("END MARKER"))
@@ -369,17 +369,12 @@ public class UnicodeBorderAlignmentTests
                     stableFrameCount = 1;
                 }
 
-                return stableFrameCount >= 3;
-            }, TimeSpan.FromSeconds(5), "render to stabilize")
-            .Build()
-            .ApplyAsync(terminal, cancellationToken);
-        
-        var snapshot = terminal.CreateSnapshot();
-        
-        await new Hex1bTerminalInputSequenceBuilder()
+                return stableFrameCount >= 5;
+            }, TimeSpan.FromSeconds(7), "render to stabilize")
+            .Capture($"stable-batch{batchNumber}")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
-            .ApplyAsync(terminal, cancellationToken);
+            .ApplyWithCaptureAsync(terminal, cancellationToken);
         
         await runTask;
         

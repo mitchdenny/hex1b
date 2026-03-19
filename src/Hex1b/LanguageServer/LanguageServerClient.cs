@@ -660,6 +660,41 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return;
 
+        // Stop the notification loop first to prevent concurrent reads on the
+        // transport's underlying stream when SendRequestAsync falls back to
+        // inline message pumping.
+        bool loopStopped = false;
+        if (_notificationCts != null)
+        {
+            await _notificationCts.CancelAsync().ConfigureAwait(false);
+        }
+
+        if (_notificationLoop != null)
+        {
+            // Use a timeout — the loop may be stuck in a non-cancellable stream
+            // read that won't unblock until the transport is disposed.
+            var completed = await Task.WhenAny(
+                _notificationLoop,
+                Task.Delay(TimeSpan.FromSeconds(2), ct)).ConfigureAwait(false);
+            if (completed == _notificationLoop)
+            {
+                try { await _notificationLoop.ConfigureAwait(false); } catch { }
+                loopStopped = true;
+            }
+            _notificationLoop = null;
+        }
+        else
+        {
+            loopStopped = true;
+        }
+
+        // Only attempt the shutdown handshake if the notification loop exited
+        // cleanly. When _readerLoopRunning is still true, SendRequestAsync will
+        // enqueue a TCS waiting for the loop to dispatch the response — but the
+        // loop is stuck, creating a deadlock. The server process will be killed
+        // by DisposeAsync regardless.
+        if (!loopStopped) return;
+
         try
         {
             foreach (var uri in _documentVersions.Keys.ToArray())
@@ -684,7 +719,15 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
         if (_notificationLoop != null)
         {
-            try { await _notificationLoop.ConfigureAwait(false); } catch { }
+            // Use a timeout — the loop may be stuck in a non-cancellable stream
+            // read that won't unblock until the transport/process is disposed.
+            var completed = await Task.WhenAny(
+                _notificationLoop,
+                Task.Delay(TimeSpan.FromSeconds(2))).ConfigureAwait(false);
+            if (completed == _notificationLoop)
+            {
+                try { await _notificationLoop.ConfigureAwait(false); } catch { }
+            }
         }
 
         if (_transport != null)

@@ -181,13 +181,20 @@ public class EditorSelectionRenderingTests
 
         node.Render(context);
 
-        var selPattern = new CellPatternSearcher()
+        // Wait for both line 1 ('b') and line 2 ('d') to receive selection
+        // colors. On slow CI runners the terminal may process row 0 before
+        // row 1, so checking only 'b' can snapshot before 'd' is colored.
+        var selPatternB = new CellPatternSearcher()
             .Find(ctx => ctx.Cell.Character == "b"
+                      && ColorEquals(ctx.Cell.Foreground, colors.SelectionFg));
+        var selPatternD = new CellPatternSearcher()
+            .Find(ctx => ctx.Cell.Character == "d"
                       && ColorEquals(ctx.Cell.Foreground, colors.SelectionFg));
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(selPattern).HasMatches,
-                TimeSpan.FromSeconds(2), "b selected")
+            .WaitUntil(s => s.SearchPattern(selPatternB).HasMatches
+                         && s.SearchPattern(selPatternD).HasMatches,
+                TimeSpan.FromSeconds(5), "multi-line selection rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
