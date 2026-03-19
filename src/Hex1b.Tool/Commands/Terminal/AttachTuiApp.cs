@@ -113,8 +113,30 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _handle = handle;
         _appCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
+        // Wait for the embedded terminal to process the initial screen data before
+        // starting the display TUI. Without this, the display's first render can race
+        // ahead of the output pump (which runs on a thread-pool thread) and show a
+        // blank terminal until the next OutputReceived event — which only fires when
+        // the user interacts with the terminal.
+        var initialOutputReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        void SignalReady() => initialOutputReady.TrySetResult();
+
+        if (connectResult.InitialScreen != null)
+        {
+            handle.OutputReceived += SignalReady;
+        }
+        else
+        {
+            initialOutputReady.SetResult();
+        }
+
         // Start the embedded terminal's output pump in the background
         var embeddedRunTask = _embeddedTerminal.RunAsync(_appCts.Token);
+
+        // Give the output pump time to process the initial data (piped before RunAsync).
+        // 2 seconds is generous — it typically completes in < 10ms.
+        await Task.WhenAny(initialOutputReady.Task, Task.Delay(2000, cancellationToken));
+        handle.OutputReceived -= SignalReady;
 
         // 7. Start network output bridge task
         var networkOutputTask = PumpNetworkOutputAsync(_appCts.Token);
