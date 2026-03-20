@@ -131,6 +131,10 @@ var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
     .ExcludeFromManifest();
 var markdownSample = builder.AddCSharpApp("markdown-sample", "./samples/MarkdownSample")
     .ExcludeFromManifest();
+
+// Calendar demo
+var calendarDemo = builder.AddCSharpApp("calendar-demo", "./samples/CalendarDemo")
+    .ExcludeFromManifest();
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
