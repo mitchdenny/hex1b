@@ -95,6 +95,18 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public TextBoxWidget OnPaste(Action<PasteEventArgs> handler)
         => this with { PasteHandler = e => { handler(e); return Task.CompletedTask; } };
 
+    /// <summary>
+    /// Minimum width of the text box in columns. When set, the text box will measure
+    /// at least this many columns wide regardless of content.
+    /// </summary>
+    public int? MinWidth { get; init; }
+
+    /// <summary>
+    /// Maximum width of the text box in columns. When set, the text box will not exceed
+    /// this width. Defaults to the same value as MinWidth if not explicitly set.
+    /// </summary>
+    public int? MaxWidth { get; init; }
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
@@ -158,6 +170,10 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 
         // Wire paste handler
         node.CustomPasteAction = PasteHandler;
+
+        // Sync min/max width to node
+        node.MinWidth = MinWidth;
+        node.MaxWidth = MaxWidth ?? MinWidth;
         
         return Task.FromResult<Hex1bNode>(node);
     }

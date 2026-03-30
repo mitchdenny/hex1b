@@ -37,4 +37,17 @@ public static class TextBoxTheme
     
     public static readonly Hex1bThemeElement<string> RightBracket = 
         new($"{nameof(TextBoxTheme)}.{nameof(RightBracket)}", () => "]");
+
+    /// <summary>
+    /// When true, renders the text box with a background fill instead of brackets.
+    /// This mode is typically enabled by form containers via ThemePanel.
+    /// </summary>
+    public static readonly Hex1bThemeElement<bool> UseFillMode = 
+        new($"{nameof(TextBoxTheme)}.{nameof(UseFillMode)}", () => false);
+
+    /// <summary>
+    /// Background color used in fill mode to delineate the text area.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FillBackgroundColor = 
+        new($"{nameof(TextBoxTheme)}.{nameof(FillBackgroundColor)}", () => Hex1bColor.FromRgb(40, 40, 40));
 }

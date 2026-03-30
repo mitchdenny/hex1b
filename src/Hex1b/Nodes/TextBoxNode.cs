@@ -55,6 +55,16 @@ public sealed class TextBoxNode : Hex1bNode
     /// When null, paste is handled by inserting text at cursor position.
     /// </summary>
     internal Func<Events.PasteEventArgs, Task>? CustomPasteAction { get; set; }
+
+    /// <summary>
+    /// Minimum width of the text box in columns.
+    /// </summary>
+    public int? MinWidth { get; set; }
+
+    /// <summary>
+    /// Maximum width of the text box in columns.
+    /// </summary>
+    public int? MaxWidth { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused 
@@ -522,10 +532,22 @@ public sealed class TextBoxNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // TextBox renders as "[text]" - 2 chars for brackets + text display width (or at least 1 for cursor)
-        // Use display width to account for wide characters (emoji, CJK)
         var textDisplayWidth = Math.Max(DisplayWidth.GetStringWidth(State.Text), 1);
-        var width = textDisplayWidth + 2; // +2 for brackets
+
+        int width;
+        if (MinWidth.HasValue || MaxWidth.HasValue)
+        {
+            // When min/max width is set, size to those constraints
+            width = MinWidth.HasValue ? Math.Max(textDisplayWidth, MinWidth.Value) : textDisplayWidth;
+            if (MaxWidth.HasValue)
+                width = Math.Min(width, MaxWidth.Value);
+        }
+        else
+        {
+            // Default bracket mode: "[text]" - 2 chars for brackets
+            width = textDisplayWidth + 2;
+        }
+
         var height = 1;
         return constraints.Constrain(new Size(width, height));
     }
@@ -541,6 +563,8 @@ public sealed class TextBoxNode : Hex1bNode
         var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
         var hoverCursorFg = theme.Get(TextBoxTheme.HoverCursorForegroundColor);
         var hoverCursorBg = theme.Get(TextBoxTheme.HoverCursorBackgroundColor);
+        var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
+        var fillBg = theme.Get(TextBoxTheme.FillBackgroundColor);
         
         var text = State.Text;
         var cursor = State.CursorPosition;
@@ -548,7 +572,12 @@ public sealed class TextBoxNode : Hex1bNode
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
         string output;
-        if (IsFocused)
+        if (useFillMode)
+        {
+            output = RenderFillMode(text, cursor, globalColors, resetToGlobal,
+                fillBg, cursorFg, cursorBg, selFg, selBg, hoverCursorFg, hoverCursorBg, context);
+        }
+        else if (IsFocused)
         {
             if (State.HasSelection)
             {
@@ -604,6 +633,108 @@ public sealed class TextBoxNode : Hex1bNode
         else
         {
             context.Write(output);
+        }
+    }
+
+    /// <summary>
+    /// Renders the text box in fill mode: no brackets, background-filled to the measured width.
+    /// </summary>
+    private string RenderFillMode(
+        string text,
+        int cursor,
+        string globalColors,
+        string resetToGlobal,
+        Hex1bColor fillBg,
+        Hex1bColor cursorFg,
+        Hex1bColor cursorBg,
+        Hex1bColor selFg,
+        Hex1bColor selBg,
+        Hex1bColor hoverCursorFg,
+        Hex1bColor hoverCursorBg,
+        Hex1bRenderContext context)
+    {
+        var measuredWidth = Bounds.Width;
+        var textDisplayWidth = DisplayWidth.GetStringWidth(text);
+        var padding = Math.Max(0, measuredWidth - textDisplayWidth);
+        var fillBgAnsi = fillBg.ToBackgroundAnsi();
+
+        if (IsFocused)
+        {
+            if (State.HasSelection)
+            {
+                var selStart = State.SelectionStart;
+                var selEnd = State.SelectionEnd;
+
+                var beforeSel = text[..selStart];
+                var selected = text[selStart..selEnd];
+                var afterSel = text[selEnd..];
+
+                // Pad after the text to fill the measured width
+                var afterSelWidth = DisplayWidth.GetStringWidth(afterSel);
+                var padStr = new string(' ', Math.Max(0, padding - (IsFocused && cursor >= text.Length ? 1 : 0)));
+
+                return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
+            }
+            else
+            {
+                var before = text[..cursor];
+                string cursorCluster;
+                string after;
+                int cursorClusterWidth;
+                if (cursor < text.Length)
+                {
+                    var clusterLength = GraphemeHelper.GetClusterLength(text, cursor);
+                    cursorCluster = text.Substring(cursor, clusterLength);
+                    cursorClusterWidth = DisplayWidth.GetStringWidth(cursorCluster);
+                    after = text[(cursor + clusterLength)..];
+                }
+                else
+                {
+                    cursorCluster = " ";
+                    cursorClusterWidth = 1;
+                    after = "";
+                    // Cursor space consumes one padding char
+                    padding = Math.Max(0, padding - 1);
+                }
+
+                var padStr = new string(' ', padding);
+                return $"{globalColors}{fillBgAnsi}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{fillBgAnsi}{after}{padStr}{resetToGlobal}";
+            }
+        }
+        else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
+        {
+            var localMouseX = context.MouseX - Bounds.X;
+            var hoverCursorPos = DisplayColumnToTextPosition(localMouseX);
+
+            string before = text[..hoverCursorPos];
+            string hoverCluster;
+            string after;
+            int extraPaddingReduction = 0;
+
+            if (hoverCursorPos < text.Length)
+            {
+                var clusterLength = GraphemeHelper.GetClusterLength(text, hoverCursorPos);
+                hoverCluster = text.Substring(hoverCursorPos, clusterLength);
+                after = text[(hoverCursorPos + clusterLength)..];
+            }
+            else
+            {
+                hoverCluster = " ";
+                after = "";
+                extraPaddingReduction = 1;
+            }
+
+            var hoverColors = "";
+            if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
+            if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
+
+            var padStr = new string(' ', Math.Max(0, padding - extraPaddingReduction));
+            return $"{globalColors}{fillBgAnsi}{before}{hoverColors}{hoverCluster}{resetToGlobal}{fillBgAnsi}{after}{padStr}{resetToGlobal}";
+        }
+        else
+        {
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
         }
     }
     
