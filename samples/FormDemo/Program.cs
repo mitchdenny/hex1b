@@ -12,19 +12,33 @@ var email = "";
 var company = "";
 var title = "";
 var lastAction = "None";
+var labelPlacementIndex = 0; // 0 = Above, 1 = Inline
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     {
+        var labelPlacement = labelPlacementIndex == 0
+            ? LabelPlacement.Above
+            : LabelPlacement.Inline;
+
         return ctx.VStack(v => [
             v.ThemePanel(
                 t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
                 v.Text("  ◆ Form Widget Demo")),
             v.Text("  Tab/Shift+Tab to navigate fields. Type to edit. Ctrl+C to exit."),
             v.Separator(),
+
+            // Label placement toggle (outside the form)
+            v.HStack(h => [
+                h.Text("  Label Position: "),
+                h.ToggleSwitch(["Above", "Inline"], labelPlacementIndex)
+                    .OnSelectionChanged(e => labelPlacementIndex = e.SelectedIndex),
+            ]).ContentHeight(),
+
+            v.Separator(),
             v.Text(""),
 
-            // ── Contact Form (labels above fields, with validation) ──
+            // ── Contact Form ──
             v.ThemePanel(
                 t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
                 v.Text("  Contact Information")),
@@ -75,7 +89,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
                     form.CancelButton(_ => lastAction = "Cancelled"),
                 ];
-            }),
+            }).WithLabelPlacement(labelPlacement)
+              .WithLabelWidth(15),
 
             v.Text(""),
             v.Separator(),

@@ -50,6 +50,16 @@ public sealed class FormTextFieldNode : Hex1bNode
     internal ValidationResult CurrentValidationResult { get; set; } = ValidationResult.Valid;
 
     /// <summary>
+    /// The label placement mode for this field.
+    /// </summary>
+    internal LabelPlacement LabelPlacement { get; set; } = LabelPlacement.Above;
+
+    /// <summary>
+    /// The label column width when using <see cref="Widgets.LabelPlacement.Inline"/>.
+    /// </summary>
+    internal int LabelWidth { get; set; } = 15;
+
+    /// <summary>
     /// The label child node.
     /// </summary>
     public Hex1bNode? LabelChild { get; set; }
@@ -81,24 +91,31 @@ public sealed class FormTextFieldNode : Hex1bNode
         CurrentValidationResult = ValidationResult.Valid;
     }
 
+    private Size _labelMeasuredSize;
     private Size _inputMeasuredSize;
     private Size _errorMeasuredSize;
 
     protected override Size MeasureCore(Constraints constraints)
+    {
+        if (LabelPlacement == LabelPlacement.Inline)
+            return MeasureInline(constraints);
+
+        return MeasureAbove(constraints);
+    }
+
+    private Size MeasureAbove(Constraints constraints)
     {
         var totalWidth = 0;
         var totalHeight = 0;
 
         if (LabelChild != null)
         {
-            var labelSize = LabelChild.Measure(constraints);
-            totalWidth = Math.Max(totalWidth, labelSize.Width);
-            totalHeight += labelSize.Height;
+            _labelMeasuredSize = LabelChild.Measure(constraints);
+            totalWidth = Math.Max(totalWidth, _labelMeasuredSize.Width);
+            totalHeight += _labelMeasuredSize.Height;
         }
 
-        // Input and error indicator on the same line
         var inputWidth = 0;
-
         if (InputChild != null)
         {
             _inputMeasuredSize = InputChild.Measure(new Constraints(0, constraints.MaxWidth, 0, 1));
@@ -113,15 +130,50 @@ public sealed class FormTextFieldNode : Hex1bNode
         }
 
         totalWidth = Math.Max(totalWidth, inputWidth);
-        totalHeight += 1; // input row
+        totalHeight += 1;
 
         return constraints.Constrain(new Size(totalWidth, totalHeight));
+    }
+
+    private Size MeasureInline(Constraints constraints)
+    {
+        var labelCol = Math.Min(LabelWidth, constraints.MaxWidth);
+        var remainingWidth = Math.Max(0, constraints.MaxWidth - labelCol);
+
+        if (LabelChild != null)
+        {
+            _labelMeasuredSize = LabelChild.Measure(new Constraints(0, labelCol, 0, 1));
+        }
+
+        var inputWidth = 0;
+        if (InputChild != null)
+        {
+            _inputMeasuredSize = InputChild.Measure(new Constraints(0, remainingWidth, 0, 1));
+            inputWidth += _inputMeasuredSize.Width;
+        }
+
+        if (ErrorIndicatorChild != null)
+        {
+            _errorMeasuredSize = ErrorIndicatorChild.Measure(
+                new Constraints(0, Math.Max(0, remainingWidth - inputWidth), 0, 1));
+            inputWidth += _errorMeasuredSize.Width;
+        }
+
+        return constraints.Constrain(new Size(labelCol + inputWidth, 1));
     }
 
     protected override void ArrangeCore(Rect rect)
     {
         base.ArrangeCore(rect);
 
+        if (LabelPlacement == LabelPlacement.Inline)
+            ArrangeInline(rect);
+        else
+            ArrangeAbove(rect);
+    }
+
+    private void ArrangeAbove(Rect rect)
+    {
         var y = rect.Y;
 
         if (LabelChild != null)
@@ -130,9 +182,7 @@ public sealed class FormTextFieldNode : Hex1bNode
             y += 1;
         }
 
-        // Input and error on the same line
         var inputX = rect.X;
-
         if (InputChild != null)
         {
             InputChild.Arrange(new Rect(inputX, y, _inputMeasuredSize.Width, 1));
@@ -142,6 +192,33 @@ public sealed class FormTextFieldNode : Hex1bNode
         if (ErrorIndicatorChild != null)
         {
             ErrorIndicatorChild.Arrange(new Rect(inputX, y, _errorMeasuredSize.Width, 1));
+        }
+    }
+
+    private void ArrangeInline(Rect rect)
+    {
+        var labelCol = Math.Min(LabelWidth, rect.Width);
+        var x = rect.X;
+
+        if (LabelChild != null)
+        {
+            LabelChild.Arrange(new Rect(x, rect.Y, labelCol, 1));
+        }
+
+        x += labelCol;
+        var remainingWidth = Math.Max(0, rect.Width - labelCol);
+
+        if (InputChild != null)
+        {
+            var inputW = Math.Min(_inputMeasuredSize.Width, remainingWidth);
+            InputChild.Arrange(new Rect(x, rect.Y, inputW, 1));
+            x += inputW;
+            remainingWidth -= inputW;
+        }
+
+        if (ErrorIndicatorChild != null)
+        {
+            ErrorIndicatorChild.Arrange(new Rect(x, rect.Y, Math.Min(_errorMeasuredSize.Width, remainingWidth), 1));
         }
     }
 

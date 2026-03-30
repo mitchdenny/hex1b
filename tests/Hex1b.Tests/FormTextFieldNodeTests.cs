@@ -145,6 +145,49 @@ public class FormTextFieldNodeTests
     }
 
     [Fact]
+    public void Measure_InlineMode_SingleRow()
+    {
+        var labelChild = new TextBlockNode { Text = "Name" };
+        var inputChild = new TextBoxNode();
+
+        var node = new FormTextFieldNode
+        {
+            LabelPlacement = LabelPlacement.Inline,
+            LabelWidth = 10,
+            LabelChild = labelChild,
+            InputChild = inputChild
+        };
+
+        var size = node.Measure(new Constraints(0, 40, 0, 20));
+
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
+    public void Arrange_InlineMode_LabelBesideInput()
+    {
+        var labelChild = new TextBlockNode { Text = "Name" };
+        var inputChild = new TextBoxNode();
+
+        var node = new FormTextFieldNode
+        {
+            LabelPlacement = LabelPlacement.Inline,
+            LabelWidth = 12,
+            LabelChild = labelChild,
+            InputChild = inputChild
+        };
+
+        node.Measure(new Constraints(0, 40, 0, 20));
+        node.Arrange(new Rect(0, 0, 40, 5));
+
+        // Same row, label on left, input starts at label width
+        Assert.Equal(0, labelChild.Bounds.Y);
+        Assert.Equal(0, inputChild.Bounds.Y);
+        Assert.Equal(0, labelChild.Bounds.X);
+        Assert.Equal(12, inputChild.Bounds.X);
+    }
+
+    [Fact]
     public void GetChildren_ReturnsAllChildren()
     {
         var label = new TextBlockNode { Text = "Name" };

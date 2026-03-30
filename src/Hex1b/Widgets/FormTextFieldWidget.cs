@@ -155,6 +155,11 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         node.Label = Label;
         node.IsEnabled = EvaluateEnabled(context);
 
+        // Resolve label placement from field override or form-level setting
+        var formNode = context.FindAncestor<FormNode>();
+        node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? LabelPlacement.Above;
+        node.LabelWidth = formNode?.LabelWidth ?? 15;
+
         // Apply initial value only once
         if (!node.HasAppliedInitialValue && InitialValue != null)
         {
