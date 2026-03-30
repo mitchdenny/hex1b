@@ -27,6 +27,8 @@ var scenarios = new IWidgetScenario[]
     new MarkdownScenario(),
     new DragDropScenario(),
     new NestedLayoutStressScenario(),
+    new TerminalSuccessScenario(),
+    new TerminalFailureScenario(),
 };
 
 var scenarioNames = scenarios.Select(s => s.Name).ToArray();
