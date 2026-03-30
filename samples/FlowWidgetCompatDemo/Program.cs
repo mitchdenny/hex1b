@@ -29,7 +29,9 @@ var scenarios = new IWidgetScenario[]
     new NestedLayoutStressScenario(),
     new TerminalSuccessScenario(),
     new TerminalFailureScenario(),
-    new GlobeSelectionScenario(),
+    new GlobeSelectionScenario(GlobeSelectionScenario.GlobeSize.Thin),
+    new GlobeSelectionScenario(GlobeSelectionScenario.GlobeSize.Medium),
+    new GlobeSelectionScenario(GlobeSelectionScenario.GlobeSize.Full),
 };
 
 var scenarioNames = scenarios.Select(s => s.Name).ToArray();

@@ -30,9 +30,30 @@ internal class GlobeSelectionScenario : IWidgetScenario
     private DateTime _weatherStartTime;
     private string? _selectedLocation;
 
-    public string Name => "Globe Selection";
+    private readonly GlobeSize _size;
+
+    public GlobeSelectionScenario(GlobeSize size = GlobeSize.Full)
+    {
+        _size = size;
+    }
+
+    public string Name => _size switch
+    {
+        GlobeSize.Thin => "Globe (Thin)",
+        GlobeSize.Medium => "Globe (Medium)",
+        _ => "Globe (Full)",
+    };
+
     public string Description => "Interactive 3D globe with drag rotation, zoom, and POI selection";
-    public int? MaxHeight => null; // Use full terminal height
+
+    public int? MaxHeight => _size switch
+    {
+        GlobeSize.Thin => Console.WindowHeight / 4,
+        GlobeSize.Medium => Console.WindowHeight / 2,
+        _ => null,
+    };
+
+    internal enum GlobeSize { Thin, Medium, Full }
 
     public Hex1bWidget Build(FlowStepContext ctx)
     {
