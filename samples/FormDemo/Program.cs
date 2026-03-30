@@ -69,8 +69,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     firstNameField,
                     lastNameField,
                     emailField,
+                    form.ValidationMessageFor(firstNameField, lastNameField, emailField),
                     companyField,
                     titleField,
+                    form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
+                    form.CancelButton(_ => lastAction = "Cancelled"),
                 ];
             }),
 

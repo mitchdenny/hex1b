@@ -225,13 +225,13 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         if (EnablePredicate != null && !EnablePredicate())
             return false;
 
-        // EnableWhenValid requires finding the form node to check validation state.
-        // During initial reconciliation this may not be fully wired yet, so we default to enabled.
         if (EnableWhenValidFieldIds.Count > 0)
         {
-            // Walk up the context to find the FormNode
-            // For now, default to enabled — validation state propagation happens after first render
-            return true;
+            var formNode = context.FindAncestor<FormNode>();
+            if (formNode != null)
+            {
+                return formNode.AreFieldsValid(EnableWhenValidFieldIds);
+            }
         }
 
         return true;
