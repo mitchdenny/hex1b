@@ -35,6 +35,7 @@ var scenarioNames = scenarios.Select(s => s.Name).ToArray();
 
 await Hex1bTerminal.CreateBuilder()
     .WithScrollback()
+    .WithMouse()
     .WithHex1bFlow(async flow =>
     {
         while (!flow.CancellationToken.IsCancellationRequested)
