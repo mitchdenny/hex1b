@@ -79,58 +79,6 @@ var website = builder.AddCSharpApp("website", "./src/Hex1b.Website")
         }
     });
 
-// Reflow demo
-var reflowDemo = builder.AddCSharpApp("reflow-demo", "./samples/ReflowDemo")
-    .ExcludeFromManifest();
-
-// Grid demo
-var gridDemo = builder.AddCSharpApp("grid-demo", "./samples/GridDemo")
-    .ExcludeFromManifest();
-
-// Kanban drag-and-drop demo
-var kanbanDemo = builder.AddCSharpApp("kanban-demo", "./samples/KanbanDemo")
-    .ExcludeFromManifest();
-
-// Flow chart drag-and-drop demo
-var flowChartDemo = builder.AddCSharpApp("flowchart-demo", "./samples/FlowChartDemo")
-    .ExcludeFromManifest();
-
-// FloatPanel demo
-var floatPanelDemo = builder.AddCSharpApp("float-panel-demo", "./samples/FloatPanelDemo")
-    .ExcludeFromManifest();
-
-// Float Alignment Explorer demo
-var floatAlignmentExplorer = builder.AddCSharpApp("float-alignment-explorer", "./samples/FloatAlignmentExplorer")
-    .ExcludeFromManifest();
-
-// 3D Model Viewer demo
-var modelViewerDemo = builder.AddCSharpApp("model-viewer-demo", "./samples/ModelViewerDemo")
-    .ExcludeFromManifest();
-
-// Accordion demo
-var accordionDemo = builder.AddCSharpApp("accordion-demo", "./samples/AccordionDemo")
-    .ExcludeFromManifest();
-
-// Language Server demo
-var languageServerDemo = builder.AddCSharpApp("language-server-demo", "./samples/LanguageServerDemo")
-    .ExcludeFromManifest();
-
-// Docker container demo
-var dockerDemo = builder.AddCSharpApp("docker-demo", "./samples/DockerDemo")
-    .ExcludeFromManifest();
-
-var pasteDemo = builder.AddCSharpApp("paste-demo", "./samples/PasteDemo")
-    .ExcludeFromManifest();
-
-// KGP (Kitty Graphics Protocol) demo
-var kgpDemo = builder.AddCSharpApp("kgp-demo", "./samples/KgpDemo")
-    .ExcludeFromManifest();
-
-// Tile panel demo
-var tileDemo = builder.AddCSharpApp("tile-demo", "./samples/TileDemo")
-    .ExcludeFromManifest();
-var markdownSample = builder.AddCSharpApp("markdown-sample", "./samples/MarkdownSample")
-    .ExcludeFromManifest();
 var content= builder.AddViteApp("content", "./src/content")
     .WithReference(website)
     .WaitFor(website)
