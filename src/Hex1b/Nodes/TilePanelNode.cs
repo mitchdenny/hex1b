@@ -13,8 +13,71 @@ namespace Hex1b;
 /// Render node for <see cref="TilePanelWidget"/>.
 /// Manages viewport math, tile fetching, POI positioning, and input bindings.
 /// </summary>
-public sealed class TilePanelNode : CompositeNode, IDisposable
+public sealed class TilePanelNode : Hex1bNode, IDisposable
 {
+    /// <summary>
+    /// The reconciled content child node.
+    /// This is the root of the widget tree built by the tile panel widget.
+    /// </summary>
+    public Hex1bNode? ContentChild { get; set; }
+
+    /// <summary>
+    /// Reference to the source widget for typed event args.
+    /// </summary>
+    internal Hex1bWidget? SourceWidget { get; set; }
+
+    /// <inheritdoc />
+    public override IEnumerable<Hex1bNode> GetChildren()
+    {
+        if (ContentChild != null) yield return ContentChild;
+    }
+
+    /// <inheritdoc />
+    protected override Size MeasureCore(Constraints constraints)
+        => ContentChild?.Measure(constraints) ?? constraints.Constrain(Size.Zero);
+
+    /// <inheritdoc />
+    protected override void ArrangeCore(Rect rect)
+    {
+        base.ArrangeCore(rect);
+        ContentChild?.Arrange(rect);
+    }
+
+    /// <inheritdoc />
+    public override void Render(Hex1bRenderContext context)
+    {
+        if (ContentChild != null)
+            context.RenderChild(ContentChild);
+    }
+
+    /// <summary>
+    /// Tile panel nodes are NOT themselves focusable - focus passes through to children.
+    /// </summary>
+    public override bool IsFocusable => false;
+
+    /// <summary>
+    /// Focus state exists on the content child, not the tile panel node itself.
+    /// </summary>
+    public override bool IsFocused
+    {
+        get => false;
+        set
+        {
+            if (ContentChild != null)
+                ContentChild.IsFocused = value;
+        }
+    }
+
+    /// <inheritdoc />
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (ContentChild != null)
+        {
+            foreach (var focusable in ContentChild.GetFocusableNodes())
+                yield return focusable;
+        }
+    }
+
     /// <summary>
     /// Camera X position in tile coordinates.
     /// </summary>
