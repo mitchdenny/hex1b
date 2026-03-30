@@ -54,7 +54,9 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
     {
         // HStack: sum widths, take max height
         // Pass height constraint to children so they can size appropriately
-        var totalWidth = 0;
+        // Use long to prevent int overflow when children return int.MaxValue from
+        // unbounded measurement.
+        long totalWidth = 0;
         var maxHeight = 0;
 
         foreach (var child in Children)
@@ -66,7 +68,8 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
             maxHeight = Math.Max(maxHeight, childSize.Height);
         }
 
-        return constraints.Constrain(new Size(totalWidth, maxHeight));
+        var clampedWidth = (int)Math.Min(totalWidth, int.MaxValue);
+        return constraints.Constrain(new Size(clampedWidth, maxHeight));
     }
 
     protected override void ArrangeCore(Rect bounds)
@@ -97,9 +100,11 @@ public sealed class HStackNode : Hex1bNode, ILayoutProvider
             }
             else if (hint.IsContent)
             {
+                // Cap to availableWidth to prevent widgets that fill all space
+                // from returning int.MaxValue and causing unbounded arrangement/render loops.
                 var measured = Children[i].Measure(Constraints.Unbounded);
-                childSizes[i] = measured.Width;
-                totalFixed += measured.Width;
+                childSizes[i] = Math.Min(measured.Width, availableWidth);
+                totalFixed += childSizes[i];
             }
             else if (hint.IsFill)
             {

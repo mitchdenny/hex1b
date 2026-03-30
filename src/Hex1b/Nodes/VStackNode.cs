@@ -57,7 +57,10 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
         // VStack: take max width, sum heights
         // Pass width constraint to children so they can wrap if needed
         var maxWidth = 0;
-        var totalHeight = 0;
+        // Use long to prevent int overflow when children (e.g., Editor with HeightHint=Fill)
+        // return int.MaxValue from unbounded measurement. The overflow would produce a negative
+        // totalHeight, causing Constrain to return 0 and the VStack to collapse.
+        long totalHeight = 0;
 
         foreach (var child in Children)
         {
@@ -68,7 +71,8 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
             totalHeight += childSize.Height;
         }
 
-        return constraints.Constrain(new Size(maxWidth, totalHeight));
+        var clampedHeight = (int)Math.Min(totalHeight, int.MaxValue);
+        return constraints.Constrain(new Size(maxWidth, clampedHeight));
     }
 
     protected override void ArrangeCore(Rect bounds)
@@ -109,9 +113,11 @@ public sealed class VStackNode : Hex1bNode, ILayoutProvider
                 {
                     // Content height often depends on available width (e.g., wrapped TextBlock).
                     // Measure with the current bounds width so content sizing is accurate.
+                    // Cap to availableHeight to prevent widgets that fill all space (e.g., Editor)
+                    // from returning int.MaxValue and causing unbounded arrangement/render loops.
                     var measured = Children[i].Measure(new Constraints(0, bounds.Width, 0, int.MaxValue));
-                    childSizes[i] = measured.Height;
-                    totalFixed += measured.Height;
+                    childSizes[i] = Math.Min(measured.Height, availableHeight);
+                    totalFixed += childSizes[i];
                 }
                 else if (hint.IsFill)
                 {
