@@ -46,21 +46,21 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Form(form =>
             {
                 var firstNameField = form.TextField("First Name")
-                    .WithMinWidth(30)
+                    .WithWidth(20)
                     .Validate(value => string.IsNullOrWhiteSpace(value)
                         ? ValidationResult.Error("First name is required")
                         : ValidationResult.Valid)
                     .OnTextChanged(e => firstName = e.NewText);
 
                 var lastNameField = form.TextField("Last Name")
-                    .WithMinWidth(30)
+                    .WithWidth(20)
                     .Validate(value => string.IsNullOrWhiteSpace(value)
                         ? ValidationResult.Error("Last name is required")
                         : ValidationResult.Valid)
                     .OnTextChanged(e => lastName = e.NewText);
 
                 var emailField = form.TextField("Email")
-                    .WithMinWidth(40)
+                    .WithWidth(20)
                     .Validate(value =>
                     {
                         if (string.IsNullOrWhiteSpace(value))
@@ -72,11 +72,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     .OnTextChanged(e => email = e.NewText);
 
                 var companyField = form.TextField("Company")
-                    .WithMinWidth(30)
+                    .WithWidth(20)
                     .OnTextChanged(e => company = e.NewText);
 
                 var titleField = form.TextField("Job Title")
-                    .WithMinWidth(30)
+                    .WithWidth(20)
                     .OnTextChanged(e => title = e.NewText);
 
                 return [

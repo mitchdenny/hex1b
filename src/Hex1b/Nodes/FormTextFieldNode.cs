@@ -60,6 +60,12 @@ public sealed class FormTextFieldNode : Hex1bNode
     internal int LabelWidth { get; set; } = 15;
 
     /// <summary>
+    /// Whether an explicit width was set on the field.
+    /// When false, the input fills available horizontal space.
+    /// </summary>
+    internal bool HasExplicitWidth { get; set; }
+
+    /// <summary>
     /// The label child node.
     /// </summary>
     public Hex1bNode? LabelChild { get; set; }
@@ -105,34 +111,36 @@ public sealed class FormTextFieldNode : Hex1bNode
 
     private Size MeasureAbove(Constraints constraints)
     {
-        var totalWidth = 0;
         var totalHeight = 0;
 
         if (LabelChild != null)
         {
             _labelMeasuredSize = LabelChild.Measure(constraints);
-            totalWidth = Math.Max(totalWidth, _labelMeasuredSize.Width);
             totalHeight += _labelMeasuredSize.Height;
         }
 
-        var inputWidth = 0;
-        if (InputChild != null)
-        {
-            _inputMeasuredSize = InputChild.Measure(new Constraints(0, constraints.MaxWidth, 0, 1));
-            inputWidth += _inputMeasuredSize.Width;
-        }
-
+        // Measure error indicator first to know how much space the input gets
+        var errorWidth = 0;
         if (ErrorIndicatorChild != null)
         {
-            _errorMeasuredSize = ErrorIndicatorChild.Measure(
-                new Constraints(0, Math.Max(0, constraints.MaxWidth - inputWidth), 0, 1));
-            inputWidth += _errorMeasuredSize.Width;
+            _errorMeasuredSize = ErrorIndicatorChild.Measure(new Constraints(0, constraints.MaxWidth, 0, 1));
+            errorWidth = _errorMeasuredSize.Width;
         }
 
-        totalWidth = Math.Max(totalWidth, inputWidth);
+        var inputAvailable = Math.Max(0, constraints.MaxWidth - errorWidth);
+        if (InputChild != null)
+        {
+            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, 1));
+        }
+
+        // When no explicit width, fill the full available width
+        var rowWidth = HasExplicitWidth
+            ? _inputMeasuredSize.Width + errorWidth
+            : constraints.MaxWidth;
+
         totalHeight += 1;
 
-        return constraints.Constrain(new Size(totalWidth, totalHeight));
+        return constraints.Constrain(new Size(rowWidth, totalHeight));
     }
 
     private Size MeasureInline(Constraints constraints)
@@ -145,21 +153,24 @@ public sealed class FormTextFieldNode : Hex1bNode
             _labelMeasuredSize = LabelChild.Measure(new Constraints(0, labelCol, 0, 1));
         }
 
-        var inputWidth = 0;
-        if (InputChild != null)
-        {
-            _inputMeasuredSize = InputChild.Measure(new Constraints(0, remainingWidth, 0, 1));
-            inputWidth += _inputMeasuredSize.Width;
-        }
-
+        var errorWidth = 0;
         if (ErrorIndicatorChild != null)
         {
-            _errorMeasuredSize = ErrorIndicatorChild.Measure(
-                new Constraints(0, Math.Max(0, remainingWidth - inputWidth), 0, 1));
-            inputWidth += _errorMeasuredSize.Width;
+            _errorMeasuredSize = ErrorIndicatorChild.Measure(new Constraints(0, remainingWidth, 0, 1));
+            errorWidth = _errorMeasuredSize.Width;
         }
 
-        return constraints.Constrain(new Size(labelCol + inputWidth, 1));
+        var inputAvailable = Math.Max(0, remainingWidth - errorWidth);
+        if (InputChild != null)
+        {
+            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, 1));
+        }
+
+        var rowWidth = HasExplicitWidth
+            ? labelCol + _inputMeasuredSize.Width + errorWidth
+            : constraints.MaxWidth;
+
+        return constraints.Constrain(new Size(rowWidth, 1));
     }
 
     protected override void ArrangeCore(Rect rect)
@@ -182,16 +193,21 @@ public sealed class FormTextFieldNode : Hex1bNode
             y += 1;
         }
 
+        var errorWidth = ErrorIndicatorChild != null ? _errorMeasuredSize.Width : 0;
+        var inputWidth = HasExplicitWidth
+            ? _inputMeasuredSize.Width
+            : Math.Max(0, rect.Width - errorWidth);
+
         var inputX = rect.X;
         if (InputChild != null)
         {
-            InputChild.Arrange(new Rect(inputX, y, _inputMeasuredSize.Width, 1));
-            inputX += _inputMeasuredSize.Width;
+            InputChild.Arrange(new Rect(inputX, y, inputWidth, 1));
+            inputX += inputWidth;
         }
 
         if (ErrorIndicatorChild != null)
         {
-            ErrorIndicatorChild.Arrange(new Rect(inputX, y, _errorMeasuredSize.Width, 1));
+            ErrorIndicatorChild.Arrange(new Rect(inputX, y, errorWidth, 1));
         }
     }
 
@@ -207,18 +223,20 @@ public sealed class FormTextFieldNode : Hex1bNode
 
         x += labelCol;
         var remainingWidth = Math.Max(0, rect.Width - labelCol);
+        var errorWidth = ErrorIndicatorChild != null ? _errorMeasuredSize.Width : 0;
+        var inputWidth = HasExplicitWidth
+            ? Math.Min(_inputMeasuredSize.Width, remainingWidth)
+            : Math.Max(0, remainingWidth - errorWidth);
 
         if (InputChild != null)
         {
-            var inputW = Math.Min(_inputMeasuredSize.Width, remainingWidth);
-            InputChild.Arrange(new Rect(x, rect.Y, inputW, 1));
-            x += inputW;
-            remainingWidth -= inputW;
+            InputChild.Arrange(new Rect(x, rect.Y, inputWidth, 1));
+            x += inputWidth;
         }
 
         if (ErrorIndicatorChild != null)
         {
-            ErrorIndicatorChild.Arrange(new Rect(x, rect.Y, Math.Min(_errorMeasuredSize.Width, remainingWidth), 1));
+            ErrorIndicatorChild.Arrange(new Rect(x, rect.Y, errorWidth, 1));
         }
     }
 

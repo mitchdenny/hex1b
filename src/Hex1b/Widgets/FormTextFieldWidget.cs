@@ -100,6 +100,12 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         => this with { MaxWidth = width };
 
     /// <summary>
+    /// Sets an exact fixed width for the text input (sets both MinWidth and MaxWidth).
+    /// </summary>
+    public FormTextFieldWidget WithWidth(int width)
+        => this with { MinWidth = width, MaxWidth = width };
+
+    /// <summary>
     /// Sets the initial text value.
     /// </summary>
     public FormTextFieldWidget WithInitialValue(string value)
@@ -159,6 +165,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         var formNode = context.FindAncestor<FormNode>();
         node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? LabelPlacement.Above;
         node.LabelWidth = formNode?.LabelWidth ?? 15;
+        node.HasExplicitWidth = MinWidth.HasValue;
 
         // Apply initial value only once
         if (!node.HasAppliedInitialValue && InitialValue != null)
@@ -175,8 +182,12 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         var labelWidget = new TextBlockWidget(Label);
         node.LabelChild = await context.ReconcileChildAsync(node.LabelChild, labelWidget, node);
 
-        // Build the text box widget
-        var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = MinWidth, MaxWidth = MaxWidth ?? MinWidth }
+        // Build the text box widget with fill mode enabled (no brackets, painted background).
+        // MinWidth=1 ensures TextBox avoids bracket-mode measurement when no explicit width is set;
+        // the FormTextFieldNode controls the actual rendered width via layout.
+        var textBoxMinWidth = MinWidth ?? 1;
+        var textBoxMaxWidth = MaxWidth ?? MinWidth;
+        var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth }
             .OnTextChanged(async e =>
             {
                 node.CurrentValue = e.NewText;
@@ -203,7 +214,12 @@ public sealed record FormTextFieldWidget : Hex1bWidget
                 }
             });
 
-        node.InputChild = await context.ReconcileChildAsync(node.InputChild, textBox, node);
+        // Wrap in ThemePanel to enable fill mode rendering
+        Hex1bWidget inputWidget = new ThemePanelWidget(
+            t => t.Set(Theming.TextBoxTheme.UseFillMode, true),
+            textBox);
+
+        node.InputChild = await context.ReconcileChildAsync(node.InputChild, inputWidget, node);
 
         // Build error indicator (shown when validation fails)
         Hex1bWidget? errorWidget = null;
