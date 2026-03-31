@@ -11,6 +11,10 @@ var lastName = "";
 var email = "";
 var company = "";
 var title = "";
+var address = "";
+var city = "";
+var state = "";
+var postcode = "";
 var lastAction = "None";
 var labelPlacementIndex = 0; // 0 = Above, 1 = Inline
 
@@ -79,6 +83,31 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     .WithWidth(20)
                     .OnTextChanged(e => title = e.NewText);
 
+                var addressField = form.TextField("Address")
+                    .WithWidth(30)
+                    .Multiline()
+                    .WordWrap()
+                    .WithHeight(2)
+                    .OnTextChanged(e => address = e.NewText);
+
+                var cityField = form.TextField("City")
+                    .WithWidth(20)
+                    .OnTextChanged(e => city = e.NewText);
+
+                var stateField = form.TextField("State")
+                    .WithWidth(15)
+                    .OnTextChanged(e => state = e.NewText);
+
+                var postcodeField = form.TextField("Postcode")
+                    .WithWidth(10)
+                    .Validate(value =>
+                    {
+                        if (!string.IsNullOrEmpty(value) && !value.All(char.IsDigit))
+                            return ValidationResult.Error("Digits only");
+                        return ValidationResult.Valid;
+                    })
+                    .OnTextChanged(e => postcode = e.NewText);
+
                 return [
                     firstNameField,
                     lastNameField,
@@ -86,6 +115,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     form.ValidationMessageFor(firstNameField, lastNameField, emailField),
                     companyField,
                     titleField,
+                    form.Text(""),
+                    form.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
+                        form.Text("  Address")),
+                    addressField,
+                    cityField,
+                    stateField,
+                    postcodeField,
+                    form.ValidationMessageFor(postcodeField),
                     form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
                     form.CancelButton(_ => lastAction = "Cancelled"),
                 ];
@@ -103,6 +141,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     preview.Text($"  Email:   {email}"),
                     preview.Text($"  Company: {company}"),
                     preview.Text($"  Title:   {title}"),
+                    preview.Text($"  Address: {address.Replace("\n", ", ")}"),
+                    preview.Text($"  City:    {city}  State: {state}  Postcode: {postcode}"),
                 ])),
             v.Text($"  Last action: {lastAction}"),
         ]);
