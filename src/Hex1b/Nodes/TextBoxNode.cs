@@ -661,7 +661,9 @@ public sealed class TextBoxNode : Hex1bNode
         var hoverCursorFg = theme.Get(TextBoxTheme.HoverCursorForegroundColor);
         var hoverCursorBg = theme.Get(TextBoxTheme.HoverCursorBackgroundColor);
         var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
-        var fillBg = theme.Get(TextBoxTheme.FillBackgroundColor);
+        var fillBg = IsFocused
+            ? theme.Get(TextBoxTheme.FocusedFillBackgroundColor)
+            : theme.Get(TextBoxTheme.FillBackgroundColor);
         
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();

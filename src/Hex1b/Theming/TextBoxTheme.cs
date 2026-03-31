@@ -50,4 +50,11 @@ public static class TextBoxTheme
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FillBackgroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(FillBackgroundColor)}", () => Hex1bColor.FromRgb(40, 40, 40));
+
+    /// <summary>
+    /// Background color used in fill mode when the text box has focus.
+    /// Slightly lighter than <see cref="FillBackgroundColor"/> to indicate active input.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> FocusedFillBackgroundColor = 
+        new($"{nameof(TextBoxTheme)}.{nameof(FocusedFillBackgroundColor)}", () => Hex1bColor.FromRgb(55, 55, 55));
 }
