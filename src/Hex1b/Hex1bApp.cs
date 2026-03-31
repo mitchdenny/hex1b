@@ -862,6 +862,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             if (_mouseEnabled || _lastRenderedCursorVisible)
             {
                 _context.Write("\x1b[?25l"); // Hide cursor
+                // Reset so RenderCursor() knows it must re-show the cursor
+                _lastRenderedCursorVisible = false;
             }
 
             // Render using Surface-based path
