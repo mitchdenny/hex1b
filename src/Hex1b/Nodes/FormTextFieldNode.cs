@@ -130,7 +130,7 @@ public sealed class FormTextFieldNode : Hex1bNode
         var inputAvailable = Math.Max(0, constraints.MaxWidth - errorWidth);
         if (InputChild != null)
         {
-            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, 1));
+            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, constraints.MaxHeight));
         }
 
         // When no explicit width, fill the full available width
@@ -138,7 +138,7 @@ public sealed class FormTextFieldNode : Hex1bNode
             ? _inputMeasuredSize.Width + errorWidth
             : constraints.MaxWidth;
 
-        totalHeight += 1;
+        totalHeight += _inputMeasuredSize.Height;
 
         return constraints.Constrain(new Size(rowWidth, totalHeight));
     }
@@ -163,14 +163,15 @@ public sealed class FormTextFieldNode : Hex1bNode
         var inputAvailable = Math.Max(0, remainingWidth - errorWidth);
         if (InputChild != null)
         {
-            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, 1));
+            _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, constraints.MaxHeight));
         }
 
         var rowWidth = HasExplicitWidth
             ? labelCol + _inputMeasuredSize.Width + errorWidth
             : constraints.MaxWidth;
 
-        return constraints.Constrain(new Size(rowWidth, 1));
+        var rowHeight = Math.Max(1, _inputMeasuredSize.Height);
+        return constraints.Constrain(new Size(rowWidth, rowHeight));
     }
 
     protected override void ArrangeCore(Rect rect)
@@ -197,11 +198,12 @@ public sealed class FormTextFieldNode : Hex1bNode
         var inputWidth = HasExplicitWidth
             ? _inputMeasuredSize.Width
             : Math.Max(0, rect.Width - errorWidth);
+        var inputHeight = _inputMeasuredSize.Height;
 
         var inputX = rect.X;
         if (InputChild != null)
         {
-            InputChild.Arrange(new Rect(inputX, y, inputWidth, 1));
+            InputChild.Arrange(new Rect(inputX, y, inputWidth, inputHeight));
             inputX += inputWidth;
         }
 
@@ -215,6 +217,7 @@ public sealed class FormTextFieldNode : Hex1bNode
     {
         var labelCol = Math.Min(LabelWidth, rect.Width);
         var x = rect.X;
+        var inputHeight = Math.Max(1, _inputMeasuredSize.Height);
 
         if (LabelChild != null)
         {
@@ -230,7 +233,7 @@ public sealed class FormTextFieldNode : Hex1bNode
 
         if (InputChild != null)
         {
-            InputChild.Arrange(new Rect(x, rect.Y, inputWidth, 1));
+            InputChild.Arrange(new Rect(x, rect.Y, inputWidth, inputHeight));
             x += inputWidth;
         }
 
