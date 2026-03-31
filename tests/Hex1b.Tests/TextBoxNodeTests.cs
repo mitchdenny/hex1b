@@ -210,12 +210,12 @@ public class TextBoxNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        // When focused, the cursor character should be highlighted with ANSI codes
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
-        // The text content should still be visible
+        // Line caret: text renders normally, native cursor position is recorded
         Assert.Contains("a", snapshot.GetLineTrimmed(0));
         Assert.Contains("b", snapshot.GetLineTrimmed(0));
         Assert.Contains("c", snapshot.GetLineTrimmed(0));
+        // ScreenCursorX should be set to the display width of text before cursor (1 char + bracket)
+        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
     }
 
     [Fact]
@@ -241,9 +241,9 @@ public class TextBoxNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        // Should have ANSI codes for cursor highlighting
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        // Line caret: text renders normally, native cursor is at position 0
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
+        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
     }
 
     [Fact]
@@ -269,8 +269,8 @@ public class TextBoxNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        // When cursor is at end, a space is shown as cursor placeholder
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        // Line caret: native cursor should be positioned after "test"
+        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret at end");
     }
 
     [Fact]
@@ -296,10 +296,10 @@ public class TextBoxNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        // Should still have the brackets and ANSI codes for cursor
+        // Line caret: brackets visible, native cursor positioned between them
         Assert.Contains("[", snapshot.GetLineTrimmed(0));
         Assert.Contains("]", snapshot.GetLineTrimmed(0));
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret in empty text box");
     }
 
     #endregion

@@ -222,7 +222,7 @@ public class ThemingExhibitRepro
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
 
-        // Act - Run app, wait for TextBox text to appear, then check for cursor colors
+        // Act - Run app, wait for TextBox text to appear
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(5), "TextBox content to appear")
@@ -232,10 +232,9 @@ public class ThemingExhibitRepro
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - The cursor background color (white) should be in the snapshot
-        // Default cursor colors: foreground=Black, background=White (255,255,255)
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)),
-            "TextBox should render cursor with white background when focused");
+        // Assert - Line caret: text should be visible without block cursor highlighting.
+        // The native terminal cursor (bar) handles the caret instead.
+        Assert.True(snapshot.ContainsText("test"), "TextBox content should be visible when focused");
     }
 
     /// <summary>

@@ -133,6 +133,17 @@ public sealed class TextBoxNode : Hex1bNode
     /// </summary>
     public override CursorShape PreferredCursorShape => CursorShape.BlinkingBar;
 
+    /// <summary>
+    /// Screen X coordinate where the native terminal cursor should be placed.
+    /// Set during Render; -1 means no native cursor requested (e.g., during selection).
+    /// </summary>
+    internal int ScreenCursorX { get; private set; } = -1;
+
+    /// <summary>
+    /// Screen Y coordinate where the native terminal cursor should be placed.
+    /// </summary>
+    internal int ScreenCursorY { get; private set; }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation
@@ -1087,7 +1098,7 @@ public sealed class TextBoxNode : Hex1bNode
 
             var lineOutput = RenderMultilineLine(lineText, cursorCol, lineSelStart, lineSelEnd,
                 viewportWidth, globalColors, resetToGlobal, fillBgAnsi,
-                cursorFg, cursorBg, selFg, selBg);
+                cursorFg, cursorBg, selFg, selBg, screenY);
 
             if (context.CurrentLayoutProvider != null)
                 context.WriteClipped(Bounds.X, screenY, lineOutput);
@@ -1101,7 +1112,8 @@ public sealed class TextBoxNode : Hex1bNode
     /// </summary>
     private string RenderMultilineLine(string lineText, int cursorCol, int selStart, int selEnd,
         int viewportWidth, string globalColors, string resetToGlobal, string fillBgAnsi,
-        Hex1bColor cursorFg, Hex1bColor cursorBg, Hex1bColor selFg, Hex1bColor selBg)
+        Hex1bColor cursorFg, Hex1bColor cursorBg, Hex1bColor selFg, Hex1bColor selBg,
+        int screenY)
     {
         var textDisplayWidth = DisplayWidth.GetStringWidth(lineText);
         var padding = Math.Max(0, viewportWidth - textDisplayWidth);
@@ -1119,27 +1131,15 @@ public sealed class TextBoxNode : Hex1bNode
             }
             else
             {
-                // Cursor on this line, no selection
+                // Line caret: render text normally, position native cursor
                 var before = lineText[..cursorCol];
-                string cursorCluster;
-                string after;
-                var cursorPadding = padding;
+                var after = cursorCol < lineText.Length ? lineText[cursorCol..] : "";
 
-                if (cursorCol < lineText.Length)
-                {
-                    var clusterLength = GraphemeHelper.GetClusterLength(lineText, cursorCol);
-                    cursorCluster = lineText.Substring(cursorCol, clusterLength);
-                    after = lineText[(cursorCol + clusterLength)..];
-                }
-                else
-                {
-                    cursorCluster = " ";
-                    after = "";
-                    cursorPadding = Math.Max(0, cursorPadding - 1);
-                }
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = screenY;
 
-                var padStr = new string(' ', cursorPadding);
-                return $"{globalColors}{fillBgAnsi}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{fillBgAnsi}{after}{padStr}{resetToGlobal}";
+                var padStr = new string(' ', padding);
+                return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
             }
         }
         else if (selStart >= 0 && selEnd > selStart)
@@ -1163,6 +1163,9 @@ public sealed class TextBoxNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
+        // Reset native cursor request — will be set if focused and no selection
+        ScreenCursorX = -1;
+
         var theme = context.Theme;
         var leftBracket = theme.Get(TextBoxTheme.LeftBracket);
         var rightBracket = theme.Get(TextBoxTheme.RightBracket);
@@ -1231,22 +1234,16 @@ public sealed class TextBoxNode : Hex1bNode
             }
             else
             {
+                // Line caret: render text normally, position native cursor
                 var before = visibleText[..visCursor];
-                string cursorCluster;
-                string after;
-                if (visCursor < visibleText.Length)
-                {
-                    var clusterLength = GraphemeHelper.GetClusterLength(visibleText, visCursor);
-                    cursorCluster = visibleText.Substring(visCursor, clusterLength);
-                    after = visibleText[(visCursor + clusterLength)..];
-                }
-                else
-                {
-                    cursorCluster = " ";
-                    after = "";
-                }
-                
-                output = $"{globalColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{after}{rightBracket}";
+                var after = visCursor < visibleText.Length ? visibleText[visCursor..] : "";
+                // When cursor is at end, add a space so the bracket layout matches the old block cursor
+                var cursorSpace = visCursor >= visibleText.Length ? " " : "";
+
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(leftBracket) + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = Bounds.Y;
+
+                output = $"{globalColors}{leftBracket}{before}{after}{cursorSpace}{rightBracket}";
             }
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
@@ -1312,28 +1309,17 @@ public sealed class TextBoxNode : Hex1bNode
             }
             else
             {
+                // Line caret: render the text normally and let the native terminal cursor
+                // show a blinking bar at the cursor position.
                 var before = text[..cursor];
-                string cursorCluster;
-                string after;
-                int cursorClusterWidth;
-                if (cursor < text.Length)
-                {
-                    var clusterLength = GraphemeHelper.GetClusterLength(text, cursor);
-                    cursorCluster = text.Substring(cursor, clusterLength);
-                    cursorClusterWidth = DisplayWidth.GetStringWidth(cursorCluster);
-                    after = text[(cursor + clusterLength)..];
-                }
-                else
-                {
-                    cursorCluster = " ";
-                    cursorClusterWidth = 1;
-                    after = "";
-                    // Cursor space consumes one padding char
-                    padding = Math.Max(0, padding - 1);
-                }
+                var after = cursor < text.Length ? text[cursor..] : "";
+
+                // Record screen position for the native cursor
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = Bounds.Y;
 
                 var padStr = new string(' ', padding);
-                return $"{globalColors}{fillBgAnsi}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{fillBgAnsi}{after}{padStr}{resetToGlobal}";
+                return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
             }
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)

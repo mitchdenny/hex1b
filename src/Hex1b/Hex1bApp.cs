@@ -859,7 +859,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         if (needsRender)
         {
             // Hide cursor during rendering to prevent flicker
-            if (_mouseEnabled)
+            if (_mouseEnabled || _lastRenderedCursorVisible)
             {
                 _context.Write("\x1b[?25l"); // Hide cursor
             }
@@ -1176,8 +1176,55 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     private void RenderCursor()
     {
-        // Check if a TerminalNode is focused - if so, use its cursor
         var focusedNode = _focusRing.FocusedNode;
+
+        // Check if a TextBoxNode is focused and requesting a native line caret
+        if (focusedNode is TextBoxNode textBoxNode && textBoxNode.ScreenCursorX >= 0)
+        {
+            var screenX = textBoxNode.ScreenCursorX;
+            var screenY = textBoxNode.ScreenCursorY;
+            var shape = CursorShape.SteadyBar;
+
+            if (screenX == _lastRenderedCursorX &&
+                screenY == _lastRenderedCursorY &&
+                shape == _lastRenderedCursorShape &&
+                _lastRenderedCursorVisible &&
+                ReferenceEquals(focusedNode, _lastRenderedCursorNode))
+            {
+                return;
+            }
+
+            _lastRenderedCursorX = screenX;
+            _lastRenderedCursorY = screenY;
+            _lastRenderedCursorShape = shape;
+            _lastRenderedCursorVisible = true;
+            _lastRenderedCursorNode = focusedNode;
+
+            if (screenX >= 0 && screenX < _context.Width &&
+                screenY >= 0 && screenY < _context.Height)
+            {
+                _context.SetCursorPosition(screenX, screenY);
+                _context.Write("\x1b[?25h"); // Show cursor
+                WriteCursorShape(shape);
+            }
+            else
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
+            return;
+        }
+
+        // If focused node is a TextBoxNode but has no cursor request (e.g., during selection),
+        // hide the native cursor if it was previously visible for a TextBoxNode
+        if (focusedNode is TextBoxNode && _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode)
+        {
+            _context.Write("\x1b[?25l");
+            _lastRenderedCursorVisible = false;
+            _lastRenderedCursorNode = focusedNode;
+            // Fall through to mouse cursor handling below
+        }
+
+        // Check if a TerminalNode is focused - if so, use its cursor
         if (focusedNode is Nodes.TerminalNode terminalNode && terminalNode.Handle != null)
         {
             var handle = terminalNode.Handle;
