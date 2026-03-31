@@ -1303,9 +1303,10 @@ public sealed class TextBoxNode : Hex1bNode
                 var selected = text[visSelStart..visSelEnd];
                 var afterSel = text[visSelEnd..];
 
-                // Pad after the text to fill the measured width
-                var afterSelWidth = DisplayWidth.GetStringWidth(afterSel);
-                var padStr = new string(' ', Math.Max(0, padding - (IsFocused && cursor >= text.Length ? 1 : 0)));
+                // Pad after the text to fill the measured width.
+                // No cursor space adjustment needed — the selection highlight covers
+                // the cursor position without adding an extra character.
+                var padStr = new string(' ', Math.Max(0, padding));
 
                 return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
             }
