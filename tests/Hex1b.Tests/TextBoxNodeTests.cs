@@ -2328,7 +2328,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public async Task Integration_MoveUp_OnFirstLine_CreatesNewLineAbove()
+    public async Task Integration_MoveUp_OnFirstLine_IsNoOp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
@@ -2346,44 +2346,16 @@ public class TextBoxNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
-            .Key(Hex1bKey.UpArrow) // should create new line above
-            .WaitUntil(s => capturedText.Contains('\n'), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // should be a no-op on first line
+            .Type("X") // type to verify no new line was created
+            .WaitUntil(s => capturedText.Contains("X"), TimeSpan.FromSeconds(5))
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("\nhello", capturedText);
-    }
-
-    [Fact]
-    public async Task Integration_MoveUp_OnFirstLine_WithMaxLines_Blocked()
-    {
-        using var workload = new Hex1bAppWorkloadAdapter();
-        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
-        var capturedText = "line1\nline2";
-
-        using var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(
-                ctx.VStack(v => [
-                    v.TextBox(capturedText).Multiline(2).OnTextChanged(e => capturedText = e.NewText)
-                ])
-            ),
-            new Hex1bAppOptions { WorkloadAdapter = workload }
-        );
-
-        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
-        await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("line1"), TimeSpan.FromSeconds(5))
-            .Key(Hex1bKey.UpArrow) // should be blocked
-            .Key(Hex1bKey.UpArrow) // extra press
-            .WaitUntil(s => s.ContainsText("line1"), TimeSpan.FromSeconds(5))
-            .Ctrl().Key(Hex1bKey.C)
-            .Build()
-            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
-
-        Assert.Equal("line1\nline2", capturedText);
+        // No newline should have been inserted — X appended to same line
+        Assert.DoesNotContain("\n", capturedText);
     }
 
     [Fact]

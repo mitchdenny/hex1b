@@ -162,7 +162,7 @@ public sealed class TextBoxNode : Hex1bNode
         // Multiline navigation and Enter handling
         if (IsMultiline)
         {
-            bindings.Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.MoveUp, MoveUpAsync, "Move up");
+            bindings.Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.MoveUp, MoveUp, "Move up");
             bindings.Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.MoveDown, MoveDownAsync, "Move down");
             bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.SelectUp, SelectUp, "Extend selection up");
             bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.SelectDown, SelectDown, "Extend selection down");
@@ -419,31 +419,10 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
-    private async Task MoveUpAsync(InputBindingActionContext ctx)
+    private void MoveUp()
     {
-        var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
-        if (line == 0)
-        {
-            // No line above — move to start of line and insert newline (creates blank line above)
-            if (!CanInsertNewline())
-                return;
-
-            var oldText = State.Text;
-            var lineStart = State.LineColumnToOffset(0, 0);
-            State.CursorPosition = lineStart;
-            State.InsertNewline();
-            // Cursor is now on line 1; move back up to the new blank line 0
-            State.CursorPosition = 0;
-            MarkDirty();
-
-            if (TextChangedAction != null && oldText != State.Text)
-                await TextChangedAction(ctx, oldText, State.Text);
-        }
-        else
-        {
-            State.MoveUp();
-            MarkDirty();
-        }
+        State.MoveUp();
+        MarkDirty();
     }
 
     private async Task MoveDownAsync(InputBindingActionContext ctx)
