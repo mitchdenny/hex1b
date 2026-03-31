@@ -858,8 +858,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Step 6.5-9: Only do render output if something actually changed
         if (needsRender)
         {
-            // Hide cursor during rendering to prevent flicker
-            if (_mouseEnabled || _lastRenderedCursorVisible)
+            // Hide cursor during rendering to prevent flicker.
+            // When a TextBoxNode's native cursor is active, skip hiding — the hardware
+            // bar cursor doesn't interfere with cell content rendering, and the
+            // hide/show cycle on every frame causes visible flicker during mouse movement.
+            var skipCursorHide = _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode;
+            if (!skipCursorHide && (_mouseEnabled || _lastRenderedCursorVisible))
             {
                 _context.Write("\x1b[?25l"); // Hide cursor
                 // Reset so RenderCursor() knows it must re-show the cursor
@@ -1269,7 +1273,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             return;
         }
         
-        // Fall back to mouse cursor behavior for non-terminal nodes
+        // Fall back to mouse cursor behavior for non-terminal nodes.
+        // If the native cursor was previously shown for a TextBox that is no longer focused,
+        // hide it before proceeding.
+        if (_lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode)
+        {
+            _context.Write("\x1b[?25l");
+            _lastRenderedCursorVisible = false;
+            _lastRenderedCursorNode = null;
+        }
+
         if (!_mouseEnabled || _mouseX < 0 || _mouseY < 0) return;
         if (_mouseX >= _context.Width || _mouseY >= _context.Height) return;
         
