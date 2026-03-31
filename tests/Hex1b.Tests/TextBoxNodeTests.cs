@@ -2695,4 +2695,174 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region Multiline Preferred Column Navigation Tests
+
+    [Fact]
+    public async Task Integration_Multiline_UpDown_PreservesColumnAcrossShortLine()
+    {
+        // When navigating up/down between long lines via a short intermediate line,
+        // the cursor should restore to the original column on the target line
+        // (standard text editor "preferred column" behavior).
+        // Line 0: "Hello World!" (12 chars)
+        // Line 1: "Short"        (5 chars)
+        // Line 2: "Another Long!" (13 chars)
+        // Starting at col 10 on line 0, Down clamps to col 5 on "Short",
+        // then another Down should restore to col 10 on "Another Long!".
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        var capturedText = "Hello World!\nShort\nAnother Long!";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(4).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end of text (line 2, col 13).
+        // Navigate to line 0, col 10: Home to start of line 2, Up twice to line 0,
+        // Home to start, then Right×10 to col 10.
+        var builder = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Home)      // start of current (last) line
+            .Key(Hex1bKey.UpArrow)   // line 1
+            .Key(Hex1bKey.UpArrow)   // line 0
+            .Key(Hex1bKey.Home);     // col 0 on line 0
+        for (int i = 0; i < 10; i++)
+            builder = builder.Key(Hex1bKey.RightArrow); // col 10 on line 0
+
+        // Down through "Short" (clamped to col 5), Down to "Another Long!" (restored to col 10)
+        builder = builder
+            .Key(Hex1bKey.DownArrow)  // line 1, col 5 (clamped)
+            .Key(Hex1bKey.DownArrow)  // line 2, col 10 (restored)
+            .Key(Hex1bKey.Delete);    // delete char at col 10 to verify position
+
+        await builder.WaitUntil(s => true, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        // Col 10 in "Another Long!" is 'n' → deleting gives "Another Log!"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => true, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("Hello World!\nShort\nAnother Log!", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_LeftArrowClearsPreferredColumn()
+    {
+        // After pressing Left/Right, the preferred column should be reset so that
+        // the next Up/Down uses the actual cursor column, not a stale value.
+        // Line 0: "ABCDEFGHIJ" (10 chars)
+        // Line 1: "abcdefghij" (10 chars)
+        // Start at col 8 on line 0, Down to col 8 on line 1.
+        // Press Left 5 times to col 3 on line 1.
+        // Press Up — should go to col 3 on line 0 (not col 8).
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        var capturedText = "ABCDEFGHIJ\nabcdefghij";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Navigate to line 0, col 8: Home → UpArrow → Home → Right×8
+        var builder = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ABCDEFGHIJ"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Home)
+            .Key(Hex1bKey.UpArrow)
+            .Key(Hex1bKey.Home);
+        for (int i = 0; i < 8; i++)
+            builder = builder.Key(Hex1bKey.RightArrow); // col 8 on line 0
+
+        // Down to line 1 col 8, Left×5 to col 3, Up to line 0 col 3, Delete to verify
+        builder = builder.Key(Hex1bKey.DownArrow); // line 1, col 8
+        for (int i = 0; i < 5; i++)
+            builder = builder.Key(Hex1bKey.LeftArrow); // line 1, col 3
+        builder = builder
+            .Key(Hex1bKey.UpArrow)  // line 0, col 3 (not 8, Left cleared preferred column)
+            .Key(Hex1bKey.Delete);  // delete char at col 3 → 'D' deleted
+
+        await builder.WaitUntil(s => true, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => true, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("ABCEFGHIJ\nabcdefghij", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_TypingClearsPreferredColumn()
+    {
+        // After typing a character, the preferred column should be reset so that
+        // the next Up/Down uses the actual cursor position.
+        // Line 0: "ABCDEF" (6 chars)
+        // Line 1: "abcdef" (6 chars)
+        // Navigate to col 5 on line 0, Down to col 5 on line 1,
+        // press Home to go to col 0, type "X" (now col 1),
+        // press Up — should go to col 1 on line 0 (not col 5).
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        var capturedText = "ABCDEF\nabcdef";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Navigate to line 0, col 5: Home → Up → Home → Right×5
+        var builder = new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ABCDEF"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Home)
+            .Key(Hex1bKey.UpArrow)
+            .Key(Hex1bKey.Home);
+        for (int i = 0; i < 5; i++)
+            builder = builder.Key(Hex1bKey.RightArrow); // col 5 on line 0
+
+        // Down to line 1 col 5, Home to col 0, type "X" → col 1
+        // Up should go to col 1 on line 0, Delete to verify
+        builder = builder
+            .Key(Hex1bKey.DownArrow)  // line 1, col 5
+            .Key(Hex1bKey.Home)       // line 1, col 0
+            .Type("X")               // line 1, col 1 — typed "X" at start
+            .Key(Hex1bKey.UpArrow)    // line 0, col 1 (not 5, typing reset preferred col)
+            .Key(Hex1bKey.Delete);    // delete char at col 1 → 'B' deleted
+
+        await builder.WaitUntil(s => true, TimeSpan.FromSeconds(5))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => true, TimeSpan.FromSeconds(2))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("ACDEF\nXabcdef", capturedText);
+    }
+
+    #endregion
 }

@@ -29,6 +29,13 @@ internal class TextBoxState
     /// </summary>
     private int? _preferredColumn;
 
+    /// <summary>
+    /// Resets the preferred column used for vertical navigation.
+    /// Must be called after any horizontal cursor movement or text edit
+    /// so that the next Up/Down arrow uses the actual cursor column.
+    /// </summary>
+    internal void ResetPreferredColumn() => _preferredColumn = null;
+
     public string Text
     {
         get => _text;

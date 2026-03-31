@@ -221,6 +221,7 @@ public sealed class TextBoxNode : Hex1bNode
 
         State.Text = State.Text.Insert(State.CursorPosition, pastedText);
         State.CursorPosition += pastedText.Length;
+        State.ResetPreferredColumn();
         MarkDirty();
 
         if (TextChangedAction != null && oldText != State.Text)
@@ -244,6 +245,7 @@ public sealed class TextBoxNode : Hex1bNode
         }
         State.Text = State.Text.Insert(State.CursorPosition, text);
         State.CursorPosition += text.Length;
+        State.ResetPreferredColumn();
         MarkDirty();
         
         // Fire callback if text changed
@@ -265,6 +267,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -280,6 +283,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -295,6 +299,7 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.CursorPosition = 0;
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -310,6 +315,7 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.CursorPosition = State.Text.Length;
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -321,6 +327,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.ClearSelection();
         }
         State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -332,6 +339,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.ClearSelection();
         }
         State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -346,6 +354,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -360,6 +369,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -378,6 +388,7 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.CursorPosition = 0;
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -396,6 +407,7 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.CursorPosition = State.Text.Length;
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -406,6 +418,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -416,6 +429,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -473,6 +487,7 @@ public sealed class TextBoxNode : Hex1bNode
 
         var oldText = State.Text;
         State.InsertNewline();
+        State.ResetPreferredColumn();
         MarkDirty();
 
         if (TextChangedAction != null && oldText != State.Text)
@@ -498,6 +513,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.CursorPosition = clusterStart;
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -522,6 +538,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -546,6 +563,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.CursorPosition = wordStart;
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -569,6 +587,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.Text = State.Text.Remove(State.CursorPosition, deleteLength);
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -585,6 +604,7 @@ public sealed class TextBoxNode : Hex1bNode
         State.Text = State.Text[..start] + State.Text[end..];
         State.CursorPosition = start;
         State.ClearSelection();
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
