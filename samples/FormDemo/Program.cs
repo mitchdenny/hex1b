@@ -185,8 +185,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         postcodeField,
                         form.Text(""),
                         form.ValidationSummary(),
-                        form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
-                        form.CancelButton(_ => lastAction = "Cancelled"),
+                        form.Button("Submit").OnClick(_ => lastAction = "Submitted!"),
+                        form.Button("Cancel").OnClick(_ => lastAction = "Cancelled"),
                     ];
                 }).WithLabelPlacement(labelPlacement)
                   .WithLabelWidth(15),
