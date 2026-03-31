@@ -2394,4 +2394,305 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region Multiline Per-Line Horizontal Viewport Tests
+
+    // ────────────────────────────────────────────────────────────────────────
+    // These tests verify that in multiline mode WITHOUT word wrap, each line
+    // has an independent horizontal viewport:
+    //
+    //   • Lines longer than the viewport width are truncated to viewport width
+    //   • The line containing the cursor is scrolled horizontally so the cursor
+    //     is always visible (same logic as single-line viewport scrolling)
+    //   • Lines that do NOT contain the cursor snap their viewport back to
+    //     offset 0 (showing the beginning of the line)
+    //   • Word-wrapped mode is unaffected — it still wraps at word boundaries
+    //     and does NOT use per-line horizontal scrolling
+    // ────────────────────────────────────────────────────────────────────────
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_LongLinesTruncatedToViewportWidth()
+    {
+        // A multiline text box (no word wrap) in a narrow terminal should
+        // truncate each line to the viewport width rather than rendering
+        // the full line text beyond the visible area.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        // Width 15 means the text field gets ~15 columns (fill mode).
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("short\nabcdefghijklmnopqrstuvwxyz").Multiline().Height(3)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("short"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // move cursor to line 0 so line 1 snaps to start
+            .WaitUntil(s => s.ContainsText("abcdef"), TimeSpan.FromSeconds(5))
+            .Capture("truncated")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // "short" fits within viewport — should be fully visible
+        Assert.True(snapshot.ContainsText("short"));
+        // The long line starts with "abcdefghijklmno" (15 chars) — that prefix should be visible
+        Assert.True(snapshot.ContainsText("abcdefghijklmno"));
+        // Characters beyond the viewport (e.g. "pqrstuvwxyz") should NOT appear
+        Assert.False(snapshot.ContainsText("qrstuvwxyz"));
+    }
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_CursorLineScrollsHorizontally()
+    {
+        // When the cursor is on a long line and moved to the end, the viewport
+        // for that line should scroll right to keep the cursor visible, showing
+        // the end portion of the line instead of the beginning.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
+        var capturedText = "short\nabcdefghijklmnopqrstuvwxyz";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end of text (end of line 1). Press End to ensure
+        // we're at the very end of the long line, then capture.
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("short"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.End) // ensure cursor is at end of long line
+            .WaitUntil(s => s.ContainsText("xyz"), TimeSpan.FromSeconds(5))
+            .Capture("scrolled")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // The cursor line should have scrolled to show the end of the alphabet.
+        // The tail "xyz" must be visible because the cursor is at the end.
+        Assert.True(snapshot.ContainsText("xyz"));
+    }
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_NonCursorLineSnapsToStart()
+    {
+        // When the cursor moves away from a long line to a different line,
+        // the previously-scrolled line should snap its viewport back to
+        // offset 0, showing the beginning of that line.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
+        var capturedText = "short\nabcdefghijklmnopqrstuvwxyz";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // 1) Wait for render, cursor at end of line 1 (the long line).
+        //    The long line is scrolled to show "xyz".
+        // 2) Press Up to move cursor to line 0 ("short").
+        //    Now line 1 should snap back to showing "abcdefghijklmno" (start).
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("short"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.End) // cursor at end of long line (scrolled right)
+            .WaitUntil(s => s.ContainsText("xyz"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // move cursor to line 0
+            .WaitUntil(s => s.ContainsText("abcdef"), TimeSpan.FromSeconds(5))
+            .Capture("snapped")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Line 0 ("short") should be visible since the cursor is there now
+        Assert.True(snapshot.ContainsText("short"));
+        // Line 1 should have snapped back to start — "abcdef" prefix visible
+        Assert.True(snapshot.ContainsText("abcdef"));
+        // The tail of line 1 should NOT be visible anymore since cursor left that line
+        Assert.False(snapshot.ContainsText("xyz"));
+    }
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_EachLineHasIndependentViewport()
+    {
+        // With multiple long lines, only the cursor line scrolls. Other lines
+        // always show their beginning. This tests that viewports are truly
+        // independent per line.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
+        var capturedText = "AAAAAAAAAAAAAAAAAAAAA\nBBBBBBBBBBBBBBBBBBBBB\nCCCCCCCCCCCCCCCCCCCCC";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(4).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end of line 2 (the C line, which is scrolled right).
+        // Move up to line 1 (B line) and then to the end of that line.
+        // Line 1 should scroll to show end of Bs; lines 0 and 2 show start.
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // cursor to line 1 (B line)
+            .Key(Hex1bKey.End)     // cursor to end of B line
+            .WaitUntil(s => !s.ContainsText("CCCCCCCCCCCCCCCCCCCCC"), TimeSpan.FromSeconds(5))
+            .Capture("independent")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Line 0 (A line): cursor not here → shows from start "AAAAAAAAAAAAAAA" (15 As)
+        Assert.True(snapshot.ContainsText("AAAAAAAAAAAAAAA"));
+        // Line 2 (C line): cursor not here → shows from start "CCCCCCCCCCCCCCC" (15 Cs)
+        Assert.True(snapshot.ContainsText("CCCCCCCCCCCCCCC"));
+    }
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_ShortLinesUnaffected()
+    {
+        // Lines that fit entirely within the viewport width should be rendered
+        // in full regardless of cursor position. Only long lines are affected
+        // by the per-line viewport scrolling.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("hi\nthere\nworld").Multiline().Height(4)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hi") && s.ContainsText("there") && s.ContainsText("world"), TimeSpan.FromSeconds(5))
+            .Capture("short")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // All short lines should be fully visible regardless of cursor position
+        Assert.True(snapshot.ContainsText("hi"));
+        Assert.True(snapshot.ContainsText("there"));
+        Assert.True(snapshot.ContainsText("world"));
+    }
+
+    [Fact]
+    public async Task Integration_MultilineNoWrap_TypingScrollsCursorLineOnly()
+    {
+        // When typing at the end of a long line, the cursor line should scroll
+        // to keep the cursor visible, while other lines remain at offset 0.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 10).Build();
+        var capturedText = "top\nbottom";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end of "bottom". Type enough to exceed viewport.
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("top"), TimeSpan.FromSeconds(5))
+            .Type("XXXXXXXXXXXX") // extend line 1 well beyond 10 chars
+            .WaitUntil(s => capturedText.Contains("XXXXXXXXXXXX"), TimeSpan.FromSeconds(5))
+            .Capture("typed")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Line 0 "top" is short and cursor isn't there → fully visible
+        Assert.True(snapshot.ContainsText("top"));
+        // Line 1 cursor is at end after typing Xs → should show the end portion
+        // The beginning "bottom" should have scrolled off if the line is long enough
+        Assert.True(snapshot.ContainsText("XXXX")); // end of the typed text visible
+    }
+
+    [Fact]
+    public async Task Integration_MultilineWithWrap_NotAffectedByPerLineViewport()
+    {
+        // Word-wrapped multiline mode should NOT use per-line horizontal scrolling.
+        // Long lines should wrap at word boundaries as before. This test ensures
+        // the per-line viewport feature does not break word-wrap behavior.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("hello world overflow text here").Multiline().WordWrap().Height(5)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Capture("wrapped")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // With word wrap, all text should be visible across multiple visual lines.
+        // The words wrap at boundaries so all content appears on screen.
+        Assert.True(snapshot.ContainsText("hello"));
+        Assert.True(snapshot.ContainsText("overflow"));
+        Assert.True(snapshot.ContainsText("here"));
+    }
+
+    #endregion
 }

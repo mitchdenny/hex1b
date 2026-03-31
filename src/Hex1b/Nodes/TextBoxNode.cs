@@ -1035,6 +1035,36 @@ public sealed class TextBoxNode : Hex1bNode
                 lineSelEnd = Math.Min(lineText.Length, selEnd - lineDocStart);
             }
 
+            // Per-line horizontal viewport scrolling (non-word-wrap only).
+            // When word wrap is off, each line can extend beyond the viewport width.
+            // The cursor line scrolls to keep the cursor visible; other lines snap to offset 0.
+            if (!IsWordWrap && lineText.Length > viewportWidth)
+            {
+                var hScroll = 0;
+                if (cursorOnThisLine && cursorCol >= viewportWidth)
+                {
+                    // Scroll so cursor is visible at the right edge
+                    hScroll = cursorCol - viewportWidth + 1;
+                }
+
+                var visEnd = Math.Min(hScroll + viewportWidth, lineText.Length);
+                lineText = lineText[hScroll..visEnd];
+
+                // Adjust cursor and selection positions for the viewport slice
+                if (cursorCol >= 0)
+                    cursorCol -= hScroll;
+                if (lineSelStart >= 0)
+                {
+                    lineSelStart = Math.Clamp(lineSelStart - hScroll, 0, lineText.Length);
+                    lineSelEnd = Math.Clamp(lineSelEnd - hScroll, 0, lineText.Length);
+                    if (lineSelStart >= lineSelEnd)
+                    {
+                        lineSelStart = -1;
+                        lineSelEnd = -1;
+                    }
+                }
+            }
+
             var lineOutput = RenderMultilineLine(lineText, cursorCol, lineSelStart, lineSelEnd,
                 viewportWidth, globalColors, resetToGlobal, fillBgAnsi,
                 cursorFg, cursorBg, selFg, selBg);
