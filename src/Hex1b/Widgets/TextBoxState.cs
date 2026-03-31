@@ -17,6 +17,12 @@ internal class TextBoxState
     public bool IsMultiline { get; set; }
 
     /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit.
+    /// </summary>
+    public int? MaxLines { get; set; }
+
+    /// <summary>
     /// Tracks the desired column when navigating vertically.
     /// Preserved across Up/Down movements so moving through short lines remembers the target column.
     /// Reset to null on any horizontal movement or text edit.
@@ -237,6 +243,10 @@ internal class TextBoxState
     /// </summary>
     public void InsertNewline()
     {
+        // Enforce max lines limit
+        if (MaxLines.HasValue && GetLineCount() >= MaxLines.Value)
+            return;
+
         if (HasSelection)
             DeleteSelection();
 

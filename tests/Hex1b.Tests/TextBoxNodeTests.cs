@@ -2178,4 +2178,248 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region MaxLines Tests
+
+    [Fact]
+    public async Task State_InsertNewline_RespectsMaxLines()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true, MaxLines = 2 };
+        state.CursorPosition = 3;
+        state.InsertNewline();
+        // Should not insert — already at 2 lines
+        Assert.Equal("abc\ndef", state.Text);
+        Assert.Equal(3, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_InsertNewline_AllowedBelowMaxLines()
+    {
+        var state = new TextBoxState { Text = "abc", IsMultiline = true, MaxLines = 3 };
+        state.CursorPosition = 3;
+        state.InsertNewline();
+        Assert.Equal("abc\n", state.Text);
+        Assert.Equal(4, state.CursorPosition);
+        // Now at 2 lines, can still add one more
+        state.InsertNewline();
+        Assert.Equal("abc\n\n", state.Text);
+        // Now at 3 lines, should block further
+        state.InsertNewline();
+        Assert.Equal("abc\n\n", state.Text);
+    }
+
+    [Fact]
+    public async Task State_InsertNewline_NoLimit_WhenMaxLinesNull()
+    {
+        var state = new TextBoxState { Text = "a\nb\nc", IsMultiline = true, MaxLines = null };
+        state.CursorPosition = 5;
+        state.InsertNewline();
+        Assert.Equal("a\nb\nc\n", state.Text);
+    }
+
+    [Fact]
+    public async Task HandleInput_Enter_RespectsMaxLines()
+    {
+        var state = new TextBoxState { Text = "line1\nline2\nline3", IsMultiline = true, MaxLines = 3 };
+        state.CursorPosition = 5;
+        var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        Assert.True(handled); // Input is consumed even if newline is blocked
+        Assert.Equal("line1\nline2\nline3", state.Text); // No change
+    }
+
+    #endregion
+
+    #region MoveDown/MoveUp Creates New Line Tests
+
+    [Fact]
+    public async Task Integration_MoveDown_OnLastLine_CreatesNewLine()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "hello";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.End) // move to end of line
+            .Key(Hex1bKey.DownArrow) // should create new line
+            .WaitUntil(s => capturedText.Contains('\n'), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("hello\n", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_MoveDown_OnLastLine_WithMaxLines_Blocked()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "line1\nline2";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline(2).OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("line1"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.DownArrow) // should be blocked — already at 2 lines
+            .Key(Hex1bKey.DownArrow) // extra press to ensure processing
+            .WaitUntil(s => s.ContainsText("line2"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("line1\nline2", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_MoveDown_NotOnLastLine_NavigatesNormally()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "abc\ndef\nghi";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        // Cursor starts at end of text (line 2). Press Up twice to reach line 0,
+        // then Down once to navigate to line 1 (not the last line).
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("abc"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // line 2 → line 1
+            .Key(Hex1bKey.UpArrow) // line 1 → line 0
+            .Key(Hex1bKey.DownArrow) // line 0 → line 1 (not last, no new line)
+            .Key(Hex1bKey.Home) // start of line 1
+            .Type("X") // verify we're on line 1
+            .WaitUntil(s => capturedText.Contains("Xdef"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Text should have X inserted on line 1, no new lines created
+        Assert.Equal("abc\nXdef\nghi", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_MoveUp_OnFirstLine_CreatesNewLineAbove()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "hello";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // should create new line above
+            .WaitUntil(s => capturedText.Contains('\n'), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("\nhello", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_MoveUp_OnFirstLine_WithMaxLines_Blocked()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "line1\nline2";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline(2).OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("line1"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow) // should be blocked
+            .Key(Hex1bKey.UpArrow) // extra press
+            .WaitUntil(s => s.ContainsText("line1"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("line1\nline2", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_MaxLines_BlocksEnterAtLimit()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 10).Build();
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline(3).OnTextChanged(e => capturedText = e.NewText)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .Type("a")
+            .Key(Hex1bKey.Enter)
+            .Type("b")
+            .Key(Hex1bKey.Enter)
+            .Type("c")
+            .Key(Hex1bKey.Enter) // should be blocked — already at 3 lines
+            .Type("d")
+            .WaitUntil(s => capturedText.Contains("cd"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("a\nb\ncd", capturedText);
+    }
+
+    #endregion
 }

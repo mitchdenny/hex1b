@@ -124,6 +124,12 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     internal bool IsMultilineValue { get; init; }
 
     /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit. Only applies when <see cref="IsMultilineValue"/> is true.
+    /// </summary>
+    internal int? MaxLinesValue { get; init; }
+
+    /// <summary>
     /// When true, long lines are visually wrapped at word boundaries.
     /// Only applies when <see cref="IsMultilineValue"/> is true.
     /// </summary>
@@ -141,6 +147,13 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     /// </summary>
     public TextBoxWidget Multiline()
         => this with { IsMultilineValue = true };
+
+    /// <summary>
+    /// Enables multi-line text editing with a maximum number of lines.
+    /// Once the limit is reached, no more newlines can be inserted.
+    /// </summary>
+    public TextBoxWidget Multiline(int maxLines)
+        => this with { IsMultilineValue = true, MaxLinesValue = maxLines };
 
     /// <summary>
     /// Enables word wrapping for multi-line text boxes. Long lines are
@@ -227,7 +240,9 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
         node.IsMultiline = IsMultilineValue;
         node.IsWordWrap = IsWordWrapValue;
         node.RequestedHeight = HeightValue;
+        node.MaxLines = MaxLinesValue;
         node.State.IsMultiline = IsMultilineValue;
+        node.State.MaxLines = MaxLinesValue;
         
         return Task.FromResult<Hex1bNode>(node);
     }

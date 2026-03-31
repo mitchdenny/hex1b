@@ -111,6 +111,12 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     internal bool IsMultilineValue { get; init; }
 
     /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit.
+    /// </summary>
+    internal int? MaxLinesValue { get; init; }
+
+    /// <summary>
     /// When true, long lines are visually wrapped at word boundaries.
     /// </summary>
     internal bool IsWordWrapValue { get; init; }
@@ -125,6 +131,13 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// </summary>
     public FormTextFieldWidget Multiline()
         => this with { IsMultilineValue = true };
+
+    /// <summary>
+    /// Enables multi-line text editing with a maximum number of lines.
+    /// Once the limit is reached, no more newlines can be inserted.
+    /// </summary>
+    public FormTextFieldWidget Multiline(int maxLines)
+        => this with { IsMultilineValue = true, MaxLinesValue = maxLines };
 
     /// <summary>
     /// Enables word wrapping for this multi-line form field.
@@ -221,7 +234,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         var textBoxMinWidth = MinWidth ?? 1;
         var textBoxMaxWidth = MaxWidth ?? MinWidth;
         var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth,
-                IsMultilineValue = IsMultilineValue, IsWordWrapValue = IsWordWrapValue, HeightValue = HeightValue }
+                IsMultilineValue = IsMultilineValue, MaxLinesValue = MaxLinesValue,
+                IsWordWrapValue = IsWordWrapValue, HeightValue = HeightValue }
             .OnTextChanged(async e =>
             {
                 node.CurrentValue = e.NewText;

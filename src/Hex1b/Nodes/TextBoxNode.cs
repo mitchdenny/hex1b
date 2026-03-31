@@ -78,6 +78,12 @@ public sealed class TextBoxNode : Hex1bNode
     public bool IsMultiline { get; set; }
 
     /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit.
+    /// </summary>
+    public int? MaxLines { get; set; }
+
+    /// <summary>
     /// When true, long lines are visually wrapped at word boundaries.
     /// </summary>
     public bool IsWordWrap { get; set; }
@@ -156,8 +162,8 @@ public sealed class TextBoxNode : Hex1bNode
         // Multiline navigation and Enter handling
         if (IsMultiline)
         {
-            bindings.Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.MoveUp, MoveUp, "Move up");
-            bindings.Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.MoveDown, MoveDown, "Move down");
+            bindings.Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.MoveUp, MoveUpAsync, "Move up");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.MoveDown, MoveDownAsync, "Move down");
             bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.SelectUp, SelectUp, "Extend selection up");
             bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.SelectDown, SelectDown, "Extend selection down");
             bindings.Key(Hex1bKey.Enter).Triggers(TextBoxWidget.InsertNewline, InsertNewlineAsync, "Insert newline");
@@ -413,16 +419,57 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
-    private void MoveUp()
+    private async Task MoveUpAsync(InputBindingActionContext ctx)
     {
-        State.MoveUp();
-        MarkDirty();
+        var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+        if (line == 0)
+        {
+            // No line above — move to start of line and insert newline (creates blank line above)
+            if (!CanInsertNewline())
+                return;
+
+            var oldText = State.Text;
+            var lineStart = State.LineColumnToOffset(0, 0);
+            State.CursorPosition = lineStart;
+            State.InsertNewline();
+            // Cursor is now on line 1; move back up to the new blank line 0
+            State.CursorPosition = 0;
+            MarkDirty();
+
+            if (TextChangedAction != null && oldText != State.Text)
+                await TextChangedAction(ctx, oldText, State.Text);
+        }
+        else
+        {
+            State.MoveUp();
+            MarkDirty();
+        }
     }
 
-    private void MoveDown()
+    private async Task MoveDownAsync(InputBindingActionContext ctx)
     {
-        State.MoveDown();
-        MarkDirty();
+        var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+        if (line >= State.GetLineCount() - 1)
+        {
+            // No line below — move to end of current line and insert newline
+            if (!CanInsertNewline())
+                return;
+
+            var oldText = State.Text;
+            // Move cursor to end of current line
+            State.CursorPosition = State.GetLineStartOffset(line) + State.GetLineLength(line);
+            State.ClearSelection();
+            State.InsertNewline();
+            MarkDirty();
+
+            if (TextChangedAction != null && oldText != State.Text)
+                await TextChangedAction(ctx, oldText, State.Text);
+        }
+        else
+        {
+            State.MoveDown();
+            MarkDirty();
+        }
     }
 
     private void SelectUp()
@@ -437,8 +484,14 @@ public sealed class TextBoxNode : Hex1bNode
         MarkDirty();
     }
 
+    private bool CanInsertNewline()
+        => MaxLines is null || State.GetLineCount() < MaxLines.Value;
+
     private async Task InsertNewlineAsync(InputBindingActionContext ctx)
     {
+        if (!CanInsertNewline())
+            return;
+
         var oldText = State.Text;
         State.InsertNewline();
         MarkDirty();
