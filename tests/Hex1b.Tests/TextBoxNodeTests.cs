@@ -1008,7 +1008,7 @@ public class TextBoxNodeTests
     }
 
     [Fact]
-    public async Task Integration_TextBox_LongTextInNarrowTerminal_Wraps()
+    public async Task Integration_TextBox_LongTextInNarrowTerminal_ScrollsToShowCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -1025,9 +1025,12 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         
-        // Capture snapshot BEFORE exiting - after await runTask the alternate screen buffer is empty
+        // The text box has "LongTextHere" (12 chars) in a 10-col terminal.
+        // Bracket mode viewport = 10 - 2 = 8 chars.
+        // Cursor starts at end (position 12), so viewport scrolls to show the end.
+        // Visible text should include the tail of the string.
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[LongText"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("extHere"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1037,10 +1040,8 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // The text box renders as "[LongTextHere]" which is 14 chars
-        // In a 10-char wide terminal, it will wrap
-        // Check that the text content is present (split across lines)
-        Assert.True(snapshot.ContainsText("[LongText"));
+        // With viewport scrolling, the end of the text is visible with cursor
+        Assert.True(snapshot.ContainsText("extHere"));
     }
 
     #endregion
@@ -1498,6 +1499,137 @@ public class TextBoxNodeTests
         await runTask;
 
         Assert.True(snapshot.ContainsText("test"));
+    }
+
+    #endregion
+
+    #region Viewport Scrolling Tests
+
+    [Fact]
+    public async Task Integration_Viewport_CursorAtEnd_ShowsTailOfText()
+    {
+        // Terminal width 15 → bracket viewport = 13 chars
+        // Text "abcdefghijklmnopqrst" (20 chars) → scrolls to show end
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 3).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [v.TextBox("abcdefghijklmnopqrst")])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end (position 20), viewport shows last 13 chars
+        // ScrollOffset = 20 - 13 + 1 = 8, so visible text starts at 'i' (index 8)
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("ijklmnopqrst"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("ijklmnopqrst"));
+    }
+
+    [Fact]
+    public async Task Integration_Viewport_HomeKey_ScrollsToStart()
+    {
+        // Type long text, then press Home — should scroll to show start
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(15, 3).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [v.TextBox("abcdefghijklmnopqrst")])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for initial render, then press Home to move cursor to start
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("pqrst"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Home)
+            .WaitUntil(s => s.ContainsText("[abcdefghijklm"), TimeSpan.FromSeconds(5))
+            .Capture("after_home")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("[abcdefghijklm"));
+    }
+
+    [Fact]
+    public async Task Integration_Viewport_ShortText_NoScrolling()
+    {
+        // Text fits in viewport — no scrolling needed
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 3).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [v.TextBox("hello")])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[hello"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("[hello"));
+    }
+
+    [Fact]
+    public async Task Integration_Viewport_TypePastEnd_ScrollsRight()
+    {
+        // Start with empty textbox in narrow terminal, type characters past the viewport width
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 3).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [v.TextBox("")])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Wait for empty textbox (renders as "[ ]" with cursor space), then type 12 characters (viewport = 8 in bracket mode)
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("[ ]"), TimeSpan.FromSeconds(5))
+            .Type("abcdefghijkl")
+            .WaitUntil(s => s.ContainsText("fghijkl"), TimeSpan.FromSeconds(5))
+            .Capture("after_typing")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // After typing 12 chars in 8-char viewport, should see the end of the text
+        // ScrollOffset = 12 - 8 + 1 = 5, visible text = "fghijkl"
+        Assert.True(snapshot.ContainsText("fghijkl"));
     }
 
     #endregion

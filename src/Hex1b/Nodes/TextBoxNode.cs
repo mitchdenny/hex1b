@@ -65,6 +65,12 @@ public sealed class TextBoxNode : Hex1bNode
     /// Maximum width of the text box in columns.
     /// </summary>
     public int? MaxWidth { get; set; }
+
+    /// <summary>
+    /// The character index of the first visible character in the viewport.
+    /// Adjusted automatically to keep the cursor visible.
+    /// </summary>
+    internal int ScrollOffset { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused 
@@ -474,14 +480,17 @@ public sealed class TextBoxNode : Hex1bNode
         {
             // Clicked on or before the '[' - position at start
             State.ClearSelection();
-            State.CursorPosition = 0;
+            State.CursorPosition = ScrollOffset;
         }
         else
         {
-            // Find the cursor position that corresponds to this display column
-            var cursorPos = DisplayColumnToTextPosition(textColumn);
+            // Find the cursor position in the visible text, then offset to full text
+            var visStart = Math.Min(ScrollOffset, State.Text.Length);
+            var visEnd = Math.Min(visStart + Math.Max(0, Bounds.Width - 2), State.Text.Length);
+            var visibleText = State.Text[visStart..visEnd];
+            var visPos = DisplayColumnToVisibleTextPosition(visibleText, textColumn);
             State.ClearSelection();
-            State.CursorPosition = cursorPos;
+            State.CursorPosition = visStart + visPos;
         }
 
         return InputResult.Handled;
@@ -530,6 +539,38 @@ public sealed class TextBoxNode : Hex1bNode
         return State.Text.Length;
     }
 
+    /// <summary>
+    /// Maps a display column to a character position within a visible text string.
+    /// Used for hover cursor positioning when text is scrolled.
+    /// </summary>
+    private static int DisplayColumnToVisibleTextPosition(string visibleText, int displayColumn)
+    {
+        if (string.IsNullOrEmpty(visibleText))
+            return 0;
+
+        int currentColumn = 0;
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(visibleText);
+        int lastPosition = 0;
+
+        while (enumerator.MoveNext())
+        {
+            var grapheme = (string)enumerator.Current;
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            var graphemeStart = enumerator.ElementIndex;
+
+            if (displayColumn < currentColumn + graphemeWidth)
+            {
+                var midpoint = currentColumn + (graphemeWidth / 2.0);
+                return displayColumn < midpoint ? graphemeStart : graphemeStart + grapheme.Length;
+            }
+
+            currentColumn += graphemeWidth;
+            lastPosition = graphemeStart + grapheme.Length;
+        }
+
+        return visibleText.Length;
+    }
+
     protected override Size MeasureCore(Constraints constraints)
     {
         var textDisplayWidth = Math.Max(DisplayWidth.GetStringWidth(State.Text), 1);
@@ -552,6 +593,62 @@ public sealed class TextBoxNode : Hex1bNode
         return constraints.Constrain(new Size(width, height));
     }
 
+    /// <summary>
+    /// Adjusts <see cref="ScrollOffset"/> so the cursor position stays within the visible viewport.
+    /// </summary>
+    private void EnsureCursorInViewport(int viewportWidth)
+    {
+        var cursor = State.CursorPosition;
+        var text = State.Text;
+
+        // Clamp scroll offset to valid range
+        ScrollOffset = Math.Clamp(ScrollOffset, 0, Math.Max(0, text.Length));
+
+        // If cursor is before the viewport, scroll left
+        if (cursor < ScrollOffset)
+        {
+            ScrollOffset = cursor;
+        }
+
+        // If cursor is at or past the right edge, scroll right.
+        // We need at least 1 column for the cursor character (or the end-of-text cursor space).
+        if (viewportWidth > 0 && cursor >= ScrollOffset + viewportWidth)
+        {
+            ScrollOffset = cursor - viewportWidth + 1;
+        }
+
+        // Final clamp
+        ScrollOffset = Math.Max(0, ScrollOffset);
+    }
+
+    /// <summary>
+    /// Extracts the visible portion of text for the current viewport, returning
+    /// the visible string and the cursor position relative to the visible string.
+    /// </summary>
+    private (string visibleText, int visibleCursor, int visibleSelStart, int visibleSelEnd)
+        GetViewportSlice(int viewportWidth)
+    {
+        var text = State.Text;
+        var cursor = State.CursorPosition;
+
+        // Calculate how many chars fit in the viewport starting from ScrollOffset
+        var visStart = Math.Min(ScrollOffset, text.Length);
+        var visEnd = Math.Min(visStart + viewportWidth, text.Length);
+        var visibleText = text[visStart..visEnd];
+        var visibleCursor = cursor - visStart;
+
+        // Clamp selection to visible range
+        var visSelStart = 0;
+        var visSelEnd = 0;
+        if (State.HasSelection)
+        {
+            visSelStart = Math.Clamp(State.SelectionStart - visStart, 0, visibleText.Length);
+            visSelEnd = Math.Clamp(State.SelectionEnd - visStart, 0, visibleText.Length);
+        }
+
+        return (visibleText, visibleCursor, visSelStart, visSelEnd);
+    }
+
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
@@ -566,44 +663,61 @@ public sealed class TextBoxNode : Hex1bNode
         var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
         var fillBg = theme.Get(TextBoxTheme.FillBackgroundColor);
         
-        var text = State.Text;
-        var cursor = State.CursorPosition;
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
+
+        // Calculate viewport width (the number of text columns available)
+        var viewportWidth = useFillMode ? Bounds.Width : Math.Max(0, Bounds.Width - 2);
+        var textLen = State.Text.Length;
+
+        // When bounds haven't been set (direct Render without layout) or the text fits,
+        // show the full text without viewport slicing.
+        var needsViewport = viewportWidth > 0 && textLen > viewportWidth;
+
+        string visibleText;
+        int visCursor, visSelStart, visSelEnd;
+
+        if (needsViewport)
+        {
+            EnsureCursorInViewport(viewportWidth);
+            (visibleText, visCursor, visSelStart, visSelEnd) = GetViewportSlice(viewportWidth);
+        }
+        else
+        {
+            ScrollOffset = 0;
+            visibleText = State.Text;
+            visCursor = State.CursorPosition;
+            visSelStart = State.HasSelection ? State.SelectionStart : 0;
+            visSelEnd = State.HasSelection ? State.SelectionEnd : 0;
+        }
 
         string output;
         if (useFillMode)
         {
-            output = RenderFillMode(text, cursor, globalColors, resetToGlobal,
-                fillBg, cursorFg, cursorBg, selFg, selBg, hoverCursorFg, hoverCursorBg, context);
+            output = RenderFillMode(visibleText, visCursor, globalColors, resetToGlobal,
+                fillBg, cursorFg, cursorBg, selFg, selBg, hoverCursorFg, hoverCursorBg, context,
+                visSelStart, visSelEnd);
         }
         else if (IsFocused)
         {
-            if (State.HasSelection)
+            if (State.HasSelection && visSelStart != visSelEnd)
             {
-                // Render with selection highlight
-                var selStart = State.SelectionStart;
-                var selEnd = State.SelectionEnd;
+                var beforeSel = visibleText[..visSelStart];
+                var selected = visibleText[visSelStart..visSelEnd];
+                var afterSel = visibleText[visSelEnd..];
                 
-                var beforeSel = text[..selStart];
-                var selected = text[selStart..selEnd];
-                var afterSel = text[selEnd..];
-                
-                // Use theme colors for selection, global for rest
                 output = $"{globalColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{afterSel}{rightBracket}";
             }
             else
             {
-                // Show text with cursor as themed block
-                // Get the entire grapheme cluster at cursor position for proper rendering
-                var before = text[..cursor];
+                var before = visibleText[..visCursor];
                 string cursorCluster;
                 string after;
-                if (cursor < text.Length)
+                if (visCursor < visibleText.Length)
                 {
-                    var clusterLength = GraphemeHelper.GetClusterLength(text, cursor);
-                    cursorCluster = text.Substring(cursor, clusterLength);
-                    after = text[(cursor + clusterLength)..];
+                    var clusterLength = GraphemeHelper.GetClusterLength(visibleText, visCursor);
+                    cursorCluster = visibleText.Substring(visCursor, clusterLength);
+                    after = visibleText[(visCursor + clusterLength)..];
                 }
                 else
                 {
@@ -616,13 +730,12 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
-            // Show a hover cursor preview where clicking would position the cursor
-            output = RenderWithHoverCursor(text, leftBracket, rightBracket, 
+            output = RenderWithHoverCursor(visibleText, leftBracket, rightBracket, 
                 globalColors, resetToGlobal, hoverCursorFg, hoverCursorBg, context);
         }
         else
         {
-            output = $"{globalColors}{leftBracket}{text}{rightBracket}{resetToGlobal}";
+            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}{resetToGlobal}";
         }
         
         // Use clipped rendering when a layout provider is active
@@ -638,6 +751,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     /// <summary>
     /// Renders the text box in fill mode: no brackets, background-filled to the measured width.
+    /// Text and cursor positions are already adjusted for the viewport.
     /// </summary>
     private string RenderFillMode(
         string text,
@@ -651,7 +765,9 @@ public sealed class TextBoxNode : Hex1bNode
         Hex1bColor selBg,
         Hex1bColor hoverCursorFg,
         Hex1bColor hoverCursorBg,
-        Hex1bRenderContext context)
+        Hex1bRenderContext context,
+        int visSelStart = 0,
+        int visSelEnd = 0)
     {
         var measuredWidth = Bounds.Width;
         var textDisplayWidth = DisplayWidth.GetStringWidth(text);
@@ -660,14 +776,11 @@ public sealed class TextBoxNode : Hex1bNode
 
         if (IsFocused)
         {
-            if (State.HasSelection)
+            if (State.HasSelection && visSelStart != visSelEnd)
             {
-                var selStart = State.SelectionStart;
-                var selEnd = State.SelectionEnd;
-
-                var beforeSel = text[..selStart];
-                var selected = text[selStart..selEnd];
-                var afterSel = text[selEnd..];
+                var beforeSel = text[..visSelStart];
+                var selected = text[visSelStart..visSelEnd];
+                var afterSel = text[visSelEnd..];
 
                 // Pad after the text to fill the measured width
                 var afterSelWidth = DisplayWidth.GetStringWidth(afterSel);
@@ -704,7 +817,8 @@ public sealed class TextBoxNode : Hex1bNode
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
             var localMouseX = context.MouseX - Bounds.X;
-            var hoverCursorPos = DisplayColumnToTextPosition(localMouseX);
+            // Map display column to position within the visible text
+            var hoverCursorPos = DisplayColumnToVisibleTextPosition(text, localMouseX);
 
             string before = text[..hoverCursorPos];
             string hoverCluster;
@@ -764,8 +878,8 @@ public sealed class TextBoxNode : Hex1bNode
             textColumn = 0;
         }
         
-        // Find the cursor position and display column for the hover cursor
-        var hoverCursorPos = DisplayColumnToTextPosition(textColumn);
+        // Find the cursor position within the visible text
+        var hoverCursorPos = DisplayColumnToVisibleTextPosition(text, textColumn);
         
         // Get the grapheme cluster at the hover position (or space if at end)
         string before = text[..hoverCursorPos];
