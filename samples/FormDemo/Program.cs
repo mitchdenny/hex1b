@@ -83,32 +83,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
         var (cx, cy) = camera.CharCenter;
 
-        return ctx.HStack(h => [
-            // ── Left: Map Panel ──
-            h.VStack(mapCol => [
-                mapCol.HStack(header => [
-                    header.ThemePanel(
-                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-                        header.Text(" 🗺️ Map")),
-                    header.ThemePanel(
-                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
-                        header.Text($" ({camera.Latitude:F4}, {camera.Longitude:F4}) z{camera.ZoomLevel} ")),
-                ]).ContentHeight(),
-                mapCol.TilePanel(dataSource, cx, cy, 0)
-                    .WithPointsOfInterest(mapPois)
-                    .OnPan(e => camera.Pan(e.DeltaX, e.DeltaY))
-                    .OnZoom(e =>
-                    {
-                        camera.Zoom(e.Delta);
-                        dataSource.ClearDecodedCache();
-                    }),
-                mapCol.ThemePanel(
-                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
-                    mapCol.Text($" {geocodeStatus}")).ContentHeight(),
-            ]),
-
-            // ── Right: Form Panel ──
-            h.VStack(formCol => [
+        return ctx.HSplitter(
+            // ── Left: Form Panel ──
+            formCol => [
                 formCol.ThemePanel(
                     t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
                     formCol.Text("  ◆ Form Widget Demo")),
@@ -227,8 +204,31 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         preview.Text($"  City:    {city}  State: {state}  Post: {postcode}"),
                     ])),
                 formCol.Text($"  Last action: {lastAction}"),
-            ]).FixedWidth(50),
-        ]);
+            ],
+
+            // ── Right: Map Panel ──
+            mapCol => [
+                mapCol.HStack(header => [
+                    header.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
+                        header.Text(" 🗺️ Map")),
+                    header.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                        header.Text($" ({camera.Latitude:F4}, {camera.Longitude:F4}) z{camera.ZoomLevel} ")),
+                ]).ContentHeight(),
+                mapCol.TilePanel(dataSource, cx, cy, 0)
+                    .WithPointsOfInterest(mapPois)
+                    .OnPan(e => camera.Pan(e.DeltaX, e.DeltaY))
+                    .OnZoom(e =>
+                    {
+                        camera.Zoom(e.Delta);
+                        dataSource.ClearDecodedCache();
+                    }),
+                mapCol.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                    mapCol.Text($" {geocodeStatus}")).ContentHeight(),
+            ],
+            leftWidth: 50);
     })
     .WithMouse()
     .Build();
