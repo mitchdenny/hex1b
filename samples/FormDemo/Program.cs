@@ -144,7 +144,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
                     var addressField = form.TextField("Address")
                         .WithWidth(30)
-                        .Multiline()
+                        .Multiline(2)
                         .WordWrap()
                         .WithHeight(2)
                         .OnTextChanged(e => { address = e.NewText; TriggerGeocode(); });
