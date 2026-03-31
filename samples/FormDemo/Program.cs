@@ -1,9 +1,11 @@
 using Hex1b;
+using Hex1b.Data;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using FormDemo;
 
 // ──────────────────────────────────────────────────────
-// FormDemo — demonstrates the Hex1b Form widget
+// FormDemo — Form widget + live map geocoding
 // ──────────────────────────────────────────────────────
 
 var firstName = "";
@@ -17,6 +19,60 @@ var state = "";
 var postcode = "";
 var lastAction = "None";
 var labelPlacementIndex = 0; // 0 = Above, 1 = Inline
+var geocodeStatus = "";
+
+// Map infrastructure
+var camera = new MapCamera(latitude: 40.7484, longitude: -73.9857, zoomLevel: 14);
+using var tileClient = new RasterTileClient();
+var dataSource = new OsmTileDataSource(tileClient, camera);
+using var nominatim = new NominatimClient();
+var mapPois = new List<TilePointOfInterest>();
+
+// Builds a full address string from form fields for geocoding
+string BuildAddressQuery()
+{
+    var parts = new List<string>();
+    var addressLine = address.Replace("\n", " ").Trim();
+    if (!string.IsNullOrEmpty(addressLine)) parts.Add(addressLine);
+    if (!string.IsNullOrEmpty(city)) parts.Add(city);
+    if (!string.IsNullOrEmpty(state)) parts.Add(state);
+    if (!string.IsNullOrEmpty(postcode)) parts.Add(postcode);
+    return string.Join(", ", parts);
+}
+
+// Fire-and-forget geocoding with debounce
+void TriggerGeocode()
+{
+    var query = BuildAddressQuery();
+    if (string.IsNullOrWhiteSpace(query))
+    {
+        geocodeStatus = "";
+        return;
+    }
+
+    geocodeStatus = "Searching…";
+
+    _ = Task.Run(async () =>
+    {
+        var result = await nominatim.GeocodeAsync(query);
+        if (result is not null)
+        {
+            camera.Latitude = result.Latitude;
+            camera.Longitude = result.Longitude;
+            geocodeStatus = $"📍 {result.DisplayName[..Math.Min(result.DisplayName.Length, 60)]}";
+
+            var (tileX, tileY) = TileCoordinates.LatLonToTile(result.Latitude, result.Longitude, camera.ZoomLevel);
+            mapPois =
+            [
+                new TilePointOfInterest(tileX * 256, tileY * 128, "📍", "Address")
+            ];
+        }
+        else
+        {
+            geocodeStatus = "No results";
+        }
+    });
+}
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
@@ -25,126 +81,153 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             ? LabelPlacement.Above
             : LabelPlacement.Inline;
 
-        return ctx.VStack(v => [
-            v.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-                v.Text("  ◆ Form Widget Demo")),
-            v.Text("  Tab/Shift+Tab to navigate fields. Type to edit. Ctrl+C to exit."),
-            v.Separator(),
+        var (cx, cy) = camera.CharCenter;
 
-            // Label placement toggle (outside the form)
-            v.HStack(h => [
-                h.Text("  Label Position: "),
-                h.ToggleSwitch(["Above", "Inline"], labelPlacementIndex)
-                    .OnSelectionChanged(e => labelPlacementIndex = e.SelectedIndex),
-            ]).ContentHeight(),
-
-            v.Separator(),
-            v.Text(""),
-
-            // ── Contact Form ──
-            v.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
-                v.Text("  Contact Information")),
-            v.Text(""),
-            v.Form(form =>
-            {
-                var firstNameField = form.TextField("First Name")
-                    .WithWidth(20)
-                    .Validate(value => string.IsNullOrWhiteSpace(value)
-                        ? ValidationResult.Error("First name is required")
-                        : ValidationResult.Valid)
-                    .OnTextChanged(e => firstName = e.NewText);
-
-                var lastNameField = form.TextField("Last Name")
-                    .WithWidth(20)
-                    .Validate(value => string.IsNullOrWhiteSpace(value)
-                        ? ValidationResult.Error("Last name is required")
-                        : ValidationResult.Valid)
-                    .OnTextChanged(e => lastName = e.NewText);
-
-                var emailField = form.TextField("Email")
-                    .WithWidth(20)
-                    .Validate(value =>
+        return ctx.HStack(h => [
+            // ── Left: Map Panel ──
+            h.VStack(mapCol => [
+                mapCol.HStack(header => [
+                    header.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
+                        header.Text(" 🗺️ Map")),
+                    header.ThemePanel(
+                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                        header.Text($" ({camera.Latitude:F4}, {camera.Longitude:F4}) z{camera.ZoomLevel} ")),
+                ]).ContentHeight(),
+                mapCol.TilePanel(dataSource, cx, cy, 0)
+                    .WithPointsOfInterest(mapPois)
+                    .OnPan(e => camera.Pan(e.DeltaX, e.DeltaY))
+                    .OnZoom(e =>
                     {
-                        if (string.IsNullOrWhiteSpace(value))
-                            return ValidationResult.Error("Email is required");
-                        if (!value.Contains('@') || !value.Contains('.'))
-                            return ValidationResult.Error("Enter a valid email address");
-                        return ValidationResult.Valid;
-                    })
-                    .OnTextChanged(e => email = e.NewText);
+                        camera.Zoom(e.Delta);
+                        dataSource.ClearDecodedCache();
+                    }),
+                mapCol.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                    mapCol.Text($" {geocodeStatus}")).ContentHeight(),
+            ]),
 
-                var companyField = form.TextField("Company")
-                    .WithWidth(20)
-                    .OnTextChanged(e => company = e.NewText);
+            // ── Right: Form Panel ──
+            h.VStack(formCol => [
+                formCol.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
+                    formCol.Text("  ◆ Form Widget Demo")),
+                formCol.Text("  Tab/Shift+Tab to navigate. Ctrl+C to exit."),
+                formCol.Separator(),
 
-                var titleField = form.TextField("Job Title")
-                    .WithWidth(20)
-                    .OnTextChanged(e => title = e.NewText);
+                // Label placement toggle
+                formCol.HStack(toggle => [
+                    toggle.Text("  Labels: "),
+                    toggle.ToggleSwitch(["Above", "Inline"], labelPlacementIndex)
+                        .OnSelectionChanged(e => labelPlacementIndex = e.SelectedIndex),
+                ]).ContentHeight(),
 
-                var addressField = form.TextField("Address")
-                    .WithWidth(30)
-                    .Multiline()
-                    .WordWrap()
-                    .WithHeight(2)
-                    .OnTextChanged(e => address = e.NewText);
+                formCol.Separator(),
 
-                var cityField = form.TextField("City")
-                    .WithWidth(20)
-                    .OnTextChanged(e => city = e.NewText);
+                // ── Contact Form ──
+                formCol.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
+                    formCol.Text("  Contact Information")),
+                formCol.Text(""),
+                formCol.Form(form =>
+                {
+                    var firstNameField = form.TextField("First Name")
+                        .WithWidth(20)
+                        .Validate(value => string.IsNullOrWhiteSpace(value)
+                            ? ValidationResult.Error("First name is required")
+                            : ValidationResult.Valid)
+                        .OnTextChanged(e => firstName = e.NewText);
 
-                var stateField = form.TextField("State")
-                    .WithWidth(15)
-                    .OnTextChanged(e => state = e.NewText);
+                    var lastNameField = form.TextField("Last Name")
+                        .WithWidth(20)
+                        .Validate(value => string.IsNullOrWhiteSpace(value)
+                            ? ValidationResult.Error("Last name is required")
+                            : ValidationResult.Valid)
+                        .OnTextChanged(e => lastName = e.NewText);
 
-                var postcodeField = form.TextField("Postcode")
-                    .WithWidth(10)
-                    .Validate(value =>
-                    {
-                        if (!string.IsNullOrEmpty(value) && !value.All(char.IsDigit))
-                            return ValidationResult.Error("Digits only");
-                        return ValidationResult.Valid;
-                    })
-                    .OnTextChanged(e => postcode = e.NewText);
+                    var emailField = form.TextField("Email")
+                        .WithWidth(20)
+                        .Validate(value =>
+                        {
+                            if (string.IsNullOrWhiteSpace(value))
+                                return ValidationResult.Error("Email is required");
+                            if (!value.Contains('@') || !value.Contains('.'))
+                                return ValidationResult.Error("Enter a valid email");
+                            return ValidationResult.Valid;
+                        })
+                        .OnTextChanged(e => email = e.NewText);
 
-                return [
-                    firstNameField,
-                    lastNameField,
-                    emailField,
-                    form.ValidationMessageFor(firstNameField, lastNameField, emailField),
-                    companyField,
-                    titleField,
-                    form.Text(""),
-                    form.ThemePanel(
-                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
-                        form.Text("  Address")),
-                    addressField,
-                    cityField,
-                    stateField,
-                    postcodeField,
-                    form.ValidationMessageFor(postcodeField),
-                    form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
-                    form.CancelButton(_ => lastAction = "Cancelled"),
-                ];
-            }).WithLabelPlacement(labelPlacement)
-              .WithLabelWidth(15),
+                    var companyField = form.TextField("Company")
+                        .WithWidth(20)
+                        .OnTextChanged(e => company = e.NewText);
 
-            v.Text(""),
-            v.Separator(),
+                    var titleField = form.TextField("Job Title")
+                        .WithWidth(20)
+                        .OnTextChanged(e => title = e.NewText);
 
-            // Live preview of entered values
-            v.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
-                v.VStack(preview => [
-                    preview.Text($"  Name:    {firstName} {lastName}"),
-                    preview.Text($"  Email:   {email}"),
-                    preview.Text($"  Company: {company}"),
-                    preview.Text($"  Title:   {title}"),
-                    preview.Text($"  Address: {address.Replace("\n", ", ")}"),
-                    preview.Text($"  City:    {city}  State: {state}  Postcode: {postcode}"),
-                ])),
-            v.Text($"  Last action: {lastAction}"),
+                    var addressField = form.TextField("Address")
+                        .WithWidth(30)
+                        .Multiline()
+                        .WordWrap()
+                        .WithHeight(2)
+                        .OnTextChanged(e => { address = e.NewText; TriggerGeocode(); });
+
+                    var cityField = form.TextField("City")
+                        .WithWidth(20)
+                        .OnTextChanged(e => { city = e.NewText; TriggerGeocode(); });
+
+                    var stateField = form.TextField("State")
+                        .WithWidth(15)
+                        .OnTextChanged(e => { state = e.NewText; TriggerGeocode(); });
+
+                    var postcodeField = form.TextField("Postcode")
+                        .WithWidth(10)
+                        .Validate(value =>
+                        {
+                            if (!string.IsNullOrEmpty(value) && !value.All(char.IsDigit))
+                                return ValidationResult.Error("Digits only");
+                            return ValidationResult.Valid;
+                        })
+                        .OnTextChanged(e => { postcode = e.NewText; TriggerGeocode(); });
+
+                    return [
+                        firstNameField,
+                        lastNameField,
+                        emailField,
+                        form.ValidationMessageFor(firstNameField, lastNameField, emailField),
+                        companyField,
+                        titleField,
+                        form.Text(""),
+                        form.ThemePanel(
+                            t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.White),
+                            form.Text("  Address")),
+                        addressField,
+                        cityField,
+                        stateField,
+                        postcodeField,
+                        form.ValidationMessageFor(postcodeField),
+                        form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
+                        form.CancelButton(_ => lastAction = "Cancelled"),
+                    ];
+                }).WithLabelPlacement(labelPlacement)
+                  .WithLabelWidth(15),
+
+                formCol.Text(""),
+                formCol.Separator(),
+
+                // Live preview
+                formCol.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.DarkGray),
+                    formCol.VStack(preview => [
+                        preview.Text($"  Name:    {firstName} {lastName}"),
+                        preview.Text($"  Email:   {email}"),
+                        preview.Text($"  Company: {company}"),
+                        preview.Text($"  Title:   {title}"),
+                        preview.Text($"  Address: {address.Replace("\n", ", ")}"),
+                        preview.Text($"  City:    {city}  State: {state}  Post: {postcode}"),
+                    ])),
+                formCol.Text($"  Last action: {lastAction}"),
+            ]).FixedWidth(50),
         ]);
     })
     .WithMouse()
