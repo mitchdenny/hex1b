@@ -28,6 +28,6 @@ public static class FormExtensions
     {
         var formCtx = new FormContext();
         var children = builder(formCtx);
-        return new FormWidget(children) { FieldRegistry = formCtx.FieldRegistry };
+        return new FormWidget(children) { FieldRegistry = formCtx.FieldRegistry, Context = formCtx };
     }
 }

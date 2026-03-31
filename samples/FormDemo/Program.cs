@@ -132,6 +132,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 return ValidationResult.Error("Enter a valid email");
                             return ValidationResult.Valid;
                         })
+                        .Adornment(
+                            async (value, ct) => value.Contains('@') && value.Contains('.'),
+                            () => new IconWidget(" ✉"))
                         .OnTextChanged(e => email = e.NewText);
 
                     var companyField = form.TextField("Company")
@@ -170,7 +173,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         firstNameField,
                         lastNameField,
                         emailField,
-                        form.ValidationMessageFor(firstNameField, lastNameField, emailField),
                         companyField,
                         titleField,
                         form.Text(""),
@@ -181,7 +183,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         cityField,
                         stateField,
                         postcodeField,
-                        form.ValidationMessageFor(postcodeField),
+                        form.Text(""),
+                        form.ValidationSummary(),
                         form.SubmitButton("Submit", _ => lastAction = "Submitted!"),
                         form.CancelButton(_ => lastAction = "Cancelled"),
                     ];

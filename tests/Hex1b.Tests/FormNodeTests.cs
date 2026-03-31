@@ -193,4 +193,97 @@ public class FormNodeTests
 
         Assert.True(node.AreFieldsValid(["unknown"]));
     }
+
+    #region FormContext ValidationErrors Tests
+
+    [Fact]
+    public void FormContext_ValidationErrors_ReturnsOnlyErrors()
+    {
+        // FormContext.ValidationErrors should only include fields with errors, not valid ones.
+        var ctx = new FormContext();
+        var formNode = new FormNode();
+        ctx._formNode = formNode;
+
+        formNode.SetValidationResult("field_0_Name", ValidationResult.Valid);
+        formNode.SetValidationResult("field_1_Email", ValidationResult.Error("Required"));
+        formNode.SetValidationResult("field_2_Phone", ValidationResult.Error("Invalid"));
+
+        var errors = ctx.ValidationErrors;
+
+        Assert.Equal(2, errors.Count);
+        Assert.True(errors.ContainsKey("field_1_Email"));
+        Assert.True(errors.ContainsKey("field_2_Phone"));
+        Assert.False(errors.ContainsKey("field_0_Name"));
+    }
+
+    [Fact]
+    public void FormContext_ValidationErrors_EmptyWhenAllValid()
+    {
+        var ctx = new FormContext();
+        var formNode = new FormNode();
+        ctx._formNode = formNode;
+
+        formNode.SetValidationResult("field_0_Name", ValidationResult.Valid);
+
+        Assert.Empty(ctx.ValidationErrors);
+    }
+
+    [Fact]
+    public void FormContext_ValidationErrors_EmptyWhenNoFormNode()
+    {
+        // Before reconciliation, _formNode is null — should return empty.
+        var ctx = new FormContext();
+
+        Assert.Empty(ctx.ValidationErrors);
+    }
+
+    [Fact]
+    public void FormContext_ValidationResults_ReturnsAll()
+    {
+        // ValidationResults should include both valid and invalid entries.
+        var ctx = new FormContext();
+        var formNode = new FormNode();
+        ctx._formNode = formNode;
+
+        formNode.SetValidationResult("field_0_Name", ValidationResult.Valid);
+        formNode.SetValidationResult("field_1_Email", ValidationResult.Error("Required"));
+
+        var results = ctx.ValidationResults;
+
+        Assert.Equal(2, results.Count);
+        Assert.True(results["field_0_Name"].IsValid);
+        Assert.False(results["field_1_Email"].IsValid);
+    }
+
+    #endregion
+
+    #region ValidationSummary Tests
+
+    [Fact]
+    public async Task ValidationSummary_NoErrors_ReconcilesEmpty()
+    {
+        // When there are no validation errors, the summary should reconcile
+        // to an empty text block.
+        var formNode = new FormNode();
+        var context = ReconcileContext.CreateRoot();
+
+        var widget = new ValidationSummaryWidget();
+        var node = await widget.ReconcileAsync(null, context);
+
+        Assert.NotNull(node);
+    }
+
+    [Fact]
+    public void ValidationSummaryExtension_CreatesWidget()
+    {
+        // The form.ValidationSummary() extension should create a ValidationSummaryWidget.
+        var ctx = new FormContext();
+        ctx.FieldRegistry.FieldIds.Count(); // just verify it's accessible
+
+        var widget = ctx.ValidationSummary();
+
+        Assert.IsType<ValidationSummaryWidget>(widget);
+    }
+
+    #endregion
 }

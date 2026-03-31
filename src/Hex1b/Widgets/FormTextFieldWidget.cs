@@ -127,6 +127,12 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     internal int? HeightValue { get; init; }
 
     /// <summary>
+    /// Adornments to display next to this field.
+    /// Each adornment has an async predicate controlling visibility and a builder for the widget.
+    /// </summary>
+    internal IReadOnlyList<FieldAdornment> Adornments { get; init; } = [];
+
+    /// <summary>
     /// Enables multi-line text editing for this form field.
     /// </summary>
     public FormTextFieldWidget Multiline()
@@ -150,6 +156,26 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// </summary>
     public FormTextFieldWidget WithHeight(int lines)
         => this with { HeightValue = lines };
+
+    /// <summary>
+    /// Adds an adornment with an async predicate and widget builder.
+    /// The adornment is displayed next to the field when the predicate resolves to true.
+    /// When the field value changes, the predicate is re-evaluated (cancelling any in-flight evaluation).
+    /// </summary>
+    /// <param name="predicate">Async function receiving (fieldValue, cancellationToken) → bool.</param>
+    /// <param name="builder">Factory returning the widget to display when the predicate is true.</param>
+    public FormTextFieldWidget Adornment(
+        Func<string, CancellationToken, Task<bool>> predicate,
+        Func<Hex1bWidget> builder)
+        => this with { Adornments = [.. Adornments, new FieldAdornment(predicate, builder)] };
+
+    /// <summary>
+    /// Adds an adornment with an async predicate (no cancellation token) and widget builder.
+    /// </summary>
+    public FormTextFieldWidget Adornment(
+        Func<string, Task<bool>> predicate,
+        Func<Hex1bWidget> builder)
+        => this with { Adornments = [.. Adornments, FieldAdornment.Create(predicate, builder)] };
 
     /// <summary>
     /// Sets the initial text value.
@@ -228,9 +254,10 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         var labelWidget = new TextBlockWidget(Label);
         node.LabelChild = await context.ReconcileChildAsync(node.LabelChild, labelWidget, node);
 
+        // Build the effective adornments list (validation + user adornments)
+        var effectiveAdornments = BuildEffectiveAdornments(node);
+
         // Build the text box widget with fill mode enabled (no brackets, painted background).
-        // MinWidth=1 ensures TextBox avoids bracket-mode measurement when no explicit width is set;
-        // the FormTextFieldNode controls the actual rendered width via layout.
         var textBoxMinWidth = MinWidth ?? 1;
         var textBoxMaxWidth = MaxWidth ?? MinWidth;
         var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth,
@@ -246,14 +273,20 @@ public sealed record FormTextFieldWidget : Hex1bWidget
                 }
 
                 // Update form node state
-                var formNode = FindFormNode(node);
-                if (formNode != null)
+                var parentFormNode = FindFormNode(node);
+                if (parentFormNode != null)
                 {
-                    formNode.SetFieldValue(FieldId, e.NewText);
+                    parentFormNode.SetFieldValue(FieldId, e.NewText);
                     if (node.ValidateOn == ValidateOn.Change)
                     {
-                        formNode.SetValidationResult(FieldId, node.CurrentValidationResult);
+                        parentFormNode.SetValidationResult(FieldId, node.CurrentValidationResult);
                     }
+                }
+
+                // Re-evaluate adornment predicates on value change
+                if (effectiveAdornments.Count > 0)
+                {
+                    node.EvaluateAdornments(effectiveAdornments, e.NewText);
                 }
 
                 if (TextChangedHandler != null)
@@ -269,19 +302,68 @@ public sealed record FormTextFieldWidget : Hex1bWidget
 
         node.InputChild = await context.ReconcileChildAsync(node.InputChild, inputWidget, node);
 
-        // Build error indicator (shown when validation fails)
-        Hex1bWidget? errorWidget = null;
-        if (!node.CurrentValidationResult.IsValid)
+        // Reconcile adornment children based on current visibility state.
+        // On first reconcile (or when adornment count changes), trigger evaluation.
+        if (effectiveAdornments.Count > 0 &&
+            (node.LastAdornmentEvaluationValue != node.CurrentValue ||
+             node.AdornmentCount != effectiveAdornments.Count))
         {
-            errorWidget = new ThemePanelWidget(
-                t => t.Set(Theming.GlobalTheme.ForegroundColor, t.Get(Theming.FormTheme.ValidationErrorColor)),
-                new TextBlockWidget(" ✗"));
+            node.EvaluateAdornments(effectiveAdornments, node.CurrentValue);
         }
-        node.ErrorIndicatorChild = errorWidget != null
-            ? await context.ReconcileChildAsync(node.ErrorIndicatorChild, errorWidget, node)
-            : null;
+
+        // Build visible adornment widgets
+        var oldAdornmentChildren = new List<Hex1bNode>(node.AdornmentChildren);
+        node.AdornmentChildren.Clear();
+        var adornmentIndex = 0;
+        for (var i = 0; i < effectiveAdornments.Count; i++)
+        {
+            if (i < node.AdornmentVisibility.Count && node.AdornmentVisibility[i])
+            {
+                var adornWidget = effectiveAdornments[i].Builder();
+                var existingChild = adornmentIndex < oldAdornmentChildren.Count
+                    ? oldAdornmentChildren[adornmentIndex]
+                    : null;
+                var childNode = await context.ReconcileChildAsync(existingChild, adornWidget, node);
+                if (childNode != null)
+                    node.AdornmentChildren.Add(childNode);
+                adornmentIndex++;
+            }
+        }
 
         return node;
+    }
+
+    /// <summary>
+    /// Builds the effective list of adornments: validation indicator (if validators exist) + user adornments.
+    /// The validation indicator is always the first adornment (closest to the input field).
+    /// </summary>
+    private IReadOnlyList<FieldAdornment> BuildEffectiveAdornments(FormTextFieldNode node)
+    {
+        var result = new List<FieldAdornment>();
+
+        // Add validation indicator adornment if validators are present
+        if (Validators.Count > 0)
+        {
+            var capturedNode = node;
+            result.Add(FieldAdornment.CreateSync(
+                _ => true, // always visible when validators exist
+                () =>
+                {
+                    if (!capturedNode.CurrentValidationResult.IsValid)
+                    {
+                        return new ThemePanelWidget(
+                            t => t.Set(Theming.GlobalTheme.ForegroundColor,
+                                       t.Get(Theming.FormTheme.ValidationErrorColor)),
+                            new TextBlockWidget(" ✗"));
+                    }
+                    return new TextBlockWidget("");
+                }));
+        }
+
+        // Add user-defined adornments
+        result.AddRange(Adornments);
+
+        return result;
     }
 
     internal override Type GetExpectedNodeType() => typeof(FormTextFieldNode);

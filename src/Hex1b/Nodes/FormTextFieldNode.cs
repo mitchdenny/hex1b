@@ -5,7 +5,7 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// Render node for <see cref="FormTextFieldWidget"/>.
-/// Manages the label, text input, and error indicator children.
+/// Manages the label, text input, and adornment children.
 /// </summary>
 public sealed class FormTextFieldNode : Hex1bNode
 {
@@ -76,9 +76,32 @@ public sealed class FormTextFieldNode : Hex1bNode
     public Hex1bNode? InputChild { get; set; }
 
     /// <summary>
-    /// The error indicator child node (null when valid).
+    /// Resolved adornment child nodes (only those whose predicate resolved true).
     /// </summary>
-    public Hex1bNode? ErrorIndicatorChild { get; set; }
+    internal List<Hex1bNode> AdornmentChildren { get; } = new();
+
+    /// <summary>
+    /// Tracks the resolved visibility state for each adornment by index.
+    /// </summary>
+    internal List<bool> AdornmentVisibility { get; } = new();
+
+    /// <summary>
+    /// Cancellation token source for in-flight adornment predicate evaluations.
+    /// Cancelled and replaced whenever the field value changes.
+    /// </summary>
+    internal CancellationTokenSource? AdornmentCts { get; set; }
+
+    /// <summary>
+    /// The field value that was last used for adornment evaluation.
+    /// Used to detect when re-evaluation is needed.
+    /// </summary>
+    internal string? LastAdornmentEvaluationValue { get; set; }
+
+    /// <summary>
+    /// The number of adornments configured on the widget.
+    /// Used to detect when the adornment list changes.
+    /// </summary>
+    internal int AdornmentCount { get; set; }
 
     /// <summary>
     /// Runs all validators against the current value and updates the validation result.
@@ -97,9 +120,75 @@ public sealed class FormTextFieldNode : Hex1bNode
         CurrentValidationResult = ValidationResult.Valid;
     }
 
+    /// <summary>
+    /// Evaluates all adornment predicates asynchronously.
+    /// Cancels any in-flight evaluations from previous values.
+    /// When predicates resolve, marks the node dirty to trigger re-render.
+    /// </summary>
+    internal void EvaluateAdornments(IReadOnlyList<FieldAdornment> adornments, string fieldValue)
+    {
+        // Cancel any in-flight evaluations
+        AdornmentCts?.Cancel();
+        AdornmentCts?.Dispose();
+        AdornmentCts = new CancellationTokenSource();
+        var ct = AdornmentCts.Token;
+
+        LastAdornmentEvaluationValue = fieldValue;
+        AdornmentCount = adornments.Count;
+
+        // Resize visibility list to match adornment count
+        while (AdornmentVisibility.Count < adornments.Count)
+            AdornmentVisibility.Add(false);
+        while (AdornmentVisibility.Count > adornments.Count)
+            AdornmentVisibility.RemoveAt(AdornmentVisibility.Count - 1);
+
+        // Evaluate each predicate
+        for (var i = 0; i < adornments.Count; i++)
+        {
+            var index = i;
+            var adornment = adornments[i];
+
+            _ = EvaluateAdornmentAsync(adornment, fieldValue, index, ct);
+        }
+    }
+
+    private async Task EvaluateAdornmentAsync(
+        FieldAdornment adornment, string fieldValue, int index, CancellationToken ct)
+    {
+        try
+        {
+            var result = await adornment.Predicate(fieldValue, ct);
+
+            if (ct.IsCancellationRequested)
+                return;
+
+            if (index < AdornmentVisibility.Count && AdornmentVisibility[index] != result)
+            {
+                AdornmentVisibility[index] = result;
+                MarkDirty();
+                AppInvalidate?.Invoke();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // Expected when field value changes during evaluation
+        }
+        catch
+        {
+            // Predicate failed — hide the adornment
+            if (!ct.IsCancellationRequested && index < AdornmentVisibility.Count)
+            {
+                AdornmentVisibility[index] = false;
+                MarkDirty();
+                AppInvalidate?.Invoke();
+            }
+        }
+    }
+
     private Size _labelMeasuredSize;
     private Size _inputMeasuredSize;
-    private Size _errorMeasuredSize;
+    private int _adornmentsTotalWidth;
+    private List<Size> _adornmentMeasuredSizes = new();
 
     protected override Size MeasureCore(Constraints constraints)
     {
@@ -119,15 +208,17 @@ public sealed class FormTextFieldNode : Hex1bNode
             totalHeight += _labelMeasuredSize.Height;
         }
 
-        // Measure error indicator first to know how much space the input gets
-        var errorWidth = 0;
-        if (ErrorIndicatorChild != null)
+        // Measure adornments first to know how much space the input gets
+        _adornmentsTotalWidth = 0;
+        _adornmentMeasuredSizes.Clear();
+        foreach (var adornment in AdornmentChildren)
         {
-            _errorMeasuredSize = ErrorIndicatorChild.Measure(new Constraints(0, constraints.MaxWidth, 0, 1));
-            errorWidth = _errorMeasuredSize.Width;
+            var size = adornment.Measure(new Constraints(0, constraints.MaxWidth, 0, 1));
+            _adornmentMeasuredSizes.Add(size);
+            _adornmentsTotalWidth += size.Width;
         }
 
-        var inputAvailable = Math.Max(0, constraints.MaxWidth - errorWidth);
+        var inputAvailable = Math.Max(0, constraints.MaxWidth - _adornmentsTotalWidth);
         if (InputChild != null)
         {
             _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, constraints.MaxHeight));
@@ -135,7 +226,7 @@ public sealed class FormTextFieldNode : Hex1bNode
 
         // When no explicit width, fill the full available width
         var rowWidth = HasExplicitWidth
-            ? _inputMeasuredSize.Width + errorWidth
+            ? _inputMeasuredSize.Width + _adornmentsTotalWidth
             : constraints.MaxWidth;
 
         totalHeight += _inputMeasuredSize.Height;
@@ -153,21 +244,23 @@ public sealed class FormTextFieldNode : Hex1bNode
             _labelMeasuredSize = LabelChild.Measure(new Constraints(0, labelCol, 0, 1));
         }
 
-        var errorWidth = 0;
-        if (ErrorIndicatorChild != null)
+        _adornmentsTotalWidth = 0;
+        _adornmentMeasuredSizes.Clear();
+        foreach (var adornment in AdornmentChildren)
         {
-            _errorMeasuredSize = ErrorIndicatorChild.Measure(new Constraints(0, remainingWidth, 0, 1));
-            errorWidth = _errorMeasuredSize.Width;
+            var size = adornment.Measure(new Constraints(0, remainingWidth, 0, 1));
+            _adornmentMeasuredSizes.Add(size);
+            _adornmentsTotalWidth += size.Width;
         }
 
-        var inputAvailable = Math.Max(0, remainingWidth - errorWidth);
+        var inputAvailable = Math.Max(0, remainingWidth - _adornmentsTotalWidth);
         if (InputChild != null)
         {
             _inputMeasuredSize = InputChild.Measure(new Constraints(0, inputAvailable, 0, constraints.MaxHeight));
         }
 
         var rowWidth = HasExplicitWidth
-            ? labelCol + _inputMeasuredSize.Width + errorWidth
+            ? labelCol + _inputMeasuredSize.Width + _adornmentsTotalWidth
             : constraints.MaxWidth;
 
         var rowHeight = Math.Max(1, _inputMeasuredSize.Height);
@@ -194,22 +287,23 @@ public sealed class FormTextFieldNode : Hex1bNode
             y += 1;
         }
 
-        var errorWidth = ErrorIndicatorChild != null ? _errorMeasuredSize.Width : 0;
         var inputWidth = HasExplicitWidth
             ? _inputMeasuredSize.Width
-            : Math.Max(0, rect.Width - errorWidth);
+            : Math.Max(0, rect.Width - _adornmentsTotalWidth);
         var inputHeight = _inputMeasuredSize.Height;
 
-        var inputX = rect.X;
+        var x = rect.X;
         if (InputChild != null)
         {
-            InputChild.Arrange(new Rect(inputX, y, inputWidth, inputHeight));
-            inputX += inputWidth;
+            InputChild.Arrange(new Rect(x, y, inputWidth, inputHeight));
+            x += inputWidth;
         }
 
-        if (ErrorIndicatorChild != null)
+        for (var i = 0; i < AdornmentChildren.Count; i++)
         {
-            ErrorIndicatorChild.Arrange(new Rect(inputX, y, errorWidth, 1));
+            var adornWidth = _adornmentMeasuredSizes[i].Width;
+            AdornmentChildren[i].Arrange(new Rect(x, y, adornWidth, 1));
+            x += adornWidth;
         }
     }
 
@@ -226,10 +320,9 @@ public sealed class FormTextFieldNode : Hex1bNode
 
         x += labelCol;
         var remainingWidth = Math.Max(0, rect.Width - labelCol);
-        var errorWidth = ErrorIndicatorChild != null ? _errorMeasuredSize.Width : 0;
         var inputWidth = HasExplicitWidth
             ? Math.Min(_inputMeasuredSize.Width, remainingWidth)
-            : Math.Max(0, remainingWidth - errorWidth);
+            : Math.Max(0, remainingWidth - _adornmentsTotalWidth);
 
         if (InputChild != null)
         {
@@ -237,9 +330,11 @@ public sealed class FormTextFieldNode : Hex1bNode
             x += inputWidth;
         }
 
-        if (ErrorIndicatorChild != null)
+        for (var i = 0; i < AdornmentChildren.Count; i++)
         {
-            ErrorIndicatorChild.Arrange(new Rect(x, rect.Y, errorWidth, 1));
+            var adornWidth = _adornmentMeasuredSizes[i].Width;
+            AdornmentChildren[i].Arrange(new Rect(x, rect.Y, adornWidth, 1));
+            x += adornWidth;
         }
     }
 
@@ -251,8 +346,8 @@ public sealed class FormTextFieldNode : Hex1bNode
         if (InputChild != null)
             context.RenderChild(InputChild);
 
-        if (ErrorIndicatorChild != null)
-            context.RenderChild(ErrorIndicatorChild);
+        foreach (var adornment in AdornmentChildren)
+            context.RenderChild(adornment);
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
@@ -271,6 +366,7 @@ public sealed class FormTextFieldNode : Hex1bNode
     {
         if (LabelChild != null) yield return LabelChild;
         if (InputChild != null) yield return InputChild;
-        if (ErrorIndicatorChild != null) yield return ErrorIndicatorChild;
+        foreach (var adornment in AdornmentChildren)
+            yield return adornment;
     }
 }

@@ -50,6 +50,11 @@ public sealed record FormWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidg
     internal FormFieldRegistry? FieldRegistry { get; init; }
 
     /// <summary>
+    /// Reference to the FormContext that built this widget, for wiring up live state access.
+    /// </summary>
+    internal FormContext? Context { get; init; }
+
+    /// <summary>
     /// Sets the label placement mode for all fields in the form.
     /// </summary>
     public FormWidget WithLabelPlacement(LabelPlacement placement)
@@ -68,6 +73,10 @@ public sealed record FormWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidg
         node.LabelPlacement = LabelPlacement;
         node.LabelWidth = LabelWidth;
         node.FieldRegistry = FieldRegistry;
+
+        // Wire up the FormContext to the live FormNode for ValidationErrors access
+        if (Context != null)
+            Context._formNode = node;
 
         // Build the internal layout widget from children
         var layoutWidget = BuildLayout();
