@@ -1633,4 +1633,549 @@ public class TextBoxNodeTests
     }
 
     #endregion
+
+    #region Multiline State Tests
+
+    [Fact]
+    public async Task State_GetLineCount_SingleLine()
+    {
+        var state = new TextBoxState { Text = "hello world" };
+        Assert.Equal(1, state.GetLineCount());
+    }
+
+    [Fact]
+    public async Task State_GetLineCount_MultipleLines()
+    {
+        var state = new TextBoxState { Text = "line1\nline2\nline3" };
+        Assert.Equal(3, state.GetLineCount());
+    }
+
+    [Fact]
+    public async Task State_GetLineCount_EmptyString()
+    {
+        var state = new TextBoxState { Text = "" };
+        Assert.Equal(1, state.GetLineCount());
+    }
+
+    [Fact]
+    public async Task State_GetLineCount_TrailingNewline()
+    {
+        var state = new TextBoxState { Text = "line1\n" };
+        Assert.Equal(2, state.GetLineCount());
+    }
+
+    [Fact]
+    public async Task State_GetLineStartOffset_FirstLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        Assert.Equal(0, state.GetLineStartOffset(0));
+    }
+
+    [Fact]
+    public async Task State_GetLineStartOffset_SecondLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        Assert.Equal(4, state.GetLineStartOffset(1));
+    }
+
+    [Fact]
+    public async Task State_GetLineStartOffset_ThirdLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        Assert.Equal(8, state.GetLineStartOffset(2));
+    }
+
+    [Fact]
+    public async Task State_GetLineLength_MiddleLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndefg\nhi" };
+        Assert.Equal(4, state.GetLineLength(1)); // "defg"
+    }
+
+    [Fact]
+    public async Task State_GetLineLength_LastLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndefg\nhi" };
+        Assert.Equal(2, state.GetLineLength(2)); // "hi"
+    }
+
+    [Fact]
+    public async Task State_OffsetToLineColumn_FirstLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        Assert.Equal((0, 2), state.OffsetToLineColumn(2)); // 'c'
+    }
+
+    [Fact]
+    public async Task State_OffsetToLineColumn_SecondLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        Assert.Equal((1, 1), state.OffsetToLineColumn(5)); // 'e'
+    }
+
+    [Fact]
+    public async Task State_OffsetToLineColumn_AtNewline()
+    {
+        var state = new TextBoxState { Text = "abc\ndef" };
+        Assert.Equal((0, 3), state.OffsetToLineColumn(3)); // just before '\n'
+    }
+
+    [Fact]
+    public async Task State_OffsetToLineColumn_AfterNewline()
+    {
+        var state = new TextBoxState { Text = "abc\ndef" };
+        Assert.Equal((1, 0), state.OffsetToLineColumn(4)); // start of "def"
+    }
+
+    [Fact]
+    public async Task State_LineColumnToOffset_Roundtrip()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi" };
+        var (line, col) = state.OffsetToLineColumn(5);
+        Assert.Equal(5, state.LineColumnToOffset(line, col));
+    }
+
+    [Fact]
+    public async Task State_LineColumnToOffset_ClampsColumn()
+    {
+        var state = new TextBoxState { Text = "abc\nd" };
+        // Column 10 on line 1 ("d") should clamp to offset 5 (end of "d")
+        Assert.Equal(5, state.LineColumnToOffset(1, 10));
+    }
+
+    [Fact]
+    public async Task State_GetLineText()
+    {
+        var state = new TextBoxState { Text = "abc\ndefg\nhi" };
+        Assert.Equal("defg", state.GetLineText(1));
+    }
+
+    #endregion
+
+    #region Multiline Vertical Navigation Tests
+
+    [Fact]
+    public async Task State_MoveUp_MovesToPreviousLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 5; // 'e' on line 1
+        state.MoveUp();
+        Assert.Equal((0, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'b' on line 0
+    }
+
+    [Fact]
+    public async Task State_MoveDown_MovesToNextLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 1; // 'b' on line 0
+        state.MoveDown();
+        Assert.Equal((1, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'e' on line 1
+    }
+
+    [Fact]
+    public async Task State_MoveUp_OnFirstLine_StaysOnFirstLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
+        state.CursorPosition = 2;
+        state.MoveUp();
+        Assert.Equal(2, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_MoveDown_OnLastLine_StaysOnLastLine()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
+        state.CursorPosition = 5;
+        state.MoveDown();
+        Assert.Equal(5, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_MoveUp_ClampsToShorterLine()
+    {
+        var state = new TextBoxState { Text = "ab\nabcdef\ngh", IsMultiline = true };
+        state.CursorPosition = 8; // 'e' (col 5) on "abcdef"
+        state.MoveUp();
+        // Line 0 "ab" has length 2, so column clamps to 2 (end of "ab")
+        Assert.Equal(2, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_MoveDown_PreservesPreferredColumn()
+    {
+        var state = new TextBoxState { Text = "abcdef\nab\nabcdef", IsMultiline = true };
+        state.CursorPosition = 5; // col 5 on "abcdef"
+        state.MoveDown(); // moves to "ab", clamped to col 2
+        Assert.Equal((1, 2), state.OffsetToLineColumn(state.CursorPosition));
+        state.MoveDown(); // moves to "abcdef", restores to col 5
+        Assert.Equal((2, 5), state.OffsetToLineColumn(state.CursorPosition));
+    }
+
+    [Fact]
+    public async Task State_MoveUp_WithShift_CreatesSelection()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
+        state.CursorPosition = 5; // 'e' on line 1
+        state.MoveUp(extend: true);
+        Assert.True(state.HasSelection);
+        Assert.Equal(5, state.SelectionAnchor);
+        Assert.Equal(1, state.CursorPosition); // 'b' on line 0
+    }
+
+    #endregion
+
+    #region Multiline Enter Key Tests
+
+    [Fact]
+    public async Task State_InsertNewline_InsertsAtCursor()
+    {
+        var state = new TextBoxState { Text = "abcdef", IsMultiline = true };
+        state.CursorPosition = 3;
+        state.InsertNewline();
+        Assert.Equal("abc\ndef", state.Text);
+        Assert.Equal(4, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_InsertNewline_AtStart()
+    {
+        var state = new TextBoxState { Text = "abc", IsMultiline = true };
+        state.CursorPosition = 0;
+        state.InsertNewline();
+        Assert.Equal("\nabc", state.Text);
+        Assert.Equal(1, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_InsertNewline_AtEnd()
+    {
+        var state = new TextBoxState { Text = "abc", IsMultiline = true };
+        state.CursorPosition = 3;
+        state.InsertNewline();
+        Assert.Equal("abc\n", state.Text);
+        Assert.Equal(4, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task State_InsertNewline_DeletesSelection()
+    {
+        var state = new TextBoxState { Text = "abcdef", IsMultiline = true };
+        state.SelectionAnchor = 1;
+        state.CursorPosition = 4;
+        state.InsertNewline();
+        Assert.Equal("a\nef", state.Text);
+        Assert.Equal(2, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_Enter_InMultilineMode_InsertsNewline()
+    {
+        var state = new TextBoxState { Text = "abc", IsMultiline = true };
+        state.CursorPosition = 3;
+        var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        Assert.True(handled);
+        Assert.Equal("abc\n", state.Text);
+    }
+
+    [Fact]
+    public async Task HandleInput_Enter_InSingleLineMode_NotHandled()
+    {
+        var state = new TextBoxState { Text = "abc", IsMultiline = false };
+        state.CursorPosition = 3;
+        var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
+        Assert.False(handled);
+        Assert.Equal("abc", state.Text);
+    }
+
+    #endregion
+
+    #region Multiline Home/End Tests
+
+    [Fact]
+    public async Task HandleInput_Home_MultilineMode_GoesToLineStart()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 6; // 'f' on line 1
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        Assert.Equal(4, state.CursorPosition); // start of "def"
+    }
+
+    [Fact]
+    public async Task HandleInput_End_MultilineMode_GoesToLineEnd()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 4; // 'd' on line 1
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
+        Assert.Equal(7, state.CursorPosition); // end of "def"
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlHome_MultilineMode_GoesToDocumentStart()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 9; // 'h' on line 2
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.Control));
+        Assert.Equal(0, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlEnd_MultilineMode_GoesToDocumentEnd()
+    {
+        var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
+        state.CursorPosition = 0;
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Control));
+        Assert.Equal(11, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_Home_SingleLineMode_GoesToDocumentStart()
+    {
+        var state = new TextBoxState { Text = "hello", IsMultiline = false };
+        state.CursorPosition = 3;
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
+        Assert.Equal(0, state.CursorPosition);
+    }
+
+    #endregion
+
+    #region Multiline Up/Down Arrow Tests
+
+    [Fact]
+    public async Task HandleInput_UpArrow_MultilineMode_MovesUp()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
+        state.CursorPosition = 5; // 'e'
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        Assert.Equal(1, state.CursorPosition); // 'b'
+    }
+
+    [Fact]
+    public async Task HandleInput_DownArrow_MultilineMode_MovesDown()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
+        state.CursorPosition = 1; // 'b'
+        state.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        Assert.Equal(5, state.CursorPosition); // 'e'
+    }
+
+    [Fact]
+    public async Task HandleInput_UpArrow_SingleLineMode_NotHandled()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = false };
+        state.CursorPosition = 5;
+        var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
+        Assert.False(handled);
+        Assert.Equal(5, state.CursorPosition);
+    }
+
+    [Fact]
+    public async Task HandleInput_DownArrow_SingleLineMode_NotHandled()
+    {
+        var state = new TextBoxState { Text = "abc\ndef", IsMultiline = false };
+        state.CursorPosition = 1;
+        var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
+        Assert.False(handled);
+        Assert.Equal(1, state.CursorPosition);
+    }
+
+    #endregion
+
+    #region Multiline Node Integration Tests
+
+    [Fact]
+    public async Task Integration_Multiline_EnterInsertsNewline()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox(capturedText).Multiline().Height(5).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .Type("hello")
+            .Key(Hex1bKey.Enter)
+            .Type("world")
+            .WaitUntil(s => s.ContainsText("world"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("hello\nworld", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_RendersMultipleLines()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("line1\nline2\nline3").Multiline().Height(5)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("line1") && s.ContainsText("line2") && s.ContainsText("line3"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("line1"));
+        Assert.True(snapshot.ContainsText("line2"));
+        Assert.True(snapshot.ContainsText("line3"));
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_UpDownArrowNavigation()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        var capturedText = "";
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("abc\ndef").Multiline().Height(3).OnTextChanged(e => capturedText = e.NewText)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end of "def" (position 7). Press Up to go to "abc", then type "X"
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("abc"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.UpArrow)
+            .Type("X")
+            .WaitUntil(s => s.ContainsText("abcX"), TimeSpan.FromSeconds(5))
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.Equal("abcX\ndef", capturedText);
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_WordWrap_WrapsLongLine()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("hello world this is a long sentence").Multiline().WordWrap().Height(5)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // The text is 35 chars, viewport is 20 chars. Should wrap.
+        // "hello world this is " (20) + "a long sentence" (15)
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Key(Hex1bKey.Home)
+            .Ctrl().Key(Hex1bKey.Home)
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Both parts of the wrapped text should be visible
+        Assert.True(snapshot.ContainsText("hello"));
+        Assert.True(snapshot.ContainsText("sentence"));
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_DefaultTextBox_StillSingleLine()
+    {
+        // Verify that a default TextBox (no Multiline()) still works as single-line
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("hello")
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Should still have brackets for single-line
+        Assert.True(snapshot.ContainsText("hello"));
+    }
+
+    [Fact]
+    public async Task Integration_Multiline_VerticalScrolling()
+    {
+        // Test vertical scrolling when content exceeds visible height
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(v => [
+                    v.TextBox("line1\nline2\nline3\nline4\nline5\nline6\nline7").Multiline().Height(3)
+                ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Cursor starts at end (line7), so viewport should scroll to show last 3 lines
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("line7"), TimeSpan.FromSeconds(5))
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("line7"));
+        // line1 should NOT be visible (it's scrolled off)
+        Assert.False(snapshot.ContainsText("line1"));
+    }
+
+    #endregion
 }

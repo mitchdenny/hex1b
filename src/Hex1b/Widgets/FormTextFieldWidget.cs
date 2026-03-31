@@ -106,6 +106,39 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         => this with { MinWidth = width, MaxWidth = width };
 
     /// <summary>
+    /// When true, the text field supports multi-line editing.
+    /// </summary>
+    internal bool IsMultilineValue { get; init; }
+
+    /// <summary>
+    /// When true, long lines are visually wrapped at word boundaries.
+    /// </summary>
+    internal bool IsWordWrapValue { get; init; }
+
+    /// <summary>
+    /// Fixed height in lines for the text input. Null defaults to 1.
+    /// </summary>
+    internal int? HeightValue { get; init; }
+
+    /// <summary>
+    /// Enables multi-line text editing for this form field.
+    /// </summary>
+    public FormTextFieldWidget Multiline()
+        => this with { IsMultilineValue = true };
+
+    /// <summary>
+    /// Enables word wrapping for this multi-line form field.
+    /// </summary>
+    public FormTextFieldWidget WordWrap()
+        => this with { IsWordWrapValue = true };
+
+    /// <summary>
+    /// Sets the height of the text input in lines.
+    /// </summary>
+    public FormTextFieldWidget WithHeight(int lines)
+        => this with { HeightValue = lines };
+
+    /// <summary>
     /// Sets the initial text value.
     /// </summary>
     public FormTextFieldWidget WithInitialValue(string value)
@@ -187,7 +220,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         // the FormTextFieldNode controls the actual rendered width via layout.
         var textBoxMinWidth = MinWidth ?? 1;
         var textBoxMaxWidth = MaxWidth ?? MinWidth;
-        var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth }
+        var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth,
+                IsMultilineValue = IsMultilineValue, IsWordWrapValue = IsWordWrapValue, HeightValue = HeightValue }
             .OnTextChanged(async e =>
             {
                 node.CurrentValue = e.NewText;
