@@ -129,9 +129,10 @@ public sealed class TextBoxNode : Hex1bNode
     public override bool IsFocusable => true;
 
     /// <summary>
-    /// TextBox uses a blinking bar cursor to indicate text input position.
+    /// Mouse hover uses the default cursor shape. The text editing bar cursor
+    /// is shown via the native terminal cursor only when the TextBox is focused.
     /// </summary>
-    public override CursorShape PreferredCursorShape => CursorShape.BlinkingBar;
+    public override CursorShape PreferredCursorShape => CursorShape.Default;
 
     /// <summary>
     /// Screen X coordinate where the native terminal cursor should be placed.
