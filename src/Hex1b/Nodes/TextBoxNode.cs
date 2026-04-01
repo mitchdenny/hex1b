@@ -1174,8 +1174,6 @@ public sealed class TextBoxNode : Hex1bNode
         var cursorBg = theme.Get(TextBoxTheme.CursorBackgroundColor);
         var selFg = theme.Get(TextBoxTheme.SelectionForegroundColor);
         var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
-        var hoverCursorFg = theme.Get(TextBoxTheme.HoverCursorForegroundColor);
-        var hoverCursorBg = theme.Get(TextBoxTheme.HoverCursorBackgroundColor);
         var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
         var fillBg = IsFocused
             ? theme.Get(TextBoxTheme.FocusedFillBackgroundColor)
@@ -1220,7 +1218,7 @@ public sealed class TextBoxNode : Hex1bNode
         if (useFillMode)
         {
             output = RenderFillMode(visibleText, visCursor, globalColors, resetToGlobal,
-                fillBg, cursorFg, cursorBg, selFg, selBg, hoverCursorFg, hoverCursorBg, context,
+                fillBg, cursorFg, cursorBg, selFg, selBg, context,
                 visSelStart, visSelEnd);
         }
         else if (IsFocused)
@@ -1249,8 +1247,9 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
-            output = RenderWithHoverCursor(visibleText, leftBracket, rightBracket, 
-                globalColors, resetToGlobal, hoverCursorFg, hoverCursorBg, context);
+            // Hover renders text normally — the native terminal mouse cursor handles
+            // showing the cursor shape at the mouse position.
+            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}";
         }
         else
         {
@@ -1282,8 +1281,6 @@ public sealed class TextBoxNode : Hex1bNode
         Hex1bColor cursorBg,
         Hex1bColor selFg,
         Hex1bColor selBg,
-        Hex1bColor hoverCursorFg,
-        Hex1bColor hoverCursorBg,
         Hex1bRenderContext context,
         int visSelStart = 0,
         int visSelEnd = 0)
@@ -1325,34 +1322,10 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
-            var localMouseX = context.MouseX - Bounds.X;
-            // Map display column to position within the visible text
-            var hoverCursorPos = DisplayColumnToVisibleTextPosition(text, localMouseX);
-
-            string before = text[..hoverCursorPos];
-            string hoverCluster;
-            string after;
-            int extraPaddingReduction = 0;
-
-            if (hoverCursorPos < text.Length)
-            {
-                var clusterLength = GraphemeHelper.GetClusterLength(text, hoverCursorPos);
-                hoverCluster = text.Substring(hoverCursorPos, clusterLength);
-                after = text[(hoverCursorPos + clusterLength)..];
-            }
-            else
-            {
-                hoverCluster = " ";
-                after = "";
-                extraPaddingReduction = 1;
-            }
-
-            var hoverColors = "";
-            if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
-            if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
-
-            var padStr = new string(' ', Math.Max(0, padding - extraPaddingReduction));
-            return $"{globalColors}{fillBgAnsi}{before}{hoverColors}{hoverCluster}{resetToGlobal}{fillBgAnsi}{after}{padStr}{resetToGlobal}";
+            // Hover renders text normally — the native terminal mouse cursor handles
+            // showing the cursor shape at the mouse position.
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
         }
         else
         {
@@ -1361,58 +1334,4 @@ public sealed class TextBoxNode : Hex1bNode
         }
     }
     
-    /// <summary>
-    /// Renders the text with a faint hover cursor showing where clicking would position the cursor.
-    /// </summary>
-    private string RenderWithHoverCursor(
-        string text, 
-        string leftBracket, 
-        string rightBracket,
-        string globalColors,
-        string resetToGlobal,
-        Hex1bColor hoverCursorFg,
-        Hex1bColor hoverCursorBg,
-        Hex1bRenderContext context)
-    {
-        // Calculate local mouse position relative to this node
-        var localMouseX = context.MouseX - Bounds.X;
-        
-        // Convert to text column (subtract 1 for '[' bracket)
-        var textColumn = localMouseX - 1;
-        
-        // If mouse is outside the text area, show cursor at the nearest edge
-        if (textColumn < 0)
-        {
-            // Mouse is on or before '[' - show cursor at start
-            textColumn = 0;
-        }
-        
-        // Find the cursor position within the visible text
-        var hoverCursorPos = DisplayColumnToVisibleTextPosition(text, textColumn);
-        
-        // Get the grapheme cluster at the hover position (or space if at end)
-        string before = text[..hoverCursorPos];
-        string hoverCluster;
-        string after;
-        
-        if (hoverCursorPos < text.Length)
-        {
-            var clusterLength = GraphemeHelper.GetClusterLength(text, hoverCursorPos);
-            hoverCluster = text.Substring(hoverCursorPos, clusterLength);
-            after = text[(hoverCursorPos + clusterLength)..];
-        }
-        else
-        {
-            // At end of text - show a space as the hover target
-            hoverCluster = " ";
-            after = "";
-        }
-        
-        // Build the hover cursor color codes
-        var hoverColors = "";
-        if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
-        if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
-        
-        return $"{globalColors}{leftBracket}{before}{hoverColors}{hoverCluster}{resetToGlobal}{after}{rightBracket}";
-    }
 }
