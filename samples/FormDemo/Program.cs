@@ -75,6 +75,7 @@ void TriggerGeocode()
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithDiagnostics("FormDemo")
     .WithHex1bApp((app, options) => ctx =>
     {
         var labelPlacement = labelPlacementIndex == 0

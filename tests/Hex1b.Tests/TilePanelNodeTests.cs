@@ -453,4 +453,123 @@ public class TilePanelIntegrationTests
             System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         method!.Invoke(node, [surface]);
     }
+
+    /// <summary>
+    /// Verifies that large viewports (which exceed the default MaxCachedTiles=10000)
+    /// don't show persistent placeholder dots due to cache eviction thrashing.
+    /// The TileCache must auto-expand when the viewport requires more tiles than the max.
+    /// </summary>
+    [Theory]
+    [InlineData(200, 55)]  // 202 * 57 = 11,514 tiles — exceeds 10,000
+    [InlineData(250, 60)]  // 252 * 62 = 15,624 tiles — well over limit
+    public async Task DrawTiles_LargeViewport_NoEvictionThrashing(int width, int height)
+    {
+        var ds = new SingleCellTileSource();
+        var node = new TilePanelNode
+        {
+            ZoomLevel = 0,
+            CameraX = 0.0,
+            CameraY = 0.0,
+        };
+        node.SetDataSource(ds);
+        node.Arrange(new Rect(0, 0, width, height));
+
+        // First DrawTiles: cache is empty, shows placeholders, starts background fetch
+        var surface1 = new Surface(width, height, new CellMetrics(8, 16));
+        DrawTilesViaReflection(node, surface1);
+
+        await Task.Delay(200);
+
+        // Second DrawTiles: all tiles should be cached (no eviction thrashing)
+        var surface2 = new Surface(width, height, new CellMetrics(8, 16));
+        DrawTilesViaReflection(node, surface2);
+
+        var placeholderCount = 0;
+        for (int y = 0; y < height; y++)
+            for (int x = 0; x < width; x++)
+                if (surface2[x, y].Character == "·")
+                    placeholderCount++;
+
+        Assert.True(placeholderCount == 0,
+            $"Viewport {width}x{height}: Found {placeholderCount} placeholder '·' cells — " +
+            $"cache eviction is thrashing (viewport needs {(width + 2) * (height + 2)} tiles, " +
+            $"which exceeds default MaxCachedTiles)");
+    }
+
+    /// <summary>
+    /// Verifies that after tiles are cached, DrawTiles fills ALL surface cells
+    /// with tile content and leaves no unwritten or placeholder cells.
+    /// Tests multiple viewport widths to catch rounding/alignment issues.
+    /// </summary>
+    [Theory]
+    [InlineData(39)]
+    [InlineData(40)]
+    [InlineData(41)]
+    [InlineData(79)]
+    [InlineData(80)]
+    [InlineData(81)]
+    [InlineData(100)]
+    [InlineData(120)]
+    public async Task DrawTiles_AllWidths_NoPlaceholderCells(int width)
+    {
+        // Use a 1x1 tile source that always returns content synchronously
+        var ds = new SingleCellTileSource();
+        var node = new TilePanelNode
+        {
+            ZoomLevel = 0,
+            CameraX = 100.0,
+            CameraY = 100.0,
+        };
+        node.SetDataSource(ds);
+        node.Arrange(new Rect(0, 0, width, 10));
+
+        // First DrawTiles populates the cache via background fetch
+        var surface1 = new Surface(width, 10, new CellMetrics(8, 16));
+        DrawTilesViaReflection(node, surface1);
+
+        // Wait for background fetch to complete
+        await Task.Delay(200);
+
+        // Second DrawTiles should use cached tiles — no placeholders
+        var surface2 = new Surface(width, 10, new CellMetrics(8, 16));
+        DrawTilesViaReflection(node, surface2);
+
+        var unwrittenCount = 0;
+        var placeholderCount = 0;
+        for (int y = 0; y < 10; y++)
+        {
+            for (int x = 0; x < width; x++)
+            {
+                var cell = surface2[x, y];
+                if (cell.Character == SurfaceCells.UnwrittenMarker)
+                    unwrittenCount++;
+                if (cell.Character == "·")
+                    placeholderCount++;
+            }
+        }
+
+        Assert.True(unwrittenCount == 0, 
+            $"Width={width}: Found {unwrittenCount} unwritten cells (should be 0 after cache is populated)");
+        Assert.True(placeholderCount == 0, 
+            $"Width={width}: Found {placeholderCount} placeholder '·' cells (should be 0 after cache is populated)");
+    }
+}
+
+/// <summary>
+/// 1x1 tile data source where every tile has content. Returns synchronously.
+/// </summary>
+internal class SingleCellTileSource : ITileDataSource
+{
+    public Size TileSize => new(1, 1);
+
+    public ValueTask<TileData[,]> GetTilesAsync(
+        int tileX, int tileY, int tilesWide, int tilesTall,
+        CancellationToken cancellationToken = default)
+    {
+        var tiles = new TileData[tilesWide, tilesTall];
+        for (int y = 0; y < tilesTall; y++)
+            for (int x = 0; x < tilesWide; x++)
+                tiles[x, y] = new TileData("X", Hex1bColor.White, Hex1bColor.Black);
+        return ValueTask.FromResult(tiles);
+    }
 }
