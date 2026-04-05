@@ -18,9 +18,9 @@
 
   <Target Name="CopyWindowsPtyShim"
           AfterTargets="Build"
-          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native')">
     <ItemGroup>
-      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe" />
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty*.exe" />
     </ItemGroup>
 
     <Copy SourceFiles="@(WindowsPtyShimFiles)"

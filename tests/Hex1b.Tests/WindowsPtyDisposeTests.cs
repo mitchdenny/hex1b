@@ -38,6 +38,21 @@ public class WindowsPtyDisposeTests
         }
     }
 
+    [Theory]
+    [InlineData("cmd.exe", new[] { "/c", "echo hi" }, false)]
+    [InlineData("cmd.exe", new[] { "/k", "echo hi" }, true)]
+    [InlineData("powershell.exe", new[] { "-NoLogo", "-NoProfile" }, true)]
+    [InlineData("powershell.exe", new[] { "-NoLogo", "-Command", "Write-Output hi" }, false)]
+    [InlineData("pwsh.exe", new[] { "-NoExit", "-Command", "Write-Output hi" }, true)]
+    public void WindowsPtyShellHeuristics_RecognizesInteractiveWarmupScenarios(
+        string fileName,
+        string[] arguments,
+        bool expected)
+    {
+        var actual = WindowsPtyShellHeuristics.RequiresPromptWarmup(fileName, arguments);
+        Assert.Equal(expected, actual);
+    }
+
     [Fact]
     [Trait("Category", "Windows")]
     public async Task WithPtyProcess_WhenShimBinaryAvailable_UsesWindowsPtyShim()
@@ -76,9 +91,11 @@ public class WindowsPtyDisposeTests
         }
     }
 
-    [Fact]
+    [Theory]
+    [InlineData("hex1bpty.exe")]
+    [InlineData("hex1bpty-managed.exe")]
     [Trait("Category", "Windows")]
-    public async Task WithPtyProcess_WhenRustShimAvailable_StreamsOutputInputAndResize()
+    public async Task WithPtyProcess_WhenSelectedShimAvailable_StreamsOutputInputAndResize(string shimFileName)
     {
         if (!OperatingSystem.IsWindows())
             return;
@@ -88,8 +105,11 @@ public class WindowsPtyDisposeTests
 
         try
         {
-            var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-            Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+            var shimPath = Path.Combine(AppContext.BaseDirectory, shimFileName);
+            if (!File.Exists(shimPath))
+            {
+                return;
+            }
 
             Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
             Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", shimPath);

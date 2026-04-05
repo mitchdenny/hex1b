@@ -44,6 +44,7 @@ function Test-LibSearchPath {
 $repoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $manifestPath = Join-Path $repoRoot "src\Hex1b.PtyHost.Rust\Cargo.toml"
 $crateDir = Split-Path $manifestPath -Parent
+$managedHostProject = Join-Path $repoRoot "src\Hex1b.PtyHost\Hex1b.PtyHost.csproj"
 
 if (-not (Test-Path $manifestPath)) {
     throw "The Rust PTY host manifest was not found at $manifestPath."
@@ -66,6 +67,7 @@ if ([string]::IsNullOrWhiteSpace($OutputDir)) {
 
 $cargo = Resolve-ToolPath -Name "cargo.exe" -Fallback (Join-Path $env:USERPROFILE ".cargo\bin\cargo.exe")
 $rustup = Resolve-ToolPath -Name "rustup.exe" -Fallback (Join-Path $env:USERPROFILE ".cargo\bin\rustup.exe")
+$dotnet = Resolve-ToolPath -Name "dotnet.exe" -Fallback (Join-Path ${env:ProgramFiles} "dotnet\dotnet.exe")
 $rustc = (& $rustup which rustc).Trim()
 $rustSysroot = Split-Path (Split-Path $rustc -Parent) -Parent
 
@@ -160,6 +162,47 @@ Install the Visual Studio C++ build tools, or populate the xwin sysroot at:
     New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
     Copy-Item $builtBinary (Join-Path $OutputDir "hex1bpty.exe") -Force
     Write-Host "Built Windows PTY shim: $(Join-Path $OutputDir 'hex1bpty.exe')"
+
+    if (-not (Test-Path $managedHostProject)) {
+        throw "The managed PTY host project was not found at $managedHostProject."
+    }
+
+    $managedPublishDir = Join-Path $repoRoot "artifacts\obj\hex1bpty-managed\$Rid\$Configuration"
+    if (Test-Path $managedPublishDir) {
+        Remove-Item -Path $managedPublishDir -Recurse -Force
+    }
+
+    $managedPublishArgs = @(
+        "publish", $managedHostProject,
+        "-c", $Configuration,
+        "-r", $Rid,
+        "-o", $managedPublishDir,
+        "-p:PublishSingleFile=true",
+        "--nologo"
+    )
+
+    if ($linkerAvailable -and $hasKernel32Lib) {
+        $managedPublishArgs += "-p:PublishAot=true"
+        $managedPublishArgs += "-p:SelfContained=true"
+    }
+    else {
+        $managedPublishArgs += "-p:PublishAot=false"
+        $managedPublishArgs += "-p:SelfContained=false"
+        Write-Warning "Publishing the managed Windows PTY shim as a framework-dependent single-file app because Native AOT linker prerequisites are unavailable on this machine."
+    }
+
+    & $dotnet @managedPublishArgs
+    if ($LASTEXITCODE -ne 0) {
+        throw "dotnet publish failed for the managed Windows PTY shim."
+    }
+
+    $managedBinary = Join-Path $managedPublishDir "hex1bpty.exe"
+    if (-not (Test-Path $managedBinary)) {
+        throw "Expected managed PTY shim binary was not produced at '$managedBinary'."
+    }
+
+    Copy-Item $managedBinary (Join-Path $OutputDir "hex1bpty-managed.exe") -Force
+    Write-Host "Built managed Windows PTY shim: $(Join-Path $OutputDir 'hex1bpty-managed.exe')"
 }
 finally {
     $env:LIB = $originalLib

@@ -1,5 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
+using System.Text.Json.Serialization;
+using System.Text.Json.Serialization.Metadata;
 
 namespace Hex1b;
 
@@ -35,6 +37,7 @@ internal sealed record WindowsPtyShimErrorResponse(string Message);
 internal static class WindowsPtyShimProtocol
 {
     private static readonly JsonSerializerOptions s_jsonOptions = new(JsonSerializerDefaults.Web);
+    private static readonly WindowsPtyShimJsonContext s_jsonContext = new(s_jsonOptions);
 
     public static void WriteFrame(
         Stream stream,
@@ -80,7 +83,7 @@ internal static class WindowsPtyShimProtocol
         WindowsPtyShimFrameType type,
         T value)
     {
-        var payload = JsonSerializer.SerializeToUtf8Bytes(value, s_jsonOptions);
+        var payload = SerializeJson(value);
         WriteFrame(stream, type, payload);
     }
 
@@ -96,7 +99,7 @@ internal static class WindowsPtyShimProtocol
 
     public static byte[] SerializeJson<T>(T value)
     {
-        return JsonSerializer.SerializeToUtf8Bytes(value, s_jsonOptions);
+        return JsonSerializer.SerializeToUtf8Bytes(value, GetTypeInfo<T>());
     }
 
     public static (WindowsPtyShimFrameType Type, byte[] Payload)? ReadFrame(Stream stream)
@@ -177,8 +180,38 @@ internal static class WindowsPtyShimProtocol
 
     public static T ReadJson<T>(ReadOnlySpan<byte> payload)
     {
-        return JsonSerializer.Deserialize<T>(payload, s_jsonOptions)
+        return JsonSerializer.Deserialize(payload, GetTypeInfo<T>())
             ?? throw new InvalidDataException($"Unable to deserialize PTY shim payload as {typeof(T).Name}.");
+    }
+
+    private static JsonTypeInfo<T> GetTypeInfo<T>()
+    {
+        if (typeof(T) == typeof(WindowsPtyShimLaunchRequest))
+        {
+            return (JsonTypeInfo<T>)(object)s_jsonContext.WindowsPtyShimLaunchRequest;
+        }
+
+        if (typeof(T) == typeof(WindowsPtyShimStartedResponse))
+        {
+            return (JsonTypeInfo<T>)(object)s_jsonContext.WindowsPtyShimStartedResponse;
+        }
+
+        if (typeof(T) == typeof(WindowsPtyShimResizeRequest))
+        {
+            return (JsonTypeInfo<T>)(object)s_jsonContext.WindowsPtyShimResizeRequest;
+        }
+
+        if (typeof(T) == typeof(WindowsPtyShimExitNotification))
+        {
+            return (JsonTypeInfo<T>)(object)s_jsonContext.WindowsPtyShimExitNotification;
+        }
+
+        if (typeof(T) == typeof(WindowsPtyShimErrorResponse))
+        {
+            return (JsonTypeInfo<T>)(object)s_jsonContext.WindowsPtyShimErrorResponse;
+        }
+
+        throw new InvalidOperationException($"Unsupported PTY shim payload type: {typeof(T).FullName}.");
     }
 
     private static int TryReadExactly(Stream stream, byte[] buffer)
@@ -231,4 +264,14 @@ internal static class WindowsPtyShimProtocol
         {
         }
     }
+}
+
+[JsonSourceGenerationOptions(JsonSerializerDefaults.Web)]
+[JsonSerializable(typeof(WindowsPtyShimLaunchRequest))]
+[JsonSerializable(typeof(WindowsPtyShimStartedResponse))]
+[JsonSerializable(typeof(WindowsPtyShimResizeRequest))]
+[JsonSerializable(typeof(WindowsPtyShimExitNotification))]
+[JsonSerializable(typeof(WindowsPtyShimErrorResponse))]
+internal sealed partial class WindowsPtyShimJsonContext : JsonSerializerContext
+{
 }

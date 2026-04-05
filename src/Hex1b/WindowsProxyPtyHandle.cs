@@ -200,13 +200,34 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         TraceShimMessage($"startup visible text for {fileName}: {startupText}");
         var hasPrompt = ContainsVisiblePromptMarker(startupText);
         TraceShimMessage($"startup prompt detected={hasPrompt} for {fileName}");
-        if (LooksLikeWindowsInteractiveShell(fileName) && !hasPrompt)
+        if (WindowsPtyShellHeuristics.RequiresPromptWarmup(fileName, arguments) &&
+            !hasPrompt &&
+            !_exitCodeTcs.Task.IsCompleted)
         {
             await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
+            if (_exitCodeTcs.Task.IsCompleted || _stream == null)
+            {
+                return;
+            }
+
             var promptNudge = "\r"u8.ToArray();
             TraceShimMessage($"sending startup prompt nudge for {fileName}");
             TraceShimFrame("send", WindowsPtyShimFrameType.Input, promptNudge);
-            await WindowsPtyShimProtocol.WriteFrameAsync(_stream, WindowsPtyShimFrameType.Input, promptNudge, ct).ConfigureAwait(false);
+            try
+            {
+                await WindowsPtyShimProtocol.WriteFrameAsync(_stream, WindowsPtyShimFrameType.Input, promptNudge, ct).ConfigureAwait(false);
+            }
+            catch (IOException) when (_exitCodeTcs.Task.IsCompleted || _helperProcess?.HasExited == true)
+            {
+                TraceShimMessage($"skipping startup prompt nudge for {fileName} because the shim already exited.");
+                return;
+            }
+            catch (ObjectDisposedException) when (_exitCodeTcs.Task.IsCompleted || _disposed)
+            {
+                TraceShimMessage($"skipping startup prompt nudge for {fileName} because the shim transport was already closed.");
+                return;
+            }
+
             await DrainInitialFramesAsync(ct).ConfigureAwait(false);
         }
 
@@ -512,7 +533,8 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
     {
         var startInfo = new ProcessStartInfo(shimPath)
         {
-            UseShellExecute = true,
+            UseShellExecute = false,
+            CreateNoWindow = true,
             WindowStyle = ProcessWindowStyle.Hidden
         };
         startInfo.ArgumentList.Add("--socket");
@@ -681,15 +703,6 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         catch
         {
         }
-    }
-
-    private static bool LooksLikeWindowsInteractiveShell(string fileName)
-    {
-        var executable = Path.GetFileName(fileName);
-        return executable.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase) ||
-               executable.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) ||
-               executable.Equals("pwsh.exe", StringComparison.OrdinalIgnoreCase) ||
-               executable.Equals("pwsh", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ContainsVisiblePromptMarker(string text)

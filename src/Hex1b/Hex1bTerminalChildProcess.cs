@@ -266,7 +266,9 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private async Task WarmWindowsInteractiveShellAsync(CancellationToken ct)
     {
         var startupBytes = await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
-        if (_ptyHandle == null || !OperatingSystem.IsWindows() || !IsWindowsInteractiveShell())
+        if (_ptyHandle == null ||
+            !OperatingSystem.IsWindows() ||
+            !WindowsPtyShellHeuristics.RequiresPromptWarmup(_fileName, _arguments))
         {
             return;
         }
@@ -283,18 +285,54 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         // until they receive a delayed carriage return after the initial title/setup
         // traffic settles. Nudge them once so the session becomes visibly interactive
         // before user input is forwarded.
-        TraceWarmupMessage($"child-process sending first startup nudge for {_fileName}");
-        await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
-        await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
+        if (!await TrySendWarmupNudgeAsync($"child-process sending first startup nudge for {_fileName}", ct).ConfigureAwait(false))
+        {
+            return;
+        }
+
         startupText += StripEscapeSequences(
             Encoding.UTF8.GetString(await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false)));
 
         if (!ContainsVisiblePromptMarker(startupText))
         {
-            TraceWarmupMessage($"child-process sending second startup nudge for {_fileName}");
-            await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
-            await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
+            if (!await TrySendWarmupNudgeAsync($"child-process sending second startup nudge for {_fileName}", ct).ConfigureAwait(false))
+            {
+                return;
+            }
+
             await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<bool> TrySendWarmupNudgeAsync(string message, CancellationToken ct)
+    {
+        if (_ptyHandle == null || _disposed || _exited)
+        {
+            return false;
+        }
+
+        TraceWarmupMessage(message);
+
+        await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
+        if (_ptyHandle == null || _disposed || _exited)
+        {
+            return false;
+        }
+
+        try
+        {
+            await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (IOException)
+        {
+            TraceWarmupMessage($"child-process skipped startup nudge after {_fileName} exited.");
+            return false;
+        }
+        catch (ObjectDisposedException)
+        {
+            TraceWarmupMessage($"child-process skipped startup nudge because the PTY handle for {_fileName} was disposed.");
+            return false;
         }
     }
 
@@ -433,15 +471,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             throw new PlatformNotSupportedException(
                 $"PTY is not supported on {Environment.OSVersion.Platform}");
         }
-    }
-
-    private bool IsWindowsInteractiveShell()
-    {
-        var fileName = Path.GetFileName(_fileName);
-        return fileName.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("pwsh.exe", StringComparison.OrdinalIgnoreCase) ||
-               fileName.Equals("pwsh", StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool ContainsVisiblePromptMarker(string text)
