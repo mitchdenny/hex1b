@@ -41,9 +41,11 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private readonly string? _workingDirectory;
     private readonly Dictionary<string, string>? _environment;
     private readonly bool _inheritEnvironment;
+    private readonly Func<IPtyHandle> _ptyHandleFactory;
     
     private int _width;
     private int _height;
+    private bool _startInitiated;
     private bool _started;
     private bool _exited;
     private int _exitCode;
@@ -83,12 +85,34 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         bool inheritEnvironment = true,
         int initialWidth = 80,
         int initialHeight = 24)
+        : this(
+            fileName,
+            arguments,
+            workingDirectory,
+            environment,
+            inheritEnvironment,
+            initialWidth,
+            initialHeight,
+            CreatePtyHandle)
+    {
+    }
+
+    internal Hex1bTerminalChildProcess(
+        string fileName,
+        string[] arguments,
+        string? workingDirectory,
+        Dictionary<string, string>? environment,
+        bool inheritEnvironment,
+        int initialWidth,
+        int initialHeight,
+        Func<IPtyHandle> ptyHandleFactory)
     {
         _fileName = fileName ?? throw new ArgumentNullException(nameof(fileName));
         _arguments = arguments ?? [];
         _workingDirectory = workingDirectory;
         _environment = environment;
         _inheritEnvironment = inheritEnvironment;
+        _ptyHandleFactory = ptyHandleFactory ?? throw new ArgumentNullException(nameof(ptyHandleFactory));
         _width = initialWidth;
         _height = initialHeight;
     }
@@ -145,16 +169,16 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <exception cref="PlatformNotSupportedException">The current platform is not supported.</exception>
     public async Task StartAsync(CancellationToken ct = default)
     {
-        if (_started)
+        if (_startInitiated)
             throw new InvalidOperationException("Process has already been started.");
         
         if (_disposed)
             throw new ObjectDisposedException(nameof(Hex1bTerminalChildProcess));
-        
-        _started = true;
+
+        _startInitiated = true;
         
         // Create platform-specific PTY
-        _ptyHandle = CreatePtyHandle();
+        _ptyHandle = _ptyHandleFactory();
         
         // Build environment
         var env = BuildEnvironment();
@@ -173,7 +197,9 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         // startup burst up-front so the first consumer read gets that output immediately,
         // and nudge Windows shells that still have not painted a visible prompt yet.
         await WarmWindowsInteractiveShellAsync(ct);
-        
+
+        _started = true;
+
         // Signal that the process has started (allows ReadOutputAsync to proceed)
         _startedTcs.TrySetResult();
     }
@@ -246,11 +272,15 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <inheritdoc />
     public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (!_started || _disposed || _ptyHandle == null)
+        if (_disposed)
             return;
         
         try
         {
+            await _startedTcs.Task.WaitAsync(ct);
+            if (_disposed || _exited || _ptyHandle == null)
+                return;
+
             await _ptyHandle.WriteAsync(data, ct);
         }
         catch (OperationCanceledException)

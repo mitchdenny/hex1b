@@ -10,6 +10,38 @@ namespace Hex1b.Tests;
 /// </summary>
 public class Hex1bTerminalChildProcessTests
 {
+    [Fact]
+    public async Task WriteInput_BeforeStartCompletes_WaitsForPtyStartup()
+    {
+        var handle = new DelayedStartPtyHandle();
+        await using var process = new Hex1bTerminalChildProcess(
+            "fake-shell",
+            [],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 24,
+            ptyHandleFactory: () => handle);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+
+        var startTask = process.StartAsync(cts.Token);
+        var writeTask = process.WriteInputAsync(Encoding.UTF8.GetBytes("hello"), cts.Token).AsTask();
+
+        await Task.Delay(100, cts.Token);
+        Assert.False(writeTask.IsCompleted, "Input should wait until the PTY startup handshake completes.");
+        Assert.False(process.HasStarted);
+
+        handle.CompleteStart();
+
+        await startTask;
+        await writeTask;
+
+        Assert.True(process.HasStarted);
+        Assert.Equal("hello", handle.LastWriteText);
+    }
+
     /// <summary>
     /// Verifies that when we launch bash with "tty" command, it reports
     /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
@@ -1848,5 +1880,47 @@ public class Hex1bTerminalChildProcessTests
             }
             catch { }
         }
+    }
+
+    private sealed class DelayedStartPtyHandle : IPtyHandle
+    {
+        private readonly TaskCompletionSource _startTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        public int ProcessId => 1234;
+
+        public string LastWriteText { get; private set; } = string.Empty;
+
+        public void CompleteStart() => _startTcs.TrySetResult();
+
+        public Task StartAsync(
+            string fileName,
+            string[] arguments,
+            string? workingDirectory,
+            Dictionary<string, string> environment,
+            int width,
+            int height,
+            CancellationToken ct)
+            => _startTcs.Task.WaitAsync(ct);
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct)
+            => ValueTask.FromResult<ReadOnlyMemory<byte>>(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
+        {
+            LastWriteText = Encoding.UTF8.GetString(data.Span);
+            return ValueTask.CompletedTask;
+        }
+
+        public void Resize(int width, int height)
+        {
+        }
+
+        public void Kill(int signal)
+        {
+        }
+
+        public Task<int> WaitForExitAsync(CancellationToken ct) => Task.FromResult(0);
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 }
