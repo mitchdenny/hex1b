@@ -175,48 +175,57 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
 
     private async Task<byte[]?> ReadFrameAsync(CancellationToken ct)
     {
-        // Read headers until empty line
-        var contentLength = -1;
-        while (true)
+        await _readerLock.WaitAsync(ct).ConfigureAwait(false);
+        try
         {
-            var line = await ReadLineAsync(ct).ConfigureAwait(false);
-            if (line == null) return null; // Stream closed
-
-            if (line.Length == 0)
-                break; // End of headers
-
-            if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+            // Serialize access to the shared input stream and line buffer so the
+            // notification loop and shutdown path can't race each other.
+            var contentLength = -1;
+            while (true)
             {
-                var value = line["Content-Length:".Length..].Trim();
-                contentLength = int.Parse(value);
+                var line = await ReadLineAsync(ct).ConfigureAwait(false);
+                if (line == null) return null; // Stream closed
+
+                if (line.Length == 0)
+                    break; // End of headers
+
+                if (line.StartsWith("Content-Length:", StringComparison.OrdinalIgnoreCase))
+                {
+                    var value = line["Content-Length:".Length..].Trim();
+                    contentLength = int.Parse(value);
+                }
             }
+
+            if (contentLength < 0)
+                throw new InvalidOperationException("Missing Content-Length header");
+
+            // Read body — consume from internal buffer first, then from stream
+            var body = new byte[contentLength];
+            var totalRead = 0;
+
+            // Drain any leftover bytes from the line buffer
+            var buffered = _lineBufferLen - _lineBufferPos;
+            if (buffered > 0)
+            {
+                var toCopy = Math.Min(buffered, contentLength);
+                Buffer.BlockCopy(_lineBuffer, _lineBufferPos, body, 0, toCopy);
+                _lineBufferPos += toCopy;
+                totalRead = toCopy;
+            }
+
+            while (totalRead < contentLength)
+            {
+                var read = await _input.ReadAsync(body.AsMemory(totalRead, contentLength - totalRead), ct).ConfigureAwait(false);
+                if (read == 0) return null; // Stream closed
+                totalRead += read;
+            }
+
+            return body;
         }
-
-        if (contentLength < 0)
-            throw new InvalidOperationException("Missing Content-Length header");
-
-        // Read body — consume from internal buffer first, then from stream
-        var body = new byte[contentLength];
-        var totalRead = 0;
-
-        // Drain any leftover bytes from the line buffer
-        var buffered = _lineBufferLen - _lineBufferPos;
-        if (buffered > 0)
+        finally
         {
-            var toCopy = Math.Min(buffered, contentLength);
-            Buffer.BlockCopy(_lineBuffer, _lineBufferPos, body, 0, toCopy);
-            _lineBufferPos += toCopy;
-            totalRead = toCopy;
+            _readerLock.Release();
         }
-
-        while (totalRead < contentLength)
-        {
-            var read = await _input.ReadAsync(body.AsMemory(totalRead, contentLength - totalRead), ct).ConfigureAwait(false);
-            if (read == 0) return null; // Stream closed
-            totalRead += read;
-        }
-
-        return body;
     }
 
     private readonly byte[] _lineBuffer = new byte[4096];
@@ -253,6 +262,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
     public async ValueTask DisposeAsync()
     {
         await _cts.CancelAsync().ConfigureAwait(false);
+        _readerLock.Dispose();
         _writeLock.Dispose();
         _cts.Dispose();
     }
