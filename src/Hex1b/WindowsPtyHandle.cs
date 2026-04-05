@@ -195,6 +195,10 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     {
         if (_disposed)
             throw new ObjectDisposedException(nameof(WindowsPtyHandle));
+
+        var resolvedWorkingDirectory = string.IsNullOrWhiteSpace(workingDirectory)
+            ? Environment.CurrentDirectory
+            : workingDirectory;
         
         // Create pipes for ConPTY
         // Pipe 1: PTY reads from this (child's stdin) - we write to pipeOurInputWrite
@@ -299,7 +303,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                         false,
                         EXTENDED_STARTUPINFO_PRESENT | CREATE_UNICODE_ENVIRONMENT,
                         envPtr,
-                        workingDirectory,
+                        resolvedWorkingDirectory,
                         ref startupInfo,
                         out var processInfo))
                     {

@@ -64,6 +64,75 @@ public class Hex1bTerminalTests
         }
     }
 
+    private sealed class ThrowingInputPresentationAdapter(Exception exception) : IHex1bTerminalPresentationAdapter
+    {
+        private readonly Exception _exception = exception;
+        private bool _hasThrown;
+
+        public int Width => 80;
+        public int Height => 24;
+        public TerminalCapabilities Capabilities => new()
+        {
+            SupportsMouse = true,
+            Supports256Colors = true,
+            SupportsTrueColor = true
+        };
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            if (!_hasThrown)
+            {
+                _hasThrown = true;
+                return ValueTask.FromException<ReadOnlyMemory<byte>>(_exception);
+            }
+
+            return ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+        }
+
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ThrowingWorkloadAdapter(Exception exception) : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly Exception _exception = exception;
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.FromException(_exception);
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -158,6 +227,52 @@ public class Hex1bTerminalTests
         Assert.Equal(Hex1bKey.UpArrow, keyEvent.Key);
         Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
         Assert.False(workload.InputEvents.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenPresentationInputPumpThrows_SurfacesTheFailure()
+    {
+        await using var presentation = new ThrowingInputPresentationAdapter(
+            new InvalidOperationException("synthetic input failure"));
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ex.InnerException);
+        Assert.Contains("synthetic input failure", ex.InnerException!.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenWorkloadWriteInputThrows_SurfacesTheFailure()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        await using var workload = new ThrowingWorkloadAdapter(
+            new IOException("synthetic shim send failure"));
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput("x");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ex.InnerException);
+        Assert.Contains("synthetic shim send failure", ex.InnerException!.Message);
     }
 
     [Theory]

@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text;
 
 namespace Hex1b;
 
@@ -48,6 +49,8 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private int _exitCode;
     private bool _disposed;
     private readonly TaskCompletionSource _startedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly Queue<byte[]> _startupOutputQueue = new();
+    private readonly object _startupOutputLock = new();
     
     // Platform-specific PTY handle (will be implemented per-platform)
     private IPtyHandle? _ptyHandle;
@@ -156,8 +159,20 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         // Build environment
         var env = BuildEnvironment();
         
+        // Null is documented to mean "use the current directory". Resolve it here so
+        // every platform handle, including the Windows shim path, gets the same cwd.
+        var workingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
+            ? Environment.CurrentDirectory
+            : _workingDirectory;
+
         // Start the process
-        await _ptyHandle.StartAsync(_fileName, _arguments, _workingDirectory, env, _width, _height, ct);
+        await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, _width, _height, ct);
+
+        // Interactive shells like cmd.exe and powershell.exe can drop very-early input
+        // while they are still emitting their initial title/prompt burst. Capture a short
+        // startup burst up-front so the first consumer read gets that output immediately,
+        // and nudge Windows shells that still have not painted a visible prompt yet.
+        await WarmWindowsInteractiveShellAsync(ct);
         
         // Signal that the process has started (allows ReadOutputAsync to proceed)
         _startedTcs.TrySetResult();
@@ -205,6 +220,14 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         
         if (_disposed || _ptyHandle == null)
             return ReadOnlyMemory<byte>.Empty;
+
+        lock (_startupOutputLock)
+        {
+            if (_startupOutputQueue.Count > 0)
+            {
+                return _startupOutputQueue.Dequeue();
+            }
+        }
         
         try
         {
@@ -238,6 +261,96 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         {
             // Ignore writes after exit
         }
+    }
+
+    private async Task WarmWindowsInteractiveShellAsync(CancellationToken ct)
+    {
+        var startupBytes = await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
+        if (_ptyHandle == null || !OperatingSystem.IsWindows() || !IsWindowsInteractiveShell())
+        {
+            return;
+        }
+
+        var startupText = StripEscapeSequences(Encoding.UTF8.GetString(startupBytes));
+        TraceWarmupMessage($"child-process startup text for {_fileName}: {startupText}");
+        if (ContainsVisiblePromptMarker(startupText))
+        {
+            TraceWarmupMessage($"child-process startup prompt already visible for {_fileName}");
+            return;
+        }
+
+        // Some Windows shells do not paint their first visible prompt through ConPTY
+        // until they receive a delayed carriage return after the initial title/setup
+        // traffic settles. Nudge them once so the session becomes visibly interactive
+        // before user input is forwarded.
+        TraceWarmupMessage($"child-process sending first startup nudge for {_fileName}");
+        await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
+        await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
+        startupText += StripEscapeSequences(
+            Encoding.UTF8.GetString(await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false)));
+
+        if (!ContainsVisiblePromptMarker(startupText))
+        {
+            TraceWarmupMessage($"child-process sending second startup nudge for {_fileName}");
+            await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
+            await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
+            await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<byte[]> CaptureStartupOutputBurstAsync(CancellationToken ct)
+    {
+        if (_ptyHandle == null)
+        {
+            return [];
+        }
+
+        var captured = new List<byte[]>();
+        var captureDeadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(500);
+        var quietWindow = TimeSpan.FromMilliseconds(75);
+        DateTime? quietDeadline = null;
+
+        while (DateTime.UtcNow < captureDeadline)
+        {
+            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
+            readCts.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+            ReadOnlyMemory<byte> data;
+            try
+            {
+                data = await _ptyHandle.ReadAsync(readCts.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
+            {
+                if (quietDeadline.HasValue && DateTime.UtcNow >= quietDeadline.Value)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            if (data.IsEmpty)
+            {
+                if (quietDeadline.HasValue && DateTime.UtcNow >= quietDeadline.Value)
+                {
+                    break;
+                }
+
+                continue;
+            }
+
+            lock (_startupOutputLock)
+            {
+                var chunk = data.ToArray();
+                _startupOutputQueue.Enqueue(chunk);
+                captured.Add(chunk);
+            }
+
+            quietDeadline = DateTime.UtcNow + quietWindow;
+        }
+
+        return [.. captured.SelectMany(static chunk => chunk)];
     }
     
     /// <inheritdoc />
@@ -274,8 +387,10 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             }
         }
         
-        // Set TERM if not already set
-        if (!env.ContainsKey("TERM"))
+        // TERM helps Unix-side shells and TUI tools pick sensible capabilities.
+        // On Windows/ConPTY it can change cmd.exe / PowerShell prompt behavior in
+        // unhelpful ways, so only inject it on Unix-like platforms.
+        if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && !env.ContainsKey("TERM"))
         {
             env["TERM"] = "xterm-256color";
         }
@@ -311,12 +426,103 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
         else if (OperatingSystem.IsWindows())
         {
-            return new WindowsPtyHandle();
+            return new WindowsProxyPtyHandle();
         }
         else
         {
             throw new PlatformNotSupportedException(
                 $"PTY is not supported on {Environment.OSVersion.Platform}");
+        }
+    }
+
+    private bool IsWindowsInteractiveShell()
+    {
+        var fileName = Path.GetFileName(_fileName);
+        return fileName.Equals("cmd.exe", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("powershell.exe", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("pwsh.exe", StringComparison.OrdinalIgnoreCase) ||
+               fileName.Equals("pwsh", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool ContainsVisiblePromptMarker(string text)
+    {
+        foreach (var rawLine in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
+        {
+            var line = rawLine.TrimEnd();
+            if (line.Length == 0)
+            {
+                continue;
+            }
+
+            if (line.EndsWith(">", StringComparison.Ordinal) || line.EndsWith("> ", StringComparison.Ordinal))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static string StripEscapeSequences(string text)
+    {
+        var builder = new StringBuilder(text.Length);
+
+        for (var i = 0; i < text.Length; i++)
+        {
+            if (text[i] != '\u001b')
+            {
+                builder.Append(text[i]);
+                continue;
+            }
+
+            if (i + 1 >= text.Length)
+            {
+                break;
+            }
+
+            var next = text[i + 1];
+            if (next == '[')
+            {
+                i += 2;
+                while (i < text.Length && (text[i] < '@' || text[i] > '~'))
+                {
+                    i++;
+                }
+
+                continue;
+            }
+
+            if (next == ']')
+            {
+                i += 2;
+                while (i < text.Length && text[i] != '\u0007')
+                {
+                    i++;
+                }
+
+                continue;
+            }
+
+            i++;
+        }
+
+        return builder.ToString();
+    }
+
+    private static void TraceWarmupMessage(string message)
+    {
+        var tracePath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_CLIENT_TRACE_FILE");
+        if (string.IsNullOrWhiteSpace(tracePath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(tracePath, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch
+        {
         }
     }
     

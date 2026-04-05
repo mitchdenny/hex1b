@@ -45,6 +45,7 @@
     <InternalsVisibleTo Include="Hex1b.Benchmarks" />
     <InternalsVisibleTo Include="Hex1b.Tool" />
     <InternalsVisibleTo Include="Hex1b.Tool.Tests" />
+    <InternalsVisibleTo Include="hex1bpty" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,6 +57,17 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="../../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="/" />
   </ItemGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+    <WindowsPtyShimPublishDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\$(WindowsPtyShimRid)\native</WindowsPtyShimPublishDir>
+    <WindowsPtyShimBuildScript>$(MSBuildThisFileDirectory)..\..\eng\build-windows-pty-host.ps1</WindowsPtyShimBuildScript>
+  </PropertyGroup>
+  <PropertyGroup>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeWindowsPtyShimInPackage</TargetsForTfmSpecificContentInPackage>
+    <BuildDependsOn>$(BuildDependsOn);SyncFreshManagedOutput</BuildDependsOn>
+  </PropertyGroup>
 
   <!-- 
     Native interop library for Unix platforms (hex1binterop)
@@ -96,6 +108,31 @@
           Condition="'$(NativeLibraryPath)' != '' and Exists('$(NativeLibraryPath)')">
     <Copy SourceFiles="$(NativeLibraryPath)" 
           DestinationFiles="$(OutputPath)$(NativeLibraryName)" 
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="SyncFreshManagedOutput"
+          Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)\$(IntermediateOutputPath)$(TargetFileName)')">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)$(TargetFileName)"
+          DestinationFiles="$(TargetDir)$(TargetFileName)"
+          SkipUnchangedFiles="false"
+          OverwriteReadOnlyFiles="true" />
+  </Target>
+
+  <Target Name="PublishWindowsPtyShim"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and '$(DesignTimeBuild)' != 'true' and '$(DisableHex1bPtyShimPublish)' != 'true'"
+          AfterTargets="Build">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(WindowsPtyShimBuildScript)&quot; -Configuration &quot;$(Configuration)&quot; -Rid &quot;$(WindowsPtyShimRid)&quot; -OutputDir &quot;$(WindowsPtyShimPublishDir)&quot;" />
+  </Target>
+
+  <Target Name="CopyWindowsPtyShimToOutput"
+          AfterTargets="PublishWindowsPtyShim"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(WindowsPtyShimPublishDir)')">
+    <ItemGroup>
+      <WindowsPtyShimOutputFiles Include="$(WindowsPtyShimPublishDir)\*.*" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimOutputFiles)"
+          DestinationFiles="@(WindowsPtyShimOutputFiles->'$(TargetDir)%(Filename)%(Extension)')"
           SkipUnchangedFiles="true" />
   </Target>
   
@@ -144,7 +181,7 @@
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
   </ItemGroup>
-  
+
   <!-- For RID-specific builds, copy the matching native library -->
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <Content Include="runtimes/linux-x64/native/libhex1binterop.so" 
@@ -216,6 +253,28 @@
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeWindowsPtyShimInPackage"
+          DependsOnTargets="PublishWindowsPtyShim">
+    <ItemGroup>
+      <TfmSpecificPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-x64\native\*.*"
+                              Condition="Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native')">
+        <PackagePath>runtimes/win-x64/native/%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\*.*"
+                              Condition="!Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native') and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native')">
+        <PackagePath>runtimes/win-x64/native/%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-arm64\native\*.*"
+                              Condition="Exists('$(MSBuildProjectDirectory)\runtimes\win-arm64\native')">
+        <PackagePath>runtimes/win-arm64/native/%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
+      <TfmSpecificPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\*.*"
+                              Condition="!Exists('$(MSBuildProjectDirectory)\runtimes\win-arm64\native') and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native')">
+        <PackagePath>runtimes/win-arm64/native/%(Filename)%(Extension)</PackagePath>
+      </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
 

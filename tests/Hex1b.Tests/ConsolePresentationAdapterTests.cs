@@ -4,6 +4,40 @@ namespace Hex1b.Tests;
 
 public class ConsolePresentationAdapterTests
 {
+    [Theory]
+    [InlineData(0x45, '\0', false, false, false, "e")]
+    [InlineData(0x45, '\0', false, false, true, "E")]
+    [InlineData(0x31, '\0', false, false, false, "1")]
+    [InlineData(0x31, '\0', false, false, true, "!")]
+    [InlineData(0xBF, '\0', false, false, false, "/")]
+    [InlineData(0xBF, '\0', false, false, true, "?")]
+    [InlineData(0x20, '\0', false, false, false, " ")]
+    public void WindowsConsoleDriver_GetPrintableText_FallsBackToVirtualKeyMapping(
+        int virtualKey,
+        char unicodeChar,
+        bool hasCtrl,
+        bool hasAlt,
+        bool hasShift,
+        string expected)
+    {
+        var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, unicodeChar, hasCtrl, hasAlt, hasShift);
+
+        Assert.Equal(expected, text);
+    }
+
+    [Theory]
+    [InlineData(0x45, true, false)]
+    [InlineData(0x45, false, true)]
+    public void WindowsConsoleDriver_GetPrintableText_DoesNotInventModifiedCharacters(
+        int virtualKey,
+        bool hasCtrl,
+        bool hasAlt)
+    {
+        var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, '\0', hasCtrl, hasAlt, hasShift: false);
+
+        Assert.Null(text);
+    }
+
     [Fact]
     public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {

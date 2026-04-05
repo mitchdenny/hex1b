@@ -55,7 +55,25 @@ C# wrapper around the native library. Provides async read/write operations for t
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
+### 3. Windows PTY shim (`src/Hex1b.PtyHost.Rust/`)
+
+On Windows, Hex1b now prefers a native Rust out-of-process helper
+(`hex1bpty.exe`) for `WithPtyProcess(...)`. The helper talks directly to the
+Win32 ConPTY APIs and exposes the session over a local Unix-domain socket using
+the framed shim protocol:
+
+- launch request (file name, args, cwd, env, cols, rows)
+- raw output frames back to Hex1b
+- raw input frames from Hex1b
+- resize / kill / shutdown control messages
+- exit notification with the child exit code
+
+This keeps the public `WithPtyProcess(...)` API unchanged while isolating the
+Windows PTY host in a dedicated native process. If the helper is not available,
+Hex1b falls back to the existing in-process `WindowsPtyHandle` implementation
+so local development and existing tests continue to work.
+
+### 4. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
 
 High-level wrapper that implements `IHex1bTerminalWorkloadAdapter`. This is the public API for spawning child processes.
 
@@ -72,7 +90,7 @@ await using var process = new Hex1bTerminalChildProcess(
 );
 ```
 
-### 4. Hex1bTerminal (`src/Hex1b/Terminal/Hex1bTerminal.cs`)
+### 5. Hex1bTerminal (`src/Hex1b/Terminal/Hex1bTerminal.cs`)
 
 The terminal emulator that bridges presentation (user's console) and workload (child process).
 
@@ -102,7 +120,7 @@ The terminal emulator that bridges presentation (user's console) and workload (c
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 5. Console Adapters
+### 6. Console Adapters
 
 **ConsolePresentationAdapter** - Handles raw mode, input reading, and output writing for the user's console.
 
@@ -144,6 +162,13 @@ This is why the native library must NOT copy the parent's termios - the parent i
 
 Tmux now works correctly, including vertical splits. The fix was to remove `Console.TreatControlCAsInput = true` from the console driver, as this was corrupting terminal state.
 
+### Windows packaging
+
+The Windows PTY helper is intended to ship as a packaged runtime asset alongside
+Hex1b (`runtimes/win-x64/native/hex1bpty.exe`, with additional publish outputs
+as needed). The runtime resolves it automatically before falling back to the
+legacy in-process ConPTY path.
+
 ### Mouse Support
 Currently keyboard-only. Mouse events would need to be:
 1. Captured in presentation adapter
@@ -160,6 +185,16 @@ dotnet run --project samples/TmuxDemo
 
 This spawns a bash shell with a custom prompt. Type `tmux` to test tmux functionality.
 
+On Windows, `WindowsPtyDemo` provides the equivalent pass-through harness for the
+packaged PTY shim:
+
+```powershell
+dotnet run --project samples/WindowsPtyDemo
+```
+
+It launches `powershell.exe` via `WithPtyProcess(...)` and will use
+`hex1bpty.exe` automatically when that helper is present in the sample output.
+
 ## Files Reference
 
 | File | Purpose |
@@ -172,3 +207,4 @@ This spawns a bash shell with a custom prompt. Type `tmux` to test tmux function
 | `src/Hex1b/Terminal/UnixConsoleDriver.cs` | Unix raw mode driver |
 | `src/Hex1b/Terminal/AnsiTokenizer.cs` | ANSI sequence parser |
 | `samples/TmuxDemo/Program.cs` | Test harness |
+| `samples/WindowsPtyDemo/Program.cs` | Windows PTY shim harness |

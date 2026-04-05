@@ -85,6 +85,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
+    private readonly TaskCompletionSource<(string PumpName, Exception Error)> _pumpFaultTcs =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
@@ -475,17 +477,19 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
 
             // Execute the run callback or wait for workload disconnect
-            int exitCode = 0;
-            if (_runCallback != null)
+            var runTask = _runCallback != null
+                ? _runCallback(ct)
+                : WaitForWorkloadDisconnectWithExitCodeAsync(ct);
+
+            var completedTask = await Task.WhenAny(runTask, _pumpFaultTcs.Task);
+            if (completedTask == _pumpFaultTcs.Task)
             {
-                exitCode = await _runCallback(ct);
+                var (pumpName, error) = await _pumpFaultTcs.Task;
+                throw new InvalidOperationException($"The {pumpName} failed.", error);
             }
-            else
-            {
-                // No run callback - wait for workload to disconnect
-                await WaitForWorkloadDisconnectAsync(ct);
-            }
-            
+
+            var exitCode = await runTask;
+             
             // Notify lifecycle-aware presentation adapters that the terminal has completed
             if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             {
@@ -535,6 +539,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    private async Task<int> WaitForWorkloadDisconnectWithExitCodeAsync(CancellationToken ct)
+    {
+        await WaitForWorkloadDisconnectAsync(ct);
+        return 0;
+    }
+
     // === I/O Pump Tasks ===
 
     /// <summary>
@@ -579,6 +589,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            ReportPumpFault("presentation input reader", ex);
+            _presentationInputChannel.Writer.TryComplete(ex);
         }
         finally
         {
@@ -662,6 +677,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            ReportPumpFault("presentation input pump", ex);
         }
     }
 
@@ -1374,6 +1393,41 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            ReportPumpFault("workload output pump", ex);
+        }
+    }
+
+    private void ReportPumpFault(string pumpName, Exception error)
+    {
+        if (error is OperationCanceledException && _disposeCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        TracePump($"{pumpName} faulted: {error}");
+        _pumpFaultTcs.TrySetResult((pumpName, error));
+    }
+
+    private static void TracePump(string message)
+    {
+        var tracePath = Environment.GetEnvironmentVariable("HEX1B_TERMINAL_PUMP_TRACE_FILE");
+        if (string.IsNullOrWhiteSpace(tracePath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(tracePath, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
         }
     }
 
