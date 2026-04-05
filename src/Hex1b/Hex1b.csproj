@@ -62,9 +62,11 @@
     <!-- Local Windows builds default to a debuggable helper; pack flips this to AOT automatically. -->
     <Hex1bPtyHostEnabled>true</Hex1bPtyHostEnabled>
     <Hex1bPtyHostPackPublishMode Condition="'$(Hex1bPtyHostPackPublishMode)' == ''">Aot</Hex1bPtyHostPackPublishMode>
+    <Hex1bPtyHostPackRids Condition="'$(Hex1bPtyHostPackRids)' == ''">$(WindowsPtyShimRid)</Hex1bPtyHostPackRids>
     <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
     <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
-    <WindowsPtyShimPublishDir>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\$(WindowsPtyShimRid)\native</WindowsPtyShimPublishDir>
+    <WindowsPtyShimPublishRoot>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim</WindowsPtyShimPublishRoot>
+    <WindowsPtyShimPublishDir>$(WindowsPtyShimPublishRoot)\$(WindowsPtyShimRid)\native</WindowsPtyShimPublishDir>
     <WindowsPtyShimBuildScript>$(MSBuildThisFileDirectory)..\..\eng\build-windows-pty-host.ps1</WindowsPtyShimBuildScript>
   </PropertyGroup>
   <PropertyGroup>
@@ -144,8 +146,11 @@
 
   <Target Name="PublishWindowsPtyShimForPack"
           Condition="'$(Hex1bPtyHostEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(DisableHex1bPtyShimPublish)' != 'true'">
-    <Message Importance="High" Text="Building Windows PTY host ($(Hex1bPtyHostPackPublishMode)) for packaging..." />
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(WindowsPtyShimBuildScript)&quot; -Configuration &quot;$(Configuration)&quot; -Rid &quot;$(WindowsPtyShimRid)&quot; -PublishMode &quot;$(Hex1bPtyHostPackPublishMode)&quot; -OutputDir &quot;$(WindowsPtyShimPublishDir)&quot;" />
+    <ItemGroup>
+      <WindowsPtyShimPackRid Include="$(Hex1bPtyHostPackRids)" />
+    </ItemGroup>
+    <Message Importance="High" Text="Building Windows PTY host ($(Hex1bPtyHostPackPublishMode)) for packaging: @(WindowsPtyShimPackRid, ', ')." />
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(WindowsPtyShimBuildScript)&quot; -Configuration &quot;$(Configuration)&quot; -Rid &quot;%(WindowsPtyShimPackRid.Identity)&quot; -PublishMode &quot;$(Hex1bPtyHostPackPublishMode)&quot; -OutputDir &quot;$(WindowsPtyShimPublishRoot)\%(WindowsPtyShimPackRid.Identity)\native&quot;" />
   </Target>
   
   <!-- Pack native libraries into NuGet package -->

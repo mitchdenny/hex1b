@@ -70,9 +70,17 @@ function Import-VsBuildEnvironment {
         "Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
     }
 
-    $installationPath = (& $vswhere -latest -products * -requires $requiredComponent -property installationPath | Select-Object -First 1).Trim()
+    $installationPath = ""
+    $requiredInstallationPath = & $vswhere -latest -products * -requires $requiredComponent -property installationPath | Select-Object -First 1
+    if (-not [string]::IsNullOrWhiteSpace($requiredInstallationPath)) {
+        $installationPath = $requiredInstallationPath.Trim()
+    }
+
     if ([string]::IsNullOrWhiteSpace($installationPath)) {
-        $installationPath = (& $vswhere -latest -products * -property installationPath | Select-Object -First 1).Trim()
+        $fallbackInstallationPath = & $vswhere -latest -products * -property installationPath | Select-Object -First 1
+        if (-not [string]::IsNullOrWhiteSpace($fallbackInstallationPath)) {
+            $installationPath = $fallbackInstallationPath.Trim()
+        }
     }
 
     if ([string]::IsNullOrWhiteSpace($installationPath)) {
