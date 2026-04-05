@@ -55,12 +55,12 @@ C# wrapper around the native library. Provides async read/write operations for t
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Windows PTY shim (`src/Hex1b.PtyHost.Rust/`)
+### 3. Windows PTY shim (`src/Hex1b.PtyHost/`)
 
-On Windows, Hex1b now prefers a native Rust out-of-process helper
-(`hex1bpty.exe`) for `WithPtyProcess(...)`. The helper talks directly to the
-Win32 ConPTY APIs and exposes the session over a local Unix-domain socket using
-the framed shim protocol:
+On Windows, Hex1b uses an out-of-process managed helper (`hex1bpty.exe`) for
+`WithPtyProcess(...)`. The helper talks directly to the Win32 ConPTY APIs and
+exposes the session over a local Unix-domain socket using the framed shim
+protocol:
 
 - launch request (file name, args, cwd, env, cols, rows)
 - raw output frames back to Hex1b
@@ -69,9 +69,12 @@ the framed shim protocol:
 - exit notification with the child exit code
 
 This keeps the public `WithPtyProcess(...)` API unchanged while isolating the
-Windows PTY host in a dedicated native process. If the helper is not available,
-Hex1b falls back to the existing in-process `WindowsPtyHandle` implementation
-so local development and existing tests continue to work.
+Windows PTY host in a dedicated helper process. For normal repo builds on
+Windows, MSBuild publishes a debuggable non-AOT version of `hex1bpty.exe`. For
+package production, the same build wiring can switch to a Native AOT publish so
+the packaged runtime asset remains self-contained. If the helper is not
+available, Hex1b falls back to the existing in-process `WindowsPtyHandle`
+implementation so local development and existing tests continue to work.
 
 ### 4. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
 
@@ -164,10 +167,24 @@ Tmux now works correctly, including vertical splits. The fix was to remove `Cons
 
 ### Windows packaging
 
-The Windows PTY helper is intended to ship as a packaged runtime asset alongside
-Hex1b (`runtimes/win-x64/native/hex1bpty.exe`, with additional publish outputs
-as needed). The runtime resolves it automatically before falling back to the
-legacy in-process ConPTY path.
+The Windows PTY helper ships as a packaged runtime asset alongside Hex1b under
+`runtimes/win-*/native/hex1bpty.exe`. The repo's MSBuild flow defaults to a
+non-AOT helper for local debugging, but package-oriented builds can switch to a
+Native AOT publish so the bundled Windows helper behaves like the other native
+runtime assets.
+
+For Windows contributors working in the repo:
+
+```powershell
+# Default inner-loop/debuggable helper build
+dotnet build src/Hex1b/Hex1b.csproj
+
+# Explicit Native AOT helper build
+dotnet build src/Hex1b/Hex1b.csproj -p:Hex1bPtyHostPublishMode=Aot
+```
+
+`dotnet pack` on Windows automatically prefers the `Aot` mode unless it is
+explicitly overridden.
 
 ### Mouse Support
 Currently keyboard-only. Mouse events would need to be:

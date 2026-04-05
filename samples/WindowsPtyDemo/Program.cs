@@ -43,22 +43,11 @@ return 0;
 static string? TryFindShimPath()
 {
     var rid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
-    var preference = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_IMPL");
-    var executableNames =
-        preference is not null &&
-        (preference.Equals("managed", StringComparison.OrdinalIgnoreCase) ||
-         preference.Equals("dotnet", StringComparison.OrdinalIgnoreCase) ||
-         preference.Equals("aot", StringComparison.OrdinalIgnoreCase))
-            ? new[] { "hex1bpty-managed.exe", "hex1bpty.exe" }
-            : new[] { "hex1bpty.exe", "hex1bpty-managed.exe" };
-
-    var candidates = executableNames
-        .SelectMany(name => new[]
-        {
-            Path.Combine(AppContext.BaseDirectory, name),
-            Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", name)
-        })
-        .ToArray();
+    string[] candidates =
+    [
+        Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe"),
+        Path.Combine(AppContext.BaseDirectory, "runtimes", rid, "native", "hex1bpty.exe")
+    ];
 
     return candidates.FirstOrDefault(File.Exists);
 }

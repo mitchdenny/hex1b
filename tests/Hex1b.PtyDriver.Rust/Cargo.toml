@@ -1,8 +1,0 @@
-[package]
-name = "hex1b-pty-driver-rust"
-version = "0.1.0"
-edition = "2021"
-publish = false
-
-[dependencies]
-hex1bpty = { path = "../../src/Hex1b.PtyHost.Rust" }

@@ -91,11 +91,9 @@ public class WindowsPtyDisposeTests
         }
     }
 
-    [Theory]
-    [InlineData("hex1bpty.exe")]
-    [InlineData("hex1bpty-managed.exe")]
+    [Fact]
     [Trait("Category", "Windows")]
-    public async Task WithPtyProcess_WhenSelectedShimAvailable_StreamsOutputInputAndResize(string shimFileName)
+    public async Task WithPtyProcess_WhenShimAvailable_StreamsOutputInputAndResize()
     {
         if (!OperatingSystem.IsWindows())
             return;
@@ -105,11 +103,8 @@ public class WindowsPtyDisposeTests
 
         try
         {
-            var shimPath = Path.Combine(AppContext.BaseDirectory, shimFileName);
-            if (!File.Exists(shimPath))
-            {
-                return;
-            }
+            var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+            Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
             Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
             Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", shimPath);

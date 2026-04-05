@@ -247,7 +247,7 @@ public sealed class Hex1bTerminalBuilder
     /// Programs won't detect a TTY (isatty() returns false), so this is suitable for:
     /// </para>
     /// <list type="bullet">
-    ///   <item>Build tools (dotnet, make, cargo)</item>
+    ///   <item>Build tools (dotnet, make, msbuild)</item>
     ///   <item>Command-line utilities (grep, find, curl)</item>
     ///   <item>Scripts and batch processing</item>
     /// </list>
