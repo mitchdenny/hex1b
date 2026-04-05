@@ -181,15 +181,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build Windows PTY shim
+      - name: Build Windows PTY shim via MSBuild
         shell: pwsh
-        run: .\eng\build-windows-pty-host.ps1 -Configuration Release -Rid win-x64 -PublishMode Aot -OutputDir src\Hex1b\runtimes\win-x64\native
+        run: dotnet build .\src\Hex1b\Hex1b.csproj -c Release --nologo -p:Hex1bPtyHostPublishMode=Aot -p:WindowsPtyShimRid=win-x64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pty-host-windows-x64
-          path: src/Hex1b/runtimes/win-x64/native
+          path: src/Hex1b/obj/windows-pty-shim/win-x64/native
 
   build-pty-host-windows-arm64:
     runs-on: windows-11-arm
@@ -202,15 +202,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build Windows PTY shim
+      - name: Build Windows PTY shim via MSBuild
         shell: pwsh
-        run: .\eng\build-windows-pty-host.ps1 -Configuration Release -Rid win-arm64 -PublishMode Aot -OutputDir src\Hex1b\runtimes\win-arm64\native
+        run: dotnet build .\src\Hex1b\Hex1b.csproj -c Release --nologo -p:Hex1bPtyHostPublishMode=Aot -p:WindowsPtyShimRid=win-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pty-host-windows-arm64
-          path: src/Hex1b/runtimes/win-arm64/native
+          path: src/Hex1b/obj/windows-pty-shim/win-arm64/native
 
   build-pr:
     runs-on: ubuntu-latest

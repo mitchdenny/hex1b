@@ -70,10 +70,11 @@ protocol:
 
 This keeps the public `WithPtyProcess(...)` API unchanged while isolating the
 Windows PTY host in a dedicated helper process. For normal repo builds on
-Windows, MSBuild publishes a debuggable non-AOT version of `hex1bpty.exe` for
-the current Windows architecture (`win-x64` or `win-arm64`). For package
-production, the same build wiring publishes Native AOT helpers for both Windows
-RIDs so the packaged runtime assets remain self-contained. If the helper is not
+Windows, the project file itself publishes a debuggable non-AOT version of
+`hex1bpty.exe` for the current Windows architecture (`win-x64` or `win-arm64`)
+as part of a normal `dotnet build`. For package production, the same MSBuild
+wiring publishes Native AOT helpers for the Windows runtime assets required by
+CI so the packaged runtime assets remain self-contained. If the helper is not
 available, Hex1b falls back to the existing in-process `WindowsPtyHandle`
 implementation so local development and existing tests continue to work.
 
