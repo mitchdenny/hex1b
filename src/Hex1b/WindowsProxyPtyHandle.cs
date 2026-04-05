@@ -196,40 +196,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 throw new InvalidOperationException($"Unexpected PTY shim response: {responseFrame.Type}.");
         }
 
-        var startupText = await DrainInitialFramesAsync(ct).ConfigureAwait(false);
-        TraceShimMessage($"startup visible text for {fileName}: {startupText}");
-        var hasPrompt = ContainsVisiblePromptMarker(startupText);
-        TraceShimMessage($"startup prompt detected={hasPrompt} for {fileName}");
-        if (WindowsPtyShellHeuristics.RequiresPromptWarmup(fileName, arguments) &&
-            !hasPrompt &&
-            !_exitCodeTcs.Task.IsCompleted)
-        {
-            await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
-            if (_exitCodeTcs.Task.IsCompleted || _stream == null)
-            {
-                return;
-            }
-
-            var promptNudge = "\r"u8.ToArray();
-            TraceShimMessage($"sending startup prompt nudge for {fileName}");
-            TraceShimFrame("send", WindowsPtyShimFrameType.Input, promptNudge);
-            try
-            {
-                await WindowsPtyShimProtocol.WriteFrameAsync(_stream, WindowsPtyShimFrameType.Input, promptNudge, ct).ConfigureAwait(false);
-            }
-            catch (IOException) when (_exitCodeTcs.Task.IsCompleted || _helperProcess?.HasExited == true)
-            {
-                TraceShimMessage($"skipping startup prompt nudge for {fileName} because the shim already exited.");
-                return;
-            }
-            catch (ObjectDisposedException) when (_exitCodeTcs.Task.IsCompleted || _disposed)
-            {
-                TraceShimMessage($"skipping startup prompt nudge for {fileName} because the shim transport was already closed.");
-                return;
-            }
-
-            await DrainInitialFramesAsync(ct).ConfigureAwait(false);
-        }
+        await DrainInitialFramesAsync(ct).ConfigureAwait(false);
 
         _sendLoopTask = Task.Run(() => RunSendLoopAsync(_cts.Token), _cts.Token);
         _receiveLoopTask = Task.Run(() => RunReceiveLoopAsync(_cts.Token), _cts.Token);
@@ -458,14 +425,13 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         }
     }
 
-    private async Task<string> DrainInitialFramesAsync(CancellationToken ct)
+    private async Task DrainInitialFramesAsync(CancellationToken ct)
     {
         if (_socket == null || _stream == null)
         {
-            return string.Empty;
+            return;
         }
 
-        var text = new System.Text.StringBuilder();
         var deadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(500);
         var quietUntil = DateTime.UtcNow + TimeSpan.FromMilliseconds(75);
 
@@ -488,18 +454,12 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
             }
 
             quietUntil = DateTime.UtcNow + TimeSpan.FromMilliseconds(75);
-            if (frame.Value.Type == WindowsPtyShimFrameType.Output && frame.Value.Payload.Length > 0)
-            {
-                text.Append(System.Text.Encoding.UTF8.GetString(frame.Value.Payload));
-            }
 
             if (await HandleReceivedFrameAsync(frame.Value, ct).ConfigureAwait(false))
             {
                 break;
             }
         }
-
-        return StripEscapeSequences(text.ToString());
     }
 
     private async Task<bool> HandleReceivedFrameAsync(
@@ -703,71 +663,6 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         catch
         {
         }
-    }
-
-    private static bool ContainsVisiblePromptMarker(string text)
-    {
-        foreach (var rawLine in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var line = rawLine.TrimEnd();
-            if (line.Length == 0)
-            {
-                continue;
-            }
-
-            if (line.EndsWith(">", StringComparison.Ordinal) || line.EndsWith("> ", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string StripEscapeSequences(string text)
-    {
-        var builder = new System.Text.StringBuilder(text.Length);
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (text[i] != '\u001b')
-            {
-                builder.Append(text[i]);
-                continue;
-            }
-
-            if (i + 1 >= text.Length)
-            {
-                break;
-            }
-
-            var next = text[i + 1];
-            if (next == '[')
-            {
-                i += 2;
-                while (i < text.Length && (text[i] < '@' || text[i] > '~'))
-                {
-                    i++;
-                }
-
-                continue;
-            }
-
-            if (next == ']')
-            {
-                i += 2;
-                while (i < text.Length && text[i] != '\u0007')
-                {
-                    i++;
-                }
-
-                continue;
-            }
-
-            i++;
-        }
-
-        return builder.ToString();
     }
 
     private sealed record PendingFrame(WindowsPtyShimFrameType Type, byte[] Payload);

@@ -192,11 +192,10 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         // Start the process
         await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, _width, _height, ct);
 
-        // Interactive shells like cmd.exe and powershell.exe can drop very-early input
-        // while they are still emitting their initial title/prompt burst. Capture a short
-        // startup burst up-front so the first consumer read gets that output immediately,
-        // and nudge Windows shells that still have not painted a visible prompt yet.
-        await WarmWindowsInteractiveShellAsync(ct);
+        // Capture a short startup burst up-front so the first consumer read gets the
+        // initial title/prompt output immediately. Handle-level warmup owns any
+        // Windows-specific nudging so we do not synthesize an extra Enter here.
+        await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
 
         _started = true;
 
@@ -290,79 +289,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         catch (Exception) when (_exited || _disposed)
         {
             // Ignore writes after exit
-        }
-    }
-
-    private async Task WarmWindowsInteractiveShellAsync(CancellationToken ct)
-    {
-        var startupBytes = await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
-        if (_ptyHandle == null ||
-            !OperatingSystem.IsWindows() ||
-            !WindowsPtyShellHeuristics.RequiresPromptWarmup(_fileName, _arguments))
-        {
-            return;
-        }
-
-        var startupText = StripEscapeSequences(Encoding.UTF8.GetString(startupBytes));
-        TraceWarmupMessage($"child-process startup text for {_fileName}: {startupText}");
-        if (ContainsVisiblePromptMarker(startupText))
-        {
-            TraceWarmupMessage($"child-process startup prompt already visible for {_fileName}");
-            return;
-        }
-
-        // Some Windows shells do not paint their first visible prompt through ConPTY
-        // until they receive a delayed carriage return after the initial title/setup
-        // traffic settles. Nudge them once so the session becomes visibly interactive
-        // before user input is forwarded.
-        if (!await TrySendWarmupNudgeAsync($"child-process sending first startup nudge for {_fileName}", ct).ConfigureAwait(false))
-        {
-            return;
-        }
-
-        startupText += StripEscapeSequences(
-            Encoding.UTF8.GetString(await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false)));
-
-        if (!ContainsVisiblePromptMarker(startupText))
-        {
-            if (!await TrySendWarmupNudgeAsync($"child-process sending second startup nudge for {_fileName}", ct).ConfigureAwait(false))
-            {
-                return;
-            }
-
-            await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
-        }
-    }
-
-    private async Task<bool> TrySendWarmupNudgeAsync(string message, CancellationToken ct)
-    {
-        if (_ptyHandle == null || _disposed || _exited)
-        {
-            return false;
-        }
-
-        TraceWarmupMessage(message);
-
-        await Task.Delay(TimeSpan.FromMilliseconds(250), ct).ConfigureAwait(false);
-        if (_ptyHandle == null || _disposed || _exited)
-        {
-            return false;
-        }
-
-        try
-        {
-            await _ptyHandle.WriteAsync("\r"u8.ToArray(), ct).ConfigureAwait(false);
-            return true;
-        }
-        catch (IOException)
-        {
-            TraceWarmupMessage($"child-process skipped startup nudge after {_fileName} exited.");
-            return false;
-        }
-        catch (ObjectDisposedException)
-        {
-            TraceWarmupMessage($"child-process skipped startup nudge because the PTY handle for {_fileName} was disposed.");
-            return false;
         }
     }
 
@@ -503,88 +429,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
     }
 
-    private static bool ContainsVisiblePromptMarker(string text)
-    {
-        foreach (var rawLine in text.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries))
-        {
-            var line = rawLine.TrimEnd();
-            if (line.Length == 0)
-            {
-                continue;
-            }
-
-            if (line.EndsWith(">", StringComparison.Ordinal) || line.EndsWith("> ", StringComparison.Ordinal))
-            {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private static string StripEscapeSequences(string text)
-    {
-        var builder = new StringBuilder(text.Length);
-
-        for (var i = 0; i < text.Length; i++)
-        {
-            if (text[i] != '\u001b')
-            {
-                builder.Append(text[i]);
-                continue;
-            }
-
-            if (i + 1 >= text.Length)
-            {
-                break;
-            }
-
-            var next = text[i + 1];
-            if (next == '[')
-            {
-                i += 2;
-                while (i < text.Length && (text[i] < '@' || text[i] > '~'))
-                {
-                    i++;
-                }
-
-                continue;
-            }
-
-            if (next == ']')
-            {
-                i += 2;
-                while (i < text.Length && text[i] != '\u0007')
-                {
-                    i++;
-                }
-
-                continue;
-            }
-
-            i++;
-        }
-
-        return builder.ToString();
-    }
-
-    private static void TraceWarmupMessage(string message)
-    {
-        var tracePath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_CLIENT_TRACE_FILE");
-        if (string.IsNullOrWhiteSpace(tracePath))
-        {
-            return;
-        }
-
-        try
-        {
-            File.AppendAllText(tracePath, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
-        }
-        catch
-        {
-        }
-    }
-    
     // === Disposal ===
     
     /// <inheritdoc />

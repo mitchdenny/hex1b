@@ -42,6 +42,29 @@ public class Hex1bTerminalChildProcessTests
         Assert.Equal("hello", handle.LastWriteText);
     }
 
+    [Fact]
+    public async Task StartAsync_DoesNotInjectSyntheticEnterDuringInteractiveStartup()
+    {
+        var handle = new DelayedStartPtyHandle();
+        await using var process = new Hex1bTerminalChildProcess(
+            "powershell.exe",
+            ["-NoLogo", "-NoProfile"],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 24,
+            ptyHandleFactory: () => handle);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        handle.CompleteStart();
+
+        await process.StartAsync(cts.Token);
+
+        Assert.True(process.HasStarted);
+        Assert.Equal(0, handle.WriteCount);
+    }
+
     /// <summary>
     /// Verifies that when we launch bash with "tty" command, it reports
     /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
@@ -1889,6 +1912,7 @@ public class Hex1bTerminalChildProcessTests
         public int ProcessId => 1234;
 
         public string LastWriteText { get; private set; } = string.Empty;
+        public int WriteCount { get; private set; }
 
         public void CompleteStart() => _startTcs.TrySetResult();
 
@@ -1908,6 +1932,7 @@ public class Hex1bTerminalChildProcessTests
         public ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
         {
             LastWriteText = Encoding.UTF8.GetString(data.Span);
+            WriteCount++;
             return ValueTask.CompletedTask;
         }
 
