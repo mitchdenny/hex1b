@@ -136,7 +136,7 @@
     <MakeDir Directories="$(WindowsPtyShimPublishDir)" />
 
     <MSBuild Projects="$(WindowsPtyHostProject)"
-             Targets="Build"
+             Targets="Restore;Build"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=$(WindowsPtyShimRid)"
              BuildInParallel="false"
              Condition="'$(Hex1bPtyHostPublishMode)' != 'Aot'" />
@@ -151,7 +151,7 @@
           Condition="'$(Hex1bPtyHostPublishMode)' != 'Aot'" />
 
     <MSBuild Projects="$(WindowsPtyHostProject)"
-             Targets="Publish"
+             Targets="Restore;Publish"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=$(WindowsPtyShimRid);PublishAot=true;SelfContained=true;PublishDir=$(WindowsPtyShimPublishDir)\"
              BuildInParallel="false"
              Condition="'$(Hex1bPtyHostPublishMode)' == 'Aot'" />
@@ -177,7 +177,7 @@
     <RemoveDir Directories="@(WindowsPtyShimPackRid -> '$(WindowsPtyShimPublishRoot)\%(Identity)\native')" />
     <MakeDir Directories="@(WindowsPtyShimPackRid -> '$(WindowsPtyShimPublishRoot)\%(Identity)\native')" />
     <MSBuild Projects="$(WindowsPtyHostProject)"
-             Targets="Publish"
+             Targets="Restore;Publish"
              Properties="Configuration=$(Configuration);RuntimeIdentifier=%(WindowsPtyShimPackRid.Identity);PublishAot=true;SelfContained=true;PublishDir=$(WindowsPtyShimPublishRoot)\%(WindowsPtyShimPackRid.Identity)\native\"
              BuildInParallel="false" />
   </Target>
