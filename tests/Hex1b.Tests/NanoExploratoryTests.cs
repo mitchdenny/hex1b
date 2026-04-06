@@ -1,6 +1,68 @@
 using System.Text;
+using System.Diagnostics;
 
 namespace Hex1b.Tests;
+
+/// <summary>
+/// Custom xUnit Fact attribute that skips Unix PTY exploratory tests on Windows
+/// or when the required shell/tool is unavailable.
+/// </summary>
+public sealed class UnixPtyFactAttribute : FactAttribute
+{
+    private static readonly bool s_bashAvailable = CheckCommandAvailable("bash", "--version");
+    private static readonly bool s_nanoAvailable = CheckCommandAvailable("nano", "--version");
+
+    public UnixPtyFactAttribute(
+        bool requiresNano = false,
+        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
+        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
+        : base(sourceFilePath, sourceLineNumber)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Skip = "Requires Unix PTY behavior; skip on Windows.";
+            return;
+        }
+
+        if (!s_bashAvailable)
+        {
+            Skip = "bash is not available on this machine.";
+            return;
+        }
+
+        if (requiresNano && !s_nanoAvailable)
+        {
+            Skip = "nano is not available on this machine.";
+        }
+    }
+
+    private static bool CheckCommandAvailable(string command, string versionArg)
+    {
+        try
+        {
+            var startInfo = new ProcessStartInfo(command, [versionArg])
+            {
+                RedirectStandardOutput = true,
+                RedirectStandardError = true,
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+
+            using var process = Process.Start(startInfo);
+            if (process == null)
+            {
+                return false;
+            }
+
+            process.WaitForExit(TimeSpan.FromSeconds(5));
+            return process.ExitCode == 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+}
 
 /// <summary>
 /// Exploratory tests to debug the nano rendering issue in embedded terminals.
@@ -345,7 +407,7 @@ public class NanoExploratoryTests
     /// PTY test: Use printf to test escape sequence handling through the PTY pipeline.
     /// This tests if the full PTY -> Hex1bTerminal -> TerminalWidgetHandle pipeline works.
     /// </summary>
-    [Fact]
+    [UnixPtyFact]
     public async Task Pty_Printf_RendersCorrectly()
     {
         // Arrange
@@ -402,7 +464,7 @@ public class NanoExploratoryTests
     /// <summary>
     /// PTY test: Nano buffer content diagnostic.
     /// </summary>
-    [Fact]
+    [UnixPtyFact(true)]
     public async Task Nano_BufferContent_Diagnostic()
     {
         // Arrange

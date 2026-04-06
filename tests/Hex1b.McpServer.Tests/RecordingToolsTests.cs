@@ -1,4 +1,5 @@
 using System.Text.Json;
+using ModelContextProtocol.Client;
 using ModelContextProtocol.Protocol;
 
 namespace Hex1b.McpServer.Tests;
@@ -9,6 +10,10 @@ namespace Hex1b.McpServer.Tests;
 public class RecordingToolsTests : McpServerTestBase
 {
     private readonly List<string> _tempFiles = new();
+
+    private static string StartTerminalToolName => OperatingSystem.IsWindows()
+        ? "start_pwsh_terminal"
+        : "start_bash_terminal";
 
     private string GetTempFile()
     {
@@ -35,6 +40,36 @@ public class RecordingToolsTests : McpServerTestBase
         return textBlock?.Text;
     }
 
+    private async Task<string> StartTerminalSessionAsync(McpClient client, int width = 80, int height = 24)
+    {
+        var createResult = await client.CallToolAsync(
+            StartTerminalToolName,
+            new Dictionary<string, object?>
+            {
+                ["width"] = width,
+                ["height"] = height,
+                ["workingDirectory"] = Path.GetTempPath()
+            },
+            cancellationToken: TestCancellationToken);
+
+        var createText = GetTextContent(createResult);
+        Assert.NotNull(createText);
+
+        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
+        var success = createResponse.TryGetProperty("success", out var successValue) && successValue.GetBoolean();
+        var message = createResponse.TryGetProperty("message", out var messageValue)
+            ? messageValue.GetString()
+            : null;
+
+        Assert.True(success, message ?? $"Expected {StartTerminalToolName} to succeed.");
+        Assert.True(
+            createResponse.TryGetProperty("sessionId", out var sessionIdValue)
+            && !string.IsNullOrWhiteSpace(sessionIdValue.GetString()),
+            $"Expected terminal start response to include a sessionId. Response: {createText}");
+
+        return sessionIdValue.GetString()!;
+    }
+
     [Fact]
     public async Task StartAsciinemaRecording_ValidSession_StartsRecording()
     {
@@ -42,21 +77,7 @@ public class RecordingToolsTests : McpServerTestBase
         await StartServerAsync();
         await using var client = await CreateClientAsync();
         
-        // Create a terminal session first using the actual tool name
-        var createResult = await client.CallToolAsync(
-            "start_bash_terminal",
-            new Dictionary<string, object?>
-            {
-                ["width"] = 80,
-                ["height"] = 24,
-                ["workingDirectory"] = "/tmp"
-            },
-            cancellationToken: TestCancellationToken);
-        
-        var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
-        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
-        var sessionId = createResponse.GetProperty("sessionId").GetString()!;
+        var sessionId = await StartTerminalSessionAsync(client);
         var tempFile = GetTempFile();
 
         // Act
@@ -96,20 +117,7 @@ public class RecordingToolsTests : McpServerTestBase
         await StartServerAsync();
         await using var client = await CreateClientAsync();
         
-        // Create session
-        var createResult = await client.CallToolAsync(
-            "start_bash_terminal",
-            new Dictionary<string, object?>
-            {
-                ["width"] = 80,
-                ["height"] = 24
-            },
-            cancellationToken: TestCancellationToken);
-        
-        var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
-        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
-        var sessionId = createResponse.GetProperty("sessionId").GetString()!;
+        var sessionId = await StartTerminalSessionAsync(client);
         var tempFile = GetTempFile();
 
         // Start recording
@@ -169,20 +177,7 @@ public class RecordingToolsTests : McpServerTestBase
         await StartServerAsync();
         await using var client = await CreateClientAsync();
         
-        // Create session
-        var createResult = await client.CallToolAsync(
-            "start_bash_terminal",
-            new Dictionary<string, object?>
-            {
-                ["width"] = 80,
-                ["height"] = 24
-            },
-            cancellationToken: TestCancellationToken);
-        
-        var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
-        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
-        var sessionId = createResponse.GetProperty("sessionId").GetString()!;
+        var sessionId = await StartTerminalSessionAsync(client);
         var tempFile = GetTempFile();
 
         // Start recording
@@ -252,20 +247,7 @@ public class RecordingToolsTests : McpServerTestBase
         await StartServerAsync();
         await using var client = await CreateClientAsync();
         
-        // Create session
-        var createResult = await client.CallToolAsync(
-            "start_bash_terminal",
-            new Dictionary<string, object?>
-            {
-                ["width"] = 80,
-                ["height"] = 24
-            },
-            cancellationToken: TestCancellationToken);
-        
-        var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
-        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
-        var sessionId = createResponse.GetProperty("sessionId").GetString()!;
+        var sessionId = await StartTerminalSessionAsync(client);
         var tempFile1 = GetTempFile();
         var tempFile2 = GetTempFile();
 
@@ -310,20 +292,7 @@ public class RecordingToolsTests : McpServerTestBase
         await StartServerAsync();
         await using var client = await CreateClientAsync();
         
-        // Create session without starting recording
-        var createResult = await client.CallToolAsync(
-            "start_bash_terminal",
-            new Dictionary<string, object?>
-            {
-                ["width"] = 80,
-                ["height"] = 24
-            },
-            cancellationToken: TestCancellationToken);
-        
-        var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
-        var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
-        var sessionId = createResponse.GetProperty("sessionId").GetString()!;
+        var sessionId = await StartTerminalSessionAsync(client);
 
         // Act - stop when not recording
         var result = await client.CallToolAsync(

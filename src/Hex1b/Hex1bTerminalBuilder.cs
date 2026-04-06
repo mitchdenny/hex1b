@@ -358,7 +358,9 @@ public sealed class Hex1bTerminalBuilder
     /// <para>
     /// This method provides full control over PTY process configuration including
     /// working directory, environment variables, and whether to inherit the parent
-    /// environment. Use this for advanced scenarios requiring custom process setup.
+    /// environment. On Windows it also lets you choose whether to prefer the
+    /// out-of-process PTY proxy, require it, or bypass it entirely.
+    /// Use this for advanced scenarios requiring custom process setup.
     /// </para>
     /// <para>
     /// Requires native library support on Unix platforms.
@@ -372,7 +374,10 @@ public sealed class Hex1bTerminalBuilder
     ///         options.FileName = "/bin/bash";
     ///         options.Arguments = ["-l"];
     ///         options.WorkingDirectory = "/home/user";
-    ///         options.Environment["TERM"] = "xterm-256color";
+    ///         options.Environment = new Dictionary&lt;string, string&gt;
+    ///         {
+    ///             ["TERM"] = "xterm-256color"
+    ///         };
     ///     })
     ///     .Build();
     /// 
@@ -401,7 +406,10 @@ public sealed class Hex1bTerminalBuilder
                 environment: options.Environment?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                 inheritEnvironment: options.InheritEnvironment,
                 initialWidth: width,
-                initialHeight: height);
+                initialHeight: height,
+                ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(
+                    options.WindowsPtyMode,
+                    options.WindowsPtyHostPath));
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -1385,4 +1393,22 @@ public sealed class Hex1bTerminalProcessOptions
     /// Defaults to true.
     /// </summary>
     public bool InheritEnvironment { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how Hex1b should choose the Windows PTY backend.
+    /// </summary>
+    /// <remarks>
+    /// This only applies on Windows. Other platforms always use the Unix PTY implementation.
+    /// The default is <see cref="Hex1b.WindowsPtyMode.PreferProxy"/>.
+    /// </remarks>
+    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.PreferProxy;
+
+    /// <summary>
+    /// Gets or sets an explicit path to the Windows PTY host executable (<c>hex1bpty.exe</c>).
+    /// </summary>
+    /// <remarks>
+    /// This only applies when <see cref="WindowsPtyMode"/> uses the proxy path on Windows.
+    /// When null, Hex1b searches the application output and packaged runtime locations automatically.
+    /// </remarks>
+    public string? WindowsPtyHostPath { get; set; }
 }

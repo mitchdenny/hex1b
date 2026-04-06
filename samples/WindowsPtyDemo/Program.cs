@@ -1,10 +1,6 @@
 using System.Runtime.InteropServices;
 using Hex1b;
 
-const string DisableShimEnvironmentVariable = "HEX1B_DISABLE_WINDOWS_PTY_SHIM";
-const string RequireShimEnvironmentVariable = "HEX1B_REQUIRE_WINDOWS_PTY_SHIM";
-const string ShimPathEnvironmentVariable = "HEX1B_PTY_SHIM_PATH";
-
 if (!OperatingSystem.IsWindows())
 {
     await Console.Error.WriteLineAsync("WindowsPtyDemo requires Windows.");
@@ -31,9 +27,6 @@ var width = Console.WindowWidth > 0 ? Console.WindowWidth : 120;
 var height = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
 var shimPath = TryFindShimPath();
 var pwshPath = TryFindPwshPath();
-var originalDisableShim = Environment.GetEnvironmentVariable(DisableShimEnvironmentVariable);
-var originalRequireShim = Environment.GetEnvironmentVariable(RequireShimEnvironmentVariable);
-var originalShimPath = Environment.GetEnvironmentVariable(ShimPathEnvironmentVariable);
 
 if (pwshPath is null)
 {
@@ -42,38 +35,46 @@ if (pwshPath is null)
     return 1;
 }
 
+var windowsPtyMode = mode switch
+{
+    DemoMode.Proxy => WindowsPtyMode.RequireProxy,
+    DemoMode.Direct => WindowsPtyMode.Direct,
+    _ => WindowsPtyMode.PreferProxy
+};
+
+switch (mode)
+{
+    case DemoMode.Proxy:
+        if (shimPath is null)
+        {
+            await Console.Error.WriteLineAsync(
+                "Proxy mode requires hex1bpty.exe, but no shim binary was found in the sample output.");
+            return 1;
+        }
+
+        await Console.Out.WriteLineAsync(
+            $"Launching pwsh.exe through Hex1b PTY in PROXY mode using {Path.GetFileName(shimPath)}. Type 'exit' to quit.");
+        break;
+
+    case DemoMode.Direct:
+        await Console.Out.WriteLineAsync(
+            "Launching pwsh.exe through Hex1b PTY in DIRECT mode using the in-process WindowsPtyHandle. Type 'exit' to quit.");
+        break;
+}
+
 try
 {
-    switch (mode)
-    {
-        case DemoMode.Proxy:
-            if (shimPath is null)
-            {
-                await Console.Error.WriteLineAsync(
-                    "Proxy mode requires hex1bpty.exe, but no shim binary was found in the sample output.");
-                return 1;
-            }
-
-            Environment.SetEnvironmentVariable(DisableShimEnvironmentVariable, null);
-            Environment.SetEnvironmentVariable(RequireShimEnvironmentVariable, "1");
-            Environment.SetEnvironmentVariable(ShimPathEnvironmentVariable, shimPath);
-
-            await Console.Out.WriteLineAsync(
-                $"Launching pwsh.exe through Hex1b PTY in PROXY mode using {Path.GetFileName(shimPath)}. Type 'exit' to quit.");
-            break;
-
-        case DemoMode.Direct:
-            Environment.SetEnvironmentVariable(DisableShimEnvironmentVariable, "1");
-            Environment.SetEnvironmentVariable(RequireShimEnvironmentVariable, null);
-            Environment.SetEnvironmentVariable(ShimPathEnvironmentVariable, null);
-
-            await Console.Out.WriteLineAsync(
-                "Launching pwsh.exe through Hex1b PTY in DIRECT mode using the in-process WindowsPtyHandle. Type 'exit' to quit.");
-            break;
-    }
-
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithPtyProcess("pwsh.exe", "-NoLogo", "-NoProfile")
+        .WithPtyProcess(options =>
+        {
+            options.FileName = pwshPath;
+            options.Arguments = ["-NoLogo", "-NoProfile"];
+            options.WindowsPtyMode = windowsPtyMode;
+            if (mode == DemoMode.Proxy)
+            {
+                options.WindowsPtyHostPath = shimPath;
+            }
+        })
         .WithDimensions(width, height)
         .Build();
 
@@ -84,12 +85,6 @@ catch (Exception ex)
     await Console.Error.WriteLineAsync("Error running WindowsPtyDemo:");
     await Console.Error.WriteLineAsync(ex.ToString());
     return 1;
-}
-finally
-{
-    Environment.SetEnvironmentVariable(DisableShimEnvironmentVariable, originalDisableShim);
-    Environment.SetEnvironmentVariable(RequireShimEnvironmentVariable, originalRequireShim);
-    Environment.SetEnvironmentVariable(ShimPathEnvironmentVariable, originalShimPath);
 }
 
 return 0;

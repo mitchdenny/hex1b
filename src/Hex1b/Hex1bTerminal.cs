@@ -490,7 +490,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
             var exitCode = await runTask;
              
-            // Notify lifecycle-aware presentation adapters that the terminal has completed
+            // Notify lifecycle-aware adapters (for example TerminalWidgetHandle)
+            // so embedded terminal UIs can surface the final exit state and swap
+            // back to their fallback/not-running content.
             if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             {
                 completedAdapter.TerminalCompleted(exitCode);

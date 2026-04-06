@@ -8,7 +8,17 @@ namespace Hex1b;
 
 internal sealed class WindowsProxyPtyHandle : IPtyHandle
 {
+    private readonly WindowsPtyMode _mode;
+    private readonly string? _windowsPtyHostPath;
     private IPtyHandle? _activeHandle;
+
+    internal WindowsProxyPtyHandle(
+        WindowsPtyMode mode = WindowsPtyMode.PreferProxy,
+        string? windowsPtyHostPath = null)
+    {
+        _mode = mode;
+        _windowsPtyHostPath = windowsPtyHostPath;
+    }
 
     public int ProcessId => _activeHandle?.ProcessId ?? -1;
 
@@ -26,10 +36,13 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             throw new InvalidOperationException("The Windows PTY handle has already been started.");
         }
 
-        if (!WindowsPtyShimLocator.IsDisabled())
+        // Centralize the Windows backend selection in one place:
+        // - PreferProxy => try hex1bpty.exe first, then fall back to the in-proc handle
+        // - RequireProxy => fail if the helper cannot be used
+        // - Direct => bypass the helper entirely
+        if (_mode != WindowsPtyMode.Direct)
         {
-            var shimHandle = new WindowsShimPtyHandle();
-            var requireShim = WindowsPtyShimLocator.IsRequired();
+            var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath);
             try
             {
                 await shimHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
@@ -45,12 +58,12 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             {
                 await shimHandle.DisposeAsync().ConfigureAwait(false);
 
-                 if (requireShim)
-                 {
-                     throw new InvalidOperationException(
-                         "The Windows PTY shim was required for this run, but the proxy host could not be started.",
-                         ex);
-                 }
+                if (_mode == WindowsPtyMode.RequireProxy)
+                {
+                    throw new InvalidOperationException(
+                        "The Windows PTY proxy mode was required for this run, but hex1bpty.exe could not be started.",
+                        ex);
+                }
 
                 Trace.WriteLine($"Falling back to in-process Windows PTY because the shim path failed: {ex.Message}");
             }
@@ -113,6 +126,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
 
 internal sealed class WindowsShimPtyHandle : IPtyHandle
 {
+    private readonly string? _windowsPtyHostPath;
     private readonly Channel<byte[]> _outputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(64)
     {
         SingleReader = true,
@@ -140,6 +154,11 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
     private int _processId;
     private bool _disposed;
 
+    internal WindowsShimPtyHandle(string? windowsPtyHostPath = null)
+    {
+        _windowsPtyHostPath = windowsPtyHostPath;
+    }
+
     public int ProcessId => _processId;
 
     public async Task StartAsync(
@@ -156,7 +175,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
             throw new ObjectDisposedException(nameof(WindowsShimPtyHandle));
         }
 
-        if (!WindowsPtyShimLocator.TryResolve(out var shimPath))
+        if (!WindowsPtyShimLocator.TryResolve(_windowsPtyHostPath, out var shimPath))
         {
             throw new FileNotFoundException(
                 "The Windows PTY shim binary (hex1bpty.exe) could not be found in the application output.",
@@ -317,8 +336,10 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         _sendChannel.Writer.TryComplete();
         _cts?.Cancel();
 
-        // Closing the transport early ensures any pending socket reads/writes
-        // observe shutdown immediately instead of stalling DisposeAsync.
+        // Teardown strategy:
+        // 1. ask the helper to shut down cleanly,
+        // 2. close the socket so blocked loops observe EOF/cancellation immediately,
+        // 3. kill the helper process tree as a final backstop if it still survives.
         _stream?.Dispose();
         _stream = null;
         _socket?.Dispose();

@@ -6,30 +6,19 @@ namespace Hex1b;
 internal static class WindowsPtyShimLocator
 {
     private const string ShimExecutableName = "hex1bpty.exe";
-    private const string ShimPathOverrideEnvironmentVariable = "HEX1B_PTY_SHIM_PATH";
-    private const string DisableShimEnvironmentVariable = "HEX1B_DISABLE_WINDOWS_PTY_SHIM";
-    private const string RequireShimEnvironmentVariable = "HEX1B_REQUIRE_WINDOWS_PTY_SHIM";
-
-    public static bool IsDisabled()
-    {
-        var value = Environment.GetEnvironmentVariable(DisableShimEnvironmentVariable);
-        return value is "1" or "true" or "TRUE" or "True";
-    }
-
-    public static bool IsRequired()
-    {
-        var value = Environment.GetEnvironmentVariable(RequireShimEnvironmentVariable);
-        return value is "1" or "true" or "TRUE" or "True";
-    }
 
     public static bool TryResolve([NotNullWhen(true)] out string? path)
     {
-        var overridePath = Environment.GetEnvironmentVariable(ShimPathOverrideEnvironmentVariable);
-        if (!string.IsNullOrWhiteSpace(overridePath))
+        return TryResolve(explicitPath: null, out path);
+    }
+
+    public static bool TryResolve(string? explicitPath, [NotNullWhen(true)] out string? path)
+    {
+        if (!string.IsNullOrWhiteSpace(explicitPath))
         {
-            if (File.Exists(overridePath))
+            if (File.Exists(explicitPath))
             {
-                path = overridePath;
+                path = explicitPath;
                 return true;
             }
 

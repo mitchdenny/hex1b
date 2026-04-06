@@ -21,23 +21,13 @@ namespace Hex1b.Tests;
 public class WindowsPtyDisposeTests
 {
     [Fact]
-    public void WindowsPtyShimLocator_WithOverridePath_ResolvesOverride()
+    public void WindowsPtyShimLocator_WithExplicitPath_ResolvesOverride()
     {
         using var workspace = TestWorkspace.Create("pty_shim_locator");
         var shimFile = workspace.CreateFile("hex1bpty.exe", string.Empty);
-        var original = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
 
-        try
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", shimFile.FullName);
-
-            Assert.True(WindowsPtyShimLocator.TryResolve(out var resolvedPath));
-            Assert.Equal(shimFile.FullName, resolvedPath, ignoreCase: true);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", original);
-        }
+        Assert.True(WindowsPtyShimLocator.TryResolve(shimFile.FullName, out var resolvedPath));
+        Assert.Equal(shimFile.FullName, resolvedPath, ignoreCase: true);
     }
 
     [Fact]
@@ -87,35 +77,28 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var originalShimPath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
-        var originalDisable = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
+        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
-        try
-        {
-            var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-            Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
-
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", shimPath);
-
-            await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithPtyProcess(
-                    "cmd.exe",
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "cmd.exe";
+                options.Arguments =
+                [
                     "/c",
-                    "if \"%HEX1B_PTY_SHIM_ACTIVE%\"==\"1\" (exit 17) else (exit 23)")
-                .WithHeadless()
-                .WithDimensions(80, 10)
-                .Build();
+                    "if \"%HEX1B_PTY_SHIM_ACTIVE%\"==\"1\" (exit 17) else (exit 23)"
+                ];
+                options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+                options.WindowsPtyHostPath = shimPath;
+            })
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
 
-            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-            var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
-            Assert.Equal(17, exitCode);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
-        }
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+        Assert.Equal(17, exitCode);
     }
 
     [Fact]
@@ -125,63 +108,54 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var originalShimPath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
-        var originalDisable = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
+        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
-        try
-        {
-            var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-            Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        await using var process = new Hex1bTerminalChildProcess(
+            "cmd.exe",
+            ["/q", "/d", "/k", "prompt PTYTEST$G"],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 12,
+            ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(
+                WindowsPtyMode.RequireProxy,
+                shimPath));
 
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", shimPath);
+        await process.StartAsync(TestContext.Current.CancellationToken);
+        Assert.Equal("WindowsShimPtyHandle", GetActivePtyHandleTypeName(process));
 
-            await using var process = new Hex1bTerminalChildProcess(
-                "cmd.exe",
-                ["/q", "/d", "/k", "prompt PTYTEST$G"],
-                inheritEnvironment: true,
-                initialWidth: 80,
-                initialHeight: 12);
+        var startup = await ReadUntilContainsAsync(
+            process,
+            "PTYTEST>",
+            TimeSpan.FromSeconds(15),
+            TestContext.Current.CancellationToken);
+        Assert.Contains("PTYTEST>", startup, StringComparison.Ordinal);
 
-            await process.StartAsync(TestContext.Current.CancellationToken);
-            Assert.Equal("WindowsShimPtyHandle", GetActivePtyHandleTypeName(process));
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes("echo UDS_SHIM_OK\r\n"), TestContext.Current.CancellationToken);
+        var echoed = await ReadUntilContainsAsync(
+            process,
+            "UDS_SHIM_OK",
+            TimeSpan.FromSeconds(15),
+            TestContext.Current.CancellationToken);
+        Assert.Contains("UDS_SHIM_OK", echoed, StringComparison.Ordinal);
 
-            var startup = await ReadUntilContainsAsync(
-                process,
-                "PTYTEST>",
-                TimeSpan.FromSeconds(15),
-                TestContext.Current.CancellationToken);
-            Assert.Contains("PTYTEST>", startup, StringComparison.Ordinal);
+        await process.ResizeAsync(123, 37, TestContext.Current.CancellationToken);
+        await process.WriteInputAsync(
+            Encoding.UTF8.GetBytes("powershell -NoLogo -NoProfile -Command \"Write-Output ([Console]::WindowWidth.ToString() + 'x' + [Console]::WindowHeight)\"\r\n"),
+            TestContext.Current.CancellationToken);
 
-            await process.WriteInputAsync(Encoding.UTF8.GetBytes("echo UDS_SHIM_OK\r\n"), TestContext.Current.CancellationToken);
-            var echoed = await ReadUntilContainsAsync(
-                process,
-                "UDS_SHIM_OK",
-                TimeSpan.FromSeconds(15),
-                TestContext.Current.CancellationToken);
-            Assert.Contains("UDS_SHIM_OK", echoed, StringComparison.Ordinal);
+        var resizeReport = await ReadUntilContainsAsync(
+            process,
+            "123x37",
+            TimeSpan.FromSeconds(20),
+            TestContext.Current.CancellationToken);
+        Assert.Contains("123x37", resizeReport, StringComparison.Ordinal);
 
-            await process.ResizeAsync(123, 37, TestContext.Current.CancellationToken);
-            await process.WriteInputAsync(
-                Encoding.UTF8.GetBytes("powershell -NoLogo -NoProfile -Command \"Write-Output ([Console]::WindowWidth.ToString() + 'x' + [Console]::WindowHeight)\"\r\n"),
-                TestContext.Current.CancellationToken);
-
-            var resizeReport = await ReadUntilContainsAsync(
-                process,
-                "123x37",
-                TimeSpan.FromSeconds(20),
-                TestContext.Current.CancellationToken);
-            Assert.Contains("123x37", resizeReport, StringComparison.Ordinal);
-
-            await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\r\n"), TestContext.Current.CancellationToken);
-            var exitCode = await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(0, exitCode);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
-        }
+        await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\r\n"), TestContext.Current.CancellationToken);
+        var exitCode = await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(0, exitCode);
     }
 
     [Fact]
@@ -318,6 +292,70 @@ public class WindowsPtyDisposeTests
 
         await process.WaitForExitAsync(TestContext.Current.CancellationToken);
         Assert.Equal(1, process.ExitCode);
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Hex1bPtyHost_ClientDisconnect_ShutsDownHelperProcess()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TestWorkspace.Create("pty_shim_disconnect");
+        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+
+        var socketPath = workspace.GetPath("hex1bpty.socket");
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(shimPath)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            }
+        };
+
+        process.StartInfo.ArgumentList.Add("--socket");
+        process.StartInfo.ArgumentList.Add(socketPath);
+        process.StartInfo.ArgumentList.Add("--token");
+        process.StartInfo.ArgumentList.Add("expected-launch-token");
+
+        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        await ConnectWithRetriesAsync(
+            socket,
+            new UnixDomainSocketEndPoint(socketPath),
+            TestContext.Current.CancellationToken);
+
+        await using (var stream = new NetworkStream(socket, ownsSocket: true))
+        {
+            var launchRequest = new WindowsPtyShimLaunchRequest(
+                "cmd.exe",
+                ["/q", "/d", "/k", "prompt ORPHAN$G"],
+                Environment.CurrentDirectory,
+                new Dictionary<string, string>(),
+                80,
+                24,
+                "expected-launch-token");
+
+            await WindowsPtyShimProtocol.WriteJsonAsync(
+                stream,
+                WindowsPtyShimFrameType.LaunchRequest,
+                launchRequest,
+                TestContext.Current.CancellationToken);
+
+            var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+            Assert.NotNull(frame);
+            Assert.Equal(WindowsPtyShimFrameType.Started, frame.Value.Type);
+        }
+
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken)
+            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+        Assert.True(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
     }
 
     /// <summary>
@@ -563,34 +601,27 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var originalShimPath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
-        var originalDisable = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
+        var missingShimPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "hex1bpty.exe");
 
-        try
-        {
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
-            Environment.SetEnvironmentVariable(
-                "HEX1B_PTY_SHIM_PATH",
-                Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "hex1bpty.exe"));
-
-            await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithPtyProcess(
-                    "cmd.exe",
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "cmd.exe";
+                options.Arguments =
+                [
                     "/c",
-                    "if \"%HEX1B_PTY_SHIM_ACTIVE%\"==\"1\" (exit 17) else (exit 23)")
-                .WithHeadless()
-                .WithDimensions(80, 10)
-                .Build();
+                    "if \"%HEX1B_PTY_SHIM_ACTIVE%\"==\"1\" (exit 17) else (exit 23)"
+                ];
+                options.WindowsPtyMode = WindowsPtyMode.PreferProxy;
+                options.WindowsPtyHostPath = missingShimPath;
+            })
+            .WithHeadless()
+            .WithDimensions(80, 10)
+            .Build();
 
-            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
-            var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
-            Assert.Equal(23, exitCode);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
-        }
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
+        Assert.Equal(23, exitCode);
     }
 
     [Fact]
@@ -600,35 +631,23 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var originalShimPath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
-        var originalDisable = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
-        var originalRequire = Environment.GetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM");
+        var missingShimPath = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "hex1bpty.exe");
 
-        try
-        {
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
-            Environment.SetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM", "1");
-            Environment.SetEnvironmentVariable(
-                "HEX1B_PTY_SHIM_PATH",
-                Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "hex1bpty.exe"));
+        await using var process = new Hex1bTerminalChildProcess(
+            "cmd.exe",
+            ["/c", "echo SHOULD_NOT_RUN"],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 10,
+            ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(
+                WindowsPtyMode.RequireProxy,
+                missingShimPath));
 
-            await using var process = new Hex1bTerminalChildProcess(
-                "cmd.exe",
-                ["/c", "echo SHOULD_NOT_RUN"],
-                inheritEnvironment: true,
-                initialWidth: 80,
-                initialHeight: 10);
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => process.StartAsync(TestContext.Current.CancellationToken));
 
-            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-                () => process.StartAsync(TestContext.Current.CancellationToken));
-
-            Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
-            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
-            Environment.SetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM", originalRequire);
-        }
+        Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 }

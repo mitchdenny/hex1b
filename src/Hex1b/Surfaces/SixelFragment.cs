@@ -251,8 +251,8 @@ public sealed class SixelVisibility
             var expectedPixelX = metrics.GetPixelForCellBoundary(cellOffsetX);
             if (region.X != expectedPixelX)
             {
-                System.IO.File.AppendAllText("/tmp/sixel-align.log",
-                    $"[{DateTime.Now:HH:mm:ss.fff}] MISALIGNED: region.X={region.X}, expected={expectedPixelX}, cellOffsetX={cellOffsetX}, actualWidth={metrics.ActualPixelWidth}\n");
+                SixelDebugLog.Write(
+                    $"MISALIGNED: region.X={region.X}, expected={expectedPixelX}, cellOffsetX={cellOffsetX}, actualWidth={metrics.ActualPixelWidth}");
             }
 
             fragments.Add(new SixelFragment(

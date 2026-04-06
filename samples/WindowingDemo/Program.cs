@@ -5,16 +5,12 @@ using Hex1b.Surfaces;
 using Hex1b.Widgets;
 using WindowingDemo;
 
-const string DisableShimEnvironmentVariable = "HEX1B_DISABLE_WINDOWS_PTY_SHIM";
-const string RequireShimEnvironmentVariable = "HEX1B_REQUIRE_WINDOWS_PTY_SHIM";
 const int InitialTerminalColumns = 80;
 const int InitialTerminalRows = 24;
 const int WindowChromeWidth = 2;
 const int WindowChromeHeight = 3;
 const int MinimumTerminalColumns = 40;
 const int MinimumTerminalRows = 12;
-
-ConfigureWindowsPtyProxyDefaults();
 
 // Demo state
 var windowCounter = 0;
@@ -69,7 +65,15 @@ void OpenTerminalWindow(MenuItemActivatedEventArgs e, TerminalShellKind shellKin
         // Window sizes include borders/title bar. Launch the PTY at the actual
         // terminal content size so the first prompt is laid out correctly.
         .WithDimensions(InitialTerminalColumns, InitialTerminalRows)
-        .WithPtyProcess(launchSpec.FileName, launchSpec.Arguments)
+        .WithPtyProcess(options =>
+        {
+            options.FileName = launchSpec.FileName;
+            options.Arguments = launchSpec.Arguments;
+            if (OperatingSystem.IsWindows())
+            {
+                options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+            }
+        })
         .WithTerminalWidget(out var shellHandle)
         .Build();
 
@@ -650,23 +654,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .Build();
 
 await terminal.RunAsync();
-
-static void ConfigureWindowsPtyProxyDefaults()
-{
-    if (!OperatingSystem.IsWindows())
-    {
-        return;
-    }
-
-    var disableShim = Environment.GetEnvironmentVariable(DisableShimEnvironmentVariable);
-    var requireShim = Environment.GetEnvironmentVariable(RequireShimEnvironmentVariable);
-
-    if (string.IsNullOrWhiteSpace(disableShim) && string.IsNullOrWhiteSpace(requireShim))
-    {
-        Environment.SetEnvironmentVariable(DisableShimEnvironmentVariable, null);
-        Environment.SetEnvironmentVariable(RequireShimEnvironmentVariable, "1");
-    }
-}
 
 static bool TryGetTerminalLaunchSpec(
     TerminalShellKind shellKind,

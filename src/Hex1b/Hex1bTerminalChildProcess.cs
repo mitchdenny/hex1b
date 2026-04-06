@@ -93,7 +93,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             inheritEnvironment,
             initialWidth,
             initialHeight,
-            CreatePtyHandle)
+            () => CreatePtyHandle())
     {
     }
 
@@ -412,7 +412,9 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         return env;
     }
     
-    private static IPtyHandle CreatePtyHandle()
+    internal static IPtyHandle CreatePtyHandle(
+        WindowsPtyMode windowsPtyMode = WindowsPtyMode.PreferProxy,
+        string? windowsPtyHostPath = null)
     {
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
@@ -420,7 +422,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
         else if (OperatingSystem.IsWindows())
         {
-            return new WindowsProxyPtyHandle();
+            return new WindowsProxyPtyHandle(windowsPtyMode, windowsPtyHostPath);
         }
         else
         {

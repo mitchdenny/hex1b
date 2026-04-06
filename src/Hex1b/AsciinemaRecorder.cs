@@ -171,12 +171,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         await _writeLock.WaitAsync(ct);
         try
         {
-            if (_writer != null)
-            {
-                await _writer.DisposeAsync();
-                _writer = null;
-            }
-            _fileStream = null;
+            await CloseStreamAsync();
         }
         finally
         {
@@ -396,7 +391,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         await _writeLock.WaitAsync(ct);
         try
         {
-            await EnsureStreamOpenAsync();
+            await EnsureStreamOpenAsync(overwrite: header != null);
 
             if (header != null)
             {
@@ -415,19 +410,38 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         }
         finally
         {
+            await CloseStreamAsync();
             _writeLock.Release();
         }
     }
 
-    private async Task EnsureStreamOpenAsync()
+    private async Task EnsureStreamOpenAsync(bool overwrite)
     {
         if (_fileStream == null && _filePath != null)
         {
-            _fileStream = new FileStream(_filePath, FileMode.Create, FileAccess.Write, FileShare.Read, 4096, useAsync: true);
+            var mode = overwrite ? FileMode.Create : FileMode.Append;
+            _fileStream = new FileStream(
+                _filePath,
+                mode,
+                FileAccess.Write,
+                FileShare.ReadWrite | FileShare.Delete,
+                4096,
+                useAsync: true);
             // Use UTF-8 without BOM - asciinema player doesn't handle BOM
             _writer = new StreamWriter(_fileStream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false), leaveOpen: false);
         }
         await Task.CompletedTask;
+    }
+
+    private async Task CloseStreamAsync()
+    {
+        if (_writer != null)
+        {
+            await _writer.DisposeAsync();
+            _writer = null;
+        }
+
+        _fileStream = null;
     }
 
     /// <summary>
@@ -460,12 +474,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         await _writeLock.WaitAsync();
         try
         {
-            if (_writer != null)
-            {
-                await _writer.DisposeAsync();
-                _writer = null;
-            }
-            _fileStream = null;
+            await CloseStreamAsync();
         }
         finally
         {

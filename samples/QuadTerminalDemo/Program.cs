@@ -9,17 +9,6 @@ var app = builder.Build();
 
 if (OperatingSystem.IsWindows())
 {
-    var disableShim = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
-    var requireShim = Environment.GetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM");
-
-    // Default this demo to the proxy/shim PTY path on Windows while we
-    // compare multi-terminal behavior. Explicit env overrides win.
-    if (string.IsNullOrWhiteSpace(disableShim) && string.IsNullOrWhiteSpace(requireShim))
-    {
-        Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
-        Environment.SetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM", "1");
-    }
-
     if (!IsExecutableOnPath("pwsh.exe"))
     {
         throw new InvalidOperationException(
@@ -54,8 +43,16 @@ async Task HandleTerminal(HttpContext context, TerminalConfig config)
     await using var presentation = new WebSocketPresentationAdapter(webSocket, initialWidth, initialHeight);
 
     var terminalBuilder = Hex1bTerminal.CreateBuilder()
-        .WithPresentation(presentation)
-        .WithPtyProcess(config.Command[0], config.Command[1..]);
+        .WithPresentation(presentation);
+
+    terminalBuilder = OperatingSystem.IsWindows()
+        ? terminalBuilder.WithPtyProcess(options =>
+        {
+            options.FileName = config.Command[0];
+            options.Arguments = [.. config.Command[1..]];
+            options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+        })
+        : terminalBuilder.WithPtyProcess(config.Command[0], config.Command[1..]);
 
     ConfigureWorkloadLogging(terminalBuilder, config.Endpoint);
 

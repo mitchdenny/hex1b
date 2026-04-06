@@ -296,13 +296,12 @@ public static class SurfaceComparer
                     
                     if (visibility.IsFullyOccluded)
                     {
-                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                            $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) FULLY OCCLUDED - skipped\n");
+                        SixelDebugLog.Write($"SIXEL at ({sx},{sy}) FULLY OCCLUDED - skipped");
                         continue;
                     }
                     
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) -> {fragments.Count} fragments, fullyVisible={visibility.IsFullyVisible}\n");
+                    SixelDebugLog.Write(
+                        $"SIXEL at ({sx},{sy}) -> {fragments.Count} fragments, fullyVisible={visibility.IsFullyVisible}");
                     
                     foreach (var fragment in fragments)
                     {
@@ -316,14 +315,14 @@ public static class SurfaceComparer
                     var payload = fragment.GetPayload();
                     if (payload is null)
                     {
-                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                            $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fragment.CellPosition.X},{fragment.CellPosition.Y}) - FAILED to encode\n");
+                        SixelDebugLog.Write(
+                            $"Fragment at ({fragment.CellPosition.X},{fragment.CellPosition.Y}) - FAILED to encode");
                         continue;
                     }
                     
                     var (fx, fy) = fragment.CellPosition;
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fx},{fy}) region={fragment.PixelRegion}, isComplete={fragment.IsComplete}\n");
+                    SixelDebugLog.Write(
+                        $"Fragment at ({fx},{fy}) region={fragment.PixelRegion}, isComplete={fragment.IsComplete}");
                     
                     // Position cursor at fragment position
                     tokens.Add(new CursorPositionToken(fy + 1, fx + 1));
@@ -336,8 +335,7 @@ public static class SurfaceComparer
                 // No fragmentation - emit full sixels, rely on text to overwrite
                 foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
                 {
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) span {sw}x{sh} - NO FRAGMENTATION\n");
+                    SixelDebugLog.Write($"SIXEL at ({sx},{sy}) span {sw}x{sh} - NO FRAGMENTATION");
                     
                     // Position cursor at sixel anchor
                     tokens.Add(new CursorPositionToken(sy + 1, sx + 1));
@@ -562,8 +560,8 @@ public static class SurfaceComparer
             {
                 if (change.X >= sx && change.X < sx + sw && change.Y >= sy && change.Y < sy + sh)
                 {
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] TEXT '{charToOutput}' at ({change.X},{change.Y}) OVER sixel at ({sx},{sy})\n");
+                    SixelDebugLog.Write(
+                        $"TEXT '{charToOutput}' at ({change.X},{change.Y}) OVER sixel at ({sx},{sy})");
                     break;
                 }
             }

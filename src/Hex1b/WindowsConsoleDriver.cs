@@ -62,6 +62,11 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     private const ushort VK_F10 = 0x79;
     private const ushort VK_F11 = 0x7A;
     private const ushort VK_F12 = 0x7B;
+    // Printable OEM punctuation keys used when some Windows console hosts report
+    // KEY_EVENT_RECORD.UnicodeChar == '\0' for ordinary text input. This covers
+    // the standard US-layout punctuation set so commands, paths, and quotes still
+    // reach the child shell. A future layout-aware ToUnicodeEx-based path would
+    // be more robust for non-US keyboard mappings.
     private const ushort VK_OEM_1 = 0xBA;       // ;:
     private const ushort VK_OEM_PLUS = 0xBB;    // =+
     private const ushort VK_OEM_COMMA = 0xBC;   // ,<
