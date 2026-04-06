@@ -1,197 +1,96 @@
-using System.Net.Sockets;
-using Hex1b;
+using System.CommandLine;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 
-if (!OperatingSystem.IsWindows())
+namespace Hex1b.PtyHost;
+
+internal static class Program
 {
-    Console.Error.WriteLine("hex1bpty only runs on Windows.");
-    return 1;
-}
-
-var socketPath = TryGetSocketPath(args);
-if (string.IsNullOrWhiteSpace(socketPath))
-{
-    Console.Error.WriteLine("Usage: hex1bpty --socket <path>");
-    return 1;
-}
-
-DeleteSocketFile(socketPath);
-
-await using var ptyHandle = new WindowsPtyHandle();
-using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-listener.Bind(new UnixDomainSocketEndPoint(socketPath));
-listener.Listen(1);
-
-using var cts = new CancellationTokenSource();
-
-try
-{
-    using var clientSocket = await listener.AcceptAsync(cts.Token);
-    await using var stream = new NetworkStream(clientSocket, ownsSocket: false);
-
-    var launchFrame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, cts.Token);
-    if (launchFrame is null || launchFrame.Value.Type != WindowsPtyShimFrameType.LaunchRequest)
+    internal static IHost BuildApplication(string[] args)
     {
-        throw new InvalidOperationException("The first PTY shim frame must be a launch request.");
-    }
+        var builder = Host.CreateEmptyApplicationBuilder(new HostApplicationBuilderSettings());
 
-    var request = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimLaunchRequest>(launchFrame.Value.Payload);
-    request.Environment["HEX1B_PTY_SHIM_ACTIVE"] = "1";
-    await ptyHandle.StartAsync(
-        request.FileName,
-        request.Arguments,
-        request.WorkingDirectory,
-        request.Environment,
-        request.Width,
-        request.Height,
-        cts.Token);
+        builder.Logging.ClearProviders();
+        builder.Logging.SetMinimumLevel(LogLevel.Information);
 
-    await WindowsPtyShimProtocol.WriteJsonAsync(
-        stream,
-        WindowsPtyShimFrameType.Started,
-        new WindowsPtyShimStartedResponse(ptyHandle.ProcessId),
-        cts.Token);
-
-    var exitTask = ptyHandle.WaitForExitAsync(cts.Token);
-    var outputPumpTask = PumpOutputAsync(stream, ptyHandle, exitTask, cts.Token);
-    var commandPumpTask = PumpCommandsAsync(stream, ptyHandle, cts);
-
-    var exitCode = await exitTask;
-
-    try
-    {
-        await WindowsPtyShimProtocol.WriteJsonAsync(
-            stream,
-            WindowsPtyShimFrameType.Exit,
-            new WindowsPtyShimExitNotification(exitCode),
-            CancellationToken.None);
-    }
-    catch
-    {
-    }
-
-    cts.Cancel();
-
-    try
-    {
-        await Task.WhenAll(outputPumpTask, commandPumpTask);
-    }
-    catch (OperationCanceledException)
-    {
-    }
-
-    return exitCode;
-}
-catch (OperationCanceledException)
-{
-    return 0;
-}
-catch (Exception ex)
-{
-    try
-    {
-        using var errorSocket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        await errorSocket.ConnectAsync(new UnixDomainSocketEndPoint(socketPath), CancellationToken.None);
-        await using var errorStream = new NetworkStream(errorSocket, ownsSocket: true);
-        await WindowsPtyShimProtocol.WriteJsonAsync(
-            errorStream,
-            WindowsPtyShimFrameType.Error,
-            new WindowsPtyShimErrorResponse(ex.Message),
-            CancellationToken.None);
-    }
-    catch
-    {
-    }
-
-    Console.Error.WriteLine(ex);
-    return 1;
-}
-finally
-{
-    DeleteSocketFile(socketPath);
-}
-
-static async Task PumpOutputAsync(Stream stream, WindowsPtyHandle ptyHandle, Task<int> exitTask, CancellationToken ct)
-{
-    while (!ct.IsCancellationRequested)
-    {
-        var data = await ptyHandle.ReadAsync(ct);
-        if (!data.IsEmpty)
+        var logFile = TryGetOptionValue(args, "--logfile");
+        if (!string.IsNullOrWhiteSpace(logFile))
         {
-            await WindowsPtyShimProtocol.WriteFrameAsync(stream, WindowsPtyShimFrameType.Output, data, ct);
-            continue;
+            builder.Logging.AddProvider(new PtyHostFileLoggerProvider(logFile));
         }
 
-        if (exitTask.IsCompleted)
-        {
-            return;
-        }
+        builder.Services.AddSingleton<PtyHostRunner>();
+        builder.Services.AddTransient<RootCommand>(sp => CreateRootCommand(sp));
 
-        await Task.Delay(10, ct);
+        return builder.Build();
     }
-}
 
-static async Task PumpCommandsAsync(Stream stream, WindowsPtyHandle ptyHandle, CancellationTokenSource cts)
-{
-    while (!cts.IsCancellationRequested)
+    public static async Task<int> Main(string[] args)
     {
-        var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, cts.Token);
-        if (frame is null)
+        using var cts = new CancellationTokenSource();
+        Console.CancelKeyPress += (_, e) =>
         {
             cts.Cancel();
-            return;
-        }
+            e.Cancel = true;
+        };
 
-        switch (frame.Value.Type)
+        using var app = BuildApplication(args);
+        await app.StartAsync(cts.Token).ConfigureAwait(false);
+
+        var rootCommand = app.Services.GetRequiredService<RootCommand>();
+        var parseResult = rootCommand.Parse(args);
+        return await parseResult.InvokeAsync(cancellationToken: cts.Token).ConfigureAwait(false);
+    }
+
+    private static RootCommand CreateRootCommand(IServiceProvider services)
+    {
+        var socketOption = new Option<string>("--socket")
         {
-            case WindowsPtyShimFrameType.Input:
-                await ptyHandle.WriteAsync(frame.Value.Payload, cts.Token);
-                break;
+            Description = "Unix-domain socket path for the Hex1b PTY session.",
+            Required = true
+        };
 
-            case WindowsPtyShimFrameType.Resize:
-                var resize = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimResizeRequest>(frame.Value.Payload);
-                ptyHandle.Resize(resize.Width, resize.Height);
-                break;
-
-            case WindowsPtyShimFrameType.Kill:
-                ptyHandle.Kill(15);
-                break;
-
-            case WindowsPtyShimFrameType.Shutdown:
-                ptyHandle.Kill(15);
-                cts.Cancel();
-                return;
-        }
-    }
-}
-
-static string? TryGetSocketPath(string[] args)
-{
-    for (var i = 0; i < args.Length - 1; i++)
-    {
-        if (string.Equals(args[i], "--socket", StringComparison.OrdinalIgnoreCase))
+        var tokenOption = new Option<string>("--token")
         {
-            return args[i + 1];
-        }
-    }
+            Description = "Per-launch token used to authenticate the owning Hex1b process.",
+            Required = true
+        };
 
-    return null;
-}
-
-static void DeleteSocketFile(string? socketPath)
-{
-    if (string.IsNullOrWhiteSpace(socketPath))
-    {
-        return;
-    }
-
-    try
-    {
-        if (File.Exists(socketPath))
+        var logFileOption = new Option<string?>("--logfile")
         {
-            File.Delete(socketPath);
-        }
+            Description = "Optional file path for helper logs."
+        };
+
+        var rootCommand = new RootCommand("Internal Hex1b Windows PTY host.");
+        rootCommand.Options.Add(socketOption);
+        rootCommand.Options.Add(tokenOption);
+        rootCommand.Options.Add(logFileOption);
+
+        rootCommand.SetAction(async (parseResult, cancellationToken) =>
+        {
+            var runner = services.GetRequiredService<PtyHostRunner>();
+            var options = new PtyHostOptions(
+                parseResult.GetValue(socketOption)!,
+                parseResult.GetValue(tokenOption)!,
+                parseResult.GetValue(logFileOption));
+
+            return await runner.RunAsync(options, cancellationToken).ConfigureAwait(false);
+        });
+
+        return rootCommand;
     }
-    catch
+
+    private static string? TryGetOptionValue(string[] args, string optionName)
     {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], optionName, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 }

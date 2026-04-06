@@ -1,3 +1,5 @@
+using System.Diagnostics;
+using System.Net.Sockets;
 using System.Text;
 using Hex1b.Tests.TestHelpers;
 
@@ -35,6 +37,31 @@ public class WindowsPtyDisposeTests
         finally
         {
             Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", original);
+        }
+    }
+
+    [Fact]
+    public void WindowsPtySocketPaths_CreateSocketPath_UsesPrivateSocketDirectory()
+    {
+        using var workspace = TestWorkspace.Create("pty_socket_dir");
+        var original = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR");
+        string? socketPath = null;
+
+        try
+        {
+            var overrideDirectory = workspace.GetPath("private-sockets");
+            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR", overrideDirectory);
+
+            socketPath = WindowsPtySocketPaths.CreateSocketPath();
+
+            Assert.StartsWith(overrideDirectory, socketPath, StringComparison.OrdinalIgnoreCase);
+            Assert.EndsWith(".socket", socketPath, StringComparison.OrdinalIgnoreCase);
+            Assert.True(Directory.Exists(overrideDirectory));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_SOCKET_DIR", original);
+            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
         }
     }
 
@@ -157,6 +184,142 @@ public class WindowsPtyDisposeTests
         }
     }
 
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Hex1bPtyHost_MismatchedLaunchToken_IsRejectedAndLogged()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TestWorkspace.Create("pty_shim_auth");
+        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+
+        var socketPath = workspace.GetPath("hex1bpty.socket");
+        var logPath = workspace.GetPath("hex1bpty.log");
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(shimPath)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            }
+        };
+
+        process.StartInfo.ArgumentList.Add("--socket");
+        process.StartInfo.ArgumentList.Add(socketPath);
+        process.StartInfo.ArgumentList.Add("--token");
+        process.StartInfo.ArgumentList.Add("expected-launch-token");
+        process.StartInfo.ArgumentList.Add("--logfile");
+        process.StartInfo.ArgumentList.Add(logPath);
+
+        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        await ConnectWithRetriesAsync(
+            socket,
+            new UnixDomainSocketEndPoint(socketPath),
+            TestContext.Current.CancellationToken);
+
+        await using var stream = new NetworkStream(socket, ownsSocket: true);
+        var launchRequest = new WindowsPtyShimLaunchRequest(
+            "cmd.exe",
+            ["/c", "echo SHOULD_NOT_RUN"],
+            Environment.CurrentDirectory,
+            new Dictionary<string, string>(),
+            80,
+            24,
+            "wrong-launch-token");
+
+        await WindowsPtyShimProtocol.WriteJsonAsync(
+            stream,
+            WindowsPtyShimFrameType.LaunchRequest,
+            launchRequest,
+            TestContext.Current.CancellationToken);
+
+        var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+        Assert.NotNull(frame);
+        Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+
+        var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
+        Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, process.ExitCode);
+        Assert.True(File.Exists(logPath));
+
+        var logContents = await ReadAllTextSharedAsync(logPath, TestContext.Current.CancellationToken);
+        Assert.Contains("Rejected PTY launch request", logContents, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task Hex1bPtyHost_InvalidLogfilePath_DoesNotPreventStartup()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        using var workspace = TestWorkspace.Create("pty_shim_badlog");
+        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
+        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+
+        var socketPath = workspace.GetPath("hex1bpty.socket");
+        var invalidLogPath = workspace.BaseDirectory.FullName; // Directory path, not a file path.
+
+        using var process = new Process
+        {
+            StartInfo = new ProcessStartInfo(shimPath)
+            {
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                WindowStyle = ProcessWindowStyle.Hidden
+            }
+        };
+
+        process.StartInfo.ArgumentList.Add("--socket");
+        process.StartInfo.ArgumentList.Add(socketPath);
+        process.StartInfo.ArgumentList.Add("--token");
+        process.StartInfo.ArgumentList.Add("expected-launch-token");
+        process.StartInfo.ArgumentList.Add("--logfile");
+        process.StartInfo.ArgumentList.Add(invalidLogPath);
+
+        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+
+        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        await ConnectWithRetriesAsync(
+            socket,
+            new UnixDomainSocketEndPoint(socketPath),
+            TestContext.Current.CancellationToken);
+
+        await using var stream = new NetworkStream(socket, ownsSocket: true);
+        var launchRequest = new WindowsPtyShimLaunchRequest(
+            "cmd.exe",
+            ["/c", "echo SHOULD_NOT_RUN"],
+            Environment.CurrentDirectory,
+            new Dictionary<string, string>(),
+            80,
+            24,
+            "wrong-launch-token");
+
+        await WindowsPtyShimProtocol.WriteJsonAsync(
+            stream,
+            WindowsPtyShimFrameType.LaunchRequest,
+            launchRequest,
+            TestContext.Current.CancellationToken);
+
+        var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+        Assert.NotNull(frame);
+        Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+
+        var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
+        Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
+
+        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+        Assert.Equal(1, process.ExitCode);
+    }
+
     /// <summary>
     /// Rapidly disposing a PTY terminal while the child process is still running
     /// must not throw ObjectDisposedException on background threads.
@@ -256,6 +419,42 @@ public class WindowsPtyDisposeTests
 
         Assert.Fail($"Timed out waiting for \"{text}\". Output so far:{Environment.NewLine}{output}");
         return output.ToString();
+    }
+
+    private static async Task ConnectWithRetriesAsync(
+        Socket socket,
+        UnixDomainSocketEndPoint endpoint,
+        CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        SocketException? lastError = null;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                await socket.ConnectAsync(endpoint, ct);
+                return;
+            }
+            catch (SocketException ex) when (DateTime.UtcNow < deadline)
+            {
+                lastError = ex;
+                await Task.Delay(50, ct);
+            }
+        }
+
+        throw new IOException("Timed out connecting to the PTY shim socket for authentication testing.", lastError);
+    }
+
+    private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken ct)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(ct);
     }
 
     private static string GetActivePtyHandleTypeName(Hex1bTerminalChildProcess process)
@@ -391,6 +590,45 @@ public class WindowsPtyDisposeTests
         {
             Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
             Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
+        }
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
+    public async Task WithPtyProcess_MissingRequiredShim_ThrowsInsteadOfFallingBack()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        var originalShimPath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_PATH");
+        var originalDisable = Environment.GetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM");
+        var originalRequire = Environment.GetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM");
+
+        try
+        {
+            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", null);
+            Environment.SetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM", "1");
+            Environment.SetEnvironmentVariable(
+                "HEX1B_PTY_SHIM_PATH",
+                Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "hex1bpty.exe"));
+
+            await using var process = new Hex1bTerminalChildProcess(
+                "cmd.exe",
+                ["/c", "echo SHOULD_NOT_RUN"],
+                inheritEnvironment: true,
+                initialWidth: 80,
+                initialHeight: 10);
+
+            var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+                () => process.StartAsync(TestContext.Current.CancellationToken));
+
+            Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("HEX1B_PTY_SHIM_PATH", originalShimPath);
+            Environment.SetEnvironmentVariable("HEX1B_DISABLE_WINDOWS_PTY_SHIM", originalDisable);
+            Environment.SetEnvironmentVariable("HEX1B_REQUIRE_WINDOWS_PTY_SHIM", originalRequire);
         }
     }
 }

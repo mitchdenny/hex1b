@@ -24,7 +24,8 @@ internal sealed record WindowsPtyShimLaunchRequest(
     string? WorkingDirectory,
     Dictionary<string, string> Environment,
     int Width,
-    int Height);
+    int Height,
+    string SessionToken);
 
 internal sealed record WindowsPtyShimStartedResponse(int ProcessId);
 

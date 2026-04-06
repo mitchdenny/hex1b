@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Security.Cryptography;
 using System.Threading.Channels;
 
 namespace Hex1b;
@@ -28,6 +29,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
         if (!WindowsPtyShimLocator.IsDisabled())
         {
             var shimHandle = new WindowsShimPtyHandle();
+            var requireShim = WindowsPtyShimLocator.IsRequired();
             try
             {
                 await shimHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
@@ -42,6 +44,14 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             catch (Exception ex)
             {
                 await shimHandle.DisposeAsync().ConfigureAwait(false);
+
+                 if (requireShim)
+                 {
+                     throw new InvalidOperationException(
+                         "The Windows PTY shim was required for this run, but the proxy host could not be started.",
+                         ex);
+                 }
+
                 Trace.WriteLine($"Falling back to in-process Windows PTY because the shim path failed: {ex.Message}");
             }
         }
@@ -153,8 +163,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 "hex1bpty.exe");
         }
 
-        _socketPath = CreateSocketPath();
-        _helperProcess = StartHelperProcess(shimPath, _socketPath);
+        var sessionToken = Convert.ToHexString(RandomNumberGenerator.GetBytes(32));
+        _socketPath = WindowsPtySocketPaths.CreateSocketPath();
+        _helperProcess = StartHelperProcess(shimPath, _socketPath, sessionToken);
 
         _socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
         await ConnectWithRetriesAsync(_socket, new UnixDomainSocketEndPoint(_socketPath), _helperProcess, ct).ConfigureAwait(false);
@@ -171,7 +182,8 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
             resolvedWorkingDirectory,
             environment,
             width,
-            height);
+            height,
+            sessionToken);
 
         await WindowsPtyShimProtocol.WriteJsonAsync(
             _stream,
@@ -296,8 +308,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
             {
                 await WindowsPtyShimProtocol.WriteFrameAsync(_stream, WindowsPtyShimFrameType.Shutdown, Array.Empty<byte>(), CancellationToken.None).ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                TraceShimMessage($"Failed to send shutdown frame during dispose: {ex.Message}");
             }
         }
 
@@ -318,8 +331,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 await _sendLoopTask.ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            TraceShimMessage($"Send loop teardown observed: {ex.Message}");
         }
 
         try
@@ -329,8 +343,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 await _receiveLoopTask.ConfigureAwait(false);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            TraceShimMessage($"Receive loop teardown observed: {ex.Message}");
         }
         _cts?.Dispose();
         _cts = null;
@@ -342,8 +357,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
                 _helperProcess.Kill(entireProcessTree: true);
                 await _helperProcess.WaitForExitAsync().ConfigureAwait(false);
             }
-            catch
+            catch (Exception ex)
             {
+                TraceShimMessage($"Failed to terminate helper process cleanly: {ex.Message}");
             }
         }
 
@@ -353,7 +369,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         _outputChannel.Writer.TryComplete();
         _exitCodeTcs.TrySetResult(-1);
 
-        DeleteSocketFile(_socketPath);
+        WindowsPtySocketPaths.DeleteSocketFile(_socketPath);
     }
 
     private async Task RunSendLoopAsync(CancellationToken ct)
@@ -489,7 +505,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         }
     }
 
-    private static Process StartHelperProcess(string shimPath, string socketPath)
+    private static Process StartHelperProcess(string shimPath, string socketPath, string sessionToken)
     {
         var startInfo = new ProcessStartInfo(shimPath)
         {
@@ -499,6 +515,15 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         };
         startInfo.ArgumentList.Add("--socket");
         startInfo.ArgumentList.Add(socketPath);
+        startInfo.ArgumentList.Add("--token");
+        startInfo.ArgumentList.Add(sessionToken);
+
+        var logFilePath = Environment.GetEnvironmentVariable("HEX1B_PTY_SHIM_LOGFILE");
+        if (!string.IsNullOrWhiteSpace(logFilePath))
+        {
+            startInfo.ArgumentList.Add("--logfile");
+            startInfo.ArgumentList.Add(logFilePath);
+        }
 
         return Process.Start(startInfo)
             ?? throw new InvalidOperationException($"Failed to launch the Windows PTY shim at '{shimPath}'.");
@@ -531,32 +556,6 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         throw new IOException("Timed out connecting to the Windows PTY shim.", lastError);
     }
 
-    private static string CreateSocketPath()
-    {
-        var path = Path.Combine(Path.GetTempPath(), $"hex1bpty-{Guid.NewGuid():N}.sock");
-        DeleteSocketFile(path);
-        return path;
-    }
-
-    private static void DeleteSocketFile(string? socketPath)
-    {
-        if (string.IsNullOrWhiteSpace(socketPath))
-        {
-            return;
-        }
-
-        try
-        {
-            if (File.Exists(socketPath))
-            {
-                File.Delete(socketPath);
-            }
-        }
-        catch
-        {
-        }
-    }
-
     private async Task<int> GetFallbackExitCodeAsync()
     {
         if (_helperProcess == null)
@@ -579,8 +578,9 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
         {
             return -1;
         }
-        catch
+        catch (Exception ex)
         {
+            TraceShimMessage($"Failed to query helper exit code: {ex.Message}");
             return -1;
         }
     }
