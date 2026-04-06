@@ -133,6 +133,33 @@ public class Hex1bTerminalTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    private sealed class RecordingResizeWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        public int? ResizeWidth { get; private set; }
+        public int? ResizeHeight { get; private set; }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+        {
+            ResizeWidth = width;
+            ResizeHeight = height;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -153,6 +180,28 @@ public class Hex1bTerminalTests
         
         var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("", line);
+    }
+
+    [Fact]
+    public async Task Constructor_WithResizedTerminalWidgetHandle_UsesHandleDimensionsForInitialWorkloadResize()
+    {
+        await using var presentation = new TerminalWidgetHandle(80, 24);
+        await using var workload = new RecordingResizeWorkloadAdapter();
+
+        presentation.Resize(132, 41);
+
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        Assert.Equal(132, terminal.Width);
+        Assert.Equal(41, terminal.Height);
+        Assert.Equal(132, workload.ResizeWidth);
+        Assert.Equal(41, workload.ResizeHeight);
     }
 
     [Fact]

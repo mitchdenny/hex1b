@@ -912,6 +912,12 @@ public sealed class Hex1bTerminalBuilder
     /// When the TerminalWidget is mounted in a Hex1bApp, it renders from this buffer.
     /// When the widget is unmounted (e.g., navigated away), the buffer continues to be updated.
     /// </para>
+    /// <para>
+    /// The builder's current dimensions become the initial PTY size until the widget is first
+    /// arranged. When embedding in a fixed-size container, call <see cref="WithDimensions(int, int)"/>
+    /// with the expected content area size before <see cref="Build"/> so the child process starts
+    /// with the correct geometry from its first prompt.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>

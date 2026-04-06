@@ -1,8 +1,20 @@
+using Hex1b.Events;
 using Hex1b;
 using Hex1b.Layout;
 using Hex1b.Surfaces;
 using Hex1b.Widgets;
 using WindowingDemo;
+
+const string DisableShimEnvironmentVariable = "HEX1B_DISABLE_WINDOWS_PTY_SHIM";
+const string RequireShimEnvironmentVariable = "HEX1B_REQUIRE_WINDOWS_PTY_SHIM";
+const int InitialTerminalColumns = 80;
+const int InitialTerminalRows = 24;
+const int WindowChromeWidth = 2;
+const int WindowChromeHeight = 3;
+const int MinimumTerminalColumns = 40;
+const int MinimumTerminalRows = 12;
+
+ConfigureWindowsPtyProxyDefaults();
 
 // Demo state
 var windowCounter = 0;
@@ -39,6 +51,89 @@ var tableCompactMode = true;
 var tableFillWidth = true;
 var tableShowSelection = false;
 object? tableFocusedKey = tableData[0].Name;
+
+void OpenTerminalWindow(MenuItemActivatedEventArgs e, TerminalShellKind shellKind)
+{
+    if (!TryGetTerminalLaunchSpec(shellKind, out var launchSpec, out var errorMessage))
+    {
+        statusMessage = errorMessage;
+        return;
+    }
+
+    windowCounter++;
+    openWindowCount++;
+    var num = windowCounter;
+
+    var cts = new CancellationTokenSource();
+    var shellTerminal = Hex1bTerminal.CreateBuilder()
+        // Window sizes include borders/title bar. Launch the PTY at the actual
+        // terminal content size so the first prompt is laid out correctly.
+        .WithDimensions(InitialTerminalColumns, InitialTerminalRows)
+        .WithPtyProcess(launchSpec.FileName, launchSpec.Arguments)
+        .WithTerminalWidget(out var shellHandle)
+        .Build();
+
+    _ = RunTerminalWindowAsync(shellTerminal, cts, launchSpec.DisplayName, num);
+
+    var window = e.Windows.Window(_ => new TerminalWidget(shellHandle))
+        .Title($"{launchSpec.WindowTitle} {num}")
+        .Size(InitialTerminalColumns + WindowChromeWidth, InitialTerminalRows + WindowChromeHeight)
+        .Position(new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 2, OffsetY: num - 1))
+        .Resizable(
+            minWidth: MinimumTerminalColumns + WindowChromeWidth,
+            minHeight: MinimumTerminalRows + WindowChromeHeight)
+        .OnClose(() =>
+        {
+            openWindowCount--;
+            statusMessage = $"Closed: {launchSpec.DisplayName} {num}";
+            DisposeTerminalInstance(shellTerminal);
+        });
+
+    terminalInstances[window] = (shellTerminal, cts);
+
+    e.Windows.Open(window);
+    statusMessage = OperatingSystem.IsWindows()
+        ? $"Opened: {launchSpec.DisplayName} {num} via proxy"
+        : $"Opened: {launchSpec.DisplayName} {num}";
+}
+
+async Task RunTerminalWindowAsync(Hex1bTerminal shellTerminal, CancellationTokenSource cts, string displayName, int num)
+{
+    try
+    {
+        await shellTerminal.RunAsync(cts.Token);
+    }
+    catch (OperationCanceledException) when (cts.IsCancellationRequested)
+    {
+    }
+    catch (Exception ex)
+    {
+        statusMessage = $"{displayName} {num} failed: {ex.GetBaseException().Message}";
+    }
+}
+
+void DisposeTerminalInstance(Hex1bTerminal shellTerminal)
+{
+    WindowHandle? handleToRemove = null;
+
+    foreach (var kvp in terminalInstances)
+    {
+        if (!ReferenceEquals(kvp.Value.Terminal, shellTerminal))
+        {
+            continue;
+        }
+
+        kvp.Value.Cts.Cancel();
+        kvp.Value.Terminal.Dispose();
+        handleToRemove = kvp.Key;
+        break;
+    }
+
+    if (handleToRemove != null)
+    {
+        terminalInstances.Remove(handleToRemove);
+    }
+}
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("WindowingDemo", forceEnable: true)
@@ -133,48 +228,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         e.Windows.Open(window);
                         statusMessage = $"Opened: Custom Actions {num}";
                     }),
-                    m.MenuItem("New Terminal").OnActivated(e => {
-                        windowCounter++;
-                        openWindowCount++;
-                        var num = windowCounter;
-                        
-                        // Create terminal with PTY process
-                        var cts = new CancellationTokenSource();
-                        var bashTerminal = Hex1bTerminal.CreateBuilder()
-                            .WithPtyProcess("bash")
-                            .WithTerminalWidget(out var bashHandle)
-                            .Build();
-                        
-                        // Start the terminal in the background
-                        _ = bashTerminal.RunAsync(cts.Token);
-                        
-                        var window = e.Windows.Window(_ => new TerminalWidget(bashHandle))
-                            .Title($"Terminal {num}")
-                            .Size(80, 24)
-                            .Position(new WindowPositionSpec(WindowPosition.Center, OffsetX: (num - 1) * 2, OffsetY: num - 1))
-                            .Resizable(minWidth: 40, minHeight: 12)
-                            .OnClose(() => {
-                                openWindowCount--;
-                                statusMessage = $"Closed: Terminal {num}";
-                                // Clean up terminal - find by iterating since we're in the callback
-                                foreach (var kvp in terminalInstances)
-                                {
-                                    if (ReferenceEquals(kvp.Value.Terminal, bashTerminal))
-                                    {
-                                        kvp.Value.Cts.Cancel();
-                                        kvp.Value.Terminal.Dispose();
-                                        terminalInstances.Remove(kvp.Key);
-                                        break;
-                                    }
-                                }
-                            });
-                        
-                        // Track for cleanup
-                        terminalInstances[window] = (bashTerminal, cts);
-                        
-                        e.Windows.Open(window);
-                        statusMessage = $"Opened: Terminal {num}";
-                    }),
+                    m.MenuItem("New PowerShell Terminal").OnActivated(e => OpenTerminalWindow(e, TerminalShellKind.PowerShell)),
+                    m.MenuItem("New Cmd Terminal").OnActivated(e => OpenTerminalWindow(e, TerminalShellKind.CommandPrompt)),
+                    m.MenuItem("New Bash Terminal").OnActivated(e => OpenTerminalWindow(e, TerminalShellKind.Bash)),
                     m.MenuItem("New Full Chrome Window").OnActivated(e => {
                         windowCounter++;
                         openWindowCount++;
@@ -595,6 +651,184 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();
 
+static void ConfigureWindowsPtyProxyDefaults()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        return;
+    }
+
+    var disableShim = Environment.GetEnvironmentVariable(DisableShimEnvironmentVariable);
+    var requireShim = Environment.GetEnvironmentVariable(RequireShimEnvironmentVariable);
+
+    if (string.IsNullOrWhiteSpace(disableShim) && string.IsNullOrWhiteSpace(requireShim))
+    {
+        Environment.SetEnvironmentVariable(DisableShimEnvironmentVariable, null);
+        Environment.SetEnvironmentVariable(RequireShimEnvironmentVariable, "1");
+    }
+}
+
+static bool TryGetTerminalLaunchSpec(
+    TerminalShellKind shellKind,
+    out TerminalLaunchSpec launchSpec,
+    out string errorMessage)
+{
+    if (OperatingSystem.IsWindows())
+    {
+        switch (shellKind)
+        {
+            case TerminalShellKind.PowerShell:
+                var pwshPath = TryFindExecutable("pwsh.exe");
+                if (pwshPath is null)
+                {
+                    launchSpec = default!;
+                    errorMessage = "Cannot open PowerShell terminal: pwsh.exe was not found on PATH.";
+                    return false;
+                }
+
+                launchSpec = new TerminalLaunchSpec(
+                    "PowerShell",
+                    "PowerShell Terminal",
+                    pwshPath,
+                    ["-NoLogo", "-NoProfile"]);
+                errorMessage = string.Empty;
+                return true;
+
+            case TerminalShellKind.CommandPrompt:
+                var cmdPath = TryFindExecutable("cmd.exe");
+                if (cmdPath is null)
+                {
+                    launchSpec = default!;
+                    errorMessage = "Cannot open Command Prompt terminal: cmd.exe was not found.";
+                    return false;
+                }
+
+                launchSpec = new TerminalLaunchSpec(
+                    "cmd.exe",
+                    "Command Prompt",
+                    cmdPath,
+                    []);
+                errorMessage = string.Empty;
+                return true;
+
+            case TerminalShellKind.Bash:
+                var bashPath = TryFindExecutable("bash.exe");
+                if (bashPath is null)
+                {
+                    launchSpec = default!;
+                    errorMessage = "Cannot open WSL Bash terminal: bash.exe was not found.";
+                    return false;
+                }
+
+                launchSpec = new TerminalLaunchSpec(
+                    "WSL bash.exe",
+                    "WSL Bash Terminal",
+                    bashPath,
+                    []);
+                errorMessage = string.Empty;
+                return true;
+        }
+    }
+
+    switch (shellKind)
+    {
+        case TerminalShellKind.PowerShell:
+            var pwsh = TryFindExecutable("pwsh");
+            if (pwsh is null)
+            {
+                launchSpec = default!;
+                errorMessage = "Cannot open PowerShell terminal: pwsh was not found on PATH.";
+                return false;
+            }
+
+            launchSpec = new TerminalLaunchSpec(
+                "PowerShell",
+                "PowerShell Terminal",
+                pwsh,
+                ["-NoLogo", "-NoProfile"]);
+            errorMessage = string.Empty;
+            return true;
+
+        case TerminalShellKind.CommandPrompt:
+            launchSpec = default!;
+            errorMessage = "Command Prompt terminals are only available on Windows.";
+            return false;
+
+        case TerminalShellKind.Bash:
+            var bash = TryFindExecutable("bash");
+            if (bash is null)
+            {
+                launchSpec = default!;
+                errorMessage = "Cannot open Bash terminal: bash was not found on PATH.";
+                return false;
+            }
+
+            launchSpec = new TerminalLaunchSpec(
+                "bash",
+                "Bash Terminal",
+                bash,
+                []);
+            errorMessage = string.Empty;
+            return true;
+
+        default:
+            launchSpec = default!;
+            errorMessage = $"Unsupported terminal shell: {shellKind}.";
+            return false;
+    }
+}
+
+static string? TryFindExecutable(string fileName)
+{
+    if (string.IsNullOrWhiteSpace(fileName))
+    {
+        return null;
+    }
+
+    if (Path.IsPathRooted(fileName) && File.Exists(fileName))
+    {
+        return fileName;
+    }
+
+    if (OperatingSystem.IsWindows())
+    {
+        try
+        {
+            var systemCandidate = Path.Combine(Environment.SystemDirectory, fileName);
+            if (File.Exists(systemCandidate))
+            {
+                return systemCandidate;
+            }
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
+    var path = Environment.GetEnvironmentVariable("PATH");
+    if (string.IsNullOrWhiteSpace(path))
+    {
+        return null;
+    }
+
+    foreach (var entry in path.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+    {
+        try
+        {
+            var candidate = Path.Combine(entry, fileName);
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+        catch (ArgumentException)
+        {
+        }
+    }
+
+    return null;
+}
+
 // Helper to build table content - now uses WindowContentContext
 static Hex1bWidget BuildTableContent(
     WindowContentContext<Hex1bWidget> ctx,
@@ -664,4 +898,17 @@ class Employee(string name, string role, int age, string status)
     public string Status { get; } = status;
     public bool IsSelected { get; set; }
 }
+
+enum TerminalShellKind
+{
+    PowerShell,
+    CommandPrompt,
+    Bash
+}
+
+sealed record TerminalLaunchSpec(
+    string DisplayName,
+    string WindowTitle,
+    string FileName,
+    string[] Arguments);
 

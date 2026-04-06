@@ -11,9 +11,34 @@
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="SkiaSharp" Version="3.116.1" />
     <PackageReference Include="SkiaSharp.NativeAssets.Linux.NoDependencies" Version="3.116.1" />
   </ItemGroup>
+
+  <Target Name="CopyWindowsPtyShim"
+          AfterTargets="Build"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native')">
+    <ItemGroup>
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(WindowsPtyShimFiles)"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="SyncHex1bAssemblyToOutput"
+          AfterTargets="Build"
+          Condition="Exists('../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll')">
+    <Copy SourceFiles="../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="false" />
+  </Target>
 
 </Project>
