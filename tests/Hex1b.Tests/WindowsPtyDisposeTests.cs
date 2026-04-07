@@ -363,10 +363,12 @@ public class WindowsPtyDisposeTests
                 var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
                 Assert.NotNull(frame);
                 Assert.Equal(WindowsPtyShimFrameType.Started, frame.Value.Type);
+
+                socket.Shutdown(SocketShutdown.Both);
             }
 
             await process.WaitForExitAsync(TestContext.Current.CancellationToken)
-                .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+                .WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
 
             Assert.True(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
         }

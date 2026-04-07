@@ -98,27 +98,43 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
                 catch (OperationCanceledException) { }
             });
 
-            // Give terminal time to initialize and process output
-            await Task.Delay(100);
-
             // Wait for the initial prompt to appear
-            await WaitForPromptAsync();
+            await WaitForPromptAsync(TimeSpan.FromSeconds(5));
         }
 
         public async Task WaitForPromptAsync(TimeSpan? timeout = null)
         {
+            await WaitForTextAsync("diag>", timeout);
+        }
+
+        public async Task WaitForTextAsync(string expected, TimeSpan? timeout = null)
+        {
+            await WaitUntilAsync(
+                text => text.Contains(expected, StringComparison.Ordinal),
+                timeout,
+                $"terminal text '{expected}'");
+        }
+
+        public async Task WaitUntilAsync(Func<string, bool> predicate, TimeSpan? timeout = null, string? description = null)
+        {
             timeout ??= TimeSpan.FromSeconds(3);
-            using var cts = new CancellationTokenSource(timeout.Value);
-            
-            while (!cts.Token.IsCancellationRequested)
+            var deadline = DateTime.UtcNow + timeout.Value;
+            var lastText = string.Empty;
+
+            while (DateTime.UtcNow < deadline)
             {
                 using var snapshot = Terminal.CreateSnapshot();
-                var text = snapshot.GetDisplayText();
-                if (text.Contains("diag>"))
+                lastText = snapshot.GetDisplayText();
+                if (predicate(lastText))
+                {
                     return;
-                await Task.Delay(50);
+                }
+
+                await Task.Delay(50, TestContext.Current.CancellationToken);
             }
-            throw new TimeoutException("Prompt did not appear within timeout");
+
+            throw new Xunit.Sdk.XunitException(
+                $"Timed out waiting for {description ?? "terminal state"}.\nLast terminal text:\n{lastText}");
         }
 
         public async Task SendCommandAsync(string command)
@@ -132,8 +148,19 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
             
             // Press Enter
             await Shell.WriteInputAsync(new byte[] { 0x0D }); // CR
-            
-            await Task.Delay(100); // Give time for output
+        }
+
+        public async Task SendCommandAndWaitForOutputAsync(string command, string expectedOutput, TimeSpan? timeout = null)
+        {
+            timeout ??= TimeSpan.FromSeconds(5);
+
+            await SendCommandAsync(command);
+
+            await WaitUntilAsync(
+                text => text.Contains(expectedOutput, StringComparison.Ordinal)
+                    && text.TrimEnd().EndsWith("diag>", StringComparison.Ordinal),
+                timeout,
+                $"completed command '{command}' with output '{expectedOutput}'");
         }
 
         public async ValueTask DisposeAsync()
@@ -152,6 +179,54 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         }
     }
 
+    private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken ct)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(ct);
+    }
+
+    private static Task WaitForRecordingTextAsync(string path, string expected, TimeSpan? timeout = null)
+    {
+        return WaitForRecordingAsync(
+            path,
+            text => text.Contains(expected, StringComparison.Ordinal),
+            $"recording text '{expected}'",
+            timeout);
+    }
+
+    private static async Task WaitForRecordingAsync(
+        string path,
+        Func<string, bool> predicate,
+        string description,
+        TimeSpan? timeout = null)
+    {
+        timeout ??= TimeSpan.FromSeconds(5);
+        var deadline = DateTime.UtcNow + timeout.Value;
+        var lastContent = string.Empty;
+
+        while (DateTime.UtcNow < deadline)
+        {
+            if (File.Exists(path))
+            {
+                lastContent = await ReadAllTextSharedAsync(path, TestContext.Current.CancellationToken);
+                if (predicate(lastContent))
+                {
+                    return;
+                }
+            }
+
+            await Task.Delay(50, TestContext.Current.CancellationToken);
+        }
+
+        throw new Xunit.Sdk.XunitException(
+            $"Timed out waiting for {description} in recording '{path}'.\nLast file content:\n{lastContent}");
+    }
+
     // ==========================================
     // Phase 3.5.1: Backward Compatibility Tests
     // ==========================================
@@ -166,9 +241,10 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
 
         // Act
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingTextAsync(tempFile, "diag");
 
         // Assert
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
         Assert.True(lines.Length >= 2, "Should have header and at least one event");
@@ -195,11 +271,12 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
 
         // Act
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingTextAsync(tempFile, "diag");
 
         // Assert - check that the prompt was captured
         // The prompt is: \x1b[1;32mdiag\x1b[0m> (green "diag" followed by ">")
         // So we just check for "diag" since the escape codes will be in the file
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("diag", content);
     }
 
@@ -212,12 +289,12 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
         
         // Act - send echo command
-        await ctx.SendCommandAsync("echo hello world");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("echo hello world", "hello world");
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingTextAsync(tempFile, "hello world");
 
         // Assert
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("hello world", content);
     }
 
@@ -234,12 +311,15 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
         
         // Act
-        await ctx.SendCommandAsync("help");
-        await Task.Delay(300);
+        await ctx.SendCommandAndWaitForOutputAsync("help", "dump", TimeSpan.FromSeconds(5));
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingAsync(
+            tempFile,
+            text => text.Contains("echo", StringComparison.Ordinal) && text.Contains("ping", StringComparison.Ordinal),
+            "complete help output");
 
         // Assert - help output should contain command names
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("echo", content);
         Assert.Contains("ping", content);
     }
@@ -253,12 +333,12 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
         
         // Act
-        await ctx.SendCommandAsync("echo test123");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("echo test123", "test123");
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingTextAsync(tempFile, "test123");
 
         // Assert
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("test123", content);
     }
 
@@ -282,13 +362,13 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         });
 
         // Send a command that should be recorded
-        await ctx.SendCommandAsync("ping");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("ping", "PONG");
         await ctx.Recorder.FlushAsync();
+        await WaitForRecordingTextAsync(tempFile, "PONG");
 
         // Assert
         Assert.True(File.Exists(tempFile), "Recording file should exist");
-        var content = await File.ReadAllTextAsync(tempFile);
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("PONG", content);
     }
 
@@ -299,8 +379,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         var tempFile = GetTempFile();
         await using var ctx = DiagnosticShellTestContext.Create(tempFile);
         await ctx.StartAsync();
-        await ctx.SendCommandAsync("ping");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("ping", "PONG");
 
         // Act
         var completedPath = await ctx.Recorder.StopRecordingAsync();
@@ -308,9 +387,10 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         // Assert
         Assert.Equal(tempFile, completedPath);
         Assert.False(ctx.Recorder.IsRecording);
-        
+
         // File should be finalized and readable
-        var content = await File.ReadAllTextAsync(tempFile);
+        await WaitForRecordingTextAsync(tempFile, "PONG");
+        var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("PONG", content);
     }
 
@@ -324,19 +404,19 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
         
         // First recording
-        await ctx.SendCommandAsync("echo first");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("echo first", "first");
         await ctx.Recorder.StopRecordingAsync();
+        await WaitForRecordingTextAsync(tempFile1, "first");
 
         // Second recording
         ctx.Recorder.StartRecording(tempFile2, new AsciinemaRecorderOptions { AutoFlush = true });
-        await ctx.SendCommandAsync("echo second");
-        await Task.Delay(200);
+        await ctx.SendCommandAndWaitForOutputAsync("echo second", "second");
         await ctx.Recorder.StopRecordingAsync();
+        await WaitForRecordingTextAsync(tempFile2, "second");
 
         // Assert
-        var content1 = await File.ReadAllTextAsync(tempFile1);
-        var content2 = await File.ReadAllTextAsync(tempFile2);
+        var content1 = await ReadAllTextSharedAsync(tempFile1, TestContext.Current.CancellationToken);
+        var content2 = await ReadAllTextSharedAsync(tempFile2, TestContext.Current.CancellationToken);
         
         Assert.Contains("first", content1);
         Assert.DoesNotContain("second", content1);

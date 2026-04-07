@@ -165,43 +165,61 @@ internal sealed class PtyHostRunner(ILogger<PtyHostRunner> logger)
 
     private async Task PumpCommandsAsync(Stream stream, WindowsPtyHandle ptyHandle, CancellationTokenSource cts)
     {
-        while (!cts.IsCancellationRequested)
+        try
         {
-            var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, cts.Token).ConfigureAwait(false);
-            if (frame is null)
+            while (!cts.IsCancellationRequested)
             {
-                _logger.LogDebug("The PTY client disconnected from the command pump.");
-                cts.Cancel();
-                return;
-            }
-
-            switch (frame.Value.Type)
-            {
-                case WindowsPtyShimFrameType.Input:
-                    await ptyHandle.WriteAsync(frame.Value.Payload, cts.Token).ConfigureAwait(false);
-                    break;
-
-                case WindowsPtyShimFrameType.Resize:
-                    var resize = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimResizeRequest>(frame.Value.Payload);
-                    ptyHandle.Resize(resize.Width, resize.Height);
-                    break;
-
-                case WindowsPtyShimFrameType.Kill:
-                    ptyHandle.Kill(15);
-                    break;
-
-                case WindowsPtyShimFrameType.Shutdown:
+                var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, cts.Token).ConfigureAwait(false);
+                if (frame is null)
+                {
+                    _logger.LogDebug("The PTY client disconnected from the command pump. Terminating the PTY child.");
                     ptyHandle.Kill(15);
                     cts.Cancel();
                     return;
+                }
 
-                default:
-                    _logger.LogWarning("Ignoring unexpected PTY shim frame type {FrameType}.", frame.Value.Type);
-                    break;
+                switch (frame.Value.Type)
+                {
+                    case WindowsPtyShimFrameType.Input:
+                        await ptyHandle.WriteAsync(frame.Value.Payload, cts.Token).ConfigureAwait(false);
+                        break;
+
+                    case WindowsPtyShimFrameType.Resize:
+                        var resize = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimResizeRequest>(frame.Value.Payload);
+                        ptyHandle.Resize(resize.Width, resize.Height);
+                        break;
+
+                    case WindowsPtyShimFrameType.Kill:
+                        ptyHandle.Kill(15);
+                        break;
+
+                    case WindowsPtyShimFrameType.Shutdown:
+                        ptyHandle.Kill(15);
+                        cts.Cancel();
+                        return;
+
+                    default:
+                        _logger.LogWarning("Ignoring unexpected PTY shim frame type {FrameType}.", frame.Value.Type);
+                        break;
+                }
             }
         }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+        }
+        catch (EndOfStreamException) when (!cts.IsCancellationRequested)
+        {
+            _logger.LogDebug("The PTY client disconnected while a command frame was being read. Terminating the PTY child.");
+            ptyHandle.Kill(15);
+            cts.Cancel();
+        }
+        catch (IOException) when (!cts.IsCancellationRequested)
+        {
+            _logger.LogDebug("The PTY command stream broke unexpectedly. Terminating the PTY child.");
+            ptyHandle.Kill(15);
+            cts.Cancel();
+        }
     }
-
     private async Task AwaitPumpAsync(Task task, string pumpName)
     {
         try
