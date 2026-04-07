@@ -530,8 +530,8 @@ public class Hex1bTerminalBuilderTests
     {
         var pattern = new CellPatternSearcher().Find("Hello from test program");
         var (fileName, arguments) = OperatingSystem.IsWindows()
-            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Start-Sleep -Milliseconds 50; Write-Output 'Hello from test program'" })
-            : ("bash", new[] { "-lc", "sleep 0.05; printf 'Hello from test program\\n'" });
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Write-Output 'Hello from test program'; [void][Console]::ReadKey($true)" })
+            : ("bash", new[] { "-lc", "printf 'Hello from test program\\n'; IFS= read -rsn1 _" });
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithPtyProcess(fileName, arguments)
@@ -542,7 +542,10 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
+            // Keep the child alive until we've observed its output; otherwise a
+            // fast one-shot PTY can exit before CI captures the rendered text.
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Type("q")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
