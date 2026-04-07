@@ -512,22 +512,13 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithPtyProcess_ExecutesProcess()
     {
-        // Inline C# script for cross-platform testing
-        const string script = """
-            if (args.Length >= 2 && int.TryParse(args[0], out var delayMs))
-            {
-                await Task.Delay(delayMs);
-                Console.WriteLine(string.Join(" ", args.Skip(1)));
-            }
-            """;
-
-        using var workspace = TestWorkspace.Create("pty_exec");
-        var scriptFile = workspace.CreateCSharpProgram("delay.cs", script);
-        
         var pattern = new CellPatternSearcher().Find("Hello from test program");
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Start-Sleep -Milliseconds 50; Write-Output 'Hello from test program'" })
+            : ("bash", new[] { "-lc", "sleep 0.05; printf 'Hello from test program\\n'" });
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithPtyProcess("dotnet", "run", scriptFile.FullName, "50", "Hello from test program")
+            .WithPtyProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(80, 10)
             .Build();
@@ -547,21 +538,14 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithPtyProcess_InteractiveProcess_RespondsToInput()
     {
-        // Inline C# script for interactive input test
-        const string script = """
-            Console.WriteLine("Ready");
-            Console.ReadKey(intercept: true);
-            Console.WriteLine("Done");
-            """;
-
-        using var workspace = TestWorkspace.Create("pty_interactive");
-        var scriptFile = workspace.CreateCSharpProgram("wait-input.cs", script);
-        
         var readyPattern = new CellPatternSearcher().Find("Ready");
         var exitPattern = new CellPatternSearcher().Find("Done");
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Write-Output 'Ready'; [void][Console]::ReadKey($true); Write-Output 'Done'" })
+            : ("bash", new[] { "-lc", "printf 'Ready\\n'; IFS= read -rsn1 _; printf 'Done\\n'" });
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithPtyProcess("dotnet", "run", scriptFile.FullName)
+            .WithPtyProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(80, 10)
             .Build();

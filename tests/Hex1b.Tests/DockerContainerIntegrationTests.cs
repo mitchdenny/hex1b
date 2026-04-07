@@ -3,28 +3,51 @@ using Hex1b.Automation;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Custom xUnit Fact attribute that skips the test when Docker is not available.
+/// Custom xUnit Fact attribute that skips the test when Docker with Linux containers is not available.
 /// </summary>
 public sealed class DockerAvailableFactAttribute : FactAttribute
 {
-    private static readonly bool s_dockerAvailable = CheckDockerAvailable();
+    private static readonly string? s_skipReason = GetSkipReason();
 
     public DockerAvailableFactAttribute(
         [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
         [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
         : base(sourceFilePath, sourceLineNumber)
     {
-        if (!s_dockerAvailable)
+        if (s_skipReason is not null)
         {
-            Skip = "Docker is not available on this machine.";
+            Skip = s_skipReason;
         }
     }
 
-    private static bool CheckDockerAvailable()
+    private static string? GetSkipReason()
     {
+        if (!TryRunDockerCommand(["version", "--format", "{{.Server.Version}}"], out _))
+        {
+            return "Docker is not available on this machine.";
+        }
+
+        if (!TryRunDockerCommand(["info", "--format", "{{.OSType}}"], out var osType))
+        {
+            return "Docker is installed but the daemon is not ready.";
+        }
+
+        osType = osType.Trim();
+        if (!string.Equals(osType, "linux", StringComparison.OrdinalIgnoreCase))
+        {
+            return $"Docker daemon is configured for {osType} containers; these tests require Linux containers.";
+        }
+
+        return null;
+    }
+
+    private static bool TryRunDockerCommand(string[] args, out string output)
+    {
+        output = string.Empty;
+
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo("docker", ["version", "--format", "{{.Server.Version}}"])
+            var psi = new System.Diagnostics.ProcessStartInfo("docker", args)
             {
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
@@ -35,7 +58,20 @@ public sealed class DockerAvailableFactAttribute : FactAttribute
             using var proc = System.Diagnostics.Process.Start(psi);
             if (proc == null) return false;
 
-            proc.WaitForExit(TimeSpan.FromSeconds(5));
+            if (!proc.WaitForExit(TimeSpan.FromSeconds(5)))
+            {
+                try
+                {
+                    proc.Kill(entireProcessTree: true);
+                }
+                catch
+                {
+                }
+
+                return false;
+            }
+
+            output = proc.StandardOutput.ReadToEnd();
             return proc.ExitCode == 0;
         }
         catch

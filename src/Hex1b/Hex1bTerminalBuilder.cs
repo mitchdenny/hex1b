@@ -1267,6 +1267,12 @@ public sealed class Hex1bTerminalBuilder
     /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
     public Hex1bTerminal Build()
     {
+        if (_workloadFactory is null && _workloadAdapter is null)
+        {
+            throw new InvalidOperationException(
+                "No workload configured. Call WithWorkload(), WithHex1bApp(), WithShellProcess(), or WithProcess() before Build().");
+        }
+
         // Create presentation adapter via factory
         var presentation = _presentationFactory(this);
 

@@ -1,3 +1,4 @@
+using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -21,10 +22,7 @@ public class TerminalResizeTimingTests
     {
         // Arrange
         // Create a child terminal but don't start it yet
-        var childProcess = new Hex1bTerminalChildProcess(
-            "bash", ["--norc"],
-            initialWidth: 80,
-            initialHeight: 24);
+        var childProcess = CreateInteractiveShellProcess(initialWidth: 80, initialHeight: 24);
         
         // Act - Resize before start (simulates what happens when Arrange is called
         // before RunAsync completes)
@@ -32,9 +30,6 @@ public class TerminalResizeTimingTests
         
         // Start the process
         await childProcess.StartAsync(TestContext.Current.CancellationToken);
-        
-        // Give bash time to output its prompt
-        await Task.Delay(500, TestContext.Current.CancellationToken);
         
         // Assert - Check the process dimensions
         Assert.Equal(148, childProcess.Width);
@@ -84,9 +79,9 @@ public class TerminalResizeTimingTests
     public async Task TerminalNode_Arrange_PropagatesResizeToPty()
     {
         // Arrange - Create terminal with widget handle
-        var terminal = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(80, 24)  // Initial smaller size
-            .WithPtyProcess("bash", "--norc")
+        var terminal = WithInteractiveShell(
+            Hex1bTerminal.CreateBuilder()
+                .WithDimensions(80, 24))  // Initial smaller size
             .WithTerminalWidget(out var handle)
             .Build();
         
@@ -98,9 +93,8 @@ public class TerminalResizeTimingTests
         
         // Act - Start terminal in background
         var runTask = Task.Run(() => terminal.RunAsync(TestContext.Current.CancellationToken));
-        
-        // Wait for PTY to start
-        await Task.Delay(200, TestContext.Current.CancellationToken);
+
+        await WaitForTerminalStateAsync(handle, TerminalState.Running, TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
         
         // Simulate what happens when the widget is arranged in a larger container
         // First measure with constraints
@@ -108,9 +102,6 @@ public class TerminalResizeTimingTests
         
         // Then arrange with the final bounds
         node.Arrange(new Rect(0, 0, 148, 36));
-        
-        // Wait a bit for resize to propagate
-        await Task.Delay(300, TestContext.Current.CancellationToken);
         
         // Assert
         Assert.True(resizeCount > 0, "Resize event should have fired");
@@ -129,9 +120,9 @@ public class TerminalResizeTimingTests
     public async Task Terminal_AfterResize_ReceivesOutput()
     {
         // Arrange
-        var terminal = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(80, 24)
-            .WithPtyProcess("bash", "--norc")
+        var terminal = WithInteractiveShell(
+            Hex1bTerminal.CreateBuilder()
+                .WithDimensions(80, 24))
             .WithTerminalWidget(out var handle)
             .Build();
         
@@ -140,18 +131,14 @@ public class TerminalResizeTimingTests
         
         // Act - Start terminal
         var runTask = Task.Run(() => terminal.RunAsync(TestContext.Current.CancellationToken));
-        
-        // Wait for PTY to start and output something
-        await Task.Delay(1000, TestContext.Current.CancellationToken);
+
+        await WaitForTerminalContentAsync(handle, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Resize (simulates what TerminalNode.Arrange does)
         handle.Resize(148, 36);
         
-        // Wait for any additional output after resize
-        await Task.Delay(500, TestContext.Current.CancellationToken);
-        
         // Assert
-        Assert.True(outputReceived, "Should have received output from bash");
+        Assert.True(outputReceived, "Should have received output from the shell.");
         
         // Check that the buffer has content (bash prompt)
         var buffer = handle.GetScreenBuffer();
@@ -167,7 +154,7 @@ public class TerminalResizeTimingTests
             }
         }
         
-        Assert.True(hasContent, "Buffer should contain bash prompt");
+        Assert.True(hasContent, "Buffer should contain shell prompt content.");
         
         // Clean up
         await terminal.DisposeAsync();
@@ -181,24 +168,29 @@ public class TerminalResizeTimingTests
     public async Task TerminalNode_WhenBound_ReceivesOutputAndMarksDirty()
     {
         // Arrange
-        var terminal = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(80, 24)
-            .WithPtyProcess("bash", "--norc")
+        var terminal = WithInteractiveShell(
+            Hex1bTerminal.CreateBuilder()
+                .WithDimensions(80, 24))
             .WithTerminalWidget(out var handle)
             .Build();
         
         var node = new TerminalNode { Handle = handle };
         bool invalidateCalled = false;
+        var invalidateSignal = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         
         // Simulate what Hex1bApp does during reconciliation
-        node.SetInvalidateCallback(() => invalidateCalled = true);
+        node.SetInvalidateCallback(() =>
+        {
+            invalidateCalled = true;
+            invalidateSignal.TrySetResult();
+        });
         node.Bind();
         
         // Act - Start terminal
         var runTask = Task.Run(() => terminal.RunAsync(TestContext.Current.CancellationToken));
-        
-        // Wait for bash to output its prompt
-        await Task.Delay(2000, TestContext.Current.CancellationToken);
+
+        await invalidateSignal.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForTerminalStateAsync(handle, TerminalState.Running, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Assert
         Assert.True(invalidateCalled, "Invalidate callback should have been called when output arrived");
@@ -218,15 +210,15 @@ public class TerminalResizeTimingTests
     public async Task SecondTerminal_WhenSwitchedTo_ReceivesAndDisplaysOutput()
     {
         // Arrange - Create two terminals
-        var terminal1 = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(148, 36)
-            .WithPtyProcess("bash", "--norc")
+        var terminal1 = WithInteractiveShell(
+            Hex1bTerminal.CreateBuilder()
+                .WithDimensions(148, 36))
             .WithTerminalWidget(out var handle1)
             .Build();
         
-        var terminal2 = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(148, 36)
-            .WithPtyProcess("bash", "--norc")
+        var terminal2 = WithInteractiveShell(
+            Hex1bTerminal.CreateBuilder()
+                .WithDimensions(148, 36))
             .WithTerminalWidget(out var handle2)
             .Build();
         
@@ -239,9 +231,8 @@ public class TerminalResizeTimingTests
         var runTask1 = Task.Run(() => terminal1.RunAsync(TestContext.Current.CancellationToken));
         node.Handle = handle1;
         node.Bind();
-        
-        // Wait for first terminal to output
-        await Task.Delay(1500, TestContext.Current.CancellationToken);
+
+        await WaitForTerminalContentAsync(handle1, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Verify first terminal works
         var buffer1 = handle1.GetScreenBuffer();
@@ -262,9 +253,8 @@ public class TerminalResizeTimingTests
         // Arrange the node (simulates layout phase)
         node.Measure(new Constraints(0, 148, 0, 36));
         node.Arrange(new Rect(0, 0, 148, 36));
-        
-        // Wait for second terminal to output
-        await Task.Delay(2000, TestContext.Current.CancellationToken);
+
+        await WaitForTerminalContentAsync(handle2, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
         
         // Assert - Second terminal should have content
         var buffer2 = handle2.GetScreenBuffer();
@@ -294,6 +284,108 @@ public class TerminalResizeTimingTests
         }
         return false;
     }
+
+    private static Hex1bTerminalBuilder WithInteractiveShell(Hex1bTerminalBuilder builder)
+    {
+        var (fileName, arguments) = GetInteractiveShell();
+        return builder.WithPtyProcess(fileName, arguments);
+    }
+
+    private static Hex1bTerminalChildProcess CreateInteractiveShellProcess(int initialWidth, int initialHeight)
+    {
+        var (fileName, arguments) = GetInteractiveShell();
+        return new Hex1bTerminalChildProcess(
+            fileName,
+            arguments,
+            initialWidth: initialWidth,
+            initialHeight: initialHeight);
+    }
+
+    private static (string FileName, string[] Arguments) GetInteractiveShell()
+    {
+        return OperatingSystem.IsWindows()
+            ? ("pwsh", ["-NoLogo", "-NoProfile"])
+            : ("bash", ["--norc", "--noprofile"]);
+    }
+
+    private static async Task WaitForTerminalStateAsync(
+        TerminalWidgetHandle handle,
+        TerminalState expectedState,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        if (handle.State == expectedState)
+        {
+            return;
+        }
+
+        var stateChanged = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnStateChanged(TerminalState state)
+        {
+            if (state == expectedState)
+            {
+                stateChanged.TrySetResult();
+            }
+        }
+
+        handle.StateChanged += OnStateChanged;
+        try
+        {
+            OnStateChanged(handle.State);
+            await stateChanged.Task.WaitAsync(timeout, cancellationToken);
+        }
+        finally
+        {
+            handle.StateChanged -= OnStateChanged;
+        }
+    }
+
+    private static async Task WaitForTerminalContentAsync(
+        TerminalWidgetHandle handle,
+        TimeSpan timeout,
+        CancellationToken cancellationToken)
+    {
+        if (HasNonEmptyContent(handle.GetScreenBuffer(), handle.Height, handle.Width))
+        {
+            return;
+        }
+
+        var contentReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        void OnOutputReceived()
+        {
+            if (HasNonEmptyContent(handle.GetScreenBuffer(), handle.Height, handle.Width))
+            {
+                contentReady.TrySetResult();
+            }
+        }
+
+        handle.OutputReceived += OnOutputReceived;
+        try
+        {
+            OnOutputReceived();
+            await contentReady.Task.WaitAsync(timeout, cancellationToken);
+        }
+        finally
+        {
+            handle.OutputReceived -= OnOutputReceived;
+        }
+    }
+
+    private static async Task AwaitTerminalRunTaskAsync(Task runTask)
+    {
+        try
+        {
+            await runTask.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+    }
     
     /// <summary>
     /// This test simulates the EXACT scenario in EmbeddedTerminalDemo where
@@ -314,7 +406,7 @@ public class TerminalResizeTimingTests
         using var terminal = new Hex1bTerminal(terminalOptions);
         
         // State
-        var terminals = new List<(int id, Hex1bTerminal term, TerminalWidgetHandle handle)>();
+        var terminals = new List<(int id, Hex1bTerminal term, TerminalWidgetHandle handle, Task runTask)>();
         var terminalLock = new object();
         var nextTerminalId = 1;
         var activeTerminalId = 0;
@@ -323,24 +415,31 @@ public class TerminalResizeTimingTests
         void AddTerminal()
         {
             var id = nextTerminalId++;
-            var childTerminal = Hex1bTerminal.CreateBuilder()
-                .WithDimensions(148, 36)
-                .WithPtyProcess("bash", "--norc")
+            var childTerminal = WithInteractiveShell(
+                Hex1bTerminal.CreateBuilder()
+                    .WithDimensions(148, 36))
                 .WithTerminalWidget(out var handle)
                 .Build();
             
+            var childRunTask = Task.Run(async () =>
+            {
+                try
+                {
+                    await childTerminal.RunAsync(TestContext.Current.CancellationToken);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+                catch (ObjectDisposedException)
+                {
+                }
+            });
+
             lock (terminalLock)
             {
-                terminals.Add((id, childTerminal, handle));
+                terminals.Add((id, childTerminal, handle, childRunTask));
                 activeTerminalId = id;
             }
-            
-            // Start the terminal in background
-            _ = Task.Run(async () =>
-            {
-                try { await childTerminal.RunAsync(TestContext.Current.CancellationToken); }
-                catch (OperationCanceledException) { }
-            });
             
             // Invalidate to trigger re-render with the new terminal
             appRef?.Invalidate();
@@ -348,7 +447,7 @@ public class TerminalResizeTimingTests
         
         Hex1bWidget BuildUI(RootContext ctx)
         {
-            List<(int id, Hex1bTerminal term, TerminalWidgetHandle handle)> currentTerminals;
+            List<(int id, Hex1bTerminal term, TerminalWidgetHandle handle, Task runTask)> currentTerminals;
             lock (terminalLock)
             {
                 currentTerminals = [.. terminals];
@@ -381,17 +480,17 @@ public class TerminalResizeTimingTests
         
         try
         {
-            // Wait for app to start
-            await Task.Delay(200, TestContext.Current.CancellationToken);
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("No terminals"), TimeSpan.FromSeconds(5))
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
             
             // Create first terminal
             AddTerminal();
             
-            // Wait for first terminal to output its prompt
-            await Task.Delay(2000, TestContext.Current.CancellationToken);
-            
             // Verify first terminal has content
             var handle1 = terminals[0].handle;
+            await WaitForTerminalContentAsync(handle1, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
             var buffer1 = handle1.GetScreenBuffer();
             bool terminal1HasContent = HasNonEmptyContent(buffer1, handle1.Height, handle1.Width);
             Assert.True(terminal1HasContent, "First terminal should have content");
@@ -399,11 +498,9 @@ public class TerminalResizeTimingTests
             // Create second terminal
             AddTerminal();
             
-            // Wait for second terminal to output its prompt
-            await Task.Delay(3000, TestContext.Current.CancellationToken);
-            
             // Verify second terminal has content
             var handle2 = terminals[1].handle;
+            await WaitForTerminalContentAsync(handle2, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
             var buffer2 = handle2.GetScreenBuffer();
             bool terminal2HasContent = HasNonEmptyContent(buffer2, handle2.Height, handle2.Width);
             
@@ -420,9 +517,10 @@ public class TerminalResizeTimingTests
             appRef.RequestStop();
             
             // Clean up child terminals
-            foreach (var (_, term, _) in terminals)
+            foreach (var (_, term, _, childRunTask) in terminals)
             {
                 await term.DisposeAsync();
+                await AwaitTerminalRunTaskAsync(childRunTask);
             }
         }
         

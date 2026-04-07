@@ -389,7 +389,7 @@ public class DockerContainerArgBuilderTests
         };
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
-        Assert.Equal("/some/path", args[^1]);
+        Assert.Equal(Path.GetDirectoryName(options.DockerfilePath), args[^1]);
     }
 
     [Fact]
