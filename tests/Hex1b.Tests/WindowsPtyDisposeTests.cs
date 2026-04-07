@@ -169,63 +169,69 @@ public class WindowsPtyDisposeTests
         var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
         Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
-        var socketPath = workspace.GetPath("hex1bpty.socket");
+        var socketPath = WindowsPtySocketPaths.CreateSocketPath();
         var logPath = workspace.GetPath("hex1bpty.log");
-
-        using var process = new Process
+        try
         {
-            StartInfo = new ProcessStartInfo(shimPath)
+            using var process = new Process
             {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            }
-        };
+                StartInfo = new ProcessStartInfo(shimPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                }
+            };
 
-        process.StartInfo.ArgumentList.Add("--socket");
-        process.StartInfo.ArgumentList.Add(socketPath);
-        process.StartInfo.ArgumentList.Add("--token");
-        process.StartInfo.ArgumentList.Add("expected-launch-token");
-        process.StartInfo.ArgumentList.Add("--logfile");
-        process.StartInfo.ArgumentList.Add(logPath);
+            process.StartInfo.ArgumentList.Add("--socket");
+            process.StartInfo.ArgumentList.Add(socketPath);
+            process.StartInfo.ArgumentList.Add("--token");
+            process.StartInfo.ArgumentList.Add("expected-launch-token");
+            process.StartInfo.ArgumentList.Add("--logfile");
+            process.StartInfo.ArgumentList.Add(logPath);
 
-        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
 
-        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        await ConnectWithRetriesAsync(
-            socket,
-            new UnixDomainSocketEndPoint(socketPath),
-            TestContext.Current.CancellationToken);
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await ConnectWithRetriesAsync(
+                socket,
+                new UnixDomainSocketEndPoint(socketPath),
+                TestContext.Current.CancellationToken);
 
-        await using var stream = new NetworkStream(socket, ownsSocket: true);
-        var launchRequest = new WindowsPtyShimLaunchRequest(
-            "cmd.exe",
-            ["/c", "echo SHOULD_NOT_RUN"],
-            Environment.CurrentDirectory,
-            new Dictionary<string, string>(),
-            80,
-            24,
-            "wrong-launch-token");
+            await using var stream = new NetworkStream(socket, ownsSocket: true);
+            var launchRequest = new WindowsPtyShimLaunchRequest(
+                "cmd.exe",
+                ["/c", "echo SHOULD_NOT_RUN"],
+                Environment.CurrentDirectory,
+                new Dictionary<string, string>(),
+                80,
+                24,
+                "wrong-launch-token");
 
-        await WindowsPtyShimProtocol.WriteJsonAsync(
-            stream,
-            WindowsPtyShimFrameType.LaunchRequest,
-            launchRequest,
-            TestContext.Current.CancellationToken);
+            await WindowsPtyShimProtocol.WriteJsonAsync(
+                stream,
+                WindowsPtyShimFrameType.LaunchRequest,
+                launchRequest,
+                TestContext.Current.CancellationToken);
 
-        var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-        Assert.NotNull(frame);
-        Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+            var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+            Assert.NotNull(frame);
+            Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
 
-        var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
-        Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
+            var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
+            Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
 
-        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, process.ExitCode);
-        Assert.True(File.Exists(logPath));
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(1, process.ExitCode);
+            Assert.True(File.Exists(logPath));
 
-        var logContents = await ReadAllTextSharedAsync(logPath, TestContext.Current.CancellationToken);
-        Assert.Contains("Rejected PTY launch request", logContents, StringComparison.OrdinalIgnoreCase);
+            var logContents = await ReadAllTextSharedAsync(logPath, TestContext.Current.CancellationToken);
+            Assert.Contains("Rejected PTY launch request", logContents, StringComparison.OrdinalIgnoreCase);
+        }
+        finally
+        {
+            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
+        }
     }
 
     [Fact]
@@ -239,59 +245,65 @@ public class WindowsPtyDisposeTests
         var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
         Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
-        var socketPath = workspace.GetPath("hex1bpty.socket");
+        var socketPath = WindowsPtySocketPaths.CreateSocketPath();
         var invalidLogPath = workspace.BaseDirectory.FullName; // Directory path, not a file path.
-
-        using var process = new Process
+        try
         {
-            StartInfo = new ProcessStartInfo(shimPath)
+            using var process = new Process
             {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            }
-        };
+                StartInfo = new ProcessStartInfo(shimPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                }
+            };
 
-        process.StartInfo.ArgumentList.Add("--socket");
-        process.StartInfo.ArgumentList.Add(socketPath);
-        process.StartInfo.ArgumentList.Add("--token");
-        process.StartInfo.ArgumentList.Add("expected-launch-token");
-        process.StartInfo.ArgumentList.Add("--logfile");
-        process.StartInfo.ArgumentList.Add(invalidLogPath);
+            process.StartInfo.ArgumentList.Add("--socket");
+            process.StartInfo.ArgumentList.Add(socketPath);
+            process.StartInfo.ArgumentList.Add("--token");
+            process.StartInfo.ArgumentList.Add("expected-launch-token");
+            process.StartInfo.ArgumentList.Add("--logfile");
+            process.StartInfo.ArgumentList.Add(invalidLogPath);
 
-        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
 
-        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        await ConnectWithRetriesAsync(
-            socket,
-            new UnixDomainSocketEndPoint(socketPath),
-            TestContext.Current.CancellationToken);
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await ConnectWithRetriesAsync(
+                socket,
+                new UnixDomainSocketEndPoint(socketPath),
+                TestContext.Current.CancellationToken);
 
-        await using var stream = new NetworkStream(socket, ownsSocket: true);
-        var launchRequest = new WindowsPtyShimLaunchRequest(
-            "cmd.exe",
-            ["/c", "echo SHOULD_NOT_RUN"],
-            Environment.CurrentDirectory,
-            new Dictionary<string, string>(),
-            80,
-            24,
-            "wrong-launch-token");
+            await using var stream = new NetworkStream(socket, ownsSocket: true);
+            var launchRequest = new WindowsPtyShimLaunchRequest(
+                "cmd.exe",
+                ["/c", "echo SHOULD_NOT_RUN"],
+                Environment.CurrentDirectory,
+                new Dictionary<string, string>(),
+                80,
+                24,
+                "wrong-launch-token");
 
-        await WindowsPtyShimProtocol.WriteJsonAsync(
-            stream,
-            WindowsPtyShimFrameType.LaunchRequest,
-            launchRequest,
-            TestContext.Current.CancellationToken);
+            await WindowsPtyShimProtocol.WriteJsonAsync(
+                stream,
+                WindowsPtyShimFrameType.LaunchRequest,
+                launchRequest,
+                TestContext.Current.CancellationToken);
 
-        var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-        Assert.NotNull(frame);
-        Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+            var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+            Assert.NotNull(frame);
+            Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
 
-        var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
-        Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
+            var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
+            Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
 
-        await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(1, process.ExitCode);
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken);
+            Assert.Equal(1, process.ExitCode);
+        }
+        finally
+        {
+            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
+        }
     }
 
     [Fact]
@@ -305,57 +317,63 @@ public class WindowsPtyDisposeTests
         var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
         Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
 
-        var socketPath = workspace.GetPath("hex1bpty.socket");
-
-        using var process = new Process
+        var socketPath = WindowsPtySocketPaths.CreateSocketPath();
+        try
         {
-            StartInfo = new ProcessStartInfo(shimPath)
+            using var process = new Process
             {
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                WindowStyle = ProcessWindowStyle.Hidden
-            }
-        };
+                StartInfo = new ProcessStartInfo(shimPath)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WindowStyle = ProcessWindowStyle.Hidden
+                }
+            };
 
-        process.StartInfo.ArgumentList.Add("--socket");
-        process.StartInfo.ArgumentList.Add(socketPath);
-        process.StartInfo.ArgumentList.Add("--token");
-        process.StartInfo.ArgumentList.Add("expected-launch-token");
+            process.StartInfo.ArgumentList.Add("--socket");
+            process.StartInfo.ArgumentList.Add(socketPath);
+            process.StartInfo.ArgumentList.Add("--token");
+            process.StartInfo.ArgumentList.Add("expected-launch-token");
 
-        Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
 
-        using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-        await ConnectWithRetriesAsync(
-            socket,
-            new UnixDomainSocketEndPoint(socketPath),
-            TestContext.Current.CancellationToken);
-
-        await using (var stream = new NetworkStream(socket, ownsSocket: true))
-        {
-            var launchRequest = new WindowsPtyShimLaunchRequest(
-                "cmd.exe",
-                ["/q", "/d", "/k", "prompt ORPHAN$G"],
-                Environment.CurrentDirectory,
-                new Dictionary<string, string>(),
-                80,
-                24,
-                "expected-launch-token");
-
-            await WindowsPtyShimProtocol.WriteJsonAsync(
-                stream,
-                WindowsPtyShimFrameType.LaunchRequest,
-                launchRequest,
+            using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            await ConnectWithRetriesAsync(
+                socket,
+                new UnixDomainSocketEndPoint(socketPath),
                 TestContext.Current.CancellationToken);
 
-            var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-            Assert.NotNull(frame);
-            Assert.Equal(WindowsPtyShimFrameType.Started, frame.Value.Type);
+            await using (var stream = new NetworkStream(socket, ownsSocket: true))
+            {
+                var launchRequest = new WindowsPtyShimLaunchRequest(
+                    "cmd.exe",
+                    ["/q", "/d", "/k", "prompt ORPHAN$G"],
+                    Environment.CurrentDirectory,
+                    new Dictionary<string, string>(),
+                    80,
+                    24,
+                    "expected-launch-token");
+
+                await WindowsPtyShimProtocol.WriteJsonAsync(
+                    stream,
+                    WindowsPtyShimFrameType.LaunchRequest,
+                    launchRequest,
+                    TestContext.Current.CancellationToken);
+
+                var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
+                Assert.NotNull(frame);
+                Assert.Equal(WindowsPtyShimFrameType.Started, frame.Value.Type);
+            }
+
+            await process.WaitForExitAsync(TestContext.Current.CancellationToken)
+                .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+
+            Assert.True(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
         }
-
-        await process.WaitForExitAsync(TestContext.Current.CancellationToken)
-            .WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-
-        Assert.True(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
+        finally
+        {
+            WindowsPtySocketPaths.DeleteSocketFile(socketPath);
+        }
     }
 
     /// <summary>
