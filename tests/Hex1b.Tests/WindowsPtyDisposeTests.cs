@@ -178,6 +178,7 @@ public class WindowsPtyDisposeTests
                 StartInfo = new ProcessStartInfo(shimPath)
                 {
                     UseShellExecute = false,
+                    RedirectStandardError = true,
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 }
@@ -196,6 +197,7 @@ public class WindowsPtyDisposeTests
             await ConnectWithRetriesAsync(
                 socket,
                 new UnixDomainSocketEndPoint(socketPath),
+                process,
                 TestContext.Current.CancellationToken);
 
             await using var stream = new NetworkStream(socket, ownsSocket: true);
@@ -254,6 +256,7 @@ public class WindowsPtyDisposeTests
                 StartInfo = new ProcessStartInfo(shimPath)
                 {
                     UseShellExecute = false,
+                    RedirectStandardError = true,
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 }
@@ -272,6 +275,7 @@ public class WindowsPtyDisposeTests
             await ConnectWithRetriesAsync(
                 socket,
                 new UnixDomainSocketEndPoint(socketPath),
+                process,
                 TestContext.Current.CancellationToken);
 
             await using var stream = new NetworkStream(socket, ownsSocket: true);
@@ -325,6 +329,7 @@ public class WindowsPtyDisposeTests
                 StartInfo = new ProcessStartInfo(shimPath)
                 {
                     UseShellExecute = false,
+                    RedirectStandardError = true,
                     CreateNoWindow = true,
                     WindowStyle = ProcessWindowStyle.Hidden
                 }
@@ -341,6 +346,7 @@ public class WindowsPtyDisposeTests
             await ConnectWithRetriesAsync(
                 socket,
                 new UnixDomainSocketEndPoint(socketPath),
+                process,
                 TestContext.Current.CancellationToken);
 
             await using (var stream = new NetworkStream(socket, ownsSocket: true))
@@ -482,22 +488,43 @@ public class WindowsPtyDisposeTests
     private static async Task ConnectWithRetriesAsync(
         Socket socket,
         UnixDomainSocketEndPoint endpoint,
+        Process? helperProcess,
         CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
-        SocketException? lastError = null;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
+        Exception? lastError = null;
 
         while (DateTime.UtcNow < deadline)
         {
+            if (helperProcess is { HasExited: true })
+            {
+                var message = $"The PTY shim exited before opening the socket. Exit code: {helperProcess.ExitCode}.";
+                if (helperProcess.StartInfo.RedirectStandardError)
+                {
+                    var stderr = await helperProcess.StandardError.ReadToEndAsync(ct);
+                    if (!string.IsNullOrWhiteSpace(stderr))
+                    {
+                        message += $"{Environment.NewLine}stderr:{Environment.NewLine}{stderr}";
+                    }
+                }
+
+                throw new IOException(message, lastError);
+            }
+
             try
             {
                 await socket.ConnectAsync(endpoint, ct);
                 return;
             }
-            catch (SocketException ex) when (DateTime.UtcNow < deadline)
+            catch (Exception ex) when (ex is SocketException or IOException)
             {
                 lastError = ex;
-                await Task.Delay(50, ct);
+                if (DateTime.UtcNow >= deadline)
+                {
+                    break;
+                }
+
+                await Task.Delay(100, ct);
             }
         }
 
