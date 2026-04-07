@@ -11,10 +11,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     permissions:
       contents: read
       checks: write
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout code
@@ -26,6 +34,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build native library for tests
+        if: runner.os != 'Windows'
         working-directory: src/Hex1b/native
         run: make
 
@@ -60,20 +69,24 @@ jobs:
             --results-directory ./TestResults
 
       - name: Download and install Aspire CLI
+        if: runner.os == 'Linux'
         run: |
           set -e
           curl -sSL https://aspire.dev/install.sh | bash -s
           echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js for content build
+        if: runner.os == 'Linux'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Generate API reference docs
+        if: runner.os == 'Linux'
         run: dotnet run --project src/DocGenerator
 
       - name: Verify content build
+        if: runner.os == 'Linux'
         run: |
           cd src/content
           npm install
@@ -85,7 +98,7 @@ jobs:
         uses: dorny/test-reporter@v1
         if: success() || failure()
         with:
-          name: Test Results
+          name: Test Results (${{ runner.os }})
           path: ./TestResults/*.trx
           reporter: dotnet-trx
 
@@ -93,14 +106,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: test-results
+          name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: svg-attachments
+          name: svg-attachments-${{ runner.os }}
           path: tests/Hex1b.Tests/bin/Debug/net10.0/TestResults/svg/
           if-no-files-found: ignore
 
