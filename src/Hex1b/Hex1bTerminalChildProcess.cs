@@ -1,5 +1,4 @@
 using System.Diagnostics;
-using System.Text;
 
 namespace Hex1b;
 
@@ -51,8 +50,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private int _exitCode;
     private bool _disposed;
     private readonly TaskCompletionSource _startedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
-    private readonly Queue<byte[]> _startupOutputQueue = new();
-    private readonly object _startupOutputLock = new();
     
     // Platform-specific PTY handle (will be implemented per-platform)
     private IPtyHandle? _ptyHandle;
@@ -192,11 +189,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         // Start the process
         await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, _width, _height, ct);
 
-        // Capture a short startup burst up-front so the first consumer read gets the
-        // initial title/prompt output immediately. Handle-level warmup owns any
-        // Windows-specific nudging so we do not synthesize an extra Enter here.
-        await CaptureStartupOutputBurstAsync(ct).ConfigureAwait(false);
-
         _started = true;
 
         // Signal that the process has started (allows ReadOutputAsync to proceed)
@@ -246,14 +238,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         if (_disposed || _ptyHandle == null)
             return ReadOnlyMemory<byte>.Empty;
 
-        lock (_startupOutputLock)
-        {
-            if (_startupOutputQueue.Count > 0)
-            {
-                return _startupOutputQueue.Dequeue();
-            }
-        }
-        
         try
         {
             return await _ptyHandle.ReadAsync(ct);
@@ -292,61 +276,6 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
     }
 
-    private async Task<byte[]> CaptureStartupOutputBurstAsync(CancellationToken ct)
-    {
-        if (_ptyHandle == null)
-        {
-            return [];
-        }
-
-        var captured = new List<byte[]>();
-        var captureDeadline = DateTime.UtcNow + TimeSpan.FromMilliseconds(500);
-        var quietWindow = TimeSpan.FromMilliseconds(75);
-        DateTime? quietDeadline = null;
-
-        while (DateTime.UtcNow < captureDeadline)
-        {
-            using var readCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-            readCts.CancelAfter(TimeSpan.FromMilliseconds(50));
-
-            ReadOnlyMemory<byte> data;
-            try
-            {
-                data = await _ptyHandle.ReadAsync(readCts.Token).ConfigureAwait(false);
-            }
-            catch (OperationCanceledException) when (!ct.IsCancellationRequested)
-            {
-                if (quietDeadline.HasValue && DateTime.UtcNow >= quietDeadline.Value)
-                {
-                    break;
-                }
-
-                continue;
-            }
-
-            if (data.IsEmpty)
-            {
-                if (quietDeadline.HasValue && DateTime.UtcNow >= quietDeadline.Value)
-                {
-                    break;
-                }
-
-                continue;
-            }
-
-            lock (_startupOutputLock)
-            {
-                var chunk = data.ToArray();
-                _startupOutputQueue.Enqueue(chunk);
-                captured.Add(chunk);
-            }
-
-            quietDeadline = DateTime.UtcNow + quietWindow;
-        }
-
-        return [.. captured.SelectMany(static chunk => chunk)];
-    }
-    
     /// <inheritdoc />
     public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
     {
