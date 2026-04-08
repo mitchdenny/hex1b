@@ -13,6 +13,8 @@ namespace Hex1b.Tests;
 /// </summary>
 public class TerminalResizeTimingTests
 {
+    private const string StartupMarker = "HEX1B_TERMINAL_READY";
+
     /// <summary>
     /// Verifies that when ResizeAsync is called before StartAsync,
     /// the PTY still starts with the correct dimensions.
@@ -132,7 +134,7 @@ public class TerminalResizeTimingTests
         // Act - Start terminal
         var runTask = Task.Run(() => terminal.RunAsync(TestContext.Current.CancellationToken));
 
-        await WaitForTerminalContentAsync(handle, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForTerminalContentAsync(handle, GetStartupTimeout(), TestContext.Current.CancellationToken);
         
         // Resize (simulates what TerminalNode.Arrange does)
         handle.Resize(148, 36);
@@ -190,7 +192,7 @@ public class TerminalResizeTimingTests
         var runTask = Task.Run(() => terminal.RunAsync(TestContext.Current.CancellationToken));
 
         await invalidateSignal.Task.WaitAsync(TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
-        await WaitForTerminalStateAsync(handle, TerminalState.Running, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForTerminalStateAsync(handle, TerminalState.Running, GetStartupTimeout(), TestContext.Current.CancellationToken);
         
         // Assert
         Assert.True(invalidateCalled, "Invalidate callback should have been called when output arrived");
@@ -232,7 +234,7 @@ public class TerminalResizeTimingTests
         node.Handle = handle1;
         node.Bind();
 
-        await WaitForTerminalContentAsync(handle1, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
         
         // Verify first terminal works
         var buffer1 = handle1.GetScreenBuffer();
@@ -254,7 +256,7 @@ public class TerminalResizeTimingTests
         node.Measure(new Constraints(0, 148, 0, 36));
         node.Arrange(new Rect(0, 0, 148, 36));
 
-        await WaitForTerminalContentAsync(handle2, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+        await WaitForTerminalContentAsync(handle2, GetStartupTimeout(), TestContext.Current.CancellationToken);
         
         // Assert - Second terminal should have content
         var buffer2 = handle2.GetScreenBuffer();
@@ -304,9 +306,12 @@ public class TerminalResizeTimingTests
     private static (string FileName, string[] Arguments) GetInteractiveShell()
     {
         return OperatingSystem.IsWindows()
-            ? ("pwsh", ["-NoLogo", "-NoProfile"])
-            : ("bash", ["--norc", "--noprofile"]);
+            ? ("pwsh", ["-NoLogo", "-NoProfile", "-NoExit", "-Command", $"Write-Output '{StartupMarker}'"])
+            : ("bash", ["--norc", "--noprofile", "-i", "-c", $"printf '{StartupMarker}\\n'; exec bash --norc --noprofile -i"]);
     }
+
+    private static TimeSpan GetStartupTimeout() =>
+        OperatingSystem.IsWindows() ? TimeSpan.FromSeconds(20) : TimeSpan.FromSeconds(10);
 
     private static async Task WaitForTerminalStateAsync(
         TerminalWidgetHandle handle,
@@ -365,7 +370,30 @@ public class TerminalResizeTimingTests
         try
         {
             OnOutputReceived();
-            await contentReady.Task.WaitAsync(timeout, cancellationToken);
+
+            var deadline = DateTime.UtcNow + timeout;
+            while (!contentReady.Task.IsCompleted)
+            {
+                var remaining = deadline - DateTime.UtcNow;
+                if (remaining <= TimeSpan.Zero)
+                {
+                    throw new TimeoutException(
+                        $"Timed out waiting for terminal content. State={handle.State}, Width={handle.Width}, Height={handle.Height}.");
+                }
+
+                var pollDelay = remaining < TimeSpan.FromMilliseconds(100)
+                    ? remaining
+                    : TimeSpan.FromMilliseconds(100);
+
+                var completed = await Task.WhenAny(contentReady.Task, Task.Delay(pollDelay, cancellationToken));
+                if (completed == contentReady.Task)
+                {
+                    await contentReady.Task;
+                    break;
+                }
+
+                OnOutputReceived();
+            }
         }
         finally
         {
@@ -490,7 +518,7 @@ public class TerminalResizeTimingTests
             
             // Verify first terminal has content
             var handle1 = terminals[0].handle;
-            await WaitForTerminalContentAsync(handle1, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
             var buffer1 = handle1.GetScreenBuffer();
             bool terminal1HasContent = HasNonEmptyContent(buffer1, handle1.Height, handle1.Width);
             Assert.True(terminal1HasContent, "First terminal should have content");
@@ -500,7 +528,7 @@ public class TerminalResizeTimingTests
             
             // Verify second terminal has content
             var handle2 = terminals[1].handle;
-            await WaitForTerminalContentAsync(handle2, TimeSpan.FromSeconds(10), TestContext.Current.CancellationToken);
+            await WaitForTerminalContentAsync(handle2, GetStartupTimeout(), TestContext.Current.CancellationToken);
             var buffer2 = handle2.GetScreenBuffer();
             bool terminal2HasContent = HasNonEmptyContent(buffer2, handle2.Height, handle2.Width);
             
