@@ -194,15 +194,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build Windows PTY shim via MSBuild
+      - name: Publish Windows PTY shim
         shell: pwsh
-        run: dotnet build .\src\Hex1b\Hex1b.csproj -c Release --nologo -p:Hex1bPtyHostPublishMode=Aot -p:WindowsPtyShimRid=win-x64
+        run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pty-host-windows-x64
-          path: src/Hex1b/obj/windows-pty-shim/win-x64/native
+          path: artifacts/pty-host/win-x64/hex1bpty.exe
 
   build-pty-host-windows-arm64:
     runs-on: windows-11-arm
@@ -215,15 +215,15 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Build Windows PTY shim via MSBuild
+      - name: Publish Windows PTY shim
         shell: pwsh
-        run: dotnet build .\src\Hex1b\Hex1b.csproj -c Release --nologo -p:Hex1bPtyHostPublishMode=Aot -p:WindowsPtyShimRid=win-arm64
+        run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: pty-host-windows-arm64
-          path: src/Hex1b/obj/windows-pty-shim/win-arm64/native
+          path: artifacts/pty-host/win-arm64/hex1bpty.exe
 
   build-pr:
     runs-on: ubuntu-latest
@@ -302,6 +302,13 @@ jobs:
         run: |
           echo "Hex1b package contents:"
           unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -n "$unexpected_windows_assets" ]; then
+            echo ""
+            echo "Unexpected Windows PTY payload detected:"
+            echo "$unexpected_windows_assets"
+            exit 1
+          fi
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
@@ -392,6 +399,13 @@ jobs:
         run: |
           echo "Hex1b package contents:"
           unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -n "$unexpected_windows_assets" ]; then
+            echo ""
+            echo "Unexpected Windows PTY payload detected:"
+            echo "$unexpected_windows_assets"
+            exit 1
+          fi
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30

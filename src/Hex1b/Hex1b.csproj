@@ -74,6 +74,7 @@
   <PropertyGroup>
     <Hex1bPtyHostEnabled Condition="'$(Hex1bPtyHostEnabled)' == ''">false</Hex1bPtyHostEnabled>
     <Hex1bPtyHostPublishMode Condition="'$(Hex1bPtyHostPublishMode)' == ''">Debug</Hex1bPtyHostPublishMode>
+    <WindowsPtyShimExecutableName Condition="'$(WindowsPtyShimExecutableName)' == ''">hex1bpty.exe</WindowsPtyShimExecutableName>
     <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeWindowsPtyShimInPackage</TargetsForTfmSpecificContentInPackage>
     <BuildDependsOn>$(BuildDependsOn);SyncFreshManagedOutput</BuildDependsOn>
   </PropertyGroup>
@@ -318,28 +319,24 @@
   <Target Name="IncludeWindowsPtyShimInPackage"
           DependsOnTargets="PublishWindowsPtyShimForPack">
     <ItemGroup>
-      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.*"
-                                 Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.pdb;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.dbg;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.map;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.lib;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\**\*.exp"
-                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native')">
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\$(WindowsPtyShimExecutableName)')">
         <PtyRid>win-x64</PtyRid>
       </WindowsPtyShimPackageFile>
-      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.*"
-                                 Exclude="$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.pdb;$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.dbg;$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.map;$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.lib;$(MSBuildProjectDirectory)\runtimes\win-x64\native\**\*.exp"
-                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native')">
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-x64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\$(WindowsPtyShimExecutableName)')">
         <PtyRid>win-x64</PtyRid>
       </WindowsPtyShimPackageFile>
-      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.*"
-                                 Exclude="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.pdb;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.dbg;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.map;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.lib;$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\**\*.exp"
-                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native')">
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\$(WindowsPtyShimExecutableName)')">
         <PtyRid>win-arm64</PtyRid>
       </WindowsPtyShimPackageFile>
-      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.*"
-                                 Exclude="$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.pdb;$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.dbg;$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.map;$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.lib;$(MSBuildProjectDirectory)\runtimes\win-arm64\native\**\*.exp"
-                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-arm64\native')">
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-arm64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-arm64\native\$(WindowsPtyShimExecutableName)')">
         <PtyRid>win-arm64</PtyRid>
       </WindowsPtyShimPackageFile>
       <TfmSpecificPackageFile Include="@(WindowsPtyShimPackageFile)">
-        <PackagePath>runtimes/%(PtyRid)/native/%(RecursiveDir)</PackagePath>
+        <PackagePath>runtimes/%(PtyRid)/native/</PackagePath>
       </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
