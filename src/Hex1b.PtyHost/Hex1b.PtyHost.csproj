@@ -12,6 +12,19 @@
     <UseAppHost>true</UseAppHost>
     <IsAotCompatible>true</IsAotCompatible>
     <InvariantGlobalization>true</InvariantGlobalization>
+    <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(PublishAot)' == 'true'">
+    <!-- Native AOT already produces a single executable; bias the helper publish for size. -->
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>full</TrimMode>
+    <StripSymbols>true</StripSymbols>
+    <TrimmerRemoveSymbols>true</TrimmerRemoveSymbols>
+    <IlcOptimizationPreference>Size</IlcOptimizationPreference>
+    <UseSizeOptimizedLinq>true</UseSizeOptimizedLinq>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
   </PropertyGroup>
 
   <ItemGroup>
