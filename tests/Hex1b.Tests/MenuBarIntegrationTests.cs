@@ -28,6 +28,14 @@ public class MenuBarIntegrationTests
             ctx.Text("Content area - click here to dismiss menus")
         ]);
     }
+
+    private static async Task StopAppAsync(Hex1bApp app, Task runTask)
+    {
+        // Explicitly stop menu tests instead of relying on Ctrl+C cleanup because open
+        // menus can interpret it as an accelerator (for example Edit > Copy) on Linux.
+        app.RequestStop();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
+    }
     
     private static IEnumerable<MenuWidget> BuildMenus(
         MenuContext m,
@@ -117,7 +125,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified File menu items (New, Open) are visible
     }
     
@@ -143,7 +151,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
@@ -169,7 +177,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
@@ -195,7 +203,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu opened with Undo and Redo visible
     }
     
@@ -222,7 +230,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified Edit menu items (Undo, Copy) are visible
     }
     
@@ -251,7 +259,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu opened with Undo visible
     }
     
@@ -285,7 +293,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - "Open" action should have been triggered
         Assert.Equal("File > Open", lastAction);
@@ -342,7 +350,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - "Open" action should have been triggered
         Assert.Equal("File > Open", lastAction);
@@ -375,7 +383,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert
         Assert.Equal("File > Open", lastAction);
@@ -405,7 +413,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Action was triggered and menu closed
         Assert.Equal("File > New", lastAction);
@@ -436,7 +444,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert
         Assert.Equal("File > New", lastAction);
@@ -467,7 +475,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - No action should have been triggered
         Assert.Equal("", lastAction);
@@ -497,7 +505,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed, no action triggered
         Assert.Equal("", lastAction);
@@ -528,7 +536,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed, no action triggered
         Assert.Equal("", lastAction);
@@ -561,7 +569,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - "New" should have been activated
         Assert.Equal("File > New", lastAction);
@@ -594,7 +602,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // The WaitUntil in the sequence already verified "Undo" is visible,
         // proving focus stayed on Edit menu after Up arrow closed it
     }
@@ -623,7 +631,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert
         Assert.Equal("File > Open", lastAction);
@@ -660,7 +668,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Submenu items should be visible (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt"));
@@ -692,7 +700,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the submenu opened with Doc1.txt visible
     }
     
@@ -723,7 +731,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the submenu closed and parent menu is still visible
     }
     
@@ -757,7 +765,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Submenu should be open again, proving focus was on "Recent" (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt")); // Submenu is open
@@ -791,7 +799,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert
         Assert.Equal("File > Recent > Doc1.txt", lastAction);
@@ -826,7 +834,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
@@ -855,7 +863,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Should have activated some item (position may vary)
         Assert.NotEqual("", lastAction);
@@ -886,7 +894,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - No action should be triggered, menu should be closed
         Assert.Equal("", lastAction);
@@ -923,7 +931,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // The WaitUntil(s => s.ContainsText("About")) above already verified that the Help menu opened.
         // If WaitUntil passed, the test's main assertion succeeded.
@@ -962,7 +970,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Action should NOT have been triggered for disabled item
         Assert.NotEqual("File > Save As", lastAction);
@@ -1006,7 +1014,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed (no "No items" text visible)
         Assert.False(capture.ContainsText("(No items)"), 
@@ -1051,7 +1059,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Should now be in File menu
         Assert.True(capture.ContainsText("New"), 
@@ -1088,7 +1096,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the menu reopened, proving focus was restored
     }
     
@@ -1132,7 +1140,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - All three actions should have been recorded
         Assert.Contains("File > New", actions);
@@ -1205,7 +1213,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         
         // Assert - Focus should be on the first MenuItemNode
         Assert.True(focusableCount > 0, $"Expected focusables in the ring, got {focusableCount}");
@@ -1258,7 +1266,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         
         // Debug output
         var focusedAfterMenuOpenLabel = (focusedAfterMenuOpen as MenuItemNode)?.Label ?? focusedAfterMenuOpen?.GetType().Name ?? "null";
@@ -1304,7 +1312,8 @@ public class MenuBarIntegrationTests
         var doc2Pattern = new CellPatternSearcher().Find("Doc2.txt");
 
         // Act & Assert - all verification happens inline in the input sequence
-        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(TestContext.Current.CancellationToken);
+        var runTask = terminal.RunAsync(cts.Token);
         
         await new Hex1bTerminalInputSequenceBuilder()
             // Wait for menu bar to render
@@ -1357,7 +1366,8 @@ public class MenuBarIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
-        await runTask;
+        cts.Cancel();
+        await runTask.WaitAsync(TimeSpan.FromSeconds(5), TestContext.Current.CancellationToken);
     }
     
     #endregion
@@ -1390,7 +1400,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Edit menu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
@@ -1423,7 +1433,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified File menu (New, Open) is visible after Left arrow
     }
     
@@ -1452,7 +1462,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the File menu opened after wrapping
     }
     
@@ -1481,7 +1491,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible after wrap");
@@ -1515,7 +1525,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Redo action should have been triggered
         Assert.Equal("Edit > Redo", lastAction);
@@ -1548,7 +1558,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
@@ -1583,7 +1593,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Edit menu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
@@ -1618,7 +1628,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open (not File menu)
         Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
@@ -1652,7 +1662,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - Recent submenu should be open (use captured snapshot)
         Assert.True(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
@@ -1700,7 +1710,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
 
         // Assert - File menu should be open
         Assert.True(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
@@ -1742,7 +1752,7 @@ public class MenuBarIntegrationTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await runTask;
+        await StopAppAsync(app, runTask);
         // WaitUntil already verified the Edit menu opened with Undo and Redo visible
     }
     

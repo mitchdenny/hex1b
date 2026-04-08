@@ -76,7 +76,10 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act - Send the key
-        await new Hex1bTerminalInputSequenceBuilder().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(key)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
@@ -131,7 +134,10 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act - Send the key with Ctrl modifier
-        await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(key)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
@@ -182,7 +188,10 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
         // Act - Send the key with Shift modifier
-        await new Hex1bTerminalInputSequenceBuilder().Shift().Key(key).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Shift().Key(key)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Wait for the binding to fire - if this completes, the binding fired successfully
         // (WaitAsync throws TimeoutException if the binding doesn't fire within 2 seconds)
@@ -199,9 +208,9 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var aFired = false;
-        var bFired = false;
-        var cFired = false;
+        var aFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var bFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -215,9 +224,9 @@ public class InputBindingFluentApiTests
                 var vstack = new VStackWidget([testWidget])
                     .WithInputBindings(bindings =>
                     {
-                        bindings.Key(Hex1bKey.A).Action(_ => { aFired = true; return Task.CompletedTask; }, "A");
-                        bindings.Key(Hex1bKey.B).Action(_ => { bFired = true; return Task.CompletedTask; }, "B");
-                        bindings.Key(Hex1bKey.C).Action(_ => { cFired = true; return Task.CompletedTask; }, "C");
+                        bindings.Key(Hex1bKey.A).Action(_ => { aFired.TrySetResult(); return Task.CompletedTask; }, "A");
+                        bindings.Key(Hex1bKey.B).Action(_ => { bFired.TrySetResult(); return Task.CompletedTask; }, "B");
+                        bindings.Key(Hex1bKey.C).Action(_ => { cFired.TrySetResult(); return Task.CompletedTask; }, "C");
                     });
 
                 return Task.FromResult<Hex1bWidget>(vstack);
@@ -236,12 +245,11 @@ public class InputBindingFluentApiTests
             .Key(Hex1bKey.A).Wait(50)
             .Key(Hex1bKey.B).Wait(50)
             .Key(Hex1bKey.C).Wait(50)
-            .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Assert
-        Assert.True(aFired, "Expected A binding to fire");
-        Assert.True(bFired, "Expected B binding to fire");
-        Assert.True(cFired, "Expected C binding to fire");
+        await Task.WhenAll(aFired.Task, bFired.Task, cFired.Task)
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -283,7 +291,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var xBindingFired = false;
+        var xBindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
@@ -297,7 +305,7 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Key(Hex1bKey.X).Action(_ => 
                         { 
-                            xBindingFired = true; 
+                            xBindingFired.TrySetResult();
                             return Task.CompletedTask; 
                         }, "Test X");
                     });
@@ -314,13 +322,12 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         
         // Send X key
-        await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        
-        // Wait for input processing
-        await Task.Delay(200, TestContext.Current.CancellationToken);
-        
-        // Check if X binding fired
-        Assert.True(xBindingFired, "User binding for X key should have fired");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.X)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await xBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -333,7 +340,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var xBindingFired = false;
+        var xBindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
@@ -347,7 +354,7 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Key(Hex1bKey.X).Action(_ => 
                         { 
-                            xBindingFired = true; 
+                            xBindingFired.TrySetResult();
                             return Task.CompletedTask; 
                         }, "Test X");
                     });
@@ -364,13 +371,12 @@ public class InputBindingFluentApiTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         
         // Send X key
-        await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        
-        // Wait for input processing
-        await Task.Delay(200, TestContext.Current.CancellationToken);
-        
-        // Check if X binding fired
-        Assert.True(xBindingFired, "User binding for X key should have fired (CTRL-C disabled)");
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.X)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        await xBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -383,7 +389,7 @@ public class InputBindingFluentApiTests
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        var chordFired = false;
+        var chordFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var reconcileOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var renderOccurred = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
@@ -400,7 +406,11 @@ public class InputBindingFluentApiTests
                         // Create a chord: Ctrl+K, then Ctrl+C
                         bindings.Ctrl().Key(Hex1bKey.K)
                             .Then().Ctrl().Key(Hex1bKey.C)
-                            .Action(_ => { chordFired = true; return Task.CompletedTask; }, "Kill line");
+                            .Action(_ =>
+                            {
+                                chordFired.TrySetResult();
+                                return Task.CompletedTask;
+                            }, "Kill line");
                     });
 
                 return Task.FromResult<Hex1bWidget>(vstack);
@@ -418,10 +428,10 @@ public class InputBindingFluentApiTests
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.K).Wait(50)
             .Ctrl().Key(Hex1bKey.C).Wait(100)
-            .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Assert
-        Assert.True(chordFired, "Expected chord binding to fire");
+        await chordFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         cts.Cancel();
         await runTask;
@@ -436,6 +446,8 @@ public class InputBindingFluentApiTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         var bindingFireCount = 0;
         var reconcileCount = 0;
+        var firstBindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var secondBindingFired = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
 
         using var app = new Hex1bApp(
             ctx =>
@@ -448,7 +460,15 @@ public class InputBindingFluentApiTests
                     {
                         bindings.Key(Hex1bKey.X).Action(_ =>
                         {
-                            Interlocked.Increment(ref bindingFireCount);
+                            var count = Interlocked.Increment(ref bindingFireCount);
+                            if (count == 1)
+                            {
+                                firstBindingFired.TrySetResult();
+                            }
+                            else if (count == 2)
+                            {
+                                secondBindingFired.TrySetResult();
+                            }
                             return Task.CompletedTask;
                         }, "X key");
                     });
@@ -461,23 +481,34 @@ public class InputBindingFluentApiTests
         using var cts = new CancellationTokenSource();
         var runTask = app.RunAsync(cts.Token);
 
-        // Wait for initial reconciliation
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => Volatile.Read(ref reconcileCount) >= 1, TimeSpan.FromSeconds(1), "initial reconciliation")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(reconcileCount >= 1, "Expected at least one reconciliation");
 
         // Fire binding before re-render
-        await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("before-rerender").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.X)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await firstBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.Equal(1, bindingFireCount);
 
         // Force a re-render by invalidating
         app.Invalidate();
-        await Task.Delay(100, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(_ => Volatile.Read(ref reconcileCount) >= 2, TimeSpan.FromSeconds(1), "reconciliation after invalidate")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         Assert.True(reconcileCount >= 2, "Expected second reconciliation after invalidate");
 
         // Fire binding again after re-render
-        await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Capture("after-rerender").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        await Task.Delay(50, TestContext.Current.CancellationToken);
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Key(Hex1bKey.X)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await secondBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         Assert.Equal(2, bindingFireCount);
 
         cts.Cancel();
