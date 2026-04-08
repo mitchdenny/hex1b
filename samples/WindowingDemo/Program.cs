@@ -12,10 +12,30 @@ const int WindowChromeHeight = 3;
 const int MinimumTerminalColumns = 40;
 const int MinimumTerminalRows = 12;
 
+if (!TryParseInnerTerminalMode(args, out var innerTerminalWindowsPtyMode, out var innerTerminalModeLabel, out var parseError, out var showHelp))
+{
+    if (!string.IsNullOrWhiteSpace(parseError))
+    {
+        if (showHelp)
+        {
+            await Console.Out.WriteLineAsync(parseError);
+        }
+        else
+        {
+            await Console.Error.WriteLineAsync(parseError);
+        }
+    }
+
+    Environment.ExitCode = showHelp ? 0 : 1;
+    return;
+}
+
 // Demo state
 var windowCounter = 0;
 var openWindowCount = 0;
-var statusMessage = "Ready";
+var statusMessage = OperatingSystem.IsWindows()
+    ? $"Ready (inner PTY mode: {innerTerminalModeLabel})"
+    : "Ready";
 
 // Track terminal instances for cleanup (using WindowHandle as key)
 var terminalInstances = new Dictionary<WindowHandle, (Hex1bTerminal Terminal, CancellationTokenSource Cts)>();
@@ -65,13 +85,14 @@ void OpenTerminalWindow(MenuItemActivatedEventArgs e, TerminalShellKind shellKin
         // Window sizes include borders/title bar. Launch the PTY at the actual
         // terminal content size so the first prompt is laid out correctly.
         .WithDimensions(InitialTerminalColumns, InitialTerminalRows)
+        .WithMouse()
         .WithPtyProcess(options =>
         {
             options.FileName = launchSpec.FileName;
             options.Arguments = launchSpec.Arguments;
             if (OperatingSystem.IsWindows())
             {
-                options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+                options.WindowsPtyMode = innerTerminalWindowsPtyMode;
             }
         })
         .WithTerminalWidget(out var shellHandle)
@@ -97,8 +118,65 @@ void OpenTerminalWindow(MenuItemActivatedEventArgs e, TerminalShellKind shellKin
 
     e.Windows.Open(window);
     statusMessage = OperatingSystem.IsWindows()
-        ? $"Opened: {launchSpec.DisplayName} {num} via proxy"
+        ? $"Opened: {launchSpec.DisplayName} {num} via {innerTerminalModeLabel}"
         : $"Opened: {launchSpec.DisplayName} {num}";
+}
+
+static bool TryParseInnerTerminalMode(
+    string[] args,
+    out WindowsPtyMode mode,
+    out string modeLabel,
+    out string? error,
+    out bool showHelp)
+{
+    mode = WindowsPtyMode.RequireProxy;
+    modeLabel = "proxy";
+    error = null;
+    showHelp = false;
+
+    WindowsPtyMode? requestedMode = null;
+
+    foreach (var arg in args)
+    {
+        if (string.Equals(arg, "--proxy-mode", StringComparison.OrdinalIgnoreCase))
+        {
+            if (requestedMode == WindowsPtyMode.Direct)
+            {
+                error = "Specify only one of --proxy-mode or --direct-mode.";
+                return false;
+            }
+
+            requestedMode = WindowsPtyMode.RequireProxy;
+            continue;
+        }
+
+        if (string.Equals(arg, "--direct-mode", StringComparison.OrdinalIgnoreCase))
+        {
+            if (requestedMode == WindowsPtyMode.RequireProxy)
+            {
+                error = "Specify only one of --proxy-mode or --direct-mode.";
+                return false;
+            }
+
+            requestedMode = WindowsPtyMode.Direct;
+            continue;
+        }
+
+        if (string.Equals(arg, "--help", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(arg, "-h", StringComparison.OrdinalIgnoreCase))
+        {
+            error = "Usage: dotnet run -- [--proxy-mode|--direct-mode]";
+            showHelp = true;
+            return false;
+        }
+
+        error = $"Unrecognized argument '{arg}'. Usage: dotnet run -- [--proxy-mode|--direct-mode]";
+        return false;
+    }
+
+    mode = requestedMode ?? WindowsPtyMode.RequireProxy;
+    modeLabel = mode == WindowsPtyMode.Direct ? "direct mode" : "proxy mode";
+    return true;
 }
 
 async Task RunTerminalWindowAsync(Hex1bTerminal shellTerminal, CancellationTokenSource cts, string displayName, int num)
@@ -110,6 +188,9 @@ async Task RunTerminalWindowAsync(Hex1bTerminal shellTerminal, CancellationToken
     catch (OperationCanceledException) when (cts.IsCancellationRequested)
     {
     }
+    catch (ObjectDisposedException) when (cts.IsCancellationRequested)
+    {
+    }
     catch (Exception ex)
     {
         statusMessage = $"{displayName} {num} failed: {ex.GetBaseException().Message}";
@@ -118,6 +199,7 @@ async Task RunTerminalWindowAsync(Hex1bTerminal shellTerminal, CancellationToken
 
 void DisposeTerminalInstance(Hex1bTerminal shellTerminal)
 {
+    (Hex1bTerminal Terminal, CancellationTokenSource Cts)? terminalToDispose = null;
     WindowHandle? handleToRemove = null;
 
     foreach (var kvp in terminalInstances)
@@ -127,8 +209,7 @@ void DisposeTerminalInstance(Hex1bTerminal shellTerminal)
             continue;
         }
 
-        kvp.Value.Cts.Cancel();
-        kvp.Value.Terminal.Dispose();
+        terminalToDispose = kvp.Value;
         handleToRemove = kvp.Key;
         break;
     }
@@ -137,10 +218,29 @@ void DisposeTerminalInstance(Hex1bTerminal shellTerminal)
     {
         terminalInstances.Remove(handleToRemove);
     }
+
+    if (terminalToDispose is { } instance)
+    {
+        _ = CleanupTerminalInstanceAsync(instance.Terminal, instance.Cts);
+    }
+}
+
+async Task CleanupTerminalInstanceAsync(Hex1bTerminal terminalToDispose, CancellationTokenSource ctsToDispose)
+{
+    ctsToDispose.Cancel();
+    try
+    {
+        await terminalToDispose.DisposeAsync();
+    }
+    finally
+    {
+        ctsToDispose.Dispose();
+    }
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("WindowingDemo", forceEnable: true)
+    .WithMouse()
     .WithHex1bApp((app, options) => ctx =>
     {
         // Update fireflies each frame
@@ -341,12 +441,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         openWindowCount = 0;
                         aboutWindow = null;
                         // Clean up all terminal instances
-                        foreach (var (_, instance) in terminalInstances)
-                        {
-                            instance.Cts.Cancel();
-                            instance.Terminal.Dispose();
-                        }
+                        var instances = terminalInstances.Values.ToArray();
                         terminalInstances.Clear();
+                        foreach (var instance in instances)
+                        {
+                            _ = CleanupTerminalInstanceAsync(instance.Terminal, instance.Cts);
+                        }
                         statusMessage = "Closed all windows";
                     }),
                     m.Separator(),

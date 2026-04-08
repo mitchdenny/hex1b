@@ -5,15 +5,22 @@ namespace Hex1b.Tool.Hosting;
 /// </summary>
 internal sealed class TerminalHostConfig
 {
+    public TerminalHostConfig()
+    {
+        var defaultCommandLine = TerminalHostPlatformDefaults.GetDefaultCommandLine();
+        Command = defaultCommandLine[0];
+        Arguments = defaultCommandLine.Length > 1 ? defaultCommandLine[1..] : [];
+    }
+
     /// <summary>
-    /// The command to run (e.g., "/bin/bash").
+    /// The command to run (for example, <c>/bin/bash</c> on Unix or <c>powershell.exe</c> on Windows).
     /// </summary>
-    public string Command { get; set; } = "/bin/bash";
+    public string Command { get; set; }
 
     /// <summary>
     /// Arguments for the command.
     /// </summary>
-    public string[] Arguments { get; set; } = [];
+    public string[] Arguments { get; set; }
 
     /// <summary>
     /// Terminal width in columns.

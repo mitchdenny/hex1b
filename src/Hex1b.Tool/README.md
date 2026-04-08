@@ -43,8 +43,9 @@ hex1b capture screenshot <id>
 Start new terminal sessions that host shell commands:
 
 ```bash
-# Start a terminal running bash
-hex1b terminal start -- bash
+# Start the default interactive shell
+# (PowerShell on Windows, bash on Linux/macOS)
+hex1b terminal start
 
 # Start with custom dimensions
 hex1b terminal start --width 120 --height 40 -- htop
@@ -154,7 +155,7 @@ hex1b terminal stop abc
 ## Requirements
 
 - .NET 10.0 or later
-- Linux or macOS (PTY support via native interop)
+- Windows, Linux, or macOS
 
 ## Documentation
 

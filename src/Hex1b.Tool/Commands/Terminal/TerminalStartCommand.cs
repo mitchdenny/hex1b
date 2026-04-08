@@ -20,7 +20,10 @@ internal sealed class TerminalStartCommand : BaseCommand
     private static readonly Option<bool> s_passthruOption = new("--passthru") { Description = "Run in passthru mode: PTY bridges directly to the current terminal with no chrome" };
     private static readonly Option<int?> s_portOption = new("--port") { Description = "Port for WebSocket diagnostics listener" };
     private static readonly Option<string?> s_bindOption = new("--bind") { Description = "Bind address for the WebSocket listener (default: 127.0.0.1, use 0.0.0.0 for containers)" };
-    private static readonly Argument<string[]> s_commandArgument = new("command") { Description = "Command and arguments to run (after --)" };
+    private static readonly Argument<string[]> s_commandArgument = new("command")
+    {
+        Description = "Command and arguments to run (after --). Defaults to PowerShell on Windows or bash on Linux/macOS."
+    };
 
     private readonly TerminalClient _client;
 
@@ -52,7 +55,10 @@ internal sealed class TerminalStartCommand : BaseCommand
         var passthru = parseResult.GetValue(s_passthruOption);
         var port = parseResult.GetValue(s_portOption);
         var bind = parseResult.GetValue(s_bindOption);
-        var command = parseResult.GetValue(s_commandArgument) is { Length: > 0 } cmd ? cmd : ["/bin/bash"];
+        var command = parseResult.GetValue(s_commandArgument) is { Length: > 0 } cmd
+            ? cmd
+            : TerminalHostPlatformDefaults.GetDefaultCommandLine();
+        command = TerminalHostPlatformDefaults.NormalizeCommandLine(command);
 
         if (passthru && parseResult.GetValue(s_attachOption))
         {
@@ -158,17 +164,13 @@ internal sealed class TerminalStartCommand : BaseCommand
 
                     if (parseResult.GetValue(s_attachOption))
                     {
-                        // Attach immediately — resize to match local terminal, claim leadership
-                        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
-                        {
-                            Formatter.WriteError("Attach is only supported on Linux and macOS");
-                            return 1;
-                        }
-
+                        // Attach immediately. Claim leadership so future local resizes flow to the
+                        // remote session, but keep the host's initial size so shells like pwsh
+                        // don't boot into a giant mostly-empty screen.
                         var transport = new UnixSocketAttachTransport(expectedSocket);
                         return await TerminalAttachCommand.RunAttachAsync(
                             transport, id, _client,
-                            resize: true, lead: true, cancellationToken);
+                            resize: false, lead: true, cancellationToken);
                     }
 
                     if (parseResult.GetValue(RootCommand.JsonOption))

@@ -168,18 +168,16 @@ internal sealed class TerminalHost
 
     private static void ConfigurePtyProcess(Hex1bTerminalBuilder builder, TerminalHostConfig config)
     {
-        if (config.WorkingDirectory != null)
+        builder.WithPtyProcess(options =>
         {
-            builder.WithPtyProcess(options =>
+            options.FileName = config.Command;
+            options.Arguments = config.Arguments;
+            options.WorkingDirectory = config.WorkingDirectory;
+
+            if (OperatingSystem.IsWindows())
             {
-                options.FileName = config.Command;
-                options.Arguments = config.Arguments;
-                options.WorkingDirectory = config.WorkingDirectory;
-            });
-        }
-        else
-        {
-            builder.WithPtyProcess(config.Command, config.Arguments);
-        }
+                options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+            }
+        });
     }
 }

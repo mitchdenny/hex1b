@@ -28,6 +28,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     private const uint ENABLE_WINDOW_INPUT = 0x0008;           // Window buffer size changes reported
     private const uint ENABLE_MOUSE_INPUT = 0x0010;            // Mouse events reported
     private const uint ENABLE_EXTENDED_FLAGS = 0x0080;         // Required for disabling quick edit
+    private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200; // Forward VT input sequences under ConPTY
     
     // INPUT_RECORD event types
     private const ushort KEY_EVENT = 0x0001;
@@ -190,16 +191,27 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             throw new InvalidOperationException($"GetConsoleMode failed for output: {Marshal.GetLastWin32Error()}");
         }
         
-        // Use ReadConsoleInput mode:
+        // Use console input mode with VT input enabled when available:
         // - Enable window input for resize events
-        // - Enable mouse input for mouse events
+        // - Enable mouse input for classic console mouse events
+        // - Enable VT input so nested Hex1b apps running under ConPTY can receive
+        //   forwarded CSI/SGR mouse sequences from an outer terminal widget.
         // - Disable quick edit (via ENABLE_EXTENDED_FLAGS with no ENABLE_QUICK_EDIT_MODE)
-        var newInputMode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
-        
+        var newInputMode = ENABLE_WINDOW_INPUT |
+                           ENABLE_MOUSE_INPUT |
+                           ENABLE_EXTENDED_FLAGS |
+                           ENABLE_VIRTUAL_TERMINAL_INPUT;
+
         if (!SetConsoleMode(_inputHandle, newInputMode))
         {
             var error = Marshal.GetLastWin32Error();
-            throw new InvalidOperationException($"SetConsoleMode failed for input (error {error}).");
+            var fallbackInputMode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
+            if (!SetConsoleMode(_inputHandle, fallbackInputMode))
+            {
+                throw new InvalidOperationException($"SetConsoleMode failed for input (error {error}).");
+            }
+
+            TraceInput($"vt-input-unavailable error={error}");
         }
         
         // VT output for escape sequences

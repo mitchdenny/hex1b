@@ -160,6 +160,38 @@ public class WindowsPtyDisposeTests
 
     [Fact]
     [Trait("Category", "Windows")]
+    public async Task DirectPtyProcess_DisposeAsync_TerminatesChildProcess()
+    {
+        if (!OperatingSystem.IsWindows())
+            return;
+
+        await using var process = new Hex1bTerminalChildProcess(
+            "cmd.exe",
+            ["/q", "/d", "/k", "prompt PTYDISPOSE$G"],
+            workingDirectory: null,
+            environment: null,
+            inheritEnvironment: true,
+            initialWidth: 80,
+            initialHeight: 12,
+            ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(WindowsPtyMode.Direct));
+
+        await process.StartAsync(TestContext.Current.CancellationToken);
+        var pid = process.ProcessId;
+        Assert.True(pid > 0, "Expected the PTY child process to start.");
+
+        await process.DisposeAsync();
+
+        using var timeoutCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while (IsProcessRunning(pid) && !timeoutCts.IsCancellationRequested)
+        {
+            await Task.Delay(50, timeoutCts.Token);
+        }
+
+        Assert.False(IsProcessRunning(pid), $"Process {pid} should have terminated after dispose.");
+    }
+
+    [Fact]
+    [Trait("Category", "Windows")]
     public async Task Hex1bPtyHost_MismatchedLaunchToken_IsRejectedAndLogged()
     {
         if (!OperatingSystem.IsWindows())
@@ -696,5 +728,22 @@ public class WindowsPtyDisposeTests
             () => process.StartAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsProcessRunning(int pid)
+    {
+        try
+        {
+            using var process = Process.GetProcessById(pid);
+            return !process.HasExited;
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+        catch (InvalidOperationException)
+        {
+            return false;
+        }
     }
 }

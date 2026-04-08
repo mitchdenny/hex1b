@@ -5759,10 +5759,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
             _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
             
-            // Fire and forget - ExitRawModeAsync is typically synchronous for console
-            _ = _presentation.ExitRawModeAsync();
+            _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
             _presentation.Resized -= OnPresentationResized;
+            _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
+
+        _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();

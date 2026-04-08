@@ -34,6 +34,32 @@ void RemoveTerminal(TerminalSession session)
     displayApp?.Invalidate();
 }
 
+Hex1bTerminalBuilder ConfigureShellProcess(Hex1bTerminalBuilder builder, ShellType shellType)
+{
+    if (shellType == ShellType.Diagnostic)
+    {
+        return builder.WithDiagnosticShell();
+    }
+
+    if (OperatingSystem.IsWindows() && shellType == ShellType.Pwsh)
+    {
+        return builder.WithPtyProcess(options =>
+        {
+            options.FileName = "pwsh";
+            options.Arguments = ["-NoProfile", "-NoLogo"];
+            options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+        });
+    }
+
+    return shellType switch
+    {
+        ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
+        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile", "-NoLogo"),
+        ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
+        _ => builder.WithPtyProcess("bash", "--norc")
+    };
+}
+
 // Helper to add a new terminal with the specified shell type
 void AddTerminal(ShellType shellType = ShellType.Bash)
 {
@@ -46,15 +72,7 @@ void AddTerminal(ShellType shellType = ShellType.Bash)
         .WithDimensions(40, 24)
         .WithWorkloadLogging(logPath);
     
-    // Configure the workload based on shell type
-    builder = shellType switch
-    {
-        ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
-        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile", "-NoLogo"),
-        ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
-        ShellType.Diagnostic => builder.WithDiagnosticShell(),
-        _ => builder.WithPtyProcess("bash", "--norc")
-    };
+    builder = ConfigureShellProcess(builder, shellType);
     
     var terminal = builder
         .WithTerminalWidget(out var handle)
@@ -109,14 +127,7 @@ void RestartTerminal(TerminalSession oldSession)
     var builder = Hex1bTerminal.CreateBuilder()
         .WithDimensions(40, 24);
     
-    builder = oldSession.ShellType switch
-    {
-        ShellType.Bash => builder.WithPtyProcess("bash", "--norc"),
-        ShellType.Pwsh => builder.WithPtyProcess("pwsh", "-NoProfile"),
-        ShellType.Cmd => builder.WithPtyProcess("cmd.exe"),
-        ShellType.Diagnostic => builder.WithDiagnosticShell(),
-        _ => builder.WithPtyProcess("bash", "--norc")
-    };
+    builder = ConfigureShellProcess(builder, oldSession.ShellType);
     
     var terminal = builder
         .WithTerminalWidget(out var handle)

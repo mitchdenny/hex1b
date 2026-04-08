@@ -49,8 +49,9 @@ hex1b capture screenshot <id>
 You can also start new terminal sessions that host shell commands:
 
 ```bash
-# Start a terminal running bash
-hex1b terminal start -- bash
+# Start the default interactive shell
+# (PowerShell on Windows, bash on Linux/macOS)
+hex1b terminal start
 
 # Start with custom dimensions
 hex1b terminal start --width 120 --height 40 -- htop

@@ -523,6 +523,12 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         
         if (_hProcess != IntPtr.Zero)
         {
+            if (WaitForSingleObject(_hProcess, 0) != WAIT_OBJECT_0)
+            {
+                _ = TerminateProcess(_hProcess, 1);
+                WaitForSingleObject(_hProcess, 500);
+            }
+
             CloseHandle(_hProcess);
             _hProcess = IntPtr.Zero;
         }

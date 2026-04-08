@@ -160,6 +160,71 @@ public class Hex1bTerminalTests
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
 
+    private sealed class RecordingDisposePresentationAdapter : IHex1bTerminalPresentationAdapter
+    {
+        public bool DisposeAsyncCalled { get; private set; }
+
+        public int Width => 80;
+        public int Height => 24;
+        public TerminalCapabilities Capabilities => new()
+        {
+            SupportsMouse = true,
+            Supports256Colors = true,
+            SupportsTrueColor = true
+        };
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default) => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDisposeWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        public bool DisposeAsyncCalled { get; private set; }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -202,6 +267,26 @@ public class Hex1bTerminalTests
         Assert.Equal(41, terminal.Height);
         Assert.Equal(132, workload.ResizeWidth);
         Assert.Equal(41, workload.ResizeHeight);
+    }
+
+    [Fact]
+    public void Dispose_SynchronouslyDisposesPresentationAndWorkload()
+    {
+        var presentation = new RecordingDisposePresentationAdapter();
+        var workload = new RecordingDisposeWorkloadAdapter();
+
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        terminal.Dispose();
+
+        Assert.True(presentation.DisposeAsyncCalled);
+        Assert.True(workload.DisposeAsyncCalled);
     }
 
     [Fact]
