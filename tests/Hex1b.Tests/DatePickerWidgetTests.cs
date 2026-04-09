@@ -514,5 +514,133 @@ public class DatePickerWidgetTests
             "After page forward should be back on first page");
     }
 
+    [Fact]
+    public async Task Integration_DatePicker_YearGrid_LeftEdge_PageBack_FocusesCorrectYear()
+    {
+        // Regression test: pressing LEFT twice from the current year should page back
+        // and focus the rightmost cell in the same row (index 7), not retain the old
+        // focus position (index 4).
+        //
+        // Root cause: the LEFT-at-col-0 handler sets YearFocusCellIndex and triggers a
+        // page rebuild, but the previously focused InteractableNode retains IsFocused=true
+        // because the RequestFocus reconciliation path never clears stale focus on other
+        // nodes. When two nodes both have IsFocused=true the FocusRing safety-net keeps
+        // the last one, but if that safety-net didn't exist or ran in a different order
+        // the first (stale) node would win, yielding the wrong year.
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        var currentYear = DateTime.Today.Year;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Year grid layout (4 cols × 3 rows), page starts at currentYear - 5:
+        //   Row 0: [cy-5] [cy-4] [cy-3] [cy-2]
+        //   Row 1: [cy-1] [cy  ] [cy+1] [cy+2]   ← focus starts on cy (index 5, col 1)
+        //   Row 2: [cy+3] [cy+4] [cy+5] [cy+6]
+        //
+        // LEFT → cy-1 (index 4, col 0). LEFT again → page back, should land on
+        // rightmost col of same row = index 7 = year (cy-17)+7 = cy-10.
+        // BUG: was landing on index 4 = year cy-13 due to stale IsFocused.
+        var expectedYear = currentYear - 10;
+        var buggyYear = currentYear - 13;
+        var prevPageStart = currentYear - 5 - 12;
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            // LEFT once: move from current year (col 1) to col 0
+            .Left()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle after first left")
+            // LEFT again: at col 0, triggers page backward
+            .Left()
+            .WaitUntil(s => s.ContainsText($"{prevPageStart}"), TimeSpan.FromSeconds(3), "page back rendered")
+            // ENTER: select the focused year → advances to month grid
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Month"), TimeSpan.FromSeconds(3), "month grid")
+            .Capture("month-grid-after-page-back")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // The month grid shows DisplayYear as a label. After selecting the focused year,
+        // it should be cy-10 (row 1, col 3 on prev page), NOT cy-13 (row 1, col 0).
+        Assert.True(snapshot.ContainsText(expectedYear.ToString()),
+            $"Month grid should show year {expectedYear} (index 7, col 3), " +
+            $"not {buggyYear} (index 4, col 0 — stale focus position).");
+    }
+
+    [Fact]
+    public async Task Integration_DatePicker_YearGrid_RightEdge_PageForward_FocusesCorrectYear()
+    {
+        // Same issue as left-edge but for RIGHT at col 3 → page forward.
+        // Focus should land on leftmost col of same row, not retain old position.
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        var currentYear = DateTime.Today.Year;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Focus starts on currentYear (index 5, row 1, col 1).
+        // RIGHT twice: col 1 → col 2 → col 3.
+        // RIGHT again from col 3: page forward, should land on col 0, same row 1.
+        // Target year = (currentYear - 5 + 12) + 4 = currentYear + 11.
+        var nextPageStart = currentYear - 5 + 12;
+        var expectedYear = nextPageStart + 4; // row 1, col 0
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            // RIGHT twice: col 1 → col 2 → col 3
+            .Right()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle")
+            .Right()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle")
+            // RIGHT again: at col 3, triggers page forward
+            .Right()
+            .WaitUntil(s => s.ContainsText($"{nextPageStart}"), TimeSpan.FromSeconds(3), "page forward rendered")
+            // ENTER: select the focused year
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Month"), TimeSpan.FromSeconds(3), "month grid")
+            .Capture("month-grid-after-page-forward")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText(expectedYear.ToString()),
+            $"Month grid should show year {expectedYear} (row 1, col 0 on next page).");
+    }
+
     #endregion
 }

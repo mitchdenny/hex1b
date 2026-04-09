@@ -77,15 +77,6 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
         var node = existingNode as InteractableNode ?? new InteractableNode();
         node.SourceWidget = this;
 
-        // Create context populated with current node state (defaults on first render)
-        var ic = new InteractableContext(node);
-
-        // Build child widget — builder can read ic.IsFocused, ic.IsHovered
-        var childWidget = Builder(ic);
-
-        // Reconcile child
-        node.Child = await context.ReconcileChildAsync(node.Child, childWidget, node);
-
         // Wire up click handler
         if (ClickHandler != null)
         {
@@ -121,10 +112,10 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
             node.HoverChangedAction = null;
         }
 
-        // Apply focus request only once. After the initial application,
-        // HasAppliedRequestFocus prevents subsequent frames from overriding
-        // user-driven focus changes (arrow key navigation, etc.).
-        // Resets when RequestFocus becomes false (different cell targeted).
+        // Apply focus request BEFORE building the child so the content builder
+        // sees the correct IsFocused state immediately. Previously this ran after
+        // the child was built, causing a one-frame lag where the focused cell
+        // rendered without its highlight.
         if (RequestFocus)
         {
             if (!node.HasAppliedRequestFocus)
@@ -137,6 +128,15 @@ public sealed record InteractableWidget(Func<InteractableContext, Hex1bWidget> B
         {
             node.HasAppliedRequestFocus = false;
         }
+
+        // Create context populated with current node state (now includes correct IsFocused)
+        var ic = new InteractableContext(node);
+
+        // Build child widget — builder can read ic.IsFocused, ic.IsHovered
+        var childWidget = Builder(ic);
+
+        // Reconcile child
+        node.Child = await context.ReconcileChildAsync(node.Child, childWidget, node);
 
         return node;
     }

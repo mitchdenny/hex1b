@@ -155,6 +155,11 @@ public sealed record DatePickerWidget : Hex1bWidget
                 {
                     if (col == 0)
                     {
+                        // Clear focus on the departing cell so the rebuilt grid
+                        // doesn't have two nodes with IsFocused=true. Without this,
+                        // the stale focus at index 4 can win the FocusRing scan
+                        // over the RequestFocus target at index row*4+3.
+                        if (ctx.FocusedNode != null) ctx.FocusedNode.IsFocused = false;
                         // Land on rightmost column, same row
                         node.YearFocusCellIndex = row * 4 + 3;
                         node.PageYearsBackward();
@@ -166,6 +171,8 @@ public sealed record DatePickerWidget : Hex1bWidget
                 {
                     if (col == 3)
                     {
+                        // Same as LEFT edge: clear stale focus before page transition
+                        if (ctx.FocusedNode != null) ctx.FocusedNode.IsFocused = false;
                         // Land on leftmost column, same row
                         node.YearFocusCellIndex = row * 4;
                         node.PageYearsForward();
