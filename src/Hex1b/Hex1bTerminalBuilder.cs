@@ -1405,11 +1405,12 @@ public sealed class Hex1bTerminalProcessOptions
     /// </summary>
     /// <remarks>
     /// This only applies on Windows. Other platforms always use the Unix PTY implementation.
-    /// The default is <see cref="Hex1b.WindowsPtyMode.Direct"/>.
-    /// Set this to <see cref="Hex1b.WindowsPtyMode.RequireProxy"/> when your Windows scenario
-    /// depends on the out-of-process <c>hex1bpty.exe</c> helper and should fail if it is unavailable.
+    /// The default is <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>, which uses the
+    /// out-of-process <c>hex1bpty.exe</c> helper and fails if it is unavailable.
+    /// Set this to <see cref="Hex1b.WindowsPtyMode.Direct"/> to bypass the helper and
+    /// use the in-process ConPTY implementation directly.
     /// </remarks>
-    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.Direct;
+    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.RequireProxy;
 
     /// <summary>
     /// Gets or sets an explicit path to the Windows PTY host executable (<c>hex1bpty.exe</c>).

@@ -342,7 +342,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     }
     
     internal static IPtyHandle CreatePtyHandle(
-        WindowsPtyMode windowsPtyMode = WindowsPtyMode.Direct,
+        WindowsPtyMode windowsPtyMode = WindowsPtyMode.RequireProxy,
         string? windowsPtyHostPath = null)
     {
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())

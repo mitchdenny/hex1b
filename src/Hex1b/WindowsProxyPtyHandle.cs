@@ -13,7 +13,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
     private IPtyHandle? _activeHandle;
 
     internal WindowsProxyPtyHandle(
-        WindowsPtyMode mode = WindowsPtyMode.Direct,
+        WindowsPtyMode mode = WindowsPtyMode.RequireProxy,
         string? windowsPtyHostPath = null)
     {
         _mode = mode;

@@ -10,13 +10,12 @@ public enum WindowsPtyMode
 {
     /// <summary>
     /// Bypass <c>hex1bpty.exe</c> and use the in-process Windows PTY implementation directly.
-    /// This is the default mode.
     /// </summary>
     Direct = 0,
 
     /// <summary>
     /// Require the out-of-process <c>hex1bpty.exe</c> helper and fail if it cannot
-    /// be resolved or started.
+    /// be resolved or started. This is the default.
     /// </summary>
     RequireProxy = 1
 }
