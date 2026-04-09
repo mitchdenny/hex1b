@@ -496,15 +496,17 @@ public class CalendarWidgetTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Su"), TimeSpan.FromSeconds(5), "header row")
+            .WaitUntil(s => s.ContainsText("31"), TimeSpan.FromSeconds(5), "last day of March")
             .Capture("rendered")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Su"));
-        Assert.True(snapshot.ContainsText("Mo"));
+        // Compact header uses the best format that fits: single-char ("S") or two-char ("Su")
+        // depending on column width. Check for day numbers instead of header format.
+        Assert.True(snapshot.ContainsText("1"));
+        Assert.True(snapshot.ContainsText("14"));
         Assert.True(snapshot.ContainsText("31")); // March has 31 days
     }
 
@@ -534,7 +536,7 @@ public class CalendarWidgetTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Su"), TimeSpan.FromSeconds(5), "header row")
+            .WaitUntil(s => s.ContainsText("1"), TimeSpan.FromSeconds(5), "calendar rendered")
             // Enter selects the focused day (auto-focused first cell = day 1)
             .Enter()
             .Ctrl().Key(Hex1bKey.C)
