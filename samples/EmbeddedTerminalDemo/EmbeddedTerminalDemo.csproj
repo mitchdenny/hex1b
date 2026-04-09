@@ -18,17 +18,14 @@
 
   <Target Name="CopyWindowsPtyShim"
           AfterTargets="Build"
-          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native')">
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
     <ItemGroup>
       <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*"
-                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb;../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.dbg;../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.map;../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.lib;../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.exp" />
-      <WindowsPtyShimSymbolFiles Include="$(TargetDir)hex1bpty.pdb;$(TargetDir)hex1bpty.dbg;$(TargetDir)hex1bpty.map;$(TargetDir)hex1bpty.lib;$(TargetDir)hex1bpty.exp" />
+                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb" />
     </ItemGroup>
-
     <Copy SourceFiles="@(WindowsPtyShimFiles)"
-          DestinationFolder="$(TargetDir)"
+          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\"
           SkipUnchangedFiles="true" />
-    <Delete Files="@(WindowsPtyShimSymbolFiles)" TreatErrorsAsWarnings="true" />
   </Target>
 
 </Project>

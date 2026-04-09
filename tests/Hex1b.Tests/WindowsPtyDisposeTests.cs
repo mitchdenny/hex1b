@@ -20,6 +20,14 @@ namespace Hex1b.Tests;
 /// </summary>
 public class WindowsPtyDisposeTests
 {
+    private static string ResolveShimPath()
+    {
+        Assert.True(
+            WindowsPtyShimLocator.TryResolve(out var path),
+            "Expected PTY shim to be resolvable via WindowsPtyShimLocator");
+        return path;
+    }
+
     [Fact]
     public void WindowsPtyShimLocator_WithExplicitPath_ResolvesOverride()
     {
@@ -92,8 +100,7 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        var shimPath = ResolveShimPath();
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithPtyProcess(options =>
@@ -123,8 +130,7 @@ public class WindowsPtyDisposeTests
         if (!OperatingSystem.IsWindows())
             return;
 
-        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        var shimPath = ResolveShimPath();
 
         await using var process = new Hex1bTerminalChildProcess(
             "cmd.exe",
@@ -213,8 +219,7 @@ public class WindowsPtyDisposeTests
             return;
 
         using var workspace = TestWorkspace.Create("pty_shim_auth");
-        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        var shimPath = ResolveShimPath();
 
         var socketPath = WindowsPtySocketPaths.CreateSocketPath();
         var logPath = workspace.GetPath("hex1bpty.log");
@@ -291,8 +296,7 @@ public class WindowsPtyDisposeTests
             return;
 
         using var workspace = TestWorkspace.Create("pty_shim_badlog");
-        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        var shimPath = ResolveShimPath();
 
         var socketPath = WindowsPtySocketPaths.CreateSocketPath();
         var invalidLogPath = workspace.BaseDirectory.FullName; // Directory path, not a file path.
@@ -365,8 +369,7 @@ public class WindowsPtyDisposeTests
             return;
 
         using var workspace = TestWorkspace.Create("pty_shim_disconnect");
-        var shimPath = Path.Combine(AppContext.BaseDirectory, "hex1bpty.exe");
-        Assert.True(File.Exists(shimPath), $"Expected PTY shim at {shimPath}");
+        var shimPath = ResolveShimPath();
 
         var socketPath = WindowsPtySocketPaths.CreateSocketPath();
         try
