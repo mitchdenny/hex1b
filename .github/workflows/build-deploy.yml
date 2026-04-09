@@ -314,7 +314,14 @@ jobs:
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E '^tools/.*/any/runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -z "$tool_windows_assets" ]; then
+            echo ""
+            echo "hex1bpty.exe is missing from the Hex1b.Tool package."
+            exit 1
+          fi
+          echo "$tool_windows_assets"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -411,7 +418,14 @@ jobs:
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E '^tools/.*/any/runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -z "$tool_windows_assets" ]; then
+            echo ""
+            echo "hex1bpty.exe is missing from the Hex1b.Tool package."
+            exit 1
+          fi
+          echo "$tool_windows_assets"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

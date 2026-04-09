@@ -31,6 +31,21 @@ public class WindowsPtyDisposeTests
     }
 
     [Fact]
+    public void WindowsPtyShimLocator_WithPackagedRuntimePath_ResolvesShim()
+    {
+        using var workspace = TestWorkspace.Create("pty_shim_locator_packaged");
+        var baseDirectory = workspace.GetPath("tool-base");
+        var runtimeDirectory = Path.Combine(baseDirectory, "runtimes", "win-x64", "native");
+        Directory.CreateDirectory(runtimeDirectory);
+
+        var shimPath = Path.Combine(runtimeDirectory, "hex1bpty.exe");
+        File.WriteAllText(shimPath, string.Empty);
+
+        Assert.True(WindowsPtyShimLocator.TryResolveFromBaseDirectory(baseDirectory, explicitPath: null, out var resolvedPath));
+        Assert.Equal(shimPath, resolvedPath, ignoreCase: true);
+    }
+
+    [Fact]
     public void WindowsPtySocketPaths_CreateSocketPath_UsesPrivateSocketDirectory()
     {
         using var workspace = TestWorkspace.Create("pty_socket_dir");

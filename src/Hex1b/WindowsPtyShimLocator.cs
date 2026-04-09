@@ -14,6 +14,14 @@ internal static class WindowsPtyShimLocator
 
     public static bool TryResolve(string? explicitPath, [NotNullWhen(true)] out string? path)
     {
+        return TryResolveFromBaseDirectory(AppContext.BaseDirectory, explicitPath, out path);
+    }
+
+    internal static bool TryResolveFromBaseDirectory(
+        string appBaseDirectory,
+        string? explicitPath,
+        [NotNullWhen(true)] out string? path)
+    {
         if (!string.IsNullOrWhiteSpace(explicitPath))
         {
             if (File.Exists(explicitPath))
@@ -26,7 +34,6 @@ internal static class WindowsPtyShimLocator
             return false;
         }
 
-        var appBaseDirectory = AppContext.BaseDirectory;
         var primaryRid = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "win-arm64" : "win-x64";
         var fallbackRid = primaryRid == "win-arm64" ? "win-x64" : null;
         var candidates = BuildCandidatePaths(appBaseDirectory, primaryRid, fallbackRid);

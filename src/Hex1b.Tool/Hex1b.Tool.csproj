@@ -64,6 +64,29 @@
     <ProjectReference Include="../Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Hex1b\runtimes\win-x64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="Exists('..\Hex1b\runtimes\win-x64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-x64\native\" />
+    <None Include="..\Hex1b\obj\windows-pty-shim\win-x64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="!Exists('..\Hex1b\runtimes\win-x64\native\hex1bpty.exe') and Exists('..\Hex1b\obj\windows-pty-shim\win-x64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-x64\native\" />
+    <None Include="..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="Exists('..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-arm64\native\" />
+    <None Include="..\Hex1b\obj\windows-pty-shim\win-arm64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="!Exists('..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe') and Exists('..\Hex1b\obj\windows-pty-shim\win-arm64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-arm64\native\" />
+  </ItemGroup>
+
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
     <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
