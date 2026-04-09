@@ -88,6 +88,16 @@ public sealed record DatePickerWidget : Hex1bWidget
             {
                 node.ResetStep();
                 e.PushAnchored(AnchorPosition.Below, () => BuildPopupContent(node));
+            })
+            .WithInputBindings(bindings =>
+            {
+                bindings.Key(Hex1bKey.DownArrow).Action(ctx =>
+                {
+                    node.ResetStep();
+                    ctx.Popups.PushAnchored(node.Child!, AnchorPosition.Below,
+                        () => BuildPopupContent(node), ctx.FocusedNode);
+                    return Task.CompletedTask;
+                }, "Open picker");
             });
 
         node.Child = await context.ReconcileChildAsync(node.Child, button, node);
@@ -451,11 +461,14 @@ public sealed record DatePickerWidget : Hex1bWidget
     }
 
     /// <summary>
-    /// Dismisses the DatePicker popup.
+    /// Dismisses the DatePicker popup and restores focus to the trigger button.
     /// </summary>
     private static Task DismissPopup(InputBindingActionContext ctx)
     {
-        ctx.Popups.Pop();
+        if (ctx.Popups.Pop(out var restoreNode) && restoreNode != null)
+        {
+            restoreNode.IsFocused = true;
+        }
         return Task.CompletedTask;
     }
 
