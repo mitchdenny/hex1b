@@ -180,8 +180,18 @@ public sealed record DatePickerWidget : Hex1bWidget
                     }
                     return NavigateGrid(ctx, 1, 12);
                 }, "Right");
-                bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
-                bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateGrid(ctx, 4, 12), "Down");
+                bindings.Key(Hex1bKey.UpArrow).Action(ctx =>
+                {
+                    if (row > 0)
+                        return NavigateGrid(ctx, -4, 12);
+                    return Task.CompletedTask;
+                }, "Up");
+                bindings.Key(Hex1bKey.DownArrow).Action(ctx =>
+                {
+                    if (row < 2)
+                        return NavigateGrid(ctx, 4, 12);
+                    return Task.CompletedTask;
+                }, "Down");
                 bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
                 bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusPrevious(ctx), "Previous widget");
             });
@@ -237,6 +247,8 @@ public sealed record DatePickerWidget : Hex1bWidget
             .Title($"{node.YearPageStart}–{node.YearPageStart + 11}")
             .WithInputBindings(bindings =>
             {
+                bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
+                bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");
                 bindings.Key(Hex1bKey.PageUp).Action(_ =>
                 {
                     node.PageYearsBackward();
@@ -272,6 +284,7 @@ public sealed record DatePickerWidget : Hex1bWidget
             var isCurrent = node.DisplayYear == today.Year && month == today.Month;
             var isFocusTarget = month == focusMonth;
             var label = dtf.AbbreviatedMonthNames[i];
+            var row = i / 4;
 
             var interactable = new InteractableWidget(ic =>
             {
@@ -288,8 +301,18 @@ public sealed record DatePickerWidget : Hex1bWidget
             {
                 bindings.Key(Hex1bKey.LeftArrow).Action(ctx => NavigateGrid(ctx, -1, 12), "Left");
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateGrid(ctx, 1, 12), "Right");
-                bindings.Key(Hex1bKey.UpArrow).Action(ctx => NavigateGrid(ctx, -4, 12), "Up");
-                bindings.Key(Hex1bKey.DownArrow).Action(ctx => NavigateGrid(ctx, 4, 12), "Down");
+                bindings.Key(Hex1bKey.UpArrow).Action(ctx =>
+                {
+                    if (row > 0)
+                        return NavigateGrid(ctx, -4, 12);
+                    return Task.CompletedTask;
+                }, "Up");
+                bindings.Key(Hex1bKey.DownArrow).Action(ctx =>
+                {
+                    if (row < 2)
+                        return NavigateGrid(ctx, 4, 12);
+                    return Task.CompletedTask;
+                }, "Down");
                 bindings.Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusNext(ctx), "Next widget");
                 bindings.Shift().Key(Hex1bKey.Tab).Action(ctx => DismissAndFocusPrevious(ctx), "Previous widget");
             });
@@ -299,7 +322,6 @@ public sealed record DatePickerWidget : Hex1bWidget
                 interactable = interactable with { RequestFocus = true };
             }
 
-            var row = i / 4;
             var col = i % 4;
             cells.Add(new GridCellWidget(interactable).Row(row).Column(col));
         }
@@ -315,17 +337,14 @@ public sealed record DatePickerWidget : Hex1bWidget
 
         // Title shows selected year; Escape goes back to year step
         var yearLabel = new TextBlockWidget(node.DisplayYear.ToString());
-        var content = new VStackWidget([yearLabel, grid])
+        var content = new VStackWidget([yearLabel, grid]);
+
+        return new BorderWidget(content).Title("Month")
             .WithInputBindings(bindings =>
             {
-                bindings.Key(Hex1bKey.Escape).Action(ctx =>
-                {
-                    node.GoBack();
-                    return Task.CompletedTask;
-                }, "Back to year");
+                bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
+                bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");
             });
-
-        return new BorderWidget(content).Title("Month");
     }
 
     /// <summary>
@@ -394,17 +413,14 @@ public sealed record DatePickerWidget : Hex1bWidget
         var headerLabel = new TextBlockWidget(headerText);
 
         var daysInMonth = DateTime.DaysInMonth(node.DisplayYear, node.DisplayMonth);
-        var content = new VStackWidget([headerLabel, calendar])
+        var content = new VStackWidget([headerLabel, calendar]);
+
+        return new BorderWidget(content).Title("Day")
             .WithInputBindings(bindings =>
             {
-                bindings.Key(Hex1bKey.Escape).Action(ctx =>
-                {
-                    node.GoBack();
-                    return Task.CompletedTask;
-                }, "Back to month");
+                bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
+                bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");
             });
-
-        return new BorderWidget(content).Title("Day");
     }
 
     /// <summary>
@@ -431,6 +447,15 @@ public sealed record DatePickerWidget : Hex1bWidget
             ctx.Focus(focusables[target]);
         }
 
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// Dismisses the DatePicker popup.
+    /// </summary>
+    private static Task DismissPopup(InputBindingActionContext ctx)
+    {
+        ctx.Popups.Pop();
         return Task.CompletedTask;
     }
 

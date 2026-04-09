@@ -313,6 +313,15 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                         }
                     }
                     
+                    // If only a lone ESC (\x1b) remains in the VT input buffer after
+                    // processing the entire batch, it's a standalone Escape keypress —
+                    // not the start of an escape sequence. Flush it now; otherwise it
+                    // would be stuck until the next non-VT key event arrives.
+                    if (_pendingVtInput.Length == 1 && _pendingVtInput[0] == '\x1b')
+                    {
+                        FlushPendingVirtualTerminalInput();
+                    }
+
                     // Return any bytes that were generated
                     if (_pendingBytes.Count > 0)
                     {

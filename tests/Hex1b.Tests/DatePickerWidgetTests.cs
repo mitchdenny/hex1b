@@ -642,5 +642,178 @@ public class DatePickerWidgetTests
             $"Month grid should show year {expectedYear} (row 1, col 0 on next page).");
     }
 
+    [Fact]
+    public async Task Integration_DatePicker_YearGrid_VerticalNav_ClampsAtEdges()
+    {
+        // DOWN from the bottom row should NOT escape to the ◀/▶ icon nodes.
+        // UP from the top row should do nothing.
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        var currentYear = DateTime.Today.Year;
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Focus starts on currentYear (row 1, col 1). DOWN → row 2, col 1.
+        // Another DOWN should clamp (stay on row 2), then ENTER selects that year.
+        var bottomRowYear = currentYear + 4; // row 2, col 1 = YearPageStart + 9
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            // DOWN to row 2
+            .Down()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle")
+            // DOWN again — should clamp, not escape to icons
+            .Down()
+            .WaitUntil(_ => true, TimeSpan.FromMilliseconds(200), "settle")
+            // ENTER to select — should still be on the same year (row 2, col 1)
+            .Enter()
+            .WaitUntil(s => s.ContainsText("Month"), TimeSpan.FromSeconds(3), "month grid")
+            .Capture("month-grid-vertical-clamp")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText(bottomRowYear.ToString()),
+            $"After DOWN twice from row 1, focus should clamp at row 2, col 1 = {bottomRowYear}.");
+    }
+
+    [Fact]
+    public async Task Integration_DatePicker_Escape_DismissesPopup()
+    {
+        // ESC from year step should dismiss the popup entirely.
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open popup → year grid → ESC → popup should close
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            .Escape()
+            .WaitUntil(s => !s.ContainsText("–"), TimeSpan.FromSeconds(3), "popup dismissed after ESC")
+            .Capture("after-escape")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Popup is gone — trigger button should be visible, year grid border should not
+        Assert.True(snapshot.ContainsText("Select date..."),
+            "Trigger button should be visible after ESC dismisses popup.");
+    }
+
+    [Fact]
+    public async Task Integration_DatePicker_Escape_DismissesPopup_FromMonthStep()
+    {
+        // ESC from month step should dismiss the popup entirely (not go back to year).
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open popup → year grid → select year → month grid → ESC → popup should close
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            .Enter() // select current year → month grid
+            .WaitUntil(s => s.ContainsText("Month"), TimeSpan.FromSeconds(3), "month grid")
+            .Escape()
+            .WaitUntil(s => !s.ContainsText("Month"), TimeSpan.FromSeconds(3), "popup dismissed after ESC from month")
+            .Capture("after-escape-from-month")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("Select date..."),
+            "Trigger button should be visible after ESC from month step.");
+        Assert.False(snapshot.ContainsText("Month"),
+            "Month grid should not be visible after ESC.");
+    }
+
+    [Fact]
+    public async Task Integration_DatePicker_Backspace_DismissesPopup()
+    {
+        // Backspace (alternative dismiss key) should also close the popup.
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithMouse()
+            .WithDimensions(60, 25)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.DatePicker().Format("yyyy-MM-dd")
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload, EnableMouse = true }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Select date..."), TimeSpan.FromSeconds(5), "trigger button")
+            .Enter()
+            .WaitUntil(s => s.ContainsText("–"), TimeSpan.FromSeconds(5), "year grid")
+            .Backspace()
+            .WaitUntil(s => !s.ContainsText("–"), TimeSpan.FromSeconds(3), "popup dismissed after Backspace")
+            .Capture("after-backspace")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(snapshot.ContainsText("Select date..."),
+            "Trigger button should be visible after Backspace dismisses popup.");
+    }
+
     #endregion
 }
