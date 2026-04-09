@@ -9,20 +9,14 @@ namespace Hex1b;
 public enum WindowsPtyMode
 {
     /// <summary>
-    /// Prefer the out-of-process <c>hex1bpty.exe</c> helper when it is available,
-    /// but fall back to the in-process Windows PTY implementation if the helper
-    /// cannot be resolved or started.
+    /// Bypass <c>hex1bpty.exe</c> and use the in-process Windows PTY implementation directly.
+    /// This is the default mode.
     /// </summary>
-    PreferProxy = 0,
+    Direct = 0,
 
     /// <summary>
     /// Require the out-of-process <c>hex1bpty.exe</c> helper and fail if it cannot
     /// be resolved or started.
     /// </summary>
-    RequireProxy = 1,
-
-    /// <summary>
-    /// Bypass <c>hex1bpty.exe</c> and use the in-process Windows PTY implementation directly.
-    /// </summary>
-    Direct = 2
+    RequireProxy = 1
 }

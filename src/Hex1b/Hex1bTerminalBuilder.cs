@@ -1405,15 +1405,17 @@ public sealed class Hex1bTerminalProcessOptions
     /// </summary>
     /// <remarks>
     /// This only applies on Windows. Other platforms always use the Unix PTY implementation.
-    /// The default is <see cref="Hex1b.WindowsPtyMode.PreferProxy"/>.
+    /// The default is <see cref="Hex1b.WindowsPtyMode.Direct"/>.
+    /// Set this to <see cref="Hex1b.WindowsPtyMode.RequireProxy"/> when your Windows scenario
+    /// depends on the out-of-process <c>hex1bpty.exe</c> helper and should fail if it is unavailable.
     /// </remarks>
-    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.PreferProxy;
+    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.Direct;
 
     /// <summary>
     /// Gets or sets an explicit path to the Windows PTY host executable (<c>hex1bpty.exe</c>).
     /// </summary>
     /// <remarks>
-    /// This only applies when <see cref="WindowsPtyMode"/> uses the proxy path on Windows.
+    /// This only applies when <see cref="WindowsPtyMode"/> is <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>.
     /// When null, Hex1b searches the application output and packaged runtime locations automatically.
     /// </remarks>
     public string? WindowsPtyHostPath { get; set; }

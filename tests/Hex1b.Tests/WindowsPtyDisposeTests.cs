@@ -685,12 +685,12 @@ public class WindowsPtyDisposeTests
     }
 
     /// <summary>
-    /// If the Windows PTY shim binary is unavailable, WithPtyProcess should fall
-    /// back to the in-process WindowsPtyHandle so callers do not lose PTY support.
+    /// Direct mode should continue to use the in-process WindowsPtyHandle even when
+    /// a proxy path is configured but unavailable.
     /// </summary>
     [Fact]
     [Trait("Category", "Windows")]
-    public async Task WithPtyProcess_MissingShimBinary_FallsBackToInProcessPty()
+    public async Task WithPtyProcess_DirectMode_UsesInProcessPty_WhenShimPathIsMissing()
     {
         if (!OperatingSystem.IsWindows())
             return;
@@ -706,7 +706,7 @@ public class WindowsPtyDisposeTests
                     "/c",
                     "if \"%HEX1B_PTY_SHIM_ACTIVE%\"==\"1\" (exit 17) else (exit 23)"
                 ];
-                options.WindowsPtyMode = WindowsPtyMode.PreferProxy;
+                options.WindowsPtyMode = WindowsPtyMode.Direct;
                 options.WindowsPtyHostPath = missingShimPath;
             })
             .WithHeadless()

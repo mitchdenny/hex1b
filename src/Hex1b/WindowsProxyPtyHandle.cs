@@ -13,7 +13,7 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
     private IPtyHandle? _activeHandle;
 
     internal WindowsProxyPtyHandle(
-        WindowsPtyMode mode = WindowsPtyMode.PreferProxy,
+        WindowsPtyMode mode = WindowsPtyMode.Direct,
         string? windowsPtyHostPath = null)
     {
         _mode = mode;
@@ -36,11 +36,10 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             throw new InvalidOperationException("The Windows PTY handle has already been started.");
         }
 
-        // Centralize the Windows backend selection in one place:
-        // - PreferProxy => try hex1bpty.exe first, then fall back to the in-proc handle
-        // - RequireProxy => fail if the helper cannot be used
+        // Windows PTY backend selection is now explicit:
+        // - RequireProxy => use hex1bpty.exe and fail if it cannot be used
         // - Direct => bypass the helper entirely
-        if (_mode != WindowsPtyMode.Direct)
+        if (_mode == WindowsPtyMode.RequireProxy)
         {
             var shimHandle = new WindowsShimPtyHandle(_windowsPtyHostPath);
             try
@@ -57,21 +56,15 @@ internal sealed class WindowsProxyPtyHandle : IPtyHandle
             catch (Exception ex)
             {
                 await shimHandle.DisposeAsync().ConfigureAwait(false);
-
-                if (_mode == WindowsPtyMode.RequireProxy)
-                {
-                    throw new InvalidOperationException(
-                        "The Windows PTY proxy mode was required for this run, but hex1bpty.exe could not be started.",
-                        ex);
-                }
-
-                Trace.WriteLine($"Falling back to in-process Windows PTY because the shim path failed: {ex.Message}");
+                throw new InvalidOperationException(
+                    "The Windows PTY proxy mode was required for this run, but hex1bpty.exe could not be started.",
+                    ex);
             }
         }
 
-        var fallbackHandle = new WindowsPtyHandle();
-        await fallbackHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
-        _activeHandle = fallbackHandle;
+        var directHandle = new WindowsPtyHandle();
+        await directHandle.StartAsync(fileName, arguments, workingDirectory, environment, width, height, ct).ConfigureAwait(false);
+        _activeHandle = directHandle;
     }
 
     public ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct)

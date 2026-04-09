@@ -38,8 +38,7 @@ if (pwshPath is null)
 var windowsPtyMode = mode switch
 {
     DemoMode.Proxy => WindowsPtyMode.RequireProxy,
-    DemoMode.Direct => WindowsPtyMode.Direct,
-    _ => WindowsPtyMode.PreferProxy
+    DemoMode.Direct => WindowsPtyMode.Direct
 };
 
 switch (mode)
