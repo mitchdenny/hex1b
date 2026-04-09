@@ -39,6 +39,9 @@ internal class TileCache : IDisposable
     private readonly ConcurrentDictionary<(int x, int y), long> _accessOrder = new();
     private long _accessCounter;
 
+    // Auto-expanded max to ensure the current viewport always fits in cache
+    private int _effectiveMaxTiles;
+
     // Background fetch state
     private CancellationTokenSource? _fetchCts;
     private readonly object _fetchLock = new();
@@ -54,6 +57,7 @@ internal class TileCache : IDisposable
     {
         _dataSource = dataSource ?? throw new ArgumentNullException(nameof(dataSource));
         _options = options ?? new TileCacheOptions();
+        _effectiveMaxTiles = _options.MaxCachedTiles;
     }
 
     /// <summary>
@@ -75,6 +79,15 @@ internal class TileCache : IDisposable
     public TileData[,] GetTiles(int tileX, int tileY, int tilesWide, int tilesTall)
     {
         ObjectDisposedException.ThrowIf(_disposed, this);
+
+        // Auto-expand cache capacity so the current viewport always fits.
+        // With TileSize(1,1) each tile = one character cell, so large viewports
+        // can easily exceed the default MaxCachedTiles.
+        var viewportTiles = tilesWide * tilesTall;
+        if (viewportTiles > _effectiveMaxTiles)
+        {
+            _effectiveMaxTiles = viewportTiles + viewportTiles / 4; // 25% buffer for scrolling
+        }
 
         var result = new TileData[tilesWide, tilesTall];
         var hasMissing = false;
@@ -199,12 +212,12 @@ internal class TileCache : IDisposable
 
     private void EvictIfNeeded()
     {
-        if (_cache.Count <= _options.MaxCachedTiles) return;
+        if (_cache.Count <= _effectiveMaxTiles) return;
 
         // Evict least-recently-used tiles
         var toEvict = _accessOrder
             .OrderBy(kv => kv.Value)
-            .Take(_cache.Count - _options.MaxCachedTiles)
+            .Take(_cache.Count - _effectiveMaxTiles)
             .Select(kv => kv.Key)
             .ToList();
 

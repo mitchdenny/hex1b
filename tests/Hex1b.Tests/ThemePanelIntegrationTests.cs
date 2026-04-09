@@ -162,10 +162,10 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        // The themed textbox cursor should have magenta background
-        // Note: Cursor is the last character in "Themed Cursor" + a space cursor indicator
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 255)),
-            "Themed TextBox should have magenta cursor background");
+        // Line caret: cursor colors are not rendered as part of the text output.
+        // The native terminal cursor handles the caret. Verify textbox content is visible.
+        Assert.True(snapshot.ContainsText("Themed Cursor"),
+            "Themed TextBox content should be visible");
     }
 
     #endregion

@@ -55,6 +55,48 @@ public sealed class TextBoxNode : Hex1bNode
     /// When null, paste is handled by inserting text at cursor position.
     /// </summary>
     internal Func<Events.PasteEventArgs, Task>? CustomPasteAction { get; set; }
+
+    /// <summary>
+    /// Minimum width of the text box in columns.
+    /// </summary>
+    public int? MinWidth { get; set; }
+
+    /// <summary>
+    /// Maximum width of the text box in columns.
+    /// </summary>
+    public int? MaxWidth { get; set; }
+
+    /// <summary>
+    /// The character index of the first visible character in the viewport.
+    /// Adjusted automatically to keep the cursor visible.
+    /// </summary>
+    internal int ScrollOffset { get; set; }
+
+    /// <summary>
+    /// When true, the text box supports multi-line editing.
+    /// </summary>
+    public bool IsMultiline { get; set; }
+
+    /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit.
+    /// </summary>
+    public int? MaxLines { get; set; }
+
+    /// <summary>
+    /// When true, long lines are visually wrapped at word boundaries.
+    /// </summary>
+    public bool IsWordWrap { get; set; }
+
+    /// <summary>
+    /// Fixed height in lines. Null means 1 for single-line, content-based for multiline.
+    /// </summary>
+    public int? RequestedHeight { get; set; }
+
+    /// <summary>
+    /// The 0-based index of the first visible line for vertical scrolling.
+    /// </summary>
+    internal int VerticalScrollOffset { get; set; }
     
     private bool _isFocused;
     public override bool IsFocused 
@@ -87,9 +129,21 @@ public sealed class TextBoxNode : Hex1bNode
     public override bool IsFocusable => true;
 
     /// <summary>
-    /// TextBox uses a blinking bar cursor to indicate text input position.
+    /// Mouse hover uses the default cursor shape. The text editing bar cursor
+    /// is shown via the native terminal cursor only when the TextBox is focused.
     /// </summary>
-    public override CursorShape PreferredCursorShape => CursorShape.BlinkingBar;
+    public override CursorShape PreferredCursorShape => CursorShape.Default;
+
+    /// <summary>
+    /// Screen X coordinate where the native terminal cursor should be placed.
+    /// Set during Render; -1 means no native cursor requested (e.g., during selection).
+    /// </summary>
+    internal int ScreenCursorX { get; private set; } = -1;
+
+    /// <summary>
+    /// Screen Y coordinate where the native terminal cursor should be placed.
+    /// </summary>
+    internal int ScreenCursorY { get; private set; }
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
@@ -116,10 +170,19 @@ public sealed class TextBoxNode : Hex1bNode
         // Word deletion (Ctrl+Backspace/Delete)
         bindings.Ctrl().Key(Hex1bKey.Backspace).Triggers(TextBoxWidget.DeleteWordBackward, DeleteWordBackwardAsync, "Delete previous word");
         bindings.Ctrl().Key(Hex1bKey.Delete).Triggers(TextBoxWidget.DeleteWordForward, DeleteWordForwardAsync, "Delete next word");
-        
-        // Submit (Enter key)
-        if (SubmitAction != null)
+
+        // Multiline navigation and Enter handling
+        if (IsMultiline)
         {
+            bindings.Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.MoveUp, MoveUp, "Move up");
+            bindings.Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.MoveDown, MoveDownAsync, "Move down");
+            bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TextBoxWidget.SelectUp, SelectUp, "Extend selection up");
+            bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TextBoxWidget.SelectDown, SelectDown, "Extend selection down");
+            bindings.Key(Hex1bKey.Enter).Triggers(TextBoxWidget.InsertNewline, InsertNewlineAsync, "Insert newline");
+        }
+        else if (SubmitAction != null)
+        {
+            // Submit (Enter key) — single-line only
             bindings.Key(Hex1bKey.Enter).Triggers(TextBoxWidget.Submit, SubmitAction, "Submit");
         }
         
@@ -154,7 +217,12 @@ public sealed class TextBoxNode : Hex1bNode
             return InputResult.Handled;
 
         // Single-line text box: replace newlines with spaces
-        pastedText = pastedText.Replace("\r\n", " ").Replace("\n", " ").Replace("\r", " ");
+        // Multiline: normalize line endings to \n but preserve newlines
+        pastedText = pastedText.Replace("\r\n", "\n").Replace("\r", "\n");
+        if (!IsMultiline)
+        {
+            pastedText = pastedText.Replace("\n", " ");
+        }
 
         var oldText = State.Text;
 
@@ -165,6 +233,7 @@ public sealed class TextBoxNode : Hex1bNode
 
         State.Text = State.Text.Insert(State.CursorPosition, pastedText);
         State.CursorPosition += pastedText.Length;
+        State.ResetPreferredColumn();
         MarkDirty();
 
         if (TextChangedAction != null && oldText != State.Text)
@@ -188,6 +257,7 @@ public sealed class TextBoxNode : Hex1bNode
         }
         State.Text = State.Text.Insert(State.CursorPosition, text);
         State.CursorPosition += text.Length;
+        State.ResetPreferredColumn();
         MarkDirty();
         
         // Fire callback if text changed
@@ -209,6 +279,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -224,20 +295,39 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
     private void MoveHome()
     {
         State.ClearSelection();
-        State.CursorPosition = 0;
+        if (IsMultiline)
+        {
+            var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+            State.CursorPosition = State.GetLineStartOffset(line);
+        }
+        else
+        {
+            State.CursorPosition = 0;
+        }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
     private void MoveEnd()
     {
         State.ClearSelection();
-        State.CursorPosition = State.Text.Length;
+        if (IsMultiline)
+        {
+            var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+            State.CursorPosition = State.GetLineStartOffset(line) + State.GetLineLength(line);
+        }
+        else
+        {
+            State.CursorPosition = State.Text.Length;
+        }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -249,6 +339,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.ClearSelection();
         }
         State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -260,6 +351,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.ClearSelection();
         }
         State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -274,6 +366,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetPreviousClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -288,6 +381,7 @@ public sealed class TextBoxNode : Hex1bNode
             // Move by grapheme cluster, not by char
             State.CursorPosition = GraphemeHelper.GetNextClusterBoundary(State.Text, State.CursorPosition);
         }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -297,7 +391,16 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.SelectionAnchor = State.CursorPosition;
         }
-        State.CursorPosition = 0;
+        if (IsMultiline)
+        {
+            var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+            State.CursorPosition = State.GetLineStartOffset(line);
+        }
+        else
+        {
+            State.CursorPosition = 0;
+        }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -307,7 +410,16 @@ public sealed class TextBoxNode : Hex1bNode
         {
             State.SelectionAnchor = State.CursorPosition;
         }
-        State.CursorPosition = State.Text.Length;
+        if (IsMultiline)
+        {
+            var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+            State.CursorPosition = State.GetLineStartOffset(line) + State.GetLineLength(line);
+        }
+        else
+        {
+            State.CursorPosition = State.Text.Length;
+        }
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -318,6 +430,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = GraphemeHelper.GetPreviousWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -328,7 +441,71 @@ public sealed class TextBoxNode : Hex1bNode
             State.SelectionAnchor = State.CursorPosition;
         }
         State.CursorPosition = GraphemeHelper.GetNextWordBoundary(State.Text, State.CursorPosition);
+        State.ResetPreferredColumn();
         MarkDirty();
+    }
+
+    private void MoveUp()
+    {
+        State.MoveUp();
+        MarkDirty();
+    }
+
+    private async Task MoveDownAsync(InputBindingActionContext ctx)
+    {
+        var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
+        if (line >= State.GetLineCount() - 1)
+        {
+            // No line below — move to end of current line and insert newline
+            if (!CanInsertNewline())
+                return;
+
+            var oldText = State.Text;
+            // Move cursor to end of current line
+            State.CursorPosition = State.GetLineStartOffset(line) + State.GetLineLength(line);
+            State.ClearSelection();
+            State.InsertNewline();
+            MarkDirty();
+
+            if (TextChangedAction != null && oldText != State.Text)
+                await TextChangedAction(ctx, oldText, State.Text);
+        }
+        else
+        {
+            State.MoveDown();
+            MarkDirty();
+        }
+    }
+
+    private void SelectUp()
+    {
+        State.MoveUp(extend: true);
+        MarkDirty();
+    }
+
+    private void SelectDown()
+    {
+        State.MoveDown(extend: true);
+        MarkDirty();
+    }
+
+    private bool CanInsertNewline()
+        => MaxLines is null || State.GetLineCount() < MaxLines.Value;
+
+    private async Task InsertNewlineAsync(InputBindingActionContext ctx)
+    {
+        if (!CanInsertNewline())
+            return;
+
+        var oldText = State.Text;
+        State.InsertNewline();
+        State.ResetPreferredColumn();
+        MarkDirty();
+
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
     }
 
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
@@ -348,6 +525,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.CursorPosition = clusterStart;
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -372,6 +550,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.Text = State.Text.Remove(State.CursorPosition, clusterLength);
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -396,6 +575,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.CursorPosition = wordStart;
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -419,6 +599,7 @@ public sealed class TextBoxNode : Hex1bNode
             State.Text = State.Text.Remove(State.CursorPosition, deleteLength);
             MarkDirty();
         }
+        State.ResetPreferredColumn();
         
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
@@ -435,6 +616,7 @@ public sealed class TextBoxNode : Hex1bNode
         State.Text = State.Text[..start] + State.Text[end..];
         State.CursorPosition = start;
         State.ClearSelection();
+        State.ResetPreferredColumn();
         MarkDirty();
     }
 
@@ -450,30 +632,60 @@ public sealed class TextBoxNode : Hex1bNode
     public override InputResult HandleMouseClick(int localX, int localY, Hex1bMouseEvent mouseEvent)
     {
         // Only handle left clicks that aren't double/triple clicks
-        // (double-click is handled by the binding for SelectAll)
         if (mouseEvent.Button != MouseButton.Left || mouseEvent.ClickCount > 1)
         {
             return InputResult.NotHandled;
         }
 
+        if (IsMultiline)
+        {
+            return HandleMouseClickMultiline(localX, localY);
+        }
+
         // The TextBox renders as "[text]" so localX=0 is '[', localX=1 is first char
-        // Convert click position to text cursor position
         var textColumn = localX - 1; // Subtract 1 for the '[' bracket
         
         if (textColumn < 0)
         {
             // Clicked on or before the '[' - position at start
             State.ClearSelection();
-            State.CursorPosition = 0;
+            State.CursorPosition = ScrollOffset;
         }
         else
         {
-            // Find the cursor position that corresponds to this display column
-            var cursorPos = DisplayColumnToTextPosition(textColumn);
+            // Find the cursor position in the visible text, then offset to full text
+            var visStart = Math.Min(ScrollOffset, State.Text.Length);
+            var visEnd = Math.Min(visStart + Math.Max(0, Bounds.Width - 2), State.Text.Length);
+            var visibleText = State.Text[visStart..visEnd];
+            var visPos = DisplayColumnToVisibleTextPosition(visibleText, textColumn);
             State.ClearSelection();
-            State.CursorPosition = cursorPos;
+            State.CursorPosition = visStart + visPos;
         }
 
+        return InputResult.Handled;
+    }
+
+    private InputResult HandleMouseClickMultiline(int localX, int localY)
+    {
+        var viewportWidth = Bounds.Width;
+        var visualLines = BuildVisualLines(viewportWidth);
+
+        var clickedVisualLine = VerticalScrollOffset + localY;
+        if (clickedVisualLine >= visualLines.Count)
+        {
+            // Clicked below content — position at end
+            State.ClearSelection();
+            State.CursorPosition = State.Text.Length;
+        }
+        else
+        {
+            var vLine = visualLines[clickedVisualLine];
+            var visPos = DisplayColumnToVisibleTextPosition(vLine.Text, localX);
+            State.ClearSelection();
+            State.CursorPosition = vLine.DocStartOffset + visPos;
+        }
+
+        MarkDirty();
         return InputResult.Handled;
     }
 
@@ -520,18 +732,441 @@ public sealed class TextBoxNode : Hex1bNode
         return State.Text.Length;
     }
 
+    /// <summary>
+    /// Maps a display column to a character position within a visible text string.
+    /// Used for hover cursor positioning when text is scrolled.
+    /// </summary>
+    private static int DisplayColumnToVisibleTextPosition(string visibleText, int displayColumn)
+    {
+        if (string.IsNullOrEmpty(visibleText))
+            return 0;
+
+        int currentColumn = 0;
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(visibleText);
+        int lastPosition = 0;
+
+        while (enumerator.MoveNext())
+        {
+            var grapheme = (string)enumerator.Current;
+            var graphemeWidth = DisplayWidth.GetGraphemeWidth(grapheme);
+            var graphemeStart = enumerator.ElementIndex;
+
+            if (displayColumn < currentColumn + graphemeWidth)
+            {
+                var midpoint = currentColumn + (graphemeWidth / 2.0);
+                return displayColumn < midpoint ? graphemeStart : graphemeStart + grapheme.Length;
+            }
+
+            currentColumn += graphemeWidth;
+            lastPosition = graphemeStart + grapheme.Length;
+        }
+
+        return visibleText.Length;
+    }
+
     protected override Size MeasureCore(Constraints constraints)
     {
-        // TextBox renders as "[text]" - 2 chars for brackets + text display width (or at least 1 for cursor)
-        // Use display width to account for wide characters (emoji, CJK)
+        if (IsMultiline)
+        {
+            return MeasureMultiline(constraints);
+        }
+
         var textDisplayWidth = Math.Max(DisplayWidth.GetStringWidth(State.Text), 1);
-        var width = textDisplayWidth + 2; // +2 for brackets
+
+        int width;
+        if (MinWidth.HasValue || MaxWidth.HasValue)
+        {
+            width = MinWidth.HasValue ? Math.Max(textDisplayWidth, MinWidth.Value) : textDisplayWidth;
+            if (MaxWidth.HasValue)
+                width = Math.Min(width, MaxWidth.Value);
+        }
+        else
+        {
+            // Default bracket mode: "[text]" - 2 chars for brackets
+            width = textDisplayWidth + 2;
+        }
+
         var height = 1;
         return constraints.Constrain(new Size(width, height));
     }
 
+    private Size MeasureMultiline(Constraints constraints)
+    {
+        // Width: fill available space, or use min/max width
+        int width;
+        if (MinWidth.HasValue || MaxWidth.HasValue)
+        {
+            width = MinWidth.HasValue ? MinWidth.Value : 1;
+            if (MaxWidth.HasValue)
+                width = Math.Min(width, MaxWidth.Value);
+        }
+        else
+        {
+            // Fill available width
+            width = constraints.MaxWidth > 0 ? constraints.MaxWidth : 40;
+        }
+
+        // Height: use requested height, or size to content
+        int height;
+        if (RequestedHeight.HasValue)
+        {
+            height = RequestedHeight.Value;
+        }
+        else
+        {
+            // Size to content — count visual lines (with word wrap if enabled)
+            var viewportWidth = width; // fill mode in multiline
+            height = IsWordWrap
+                ? ComputeWrappedLineCount(viewportWidth)
+                : State.GetLineCount();
+            height = Math.Max(1, height);
+        }
+
+        return constraints.Constrain(new Size(width, height));
+    }
+
+    /// <summary>
+    /// Adjusts <see cref="ScrollOffset"/> so the cursor position stays within the visible viewport.
+    /// </summary>
+    private void EnsureCursorInViewport(int viewportWidth)
+    {
+        var cursor = State.CursorPosition;
+        var text = State.Text;
+
+        // Clamp scroll offset to valid range
+        ScrollOffset = Math.Clamp(ScrollOffset, 0, Math.Max(0, text.Length));
+
+        // If cursor is before the viewport, scroll left
+        if (cursor < ScrollOffset)
+        {
+            ScrollOffset = cursor;
+        }
+
+        // If cursor is at or past the right edge, scroll right.
+        // We need at least 1 column for the cursor character (or the end-of-text cursor space).
+        if (viewportWidth > 0 && cursor >= ScrollOffset + viewportWidth)
+        {
+            ScrollOffset = cursor - viewportWidth + 1;
+        }
+
+        // Final clamp
+        ScrollOffset = Math.Max(0, ScrollOffset);
+    }
+
+    /// <summary>
+    /// Extracts the visible portion of text for the current viewport, returning
+    /// the visible string and the cursor position relative to the visible string.
+    /// </summary>
+    private (string visibleText, int visibleCursor, int visibleSelStart, int visibleSelEnd)
+        GetViewportSlice(int viewportWidth)
+    {
+        var text = State.Text;
+        var cursor = State.CursorPosition;
+
+        // Calculate how many chars fit in the viewport starting from ScrollOffset
+        var visStart = Math.Min(ScrollOffset, text.Length);
+        var visEnd = Math.Min(visStart + viewportWidth, text.Length);
+        var visibleText = text[visStart..visEnd];
+        var visibleCursor = cursor - visStart;
+
+        // Clamp selection to visible range
+        var visSelStart = 0;
+        var visSelEnd = 0;
+        if (State.HasSelection)
+        {
+            visSelStart = Math.Clamp(State.SelectionStart - visStart, 0, visibleText.Length);
+            visSelEnd = Math.Clamp(State.SelectionEnd - visStart, 0, visibleText.Length);
+        }
+
+        return (visibleText, visibleCursor, visSelStart, visSelEnd);
+    }
+
+    #region Multiline helpers
+
+    /// <summary>
+    /// Represents one visual line to be rendered, potentially a wrapped segment of a document line.
+    /// </summary>
+    private readonly record struct VisualLine(int DocLine, string Text, int DocStartOffset, bool IsContinuation);
+
+    /// <summary>
+    /// Computes the total number of visual lines after word wrapping.
+    /// </summary>
+    private int ComputeWrappedLineCount(int viewportWidth)
+    {
+        if (viewportWidth <= 0) return State.GetLineCount();
+        var count = 0;
+        var lineCount = State.GetLineCount();
+        for (var i = 0; i < lineCount; i++)
+        {
+            var lineText = State.GetLineText(i);
+            count += WrapLine(lineText, viewportWidth).Count;
+        }
+        return Math.Max(1, count);
+    }
+
+    /// <summary>
+    /// Wraps a single line of text into segments that fit within viewportWidth.
+    /// Returns a list of (segment text, start column in original line).
+    /// </summary>
+    private static List<(string text, int startCol)> WrapLine(string line, int viewportWidth)
+    {
+        if (viewportWidth <= 0 || line.Length <= viewportWidth)
+            return [(line, 0)];
+
+        var segments = new List<(string text, int startCol)>();
+        var offset = 0;
+
+        while (offset < line.Length)
+        {
+            var remaining = line.Length - offset;
+            if (remaining <= viewportWidth)
+            {
+                segments.Add((line[offset..], offset));
+                break;
+            }
+
+            // Try to break at a word boundary (space) within the viewport width
+            var breakPoint = line.LastIndexOf(' ', offset + viewportWidth - 1, viewportWidth);
+            if (breakPoint <= offset)
+            {
+                // No word boundary found — hard break
+                breakPoint = offset + viewportWidth;
+            }
+            else
+            {
+                breakPoint++; // Include the space in this segment
+            }
+
+            segments.Add((line[offset..breakPoint], offset));
+            offset = breakPoint;
+        }
+
+        if (segments.Count == 0)
+            segments.Add(("", 0));
+
+        return segments;
+    }
+
+    /// <summary>
+    /// Builds the list of visual lines for the entire document, applying word wrap if enabled.
+    /// </summary>
+    private List<VisualLine> BuildVisualLines(int viewportWidth)
+    {
+        var result = new List<VisualLine>();
+        var lineCount = State.GetLineCount();
+
+        for (var docLine = 0; docLine < lineCount; docLine++)
+        {
+            var lineText = State.GetLineText(docLine);
+            var lineStartOffset = State.GetLineStartOffset(docLine);
+
+            if (IsWordWrap && viewportWidth > 0 && lineText.Length > viewportWidth)
+            {
+                var segments = WrapLine(lineText, viewportWidth);
+                for (var i = 0; i < segments.Count; i++)
+                {
+                    result.Add(new VisualLine(docLine, segments[i].text, lineStartOffset + segments[i].startCol, i > 0));
+                }
+            }
+            else
+            {
+                result.Add(new VisualLine(docLine, lineText, lineStartOffset, false));
+            }
+        }
+
+        if (result.Count == 0)
+            result.Add(new VisualLine(0, "", 0, false));
+
+        return result;
+    }
+
+    /// <summary>
+    /// Finds which visual line index contains the given document offset.
+    /// </summary>
+    private static int FindVisualLineForOffset(List<VisualLine> visualLines, int offset)
+    {
+        for (var i = visualLines.Count - 1; i >= 0; i--)
+        {
+            if (offset >= visualLines[i].DocStartOffset)
+                return i;
+        }
+        return 0;
+    }
+
+    /// <summary>
+    /// Ensures the cursor's visual line is visible within the vertical viewport.
+    /// </summary>
+    private void EnsureCursorLineInViewport(int visibleLines, List<VisualLine> visualLines)
+    {
+        var cursorVisualLine = FindVisualLineForOffset(visualLines, State.CursorPosition);
+        VerticalScrollOffset = Math.Clamp(VerticalScrollOffset, 0, Math.Max(0, visualLines.Count - 1));
+
+        if (cursorVisualLine < VerticalScrollOffset)
+        {
+            VerticalScrollOffset = cursorVisualLine;
+        }
+        else if (cursorVisualLine >= VerticalScrollOffset + visibleLines)
+        {
+            VerticalScrollOffset = cursorVisualLine - visibleLines + 1;
+        }
+    }
+
+    /// <summary>
+    /// Renders a multiline text box with vertical scrolling and per-line horizontal viewport.
+    /// </summary>
+    private void RenderMultiline(Hex1bRenderContext context, string globalColors, string resetToGlobal,
+        Hex1bColor fillBg, Hex1bColor cursorFg, Hex1bColor cursorBg,
+        Hex1bColor selFg, Hex1bColor selBg)
+    {
+        var viewportWidth = Bounds.Width;
+        var viewportHeight = Bounds.Height;
+        if (viewportWidth <= 0 || viewportHeight <= 0) return;
+
+        var fillBgAnsi = fillBg.ToBackgroundAnsi();
+        var visualLines = BuildVisualLines(viewportWidth);
+
+        // Ensure cursor is vertically visible
+        EnsureCursorLineInViewport(viewportHeight, visualLines);
+
+        var cursor = State.CursorPosition;
+        var selStart = State.HasSelection ? State.SelectionStart : -1;
+        var selEnd = State.HasSelection ? State.SelectionEnd : -1;
+
+        for (var row = 0; row < viewportHeight; row++)
+        {
+            var visualIdx = VerticalScrollOffset + row;
+            var screenY = Bounds.Y + row;
+
+            if (visualIdx >= visualLines.Count)
+            {
+                // Empty line — fill with background
+                var emptyLine = new string(' ', viewportWidth);
+                var output = $"{globalColors}{fillBgAnsi}{emptyLine}{resetToGlobal}";
+                if (context.CurrentLayoutProvider != null)
+                    context.WriteClipped(Bounds.X, screenY, output);
+                else
+                    context.Write(output);
+                continue;
+            }
+
+            var vLine = visualLines[visualIdx];
+            var lineText = vLine.Text;
+            var lineDocStart = vLine.DocStartOffset;
+            var lineDocEnd = lineDocStart + lineText.Length;
+
+            // Compute cursor column within this visual line (if cursor is on this line)
+            var cursorOnThisLine = cursor >= lineDocStart && cursor <= lineDocEnd;
+            var cursorCol = cursorOnThisLine ? cursor - lineDocStart : -1;
+
+            // Compute selection range clipped to this visual line
+            var lineSelStart = -1;
+            var lineSelEnd = -1;
+            if (selStart >= 0 && selEnd > selStart && selEnd > lineDocStart && selStart < lineDocEnd)
+            {
+                lineSelStart = Math.Max(0, selStart - lineDocStart);
+                lineSelEnd = Math.Min(lineText.Length, selEnd - lineDocStart);
+            }
+
+            // Per-line horizontal viewport scrolling (non-word-wrap only).
+            // When word wrap is off, each line can extend beyond the viewport width.
+            // The cursor line scrolls to keep the cursor visible; other lines snap to offset 0.
+            if (!IsWordWrap && lineText.Length > viewportWidth)
+            {
+                var hScroll = 0;
+                if (cursorOnThisLine && cursorCol >= viewportWidth)
+                {
+                    // Scroll so cursor is visible at the right edge
+                    hScroll = cursorCol - viewportWidth + 1;
+                }
+
+                var visEnd = Math.Min(hScroll + viewportWidth, lineText.Length);
+                lineText = lineText[hScroll..visEnd];
+
+                // Adjust cursor and selection positions for the viewport slice
+                if (cursorCol >= 0)
+                    cursorCol -= hScroll;
+                if (lineSelStart >= 0)
+                {
+                    lineSelStart = Math.Clamp(lineSelStart - hScroll, 0, lineText.Length);
+                    lineSelEnd = Math.Clamp(lineSelEnd - hScroll, 0, lineText.Length);
+                    if (lineSelStart >= lineSelEnd)
+                    {
+                        lineSelStart = -1;
+                        lineSelEnd = -1;
+                    }
+                }
+            }
+
+            var lineOutput = RenderMultilineLine(lineText, cursorCol, lineSelStart, lineSelEnd,
+                viewportWidth, globalColors, resetToGlobal, fillBgAnsi,
+                cursorFg, cursorBg, selFg, selBg, screenY);
+
+            if (context.CurrentLayoutProvider != null)
+                context.WriteClipped(Bounds.X, screenY, lineOutput);
+            else
+                context.Write(lineOutput);
+        }
+    }
+
+    /// <summary>
+    /// Renders a single line of a multiline text box with cursor and selection highlighting.
+    /// </summary>
+    private string RenderMultilineLine(string lineText, int cursorCol, int selStart, int selEnd,
+        int viewportWidth, string globalColors, string resetToGlobal, string fillBgAnsi,
+        Hex1bColor cursorFg, Hex1bColor cursorBg, Hex1bColor selFg, Hex1bColor selBg,
+        int screenY)
+    {
+        var textDisplayWidth = DisplayWidth.GetStringWidth(lineText);
+        var padding = Math.Max(0, viewportWidth - textDisplayWidth);
+
+        if (IsFocused && cursorCol >= 0)
+        {
+            if (selStart >= 0 && selEnd > selStart)
+            {
+                // Selection on this line
+                var beforeSel = lineText[..selStart];
+                var selected = lineText[selStart..selEnd];
+                var afterSel = lineText[selEnd..];
+                var padStr = new string(' ', padding);
+                return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
+            }
+            else
+            {
+                // Line caret: render text normally, position native cursor
+                var before = lineText[..cursorCol];
+                var after = cursorCol < lineText.Length ? lineText[cursorCol..] : "";
+
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = screenY;
+
+                var padStr = new string(' ', padding);
+                return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
+            }
+        }
+        else if (selStart >= 0 && selEnd > selStart)
+        {
+            // Selection on this line but not focused (shouldn't normally happen, but handle gracefully)
+            var beforeSel = lineText[..selStart];
+            var selected = lineText[selStart..selEnd];
+            var afterSel = lineText[selEnd..];
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
+        }
+        else
+        {
+            // No cursor, no selection on this line
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{lineText}{padStr}{resetToGlobal}";
+        }
+    }
+
+    #endregion
+
     public override void Render(Hex1bRenderContext context)
     {
+        // Reset native cursor request — will be set if focused and no selection
+        ScreenCursorX = -1;
+
         var theme = context.Theme;
         var leftBracket = theme.Get(TextBoxTheme.LeftBracket);
         var rightBracket = theme.Get(TextBoxTheme.RightBracket);
@@ -539,61 +1174,86 @@ public sealed class TextBoxNode : Hex1bNode
         var cursorBg = theme.Get(TextBoxTheme.CursorBackgroundColor);
         var selFg = theme.Get(TextBoxTheme.SelectionForegroundColor);
         var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
-        var hoverCursorFg = theme.Get(TextBoxTheme.HoverCursorForegroundColor);
-        var hoverCursorBg = theme.Get(TextBoxTheme.HoverCursorBackgroundColor);
+        var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
+        var fillBg = IsFocused
+            ? theme.Get(TextBoxTheme.FocusedFillBackgroundColor)
+            : theme.Get(TextBoxTheme.FillBackgroundColor);
         
-        var text = State.Text;
-        var cursor = State.CursorPosition;
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
-        string output;
-        if (IsFocused)
+        // Multiline text boxes use their own render path
+        if (IsMultiline)
         {
-            if (State.HasSelection)
+            RenderMultiline(context, globalColors, resetToGlobal, fillBg, cursorFg, cursorBg, selFg, selBg);
+            return;
+        }
+
+        // Calculate viewport width (the number of text columns available)
+        var viewportWidth = useFillMode ? Bounds.Width : Math.Max(0, Bounds.Width - 2);
+        var textLen = State.Text.Length;
+
+        // When bounds haven't been set (direct Render without layout) or the text fits,
+        // show the full text without viewport slicing.
+        var needsViewport = viewportWidth > 0 && textLen > viewportWidth;
+
+        string visibleText;
+        int visCursor, visSelStart, visSelEnd;
+
+        if (needsViewport)
+        {
+            EnsureCursorInViewport(viewportWidth);
+            (visibleText, visCursor, visSelStart, visSelEnd) = GetViewportSlice(viewportWidth);
+        }
+        else
+        {
+            ScrollOffset = 0;
+            visibleText = State.Text;
+            visCursor = State.CursorPosition;
+            visSelStart = State.HasSelection ? State.SelectionStart : 0;
+            visSelEnd = State.HasSelection ? State.SelectionEnd : 0;
+        }
+
+        string output;
+        if (useFillMode)
+        {
+            output = RenderFillMode(visibleText, visCursor, globalColors, resetToGlobal,
+                fillBg, cursorFg, cursorBg, selFg, selBg, context,
+                visSelStart, visSelEnd);
+        }
+        else if (IsFocused)
+        {
+            if (State.HasSelection && visSelStart != visSelEnd)
             {
-                // Render with selection highlight
-                var selStart = State.SelectionStart;
-                var selEnd = State.SelectionEnd;
+                var beforeSel = visibleText[..visSelStart];
+                var selected = visibleText[visSelStart..visSelEnd];
+                var afterSel = visibleText[visSelEnd..];
                 
-                var beforeSel = text[..selStart];
-                var selected = text[selStart..selEnd];
-                var afterSel = text[selEnd..];
-                
-                // Use theme colors for selection, global for rest
                 output = $"{globalColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{afterSel}{rightBracket}";
             }
             else
             {
-                // Show text with cursor as themed block
-                // Get the entire grapheme cluster at cursor position for proper rendering
-                var before = text[..cursor];
-                string cursorCluster;
-                string after;
-                if (cursor < text.Length)
-                {
-                    var clusterLength = GraphemeHelper.GetClusterLength(text, cursor);
-                    cursorCluster = text.Substring(cursor, clusterLength);
-                    after = text[(cursor + clusterLength)..];
-                }
-                else
-                {
-                    cursorCluster = " ";
-                    after = "";
-                }
-                
-                output = $"{globalColors}{leftBracket}{before}{cursorFg.ToForegroundAnsi()}{cursorBg.ToBackgroundAnsi()}{cursorCluster}{resetToGlobal}{after}{rightBracket}";
+                // Line caret: render text normally, position native cursor
+                var before = visibleText[..visCursor];
+                var after = visCursor < visibleText.Length ? visibleText[visCursor..] : "";
+                // When cursor is at end, add a space so the bracket layout matches the old block cursor
+                var cursorSpace = visCursor >= visibleText.Length ? " " : "";
+
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(leftBracket) + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = Bounds.Y;
+
+                output = $"{globalColors}{leftBracket}{before}{after}{cursorSpace}{rightBracket}";
             }
         }
         else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
-            // Show a hover cursor preview where clicking would position the cursor
-            output = RenderWithHoverCursor(text, leftBracket, rightBracket, 
-                globalColors, resetToGlobal, hoverCursorFg, hoverCursorBg, context);
+            // Hover renders text normally — the native terminal mouse cursor handles
+            // showing the cursor shape at the mouse position.
+            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}";
         }
         else
         {
-            output = $"{globalColors}{leftBracket}{text}{rightBracket}{resetToGlobal}";
+            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}{resetToGlobal}";
         }
         
         // Use clipped rendering when a layout provider is active
@@ -606,59 +1266,72 @@ public sealed class TextBoxNode : Hex1bNode
             context.Write(output);
         }
     }
-    
+
     /// <summary>
-    /// Renders the text with a faint hover cursor showing where clicking would position the cursor.
+    /// Renders the text box in fill mode: no brackets, background-filled to the measured width.
+    /// Text and cursor positions are already adjusted for the viewport.
     /// </summary>
-    private string RenderWithHoverCursor(
-        string text, 
-        string leftBracket, 
-        string rightBracket,
+    private string RenderFillMode(
+        string text,
+        int cursor,
         string globalColors,
         string resetToGlobal,
-        Hex1bColor hoverCursorFg,
-        Hex1bColor hoverCursorBg,
-        Hex1bRenderContext context)
+        Hex1bColor fillBg,
+        Hex1bColor cursorFg,
+        Hex1bColor cursorBg,
+        Hex1bColor selFg,
+        Hex1bColor selBg,
+        Hex1bRenderContext context,
+        int visSelStart = 0,
+        int visSelEnd = 0)
     {
-        // Calculate local mouse position relative to this node
-        var localMouseX = context.MouseX - Bounds.X;
-        
-        // Convert to text column (subtract 1 for '[' bracket)
-        var textColumn = localMouseX - 1;
-        
-        // If mouse is outside the text area, show cursor at the nearest edge
-        if (textColumn < 0)
+        var measuredWidth = Bounds.Width;
+        var textDisplayWidth = DisplayWidth.GetStringWidth(text);
+        var padding = Math.Max(0, measuredWidth - textDisplayWidth);
+        var fillBgAnsi = fillBg.ToBackgroundAnsi();
+
+        if (IsFocused)
         {
-            // Mouse is on or before '[' - show cursor at start
-            textColumn = 0;
+            if (State.HasSelection && visSelStart != visSelEnd)
+            {
+                var beforeSel = text[..visSelStart];
+                var selected = text[visSelStart..visSelEnd];
+                var afterSel = text[visSelEnd..];
+
+                // Pad after the text to fill the measured width.
+                // No cursor space adjustment needed — the selection highlight covers
+                // the cursor position without adding an extra character.
+                var padStr = new string(' ', Math.Max(0, padding));
+
+                return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
+            }
+            else
+            {
+                // Line caret: render the text normally and let the native terminal cursor
+                // show a blinking bar at the cursor position.
+                var before = text[..cursor];
+                var after = cursor < text.Length ? text[cursor..] : "";
+
+                // Record screen position for the native cursor
+                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
+                ScreenCursorY = Bounds.Y;
+
+                var padStr = new string(' ', padding);
+                return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
+            }
         }
-        
-        // Find the cursor position and display column for the hover cursor
-        var hoverCursorPos = DisplayColumnToTextPosition(textColumn);
-        
-        // Get the grapheme cluster at the hover position (or space if at end)
-        string before = text[..hoverCursorPos];
-        string hoverCluster;
-        string after;
-        
-        if (hoverCursorPos < text.Length)
+        else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
         {
-            var clusterLength = GraphemeHelper.GetClusterLength(text, hoverCursorPos);
-            hoverCluster = text.Substring(hoverCursorPos, clusterLength);
-            after = text[(hoverCursorPos + clusterLength)..];
+            // Hover renders text normally — the native terminal mouse cursor handles
+            // showing the cursor shape at the mouse position.
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
         }
         else
         {
-            // At end of text - show a space as the hover target
-            hoverCluster = " ";
-            after = "";
+            var padStr = new string(' ', padding);
+            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
         }
-        
-        // Build the hover cursor color codes
-        var hoverColors = "";
-        if (!hoverCursorFg.IsDefault) hoverColors += hoverCursorFg.ToForegroundAnsi();
-        if (!hoverCursorBg.IsDefault) hoverColors += hoverCursorBg.ToBackgroundAnsi();
-        
-        return $"{globalColors}{leftBracket}{before}{hoverColors}{hoverCluster}{resetToGlobal}{after}{rightBracket}";
     }
+    
 }

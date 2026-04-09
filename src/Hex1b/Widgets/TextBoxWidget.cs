@@ -40,6 +40,16 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public static readonly ActionId Submit = new($"{nameof(TextBoxWidget)}.{nameof(Submit)}");
     /// <summary>Rebindable action: Insert typed text.</summary>
     public static readonly ActionId InsertText = new($"{nameof(TextBoxWidget)}.{nameof(InsertText)}");
+    /// <summary>Rebindable action: Move cursor up one line (multiline only).</summary>
+    public static readonly ActionId MoveUp = new($"{nameof(TextBoxWidget)}.{nameof(MoveUp)}");
+    /// <summary>Rebindable action: Move cursor down one line (multiline only).</summary>
+    public static readonly ActionId MoveDown = new($"{nameof(TextBoxWidget)}.{nameof(MoveDown)}");
+    /// <summary>Rebindable action: Extend selection up one line (multiline only).</summary>
+    public static readonly ActionId SelectUp = new($"{nameof(TextBoxWidget)}.{nameof(SelectUp)}");
+    /// <summary>Rebindable action: Extend selection down one line (multiline only).</summary>
+    public static readonly ActionId SelectDown = new($"{nameof(TextBoxWidget)}.{nameof(SelectDown)}");
+    /// <summary>Rebindable action: Insert a newline (multiline only).</summary>
+    public static readonly ActionId InsertNewline = new($"{nameof(TextBoxWidget)}.{nameof(InsertNewline)}");
 
     /// <summary>
     /// Internal handler for text changed events.
@@ -94,6 +104,69 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     /// </summary>
     public TextBoxWidget OnPaste(Action<PasteEventArgs> handler)
         => this with { PasteHandler = e => { handler(e); return Task.CompletedTask; } };
+
+    /// <summary>
+    /// Minimum width of the text box in columns. When set, the text box will measure
+    /// at least this many columns wide regardless of content.
+    /// </summary>
+    public int? MinWidth { get; init; }
+
+    /// <summary>
+    /// Maximum width of the text box in columns. When set, the text box will not exceed
+    /// this width. Defaults to the same value as MinWidth if not explicitly set.
+    /// </summary>
+    public int? MaxWidth { get; init; }
+
+    /// <summary>
+    /// When true, the text box supports multi-line editing.
+    /// Enter inserts newlines, Up/Down navigate between lines.
+    /// </summary>
+    internal bool IsMultilineValue { get; init; }
+
+    /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit. Only applies when <see cref="IsMultilineValue"/> is true.
+    /// </summary>
+    internal int? MaxLinesValue { get; init; }
+
+    /// <summary>
+    /// When true, long lines are visually wrapped at word boundaries.
+    /// Only applies when <see cref="IsMultilineValue"/> is true.
+    /// </summary>
+    internal bool IsWordWrapValue { get; init; }
+
+    /// <summary>
+    /// Fixed height in lines for the text box.
+    /// When null, single-line uses 1, multiline sizes to content.
+    /// </summary>
+    internal int? HeightValue { get; init; }
+
+    /// <summary>
+    /// Enables multi-line text editing. Enter inserts newlines,
+    /// Up/Down arrows navigate between lines, and word wrapping can be enabled.
+    /// </summary>
+    public TextBoxWidget Multiline()
+        => this with { IsMultilineValue = true };
+
+    /// <summary>
+    /// Enables multi-line text editing with a maximum number of lines.
+    /// Once the limit is reached, no more newlines can be inserted.
+    /// </summary>
+    public TextBoxWidget Multiline(int maxLines)
+        => this with { IsMultilineValue = true, MaxLinesValue = maxLines };
+
+    /// <summary>
+    /// Enables word wrapping for multi-line text boxes. Long lines are
+    /// visually broken at word boundaries to fit the available width.
+    /// </summary>
+    public TextBoxWidget WordWrap()
+        => this with { IsWordWrapValue = true };
+
+    /// <summary>
+    /// Sets the height of the text box in lines.
+    /// </summary>
+    public TextBoxWidget Height(int lines)
+        => this with { HeightValue = lines };
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -158,6 +231,18 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
 
         // Wire paste handler
         node.CustomPasteAction = PasteHandler;
+
+        // Sync min/max width to node
+        node.MinWidth = MinWidth;
+        node.MaxWidth = MaxWidth ?? MinWidth;
+
+        // Sync multiline properties
+        node.IsMultiline = IsMultilineValue;
+        node.IsWordWrap = IsWordWrapValue;
+        node.RequestedHeight = HeightValue;
+        node.MaxLines = MaxLinesValue;
+        node.State.IsMultiline = IsMultilineValue;
+        node.State.MaxLines = MaxLinesValue;
         
         return Task.FromResult<Hex1bNode>(node);
     }

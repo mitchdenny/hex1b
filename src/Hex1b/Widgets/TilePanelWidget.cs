@@ -35,7 +35,7 @@ namespace Hex1b.Widgets;
 ///     .OnZoom(e => zoom = e.NewZoomLevel)
 /// </code>
 /// </example>
-public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
+public sealed record TilePanelWidget : Hex1bWidget
 {
     /// <summary>
     /// The tile data source providing tile content.
@@ -153,8 +153,10 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
     public TilePanelWidget WithPointsOfInterest(IReadOnlyList<TilePointOfInterest> pois)
         => this with { PointsOfInterest = pois };
 
-    protected override void UpdateNode(TilePanelNode node)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
+        var node = existingNode as TilePanelNode ?? new TilePanelNode();
+
         if (node.CameraX != CameraX || node.CameraY != CameraY || node.ZoomLevel != ZoomLevel)
         {
             node.MarkDirty();
@@ -205,10 +207,10 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
         {
             node.PoiClickedCallback = null;
         }
-    }
 
-    protected override Task<Hex1bWidget> BuildContentAsync(TilePanelNode node, ReconcileContext context)
-    {
+        // Store reference to source widget
+        node.SourceWidget = this;
+
         // Wire InvalidateCallback so TileCache can trigger re-renders
         if (context.InvalidateCallback != null)
         {
@@ -217,6 +219,10 @@ public sealed record TilePanelWidget : CompositeWidget<TilePanelNode>
 
         Hex1bWidget content = node.BuildContent();
 
-        return Task.FromResult(content);
+        node.ContentChild = await context.ReconcileChildAsync(node.ContentChild, content, node);
+
+        return node;
     }
+
+    internal override Type GetExpectedNodeType() => typeof(TilePanelNode);
 }

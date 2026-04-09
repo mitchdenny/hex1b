@@ -858,10 +858,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Step 6.5-9: Only do render output if something actually changed
         if (needsRender)
         {
-            // Hide cursor during rendering to prevent flicker
-            if (_mouseEnabled)
+            // Hide cursor during rendering to prevent flicker.
+            // When a TextBoxNode's native cursor is active, skip hiding — the hardware
+            // bar cursor doesn't interfere with cell content rendering, and the
+            // hide/show cycle on every frame causes visible flicker during mouse movement.
+            var skipCursorHide = _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode;
+            if (!skipCursorHide && (_mouseEnabled || _lastRenderedCursorVisible))
             {
                 _context.Write("\x1b[?25l"); // Hide cursor
+                // Reset so RenderCursor() knows it must re-show the cursor
+                _lastRenderedCursorVisible = false;
             }
 
             // Render using Surface-based path
@@ -1176,8 +1182,55 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     private void RenderCursor()
     {
-        // Check if a TerminalNode is focused - if so, use its cursor
         var focusedNode = _focusRing.FocusedNode;
+
+        // Check if a TextBoxNode is focused and requesting a native line caret
+        if (focusedNode is TextBoxNode textBoxNode && textBoxNode.ScreenCursorX >= 0)
+        {
+            var screenX = textBoxNode.ScreenCursorX;
+            var screenY = textBoxNode.ScreenCursorY;
+            var shape = CursorShape.SteadyBar;
+
+            if (screenX == _lastRenderedCursorX &&
+                screenY == _lastRenderedCursorY &&
+                shape == _lastRenderedCursorShape &&
+                _lastRenderedCursorVisible &&
+                ReferenceEquals(focusedNode, _lastRenderedCursorNode))
+            {
+                return;
+            }
+
+            _lastRenderedCursorX = screenX;
+            _lastRenderedCursorY = screenY;
+            _lastRenderedCursorShape = shape;
+            _lastRenderedCursorVisible = true;
+            _lastRenderedCursorNode = focusedNode;
+
+            if (screenX >= 0 && screenX < _context.Width &&
+                screenY >= 0 && screenY < _context.Height)
+            {
+                _context.SetCursorPosition(screenX, screenY);
+                _context.Write("\x1b[?25h"); // Show cursor
+                WriteCursorShape(shape);
+            }
+            else
+            {
+                _context.Write("\x1b[?25l"); // Hide cursor
+            }
+            return;
+        }
+
+        // If focused node is a TextBoxNode but has no cursor request (e.g., during selection),
+        // hide the native cursor if it was previously visible for a TextBoxNode
+        if (focusedNode is TextBoxNode && _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode)
+        {
+            _context.Write("\x1b[?25l");
+            _lastRenderedCursorVisible = false;
+            _lastRenderedCursorNode = focusedNode;
+            // Fall through to mouse cursor handling below
+        }
+
+        // Check if a TerminalNode is focused - if so, use its cursor
         if (focusedNode is Nodes.TerminalNode terminalNode && terminalNode.Handle != null)
         {
             var handle = terminalNode.Handle;
@@ -1220,7 +1273,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             return;
         }
         
-        // Fall back to mouse cursor behavior for non-terminal nodes
+        // Fall back to mouse cursor behavior for non-terminal nodes.
+        // If the native cursor was previously shown for a TextBox that is no longer focused,
+        // hide it before proceeding.
+        if (_lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode)
+        {
+            _context.Write("\x1b[?25l");
+            _lastRenderedCursorVisible = false;
+            _lastRenderedCursorNode = null;
+        }
+
         if (!_mouseEnabled || _mouseX < 0 || _mouseY < 0) return;
         if (_mouseX >= _context.Width || _mouseY >= _context.Height) return;
         

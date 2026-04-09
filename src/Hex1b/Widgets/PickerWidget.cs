@@ -27,7 +27,7 @@ namespace Hex1b.Widgets;
 ///     .OnSelectionChanged(e => Console.WriteLine($"Selected: {e.SelectedText}"));
 /// </code>
 /// </example>
-public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget<PickerNode>
+public sealed record PickerWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>
     /// The initial selected index when the picker is first created.
@@ -52,27 +52,26 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget
     public PickerWidget OnSelectionChanged(Func<PickerSelectionChangedEventArgs, Task> handler)
         => this with { SelectionChangedHandler = handler };
 
-    /// <summary>
-    /// Updates the node with widget properties before building content.
-    /// </summary>
-    protected override void UpdateNode(PickerNode node)
+    internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
+        var node = existingNode as PickerNode ?? new PickerNode();
+
         // Sync items to node
         node.Items = Items;
-        
+
         // Apply initial selection only once (on first reconcile)
         if (!node.HasAppliedInitialSelection && Items.Count > 0)
         {
             node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, Items.Count - 1);
             node.HasAppliedInitialSelection = true;
         }
-        
+
         // Clamp selection if items changed and selection is now out of bounds
         if (node.SelectedIndex >= Items.Count && Items.Count > 0)
         {
             node.SelectedIndex = Items.Count - 1;
         }
-        
+
         // Set up selection changed handler
         if (SelectionChangedHandler != null)
         {
@@ -86,22 +85,20 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget
         {
             node.SelectionChangedAction = null;
         }
-    }
 
-    /// <summary>
-    /// Builds the picker's button content with popup behavior.
-    /// </summary>
-    protected override Task<Hex1bWidget> BuildContentAsync(PickerNode node, ReconcileContext context)
-    {
+        // Store reference to source widget
+        node.SourceWidget = this;
+
+        // Build the picker's button content with popup behavior
         var displayText = node.SelectedText;
         if (string.IsNullOrEmpty(displayText) && Items.Count == 0)
         {
             displayText = "(empty)";
         }
-        
+
         // Add down arrow to indicate this is a dropdown
         var labelWithArrow = $"{displayText} ▼";
-        
+
         // Build a button that shows current selection
         // When clicked, show the popup list anchored below
         var button = new ButtonWidget(labelWithArrow)
@@ -109,7 +106,7 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget
             {
                 // Store context for later use
                 node.CurrentContext = e.Context;
-                
+
                 // Build and show popup list
                 e.PushAnchored(AnchorPosition.Below, () => BuildPickerList(node, e.Context));
             })
@@ -121,7 +118,7 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget
                     node.CurrentContext = ctx;
                     node.OpenWithNextItem(ctx, this);
                 }, "Next item");
-                
+
                 // Up arrow: open popup with previous item selected (or current if at start)
                 bindings.Key(Hex1bKey.UpArrow).Action(ctx =>
                 {
@@ -129,9 +126,13 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : CompositeWidget
                     node.OpenWithPreviousItem(ctx, this);
                 }, "Previous item");
             });
-        
-        return Task.FromResult<Hex1bWidget>(button);
+
+        node.ContentChild = await context.ReconcileChildAsync(node.ContentChild, button, node);
+
+        return node;
     }
+
+    internal override Type GetExpectedNodeType() => typeof(PickerNode);
 
     /// <summary>
     /// Builds the popup list widget for item selection.

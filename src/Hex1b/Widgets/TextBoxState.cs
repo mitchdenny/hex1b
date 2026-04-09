@@ -10,6 +10,32 @@ internal class TextBoxState
     private string _text = "";
     private int _cursorPosition = 0;
 
+    /// <summary>
+    /// When true, the text box operates in multi-line mode.
+    /// Enter inserts newlines, Up/Down navigate between lines, Home/End operate on the current line.
+    /// </summary>
+    public bool IsMultiline { get; set; }
+
+    /// <summary>
+    /// Maximum number of lines allowed in multiline mode.
+    /// When null, there is no limit.
+    /// </summary>
+    public int? MaxLines { get; set; }
+
+    /// <summary>
+    /// Tracks the desired column when navigating vertically.
+    /// Preserved across Up/Down movements so moving through short lines remembers the target column.
+    /// Reset to null on any horizontal movement or text edit.
+    /// </summary>
+    private int? _preferredColumn;
+
+    /// <summary>
+    /// Resets the preferred column used for vertical navigation.
+    /// Must be called after any horizontal cursor movement or text edit
+    /// so that the next Up/Down arrow uses the actual cursor column.
+    /// </summary>
+    internal void ResetPreferredColumn() => _preferredColumn = null;
+
     public string Text
     {
         get => _text;
@@ -69,7 +95,7 @@ internal class TextBoxState
     /// <summary>
     /// Deletes the selected text and returns cursor to selection start.
     /// </summary>
-    private void DeleteSelection()
+    internal void DeleteSelection()
     {
         if (!HasSelection) return;
         
@@ -78,6 +104,7 @@ internal class TextBoxState
         _text = _text[..start] + _text[end..];
         _cursorPosition = start;
         ClearSelection();
+        _preferredColumn = null;
     }
 
     /// <summary>
@@ -88,6 +115,151 @@ internal class TextBoxState
         if (Text.Length == 0) return;
         SelectionAnchor = 0;
         CursorPosition = Text.Length;
+    }
+
+    #region Line-computation helpers
+
+    /// <summary>
+    /// Returns the number of lines in the text (1-based; empty string has 1 line).
+    /// </summary>
+    public int GetLineCount()
+    {
+        if (_text.Length == 0) return 1;
+        var count = 1;
+        for (var i = 0; i < _text.Length; i++)
+        {
+            if (_text[i] == '\n') count++;
+        }
+        return count;
+    }
+
+    /// <summary>
+    /// Returns the flat offset where the given 0-based line starts.
+    /// Line 0 starts at offset 0.
+    /// </summary>
+    public int GetLineStartOffset(int line)
+    {
+        if (line <= 0) return 0;
+        var current = 0;
+        for (var i = 0; i < _text.Length; i++)
+        {
+            if (_text[i] == '\n')
+            {
+                current++;
+                if (current == line) return i + 1;
+            }
+        }
+        // Line is beyond the last line — clamp to end
+        return _text.Length;
+    }
+
+    /// <summary>
+    /// Returns the length of the given 0-based line (excluding the newline character).
+    /// </summary>
+    public int GetLineLength(int line)
+    {
+        var start = GetLineStartOffset(line);
+        var end = _text.IndexOf('\n', start);
+        return end < 0 ? _text.Length - start : end - start;
+    }
+
+    /// <summary>
+    /// Converts a flat cursor offset to a (line, column) pair (both 0-based).
+    /// </summary>
+    public (int line, int column) OffsetToLineColumn(int offset)
+    {
+        offset = Math.Clamp(offset, 0, _text.Length);
+        var line = 0;
+        var lineStart = 0;
+        for (var i = 0; i < offset; i++)
+        {
+            if (_text[i] == '\n')
+            {
+                line++;
+                lineStart = i + 1;
+            }
+        }
+        return (line, offset - lineStart);
+    }
+
+    /// <summary>
+    /// Converts a (line, column) pair (both 0-based) to a flat cursor offset.
+    /// Column is clamped to the line's length.
+    /// </summary>
+    public int LineColumnToOffset(int line, int column)
+    {
+        var lineStart = GetLineStartOffset(line);
+        var lineLen = GetLineLength(line);
+        return lineStart + Math.Clamp(column, 0, lineLen);
+    }
+
+    /// <summary>
+    /// Gets the text content of the given 0-based line (excluding newline).
+    /// </summary>
+    public string GetLineText(int line)
+    {
+        var start = GetLineStartOffset(line);
+        var len = GetLineLength(line);
+        return _text.Substring(start, len);
+    }
+
+    #endregion
+
+    #region Vertical navigation
+
+    /// <summary>
+    /// Moves the cursor up one line, preserving the preferred column.
+    /// </summary>
+    public void MoveUp(bool extend = false)
+    {
+        var (line, col) = OffsetToLineColumn(_cursorPosition);
+        if (line == 0) return; // Already on first line
+
+        if (extend && !SelectionAnchor.HasValue)
+            SelectionAnchor = _cursorPosition;
+        else if (!extend)
+            ClearSelection();
+
+        _preferredColumn ??= col;
+        var targetCol = Math.Min(_preferredColumn.Value, GetLineLength(line - 1));
+        CursorPosition = LineColumnToOffset(line - 1, targetCol);
+    }
+
+    /// <summary>
+    /// Moves the cursor down one line, preserving the preferred column.
+    /// </summary>
+    public void MoveDown(bool extend = false)
+    {
+        var (line, col) = OffsetToLineColumn(_cursorPosition);
+        if (line >= GetLineCount() - 1) return; // Already on last line
+
+        if (extend && !SelectionAnchor.HasValue)
+            SelectionAnchor = _cursorPosition;
+        else if (!extend)
+            ClearSelection();
+
+        _preferredColumn ??= col;
+        var targetCol = Math.Min(_preferredColumn.Value, GetLineLength(line + 1));
+        CursorPosition = LineColumnToOffset(line + 1, targetCol);
+    }
+
+    #endregion
+
+    /// <summary>
+    /// Inserts a newline at the current cursor position.
+    /// </summary>
+    public void InsertNewline()
+    {
+        // Enforce max lines limit
+        if (MaxLines.HasValue && GetLineCount() >= MaxLines.Value)
+            return;
+
+        if (HasSelection)
+            DeleteSelection();
+
+        _text = _text.Insert(_cursorPosition, "\n");
+        _cursorPosition++;
+        _preferredColumn = null;
     }
 
     /// <summary>
@@ -121,6 +293,7 @@ internal class TextBoxState
                     _text = _text.Remove(_cursorPosition - 1, 1);
                     _cursorPosition--;
                 }
+                _preferredColumn = null;
                 return true;
 
             case Hex1bKey.Delete:
@@ -132,12 +305,12 @@ internal class TextBoxState
                 {
                     _text = _text.Remove(_cursorPosition, 1);
                 }
+                _preferredColumn = null;
                 return true;
 
             case Hex1bKey.LeftArrow:
                 if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
-                    // Start or extend selection
                     if (!SelectionAnchor.HasValue)
                     {
                         SelectionAnchor = CursorPosition;
@@ -151,7 +324,6 @@ internal class TextBoxState
                 {
                     if (HasSelection)
                     {
-                        // Move cursor to start of selection
                         CursorPosition = SelectionStart;
                         ClearSelection();
                     }
@@ -160,12 +332,12 @@ internal class TextBoxState
                         CursorPosition--;
                     }
                 }
+                _preferredColumn = null;
                 return true;
 
             case Hex1bKey.RightArrow:
                 if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
                 {
-                    // Start or extend selection
                     if (!SelectionAnchor.HasValue)
                     {
                         SelectionAnchor = CursorPosition;
@@ -179,7 +351,6 @@ internal class TextBoxState
                 {
                     if (HasSelection)
                     {
-                        // Move cursor to end of selection
                         CursorPosition = SelectionEnd;
                         ClearSelection();
                     }
@@ -188,7 +359,24 @@ internal class TextBoxState
                         CursorPosition++;
                     }
                 }
+                _preferredColumn = null;
                 return true;
+
+            case Hex1bKey.UpArrow:
+                if (IsMultiline)
+                {
+                    MoveUp(evt.Modifiers.HasFlag(Hex1bModifiers.Shift));
+                    return true;
+                }
+                return false;
+
+            case Hex1bKey.DownArrow:
+                if (IsMultiline)
+                {
+                    MoveDown(evt.Modifiers.HasFlag(Hex1bModifiers.Shift));
+                    return true;
+                }
+                return false;
 
             case Hex1bKey.Home:
                 if (evt.Modifiers.HasFlag(Hex1bModifiers.Shift))
@@ -202,7 +390,17 @@ internal class TextBoxState
                 {
                     ClearSelection();
                 }
-                CursorPosition = 0;
+                if (IsMultiline && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
+                {
+                    // Move to start of current line
+                    var (line, _) = OffsetToLineColumn(_cursorPosition);
+                    CursorPosition = GetLineStartOffset(line);
+                }
+                else
+                {
+                    CursorPosition = 0;
+                }
+                _preferredColumn = null;
                 return true;
 
             case Hex1bKey.End:
@@ -217,20 +415,38 @@ internal class TextBoxState
                 {
                     ClearSelection();
                 }
-                CursorPosition = Text.Length;
+                if (IsMultiline && !evt.Modifiers.HasFlag(Hex1bModifiers.Control))
+                {
+                    // Move to end of current line
+                    var (line, _) = OffsetToLineColumn(_cursorPosition);
+                    CursorPosition = GetLineStartOffset(line) + GetLineLength(line);
+                }
+                else
+                {
+                    CursorPosition = Text.Length;
+                }
+                _preferredColumn = null;
                 return true;
+
+            case Hex1bKey.Enter:
+                if (IsMultiline)
+                {
+                    InsertNewline();
+                    return true;
+                }
+                return false;
 
             default:
                 // Insert printable characters
                 if (!char.IsControl(evt.Character))
                 {
-                    // If there's a selection, delete it first
                     if (HasSelection)
                     {
                         DeleteSelection();
                     }
                     _text = _text.Insert(_cursorPosition, evt.Character.ToString());
                     _cursorPosition++;
+                    _preferredColumn = null;
                     return true;
                 }
                 // Non-printable, non-handled key

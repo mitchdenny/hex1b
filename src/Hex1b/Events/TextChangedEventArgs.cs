@@ -18,6 +18,12 @@ public sealed class TextChangedEventArgs : WidgetEventArgs<TextBoxWidget, TextBo
     /// </summary>
     public string NewText { get; }
 
+    /// <summary>
+    /// The lines of text after the change, split on newline characters.
+    /// Useful for multiline text boxes to access individual lines without manual splitting.
+    /// </summary>
+    public string[] Lines { get; }
+
     public TextChangedEventArgs(
         TextBoxWidget widget,
         TextBoxNode node,
@@ -28,5 +34,6 @@ public sealed class TextChangedEventArgs : WidgetEventArgs<TextBoxWidget, TextBo
     {
         OldText = oldText;
         NewText = newText;
+        Lines = newText.Split('\n');
     }
 }
