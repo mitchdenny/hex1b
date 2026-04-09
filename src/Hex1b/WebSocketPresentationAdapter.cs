@@ -15,6 +15,9 @@ namespace Hex1b;
 /// </remarks>
 public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAdapter
 {
+    private const string ResizeTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_RESIZE_TRACE_FILE";
+    private const string OutputTraceFileEnvironmentVariable = "HEX1B_WEBSOCKET_OUTPUT_TRACE_FILE";
+
     private readonly WebSocket _webSocket;
     private readonly CancellationTokenSource _disposeCts = new();
     private bool _disposed;
@@ -76,8 +79,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
     /// <param name="actualCellPixelWidth">Optional actual (floating-point) cell width.</param>
     public void Resize(int width, int height, int? cellPixelWidth = null, int? cellPixelHeight = null, double? actualCellPixelWidth = null)
     {
-        System.IO.File.AppendAllText("/tmp/websocket-resize.log",
-            $"[{DateTime.Now:HH:mm:ss.fff}] Resize: {width}x{height}, cellPixel: {cellPixelWidth}x{cellPixelHeight}, actual: {actualCellPixelWidth}\n");
+        TryTraceResize(width, height, cellPixelWidth, cellPixelHeight, actualCellPixelWidth);
         
         var sizeChanged = _width != width || _height != height;
         
@@ -97,6 +99,86 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
             Resized?.Invoke(width, height);
     }
 
+    private static void TryTraceResize(
+        int width,
+        int height,
+        int? cellPixelWidth,
+        int? cellPixelHeight,
+        double? actualCellPixelWidth)
+    {
+        var tracePath = Environment.GetEnvironmentVariable(ResizeTraceFileEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(tracePath))
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(tracePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            File.AppendAllText(
+                tracePath,
+                $"[{DateTime.UtcNow:O}] Resize: {width}x{height}, cellPixel: {cellPixelWidth}x{cellPixelHeight}, actual: {actualCellPixelWidth}{Environment.NewLine}");
+        }
+        catch (Exception ex) when (
+            ex is IOException or
+            UnauthorizedAccessException or
+            NotSupportedException or
+            ArgumentException)
+        {
+            // Optional resize tracing must never break websocket terminal sessions.
+        }
+    }
+
+    private static void TryTraceOutput(ReadOnlyMemory<byte> data)
+    {
+        var tracePath = Environment.GetEnvironmentVariable(OutputTraceFileEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(tracePath) || data.IsEmpty)
+        {
+            return;
+        }
+
+        try
+        {
+            var directory = Path.GetDirectoryName(tracePath);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                Directory.CreateDirectory(directory);
+            }
+
+            var bytes = data.ToArray();
+            var limit = Math.Min(bytes.Length, 256);
+            var hex = BitConverter.ToString(bytes, 0, limit);
+            if (bytes.Length > limit)
+            {
+                hex += $"... ({bytes.Length} bytes total)";
+            }
+
+            var text = Encoding.UTF8.GetString(bytes)
+                .Replace("\x1b", "<ESC>", StringComparison.Ordinal)
+                .Replace("\r", "<CR>", StringComparison.Ordinal)
+                .Replace("\n", "<LF>\n", StringComparison.Ordinal);
+
+            File.AppendAllText(
+                tracePath,
+                $"[{DateTime.UtcNow:O}] OUTPUT {bytes.Length} byte(s){Environment.NewLine}" +
+                $"HEX: {hex}{Environment.NewLine}" +
+                $"TEXT: {text}{Environment.NewLine}{Environment.NewLine}");
+        }
+        catch (Exception ex) when (
+            ex is IOException or
+            UnauthorizedAccessException or
+            NotSupportedException or
+            ArgumentException)
+        {
+            // Optional output tracing must never break websocket terminal sessions.
+        }
+    }
+
     /// <inheritdoc />
     public async ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
@@ -105,6 +187,7 @@ public sealed class WebSocketPresentationAdapter : IHex1bTerminalPresentationAda
 
         try
         {
+            TryTraceOutput(data);
             using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
             // Use Text message type since terminal output is UTF-8 and JavaScript expects strings
             await _webSocket.SendAsync(data, WebSocketMessageType.Text, endOfMessage: true, linkedCts.Token);

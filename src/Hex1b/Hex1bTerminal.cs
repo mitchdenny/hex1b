@@ -68,6 +68,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // The resize event comes from the input thread while the output pump
     // runs on a separate thread, both accessing _screenBuffer, _width, _height.
     private readonly object _bufferLock = new();
+    private readonly SemaphoreSlim _workloadInputWriteLock = new(1, 1);
     
     private TerminalCell[,] _screenBuffer;
     private int _cursorX;
@@ -85,6 +86,8 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private int _alternateScreenSavedCursorY; // Saved cursor Y for alternate screen (mode 1049)
     private Task? _inputProcessingTask;
     private Task? _outputProcessingTask;
+    private readonly TaskCompletionSource<(string PumpName, Exception Error)> _pumpFaultTcs =
+        new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _writeSequence; // Monotonically increasing write order counter
     private int _savedCursorX; // Saved cursor X position for DECSC/DECRC
     private int _savedCursorY; // Saved cursor Y position for DECSC/DECRC
@@ -475,18 +478,22 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             }
 
             // Execute the run callback or wait for workload disconnect
-            int exitCode = 0;
-            if (_runCallback != null)
+            var runTask = _runCallback != null
+                ? _runCallback(ct)
+                : WaitForWorkloadDisconnectWithExitCodeAsync(ct);
+
+            var completedTask = await Task.WhenAny(runTask, _pumpFaultTcs.Task);
+            if (completedTask == _pumpFaultTcs.Task)
             {
-                exitCode = await _runCallback(ct);
+                var (pumpName, error) = await _pumpFaultTcs.Task;
+                throw new InvalidOperationException($"The {pumpName} failed.", error);
             }
-            else
-            {
-                // No run callback - wait for workload to disconnect
-                await WaitForWorkloadDisconnectAsync(ct);
-            }
-            
-            // Notify lifecycle-aware presentation adapters that the terminal has completed
+
+            var exitCode = await runTask;
+             
+            // Notify lifecycle-aware adapters (for example TerminalWidgetHandle)
+            // so embedded terminal UIs can surface the final exit state and swap
+            // back to their fallback/not-running content.
             if (_presentation is ITerminalLifecycleAwarePresentationAdapter completedAdapter)
             {
                 completedAdapter.TerminalCompleted(exitCode);
@@ -535,6 +542,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
     }
 
+    private async Task<int> WaitForWorkloadDisconnectWithExitCodeAsync(CancellationToken ct)
+    {
+        await WaitForWorkloadDisconnectAsync(ct);
+        return 0;
+    }
+
     // === I/O Pump Tasks ===
 
     /// <summary>
@@ -579,6 +592,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         catch (OperationCanceledException)
         {
             // Normal shutdown
+        }
+        catch (Exception ex)
+        {
+            ReportPumpFault("presentation input reader", ex);
+            _presentationInputChannel.Writer.TryComplete(ex);
         }
         finally
         {
@@ -663,6 +681,10 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             // Normal shutdown
         }
+        catch (Exception ex)
+        {
+            ReportPumpFault("presentation input pump", ex);
+        }
     }
 
     /// <summary>
@@ -690,13 +712,13 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             // For other workloads, forward raw bytes
             if (!rawData.IsEmpty)
             {
-                await _workload.WriteInputAsync(rawData, ct);
+                await WriteWorkloadInputAsync(rawData, ct);
             }
             else
             {
                 // Flushed from incomplete buffer — re-encode to bytes
                 var bytes = Encoding.UTF8.GetBytes(completeText);
-                await _workload.WriteInputAsync(bytes, ct);
+                await WriteWorkloadInputAsync(bytes, ct);
             }
         }
     }
@@ -1375,6 +1397,41 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         {
             // Normal shutdown
         }
+        catch (Exception ex)
+        {
+            ReportPumpFault("workload output pump", ex);
+        }
+    }
+
+    private void ReportPumpFault(string pumpName, Exception error)
+    {
+        if (error is OperationCanceledException && _disposeCts.IsCancellationRequested)
+        {
+            return;
+        }
+
+        TracePump($"{pumpName} faulted: {error}");
+        _pumpFaultTcs.TrySetResult((pumpName, error));
+    }
+
+    private static void TracePump(string message)
+    {
+        var tracePath = Environment.GetEnvironmentVariable("HEX1B_TERMINAL_PUMP_TRACE_FILE");
+        if (string.IsNullOrWhiteSpace(tracePath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(tracePath, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static IReadOnlyList<AnsiToken> NormalizePreTokenizedTokens(IReadOnlyList<AnsiToken> tokens)
@@ -1850,7 +1907,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var serialized = AnsiTokenSerializer.Serialize(tokens);
                 var bytes = Encoding.UTF8.GetBytes(serialized);
                 // Fire and forget - synchronous API can't wait for async write
-                _ = _workload.WriteInputAsync(bytes, CancellationToken.None);
+                _ = WriteWorkloadInputAsync(bytes, CancellationToken.None);
             }
         }
     }
@@ -1877,7 +1934,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 var serialized = AnsiTokenSerializer.Serialize(tokens);
                 var bytes = Encoding.UTF8.GetBytes(serialized);
-                await _workload.WriteInputAsync(bytes, ct);
+                await WriteWorkloadInputAsync(bytes, ct);
                 
                 // Also notify filters of the input
                 await NotifyWorkloadFiltersInputAsync(tokens);
@@ -1892,7 +1949,20 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <param name="ct">Cancellation token.</param>
     public async Task SendInputAsync(byte[] bytes, CancellationToken ct = default)
     {
-        await _workload.WriteInputAsync(bytes, ct);
+        await WriteWorkloadInputAsync(bytes, ct);
+    }
+
+    private async ValueTask WriteWorkloadInputAsync(ReadOnlyMemory<byte> bytes, CancellationToken ct)
+    {
+        await _workloadInputWriteLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            await _workload.WriteInputAsync(bytes, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _workloadInputWriteLock.Release();
+        }
     }
 
     /// <summary>
@@ -2773,18 +2843,24 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         if (!string.IsNullOrEmpty(response))
         {
             var bytes = Encoding.UTF8.GetBytes(response);
-            // Write response synchronously on thread pool to avoid blocking output pump
-            _ = Task.Run(async () =>
-            {
-                try
-                {
-                    await _workload.WriteInputAsync(bytes, CancellationToken.None);
-                }
-                catch (Exception)
-                {
-                    // Ignore errors - process may have exited
-                }
-            });
+            // Keep protocol responses ordered with user keystrokes. PowerShell/PSReadLine
+            // is sensitive to delayed CPR replies; fire-and-forget thread-pool writes can
+            // leak literal `1;1R` fragments into the prompt when the response arrives late.
+            _ = SendProtocolResponseAsync(bytes);
+        }
+    }
+
+    private async Task SendProtocolResponseAsync(byte[] bytes)
+    {
+        try
+        {
+            await WriteWorkloadInputAsync(bytes, _disposeCts.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_disposeCts.IsCancellationRequested)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
         }
     }
 
@@ -5703,10 +5779,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             _presentation.WriteOutputAsync(System.Text.Encoding.UTF8.GetBytes(exitSequences), default).AsTask().GetAwaiter().GetResult();
             _presentation.FlushAsync().AsTask().GetAwaiter().GetResult();
             
-            // Fire and forget - ExitRawModeAsync is typically synchronous for console
-            _ = _presentation.ExitRawModeAsync();
+            _presentation.ExitRawModeAsync().AsTask().GetAwaiter().GetResult();
             _presentation.Resized -= OnPresentationResized;
+            _presentation.DisposeAsync().AsTask().GetAwaiter().GetResult();
         }
+
+        _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+
+        _escapeFlushTimer?.Dispose();
 
         _disposeCts.Cancel();
         _disposeCts.Dispose();
@@ -6351,18 +6431,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
         var responseStr = response.ToString();
         var bytes = Encoding.UTF8.GetBytes(responseStr);
-
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await _workload.WriteInputAsync(bytes, CancellationToken.None);
-            }
-            catch (Exception)
-            {
-                // Ignore errors - process may have exited
-            }
-        });
+        _ = SendProtocolResponseAsync(bytes);
     }
 
     private static byte[] DecodeKgpPayload(string base64Payload)

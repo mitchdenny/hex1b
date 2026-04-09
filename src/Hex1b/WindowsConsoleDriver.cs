@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -22,11 +23,13 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     // Standard handles
     private const int STD_INPUT_HANDLE = -10;
     private const int STD_OUTPUT_HANDLE = -11;
+    private static readonly nint InvalidHandleValue = new(-1);
     
     // Console mode flags - Input
     private const uint ENABLE_WINDOW_INPUT = 0x0008;           // Window buffer size changes reported
     private const uint ENABLE_MOUSE_INPUT = 0x0010;            // Mouse events reported
     private const uint ENABLE_EXTENDED_FLAGS = 0x0080;         // Required for disabling quick edit
+    private const uint ENABLE_VIRTUAL_TERMINAL_INPUT = 0x0200; // Forward VT input sequences under ConPTY
     
     // INPUT_RECORD event types
     private const ushort KEY_EVENT = 0x0001;
@@ -37,6 +40,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     private const ushort VK_BACK = 0x08;
     private const ushort VK_TAB = 0x09;
     private const ushort VK_RETURN = 0x0D;
+    private const ushort VK_SPACE = 0x20;
     private const ushort VK_ESCAPE = 0x1B;
     private const ushort VK_PRIOR = 0x21;  // Page Up
     private const ushort VK_NEXT = 0x22;   // Page Down
@@ -60,6 +64,22 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     private const ushort VK_F10 = 0x79;
     private const ushort VK_F11 = 0x7A;
     private const ushort VK_F12 = 0x7B;
+    // Printable OEM punctuation keys used when some Windows console hosts report
+    // KEY_EVENT_RECORD.UnicodeChar == '\0' for ordinary text input. This covers
+    // the standard US-layout punctuation set so commands, paths, and quotes still
+    // reach the child shell. A future layout-aware ToUnicodeEx-based path would
+    // be more robust for non-US keyboard mappings.
+    private const ushort VK_OEM_1 = 0xBA;       // ;:
+    private const ushort VK_OEM_PLUS = 0xBB;    // =+
+    private const ushort VK_OEM_COMMA = 0xBC;   // ,<
+    private const ushort VK_OEM_MINUS = 0xBD;   // -_
+    private const ushort VK_OEM_PERIOD = 0xBE;  // .>
+    private const ushort VK_OEM_2 = 0xBF;       // /?
+    private const ushort VK_OEM_3 = 0xC0;       // `~
+    private const ushort VK_OEM_4 = 0xDB;       // [{
+    private const ushort VK_OEM_5 = 0xDC;       // \|
+    private const ushort VK_OEM_6 = 0xDD;       // ]}
+    private const ushort VK_OEM_7 = 0xDE;       // '"
     
     // Control key state flags
     private const uint RIGHT_ALT_PRESSED = 0x0001;
@@ -98,6 +118,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     // Buffer for pending bytes from key events
     private readonly Queue<byte> _pendingBytes = new();
+    private readonly StringBuilder _pendingVtInput = new();
     
     // Track previous mouse state for generating proper events
     private uint _lastMouseButtonState;
@@ -112,9 +133,10 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         _inputHandle = GetStdHandle(STD_INPUT_HANDLE);
         _outputHandle = GetStdHandle(STD_OUTPUT_HANDLE);
         
-        if (_inputHandle == nint.Zero || _outputHandle == nint.Zero)
+        if (_inputHandle == nint.Zero || _outputHandle == nint.Zero ||
+            _inputHandle == InvalidHandleValue || _outputHandle == InvalidHandleValue)
         {
-            throw new InvalidOperationException("Failed to get console handles");
+            throw CreateConsoleUnavailableException();
         }
         
         var (w, h) = GetWindowSize();
@@ -130,7 +152,24 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             var height = info.srWindow.Bottom - info.srWindow.Top + 1;
             return (width, height);
         }
-        return (Console.WindowWidth, Console.WindowHeight);
+
+        try
+        {
+            var width = Console.WindowWidth;
+            var height = Console.WindowHeight;
+            if (width > 0 && height > 0)
+            {
+                return (width, height);
+            }
+        }
+        catch (IOException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+
+        throw CreateConsoleUnavailableException();
     }
     
     public int Width => GetWindowSize().width;
@@ -154,16 +193,27 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             throw new InvalidOperationException($"GetConsoleMode failed for output: {Marshal.GetLastWin32Error()}");
         }
         
-        // Use ReadConsoleInput mode:
+        // Use console input mode with VT input enabled when available:
         // - Enable window input for resize events
-        // - Enable mouse input for mouse events
+        // - Enable mouse input for classic console mouse events
+        // - Enable VT input so nested Hex1b apps running under ConPTY can receive
+        //   forwarded CSI/SGR mouse sequences from an outer terminal widget.
         // - Disable quick edit (via ENABLE_EXTENDED_FLAGS with no ENABLE_QUICK_EDIT_MODE)
-        var newInputMode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
-        
+        var newInputMode = ENABLE_WINDOW_INPUT |
+                           ENABLE_MOUSE_INPUT |
+                           ENABLE_EXTENDED_FLAGS |
+                           ENABLE_VIRTUAL_TERMINAL_INPUT;
+
         if (!SetConsoleMode(_inputHandle, newInputMode))
         {
             var error = Marshal.GetLastWin32Error();
-            throw new InvalidOperationException($"SetConsoleMode failed for input (error {error}).");
+            var fallbackInputMode = ENABLE_WINDOW_INPUT | ENABLE_MOUSE_INPUT | ENABLE_EXTENDED_FLAGS;
+            if (!SetConsoleMode(_inputHandle, fallbackInputMode))
+            {
+                throw new InvalidOperationException($"SetConsoleMode failed for input (error {error}).");
+            }
+
+            TraceInput($"vt-input-unavailable error={error}");
         }
         
         // VT output for escape sequences
@@ -218,48 +268,65 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         
         return await Task.Run(() =>
         {
-            while (!ct.IsCancellationRequested)
+            try
             {
-                // First, drain any pending bytes from previous key events
-                if (_pendingBytes.Count > 0)
+                while (!ct.IsCancellationRequested)
                 {
-                    return DrainPendingBytes(buffer.Span);
+                    // First, drain any pending bytes from previous key events
+                    if (_pendingBytes.Count > 0)
+                    {
+                        return DrainPendingBytes(buffer.Span);
+                    }
+                    
+                    // Wait for input with timeout
+                    var waitResult = WaitForSingleObject(_inputHandle, 100);
+                    
+                    if (waitResult == WAIT_TIMEOUT)
+                    {
+                        continue;
+                    }
+                    
+                    if (waitResult != WAIT_OBJECT_0)
+                    {
+                        throw new InvalidOperationException($"WaitForSingleObject failed: {Marshal.GetLastWin32Error()}");
+                    }
+                    
+                    // Read console input records
+                    var records = new INPUT_RECORD[16];
+                    if (!ReadConsoleInput(_inputHandle, records, (uint)records.Length, out var numRead))
+                    {
+                        throw new InvalidOperationException($"ReadConsoleInput failed: {Marshal.GetLastWin32Error()}");
+                    }
+                    
+                    // Process each record. A single malformed or transiently failing
+                    // record should not permanently kill keyboard input for the session.
+                    for (int i = 0; i < numRead; i++)
+                    {
+                        try
+                        {
+                            ProcessInputRecord(ref records[i]);
+                        }
+                        catch (Exception ex)
+                        {
+                            TraceInput(
+                                $"record-error type=0x{records[i].EventType:X4} error={ex.GetType().Name}: {ex.Message}");
+                        }
+                    }
+                    
+                    // Return any bytes that were generated
+                    if (_pendingBytes.Count > 0)
+                    {
+                        return DrainPendingBytes(buffer.Span);
+                    }
                 }
-                
-                // Wait for input with timeout
-                var waitResult = WaitForSingleObject(_inputHandle, 100);
-                
-                if (waitResult == WAIT_TIMEOUT)
-                {
-                    continue;
-                }
-                
-                if (waitResult != WAIT_OBJECT_0)
-                {
-                    throw new InvalidOperationException($"WaitForSingleObject failed: {Marshal.GetLastWin32Error()}");
-                }
-                
-                // Read console input records
-                var records = new INPUT_RECORD[16];
-                if (!ReadConsoleInput(_inputHandle, records, (uint)records.Length, out var numRead))
-                {
-                    throw new InvalidOperationException($"ReadConsoleInput failed: {Marshal.GetLastWin32Error()}");
-                }
-                
-                // Process each record
-                for (int i = 0; i < numRead; i++)
-                {
-                    ProcessInputRecord(ref records[i]);
-                }
-                
-                // Return any bytes that were generated
-                if (_pendingBytes.Count > 0)
-                {
-                    return DrainPendingBytes(buffer.Span);
-                }
+
+                return 0;
             }
-            
-            return 0;
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                TraceInput($"read-error {ex.GetType().Name}: {ex.Message}");
+                throw;
+            }
         }, ct);
     }
     
@@ -303,14 +370,29 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         bool hasCtrl = (ctrl & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
         bool hasAlt = (ctrl & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
         bool hasShift = (ctrl & SHIFT_PRESSED) != 0;
+        int repeatCount = Math.Max(1, (int)key.wRepeatCount);
+
+        TraceInput(
+            $"key vk=0x{vk:X2} scan=0x{key.wVirtualScanCode:X2} char=0x{(int)ch:X4} ctrl={hasCtrl} alt={hasAlt} shift={hasShift} repeat={repeatCount}");
+
+        if (vk == 0 && key.wVirtualScanCode == 0 && ch != 0)
+        {
+            ProcessVirtualTerminalInputChar(ch);
+            return;
+        }
+
+        FlushPendingVirtualTerminalInput();
         
         // Check for special keys that generate VT sequences
         var vtSequence = GetVtSequence(vk, hasCtrl, hasAlt, hasShift);
         if (vtSequence != null)
         {
-            foreach (var b in vtSequence)
+            for (int repeat = 0; repeat < repeatCount; repeat++)
             {
-                _pendingBytes.Enqueue(b);
+                foreach (var b in vtSequence)
+                {
+                    _pendingBytes.Enqueue(b);
+                }
             }
             return;
         }
@@ -318,7 +400,10 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         // Handle Ctrl+letter combinations (Ctrl+A = 1, Ctrl+B = 2, etc.)
         if (hasCtrl && !hasAlt && ch >= 'A' - 64 && ch <= 'Z' - 64)
         {
-            _pendingBytes.Enqueue((byte)ch);
+            for (int repeat = 0; repeat < repeatCount; repeat++)
+            {
+                _pendingBytes.Enqueue((byte)ch);
+            }
             return;
         }
         
@@ -326,31 +411,262 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         // This matches the VT sequence that Linux terminals generate for Alt+key
         if (hasAlt && !hasCtrl && ch != 0)
         {
-            _pendingBytes.Enqueue(0x1B); // ESC
-            Span<byte> utf8 = stackalloc byte[4];
-            var charSpan = new ReadOnlySpan<char>(in ch);
-            var len = Encoding.UTF8.GetBytes(charSpan, utf8);
-            for (int i = 0; i < len; i++)
+            for (int repeat = 0; repeat < repeatCount; repeat++)
             {
-                _pendingBytes.Enqueue(utf8[i]);
+                _pendingBytes.Enqueue(0x1B); // ESC
+                EnqueueUtf8Char(ch);
             }
             return;
         }
-        
-        // Regular character - encode as UTF-8
-        if (ch != 0)
+
+        var text = GetPrintableText(vk, ch, hasCtrl, hasAlt, hasShift);
+        if (!string.IsNullOrEmpty(text))
         {
-            Span<byte> utf8 = stackalloc byte[4];
-            var charSpan = new ReadOnlySpan<char>(in ch);
-            var len = Encoding.UTF8.GetBytes(charSpan, utf8);
-            for (int i = 0; i < len; i++)
+            for (int repeat = 0; repeat < repeatCount; repeat++)
             {
-                _pendingBytes.Enqueue(utf8[i]);
+                EnqueueUtf8(text);
             }
         }
     }
-    
-    private byte[]? GetVtSequence(ushort vk, bool ctrl, bool alt, bool shift)
+
+    private void ProcessVirtualTerminalInputChar(char ch)
+    {
+        _pendingVtInput.Append(ch);
+
+        while (_pendingVtInput.Length > 0)
+        {
+            if (_pendingVtInput[0] != '\x1b')
+            {
+                EnqueueUtf8Char(_pendingVtInput[0]);
+                _pendingVtInput.Remove(0, 1);
+                continue;
+            }
+
+            if (!TryReadCompleteEscapeSequence(_pendingVtInput, out var sequence))
+            {
+                return;
+            }
+
+            _pendingVtInput.Remove(0, sequence.Length);
+
+            if (TryTranslateWin32InputSequence(sequence, out var translated))
+            {
+                foreach (var b in translated)
+                {
+                    _pendingBytes.Enqueue(b);
+                }
+
+                TraceInput($"vt-decoded sequence={EscapeForTrace(sequence)} bytes={BitConverter.ToString(translated)}");
+                continue;
+            }
+
+            EnqueueUtf8(sequence);
+        }
+    }
+
+    private void FlushPendingVirtualTerminalInput()
+    {
+        if (_pendingVtInput.Length == 0)
+        {
+            return;
+        }
+
+        EnqueueUtf8(_pendingVtInput.ToString());
+        _pendingVtInput.Clear();
+    }
+
+    private void EnqueueUtf8Char(char value)
+    {
+        Span<byte> utf8 = stackalloc byte[4];
+        var charSpan = new ReadOnlySpan<char>(in value);
+        var len = Encoding.UTF8.GetBytes(charSpan, utf8);
+        for (int i = 0; i < len; i++)
+        {
+            _pendingBytes.Enqueue(utf8[i]);
+        }
+    }
+
+    private void EnqueueUtf8(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetBytes(text);
+        foreach (var b in bytes)
+        {
+            _pendingBytes.Enqueue(b);
+        }
+    }
+
+    internal static string? GetPrintableText(ushort vk, char ch, bool hasCtrl, bool hasAlt, bool hasShift)
+    {
+        if (ch != 0)
+        {
+            return ch.ToString();
+        }
+
+        // Some Windows terminal hosts deliver KEY_EVENT_RECORDs with a zero
+        // UnicodeChar for ordinary printable keys. Fall back to a virtual-key
+        // mapping so interactive shells still receive characters like "exit".
+        if (hasCtrl || hasAlt)
+        {
+            return null;
+        }
+
+        if (vk is >= 0x41 and <= 0x5A)
+        {
+            var letter = (char)vk;
+            return hasShift ? letter.ToString() : char.ToLowerInvariant(letter).ToString();
+        }
+
+        if (vk is >= 0x30 and <= 0x39)
+        {
+            return hasShift
+                ? ")!@#$%^&*("[vk - 0x30].ToString()
+                : ((char)vk).ToString();
+        }
+
+        return vk switch
+        {
+            VK_SPACE => " ",
+            VK_OEM_1 => hasShift ? ":" : ";",
+            VK_OEM_PLUS => hasShift ? "+" : "=",
+            VK_OEM_COMMA => hasShift ? "<" : ",",
+            VK_OEM_MINUS => hasShift ? "_" : "-",
+            VK_OEM_PERIOD => hasShift ? ">" : ".",
+            VK_OEM_2 => hasShift ? "?" : "/",
+            VK_OEM_3 => hasShift ? "~" : "`",
+            VK_OEM_4 => hasShift ? "{" : "[",
+            VK_OEM_5 => hasShift ? "|" : "\\",
+            VK_OEM_6 => hasShift ? "}" : "]",
+            VK_OEM_7 => hasShift ? "\"" : "'",
+            _ => null
+        };
+    }
+
+    internal static bool TryTranslateWin32InputSequence(string sequence, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+
+        if (string.IsNullOrEmpty(sequence) ||
+            !sequence.StartsWith("\x1b[", StringComparison.Ordinal) ||
+            !sequence.EndsWith('_'))
+        {
+            return false;
+        }
+
+        var payload = sequence[2..^1];
+        var parts = payload.Split(';');
+        if (parts.Length != 6)
+        {
+            return false;
+        }
+
+        Span<int> values = stackalloc int[6];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out values[i]))
+            {
+                return false;
+            }
+        }
+
+        var vk = unchecked((ushort)values[0]);
+        var unicodeChar = values[2] is > 0 and <= char.MaxValue ? (char)values[2] : '\0';
+        var keyDown = values[3] != 0;
+        var controlState = unchecked((uint)values[4]);
+        var repeatCount = Math.Max(1, values[5]);
+
+        if (!keyDown)
+        {
+            return true;
+        }
+
+        var hasCtrl = (controlState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
+        var hasAlt = (controlState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
+        var hasShift = (controlState & SHIFT_PRESSED) != 0;
+
+        var output = new List<byte>(Math.Max(4, repeatCount));
+
+        var vtSequence = GetVtSequence(vk, hasCtrl, hasAlt, hasShift);
+        if (vtSequence != null)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.AddRange(vtSequence);
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        if (hasCtrl && !hasAlt && unicodeChar >= 'A' - 64 && unicodeChar <= 'Z' - 64)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.Add((byte)unicodeChar);
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        if (hasAlt && !hasCtrl && unicodeChar != 0)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.Add(0x1B);
+                output.AddRange(Encoding.UTF8.GetBytes(unicodeChar.ToString()));
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        var text = GetPrintableText(vk, unicodeChar, hasCtrl, hasAlt, hasShift);
+        if (string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        for (var repeat = 0; repeat < repeatCount; repeat++)
+        {
+            output.AddRange(Encoding.UTF8.GetBytes(text));
+        }
+
+        bytes = output.ToArray();
+        return true;
+    }
+
+    private static void TraceInput(string message)
+    {
+        var tracePath = Environment.GetEnvironmentVariable("HEX1B_CONSOLE_INPUT_TRACE_FILE");
+        if (string.IsNullOrWhiteSpace(tracePath))
+        {
+            return;
+        }
+
+        try
+        {
+            File.AppendAllText(tracePath, $"{DateTime.UtcNow:O} {message}{Environment.NewLine}");
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static PlatformNotSupportedException CreateConsoleUnavailableException()
+    {
+        return new PlatformNotSupportedException(
+            "WindowsConsoleDriver requires an attached interactive Windows console.");
+    }
+
+    private static byte[]? GetVtSequence(ushort vk, bool ctrl, bool alt, bool shift)
     {
         // Calculate modifier parameter for CSI sequences
         int mod = 1;
@@ -524,8 +840,65 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         if (!_inRawMode) return;
         
         _pendingBytes.Clear();
+        _pendingVtInput.Clear();
         FlushConsoleInputBuffer(_inputHandle);
     }
+
+    private static bool TryReadCompleteEscapeSequence(StringBuilder buffer, out string sequence)
+    {
+        sequence = string.Empty;
+        if (buffer.Length == 0 || buffer[0] != '\x1b')
+        {
+            return false;
+        }
+
+        if (buffer.Length == 1)
+        {
+            return false;
+        }
+
+        var second = buffer[1];
+        switch (second)
+        {
+            case '[':
+                for (var i = 2; i < buffer.Length; i++)
+                {
+                    var c = buffer[i];
+                    if (c >= '@' && c <= '~')
+                    {
+                        sequence = buffer.ToString(0, i + 1);
+                        return true;
+                    }
+                }
+
+                return false;
+
+            case 'O':
+            case 'N':
+            case '(':
+            case ')':
+            case '*':
+            case '+':
+            case '#':
+                if (buffer.Length < 3)
+                {
+                    return false;
+                }
+
+                sequence = buffer.ToString(0, 3);
+                return true;
+
+            default:
+                sequence = buffer.ToString(0, 2);
+                return true;
+        }
+    }
+
+    private static string EscapeForTrace(string value)
+        => value
+            .Replace("\x1b", "\\x1b", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     
     public void Dispose()
     {

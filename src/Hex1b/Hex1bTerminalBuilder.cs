@@ -247,7 +247,7 @@ public sealed class Hex1bTerminalBuilder
     /// Programs won't detect a TTY (isatty() returns false), so this is suitable for:
     /// </para>
     /// <list type="bullet">
-    ///   <item>Build tools (dotnet, make, cargo)</item>
+    ///   <item>Build tools (dotnet, make, msbuild)</item>
     ///   <item>Command-line utilities (grep, find, curl)</item>
     ///   <item>Scripts and batch processing</item>
     /// </list>
@@ -358,7 +358,9 @@ public sealed class Hex1bTerminalBuilder
     /// <para>
     /// This method provides full control over PTY process configuration including
     /// working directory, environment variables, and whether to inherit the parent
-    /// environment. Use this for advanced scenarios requiring custom process setup.
+    /// environment. On Windows it also lets you choose whether to prefer the
+    /// out-of-process PTY proxy, require it, or bypass it entirely.
+    /// Use this for advanced scenarios requiring custom process setup.
     /// </para>
     /// <para>
     /// Requires native library support on Unix platforms.
@@ -372,7 +374,10 @@ public sealed class Hex1bTerminalBuilder
     ///         options.FileName = "/bin/bash";
     ///         options.Arguments = ["-l"];
     ///         options.WorkingDirectory = "/home/user";
-    ///         options.Environment["TERM"] = "xterm-256color";
+    ///         options.Environment = new Dictionary&lt;string, string&gt;
+    ///         {
+    ///             ["TERM"] = "xterm-256color"
+    ///         };
     ///     })
     ///     .Build();
     /// 
@@ -401,7 +406,10 @@ public sealed class Hex1bTerminalBuilder
                 environment: options.Environment?.ToDictionary(kvp => kvp.Key, kvp => kvp.Value),
                 inheritEnvironment: options.InheritEnvironment,
                 initialWidth: width,
-                initialHeight: height);
+                initialHeight: height,
+                ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(
+                    options.WindowsPtyMode,
+                    options.WindowsPtyHostPath));
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -912,6 +920,12 @@ public sealed class Hex1bTerminalBuilder
     /// When the TerminalWidget is mounted in a Hex1bApp, it renders from this buffer.
     /// When the widget is unmounted (e.g., navigated away), the buffer continues to be updated.
     /// </para>
+    /// <para>
+    /// The builder's current dimensions become the initial PTY size until the widget is first
+    /// arranged. When embedding in a fixed-size container, call <see cref="WithDimensions(int, int)"/>
+    /// with the expected content area size before <see cref="Build"/> so the child process starts
+    /// with the correct geometry from its first prompt.
+    /// </para>
     /// </remarks>
     /// <example>
     /// <code>
@@ -1253,6 +1267,12 @@ public sealed class Hex1bTerminalBuilder
     /// <exception cref="InvalidOperationException">Thrown when no workload has been configured.</exception>
     public Hex1bTerminal Build()
     {
+        if (_workloadFactory is null && _workloadAdapter is null)
+        {
+            throw new InvalidOperationException(
+                "No workload configured. Call WithWorkload(), WithHex1bApp(), WithShellProcess(), or WithProcess() before Build().");
+        }
+
         // Create presentation adapter via factory
         var presentation = _presentationFactory(this);
 
@@ -1379,4 +1399,25 @@ public sealed class Hex1bTerminalProcessOptions
     /// Defaults to true.
     /// </summary>
     public bool InheritEnvironment { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets how Hex1b should choose the Windows PTY backend.
+    /// </summary>
+    /// <remarks>
+    /// This only applies on Windows. Other platforms always use the Unix PTY implementation.
+    /// The default is <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>, which uses the
+    /// out-of-process <c>hex1bpty.exe</c> helper and fails if it is unavailable.
+    /// Set this to <see cref="Hex1b.WindowsPtyMode.Direct"/> to bypass the helper and
+    /// use the in-process ConPTY implementation directly.
+    /// </remarks>
+    public WindowsPtyMode WindowsPtyMode { get; set; } = WindowsPtyMode.RequireProxy;
+
+    /// <summary>
+    /// Gets or sets an explicit path to the Windows PTY host executable (<c>hex1bpty.exe</c>).
+    /// </summary>
+    /// <remarks>
+    /// This only applies when <see cref="WindowsPtyMode"/> is <see cref="Hex1b.WindowsPtyMode.RequireProxy"/>.
+    /// When null, Hex1b searches the application output and packaged runtime locations automatically.
+    /// </remarks>
+    public string? WindowsPtyHostPath { get; set; }
 }

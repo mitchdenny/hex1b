@@ -1,5 +1,4 @@
 using System.IO.Pipelines;
-using System.Runtime.Versioning;
 using System.Text;
 using Hex1b;
 using Hex1b.Theming;
@@ -13,8 +12,6 @@ namespace Hex1b.Tool.Commands.Terminal;
 /// Runs the TUI-based attach experience. Creates a Hex1b TUI app that embeds
 /// the remote terminal via TerminalWidget, with an InfoBar showing status and key bindings.
 /// </summary>
-[SupportedOSPlatform("linux")]
-[SupportedOSPlatform("macos")]
 internal sealed class AttachTuiApp : IAsyncDisposable
 {
     private readonly IAttachTransport _transport;
@@ -86,14 +83,20 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             }
         }
 
-        // 3. Write initial screen content into the output pipe so the embedded terminal parses it
-        if (connectResult.InitialScreen != null)
+        var preSizedToDisplay = await TryApplyInitialLeaderResizeBeforeBuildAsync(cancellationToken);
+        var deferredInitialScreen = connectResult.InitialScreen;
+        var wroteInitialScreen = false;
+
+        // If we just resized the remote to fit the local display, the attach response's
+        // initial screen snapshot is now stale. Prefer the post-resize output from the
+        // remote shell and only fall back to the original snapshot if nothing arrives.
+        if (!preSizedToDisplay && deferredInitialScreen != null)
         {
-            var initialBytes = Encoding.UTF8.GetBytes(connectResult.InitialScreen);
-            await _outputPipe.Writer.WriteAsync(initialBytes, cancellationToken);
+            await WriteInitialScreenAsync(deferredInitialScreen, cancellationToken);
+            wroteInitialScreen = true;
         }
 
-        // 6. Build the embedded terminal (parses ANSI from output pipe, writes input to intercept stream)
+        // 3. Build the embedded terminal (parses ANSI from output pipe, writes input to intercept stream)
         _inputIntercept = new InputInterceptStream(this);
 
         var workload = new StreamWorkloadAdapter(
@@ -113,35 +116,36 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         _handle = handle;
         _appCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        // Wait for the embedded terminal to process the initial screen data before
-        // starting the display TUI. Without this, the display's first render can race
-        // ahead of the output pump (which runs on a thread-pool thread) and show a
-        // blank terminal until the next OutputReceived event — which only fires when
-        // the user interacts with the terminal.
+        // Wait for the embedded terminal to process initial data before starting the
+        // display TUI. This avoids the first render racing ahead of the output pump.
         var initialOutputReady = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         void SignalReady() => initialOutputReady.TrySetResult();
 
-        if (connectResult.InitialScreen != null)
-        {
-            handle.OutputReceived += SignalReady;
-        }
-        else
-        {
-            initialOutputReady.SetResult();
-        }
+        handle.OutputReceived += SignalReady;
 
-        // Start the embedded terminal's output pump in the background
+        // Start the embedded terminal and network bridge in the background.
         var embeddedRunTask = _embeddedTerminal.RunAsync(_appCts.Token);
-
-        // Give the output pump time to process the initial data (piped before RunAsync).
-        // 2 seconds is generous — it typically completes in < 10ms.
-        await Task.WhenAny(initialOutputReady.Task, Task.Delay(2000, cancellationToken));
-        handle.OutputReceived -= SignalReady;
-
-        // 7. Start network output bridge task
         var networkOutputTask = PumpNetworkOutputAsync(_appCts.Token);
 
-        // 8. Build and run the display TUI app
+        if (preSizedToDisplay)
+        {
+            var firstOutputTask = initialOutputReady.Task;
+            var completed = await Task.WhenAny(firstOutputTask, Task.Delay(750, cancellationToken));
+            if (completed != firstOutputTask && deferredInitialScreen != null)
+            {
+                await WriteInitialScreenAsync(deferredInitialScreen, cancellationToken);
+                wroteInitialScreen = true;
+            }
+        }
+
+        if (wroteInitialScreen || preSizedToDisplay)
+        {
+            await Task.WhenAny(initialOutputReady.Task, Task.Delay(2000, cancellationToken));
+        }
+
+        handle.OutputReceived -= SignalReady;
+
+        // 4. Build and run the display TUI app
         // The resize filter sends r: frames when the leader's display terminal resizes
         await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             .WithMouse()
@@ -212,10 +216,9 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         }
         else
         {
-            content = ctx.Align(Alignment.Center,
-                ctx.Terminal(handle)
-                    .FixedWidth(_remoteWidth)
-                    .FixedHeight(_remoteHeight));
+            // Let the embedded terminal fill the bordered content area so the widget's
+            // arranged bounds stay aligned with the current remote PTY size.
+            content = ctx.Terminal(handle).Fill();
         }
 
         return ctx.VStack(v =>
@@ -273,6 +276,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
                     case AttachFrameKind.Output:
                         await _outputPipe.Writer.WriteAsync(frame.Data, ct);
                         await _outputPipe.Writer.FlushAsync(ct);
+                        _app?.Invalidate();
                         break;
 
                     case AttachFrameKind.Resize:
@@ -360,13 +364,16 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     /// Handles display terminal resize by sending r: frames when leader.
     /// Chrome overhead: menu bar (1 row) + border (2 rows, 2 cols) + info bar (1 row) = 4 rows, 2 cols.
     /// </summary>
-    private async Task HandleDisplayResizeAsync(int displayWidth, int displayHeight)
+    private async Task HandleDisplayResizeAsync(int displayWidth, int displayHeight, bool isInitialSessionStart = false)
     {
+        var displayChanged = _displayWidth != displayWidth || _displayHeight != displayHeight;
         _displayWidth = displayWidth;
         _displayHeight = displayHeight;
 
-        if (_isLeader)
+        if (ShouldSendResizeForDisplayChange(_isLeader, _initialResize, isInitialSessionStart))
             await SendResizeForCurrentDisplayAsync();
+        else if (displayChanged)
+            _app?.Invalidate();
     }
 
     /// <summary>
@@ -374,18 +381,85 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     /// </summary>
     private async Task SendResizeForCurrentDisplayAsync()
     {
-        var termWidth = _displayWidth - 2;   // border left + right
-        var termHeight = _displayHeight - 4; // menu bar + border top + border bottom + info bar
-        if (termWidth < 1 || termHeight < 1) return;
-        if (termWidth == _remoteWidth && termHeight == _remoteHeight) return;
+        var targetSize = CalculateResizeTarget(_displayWidth, _displayHeight, _remoteWidth, _remoteHeight);
+        if (targetSize is not { } size)
+            return;
 
-        _remoteWidth = termWidth;
-        _remoteHeight = termHeight;
-        _handle?.Resize(termWidth, termHeight);
-        _embeddedTerminal?.Resize(termWidth, termHeight);
+        _remoteWidth = size.Width;
+        _remoteHeight = size.Height;
+        _handle?.Resize(size.Width, size.Height);
+        _embeddedTerminal?.Resize(size.Width, size.Height);
 
-        try { await _transport.SendResizeAsync(termWidth, termHeight, CancellationToken.None); } catch { }
+        try { await _transport.SendResizeAsync(size.Width, size.Height, CancellationToken.None); } catch { }
         _app?.Invalidate();
+    }
+
+    internal static bool ShouldSendResizeForDisplayChange(bool isLeader, bool initialResizeRequested, bool isInitialSessionStart)
+        => isLeader && (!isInitialSessionStart || initialResizeRequested);
+
+    internal static (int Width, int Height)? CalculateResizeTarget(
+        int displayWidth,
+        int displayHeight,
+        int remoteWidth,
+        int remoteHeight)
+    {
+        var termWidth = displayWidth - 2;   // border left + right
+        var termHeight = displayHeight - 4; // menu bar + border top + border bottom + info bar
+        if (termWidth < 1 || termHeight < 1)
+            return null;
+
+        if (termWidth == remoteWidth && termHeight == remoteHeight)
+            return null;
+
+        return (termWidth, termHeight);
+    }
+
+    private async Task<bool> TryApplyInitialLeaderResizeBeforeBuildAsync(CancellationToken ct)
+    {
+        if (!ShouldSendResizeForDisplayChange(_isLeader, _initialResize, isInitialSessionStart: true))
+            return false;
+
+        var displaySize = TryGetCurrentDisplaySize();
+        if (displaySize is not { } size)
+            return false;
+
+        _displayWidth = size.Width;
+        _displayHeight = size.Height;
+
+        var targetSize = CalculateResizeTarget(size.Width, size.Height, _remoteWidth, _remoteHeight);
+        if (targetSize is not { } target)
+            return false;
+
+        _remoteWidth = target.Width;
+        _remoteHeight = target.Height;
+
+        try { await _transport.SendResizeAsync(target.Width, target.Height, ct); } catch { }
+        return true;
+    }
+
+    private static (int Width, int Height)? TryGetCurrentDisplaySize()
+    {
+        try
+        {
+            var width = Console.WindowWidth;
+            var height = Console.WindowHeight;
+            return width > 0 && height > 0 ? (width, height) : null;
+        }
+        catch (IOException)
+        {
+            return null;
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private async Task WriteInitialScreenAsync(string initialScreen, CancellationToken ct)
+    {
+        var initialBytes = Encoding.UTF8.GetBytes(initialScreen);
+        await _outputPipe.Writer.WriteAsync(initialBytes, ct);
+        await _outputPipe.Writer.FlushAsync(ct);
     }
 
     /// <summary>
@@ -395,10 +469,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
     {
         public ValueTask OnSessionStartAsync(int width, int height, DateTimeOffset timestamp, CancellationToken ct)
         {
-            // Just track dimensions — don't send resize during initialization
-            app._displayWidth = width;
-            app._displayHeight = height;
-            return default;
+            return new(app.HandleDisplayResizeAsync(width, height, isInitialSessionStart: true));
         }
         public ValueTask<IReadOnlyList<AnsiToken>> OnOutputAsync(IReadOnlyList<AppliedToken> appliedTokens, TimeSpan elapsed, CancellationToken ct)
             => new(appliedTokens.Select(t => t.Token).ToList());

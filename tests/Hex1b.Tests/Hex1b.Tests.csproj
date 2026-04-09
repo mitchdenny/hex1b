@@ -42,6 +42,29 @@
     <Copy SourceFiles="../../src/Hex1b/Terminal/runtimes/osx-arm64/native/libhex1binterop.dylib" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" />
   </Target>
 
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+  </PropertyGroup>
+
+  <Target Name="CopyWindowsPtyShim" AfterTargets="Build" Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
+    <ItemGroup>
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*"
+                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimFiles)"
+          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="SyncHex1bAssemblyToOutput"
+          AfterTargets="Build"
+          Condition="Exists('../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll')">
+    <Copy SourceFiles="../../src/Hex1b/obj/$(Configuration)/net8.0/Hex1b.dll"
+          DestinationFolder="$(TargetDir)"
+          SkipUnchangedFiles="false" />
+  </Target>
+
   <ItemGroup>
     <Using Include="Xunit" />
     <Using Include="Hex1b.Automation" />

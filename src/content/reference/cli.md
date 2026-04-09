@@ -38,7 +38,7 @@ hex1b terminal start [options] -- <command...>
 
 | Argument | Description |
 |----------|-------------|
-| `command` | Command and arguments to run (after `--`) |
+| `command` | Command and arguments to run (after `--`). If omitted, Hex1b starts PowerShell on Windows or bash on Linux/macOS. |
 
 | Option | Type | Default | Description |
 |--------|------|---------|-------------|
@@ -51,8 +51,9 @@ hex1b terminal start [options] -- <command...>
 **Examples:**
 
 ```bash
-# Start bash with default dimensions
-hex1b terminal start -- bash
+# Start the default interactive shell
+# (PowerShell on Windows, bash on Linux/macOS)
+hex1b terminal start
 
 # Start htop in a custom-sized terminal
 hex1b terminal start --width 160 --height 50 -- htop
@@ -61,7 +62,7 @@ hex1b terminal start --width 160 --height 50 -- htop
 hex1b terminal start --attach -- vim README.md
 
 # Start with recording
-hex1b terminal start --record session.cast -- bash
+hex1b terminal start --record session.cast
 ```
 
 ### `terminal stop`

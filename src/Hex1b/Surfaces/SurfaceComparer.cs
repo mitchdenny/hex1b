@@ -268,7 +268,7 @@ public static class SurfaceComparer
             if (useFragmentation)
             {
                 // For each sixel, compute occlusions from overlapping text and fragment accordingly
-                var fragmentsToEmit = new List<(SixelFragment Fragment, CellMetrics Metrics)>();
+                var fragmentsToEmit = new List<SixelFragment>();
                 
                 foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
                 {
@@ -296,34 +296,25 @@ public static class SurfaceComparer
                     
                     if (visibility.IsFullyOccluded)
                     {
-                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                            $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) FULLY OCCLUDED - skipped\n");
                         continue;
                     }
                     
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) -> {fragments.Count} fragments, fullyVisible={visibility.IsFullyVisible}\n");
-                    
                     foreach (var fragment in fragments)
                     {
-                        fragmentsToEmit.Add((fragment, metrics));
+                        fragmentsToEmit.Add(fragment);
                     }
                 }
                 
                 // Emit ALL sixel fragments first (before any text cells)
-                foreach (var (fragment, metrics) in fragmentsToEmit)
+                foreach (var fragment in fragmentsToEmit)
                 {
                     var payload = fragment.GetPayload();
                     if (payload is null)
                     {
-                        System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                            $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fragment.CellPosition.X},{fragment.CellPosition.Y}) - FAILED to encode\n");
                         continue;
                     }
-                    
+
                     var (fx, fy) = fragment.CellPosition;
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] Fragment at ({fx},{fy}) region={fragment.PixelRegion}, isComplete={fragment.IsComplete}\n");
                     
                     // Position cursor at fragment position
                     tokens.Add(new CursorPositionToken(fy + 1, fx + 1));
@@ -334,11 +325,8 @@ public static class SurfaceComparer
             else
             {
                 // No fragmentation - emit full sixels, rely on text to overwrite
-                foreach (var (sx, sy, sw, sh, cell) in sixelRegions)
+                foreach (var (sx, sy, _, _, cell) in sixelRegions)
                 {
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] SIXEL at ({sx},{sy}) span {sw}x{sh} - NO FRAGMENTATION\n");
-                    
                     // Position cursor at sixel anchor
                     tokens.Add(new CursorPositionToken(sy + 1, sx + 1));
                     // Emit the full sixel
@@ -556,17 +544,6 @@ public static class SurfaceComparer
             var charToOutput = change.Cell.Character == SurfaceCells.UnwrittenMarker 
                 ? " " 
                 : change.Cell.Character;
-            
-            // Log text cells that are inside a sixel region
-            foreach (var (sx, sy, sw, sh, _) in sixelRegions)
-            {
-                if (change.X >= sx && change.X < sx + sw && change.Y >= sy && change.Y < sy + sh)
-                {
-                    System.IO.File.AppendAllText("/tmp/sixel-tokens.log", 
-                        $"[{DateTime.Now:HH:mm:ss.fff}] TEXT '{charToOutput}' at ({change.X},{change.Y}) OVER sixel at ({sx},{sy})\n");
-                    break;
-                }
-            }
             
             tokens.Add(new TextToken(charToOutput));
             

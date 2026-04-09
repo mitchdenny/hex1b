@@ -138,8 +138,9 @@ internal sealed class AgentInitCommand : BaseCommand
         Start any command in a headless terminal. This is the entry point for all automation.
 
         ```bash
-        # Start a shell
-        dotnet hex1b terminal start -- bash
+        # Start the default interactive shell
+        # (PowerShell on Windows, bash on Linux/macOS)
+        dotnet hex1b terminal start
 
         # Start a specific program with custom terminal size
         dotnet hex1b terminal start --width 120 --height 40 -- htop
@@ -151,7 +152,7 @@ internal sealed class AgentInitCommand : BaseCommand
         dotnet hex1b terminal start -- dotnet run --project src/MyApp
 
         # Start and immediately attach (interactive mirror)
-        dotnet hex1b terminal start --attach -- bash
+        dotnet hex1b terminal start --attach
         ```
 
         To get the terminal ID for subsequent commands:

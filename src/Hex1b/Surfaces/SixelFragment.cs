@@ -247,14 +247,6 @@ public sealed class SixelVisibility
             var cellOffsetX = metrics.GetCellOffsetForPixel(region.X);
             var cellOffsetY = region.Y / metrics.PixelHeight;
             
-            // Verify alignment: region.X should be at a cell boundary
-            var expectedPixelX = metrics.GetPixelForCellBoundary(cellOffsetX);
-            if (region.X != expectedPixelX)
-            {
-                System.IO.File.AppendAllText("/tmp/sixel-align.log",
-                    $"[{DateTime.Now:HH:mm:ss.fff}] MISALIGNED: region.X={region.X}, expected={expectedPixelX}, cellOffsetX={cellOffsetX}, actualWidth={metrics.ActualPixelWidth}\n");
-            }
-
             fragments.Add(new SixelFragment(
                 data,
                 AnchorPosition.X + cellOffsetX,

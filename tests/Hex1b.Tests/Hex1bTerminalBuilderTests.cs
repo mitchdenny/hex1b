@@ -10,6 +10,22 @@ namespace Hex1b.Tests;
 /// </summary>
 public class Hex1bTerminalBuilderTests
 {
+    private static string GetTempRecordingPath()
+    {
+        return Path.Combine(Path.GetTempPath(), $"hex1b_test_{Guid.NewGuid():N}.cast");
+    }
+
+    private static async Task<string> ReadAllTextSharedAsync(string path, CancellationToken ct)
+    {
+        await using var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        using var reader = new StreamReader(stream);
+        return await reader.ReadToEndAsync(ct);
+    }
+
     [Fact]
     public async Task CreateBuilder_ReturnsNewBuilderInstance()
     {
@@ -512,22 +528,13 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithPtyProcess_ExecutesProcess()
     {
-        // Inline C# script for cross-platform testing
-        const string script = """
-            if (args.Length >= 2 && int.TryParse(args[0], out var delayMs))
-            {
-                await Task.Delay(delayMs);
-                Console.WriteLine(string.Join(" ", args.Skip(1)));
-            }
-            """;
-
-        using var workspace = TestWorkspace.Create("pty_exec");
-        var scriptFile = workspace.CreateCSharpProgram("delay.cs", script);
-        
         var pattern = new CellPatternSearcher().Find("Hello from test program");
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Write-Output 'Hello from test program'; [void][Console]::ReadKey($true)" })
+            : ("bash", new[] { "-lc", "printf 'Hello from test program\\n'; IFS= read -rsn1 _" });
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithPtyProcess("dotnet", "run", scriptFile.FullName, "50", "Hello from test program")
+            .WithPtyProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(80, 10)
             .Build();
@@ -535,7 +542,10 @@ public class Hex1bTerminalBuilderTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
+            // Keep the child alive until we've observed its output; otherwise a
+            // fast one-shot PTY can exit before CI captures the rendered text.
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(30))
+            .Type("q")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
@@ -547,21 +557,14 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithPtyProcess_InteractiveProcess_RespondsToInput()
     {
-        // Inline C# script for interactive input test
-        const string script = """
-            Console.WriteLine("Ready");
-            Console.ReadKey(intercept: true);
-            Console.WriteLine("Done");
-            """;
-
-        using var workspace = TestWorkspace.Create("pty_interactive");
-        var scriptFile = workspace.CreateCSharpProgram("wait-input.cs", script);
-        
         var readyPattern = new CellPatternSearcher().Find("Ready");
         var exitPattern = new CellPatternSearcher().Find("Done");
+        var (fileName, arguments) = OperatingSystem.IsWindows()
+            ? ("pwsh", new[] { "-NoLogo", "-NoProfile", "-Command", "Write-Output 'Ready'; [void][Console]::ReadKey($true); Write-Output 'Done'" })
+            : ("bash", new[] { "-lc", "printf 'Ready\\n'; IFS= read -rsn1 _; printf 'Done\\n'" });
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithPtyProcess("dotnet", "run", scriptFile.FullName)
+            .WithPtyProcess(fileName, arguments)
             .WithHeadless()
             .WithDimensions(80, 10)
             .Build();
@@ -972,7 +975,7 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithAsciinemaRecording_ReturnsBuilder()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = GetTempRecordingPath();
         try
         {
             var result = Hex1bTerminal.CreateBuilder()
@@ -1004,7 +1007,7 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithAsciinemaRecording_WithCapture_ReturnsBuilder()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = GetTempRecordingPath();
         try
         {
             AsciinemaRecorder? capturedRecorder = null;
@@ -1031,13 +1034,13 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithAsciinemaRecording_RecordsOutput()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = GetTempRecordingPath();
         try
         {
             AsciinemaRecorder? recorder = null;
             var pattern = new CellPatternSearcher().Find("Recorded");
 
-            await using var terminal = Hex1bTerminal.CreateBuilder()
+            await using (var terminal = Hex1bTerminal.CreateBuilder()
                 .WithHex1bApp((app, options) => ctx => ctx.Text("Recorded"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
@@ -1046,25 +1049,25 @@ public class Hex1bTerminalBuilderTests
                 })
                 .WithHeadless()
                 .WithDimensions(40, 10)
-                .Build();
+                .Build())
+            {
+                var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
 
-            var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+                await new Hex1bTerminalInputSequenceBuilder()
+                    .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
+                    .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
+                    .Build()
+                    .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-            await new Hex1bTerminalInputSequenceBuilder()
-                .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
-                .Ctrl().Key(Hex1b.Input.Hex1bKey.C)
-                .Build()
-                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+                await runTask;
 
-            await runTask;
-
-            // Ensure recorder is flushed
-            Assert.NotNull(recorder);
-            await recorder.FlushAsync();
+                Assert.NotNull(recorder);
+                await recorder.FlushAsync();
+            }
 
             // Verify the recording file was created
             Assert.True(File.Exists(tempFile), "Recording file should exist");
-            var content = await File.ReadAllTextAsync(tempFile);
+            var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
             Assert.Contains("\"version\":2", content); // Asciinema v2 format
             Assert.Contains("Test Recording", content); // Title is present
         }
@@ -1077,7 +1080,7 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithAsciinemaRecording_WithOptions_SetsRecorderOptions()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = GetTempRecordingPath();
         try
         {
             AsciinemaRecorder? recorder = null;
@@ -1107,7 +1110,7 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task FluentChain_WithRecordingAndFilters_Works()
     {
-        var tempFile = Path.GetTempFileName();
+        var tempFile = GetTempRecordingPath();
         try
         {
             AsciinemaRecorder? recorder = null;

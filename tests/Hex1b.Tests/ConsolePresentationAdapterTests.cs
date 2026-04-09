@@ -4,6 +4,63 @@ namespace Hex1b.Tests;
 
 public class ConsolePresentationAdapterTests
 {
+    [Theory]
+    [InlineData(0x45, '\0', false, false, false, "e")]
+    [InlineData(0x45, '\0', false, false, true, "E")]
+    [InlineData(0x31, '\0', false, false, false, "1")]
+    [InlineData(0x31, '\0', false, false, true, "!")]
+    [InlineData(0xBF, '\0', false, false, false, "/")]
+    [InlineData(0xBF, '\0', false, false, true, "?")]
+    [InlineData(0x20, '\0', false, false, false, " ")]
+    public void WindowsConsoleDriver_GetPrintableText_FallsBackToVirtualKeyMapping(
+        int virtualKey,
+        char unicodeChar,
+        bool hasCtrl,
+        bool hasAlt,
+        bool hasShift,
+        string expected)
+    {
+        var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, unicodeChar, hasCtrl, hasAlt, hasShift);
+
+        Assert.Equal(expected, text);
+    }
+
+    [Theory]
+    [InlineData(0x45, true, false)]
+    [InlineData(0x45, false, true)]
+    public void WindowsConsoleDriver_GetPrintableText_DoesNotInventModifiedCharacters(
+        int virtualKey,
+        bool hasCtrl,
+        bool hasAlt)
+    {
+        var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, '\0', hasCtrl, hasAlt, hasShift: false);
+
+        Assert.Null(text);
+    }
+
+    [Theory]
+    [InlineData("\x1b[65;30;97;1;0;1_", "a")]
+    [InlineData("\x1b[13;28;13;1;0;1_", "\r")]
+    [InlineData("\x1b[65;30;97;1;0;3_", "aaa")]
+    public void WindowsConsoleDriver_TryTranslateWin32InputSequence_DecodesForwardedKeyboardInput(
+        string sequence,
+        string expected)
+    {
+        var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence(sequence, out var bytes);
+
+        Assert.True(handled);
+        Assert.Equal(expected, Encoding.UTF8.GetString(bytes));
+    }
+
+    [Fact]
+    public void WindowsConsoleDriver_TryTranslateWin32InputSequence_IgnoresKeyUpFrames()
+    {
+        var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence("\x1b[65;30;97;0;0;1_", out var bytes);
+
+        Assert.True(handled);
+        Assert.Empty(bytes);
+    }
+
     [Fact]
     public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {

@@ -40,9 +40,11 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private readonly string? _workingDirectory;
     private readonly Dictionary<string, string>? _environment;
     private readonly bool _inheritEnvironment;
+    private readonly Func<IPtyHandle> _ptyHandleFactory;
     
     private int _width;
     private int _height;
+    private bool _startInitiated;
     private bool _started;
     private bool _exited;
     private int _exitCode;
@@ -80,12 +82,34 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         bool inheritEnvironment = true,
         int initialWidth = 80,
         int initialHeight = 24)
+        : this(
+            fileName,
+            arguments,
+            workingDirectory,
+            environment,
+            inheritEnvironment,
+            initialWidth,
+            initialHeight,
+            () => CreatePtyHandle())
+    {
+    }
+
+    internal Hex1bTerminalChildProcess(
+        string fileName,
+        string[] arguments,
+        string? workingDirectory,
+        Dictionary<string, string>? environment,
+        bool inheritEnvironment,
+        int initialWidth,
+        int initialHeight,
+        Func<IPtyHandle> ptyHandleFactory)
     {
         _fileName = fileName ?? throw new ArgumentNullException(nameof(fileName));
         _arguments = arguments ?? [];
         _workingDirectory = workingDirectory;
         _environment = environment;
         _inheritEnvironment = inheritEnvironment;
+        _ptyHandleFactory = ptyHandleFactory ?? throw new ArgumentNullException(nameof(ptyHandleFactory));
         _width = initialWidth;
         _height = initialHeight;
     }
@@ -142,23 +166,31 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <exception cref="PlatformNotSupportedException">The current platform is not supported.</exception>
     public async Task StartAsync(CancellationToken ct = default)
     {
-        if (_started)
+        if (_startInitiated)
             throw new InvalidOperationException("Process has already been started.");
         
         if (_disposed)
             throw new ObjectDisposedException(nameof(Hex1bTerminalChildProcess));
-        
-        _started = true;
+
+        _startInitiated = true;
         
         // Create platform-specific PTY
-        _ptyHandle = CreatePtyHandle();
+        _ptyHandle = _ptyHandleFactory();
         
         // Build environment
         var env = BuildEnvironment();
         
+        // Null is documented to mean "use the current directory". Resolve it here so
+        // every platform handle, including the Windows shim path, gets the same cwd.
+        var workingDirectory = string.IsNullOrWhiteSpace(_workingDirectory)
+            ? Environment.CurrentDirectory
+            : _workingDirectory;
+
         // Start the process
-        await _ptyHandle.StartAsync(_fileName, _arguments, _workingDirectory, env, _width, _height, ct);
-        
+        await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, _width, _height, ct);
+
+        _started = true;
+
         // Signal that the process has started (allows ReadOutputAsync to proceed)
         _startedTcs.TrySetResult();
     }
@@ -205,7 +237,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         
         if (_disposed || _ptyHandle == null)
             return ReadOnlyMemory<byte>.Empty;
-        
+
         try
         {
             return await _ptyHandle.ReadAsync(ct);
@@ -223,11 +255,15 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     /// <inheritdoc />
     public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
-        if (!_started || _disposed || _ptyHandle == null)
+        if (_disposed)
             return;
         
         try
         {
+            await _startedTcs.Task.WaitAsync(ct);
+            if (_disposed || _exited || _ptyHandle == null)
+                return;
+
             await _ptyHandle.WriteAsync(data, ct);
         }
         catch (OperationCanceledException)
@@ -239,7 +275,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             // Ignore writes after exit
         }
     }
-    
+
     /// <inheritdoc />
     public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
     {
@@ -274,8 +310,10 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             }
         }
         
-        // Set TERM if not already set
-        if (!env.ContainsKey("TERM"))
+        // TERM helps Unix-side shells and TUI tools pick sensible capabilities.
+        // On Windows/ConPTY it can change cmd.exe / PowerShell prompt behavior in
+        // unhelpful ways, so only inject it on Unix-like platforms.
+        if ((OperatingSystem.IsLinux() || OperatingSystem.IsMacOS()) && !env.ContainsKey("TERM"))
         {
             env["TERM"] = "xterm-256color";
         }
@@ -303,7 +341,9 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         return env;
     }
     
-    private static IPtyHandle CreatePtyHandle()
+    internal static IPtyHandle CreatePtyHandle(
+        WindowsPtyMode windowsPtyMode = WindowsPtyMode.RequireProxy,
+        string? windowsPtyHostPath = null)
     {
         if (OperatingSystem.IsLinux() || OperatingSystem.IsMacOS())
         {
@@ -311,7 +351,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
         else if (OperatingSystem.IsWindows())
         {
-            return new WindowsPtyHandle();
+            return new WindowsProxyPtyHandle(windowsPtyMode, windowsPtyHostPath);
         }
         else
         {
@@ -319,7 +359,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
                 $"PTY is not supported on {Environment.OSVersion.Platform}");
         }
     }
-    
+
     // === Disposal ===
     
     /// <inheritdoc />
@@ -337,52 +377,4 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         
         Disconnected?.Invoke();
     }
-}
-
-/// <summary>
-/// Platform-specific PTY handle abstraction.
-/// </summary>
-internal interface IPtyHandle : IAsyncDisposable
-{
-    /// <summary>
-    /// Gets the process ID.
-    /// </summary>
-    int ProcessId { get; }
-    
-    /// <summary>
-    /// Starts the process with the given parameters.
-    /// </summary>
-    Task StartAsync(
-        string fileName,
-        string[] arguments,
-        string? workingDirectory,
-        Dictionary<string, string> environment,
-        int width,
-        int height,
-        CancellationToken ct);
-    
-    /// <summary>
-    /// Reads output from the PTY master.
-    /// </summary>
-    ValueTask<ReadOnlyMemory<byte>> ReadAsync(CancellationToken ct);
-    
-    /// <summary>
-    /// Writes input to the PTY master.
-    /// </summary>
-    ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken ct);
-    
-    /// <summary>
-    /// Resizes the PTY.
-    /// </summary>
-    void Resize(int width, int height);
-    
-    /// <summary>
-    /// Sends a signal to the process.
-    /// </summary>
-    void Kill(int signal);
-    
-    /// <summary>
-    /// Waits for the process to exit.
-    /// </summary>
-    Task<int> WaitForExitAsync(CancellationToken ct);
 }

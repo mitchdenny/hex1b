@@ -1,6 +1,5 @@
 using System.CommandLine;
 using System.Diagnostics;
-using System.Runtime.Versioning;
 using Hex1b.Tool.Infrastructure;
 using Microsoft.Extensions.Logging;
 
@@ -42,12 +41,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
 
     protected override async Task<int> ExecuteAsync(ParseResult parseResult, CancellationToken cancellationToken)
     {
-        if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
-        {
-            Formatter.WriteError("Attach is only supported on Linux and macOS");
-            return 1;
-        }
-
         var id = parseResult.GetValue(s_idArgument);
         var resize = parseResult.GetValue(s_resizeOption);
         var lead = parseResult.GetValue(s_leadOption);
@@ -99,8 +92,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
     /// <summary>
     /// Core attach logic, usable from both the attach command and terminal start --attach.
     /// </summary>
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
     internal static async Task<int> RunAttachAsync(
         IAttachTransport transport, string displayId, TerminalClient client,
         bool resize, bool lead, CancellationToken cancellationToken)
@@ -112,8 +103,6 @@ internal sealed class TerminalAttachCommand : BaseCommand
     /// <summary>
     /// Web-based attach: starts a Kestrel server with xterm.js frontend.
     /// </summary>
-    [SupportedOSPlatform("linux")]
-    [SupportedOSPlatform("macos")]
     internal static async Task<int> RunWebAttachAsync(
         string socketPath, string displayId, TerminalClient client,
         int port, CancellationToken cancellationToken)

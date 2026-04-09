@@ -11,10 +11,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
     permissions:
       contents: read
       checks: write
+    defaults:
+      run:
+        shell: bash
 
     steps:
       - name: Checkout code
@@ -26,6 +34,7 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Build native library for tests
+        if: runner.os != 'Windows'
         working-directory: src/Hex1b/native
         run: make
 
@@ -60,20 +69,24 @@ jobs:
             --results-directory ./TestResults
 
       - name: Download and install Aspire CLI
+        if: runner.os == 'Linux'
         run: |
           set -e
           curl -sSL https://aspire.dev/install.sh | bash -s
           echo "$HOME/.aspire/bin" >> $GITHUB_PATH
 
       - name: Setup Node.js for content build
+        if: runner.os == 'Linux'
         uses: actions/setup-node@v4
         with:
           node-version: '20'
 
       - name: Generate API reference docs
+        if: runner.os == 'Linux'
         run: dotnet run --project src/DocGenerator
 
       - name: Verify content build
+        if: runner.os == 'Linux'
         run: |
           cd src/content
           npm install
@@ -85,7 +98,7 @@ jobs:
         uses: dorny/test-reporter@v1
         if: success() || failure()
         with:
-          name: Test Results
+          name: Test Results (${{ runner.os }})
           path: ./TestResults/*.trx
           reporter: dotnet-trx
 
@@ -93,14 +106,14 @@ jobs:
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: test-results
+          name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
         uses: actions/upload-artifact@v4
         if: success() || failure()
         with:
-          name: svg-attachments
+          name: svg-attachments-${{ runner.os }}
           path: tests/Hex1b.Tests/bin/Debug/net10.0/TestResults/svg/
           if-no-files-found: ignore
 
@@ -170,9 +183,51 @@ jobs:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
 
+  build-pty-host-windows-x64:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Windows PTY shim
+        shell: pwsh
+        run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pty-host-windows-x64
+          path: artifacts/pty-host/win-x64/hex1bpty.exe
+
+  build-pty-host-windows-arm64:
+    runs-on: windows-11-arm
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish Windows PTY shim
+        shell: pwsh
+        run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pty-host-windows-arm64
+          path: artifacts/pty-host/win-arm64/hex1bpty.exe
+
   build-pr:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64]
+    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
@@ -208,10 +263,22 @@ jobs:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
+      - name: Download PTY shim - win-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: pty-host-windows-x64
+          path: src/Hex1b/runtimes/win-x64/native
+
+      - name: Download PTY shim - win-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: pty-host-windows-arm64
+          path: src/Hex1b/runtimes/win-arm64/native
+
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f -name "*.so" -o -name "*.dylib" | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (PR version for GH Packages)
         env:
@@ -234,13 +301,27 @@ jobs:
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in Hex1b package!"
+          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -n "$unexpected_windows_assets" ]; then
+            echo ""
+            echo "Unexpected Windows PTY payload detected:"
+            echo "$unexpected_windows_assets"
+            exit 1
+          fi
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E '^tools/.*/any/runtimes/win-(x64|arm64)/native/+hex1bpty\.exe$' || true)
+          if [ -z "$tool_windows_assets" ]; then
+            echo ""
+            echo "hex1bpty.exe is missing from the Hex1b.Tool package."
+            exit 1
+          fi
+          echo "$tool_windows_assets"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
@@ -250,7 +331,7 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64]
+    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read
@@ -286,10 +367,22 @@ jobs:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
+      - name: Download PTY shim - win-x64
+        uses: actions/download-artifact@v4
+        with:
+          name: pty-host-windows-x64
+          path: src/Hex1b/runtimes/win-x64/native
+
+      - name: Download PTY shim - win-arm64
+        uses: actions/download-artifact@v4
+        with:
+          name: pty-host-windows-arm64
+          path: src/Hex1b/runtimes/win-arm64/native
+
       - name: Verify native libraries
         run: |
           echo "Native libraries downloaded:"
-          find src/Hex1b/runtimes -type f -name "*.so" -o -name "*.dylib" | xargs ls -la
+          find src/Hex1b/runtimes -type f \( -name "*.so" -o -name "*.dylib" -o -name "hex1bpty.exe" \) | xargs ls -la
 
       - name: Build and pack Hex1b (release version for NuGet.org)
         env:
@@ -312,13 +405,27 @@ jobs:
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E "runtimes|native|hex1binterop" || echo "No native libraries found in Hex1b package!"
+          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -n "$unexpected_windows_assets" ]; then
+            echo ""
+            echo "Unexpected Windows PTY payload detected:"
+            echo "$unexpected_windows_assets"
+            exit 1
+          fi
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings" || echo "No tool settings found in Hex1b.Tool package!"
+          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E '^tools/.*/any/runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          if [ -z "$tool_windows_assets" ]; then
+            echo ""
+            echo "hex1bpty.exe is missing from the Hex1b.Tool package."
+            exit 1
+          fi
+          echo "$tool_windows_assets"
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4

@@ -64,6 +64,254 @@ public class Hex1bTerminalTests
         }
     }
 
+    private sealed class ThrowingInputPresentationAdapter(Exception exception) : IHex1bTerminalPresentationAdapter
+    {
+        private readonly Exception _exception = exception;
+        private bool _hasThrown;
+
+        public int Width => 80;
+        public int Height => 24;
+        public TerminalCapabilities Capabilities => new()
+        {
+            SupportsMouse = true,
+            Supports256Colors = true,
+            SupportsTrueColor = true
+        };
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default)
+        {
+            if (!_hasThrown)
+            {
+                _hasThrown = true;
+                return ValueTask.FromException<ReadOnlyMemory<byte>>(_exception);
+            }
+
+            return ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+        }
+
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class ThrowingWorkloadAdapter(Exception exception) : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly Exception _exception = exception;
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.FromException(_exception);
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingResizeWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        public int? ResizeWidth { get; private set; }
+        public int? ResizeHeight { get; private set; }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+        {
+            ResizeWidth = width;
+            ResizeHeight = height;
+            return ValueTask.CompletedTask;
+        }
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+    }
+
+    private sealed class RecordingDisposePresentationAdapter : IHex1bTerminalPresentationAdapter
+    {
+        public bool DisposeAsyncCalled { get; private set; }
+
+        public int Width => 80;
+        public int Height => 24;
+        public TerminalCapabilities Capabilities => new()
+        {
+            SupportsMouse = true,
+            Supports256Colors = true,
+            SupportsTrueColor = true
+        };
+
+        public event Action<int, int>? Resized
+        {
+            add { }
+            remove { }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask<ReadOnlyMemory<byte>> ReadInputAsync(CancellationToken ct = default) => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+        public ValueTask FlushAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
+        public (int Row, int Column) GetCursorPosition() => (0, 0);
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingDisposeWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        public bool DisposeAsyncCalled { get; private set; }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+        {
+            DisposeAsyncCalled = true;
+            return ValueTask.CompletedTask;
+        }
+    }
+
+    private sealed class DelayingRecordingWorkloadAdapter(ReadOnlyMemory<byte> firstOutput) : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly ReadOnlyMemory<byte> _firstOutput = firstOutput;
+        private readonly List<string> _writes = [];
+        private readonly TaskCompletionSource _writesObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _readCount;
+        private int _activeWrites;
+        private int _writeCount;
+        private int _concurrentWriteDetected;
+
+        public bool ConcurrentWriteDetected => Volatile.Read(ref _concurrentWriteDetected) != 0;
+
+        public IReadOnlyList<string> Writes
+        {
+            get
+            {
+                lock (_writes)
+                {
+                    return _writes.ToArray();
+                }
+            }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _readCount, 1) == 0)
+            {
+                return ValueTask.FromResult(_firstOutput);
+            }
+
+            return WaitForCancellationAsync(ct);
+        }
+
+        public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            if (Interlocked.Increment(ref _activeWrites) > 1)
+            {
+                Interlocked.Exchange(ref _concurrentWriteDetected, 1);
+            }
+
+            try
+            {
+                await Task.Delay(30, ct);
+
+                lock (_writes)
+                {
+                    _writes.Add(Encoding.UTF8.GetString(data.Span));
+                }
+
+                if (Interlocked.Increment(ref _writeCount) >= 2)
+                {
+                    _writesObserved.TrySetResult();
+                }
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeWrites);
+            }
+        }
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task WaitForTwoWritesAsync() => _writesObserved.Task;
+
+        private static async ValueTask<ReadOnlyMemory<byte>> WaitForCancellationAsync(CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            return ReadOnlyMemory<byte>.Empty;
+        }
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -84,6 +332,48 @@ public class Hex1bTerminalTests
         
         var line = terminal.CreateSnapshot().GetLineTrimmed(0);
         Assert.Equal("", line);
+    }
+
+    [Fact]
+    public async Task Constructor_WithResizedTerminalWidgetHandle_UsesHandleDimensionsForInitialWorkloadResize()
+    {
+        await using var presentation = new TerminalWidgetHandle(80, 24);
+        await using var workload = new RecordingResizeWorkloadAdapter();
+
+        presentation.Resize(132, 41);
+
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        Assert.Equal(132, terminal.Width);
+        Assert.Equal(41, terminal.Height);
+        Assert.Equal(132, workload.ResizeWidth);
+        Assert.Equal(41, workload.ResizeHeight);
+    }
+
+    [Fact]
+    public void Dispose_SynchronouslyDisposesPresentationAndWorkload()
+    {
+        var presentation = new RecordingDisposePresentationAdapter();
+        var workload = new RecordingDisposeWorkloadAdapter();
+
+        var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        terminal.Dispose();
+
+        Assert.True(presentation.DisposeAsyncCalled);
+        Assert.True(workload.DisposeAsyncCalled);
     }
 
     [Fact]
@@ -158,6 +448,83 @@ public class Hex1bTerminalTests
         Assert.Equal(Hex1bKey.UpArrow, keyEvent.Key);
         Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
         Assert.False(workload.InputEvents.TryRead(out _));
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenPresentationInputPumpThrows_SurfacesTheFailure()
+    {
+        await using var presentation = new ThrowingInputPresentationAdapter(
+            new InvalidOperationException("synthetic input failure"));
+        using var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ex.InnerException);
+        Assert.Contains("synthetic input failure", ex.InnerException!.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenWorkloadWriteInputThrows_SurfacesTheFailure()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        await using var workload = new ThrowingWorkloadAdapter(
+            new IOException("synthetic shim send failure"));
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        presentation.EnqueueInput("x");
+
+        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
+            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+
+        Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
+        Assert.NotNull(ex.InnerException);
+        Assert.Contains("synthetic shim send failure", ex.InnerException!.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenCursorPositionResponseOverlapsTyping_SerializesWorkloadWrites()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        await using var workload = new DelayingRecordingWorkloadAdapter(Encoding.UTF8.GetBytes("\x1b[6n"));
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+
+        presentation.EnqueueInput("abc");
+
+        await workload.WaitForTwoWritesAsync()
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.False(workload.ConcurrentWriteDetected);
+
+        var writes = workload.Writes;
+        Assert.Contains(writes, write => write.StartsWith("\x1b[", StringComparison.Ordinal) && write.EndsWith("R", StringComparison.Ordinal));
+        Assert.Contains(writes, write => write.Contains("abc", StringComparison.Ordinal));
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
     }
 
     [Theory]

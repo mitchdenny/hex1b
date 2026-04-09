@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>xterm.js ConPTY Repro</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/css/xterm.min.css">
+    <style>
+        :root {
+            color-scheme: dark;
+        }
+
+        body {
+            margin: 0;
+            padding: 20px;
+            font-family: system-ui, sans-serif;
+            background: #111827;
+            color: #e5e7eb;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 22px;
+        }
+
+        p {
+            margin: 0 0 16px;
+            max-width: 980px;
+            line-height: 1.45;
+        }
+
+        .layout {
+            display: grid;
+            gap: 16px;
+            grid-template-columns: minmax(820px, 1fr) 360px;
+            align-items: start;
+        }
+
+        .panel {
+            background: #0b1220;
+            border: 1px solid #243041;
+            border-radius: 10px;
+            padding: 14px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px;
+            min-height: 520px;
+        }
+
+        .terminal-pane {
+            background: #0f172a;
+            border-radius: 8px;
+            padding: 8px;
+            min-height: 250px;
+            overflow: hidden;
+        }
+
+        .label {
+            color: #94a3b8;
+            font-size: 12px;
+            font-family: Consolas, "Courier New", monospace;
+            padding-bottom: 4px;
+        }
+
+        .terminal-host {
+            width: 100%;
+            height: calc(100% - 20px);
+        }
+
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+            margin-bottom: 12px;
+        }
+
+        button {
+            padding: 8px 12px;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            background: #1e293b;
+            color: #e5e7eb;
+            cursor: pointer;
+        }
+
+        button:hover {
+            background: #334155;
+        }
+
+        label {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin: 6px 0;
+            font-size: 14px;
+        }
+
+        code, pre {
+            font-family: Consolas, "Courier New", monospace;
+            font-size: 12px;
+        }
+
+        pre {
+            white-space: pre-wrap;
+            margin: 0;
+        }
+
+        .hint {
+            color: #93c5fd;
+        }
+    </style>
+</head>
+<body>
+    <h1>xterm.js ConPTY Prompt Repro</h1>
+    <p>
+        This page uses <strong>xterm.js only</strong>. There is no websocket transport and no live Hex1b PTY here.
+        It replays the exact PowerShell/ConPTY startup and <code>clear</code> redraw chunks captured from the browser demo.
+        If the prompt disappears here too, that strongly points to a client-side xterm/ConPTY rendering issue rather than a Hex1b transport bug.
+    </p>
+
+    <div class="layout">
+        <div class="panel">
+            <div class="controls">
+                <button id="reset">Reset terminal</button>
+                <button id="startup">Replay startup</button>
+                <button id="clear-long">Replay clear (long prompt)</button>
+                <button id="clear-burst">Replay clear (websocket burst)</button>
+                <button id="clear-short">Replay clear (short prompt)</button>
+                <button id="resize">Nudge resize</button>
+            </div>
+
+            <label><input id="windowsPty" type="checkbox" checked> Use <code>windowsPty: { backend: 'conpty', buildNumber: 26200 }</code></label>
+            <label><input id="serialWrites" type="checkbox" checked> Await each <code>term.write(...)</code> callback before sending the next chunk</label>
+            <label><input id="autoNudge" type="checkbox"> Auto-resize nudge when <code>ESC[3J</code> arrives</label>
+
+            <div class="grid">
+                <div class="terminal-pane">
+                    <div class="label">Pane 1 (target)</div>
+                    <div id="term1" class="terminal-host"></div>
+                </div>
+                <div class="terminal-pane">
+                    <div class="label">Pane 2</div>
+                    <div id="term2" class="terminal-host"></div>
+                </div>
+                <div class="terminal-pane">
+                    <div class="label">Pane 3</div>
+                    <div id="term3" class="terminal-host"></div>
+                </div>
+                <div class="terminal-pane">
+                    <div class="label">Pane 4</div>
+                    <div id="term4" class="terminal-host"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="panel">
+            <p class="hint"><strong>How to use</strong></p>
+            <pre>1. Click "Replay clear (websocket burst)".
+2. That mimics the original `ws.onmessage = term.write(e.data)` path.
+3. In this mode, the prompt should disappear in Pane 1 without any Hex1b transport involved.</pre>
+            <br>
+            <p class="hint"><strong>Current status</strong></p>
+            <pre id="status">Ready.</pre>
+        </div>
+    </div>
+
+    <script type="module">
+        import { Terminal } from 'https://cdn.jsdelivr.net/npm/@xterm/xterm@6.0.0/+esm';
+        import { FitAddon } from 'https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.11.0/+esm';
+
+        const longPrompt = 'PS C:\\Code\\windows-pty-exploration\\samples\\QuadTerminalDemo>';
+        const shortPrompt = 'PS>';
+        const clearLines = '\x1b[K\r\n'.repeat(23) + '\x1b[K';
+
+        const startupChunks = [
+            '\x1b[?9001h\x1b[?1004h',
+            `\x1b[?25l\x1b[2J\x1b[m\x1b[H${longPrompt}\x1b[1C\x1b]0;C:\\Program Files\\PowerShell\\7\\pwsh.exe\x07\x1b[?25h`
+        ];
+
+        function createClearChunks(promptText, cursorColumn) {
+            return [
+                '\x1b[?25l',
+                '\x1b[93mclear\x1b[?25h',
+                '\x1b[m\r\n',
+                '\x1b[?25l\x1b[H\x1b[?25h',
+                `\x1b[?25l${clearLines}\x1b[H\x1b[?25h`,
+                '\x1b[3J',
+                `\x1b[?25l${promptText}${clearLines}\x1b[1;${cursorColumn}H\x1b[?25h`
+            ];
+        }
+
+        const longClearChunks = createClearChunks(longPrompt, 62);
+        const shortClearChunks = createClearChunks(shortPrompt, 5);
+
+        const status = document.getElementById('status');
+        const windowsPtyCheckbox = document.getElementById('windowsPty');
+        const serialWritesCheckbox = document.getElementById('serialWrites');
+        const autoNudgeCheckbox = document.getElementById('autoNudge');
+
+        const paneIds = ['term1', 'term2', 'term3', 'term4'];
+        let terminals = [];
+        let writeQueue = Promise.resolve();
+
+        function setStatus(message) {
+            status.textContent = message;
+        }
+
+        function createTerminalInstance(hostElement) {
+            const options = {
+                cursorBlink: true,
+                fontSize: 14,
+                theme: {
+                    background: '#0f172a',
+                    foreground: '#e5e7eb'
+                }
+            };
+
+            if (windowsPtyCheckbox.checked) {
+                options.windowsPty = { backend: 'conpty', buildNumber: 26200 };
+            }
+
+            const term = new Terminal(options);
+            const fitAddon = new FitAddon();
+            term.loadAddon(fitAddon);
+            term.open(hostElement);
+            fitAddon.fit();
+            return { term, fitAddon };
+        }
+
+        function createTerminal() {
+            terminals.forEach(({ term }) => term.dispose());
+            terminals = paneIds.map(id => createTerminalInstance(document.getElementById(id)));
+            writeQueue = Promise.resolve();
+            setStatus('Terminal grid reset.');
+        }
+
+        function nudgeResize() {
+            const { term } = terminals[0];
+            const cols = term.cols;
+            const rows = term.rows;
+            const nudgedRows = rows > 2 ? rows - 1 : rows + 1;
+            term.resize(cols, nudgedRows);
+            window.setTimeout(() => term.resize(cols, rows), 16);
+            setStatus('Applied one-row resize nudge.');
+        }
+
+        function writeChunk(chunk) {
+            const performWrite = () => new Promise(resolve => {
+                const { term } = terminals[0];
+                term.write(chunk, () => {
+                    term.refresh(0, term.rows - 1);
+                    if (autoNudgeCheckbox.checked && chunk.includes('\x1b[3J')) {
+                        nudgeResize();
+                    }
+                    resolve();
+                });
+            });
+
+            if (serialWritesCheckbox.checked) {
+                writeQueue = writeQueue.then(performWrite);
+                return writeQueue;
+            }
+
+            return performWrite();
+        }
+
+        async function replay(chunks, label) {
+            setStatus(`Replaying ${label} (${chunks.length} chunks)...`);
+            for (const chunk of chunks) {
+                await writeChunk(chunk);
+            }
+            setStatus(`Replayed ${label}. If the prompt disappeared, click "Nudge resize".`);
+        }
+
+        function replayBurst(chunks, label) {
+            setStatus(`Replaying ${label} in fire-and-forget mode...`);
+            const { term } = terminals[0];
+            for (const chunk of chunks) {
+                term.write(chunk);
+                if (autoNudgeCheckbox.checked && chunk.includes('\x1b[3J')) {
+                    window.setTimeout(nudgeResize, 16);
+                }
+            }
+            term.refresh(0, term.rows - 1);
+            setStatus(`Replayed ${label} in fire-and-forget mode. If the prompt disappeared, click "Nudge resize".`);
+        }
+
+        document.getElementById('reset').addEventListener('click', createTerminal);
+        document.getElementById('startup').addEventListener('click', () => replay(startupChunks, 'startup'));
+        document.getElementById('clear-long').addEventListener('click', async () => {
+            createTerminal();
+            await replay(startupChunks, 'startup');
+            await replay(longClearChunks, 'clear with long prompt');
+        });
+        document.getElementById('clear-burst').addEventListener('click', () => {
+            createTerminal();
+            replayBurst(startupChunks, 'startup');
+            replayBurst(longClearChunks, 'clear with long prompt');
+        });
+        document.getElementById('clear-short').addEventListener('click', async () => {
+            createTerminal();
+            await replay(startupChunks, 'startup');
+            await replay(shortClearChunks, 'clear with short prompt');
+        });
+        document.getElementById('resize').addEventListener('click', nudgeResize);
+
+        windowsPtyCheckbox.addEventListener('change', createTerminal);
+        window.addEventListener('resize', () => terminals.forEach(({ fitAddon }) => fitAddon.fit()));
+
+        createTerminal();
+    </script>
+</body>
+</html>

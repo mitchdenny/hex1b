@@ -79,16 +79,6 @@ public class TableClippingTests
         
         var snapshot = terminal.CreateSnapshot();
         
-        // Write all lines to debug
-        var debugPath = "/tmp/table-clipping-debug.txt";
-        var lines = new System.Text.StringBuilder();
-        for (int y = 0; y < 24; y++)
-        {
-            var line = snapshot.GetLine(y);
-            lines.AppendLine($"Line {y:D2}: |{line}|");
-        }
-        System.IO.File.WriteAllText(debugPath, lines.ToString());
-        
         // After resize: window spans x=5 to x=30 (width 26).
         // The window border is at x=30, so columns 31+ should be empty.
         // Check that table border characters don't leak beyond the new window boundary.

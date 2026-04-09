@@ -45,6 +45,7 @@
     <InternalsVisibleTo Include="Hex1b.Benchmarks" />
     <InternalsVisibleTo Include="Hex1b.Tool" />
     <InternalsVisibleTo Include="Hex1b.Tool.Tests" />
+    <InternalsVisibleTo Include="hex1bpty" />
   </ItemGroup>
 
   <ItemGroup>
@@ -56,6 +57,27 @@
     <None Include="README.md" Pack="true" PackagePath="/" />
     <None Include="../../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="/" />
   </ItemGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <!-- Local Windows builds default to a debuggable helper; pack flips this to AOT automatically. -->
+    <Hex1bPtyHostEnabled>true</Hex1bPtyHostEnabled>
+    <Hex1bPtyHostPackPublishMode Condition="'$(Hex1bPtyHostPackPublishMode)' == ''">Aot</Hex1bPtyHostPackPublishMode>
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+    <Hex1bPtyHostPackRids Condition="'$(Hex1bPtyHostPackRids)' == ''">$(WindowsPtyShimRid)</Hex1bPtyHostPackRids>
+    <WindowsPtyShimPublishRoot>$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim</WindowsPtyShimPublishRoot>
+    <WindowsPtyShimPublishDir>$(WindowsPtyShimPublishRoot)\$(WindowsPtyShimRid)\native</WindowsPtyShimPublishDir>
+    <WindowsPtyHostProject>$(MSBuildProjectDirectory)\..\Hex1b.PtyHost\Hex1b.PtyHost.csproj</WindowsPtyHostProject>
+    <WindowsPtyHostTargetFramework>net8.0</WindowsPtyHostTargetFramework>
+    <WindowsPtyHostBuildOutputDir>$(MSBuildProjectDirectory)\..\Hex1b.PtyHost\bin\$(Configuration)\$(WindowsPtyHostTargetFramework)\$(WindowsPtyShimRid)</WindowsPtyHostBuildOutputDir>
+  </PropertyGroup>
+  <PropertyGroup>
+    <Hex1bPtyHostEnabled Condition="'$(Hex1bPtyHostEnabled)' == ''">false</Hex1bPtyHostEnabled>
+    <Hex1bPtyHostPublishMode Condition="'$(Hex1bPtyHostPublishMode)' == ''">Debug</Hex1bPtyHostPublishMode>
+    <WindowsPtyShimExecutableName Condition="'$(WindowsPtyShimExecutableName)' == ''">hex1bpty.exe</WindowsPtyShimExecutableName>
+    <TargetsForTfmSpecificContentInPackage>$(TargetsForTfmSpecificContentInPackage);IncludeWindowsPtyShimInPackage</TargetsForTfmSpecificContentInPackage>
+    <BuildDependsOn>$(BuildDependsOn);SyncFreshManagedOutput</BuildDependsOn>
+  </PropertyGroup>
 
   <!-- 
     Native interop library for Unix platforms (hex1binterop)
@@ -97,6 +119,81 @@
     <Copy SourceFiles="$(NativeLibraryPath)" 
           DestinationFiles="$(OutputPath)$(NativeLibraryName)" 
           SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="SyncFreshManagedOutput"
+          Condition="'$(DesignTimeBuild)' != 'true' and Exists('$(MSBuildProjectDirectory)\$(IntermediateOutputPath)$(TargetFileName)')">
+    <Copy SourceFiles="$(MSBuildProjectDirectory)\$(IntermediateOutputPath)$(TargetFileName)"
+          DestinationFiles="$(TargetDir)$(TargetFileName)"
+          SkipUnchangedFiles="false"
+          OverwriteReadOnlyFiles="true" />
+  </Target>
+
+  <Target Name="PublishWindowsPtyShim"
+          Condition="'$(Hex1bPtyHostEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(DisableHex1bPtyShimPublish)' != 'true' and Exists('$(WindowsPtyHostProject)')"
+          AfterTargets="Build">
+    <Message Importance="High" Text="Building Windows PTY host ($(Hex1bPtyHostPublishMode)) for $(WindowsPtyShimRid)..." />
+    <RemoveDir Directories="$(WindowsPtyShimPublishDir)" />
+    <MakeDir Directories="$(WindowsPtyShimPublishDir)" />
+
+    <MSBuild Projects="$(WindowsPtyHostProject)"
+             Targets="Restore;Build"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(WindowsPtyShimRid)"
+             BuildInParallel="false"
+             Condition="'$(Hex1bPtyHostPublishMode)' != 'Aot'" />
+
+    <ItemGroup Condition="'$(Hex1bPtyHostPublishMode)' != 'Aot'">
+      <WindowsPtyShimBuiltFiles Include="$(WindowsPtyHostBuildOutputDir)\*.*"
+                               Exclude="$(WindowsPtyHostBuildOutputDir)\*.pdb;$(WindowsPtyHostBuildOutputDir)\*.dbg;$(WindowsPtyHostBuildOutputDir)\*.map;$(WindowsPtyHostBuildOutputDir)\*.lib;$(WindowsPtyHostBuildOutputDir)\*.exp" />
+    </ItemGroup>
+
+    <Copy SourceFiles="@(WindowsPtyShimBuiltFiles)"
+          DestinationFiles="@(WindowsPtyShimBuiltFiles->'$(WindowsPtyShimPublishDir)\%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true"
+          Condition="'$(Hex1bPtyHostPublishMode)' != 'Aot'" />
+
+    <MSBuild Projects="$(WindowsPtyHostProject)"
+             Targets="Restore;Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=$(WindowsPtyShimRid);PublishAot=true;SelfContained=true;PublishDir=$(WindowsPtyShimPublishDir)\"
+             BuildInParallel="false"
+             Condition="'$(Hex1bPtyHostPublishMode)' == 'Aot'" />
+  </Target>
+
+  <Target Name="CopyWindowsPtyShimToOutput"
+          AfterTargets="PublishWindowsPtyShim"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('$(WindowsPtyShimPublishDir)')">
+    <ItemGroup>
+      <WindowsPtyShimOutputFiles Include="$(WindowsPtyShimPublishDir)\*.*"
+                                 Exclude="$(WindowsPtyShimPublishDir)\*.pdb;$(WindowsPtyShimPublishDir)\*.dbg;$(WindowsPtyShimPublishDir)\*.map;$(WindowsPtyShimPublishDir)\*.lib;$(WindowsPtyShimPublishDir)\*.exp" />
+      <WindowsPtyShimOutputSymbolFiles Include="$(TargetDir)hex1bpty.pdb;$(TargetDir)hex1bpty.dbg;$(TargetDir)hex1bpty.map;$(TargetDir)hex1bpty.lib;$(TargetDir)hex1bpty.exp" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimOutputFiles)"
+          DestinationFiles="@(WindowsPtyShimOutputFiles->'$(TargetDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+    <Delete Files="@(WindowsPtyShimOutputSymbolFiles)" TreatErrorsAsWarnings="true" />
+  </Target>
+
+  <Target Name="PruneWindowsPtyShimSymbols"
+          AfterTargets="PublishWindowsPtyShim;PublishWindowsPtyShimForPack"
+          Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(WindowsPtyShimPublishRoot)')">
+    <ItemGroup>
+      <WindowsPtyShimSymbolFiles Include="$(WindowsPtyShimPublishRoot)\**\*.pdb;$(WindowsPtyShimPublishRoot)\**\*.dbg;$(WindowsPtyShimPublishRoot)\**\*.map;$(WindowsPtyShimPublishRoot)\**\*.lib;$(WindowsPtyShimPublishRoot)\**\*.exp" />
+    </ItemGroup>
+    <Delete Files="@(WindowsPtyShimSymbolFiles)" TreatErrorsAsWarnings="true" />
+  </Target>
+
+  <Target Name="PublishWindowsPtyShimForPack"
+          Condition="'$(Hex1bPtyHostEnabled)' == 'true' and '$(DesignTimeBuild)' != 'true' and '$(DisableHex1bPtyShimPublish)' != 'true' and Exists('$(WindowsPtyHostProject)')">
+    <ItemGroup>
+      <WindowsPtyShimPackRid Include="$(Hex1bPtyHostPackRids)" />
+    </ItemGroup>
+    <Message Importance="High" Text="Building Windows PTY host ($(Hex1bPtyHostPackPublishMode)) for packaging: @(WindowsPtyShimPackRid, ', ')." />
+    <RemoveDir Directories="@(WindowsPtyShimPackRid -> '$(WindowsPtyShimPublishRoot)\%(Identity)\native')" />
+    <MakeDir Directories="@(WindowsPtyShimPackRid -> '$(WindowsPtyShimPublishRoot)\%(Identity)\native')" />
+    <MSBuild Projects="$(WindowsPtyHostProject)"
+             Targets="Restore;Publish"
+             Properties="Configuration=$(Configuration);RuntimeIdentifier=%(WindowsPtyShimPackRid.Identity);PublishAot=true;SelfContained=true;PublishDir=$(WindowsPtyShimPublishRoot)\%(WindowsPtyShimPackRid.Identity)\native\"
+             BuildInParallel="false" />
   </Target>
   
   <!-- Pack native libraries into NuGet package -->
@@ -144,7 +241,7 @@
              CopyToPublishDirectory="PreserveNewest"
              Link="libhex1binterop.dylib" />
   </ItemGroup>
-  
+
   <!-- For RID-specific builds, copy the matching native library -->
   <ItemGroup Condition="'$(RuntimeIdentifier)' == 'linux-x64'">
     <Content Include="runtimes/linux-x64/native/libhex1binterop.so" 
@@ -216,6 +313,31 @@
         <TargetPath>libhex1binterop.dylib</TargetPath>
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </ContentWithTargetPath>
+    </ItemGroup>
+  </Target>
+
+  <Target Name="IncludeWindowsPtyShimInPackage"
+          DependsOnTargets="PublishWindowsPtyShimForPack">
+    <ItemGroup>
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-x64\native\$(WindowsPtyShimExecutableName)')">
+        <PtyRid>win-x64</PtyRid>
+      </WindowsPtyShimPackageFile>
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-x64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-x64\native\$(WindowsPtyShimExecutableName)')">
+        <PtyRid>win-x64</PtyRid>
+      </WindowsPtyShimPackageFile>
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' == 'true' and Exists('$(MSBuildProjectDirectory)\$(BaseIntermediateOutputPath)windows-pty-shim\win-arm64\native\$(WindowsPtyShimExecutableName)')">
+        <PtyRid>win-arm64</PtyRid>
+      </WindowsPtyShimPackageFile>
+      <WindowsPtyShimPackageFile Include="$(MSBuildProjectDirectory)\runtimes\win-arm64\native\$(WindowsPtyShimExecutableName)"
+                                 Condition="'$(Hex1bPtyHostEnabled)' != 'true' and Exists('$(MSBuildProjectDirectory)\runtimes\win-arm64\native\$(WindowsPtyShimExecutableName)')">
+        <PtyRid>win-arm64</PtyRid>
+      </WindowsPtyShimPackageFile>
+      <TfmSpecificPackageFile Include="@(WindowsPtyShimPackageFile)">
+        <PackagePath>runtimes/%(PtyRid)/native/</PackagePath>
+      </TfmSpecificPackageFile>
     </ItemGroup>
   </Target>
 

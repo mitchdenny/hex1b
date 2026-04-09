@@ -102,6 +102,9 @@ public static partial class BaselineManager
     /// </summary>
     public static string? CompareBaseline(string expected, string actual)
     {
+        expected = NormalizeLineEndings(expected);
+        actual = NormalizeLineEndings(actual);
+
         if (expected == actual)
             return null;
         
@@ -126,6 +129,9 @@ public static partial class BaselineManager
         
         return "Content differs but couldn't identify specific line";
     }
+
+    private static string NormalizeLineEndings(string text)
+        => text.Replace("\r\n", "\n").Replace("\r", "\n");
     
     /// <summary>
     /// Escapes non-printable characters for display in test output.

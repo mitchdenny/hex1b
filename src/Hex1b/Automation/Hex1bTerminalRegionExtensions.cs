@@ -57,14 +57,24 @@ public static class Hex1bTerminalRegionExtensions
         {
             var cell = region.GetCell(x, y);
             var ch = cell.Character;
-            // Skip empty continuation cells (used for wide characters)
+
+            // Preserve the width of ordinary empty/unwritten cells as spaces so
+            // text snapshots keep their terminal geometry stable across platforms.
+            // But continuation cells for wide characters are zero-width in the
+            // textual view and should not show up as visible spaces.
             if (string.IsNullOrEmpty(ch))
-                continue;
-            // Replace null character with space for display
-            if (ch == "\0")
+            {
+                if (!IsWideCharContinuation(region, x, y))
+                    sb.Append(' ');
+            }
+            else if (ch == "\uE000" || ch == "\0")
+            {
                 sb.Append(' ');
+            }
             else
+            {
                 sb.Append(ch);
+            }
         }
         return sb.ToString();
     }
@@ -218,6 +228,18 @@ public static class Hex1bTerminalRegionExtensions
         if (a is null || b is null)
             return false;
         return a.Value.R == b.Value.R && a.Value.G == b.Value.G && a.Value.B == b.Value.B;
+    }
+
+    private static bool IsWideCharContinuation(IHex1bTerminalRegion region, int x, int y)
+    {
+        if (x <= 0)
+            return false;
+
+        var previous = region.GetCell(x - 1, y).Character;
+        return !string.IsNullOrEmpty(previous)
+            && previous != "\uE000"
+            && previous != "\0"
+            && DisplayWidth.GetGraphemeWidth(previous) > 1;
     }
 
     /// <summary>

@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using System.Net.WebSockets;
-using System.Runtime.Versioning;
 using System.Text;
 using System.Text.Json;
 using Hex1b.Diagnostics;
@@ -18,8 +17,6 @@ namespace Hex1b.Tool.Commands.Terminal;
 /// Starts a Kestrel web server that bridges browser WebSocket connections
 /// to the remote terminal's diagnostics socket.
 /// </summary>
-[SupportedOSPlatform("linux")]
-[SupportedOSPlatform("macos")]
 internal sealed class AttachWebApp : IAsyncDisposable
 {
     private readonly string _socketPath;

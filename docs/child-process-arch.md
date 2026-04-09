@@ -55,7 +55,30 @@ C# wrapper around the native library. Provides async read/write operations for t
 └─────────────────────────────────────────────────────────────┘
 ```
 
-### 3. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
+### 3. Windows PTY shim (`src/Hex1b.PtyHost/`)
+
+On Windows, Hex1b uses an out-of-process managed helper (`hex1bpty.exe`) for
+`WithPtyProcess(...)`. The helper talks directly to the Win32 ConPTY APIs and
+exposes the session over a local Unix-domain socket using the framed shim
+protocol:
+
+- launch request (file name, args, cwd, env, cols, rows)
+- raw output frames back to Hex1b
+- raw input frames from Hex1b
+- resize / kill / shutdown control messages
+- exit notification with the child exit code
+
+This keeps the public `WithPtyProcess(...)` API unchanged while isolating the
+Windows PTY host in a dedicated helper process. For normal repo builds on
+Windows, the project file itself publishes a debuggable non-AOT version of
+`hex1bpty.exe` for the current Windows architecture (`win-x64` or `win-arm64`)
+as part of a normal `dotnet build`. For package production, the same MSBuild
+wiring publishes Native AOT helpers for the Windows runtime assets required by
+CI so the packaged runtime assets remain self-contained. If the helper is not
+available, Hex1b falls back to the existing in-process `WindowsPtyHandle`
+implementation so local development and existing tests continue to work.
+
+### 4. Hex1bTerminalChildProcess (`src/Hex1b/Terminal/Hex1bTerminalChildProcess.cs`)
 
 High-level wrapper that implements `IHex1bTerminalWorkloadAdapter`. This is the public API for spawning child processes.
 
@@ -72,7 +95,7 @@ await using var process = new Hex1bTerminalChildProcess(
 );
 ```
 
-### 4. Hex1bTerminal (`src/Hex1b/Terminal/Hex1bTerminal.cs`)
+### 5. Hex1bTerminal (`src/Hex1b/Terminal/Hex1bTerminal.cs`)
 
 The terminal emulator that bridges presentation (user's console) and workload (child process).
 
@@ -102,7 +125,7 @@ The terminal emulator that bridges presentation (user's console) and workload (c
 └──────────────────────────────────────────────────────────────────┘
 ```
 
-### 5. Console Adapters
+### 6. Console Adapters
 
 **ConsolePresentationAdapter** - Handles raw mode, input reading, and output writing for the user's console.
 
@@ -144,6 +167,27 @@ This is why the native library must NOT copy the parent's termios - the parent i
 
 Tmux now works correctly, including vertical splits. The fix was to remove `Console.TreatControlCAsInput = true` from the console driver, as this was corrupting terminal state.
 
+### Windows packaging
+
+The Windows PTY helper ships as a packaged runtime asset alongside Hex1b under
+`runtimes/win-*/native/hex1bpty.exe`. The repo's MSBuild flow defaults to a
+non-AOT helper for local debugging, but package-oriented builds can switch to a
+Native AOT publish so the bundled Windows helper behaves like the other native
+runtime assets.
+
+For Windows contributors working in the repo:
+
+```powershell
+# Default inner-loop/debuggable helper build
+dotnet build src/Hex1b/Hex1b.csproj
+
+# Explicit Native AOT helper build
+dotnet build src/Hex1b/Hex1b.csproj -p:Hex1bPtyHostPublishMode=Aot
+```
+
+`dotnet pack` on Windows automatically prefers the `Aot` mode unless it is
+explicitly overridden.
+
 ### Mouse Support
 Currently keyboard-only. Mouse events would need to be:
 1. Captured in presentation adapter
@@ -160,6 +204,16 @@ dotnet run --project samples/TmuxDemo
 
 This spawns a bash shell with a custom prompt. Type `tmux` to test tmux functionality.
 
+On Windows, `WindowsPtyDemo` provides the equivalent pass-through harness for the
+packaged PTY shim:
+
+```powershell
+dotnet run --project samples/WindowsPtyDemo
+```
+
+It launches `powershell.exe` via `WithPtyProcess(...)` and will use
+`hex1bpty.exe` automatically when that helper is present in the sample output.
+
 ## Files Reference
 
 | File | Purpose |
@@ -172,3 +226,4 @@ This spawns a bash shell with a custom prompt. Type `tmux` to test tmux function
 | `src/Hex1b/Terminal/UnixConsoleDriver.cs` | Unix raw mode driver |
 | `src/Hex1b/Terminal/AnsiTokenizer.cs` | ANSI sequence parser |
 | `samples/TmuxDemo/Program.cs` | Test harness |
+| `samples/WindowsPtyDemo/Program.cs` | Windows PTY shim harness |

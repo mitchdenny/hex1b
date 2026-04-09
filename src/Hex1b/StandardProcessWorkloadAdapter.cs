@@ -37,6 +37,10 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
     private bool _disposed;
     private bool _started;
     private readonly TaskCompletionSource _startedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private int _stdoutCompleted;
+    private int _stderrCompleted;
+    private int _processExited;
+    private int _outputClosed;
 
     /// <summary>
     /// Creates a new standard process workload adapter.
@@ -133,6 +137,8 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
             return -1;
 
         await _process.WaitForExitAsync(ct);
+        _process.WaitForExit();
+        TryCompleteOutputChannel();
         return _process.ExitCode;
     }
 
@@ -160,7 +166,11 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         {
             var bytes = System.Text.Encoding.UTF8.GetBytes(e.Data + "\n");
             _outputChannel.Writer.TryWrite(bytes);
+            return;
         }
+
+        Interlocked.Exchange(ref _stdoutCompleted, 1);
+        TryCompleteOutputChannel();
     }
 
     private void OnErrorDataReceived(object sender, DataReceivedEventArgs e)
@@ -169,18 +179,38 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
         {
             var bytes = System.Text.Encoding.UTF8.GetBytes(e.Data + "\n");
             _outputChannel.Writer.TryWrite(bytes);
+            return;
         }
+
+        Interlocked.Exchange(ref _stderrCompleted, 1);
+        TryCompleteOutputChannel();
     }
 
     private void OnProcessExited(object? sender, EventArgs e)
     {
-        // Delay slightly to allow any pending output events to be processed
-        // Output events can race with the Exited event
-        Task.Delay(50).ContinueWith(_ =>
+        Interlocked.Exchange(ref _processExited, 1);
+        TryCompleteOutputChannel();
+    }
+
+    private void TryCompleteOutputChannel()
+    {
+        if (Volatile.Read(ref _outputClosed) != 0)
+        {
+            return;
+        }
+
+        if (Volatile.Read(ref _processExited) == 0 ||
+            Volatile.Read(ref _stdoutCompleted) == 0 ||
+            Volatile.Read(ref _stderrCompleted) == 0)
+        {
+            return;
+        }
+
+        if (Interlocked.Exchange(ref _outputClosed, 1) == 0)
         {
             _outputChannel.Writer.TryComplete();
             Disconnected?.Invoke();
-        });
+        }
     }
 
     // === IHex1bTerminalWorkloadAdapter Implementation ===
@@ -252,7 +282,10 @@ public sealed class StandardProcessWorkloadAdapter : IHex1bTerminalWorkloadAdapt
             return ValueTask.CompletedTask;
 
         _disposed = true;
-        _outputChannel.Writer.TryComplete();
+        if (Interlocked.Exchange(ref _outputClosed, 1) == 0)
+        {
+            _outputChannel.Writer.TryComplete();
+        }
 
         if (_process != null)
         {

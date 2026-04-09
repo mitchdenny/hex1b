@@ -584,14 +584,17 @@ public sealed class TreeNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        if (FlattenedItems.Count == 0)
+        // Snapshot to avoid concurrent modification from async expansion callbacks
+        var items = FlattenedItems.ToArray();
+
+        if (items.Length == 0)
         {
             return constraints.Constrain(new Size(0, 0));
         }
 
         // Calculate max width needed
         var maxWidth = 0;
-        foreach (var entry in FlattenedItems)
+        foreach (var entry in items)
         {
             var guideWidth = entry.Depth * 3; // Each depth level adds 3 chars for guides
             var indicatorWidth = 2; // Expand/collapse indicator
@@ -601,7 +604,7 @@ public sealed class TreeNode : Hex1bNode
             maxWidth = Math.Max(maxWidth, totalWidth);
         }
 
-        var height = FlattenedItems.Count;
+        var height = items.Length;
         var constrainedSize = constraints.Constrain(new Size(maxWidth, height));
         _viewportHeight = constrainedSize.Height;
 
@@ -643,11 +646,14 @@ public sealed class TreeNode : Hex1bNode
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
         
-        var visibleEnd = Math.Min(_scrollOffset + _viewportHeight, FlattenedItems.Count);
+        // Snapshot to avoid concurrent modification from async expansion callbacks
+        var items = FlattenedItems.ToArray();
+        
+        var visibleEnd = Math.Min(_scrollOffset + _viewportHeight, items.Length);
         
         for (int i = _scrollOffset; i < visibleEnd; i++)
         {
-            var entry = FlattenedItems[i];
+            var entry = items[i];
             var node = entry.Node;
             var y = Bounds.Y + (i - _scrollOffset);
             var x = Bounds.X;

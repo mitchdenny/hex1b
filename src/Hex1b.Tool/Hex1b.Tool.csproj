@@ -64,4 +64,44 @@
     <ProjectReference Include="../Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Include="..\Hex1b\runtimes\win-x64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="Exists('..\Hex1b\runtimes\win-x64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-x64\native\hex1bpty.exe" />
+    <None Include="..\Hex1b\obj\windows-pty-shim\win-x64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="!Exists('..\Hex1b\runtimes\win-x64\native\hex1bpty.exe') and Exists('..\Hex1b\obj\windows-pty-shim\win-x64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-x64\native\hex1bpty.exe" />
+    <None Include="..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="Exists('..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-arm64\native\hex1bpty.exe" />
+    <None Include="..\Hex1b\obj\windows-pty-shim\win-arm64\native\hex1bpty.exe"
+          Pack="true"
+          Visible="false"
+          Condition="!Exists('..\Hex1b\runtimes\win-arm64\native\hex1bpty.exe') and Exists('..\Hex1b\obj\windows-pty-shim\win-arm64\native\hex1bpty.exe')"
+          PackagePath="tools\$(TargetFramework)\any\runtimes\win-arm64\native\hex1bpty.exe" />
+  </ItemGroup>
+
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+  </PropertyGroup>
+
+  <Target Name="CopyWindowsPtyShim"
+          AfterTargets="Build"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
+    <ItemGroup>
+      <WindowsPtyShimFiles Include="../Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*"
+                           Exclude="../Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimFiles)"
+          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>
