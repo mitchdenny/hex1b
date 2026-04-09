@@ -57,6 +57,9 @@ Hex1bApp? theApp = null;
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
+var ptyWidth = Console.WindowWidth > 0 ? Console.WindowWidth : 120;
+var ptyHeight = Console.WindowHeight > 0 ? Console.WindowHeight : 40;
+
 var shellBuilder = Hex1bTerminal.CreateBuilder();
 shellBuilder = OperatingSystem.IsWindows()
     ? shellBuilder.WithPtyProcess(options =>
@@ -67,6 +70,7 @@ shellBuilder = OperatingSystem.IsWindows()
     : shellBuilder.WithPtyProcess("/bin/bash");
 
 var bash = shellBuilder
+    .WithDimensions(ptyWidth, ptyHeight)
     .WithTerminalWidget(out var bashHandle)
     .Build();
 
