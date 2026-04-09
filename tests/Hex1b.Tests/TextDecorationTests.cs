@@ -318,10 +318,11 @@ public class TextDecorationTests
 
         node.Render(context);
 
-        var pattern = new CellPatternSearcher().Find("abcde");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "text rendered")
+            .WaitUntil(
+                s => s.ContainsText("abcde") && s.ContainsText("fghij"),
+                TimeSpan.FromSeconds(2),
+                "all lines rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
