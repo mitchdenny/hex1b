@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Runtime.InteropServices;
 using System.Text;
 
@@ -117,6 +118,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     // Buffer for pending bytes from key events
     private readonly Queue<byte> _pendingBytes = new();
+    private readonly StringBuilder _pendingVtInput = new();
     
     // Track previous mouse state for generating proper events
     private uint _lastMouseButtonState;
@@ -372,6 +374,14 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
 
         TraceInput(
             $"key vk=0x{vk:X2} scan=0x{key.wVirtualScanCode:X2} char=0x{(int)ch:X4} ctrl={hasCtrl} alt={hasAlt} shift={hasShift} repeat={repeatCount}");
+
+        if (vk == 0 && key.wVirtualScanCode == 0 && ch != 0)
+        {
+            ProcessVirtualTerminalInputChar(ch);
+            return;
+        }
+
+        FlushPendingVirtualTerminalInput();
         
         // Check for special keys that generate VT sequences
         var vtSequence = GetVtSequence(vk, hasCtrl, hasAlt, hasShift);
@@ -417,6 +427,52 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                 EnqueueUtf8(text);
             }
         }
+    }
+
+    private void ProcessVirtualTerminalInputChar(char ch)
+    {
+        _pendingVtInput.Append(ch);
+
+        while (_pendingVtInput.Length > 0)
+        {
+            if (_pendingVtInput[0] != '\x1b')
+            {
+                EnqueueUtf8Char(_pendingVtInput[0]);
+                _pendingVtInput.Remove(0, 1);
+                continue;
+            }
+
+            if (!TryReadCompleteEscapeSequence(_pendingVtInput, out var sequence))
+            {
+                return;
+            }
+
+            _pendingVtInput.Remove(0, sequence.Length);
+
+            if (TryTranslateWin32InputSequence(sequence, out var translated))
+            {
+                foreach (var b in translated)
+                {
+                    _pendingBytes.Enqueue(b);
+                }
+
+                TraceInput($"vt-decoded sequence={EscapeForTrace(sequence)} bytes={BitConverter.ToString(translated)}");
+                continue;
+            }
+
+            EnqueueUtf8(sequence);
+        }
+    }
+
+    private void FlushPendingVirtualTerminalInput()
+    {
+        if (_pendingVtInput.Length == 0)
+        {
+            return;
+        }
+
+        EnqueueUtf8(_pendingVtInput.ToString());
+        _pendingVtInput.Clear();
     }
 
     private void EnqueueUtf8Char(char value)
@@ -490,6 +546,100 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         };
     }
 
+    internal static bool TryTranslateWin32InputSequence(string sequence, out byte[] bytes)
+    {
+        bytes = Array.Empty<byte>();
+
+        if (string.IsNullOrEmpty(sequence) ||
+            !sequence.StartsWith("\x1b[", StringComparison.Ordinal) ||
+            !sequence.EndsWith('_'))
+        {
+            return false;
+        }
+
+        var payload = sequence[2..^1];
+        var parts = payload.Split(';');
+        if (parts.Length != 6)
+        {
+            return false;
+        }
+
+        Span<int> values = stackalloc int[6];
+        for (var i = 0; i < parts.Length; i++)
+        {
+            if (!int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out values[i]))
+            {
+                return false;
+            }
+        }
+
+        var vk = unchecked((ushort)values[0]);
+        var unicodeChar = values[2] is > 0 and <= char.MaxValue ? (char)values[2] : '\0';
+        var keyDown = values[3] != 0;
+        var controlState = unchecked((uint)values[4]);
+        var repeatCount = Math.Max(1, values[5]);
+
+        if (!keyDown)
+        {
+            return true;
+        }
+
+        var hasCtrl = (controlState & (LEFT_CTRL_PRESSED | RIGHT_CTRL_PRESSED)) != 0;
+        var hasAlt = (controlState & (LEFT_ALT_PRESSED | RIGHT_ALT_PRESSED)) != 0;
+        var hasShift = (controlState & SHIFT_PRESSED) != 0;
+
+        var output = new List<byte>(Math.Max(4, repeatCount));
+
+        var vtSequence = GetVtSequence(vk, hasCtrl, hasAlt, hasShift);
+        if (vtSequence != null)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.AddRange(vtSequence);
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        if (hasCtrl && !hasAlt && unicodeChar >= 'A' - 64 && unicodeChar <= 'Z' - 64)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.Add((byte)unicodeChar);
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        if (hasAlt && !hasCtrl && unicodeChar != 0)
+        {
+            for (var repeat = 0; repeat < repeatCount; repeat++)
+            {
+                output.Add(0x1B);
+                output.AddRange(Encoding.UTF8.GetBytes(unicodeChar.ToString()));
+            }
+
+            bytes = output.ToArray();
+            return true;
+        }
+
+        var text = GetPrintableText(vk, unicodeChar, hasCtrl, hasAlt, hasShift);
+        if (string.IsNullOrEmpty(text))
+        {
+            return true;
+        }
+
+        for (var repeat = 0; repeat < repeatCount; repeat++)
+        {
+            output.AddRange(Encoding.UTF8.GetBytes(text));
+        }
+
+        bytes = output.ToArray();
+        return true;
+    }
+
     private static void TraceInput(string message)
     {
         var tracePath = Environment.GetEnvironmentVariable("HEX1B_CONSOLE_INPUT_TRACE_FILE");
@@ -516,7 +666,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             "WindowsConsoleDriver requires an attached interactive Windows console.");
     }
 
-    private byte[]? GetVtSequence(ushort vk, bool ctrl, bool alt, bool shift)
+    private static byte[]? GetVtSequence(ushort vk, bool ctrl, bool alt, bool shift)
     {
         // Calculate modifier parameter for CSI sequences
         int mod = 1;
@@ -690,8 +840,65 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         if (!_inRawMode) return;
         
         _pendingBytes.Clear();
+        _pendingVtInput.Clear();
         FlushConsoleInputBuffer(_inputHandle);
     }
+
+    private static bool TryReadCompleteEscapeSequence(StringBuilder buffer, out string sequence)
+    {
+        sequence = string.Empty;
+        if (buffer.Length == 0 || buffer[0] != '\x1b')
+        {
+            return false;
+        }
+
+        if (buffer.Length == 1)
+        {
+            return false;
+        }
+
+        var second = buffer[1];
+        switch (second)
+        {
+            case '[':
+                for (var i = 2; i < buffer.Length; i++)
+                {
+                    var c = buffer[i];
+                    if (c >= '@' && c <= '~')
+                    {
+                        sequence = buffer.ToString(0, i + 1);
+                        return true;
+                    }
+                }
+
+                return false;
+
+            case 'O':
+            case 'N':
+            case '(':
+            case ')':
+            case '*':
+            case '+':
+            case '#':
+                if (buffer.Length < 3)
+                {
+                    return false;
+                }
+
+                sequence = buffer.ToString(0, 3);
+                return true;
+
+            default:
+                sequence = buffer.ToString(0, 2);
+                return true;
+        }
+    }
+
+    private static string EscapeForTrace(string value)
+        => value
+            .Replace("\x1b", "\\x1b", StringComparison.Ordinal)
+            .Replace("\r", "\\r", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal);
     
     public void Dispose()
     {

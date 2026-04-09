@@ -225,6 +225,93 @@ public class Hex1bTerminalTests
         }
     }
 
+    private sealed class DelayingRecordingWorkloadAdapter(ReadOnlyMemory<byte> firstOutput) : IHex1bTerminalWorkloadAdapter
+    {
+        private readonly ReadOnlyMemory<byte> _firstOutput = firstOutput;
+        private readonly List<string> _writes = [];
+        private readonly TaskCompletionSource _writesObserved = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _readCount;
+        private int _activeWrites;
+        private int _writeCount;
+        private int _concurrentWriteDetected;
+
+        public bool ConcurrentWriteDetected => Volatile.Read(ref _concurrentWriteDetected) != 0;
+
+        public IReadOnlyList<string> Writes
+        {
+            get
+            {
+                lock (_writes)
+                {
+                    return _writes.ToArray();
+                }
+            }
+        }
+
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+        {
+            if (Interlocked.Exchange(ref _readCount, 1) == 0)
+            {
+                return ValueTask.FromResult(_firstOutput);
+            }
+
+            return WaitForCancellationAsync(ct);
+        }
+
+        public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+        {
+            if (Interlocked.Increment(ref _activeWrites) > 1)
+            {
+                Interlocked.Exchange(ref _concurrentWriteDetected, 1);
+            }
+
+            try
+            {
+                await Task.Delay(30, ct);
+
+                lock (_writes)
+                {
+                    _writes.Add(Encoding.UTF8.GetString(data.Span));
+                }
+
+                if (Interlocked.Increment(ref _writeCount) >= 2)
+                {
+                    _writesObserved.TrySetResult();
+                }
+            }
+            finally
+            {
+                Interlocked.Decrement(ref _activeWrites);
+            }
+        }
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync() => ValueTask.CompletedTask;
+
+        public Task WaitForTwoWritesAsync() => _writesObserved.Task;
+
+        private static async ValueTask<ReadOnlyMemory<byte>> WaitForCancellationAsync(CancellationToken ct)
+        {
+            try
+            {
+                await Task.Delay(Timeout.Infinite, ct);
+            }
+            catch (OperationCanceledException)
+            {
+            }
+
+            return ReadOnlyMemory<byte>.Empty;
+        }
+    }
+
     [Fact]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
@@ -407,6 +494,37 @@ public class Hex1bTerminalTests
         Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.NotNull(ex.InnerException);
         Assert.Contains("synthetic shim send failure", ex.InnerException!.Message);
+    }
+
+    [Fact]
+    public async Task RunAsync_WhenCursorPositionResponseOverlapsTyping_SerializesWorkloadWrites()
+    {
+        await using var presentation = new QueuedInputPresentationAdapter();
+        await using var workload = new DelayingRecordingWorkloadAdapter(Encoding.UTF8.GetBytes("\x1b[6n"));
+        await using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            PresentationAdapter = presentation,
+            WorkloadAdapter = workload,
+            Width = 80,
+            Height = 24
+        });
+
+        using var cts = new CancellationTokenSource();
+        var runTask = terminal.RunAsync(cts.Token);
+
+        presentation.EnqueueInput("abc");
+
+        await workload.WaitForTwoWritesAsync()
+            .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
+
+        Assert.False(workload.ConcurrentWriteDetected);
+
+        var writes = workload.Writes;
+        Assert.Contains(writes, write => write.StartsWith("\x1b[", StringComparison.Ordinal) && write.EndsWith("R", StringComparison.Ordinal));
+        Assert.Contains(writes, write => write.Contains("abc", StringComparison.Ordinal));
+
+        cts.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
     }
 
     [Theory]

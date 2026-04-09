@@ -38,6 +38,29 @@ public class ConsolePresentationAdapterTests
         Assert.Null(text);
     }
 
+    [Theory]
+    [InlineData("\x1b[65;30;97;1;0;1_", "a")]
+    [InlineData("\x1b[13;28;13;1;0;1_", "\r")]
+    [InlineData("\x1b[65;30;97;1;0;3_", "aaa")]
+    public void WindowsConsoleDriver_TryTranslateWin32InputSequence_DecodesForwardedKeyboardInput(
+        string sequence,
+        string expected)
+    {
+        var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence(sequence, out var bytes);
+
+        Assert.True(handled);
+        Assert.Equal(expected, Encoding.UTF8.GetString(bytes));
+    }
+
+    [Fact]
+    public void WindowsConsoleDriver_TryTranslateWin32InputSequence_IgnoresKeyUpFrames()
+    {
+        var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence("\x1b[65;30;97;0;0;1_", out var bytes);
+
+        Assert.True(handled);
+        Assert.Empty(bytes);
+    }
+
     [Fact]
     public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {
