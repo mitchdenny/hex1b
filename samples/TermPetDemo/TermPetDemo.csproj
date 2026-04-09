@@ -11,4 +11,21 @@
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
   </ItemGroup>
 
+  <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
+    <WindowsPtyShimRid Condition="'$([System.Runtime.InteropServices.RuntimeInformation]::OSArchitecture)' == 'Arm64'">win-arm64</WindowsPtyShimRid>
+    <WindowsPtyShimRid Condition="'$(WindowsPtyShimRid)' == ''">win-x64</WindowsPtyShimRid>
+  </PropertyGroup>
+
+  <Target Name="CopyWindowsPtyShim"
+          AfterTargets="Build"
+          Condition="$([MSBuild]::IsOSPlatform('Windows')) and Exists('../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/hex1bpty.exe')">
+    <ItemGroup>
+      <WindowsPtyShimFiles Include="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.*"
+                           Exclude="../../src/Hex1b/obj/windows-pty-shim/$(WindowsPtyShimRid)/native/*.pdb" />
+    </ItemGroup>
+    <Copy SourceFiles="@(WindowsPtyShimFiles)"
+          DestinationFolder="$(TargetDir)runtimes\$(WindowsPtyShimRid)\native\"
+          SkipUnchangedFiles="true" />
+  </Target>
+
 </Project>

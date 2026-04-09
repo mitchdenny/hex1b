@@ -57,8 +57,16 @@ Hex1bApp? theApp = null;
 using var cts = new CancellationTokenSource();
 Console.CancelKeyPress += (_, e) => { e.Cancel = true; cts.Cancel(); };
 
-var bash = Hex1bTerminal.CreateBuilder()
-    .WithPtyProcess("/bin/bash")
+var shellBuilder = Hex1bTerminal.CreateBuilder();
+shellBuilder = OperatingSystem.IsWindows()
+    ? shellBuilder.WithPtyProcess(options =>
+    {
+        options.FileName = "pwsh.exe";
+        options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+    })
+    : shellBuilder.WithPtyProcess("/bin/bash");
+
+var bash = shellBuilder
     .WithTerminalWidget(out var bashHandle)
     .Build();
 
