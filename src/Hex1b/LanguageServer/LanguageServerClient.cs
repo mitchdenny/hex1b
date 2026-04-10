@@ -192,9 +192,16 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
         await _transport.SendNotificationAsync("initialized", new { }, ct).ConfigureAwait(false);
 
-        // Start notification listener
+        // Start notification listener and wait for it to begin reading so that
+        // subsequent SendRequestAsync calls don't race into the inline pump path.
         _notificationCts = new CancellationTokenSource();
-        _notificationLoop = Task.Run(() => _transport.RunNotificationLoopAsync(_notificationCts.Token));
+        var loopStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        _notificationLoop = Task.Run(async () =>
+        {
+            loopStarted.TrySetResult();
+            await _transport.RunNotificationLoopAsync(_notificationCts.Token).ConfigureAwait(false);
+        });
+        await loopStarted.Task.ConfigureAwait(false);
 
         _ready.TrySetResult();
     }
@@ -660,41 +667,12 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return;
 
-        // Stop the notification loop first to prevent concurrent reads on the
-        // transport's underlying stream when SendRequestAsync falls back to
-        // inline message pumping.
-        bool loopStopped = false;
-        if (_notificationCts != null)
-        {
-            await _notificationCts.CancelAsync().ConfigureAwait(false);
-        }
-
-        if (_notificationLoop != null)
-        {
-            // Use a timeout — the loop may be stuck in a non-cancellable stream
-            // read that won't unblock until the transport is disposed.
-            var completed = await Task.WhenAny(
-                _notificationLoop,
-                Task.Delay(TimeSpan.FromSeconds(2), ct)).ConfigureAwait(false);
-            if (completed == _notificationLoop)
-            {
-                try { await _notificationLoop.ConfigureAwait(false); } catch { }
-                loopStopped = true;
-            }
-            _notificationLoop = null;
-        }
-        else
-        {
-            loopStopped = true;
-        }
-
-        // Only attempt the shutdown handshake if the notification loop exited
-        // cleanly. When _readerLoopRunning is still true, SendRequestAsync will
-        // enqueue a TCS waiting for the loop to dispatch the response — but the
-        // loop is stuck, creating a deadlock. The server process will be killed
-        // by DisposeAsync regardless.
-        if (!loopStopped) return;
-
+        // Send the shutdown handshake WHILE the notification loop is still
+        // running.  The loop dispatches the response to the pending TCS, so
+        // SendRequestAsync never enters its inline message-pump path and we
+        // avoid the PipeReaderStream "concurrent reads" crash that occurs when
+        // the loop is cancelled first (the cancelled ReadAsync leaves the
+        // PipeReader in a dirty state).
         try
         {
             foreach (var uri in _documentVersions.Keys.ToArray())
@@ -707,6 +685,26 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         }
         catch (IOException) { }
         catch (InvalidOperationException) { }
+        catch (OperationCanceledException) { }
+
+        // Now stop the notification loop — the server has already acknowledged
+        // the shutdown, so there's nothing left to read.
+        if (_notificationCts != null)
+        {
+            await _notificationCts.CancelAsync().ConfigureAwait(false);
+        }
+
+        if (_notificationLoop != null)
+        {
+            var completed = await Task.WhenAny(
+                _notificationLoop,
+                Task.Delay(TimeSpan.FromSeconds(2), ct)).ConfigureAwait(false);
+            if (completed == _notificationLoop)
+            {
+                try { await _notificationLoop.ConfigureAwait(false); } catch { }
+            }
+            _notificationLoop = null;
+        }
     }
 
     public async ValueTask DisposeAsync()
