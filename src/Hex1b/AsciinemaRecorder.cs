@@ -353,6 +353,7 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
     {
         List<AsciinemaEvent> eventsToWrite;
         AsciinemaHeader? header = null;
+        bool nothingToWrite;
 
         lock (_lock)
         {
@@ -360,37 +361,50 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
             if (_filePath == null)
                 return;
                 
-            if (_pendingEvents.Count == 0 && _headerWritten)
-                return;
+            nothingToWrite = _pendingEvents.Count == 0 && _headerWritten;
 
-            if (!_headerWritten)
+            if (!nothingToWrite)
             {
-                header = new AsciinemaHeader
+                if (!_headerWritten)
                 {
-                    Version = 2,
-                    Width = _width,
-                    Height = _height,
-                    Timestamp = _recordingStartTime.ToUnixTimeSeconds(),
-                    Title = _options.Title,
-                    Command = _options.Command,
-                    IdleTimeLimit = _options.IdleTimeLimit,
-                    Env = _options.CaptureEnvironment ? new Dictionary<string, string>
+                    header = new AsciinemaHeader
                     {
-                        ["TERM"] = Environment.GetEnvironmentVariable("TERM") ?? "xterm-256color",
-                        ["SHELL"] = Environment.GetEnvironmentVariable("SHELL") ?? ""
-                    } : null,
-                    Theme = _options.Theme
-                };
-                _headerWritten = true;
-            }
+                        Version = 2,
+                        Width = _width,
+                        Height = _height,
+                        Timestamp = _recordingStartTime.ToUnixTimeSeconds(),
+                        Title = _options.Title,
+                        Command = _options.Command,
+                        IdleTimeLimit = _options.IdleTimeLimit,
+                        Env = _options.CaptureEnvironment ? new Dictionary<string, string>
+                        {
+                            ["TERM"] = Environment.GetEnvironmentVariable("TERM") ?? "xterm-256color",
+                            ["SHELL"] = Environment.GetEnvironmentVariable("SHELL") ?? ""
+                        } : null,
+                        Theme = _options.Theme
+                    };
+                    _headerWritten = true;
+                }
 
-            eventsToWrite = new List<AsciinemaEvent>(_pendingEvents);
-            _pendingEvents.Clear();
+                eventsToWrite = new List<AsciinemaEvent>(_pendingEvents);
+                _pendingEvents.Clear();
+            }
+            else
+            {
+                eventsToWrite = [];
+            }
         }
 
+        // Always acquire _writeLock so we wait for any in-progress write
+        // (e.g. a concurrent auto-flush) to finish before returning.  Without
+        // this, a caller could read the file before a concurrent flush has
+        // finished creating it on disk.
         await _writeLock.WaitAsync(ct);
         try
         {
+            if (nothingToWrite)
+                return;
+
             await EnsureStreamOpenAsync(overwrite: header != null);
 
             if (header != null)
@@ -410,7 +424,8 @@ public sealed class AsciinemaRecorder : IHex1bTerminalWorkloadFilter, IAsyncDisp
         }
         finally
         {
-            await CloseStreamAsync();
+            if (!nothingToWrite)
+                await CloseStreamAsync();
             _writeLock.Release();
         }
     }
