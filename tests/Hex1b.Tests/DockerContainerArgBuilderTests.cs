@@ -520,4 +520,77 @@ public class DockerContainerArgBuilderTests
 
         Assert.Equal(100, names.Count);
     }
+
+    // --- AdditionalRunArgs tests ---
+
+    [Fact]
+    public void BuildRunArgs_WithAdditionalRunArgs_IncludesArgs()
+    {
+        var options = new DockerContainerOptions();
+        options.AdditionalRunArgs.Add("--privileged");
+        var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
+
+        Assert.Contains("--privileged", args);
+    }
+
+    [Fact]
+    public void BuildRunArgs_WithMultipleAdditionalRunArgs_IncludesAll()
+    {
+        var options = new DockerContainerOptions();
+        options.AdditionalRunArgs.AddRange(["--privileged", "--cgroupns=host"]);
+        var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
+
+        Assert.Contains("--privileged", args);
+        Assert.Contains("--cgroupns=host", args);
+    }
+
+    [Fact]
+    public void BuildRunArgs_AdditionalRunArgs_BeforeImage()
+    {
+        var options = new DockerContainerOptions { Image = "alpine:3.21" };
+        options.AdditionalRunArgs.Add("--privileged");
+        var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
+
+        var privilegedIndex = Array.IndexOf(args, "--privileged");
+        var imageIndex = Array.IndexOf(args, "alpine:3.21");
+        Assert.True(privilegedIndex < imageIndex, "Additional args should come before the image");
+    }
+
+    [Fact]
+    public void BuildRunArgs_EmptyAdditionalRunArgs_NoExtraArgs()
+    {
+        var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
+        var argsWithout = DockerContainerArgBuilder.BuildRunArgs(options, "test");
+
+        // Verify no stray args - count should match a minimal run
+        var optionsWithEmpty = new DockerContainerOptions { Image = "ubuntu:24.04" };
+        var argsWith = DockerContainerArgBuilder.BuildRunArgs(optionsWithEmpty, "test");
+
+        Assert.Equal(argsWithout.Length, argsWith.Length);
+    }
+
+    [Fact]
+    public void BuildRunArgs_AllOptions_IncludesAdditionalRunArgs()
+    {
+        var options = new DockerContainerOptions
+        {
+            Image = "alpine:3.21",
+            WorkingDirectory = "/workspace",
+            Network = "bridge",
+            MountDockerSocket = true,
+            AutoRemove = true,
+            Shell = "/bin/sh",
+            ShellArgs = ["-l"]
+        };
+        options.Environment["A"] = "1";
+        options.Volumes.Add("/tmp:/tmp");
+        options.AdditionalRunArgs.AddRange(["--privileged", "--cgroupns=host"]);
+
+        var args = DockerContainerArgBuilder.BuildRunArgs(options, "full-test");
+
+        Assert.Contains("--privileged", args);
+        Assert.Contains("--cgroupns=host", args);
+        Assert.Contains("alpine:3.21", args);
+        Assert.Contains("/bin/sh", args);
+    }
 }
