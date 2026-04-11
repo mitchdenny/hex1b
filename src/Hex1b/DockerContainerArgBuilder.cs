@@ -94,6 +94,8 @@ internal static class DockerContainerArgBuilder
             args.Add(options.Network);
         }
 
+        args.AddRange(options.AdditionalRunArgs);
+
         args.Add(options.Image);
         args.Add(options.Shell);
 

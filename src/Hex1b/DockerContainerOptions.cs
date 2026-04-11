@@ -133,4 +133,22 @@ public sealed class DockerContainerOptions
     /// Maps to <c>docker run --network</c>. If null, Docker's default network is used.
     /// </remarks>
     public string? Network { get; set; }
+
+    /// <summary>
+    /// Gets additional arguments passed directly to <c>docker run</c>.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// These arguments are inserted before the image name in the <c>docker run</c>
+    /// command, after all other options. Use this for flags not covered by dedicated
+    /// properties (e.g., <c>--privileged</c>, <c>--cgroupns=host</c>,
+    /// <c>--security-opt</c>, <c>--cap-add</c>).
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// c.AdditionalRunArgs.AddRange(["--privileged", "--cgroupns=host"]);
+    /// </code>
+    /// </example>
+    public List<string> AdditionalRunArgs { get; } = new();
 }
