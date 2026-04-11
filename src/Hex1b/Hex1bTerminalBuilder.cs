@@ -53,6 +53,7 @@ public sealed class Hex1bTerminalBuilder
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
+    private ITerminalEmulatorBackend? _terminalEmulatorBackend;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -854,6 +855,19 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
+    /// Replaces Hex1b's built-in terminal emulator with an external backend.
+    /// When set, the backend processes raw workload output instead of the built-in
+    /// AnsiTokenizer + ApplyTokens pipeline.
+    /// </summary>
+    /// <param name="backend">The terminal emulator backend to use.</param>
+    /// <returns>This builder for chaining.</returns>
+    public Hex1bTerminalBuilder WithTerminalEmulator(ITerminalEmulatorBackend backend)
+    {
+        _terminalEmulatorBackend = backend ?? throw new ArgumentNullException(nameof(backend));
+        return this;
+    }
+
+    /// <summary>
     /// Configures the terminal to run a Hex1b Flow — a sequence of inline micro-TUI slices
     /// and optional full-screen TUI applications in the normal terminal buffer.
     /// </summary>
@@ -1324,7 +1338,8 @@ public sealed class Hex1bTerminalBuilder
             RunCallback = runCallback,
             ScrollbackCapacity = _scrollbackCapacity,
             ScrollbackCallback = _scrollbackCallback,
-            Metrics = ResolveMetrics()
+            Metrics = ResolveMetrics(),
+            TerminalEmulatorBackend = _terminalEmulatorBackend
         };
         
         foreach (var filter in _workloadFilters)

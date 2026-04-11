@@ -57,6 +57,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly Func<CancellationToken, Task<int>>? _runCallback;
     private readonly IReadOnlyList<IHex1bTerminalWorkloadFilter> _workloadFilters;
     private readonly IReadOnlyList<IHex1bTerminalPresentationFilter> _presentationFilters;
+    private readonly ITerminalEmulatorBackend? _emulatorBackend;
     private readonly CancellationTokenSource _disposeCts = new();
     private readonly DateTimeOffset _sessionStart;
     private readonly TrackedObjectStore _trackedObjects = new();
@@ -293,6 +294,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         
         _metrics = options.Metrics ?? Diagnostics.Hex1bMetrics.Default;
         _escapeTimeout = options.EscapeSequenceTimeout ?? TimeSpan.FromMilliseconds(50);
+        _emulatorBackend = options.TerminalEmulatorBackend;
 
         // Subscribe to presentation events
         _presentation.Resized += OnPresentationResized;
@@ -1288,12 +1290,33 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
-                    
+
                     // Small delay to prevent busy-waiting in headless mode
                     await Task.Delay(10, ct);
                     continue;
                 }
-                
+
+                // When an external emulator backend is set, delegate all output
+                // processing to it and skip the built-in tokenizer/ApplyTokens pipeline.
+                if (_emulatorBackend != null)
+                {
+                    _emulatorBackend.ProcessOutput(data.Span);
+
+                    // Sync state from the backend so Hex1b's APIs see current values
+                    _cursorX = _emulatorBackend.CursorX;
+                    _cursorY = _emulatorBackend.CursorY;
+                    _inAlternateScreen = _emulatorBackend.InAlternateScreen;
+                    _windowTitle = _emulatorBackend.Title ?? "";
+
+                    // Forward raw bytes to presentation
+                    if (_presentation != null)
+                    {
+                        await _presentation.WriteOutputAsync(data, ct);
+                        _metrics.TerminalOutputBytes.Record(data.Length);
+                    }
+                    continue;
+                }
+
                 string? completeText = null;
                 IReadOnlyList<AnsiToken> tokens;
 
@@ -1752,9 +1775,15 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            // When an external emulator backend is set, get the buffer from it
+            if (_emulatorBackend != null)
+            {
+                return _emulatorBackend.GetScreenBuffer(_width, _height);
+            }
+
             var copy = new TerminalCell[_height, _width];
             Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
-            
+
             if (addTrackedObjectRefs)
             {
                 for (int y = 0; y < _height; y++)
@@ -1765,7 +1794,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     }
                 }
             }
-            
+
             return copy;
         }
     }
@@ -1997,6 +2026,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         lock (_bufferLock)
         {
+            // Notify the external emulator backend of the resize
+            _emulatorBackend?.Resize(newWidth, newHeight);
+
             // Check if the presentation adapter supports reflow and has it enabled
             if (_presentation is ITerminalReflowProvider { ReflowEnabled: true } reflowProvider)
             {
@@ -5785,6 +5817,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         _workload.DisposeAsync().AsTask().GetAwaiter().GetResult();
+        _emulatorBackend?.Dispose();
 
         _escapeFlushTimer?.Dispose();
 
@@ -5834,6 +5867,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         }
 
         await _workload.DisposeAsync();
+        _emulatorBackend?.Dispose();
 
         _escapeFlushTimer?.Dispose();
 

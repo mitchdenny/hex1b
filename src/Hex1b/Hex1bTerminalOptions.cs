@@ -126,6 +126,18 @@ public sealed class Hex1bTerminalOptions
     public TimeSpan? EscapeSequenceTimeout { get; set; }
 
     /// <summary>
+    /// Optional external terminal emulator backend that replaces Hex1b's built-in
+    /// VT parser and screen buffer management.
+    /// </summary>
+    /// <remarks>
+    /// When set, the terminal delegates output processing to this backend instead of
+    /// using the built-in <see cref="Tokens.AnsiTokenizer"/> and token application pipeline.
+    /// The backend owns the terminal state (cursor, screen buffer, modes) and is queried
+    /// by <see cref="Hex1bTerminal.CreateSnapshot()"/> for the current screen content.
+    /// </remarks>
+    public ITerminalEmulatorBackend? TerminalEmulatorBackend { get; set; }
+
+    /// <summary>
     /// Validates the options and throws if invalid.
     /// </summary>
     internal void Validate()
