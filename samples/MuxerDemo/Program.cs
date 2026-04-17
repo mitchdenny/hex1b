@@ -45,9 +45,28 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
         app = a;
         return ctx =>
         {
+            Hex1bWidget content;
             if (view == "terminal" && terminalHandle is not null)
-                return BuildTerminalView(ctx, terminalHandle);
-            return BuildSessionListView(ctx);
+                content = BuildTerminalView(ctx, terminalHandle);
+            else
+                content = BuildSessionListView(ctx);
+
+            // Register chords once at the root to avoid global binding conflicts
+            return content.WithInputBindings(bindings =>
+            {
+                bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
+                    .Global().OverridesCapture()
+                    .Action(_ => app?.RequestStop(), "Detach");
+
+                bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.S)
+                    .Global().OverridesCapture()
+                    .Action(_ =>
+                    {
+                        view = "sessions";
+                        statusMessage = null;
+                        app?.Invalidate();
+                    }, "Sessions");
+            });
         };
     })
     .Build();
@@ -93,13 +112,7 @@ Hex1bWidget BuildSessionListView<TParent>(WidgetContext<TParent> ctx) where TPar
             s.Section("Ctrl+B D"),
             s.Section("Quit")
         ]).WithDefaultSeparator(" ")
-    ])
-    .WithInputBindings(bindings =>
-    {
-        bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
-            .Global().OverridesCapture()
-            .Action(_ => app?.RequestStop(), "Quit");
-    });
+    ]);
 }
 
 Hex1bWidget BuildTerminalView<TParent>(WidgetContext<TParent> ctx, TerminalWidgetHandle handle) where TParent : Hex1bWidget
@@ -122,22 +135,7 @@ Hex1bWidget BuildTerminalView<TParent>(WidgetContext<TParent> ctx, TerminalWidge
             s.Section(connectedSessionName ?? ""),
             s.Section(dims)
         ]).WithDefaultSeparator(" ")
-    ])
-    .WithInputBindings(bindings =>
-    {
-        bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.S)
-            .Global().OverridesCapture()
-            .Action(_ =>
-            {
-                view = "sessions";
-                statusMessage = null;
-                app?.Invalidate();
-            }, "Sessions");
-
-        bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
-            .Global().OverridesCapture()
-            .Action(_ => app?.RequestStop(), "Detach");
-    });
+    ]);
 }
 
 // === Session management ===
