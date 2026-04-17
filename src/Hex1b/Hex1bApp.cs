@@ -1235,9 +1235,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             var handle = terminalNode.Handle;
             
-            // Translate child cursor position to screen coordinates
+            // Translate child cursor position to screen coordinates.
+            // When the terminal is in scrollback mode, the active buffer content is shifted
+            // down by the scrollback offset, so the cursor position must shift accordingly.
             var screenCursorX = terminalNode.Bounds.X + handle.CursorX;
-            var screenCursorY = terminalNode.Bounds.Y + handle.CursorY;
+            var screenCursorY = terminalNode.Bounds.Y + handle.CursorY + terminalNode.ScrollbackOffset;
             var shape = handle.CursorShape;
             var visible = handle.CursorVisible;
             
@@ -1260,7 +1262,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             
             if (visible && 
                 screenCursorX >= 0 && screenCursorX < _context.Width &&
-                screenCursorY >= 0 && screenCursorY < _context.Height)
+                screenCursorY >= 0 && screenCursorY < _context.Height &&
+                screenCursorY < terminalNode.Bounds.Y + terminalNode.Bounds.Height)
             {
                 _context.SetCursorPosition(screenCursorX, screenCursorY);
                 _context.Write("\x1b[?25h"); // Show cursor
