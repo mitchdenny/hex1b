@@ -41,6 +41,7 @@ string? connectedSocketPath = null;
 string? statusMessage = null;
 
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bApp((a, _) =>
     {
         app = a;
@@ -266,6 +267,7 @@ async Task ConnectToSessionAsync(SessionInfo session)
         embeddedTerminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(muxerAdapter.RemoteWidth, muxerAdapter.RemoteHeight)
             .WithWorkload(muxerAdapter)
+            .WithScrollback()
             .WithTerminalWidget(out var handle)
             .Build();
 
