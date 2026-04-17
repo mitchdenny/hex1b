@@ -499,6 +499,13 @@ public sealed class TerminalNode : Hex1bNode
         // Mark this version as rendered (we'll check if more output arrived after this)
         _lastRenderedVersion = currentVersion;
         
+        // Clear the entire terminal region before rendering rows.
+        // This is necessary because empty terminal cells (TerminalCell.Empty) have null
+        // foreground/background, which produces transparent SurfaceCells. Without clearing,
+        // empty rows below the cursor won't overwrite content from a previous frame
+        // (e.g., after scrolling back from scrollback mode to live mode).
+        context.ClearRegion(Bounds);
+        
         if (_scrollbackOffset > 0)
         {
             RenderWithScrollback(context, buffer, handleWidth, handleHeight);
