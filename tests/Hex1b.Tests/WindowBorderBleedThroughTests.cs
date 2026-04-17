@@ -351,6 +351,191 @@ public class WindowBorderBleedThroughTests
     }
 
     /// <summary>
+    /// Verifies that window border background is uniform around all edges, including
+    /// the title bar row. The left and right border cells adjacent to the title bar
+    /// must have the same background as all other border cells (the content background),
+    /// NOT the title bar background color.
+    /// </summary>
+    /// <remarks>
+    /// <para><strong>Why this matters:</strong></para>
+    /// <para>
+    /// The title bar row has a distinct background color (e.g., dark gray) for the inner
+    /// content area (window title, close button). But the border characters (│) on the
+    /// left and right edges of that row are part of the window's border frame, not the
+    /// title bar content. They should match the rest of the border's background color
+    /// for a consistent, uniform border appearance.
+    /// </para>
+    ///
+    /// <para><strong>Test layout:</strong></para>
+    /// <code>
+    ///   ┌────────────────────┐  ← top border:     bg = content bg (uniform)
+    ///   │ Window Title     × │  ← title bar row:  border │ = content bg, inner = title bg
+    ///   │ Content here       │  ← content row:    border │ = content bg, inner = content bg
+    ///   │                    │
+    ///   └────────────────────┘  ← bottom border:  bg = content bg (uniform)
+    ///
+    ///   All border characters should have the SAME background color (content bg).
+    ///   The title bar's distinct background should only apply to the INNER area.
+    /// </code>
+    /// </remarks>
+    [Fact]
+    public async Task WindowBorder_TitleBarRow_HasUniformBorderBackground()
+    {
+        const int terminalWidth = 60;
+        const int terminalHeight = 20;
+
+        // Window position and size
+        const int windowOffsetX = 5;
+        const int windowOffsetY = 2;
+        const int windowWidth = 40;
+        const int windowHeight = 10;
+
+        // Panel starts at row 1 (MenuBar at row 0)
+        const int panelStartRow = 1;
+        const int windowAbsX = windowOffsetX;
+        const int windowAbsY = panelStartRow + windowOffsetY;
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(terminalWidth, terminalHeight)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VStack(outer => [
+                    outer.MenuBar(m => [
+                        m.Menu("Setup", menu => [
+                            menu.MenuItem("Open").OnActivated(e =>
+                            {
+                                var window = e.Windows.Window(w =>
+                                    new VStackWidget([
+                                        new TextBlockWidget("Test content"),
+                                    ]))
+                                    .Title("Test Window")
+                                    .Size(windowWidth, windowHeight)
+                                    .Position(new WindowPositionSpec(WindowPosition.TopLeft, windowOffsetX, windowOffsetY));
+                                e.Windows.Open(window);
+                            })
+                        ])
+                    ]),
+                    outer.WindowPanel()
+                        .Height(SizeHint.Fill)
+                ])
+            ),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        // Open the window via menu
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Setup"), TimeSpan.FromSeconds(5), "menu rendered")
+            .Alt().Key(Hex1bKey.S)
+            .WaitUntil(s => s.ContainsText("Open"), TimeSpan.FromSeconds(5), "menu opened")
+            .Key(Hex1bKey.Enter)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Test content"), TimeSpan.FromSeconds(5), "window rendered")
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("border-uniform-bg")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        await runTask;
+
+        // Collect the background color of every border cell around the window.
+        // All border cells should have the same background color (the content bg).
+        //
+        // Window layout (with title bar):
+        //   Row 0 (abs windowAbsY):   top border     ┌─────────┐
+        //   Row 1 (abs windowAbsY+1): title bar row  │ Title × │
+        //   Row 2+ (abs windowAbsY+2..): content     │ ...     │
+        //   Last row:                  bottom border  └─────────┘
+
+        var borderCellBgs = new List<(int x, int y, string ch, Hex1bColor? bg)>();
+
+        // Top border (row = windowAbsY)
+        for (int col = windowAbsX; col < windowAbsX + windowWidth; col++)
+        {
+            var c = snapshot.GetCell(col, windowAbsY);
+            borderCellBgs.Add((col, windowAbsY, c.Character, c.Background));
+        }
+
+        // Bottom border (row = windowAbsY + windowHeight - 1)
+        int bottomRow = windowAbsY + windowHeight - 1;
+        for (int col = windowAbsX; col < windowAbsX + windowWidth; col++)
+        {
+            var c = snapshot.GetCell(col, bottomRow);
+            borderCellBgs.Add((col, bottomRow, c.Character, c.Background));
+        }
+
+        // Left border (col = windowAbsX, all rows including title bar)
+        for (int row = windowAbsY; row < windowAbsY + windowHeight; row++)
+        {
+            var c = snapshot.GetCell(windowAbsX, row);
+            borderCellBgs.Add((windowAbsX, row, c.Character, c.Background));
+        }
+
+        // Right border (col = windowAbsX + windowWidth - 1, all rows including title bar)
+        int rightCol = windowAbsX + windowWidth - 1;
+        for (int row = windowAbsY; row < windowAbsY + windowHeight; row++)
+        {
+            var c = snapshot.GetCell(rightCol, row);
+            borderCellBgs.Add((rightCol, row, c.Character, c.Background));
+        }
+
+        // Find the most common background color among border cells (should be the content bg)
+        var bgGroups = borderCellBgs
+            .Where(c => c.bg.HasValue)
+            .GroupBy(c => (c.bg!.Value.R, c.bg.Value.G, c.bg.Value.B))
+            .OrderByDescending(g => g.Count())
+            .ToList();
+
+        Assert.True(bgGroups.Count > 0, "No border cells with background color found");
+
+        var expectedBg = bgGroups[0].Key;
+
+        // Assert: every border cell should have the same background
+        var mismatchCells = borderCellBgs
+            .Where(c => c.bg.HasValue &&
+                (c.bg.Value.R != expectedBg.R || c.bg.Value.G != expectedBg.G || c.bg.Value.B != expectedBg.B))
+            .Distinct()
+            .ToList();
+
+        if (mismatchCells.Count > 0)
+        {
+            var diagnostics = new System.Text.StringBuilder();
+            diagnostics.AppendLine("=== NON-UNIFORM BORDER BACKGROUND DETECTED ===");
+            diagnostics.AppendLine();
+            diagnostics.AppendLine($"Expected uniform border background: rgb({expectedBg.R},{expectedBg.G},{expectedBg.B})");
+            diagnostics.AppendLine($"Found {mismatchCells.Count} border cell(s) with different background:");
+            diagnostics.AppendLine();
+            foreach (var (cx, cy, ch, bg) in mismatchCells)
+            {
+                var bgStr = bg.HasValue ? $"rgb({bg.Value.R},{bg.Value.G},{bg.Value.B})" : "none";
+                diagnostics.AppendLine($"  • ({cx},{cy}) '{ch}' bg={bgStr}");
+            }
+            diagnostics.AppendLine();
+            diagnostics.AppendLine("All border cells:");
+            foreach (var (cx, cy, ch, bg) in borderCellBgs.Distinct())
+            {
+                var bgStr = bg.HasValue ? $"rgb({bg.Value.R},{bg.Value.G},{bg.Value.B})" : "none";
+                diagnostics.AppendLine($"  [{cx},{cy}] '{ch}' bg={bgStr}");
+            }
+            diagnostics.AppendLine();
+            diagnostics.AppendLine("Screen:");
+            diagnostics.AppendLine(DumpScreen(snapshot, terminalHeight, terminalWidth));
+
+            Assert.Fail(diagnostics.ToString());
+        }
+    }
+
+    /// <summary>
     /// Dumps a row of cells with their character and background color for diagnostics.
     /// </summary>
     private static string DumpRow(Automation.IHex1bTerminalRegion snap, int row, int startCol, int endCol)

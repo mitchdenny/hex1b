@@ -746,7 +746,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         // Draw title bar (row below top border) if enabled
         if (height > 1 && ShowTitleBar && IsRowVisible(y + 1))
         {
-            RenderComposableTitleBar(context, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
+            RenderComposableTitleBar(context, x, y + 1, innerWidth, borderFg, titleFg, titleBg, contentBgCode, vertical, resetToGlobal);
         }
 
         // Draw content area rows with resize thumbs on hover
@@ -898,12 +898,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string borderFg,
         Hex1bColor titleFg,
         Hex1bColor titleBg,
+        string borderBg,
         string vertical,
         string resetToGlobal)
     {
-        // Render left border
-        var titleBorderBg = titleBg.ToBackgroundAnsi();
-        context.WriteClipped(x, titleBarY, $"{titleBorderBg}{borderFg}{vertical}{resetToGlobal}");
+        // Render left border — uses the uniform border background, not the title bar background
+        context.WriteClipped(x, titleBarY, $"{borderBg}{borderFg}{vertical}{resetToGlobal}");
 
         // Render the composable title bar content with title bar background
         if (_titleBarNode != null)
@@ -921,8 +921,8 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             context.AmbientBackground = previousAmbient;
         }
 
-        // Render right border
-        context.WriteClipped(x + innerWidth + 1, titleBarY, $"{titleBorderBg}{borderFg}{vertical}{resetToGlobal}");
+        // Render right border — uses the uniform border background, not the title bar background
+        context.WriteClipped(x + innerWidth + 1, titleBarY, $"{borderBg}{borderFg}{vertical}{resetToGlobal}");
     }
 
     /// <summary>
