@@ -48,6 +48,11 @@ public sealed class TerminalNode : Hex1bNode
     private int _scrollbackOffset;
     
     /// <summary>
+    /// Number of rows to scroll per mouse wheel tick.
+    /// </summary>
+    internal int MouseWheelScrollAmount { get; set; } = 3;
+    
+    /// <summary>
     /// Gets or sets the terminal handle this node renders from.
     /// </summary>
     public TerminalWidgetHandle? Handle
@@ -169,8 +174,8 @@ public sealed class TerminalNode : Hex1bNode
         bindings.Shift().Key(Hex1bKey.End).Triggers(TerminalWidget.ScrollToBottom, ScrollToBottomHandler, "Scroll to bottom (live view)");
         
         // Mouse wheel scrollback (only when child has NOT enabled mouse tracking)
-        bindings.Mouse(MouseButton.ScrollUp).Triggers(TerminalWidget.ScrollUpLine, ScrollUpLineHandler, "Scroll up one line");
-        bindings.Mouse(MouseButton.ScrollDown).Triggers(TerminalWidget.ScrollDownLine, ScrollDownLineHandler, "Scroll down one line");
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TerminalWidget.ScrollUpLine, MouseScrollUpHandler, "Scroll up");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TerminalWidget.ScrollDownLine, MouseScrollDownHandler, "Scroll down");
     }
     
     private Task ScrollUpLineHandler(InputBindingActionContext ctx)
@@ -182,6 +187,18 @@ public sealed class TerminalNode : Hex1bNode
     private Task ScrollDownLineHandler(InputBindingActionContext ctx)
     {
         AdjustScrollbackOffset(-1);
+        return Task.CompletedTask;
+    }
+    
+    private Task MouseScrollUpHandler(InputBindingActionContext ctx)
+    {
+        AdjustScrollbackOffset(MouseWheelScrollAmount);
+        return Task.CompletedTask;
+    }
+    
+    private Task MouseScrollDownHandler(InputBindingActionContext ctx)
+    {
+        AdjustScrollbackOffset(-MouseWheelScrollAmount);
         return Task.CompletedTask;
     }
     

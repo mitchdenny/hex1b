@@ -63,6 +63,11 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
     /// </summary>
     internal Func<TerminalNotRunningArgs, Hex1bWidget>? NotRunningBuilder { get; init; }
     
+    /// <summary>
+    /// Gets the number of rows to scroll per mouse wheel tick. Defaults to 3.
+    /// </summary>
+    public int MouseWheelScrollAmount { get; init; } = 3;
+    
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TerminalNode ?? new TerminalNode();
@@ -76,6 +81,7 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         node.Handle = Handle;
         node.SourceWidget = this;
         node.NotRunningBuilder = NotRunningBuilder;
+        node.MouseWheelScrollAmount = MouseWheelScrollAmount;
         
         // Set the invalidate callback so the node can trigger re-renders when output arrives
         if (context.InvalidateCallback != null)
