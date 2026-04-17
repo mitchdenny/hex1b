@@ -867,7 +867,22 @@ public static class SurfaceComparer
 
     private static string BuildColorSgr(Hex1bColor color, bool isForeground)
     {
-        // Use 24-bit color (SGR 38;2;r;g;b for foreground, 48;2;r;g;b for background)
+        if (color.IsIndexed)
+        {
+            var idx = color.Index;
+            if (isForeground)
+            {
+                if (idx < 8) return $"{30 + idx}";
+                if (idx < 16) return $"{90 + idx - 8}";
+                return $"38;5;{idx}";
+            }
+            else
+            {
+                if (idx < 8) return $"{40 + idx}";
+                if (idx < 16) return $"{100 + idx - 8}";
+                return $"48;5;{idx}";
+            }
+        }
         var prefix = isForeground ? "38;2" : "48;2";
         return $"{prefix};{color.R};{color.G};{color.B}";
     }

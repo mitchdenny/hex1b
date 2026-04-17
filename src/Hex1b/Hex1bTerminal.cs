@@ -5745,49 +5745,23 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
     private static Hex1bColor StandardColorFromCode(int code) => code switch
     {
-        0 => Hex1bColor.FromRgb(0, 0, 0),
-        1 => Hex1bColor.FromRgb(128, 0, 0),
-        2 => Hex1bColor.FromRgb(0, 128, 0),
-        3 => Hex1bColor.FromRgb(128, 128, 0),
-        4 => Hex1bColor.FromRgb(0, 0, 128),
-        5 => Hex1bColor.FromRgb(128, 0, 128),
-        6 => Hex1bColor.FromRgb(0, 128, 128),
-        7 => Hex1bColor.FromRgb(192, 192, 192),
-        _ => Hex1bColor.FromRgb(128, 128, 128)
+        >= 0 and <= 7 => Hex1bColor.FromIndex((byte)code),
+        _ => Hex1bColor.FromIndex(7)
     };
 
     private static Hex1bColor BrightColorFromCode(int code) => code switch
     {
-        0 => Hex1bColor.FromRgb(128, 128, 128),
-        1 => Hex1bColor.FromRgb(255, 0, 0),
-        2 => Hex1bColor.FromRgb(0, 255, 0),
-        3 => Hex1bColor.FromRgb(255, 255, 0),
-        4 => Hex1bColor.FromRgb(0, 0, 255),
-        5 => Hex1bColor.FromRgb(255, 0, 255),
-        6 => Hex1bColor.FromRgb(0, 255, 255),
-        7 => Hex1bColor.FromRgb(255, 255, 255),
-        _ => Hex1bColor.FromRgb(192, 192, 192)
+        >= 0 and <= 7 => Hex1bColor.FromIndex((byte)(code + 8)),
+        _ => Hex1bColor.FromIndex(7)
     };
 
     private static Hex1bColor Color256FromIndex(int index)
     {
-        if (index < 16)
+        if (index is >= 0 and <= 255)
         {
-            return index < 8 ? StandardColorFromCode(index) : BrightColorFromCode(index - 8);
+            return Hex1bColor.FromIndex((byte)index);
         }
-        else if (index < 232)
-        {
-            index -= 16;
-            var r = (index / 36) * 51;
-            var g = ((index / 6) % 6) * 51;
-            var b = (index % 6) * 51;
-            return Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
-        }
-        else
-        {
-            var gray = (index - 232) * 10 + 8;
-            return Hex1bColor.FromRgb((byte)gray, (byte)gray, (byte)gray);
-        }
+        return Hex1bColor.FromRgb(0, 0, 0);
     }
 
     /// <inheritdoc />

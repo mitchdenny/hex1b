@@ -40,6 +40,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
     private readonly string? _workingDirectory;
     private readonly Dictionary<string, string>? _environment;
     private readonly bool _inheritEnvironment;
+    private readonly Action<Dictionary<string, string>>? _configureEnvironment;
     private readonly Func<IPtyHandle> _ptyHandleFactory;
     
     private int _width;
@@ -102,7 +103,8 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         bool inheritEnvironment,
         int initialWidth,
         int initialHeight,
-        Func<IPtyHandle> ptyHandleFactory)
+        Func<IPtyHandle> ptyHandleFactory,
+        Action<Dictionary<string, string>>? configureEnvironment = null)
     {
         _fileName = fileName ?? throw new ArgumentNullException(nameof(fileName));
         _arguments = arguments ?? [];
@@ -110,6 +112,7 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         _environment = environment;
         _inheritEnvironment = inheritEnvironment;
         _ptyHandleFactory = ptyHandleFactory ?? throw new ArgumentNullException(nameof(ptyHandleFactory));
+        _configureEnvironment = configureEnvironment;
         _width = initialWidth;
         _height = initialHeight;
     }
@@ -332,6 +335,22 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             env["TERM"] = "xterm-256color";
         }
         
+        // Hex1b's terminal emulator supports 24-bit true color. Advertise this so
+        // child shells and TUI tools can use full RGB colors instead of falling back
+        // to 256 or 16 colors. COLORTERM=truecolor is the de facto standard used by
+        // all major terminal emulators (kitty, ghostty, iTerm2, Windows Terminal, etc.).
+        if (!env.ContainsKey("COLORTERM"))
+        {
+            env["COLORTERM"] = "truecolor";
+        }
+        
+        // Identify Hex1b as the hosting terminal emulator so child processes can
+        // detect capabilities (e.g., AutoReflowStrategy) and tools can tailor behavior.
+        if (!env.ContainsKey("TERM_PROGRAM"))
+        {
+            env["TERM_PROGRAM"] = "hex1b";
+        }
+        
         // Set HEX1B_NESTING_LEVEL to track nested terminal depth
         // If already set, increment it; otherwise set to 1
         const string nestingLevelKey = "HEX1B_NESTING_LEVEL";
@@ -351,6 +370,9 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
                 env[key] = value;
             }
         }
+        
+        // Invoke the optional callback for final customization
+        _configureEnvironment?.Invoke(env);
         
         return env;
     }

@@ -39,18 +39,18 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         string resolvedPath = ResolveExecutablePath(fileName);
         
         // The native pty_forkpty functions inherit the parent's environment.
-        // We need to temporarily set HEX1B_NESTING_LEVEL so the child inherits the correct value,
-        // then restore the original value after fork.
-        // Note: This is not thread-safe, but acceptable for this diagnostic variable.
-        const string nestingLevelKey = "HEX1B_NESTING_LEVEL";
-        string? originalNestingLevel = System.Environment.GetEnvironmentVariable(nestingLevelKey);
+        // We need to temporarily set all environment variables from the dictionary
+        // so the child inherits the correct values, then restore the originals after fork.
+        // Note: This is not thread-safe, but acceptable for typical terminal-start scenarios.
+        var savedEnvironment = new Dictionary<string, string?>();
         
         try
         {
-            // Set the nesting level from the environment dictionary (which has the incremented value)
-            if (environment.TryGetValue(nestingLevelKey, out var newNestingLevel))
+            // Apply all environment dictionary entries to the parent process
+            foreach (var (key, value) in environment)
             {
-                System.Environment.SetEnvironmentVariable(nestingLevelKey, newNestingLevel);
+                savedEnvironment[key] = System.Environment.GetEnvironmentVariable(key);
+                System.Environment.SetEnvironmentVariable(key, value);
             }
             
             int result;
@@ -102,8 +102,11 @@ internal sealed partial class UnixPtyHandle : IPtyHandle
         }
         finally
         {
-            // Restore the original nesting level in the parent process
-            System.Environment.SetEnvironmentVariable(nestingLevelKey, originalNestingLevel);
+            // Restore all original environment values in the parent process
+            foreach (var (key, originalValue) in savedEnvironment)
+            {
+                System.Environment.SetEnvironmentVariable(key, originalValue);
+            }
         }
         
         // Small delay to let child process initialize

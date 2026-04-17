@@ -66,8 +66,13 @@ shellBuilder = OperatingSystem.IsWindows()
     {
         options.FileName = "pwsh.exe";
         options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+        options.ConfigureEnvironment = env => env["COLORTERM"] = "truecolor";
     })
-    : shellBuilder.WithPtyProcess("/bin/bash");
+    : shellBuilder.WithPtyProcess(options =>
+    {
+        options.FileName = "/bin/bash";
+        options.ConfigureEnvironment = env => env["COLORTERM"] = "truecolor";
+    });
 
 var bash = shellBuilder
     .WithDimensions(ptyWidth, ptyHeight)

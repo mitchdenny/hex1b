@@ -409,7 +409,8 @@ public sealed class Hex1bTerminalBuilder
                 initialHeight: height,
                 ptyHandleFactory: () => Hex1bTerminalChildProcess.CreatePtyHandle(
                     options.WindowsPtyMode,
-                    options.WindowsPtyHostPath));
+                    options.WindowsPtyHostPath),
+                configureEnvironment: options.ConfigureEnvironment);
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -1399,6 +1400,23 @@ public sealed class Hex1bTerminalProcessOptions
     /// Defaults to true.
     /// </summary>
     public bool InheritEnvironment { get; set; } = true;
+
+    /// <summary>
+    /// Gets or sets an optional callback to inspect and modify the final environment dictionary
+    /// before it is passed to the child process. The callback is invoked after the environment
+    /// is constructed (inheriting parent variables, setting TERM/COLORTERM/TERM_PROGRAM/HEX1B_NESTING_LEVEL,
+    /// and applying <see cref="Environment"/> overrides).
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// options.ConfigureEnvironment = env =>
+    /// {
+    ///     env.Remove("SECRET_TOKEN");
+    ///     env["MY_CUSTOM_VAR"] = "value";
+    /// };
+    /// </code>
+    /// </example>
+    public Action<Dictionary<string, string>>? ConfigureEnvironment { get; set; }
 
     /// <summary>
     /// Gets or sets how Hex1b should choose the Windows PTY backend.
