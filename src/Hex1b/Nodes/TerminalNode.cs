@@ -192,12 +192,32 @@ public sealed class TerminalNode : Hex1bNode
     
     private Task MouseScrollUpHandler(InputBindingActionContext ctx)
     {
+        // When child has enabled mouse tracking, forward scroll to the terminal
+        // instead of controlling the scrollback view
+        if (_handle?.MouseTrackingEnabled == true)
+        {
+            // Convert absolute screen coordinates to terminal-local coordinates
+            var localX = ctx.MouseX - Bounds.X;
+            var localY = ctx.MouseY - Bounds.Y;
+            var scrollEvent = new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, localX, localY, Hex1bModifiers.None);
+            _ = _handle.SendEventAsync(scrollEvent);
+            return Task.CompletedTask;
+        }
         AdjustScrollbackOffset(MouseWheelScrollAmount);
         return Task.CompletedTask;
     }
     
     private Task MouseScrollDownHandler(InputBindingActionContext ctx)
     {
+        // When child has enabled mouse tracking, forward scroll to the terminal
+        if (_handle?.MouseTrackingEnabled == true)
+        {
+            var localX = ctx.MouseX - Bounds.X;
+            var localY = ctx.MouseY - Bounds.Y;
+            var scrollEvent = new Hex1bMouseEvent(MouseButton.ScrollDown, MouseAction.Down, localX, localY, Hex1bModifiers.None);
+            _ = _handle.SendEventAsync(scrollEvent);
+            return Task.CompletedTask;
+        }
         AdjustScrollbackOffset(-MouseWheelScrollAmount);
         return Task.CompletedTask;
     }
