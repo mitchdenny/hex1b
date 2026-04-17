@@ -51,15 +51,17 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             else
                 content = BuildSessionListView(ctx);
 
-            // Register chords once at the root to avoid global binding conflicts
+            // Register chords on the root widget. Input bubbles up from focused
+            // children, so these work like global shortcuts without triggering
+            // the global binding conflict detector.
             return content.WithInputBindings(bindings =>
             {
                 bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
-                    .Global().OverridesCapture()
+                    .OverridesCapture()
                     .Action(_ => app?.RequestStop(), "Detach");
 
                 bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.S)
-                    .Global().OverridesCapture()
+                    .OverridesCapture()
                     .Action(_ =>
                     {
                         view = "sessions";
