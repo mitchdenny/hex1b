@@ -731,6 +731,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
 
         var borderFg = borderColor.ToForegroundAnsi();
         var thumbFg = thumbColor.ToForegroundAnsi();
+        var contentBgCode = contentBg.ToBackgroundAnsi();
 
         // Draw top border with potential thumbs
         if (IsRowVisible(y))
@@ -739,17 +740,16 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                 ResizeEdge.Top, ResizeEdge.TopLeft, ResizeEdge.TopRight,
                 topLeft, topRight, horizontal,
                 thumbTopLeft, thumbTopRight, thumbHorizontal,
-                borderFg, thumbFg, resetToGlobal, hThumbSize);
+                borderFg, thumbFg, contentBgCode, resetToGlobal, hThumbSize);
         }
 
         // Draw title bar (row below top border) if enabled
         if (height > 1 && ShowTitleBar && IsRowVisible(y + 1))
         {
-            RenderComposableTitleBar(context, x, y + 1, innerWidth, borderFg, titleFg, titleBg, vertical, resetToGlobal);
+            RenderComposableTitleBar(context, x, y + 1, innerWidth, borderFg, titleFg, titleBg, contentBgCode, vertical, resetToGlobal);
         }
 
         // Draw content area rows with resize thumbs on hover
-        var contentBgCode = contentBg.ToBackgroundAnsi();
         var contentStartRow = ShowTitleBar ? 2 : 1;
 
         // Calculate vertical thumb range (centered on edge)
@@ -767,11 +767,11 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             var inLeftThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
             if (inLeftThumb)
             {
-                rowContent.Append($"{thumbFg}{thumbVertical}{resetToGlobal}");
+                rowContent.Append($"{contentBgCode}{thumbFg}{thumbVertical}{resetToGlobal}");
             }
             else
             {
-                rowContent.Append($"{borderFg}{vertical}{resetToGlobal}");
+                rowContent.Append($"{contentBgCode}{borderFg}{vertical}{resetToGlobal}");
             }
             
             rowContent.Append($"{contentBgCode}{new string(' ', innerWidth)}{resetToGlobal}");
@@ -780,11 +780,11 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             var inRightThumb = showAllThumbs && row >= vThumbStart && row < vThumbEnd;
             if (inRightThumb)
             {
-                rowContent.Append($"{thumbFg}{thumbVertical}{resetToGlobal}");
+                rowContent.Append($"{contentBgCode}{thumbFg}{thumbVertical}{resetToGlobal}");
             }
             else
             {
-                rowContent.Append($"{borderFg}{vertical}{resetToGlobal}");
+                rowContent.Append($"{contentBgCode}{borderFg}{vertical}{resetToGlobal}");
             }
             
             context.WriteClipped(x, y + row, rowContent.ToString());
@@ -797,7 +797,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
                 ResizeEdge.Bottom, ResizeEdge.BottomLeft, ResizeEdge.BottomRight,
                 bottomLeft, bottomRight, horizontal,
                 thumbBottomLeft, thumbBottomRight, thumbHorizontal,
-                borderFg, thumbFg, resetToGlobal, hThumbSize);
+                borderFg, thumbFg, contentBgCode, resetToGlobal, hThumbSize);
         }
 
         // Render child content with this window as the layout provider for clipping
@@ -843,6 +843,7 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string thumbHorizontal,
         string borderFg,
         string thumbFg,
+        string borderBg,
         string resetToGlobal,
         int thumbSize)
     {
@@ -851,11 +852,11 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         // Left corner - show thumb when any edge is hovered
         if (showAllThumbs)
         {
-            sb.Append($"{thumbFg}{thumbLeftCorner}{resetToGlobal}");
+            sb.Append($"{borderBg}{thumbFg}{thumbLeftCorner}{resetToGlobal}");
         }
         else
         {
-            sb.Append($"{borderFg}{leftCorner}{resetToGlobal}");
+            sb.Append($"{borderBg}{borderFg}{leftCorner}{resetToGlobal}");
         }
 
         // Edge content - show thumb when any edge is hovered
@@ -864,23 +865,23 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             // Show thumb in center of edge
             var leftPad = (innerWidth - thumbSize) / 2;
             var rightPad = innerWidth - thumbSize - leftPad;
-            sb.Append($"{borderFg}{new string(horizontal[0], Math.Max(0, leftPad))}");
+            sb.Append($"{borderBg}{borderFg}{new string(horizontal[0], Math.Max(0, leftPad))}");
             sb.Append($"{thumbFg}{new string(thumbHorizontal[0], thumbSize)}{resetToGlobal}");
-            sb.Append($"{borderFg}{new string(horizontal[0], Math.Max(0, rightPad))}{resetToGlobal}");
+            sb.Append($"{borderBg}{borderFg}{new string(horizontal[0], Math.Max(0, rightPad))}{resetToGlobal}");
         }
         else
         {
-            sb.Append($"{borderFg}{new string(horizontal[0], innerWidth)}{resetToGlobal}");
+            sb.Append($"{borderBg}{borderFg}{new string(horizontal[0], innerWidth)}{resetToGlobal}");
         }
 
         // Right corner - show thumb when any edge is hovered
         if (showAllThumbs)
         {
-            sb.Append($"{thumbFg}{thumbRightCorner}{resetToGlobal}");
+            sb.Append($"{borderBg}{thumbFg}{thumbRightCorner}{resetToGlobal}");
         }
         else
         {
-            sb.Append($"{borderFg}{rightCorner}{resetToGlobal}");
+            sb.Append($"{borderBg}{borderFg}{rightCorner}{resetToGlobal}");
         }
 
         context.WriteClipped(x, y, sb.ToString());
@@ -897,11 +898,12 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
         string borderFg,
         Hex1bColor titleFg,
         Hex1bColor titleBg,
+        string borderBg,
         string vertical,
         string resetToGlobal)
     {
-        // Render left border
-        context.WriteClipped(x, titleBarY, $"{borderFg}{vertical}{resetToGlobal}");
+        // Render left border — uses the uniform border background, not the title bar background
+        context.WriteClipped(x, titleBarY, $"{borderBg}{borderFg}{vertical}{resetToGlobal}");
 
         // Render the composable title bar content with title bar background
         if (_titleBarNode != null)
@@ -919,8 +921,8 @@ public sealed class WindowNode : Hex1bNode, ILayoutProvider
             context.AmbientBackground = previousAmbient;
         }
 
-        // Render right border
-        context.WriteClipped(x + innerWidth + 1, titleBarY, $"{borderFg}{vertical}{resetToGlobal}");
+        // Render right border — uses the uniform border background, not the title bar background
+        context.WriteClipped(x + innerWidth + 1, titleBarY, $"{borderBg}{borderFg}{vertical}{resetToGlobal}");
     }
 
     /// <summary>
