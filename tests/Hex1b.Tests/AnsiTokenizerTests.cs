@@ -360,6 +360,84 @@ public class AnsiTokenizerTests
         Assert.False(pmToken.Enable);
     }
 
+    [Fact]
+    public void Tokenize_MultiplePrivateModesEnable_EmitsTokenPerMode()
+    {
+        // edit.exe sends this to enable mouse tracking + SGR mouse + bracketed paste
+        var result = AnsiTokenizer.Tokenize("\x1b[?1002;1006;2004h");
+
+        Assert.Equal(3, result.Count);
+        var pm0 = Assert.IsType<PrivateModeToken>(result[0]);
+        Assert.Equal(1002, pm0.Mode);
+        Assert.True(pm0.Enable);
+        var pm1 = Assert.IsType<PrivateModeToken>(result[1]);
+        Assert.Equal(1006, pm1.Mode);
+        Assert.True(pm1.Enable);
+        var pm2 = Assert.IsType<PrivateModeToken>(result[2]);
+        Assert.Equal(2004, pm2.Mode);
+        Assert.True(pm2.Enable);
+    }
+
+    [Fact]
+    public void Tokenize_MultiplePrivateModesDisable_EmitsTokenPerMode()
+    {
+        // edit.exe cleanup sequence
+        var result = AnsiTokenizer.Tokenize("\x1b[?1002;1006;2004l");
+
+        Assert.Equal(3, result.Count);
+        var pm0 = Assert.IsType<PrivateModeToken>(result[0]);
+        Assert.Equal(1002, pm0.Mode);
+        Assert.False(pm0.Enable);
+        var pm1 = Assert.IsType<PrivateModeToken>(result[1]);
+        Assert.Equal(1006, pm1.Mode);
+        Assert.False(pm1.Enable);
+        var pm2 = Assert.IsType<PrivateModeToken>(result[2]);
+        Assert.Equal(2004, pm2.Mode);
+        Assert.False(pm2.Enable);
+    }
+
+    [Fact]
+    public void Tokenize_TwoPrivateModesEnable_EmitsTokenPerMode()
+    {
+        // Common pattern: alt screen + cursor hide
+        var result = AnsiTokenizer.Tokenize("\x1b[?1049;25h");
+
+        Assert.Equal(2, result.Count);
+        Assert.Equal(1049, Assert.IsType<PrivateModeToken>(result[0]).Mode);
+        Assert.Equal(25, Assert.IsType<PrivateModeToken>(result[1]).Mode);
+    }
+
+    [Fact]
+    public void Tokenize_MultipleStandardModesEnable_EmitsTokenPerMode()
+    {
+        var result = AnsiTokenizer.Tokenize("\x1b[4;20h");
+
+        Assert.Equal(2, result.Count);
+        var sm0 = Assert.IsType<StandardModeToken>(result[0]);
+        Assert.Equal(4, sm0.Mode);
+        Assert.True(sm0.Enable);
+        var sm1 = Assert.IsType<StandardModeToken>(result[1]);
+        Assert.Equal(20, sm1.Mode);
+        Assert.True(sm1.Enable);
+    }
+
+    [Fact]
+    public void Tokenize_MouseTrackingModes_AllRecognized()
+    {
+        // Verify all mouse tracking private modes are correctly tokenized
+        var result1000 = AnsiTokenizer.Tokenize("\x1b[?1000h");
+        Assert.Equal(1000, Assert.IsType<PrivateModeToken>(Assert.Single(result1000)).Mode);
+
+        var result1002 = AnsiTokenizer.Tokenize("\x1b[?1002h");
+        Assert.Equal(1002, Assert.IsType<PrivateModeToken>(Assert.Single(result1002)).Mode);
+
+        var result1003 = AnsiTokenizer.Tokenize("\x1b[?1003h");
+        Assert.Equal(1003, Assert.IsType<PrivateModeToken>(Assert.Single(result1003)).Mode);
+
+        var result1006 = AnsiTokenizer.Tokenize("\x1b[?1006h");
+        Assert.Equal(1006, Assert.IsType<PrivateModeToken>(Assert.Single(result1006)).Mode);
+    }
+
     #endregion
 
     #region Cursor Shape Tests

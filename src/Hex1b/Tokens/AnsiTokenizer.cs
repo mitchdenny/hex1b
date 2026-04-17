@@ -310,20 +310,27 @@ public static class AnsiTokenizer
 
             case 'h':
             case 'l':
-                // Set/reset mode
-                if (isPrivateMode && int.TryParse(parameters, out var modeValue))
+                // Set/reset mode — may contain multiple semicolon-separated parameters
+                // e.g., CSI ? 1002;1006;2004 h (sets modes 1002, 1006, and 2004 at once)
+                if (isPrivateMode)
                 {
-                    tokens.Add(new PrivateModeToken(modeValue, command == 'h'));
-                }
-                else if (!isPrivateMode && int.TryParse(parameters, out var stdMode))
-                {
-                    // Standard (non-private) mode: CSI n h / CSI n l
-                    tokens.Add(new StandardModeToken(stdMode, command == 'h'));
+                    foreach (var part in parameters.Split(';'))
+                    {
+                        if (int.TryParse(part, out var modeValue))
+                        {
+                            tokens.Add(new PrivateModeToken(modeValue, command == 'h'));
+                        }
+                    }
                 }
                 else
                 {
-                    // Invalid or unsupported mode
-                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                    foreach (var part in parameters.Split(';'))
+                    {
+                        if (int.TryParse(part, out var stdMode))
+                        {
+                            tokens.Add(new StandardModeToken(stdMode, command == 'h'));
+                        }
+                    }
                 }
                 break;
 

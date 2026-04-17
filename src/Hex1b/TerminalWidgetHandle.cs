@@ -68,6 +68,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private bool _mouseTrackingEnabled;  // Mode 1000, 1002, or 1003
     private bool _sgrMouseModeEnabled;   // Mode 1006
     
+    // Alternate screen tracking - set when child sends mode 1049
+    private bool _inAlternateScreen;
+    
     // Cursor shape (from CursorShapeToken)
     private CursorShape _cursorShape = CursorShape.Default;
     
@@ -136,6 +139,13 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// Mouse events are only forwarded to the child when this is true.
     /// </summary>
     public bool MouseTrackingEnabled => _mouseTrackingEnabled;
+    
+    /// <summary>
+    /// Gets whether the child process is currently using the alternate screen buffer (mode 1049).
+    /// When true, scrollback viewing is disabled because alternate screen programs (vim, less, etc.)
+    /// manage their own scrolling.
+    /// </summary>
+    public bool InAlternateScreen => _inAlternateScreen;
     
     /// <summary>
     /// Gets the current lifecycle state of the terminal session.
@@ -270,6 +280,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             case 1006:
                 _sgrMouseModeEnabled = pm.Enable;
                 break;
+            
+            // Alternate screen buffer
+            case 1049:
+                _inAlternateScreen = pm.Enable;
+                break;
         }
     }
     
@@ -375,6 +390,13 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// <returns>A copy of the screen buffer cells.</returns>
     public TerminalCell[,] GetScreenBuffer()
     {
+        // Prefer the terminal's authoritative buffer when available
+        if (_terminal is { } terminal)
+        {
+            var (buffer, _, _, _, _) = terminal.GetScreenBufferSnapshot();
+            return buffer;
+        }
+        
         lock (_bufferLock)
         {
             var copy = new TerminalCell[_height, _width];
@@ -387,9 +409,29 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// Gets a snapshot of the current screen buffer with its dimensions.
     /// This is atomic - the dimensions will always match the buffer.
     /// </summary>
+    /// <remarks>
+    /// When a backing <see cref="Hex1bTerminal"/> is connected, this returns the terminal's
+    /// authoritative buffer rather than the handle's local copy. This ensures the snapshot
+    /// reflects the correct content after resize/reflow operations, where the terminal's
+    /// buffer is reflowed but the handle's local buffer may still have the old layout.
+    /// </remarks>
     /// <returns>A tuple containing the buffer copy, width, and height.</returns>
     public (TerminalCell[,] Buffer, int Width, int Height) GetScreenBufferSnapshot()
     {
+        // Prefer the terminal's authoritative buffer when available.
+        // The handle's local buffer can be stale after resize/reflow because:
+        // 1. Handle.Resize() does a simple copy of old content
+        // 2. Terminal.Resize() does a full reflow
+        // 3. The handle's buffer doesn't get the reflowed content
+        if (_terminal is { } terminal)
+        {
+            var (buffer, width, height, cursorX, cursorY) = terminal.GetScreenBufferSnapshot();
+            // Sync cursor position from the terminal's authoritative state
+            _cursorX = cursorX;
+            _cursorY = cursorY;
+            return (buffer, width, height);
+        }
+        
         lock (_bufferLock)
         {
             var copy = new TerminalCell[_height, _width];
@@ -410,6 +452,23 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             return _screenBuffer[y, x];
         }
     }
+    
+    /// <summary>
+    /// Gets a snapshot of the scrollback buffer rows from the underlying terminal.
+    /// Returns rows ordered oldest to newest.
+    /// </summary>
+    /// <param name="count">Maximum number of scrollback rows to return.</param>
+    /// <returns>Array of scrollback rows, or empty if scrollback is not enabled.</returns>
+    public ScrollbackRow[] GetScrollbackSnapshot(int count)
+    {
+        return _terminal?.GetScrollbackRows(count) ?? [];
+    }
+    
+    /// <summary>
+    /// Gets the number of rows currently in the scrollback buffer.
+    /// Returns 0 if scrollback is not enabled.
+    /// </summary>
+    public int ScrollbackCount => _terminal?.ScrollbackCount ?? 0;
     
     private void ClearBuffer()
     {

@@ -86,6 +86,7 @@ void OpenTerminalWindow(MenuItemActivatedEventArgs e, TerminalShellKind shellKin
         // terminal content size so the first prompt is laid out correctly.
         .WithDimensions(InitialTerminalColumns, InitialTerminalRows)
         .WithMouse()
+        .WithScrollback(1000)
         .WithPtyProcess(options =>
         {
             options.FileName = launchSpec.FileName;

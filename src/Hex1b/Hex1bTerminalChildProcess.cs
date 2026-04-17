@@ -186,10 +186,24 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
             ? Environment.CurrentDirectory
             : _workingDirectory;
 
+        // Capture the dimensions we'll create the PTY with. A concurrent ResizeAsync
+        // call may update _width/_height between now and when _started is set to true.
+        var startWidth = _width;
+        var startHeight = _height;
+
         // Start the process
-        await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, _width, _height, ct);
+        await _ptyHandle.StartAsync(_fileName, _arguments, workingDirectory, env, startWidth, startHeight, ct);
 
         _started = true;
+
+        // If a resize arrived while the PTY was being created (between reading
+        // _width/_height above and setting _started=true), _width/_height will
+        // differ from what the PTY was actually created with. Send a follow-up
+        // resize so the PTY matches the latest requested dimensions.
+        if (_width != startWidth || _height != startHeight)
+        {
+            _ptyHandle.Resize(_width, _height);
+        }
 
         // Signal that the process has started (allows ReadOutputAsync to proceed)
         _startedTcs.TrySetResult();

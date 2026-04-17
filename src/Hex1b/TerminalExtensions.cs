@@ -64,4 +64,15 @@ public static class TerminalExtensions
         this TerminalWidget widget,
         Func<TerminalNotRunningArgs, Hex1bWidget> builder)
         => widget with { NotRunningBuilder = builder };
+    
+    /// <summary>
+    /// Sets the number of rows to scroll per mouse wheel tick.
+    /// </summary>
+    /// <param name="widget">The TerminalWidget to configure.</param>
+    /// <param name="rows">Number of rows per scroll tick. Defaults to 3.</param>
+    /// <returns>The configured TerminalWidget.</returns>
+    public static TerminalWidget WithMouseWheelScrollAmount(
+        this TerminalWidget widget,
+        int rows)
+        => widget with { MouseWheelScrollAmount = rows };
 }

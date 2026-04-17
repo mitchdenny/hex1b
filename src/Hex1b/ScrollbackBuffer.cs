@@ -140,7 +140,7 @@ internal sealed class ScrollbackBuffer
 /// <summary>
 /// A single row stored in the scrollback buffer.
 /// </summary>
-internal readonly record struct ScrollbackRow(
+public readonly record struct ScrollbackRow(
     TerminalCell[] Cells,
     int OriginalWidth,
     DateTimeOffset Timestamp);
