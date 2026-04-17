@@ -104,19 +104,22 @@ public class TerminalNodeScrollbackTests
     #region TerminalNode - Input Interception
 
     [Fact]
-    public void HandleInput_WhenInScrollbackMode_DoesNotForwardKeyboard()
+    public void HandleInput_WhenInScrollbackMode_SnapsToLiveAndForwardsKeyboard()
     {
         var handle = CreateRunningHandle();
         var node = CreateBoundNode(handle);
 
         // Manually set scrollback offset to simulate being in scrollback mode
         SetScrollbackOffset(node, 5);
+        Assert.True(node.IsInScrollbackMode);
 
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.A, "a", Hex1bModifiers.None);
         var result = node.HandleInput(keyEvent);
 
-        // Should return NotHandled (not forwarded to terminal)
-        Assert.Equal(InputResult.NotHandled, result);
+        // Should snap back to live view and forward the key
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.ScrollbackOffset);
+        Assert.False(node.IsInScrollbackMode);
     }
 
     [Fact]

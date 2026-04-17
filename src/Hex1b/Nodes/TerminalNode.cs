@@ -253,14 +253,14 @@ public sealed class TerminalNode : Hex1bNode
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
         
-        // When in scrollback mode, don't forward keyboard input to the child terminal.
-        // The scrollback keybindings are handled by ConfigureDefaultBindings above.
-        // Any non-scrollback key press scrolls back to the live view and is then forwarded.
+        // When in scrollback mode and a non-scrollback key is pressed (no binding matched),
+        // snap back to live view and forward the keystroke to the terminal.
+        // This matches standard terminal behavior where typing snaps you back to the prompt.
         if (IsInScrollbackMode && inputEvent is Hex1bKeyEvent)
         {
-            // Let the input binding system handle it first (it will match scrollback actions).
-            // If no binding matched, this returns NotHandled and the key is consumed below.
-            return InputResult.NotHandled;
+            _scrollbackOffset = 0;
+            MarkDirty();
+            _invalidateCallback?.Invoke();
         }
         
         // Fire and forget - we don't want to block the input loop
