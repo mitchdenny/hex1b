@@ -84,7 +84,7 @@ internal sealed class DiagnosticNode
     /// Key properties of the node for debugging.
     /// </summary>
     [JsonPropertyName("properties")]
-    public Dictionary<string, object?>? Properties { get; set; }
+    public Dictionary<string, JsonElement>? Properties { get; set; }
     
     /// <summary>
     /// Child nodes.
@@ -128,51 +128,68 @@ internal sealed class DiagnosticNode
         return diagNode;
     }
     
-    private static Dictionary<string, object?>? GetNodeProperties(Hex1bNode node)
+    private static Dictionary<string, JsonElement>? GetNodeProperties(Hex1bNode node)
     {
-        var props = new Dictionary<string, object?>();
+        var props = new Dictionary<string, JsonElement>();
         
         // Add type-specific properties for common node types
         switch (node)
         {
             case ButtonNode button:
-                props["label"] = button.Label;
+                props["label"] = ToElement(button.Label);
                 break;
             case TextBlockNode textBlock:
-                props["text"] = textBlock.Text?.Length > 50 
+                props["text"] = ToElement(textBlock.Text?.Length > 50 
                     ? textBlock.Text[..50] + "..." 
-                    : textBlock.Text;
+                    : textBlock.Text);
                 break;
             case ListNode list:
-                props["itemCount"] = list.Items?.Count ?? 0;
-                props["selectedIndex"] = list.SelectedIndex;
+                props["itemCount"] = ToElement(list.Items?.Count ?? 0);
+                props["selectedIndex"] = ToElement(list.SelectedIndex);
                 break;
             case PickerNode picker:
-                props["selectedIndex"] = picker.SelectedIndex;
-                props["selectedText"] = picker.SelectedText;
+                props["selectedIndex"] = ToElement(picker.SelectedIndex);
+                props["selectedText"] = ToElement(picker.SelectedText);
                 break;
             case MenuItemNode menuItem:
-                props["label"] = menuItem.Label;
+                props["label"] = ToElement(menuItem.Label);
                 break;
             case AnchoredNode anchored:
-                props["anchorNodeType"] = anchored.AnchorNode?.GetType().Name;
+                props["anchorNodeType"] = ToElement(anchored.AnchorNode?.GetType().Name);
                 props["anchorBounds"] = anchored.AnchorNode != null 
-                    ? DiagnosticRect.FromRect(anchored.AnchorNode.Bounds) 
-                    : null;
-                props["isAnchorStale"] = anchored.IsAnchorStale;
-                props["position"] = anchored.Position.ToString();
+                    ? JsonSerializer.SerializeToElement(DiagnosticRect.FromRect(anchored.AnchorNode.Bounds), DiagnosticsJsonContext.Default.DiagnosticRect)
+                    : default;
+                props["isAnchorStale"] = ToElement(anchored.IsAnchorStale);
+                props["position"] = ToElement(anchored.Position.ToString());
                 break;
             case BackdropNode backdrop:
-                props["style"] = backdrop.Style.ToString();
-                props["hasClickAwayHandler"] = backdrop.ClickAwayHandler != null || backdrop.ClickAwayEventHandler != null;
+                props["style"] = ToElement(backdrop.Style.ToString());
+                props["hasClickAwayHandler"] = ToElement(backdrop.ClickAwayHandler != null || backdrop.ClickAwayEventHandler != null);
                 break;
             case NotificationPanelNode notificationPanel:
-                props["isDrawerExpanded"] = notificationPanel.IsDrawerExpanded;
-                props["notificationCount"] = notificationPanel.Notifications?.Count ?? 0;
+                props["isDrawerExpanded"] = ToElement(notificationPanel.IsDrawerExpanded);
+                props["notificationCount"] = ToElement(notificationPanel.Notifications?.Count ?? 0);
                 break;
         }
         
         return props.Count > 0 ? props : null;
+    }
+
+    private static JsonElement ToElement(string? value)
+    {
+        return value is null
+            ? default
+            : JsonSerializer.SerializeToElement(value, DiagnosticsJsonContext.Default.String);
+    }
+
+    private static JsonElement ToElement(int value)
+    {
+        return JsonSerializer.SerializeToElement(value, DiagnosticsJsonContext.Default.Int32);
+    }
+
+    private static JsonElement ToElement(bool value)
+    {
+        return JsonSerializer.SerializeToElement(value, DiagnosticsJsonContext.Default.Boolean);
     }
 }
 

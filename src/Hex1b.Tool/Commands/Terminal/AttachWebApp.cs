@@ -120,7 +120,7 @@ internal sealed class AttachWebApp : IAsyncDisposable
         {
             // Send attach request
             var request = new DiagnosticsRequest { Method = "attach" };
-            var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonOptions.Default);
+            var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonContext.Default.DiagnosticsRequest);
             await writer.WriteLineAsync(requestJson.AsMemory(), ct);
 
             var responseLine = await reader.ReadLineAsync(ct);
@@ -130,7 +130,7 @@ internal sealed class AttachWebApp : IAsyncDisposable
                 return;
             }
 
-            var response = JsonSerializer.Deserialize<DiagnosticsResponse>(responseLine, DiagnosticsJsonOptions.Default);
+            var response = JsonSerializer.Deserialize(responseLine, DiagnosticsJsonContext.Default.DiagnosticsResponse);
             if (response is not { Success: true })
             {
                 await ws.CloseAsync(WebSocketCloseStatus.InternalServerError, response?.Error ?? "Attach failed", ct);

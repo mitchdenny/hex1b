@@ -23,7 +23,7 @@ internal sealed class TerminalClient
         using var reader = new StreamReader(stream, Encoding.UTF8);
         await using var writer = new StreamWriter(stream, Encoding.UTF8) { AutoFlush = true };
 
-        var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonOptions.Default);
+        var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonContext.Default.DiagnosticsRequest);
         await writer.WriteLineAsync(requestJson.AsMemory(), cancellationToken);
 
         var responseLine = await reader.ReadLineAsync(cancellationToken);
@@ -32,7 +32,7 @@ internal sealed class TerminalClient
             return new DiagnosticsResponse { Success = false, Error = "Empty response from terminal" };
         }
 
-        return JsonSerializer.Deserialize<DiagnosticsResponse>(responseLine, DiagnosticsJsonOptions.Default)
+        return JsonSerializer.Deserialize(responseLine, DiagnosticsJsonContext.Default.DiagnosticsResponse)
             ?? new DiagnosticsResponse { Success = false, Error = "Failed to deserialize response" };
     }
 

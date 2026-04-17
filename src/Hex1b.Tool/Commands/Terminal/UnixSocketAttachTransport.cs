@@ -41,14 +41,14 @@ internal sealed class UnixSocketAttachTransport : IAttachTransport
         _writer = new StreamWriter(_networkStream, Encoding.UTF8) { AutoFlush = true };
 
         var request = new DiagnosticsRequest { Method = "attach" };
-        var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonOptions.Default);
+        var requestJson = JsonSerializer.Serialize(request, DiagnosticsJsonContext.Default.DiagnosticsRequest);
         await _writer.WriteLineAsync(requestJson.AsMemory(), ct);
 
         var responseLine = await _reader.ReadLineAsync(ct);
         if (string.IsNullOrEmpty(responseLine))
             return new AttachResult(false, 0, 0, false, null, "Empty response from terminal");
 
-        var response = JsonSerializer.Deserialize<DiagnosticsResponse>(responseLine, DiagnosticsJsonOptions.Default);
+        var response = JsonSerializer.Deserialize(responseLine, DiagnosticsJsonContext.Default.DiagnosticsResponse);
         if (response is not { Success: true })
             return new AttachResult(false, 0, 0, false, null, response?.Error ?? "Attach failed");
 

@@ -258,7 +258,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             if (string.IsNullOrEmpty(requestLine))
                 return;
 
-            var request = JsonSerializer.Deserialize<DiagnosticsRequest>(requestLine, DiagnosticsJsonOptions.Default);
+            var request = JsonSerializer.Deserialize(requestLine, DiagnosticsJsonContext.Default.DiagnosticsRequest);
             if (request == null)
             {
                 await WriteErrorAsync(writer, "Invalid request format");
@@ -273,7 +273,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             }
 
             var response = await HandleRequestAsync(request);
-            var responseJson = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
+            var responseJson = JsonSerializer.Serialize(response, DiagnosticsJsonContext.Default.DiagnosticsResponse);
             await writer.WriteLineAsync(responseJson);
         }
         catch (Exception ex)
@@ -360,7 +360,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
             Data = session.InitialScreen,
             Leader = session.IsLeader
         };
-        var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonOptions.Default);
+        var responseJson = JsonSerializer.Serialize(attachResponse, DiagnosticsJsonContext.Default.DiagnosticsResponse);
         await writer.WriteLineAsync(responseJson.AsMemory(), ct);
 
         // Run two tasks: output streaming and input forwarding
@@ -930,7 +930,7 @@ public sealed class McpDiagnosticsPresentationFilter : ITerminalAwarePresentatio
     private static async Task WriteErrorAsync(StreamWriter writer, string error)
     {
         var response = new DiagnosticsResponse { Success = false, Error = error };
-        var json = JsonSerializer.Serialize(response, DiagnosticsJsonOptions.Default);
+        var json = JsonSerializer.Serialize(response, DiagnosticsJsonContext.Default.DiagnosticsResponse);
         await writer.WriteLineAsync(json);
     }
 
