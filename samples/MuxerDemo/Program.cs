@@ -9,7 +9,12 @@ if (args is ["server", ..])
     Console.WriteLine("Press Ctrl+C to stop.");
 
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithPtyProcess(GetShell())
+        .WithPtyProcess(options =>
+        {
+            options.FileName = GetShell();
+            if (OperatingSystem.IsWindows())
+                options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
+        })
         .WithMuxerServer(server => server.ListenUnixSocket(socketPath))
         .Build();
 
