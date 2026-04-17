@@ -37,6 +37,7 @@ Hex1bTerminal? embeddedTerminal = null;
 TerminalWidgetHandle? terminalHandle = null;
 CancellationTokenSource? embeddedCts = null;
 string? connectedSessionName = null;
+string? connectedSocketPath = null;
 string? statusMessage = null;
 
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
@@ -68,6 +69,10 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
                         statusMessage = null;
                         app?.Invalidate();
                     }, "Sessions");
+
+                bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.X)
+                    .OverridesCapture()
+                    .Action(async _ => await KillCurrentSessionAsync(), "Kill session");
             });
         };
     })
@@ -130,6 +135,9 @@ Hex1bWidget BuildTerminalView<TParent>(WidgetContext<TParent> ctx, TerminalWidge
         [
             s.Section("Ctrl+B S"),
             s.Section("Sessions"),
+            s.Spacer(),
+            s.Section("Ctrl+B X"),
+            s.Section("Kill"),
             s.Spacer(),
             s.Section("Ctrl+B D"),
             s.Section("Detach"),
@@ -263,6 +271,7 @@ async Task ConnectToSessionAsync(SessionInfo session)
 
         terminalHandle = handle;
         connectedSessionName = session.Name;
+        connectedSocketPath = session.SocketPath;
 
         _ = embeddedTerminal.RunAsync(embeddedCts.Token);
 
@@ -310,6 +319,25 @@ async Task CleanupEmbeddedTerminalAsync()
 
     terminalHandle = null;
     connectedSessionName = null;
+    connectedSocketPath = null;
+}
+
+async Task KillCurrentSessionAsync()
+{
+    if (connectedSocketPath is null)
+        return;
+
+    var socketToDelete = connectedSocketPath;
+    var sessionName = connectedSessionName;
+
+    await CleanupEmbeddedTerminalAsync();
+
+    // Delete the socket file to kill the server
+    try { File.Delete(socketToDelete); } catch { }
+
+    view = "sessions";
+    statusMessage = $"Killed session '{sessionName}'.";
+    app?.Invalidate();
 }
 
 static string GetShell()
