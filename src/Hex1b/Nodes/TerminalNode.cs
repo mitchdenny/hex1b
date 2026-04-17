@@ -452,7 +452,11 @@ public sealed class TerminalNode : Hex1bNode
         if (_handle != null && _handle.State != TerminalState.Running && FallbackChild != null)
         {
             FallbackChild.Arrange(bounds);
-            return;
+            // Don't return — fall through to resize the handle below.
+            // This ensures the handle (and underlying PTY) gets resized to match the
+            // layout bounds BEFORE the terminal starts running. Without this, the PTY
+            // starts at the initial WithDimensions() size (e.g., 80x24) and the shell's
+            // first output is laid out at the wrong width.
         }
         
         // Safety: clamp unreasonable bounds to handle dimensions
