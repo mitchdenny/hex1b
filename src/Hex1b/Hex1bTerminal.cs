@@ -1723,6 +1723,35 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     internal ScrollbackBuffer? Scrollback => _scrollbackBuffer;
 
     /// <summary>
+    /// Gets the number of rows currently stored in the scrollback buffer.
+    /// Returns 0 if scrollback is not enabled.
+    /// </summary>
+    public int ScrollbackCount
+    {
+        get
+        {
+            lock (_bufferLock)
+            {
+                return _scrollbackBuffer?.Count ?? 0;
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets a snapshot of up to <paramref name="count"/> most recent scrollback rows,
+    /// ordered oldest to newest. Thread-safe.
+    /// </summary>
+    /// <param name="count">Maximum number of rows to return.</param>
+    /// <returns>Array of scrollback rows, or empty array if scrollback is not enabled.</returns>
+    public ScrollbackRow[] GetScrollbackRows(int count)
+    {
+        lock (_bufferLock)
+        {
+            return _scrollbackBuffer?.GetLines(count) ?? [];
+        }
+    }
+
+    /// <summary>
     /// Enters alternate screen mode (for testing purposes).
     /// In headless mode, this just sets the flag and clears the buffer.
     /// </summary>

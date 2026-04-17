@@ -17,6 +17,13 @@ namespace Hex1b.Nodes;
 /// The node is focusable and forwards all keyboard input to the child terminal.
 /// Mouse clicks within the terminal's bounds will focus the terminal.
 /// </para>
+/// <para>
+/// When the terminal has a scrollback buffer configured, the user can scroll up
+/// through previous output using keyboard shortcuts or mouse wheel. Scrollback
+/// viewing is disabled when the child process is using the alternate screen buffer
+/// (mode 1049), and mouse scroll events are forwarded to the child when it has
+/// enabled mouse tracking.
+/// </para>
 /// </remarks>
 public sealed class TerminalNode : Hex1bNode
 {
@@ -34,6 +41,11 @@ public sealed class TerminalNode : Hex1bNode
     // but before ClearDirtyFlags, causing the new content to be lost
     private volatile int _outputVersion;
     private int _lastRenderedVersion;
+    
+    // Scrollback view state
+    // When _scrollbackOffset > 0, the view is scrolled up into the scrollback buffer
+    // and keyboard input is intercepted for scrollback navigation instead of forwarded to the child
+    private int _scrollbackOffset;
     
     /// <summary>
     /// Gets or sets the terminal handle this node renders from.
@@ -133,6 +145,101 @@ public sealed class TerminalNode : Hex1bNode
         _releaseCaptureCallback = releaseCapture;
     }
     
+    /// <summary>
+    /// Gets whether the terminal is currently in scrollback mode (scrolled up from live view).
+    /// </summary>
+    public bool IsInScrollbackMode => _scrollbackOffset > 0;
+    
+    /// <summary>
+    /// Gets the current scrollback offset (number of lines scrolled up from live view).
+    /// </summary>
+    public int ScrollbackOffset => _scrollbackOffset;
+    
+    /// <inheritdoc />
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        // Keyboard scrollback navigation
+        // Note: Ctrl+Shift combinations are not supported by the input binding system,
+        // so we use Shift+Arrow/PageUp/PageDown/Home/End which matches GNOME Terminal conventions
+        bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TerminalWidget.ScrollUpLine, ScrollUpLineHandler, "Scroll up one line");
+        bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TerminalWidget.ScrollDownLine, ScrollDownLineHandler, "Scroll down one line");
+        bindings.Shift().Key(Hex1bKey.PageUp).Triggers(TerminalWidget.ScrollUpPage, ScrollUpPageHandler, "Scroll up one page");
+        bindings.Shift().Key(Hex1bKey.PageDown).Triggers(TerminalWidget.ScrollDownPage, ScrollDownPageHandler, "Scroll down one page");
+        bindings.Shift().Key(Hex1bKey.Home).Triggers(TerminalWidget.ScrollToTop, ScrollToTopHandler, "Scroll to top of scrollback");
+        bindings.Shift().Key(Hex1bKey.End).Triggers(TerminalWidget.ScrollToBottom, ScrollToBottomHandler, "Scroll to bottom (live view)");
+        
+        // Mouse wheel scrollback (only when child has NOT enabled mouse tracking)
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(TerminalWidget.ScrollUpLine, ScrollUpLineHandler, "Scroll up one line");
+        bindings.Mouse(MouseButton.ScrollDown).Triggers(TerminalWidget.ScrollDownLine, ScrollDownLineHandler, "Scroll down one line");
+    }
+    
+    private Task ScrollUpLineHandler(InputBindingActionContext ctx)
+    {
+        AdjustScrollbackOffset(1);
+        return Task.CompletedTask;
+    }
+    
+    private Task ScrollDownLineHandler(InputBindingActionContext ctx)
+    {
+        AdjustScrollbackOffset(-1);
+        return Task.CompletedTask;
+    }
+    
+    private Task ScrollUpPageHandler(InputBindingActionContext ctx)
+    {
+        var pageSize = Math.Max(1, Bounds.Height - 1);
+        AdjustScrollbackOffset(pageSize);
+        return Task.CompletedTask;
+    }
+    
+    private Task ScrollDownPageHandler(InputBindingActionContext ctx)
+    {
+        var pageSize = Math.Max(1, Bounds.Height - 1);
+        AdjustScrollbackOffset(-pageSize);
+        return Task.CompletedTask;
+    }
+    
+    private Task ScrollToTopHandler(InputBindingActionContext ctx)
+    {
+        if (_handle == null) return Task.CompletedTask;
+        var maxOffset = _handle.ScrollbackCount;
+        if (maxOffset > 0)
+        {
+            _scrollbackOffset = maxOffset;
+            MarkDirty();
+            _invalidateCallback?.Invoke();
+        }
+        return Task.CompletedTask;
+    }
+    
+    private Task ScrollToBottomHandler(InputBindingActionContext ctx)
+    {
+        if (_scrollbackOffset > 0)
+        {
+            _scrollbackOffset = 0;
+            MarkDirty();
+            _invalidateCallback?.Invoke();
+        }
+        return Task.CompletedTask;
+    }
+    
+    private void AdjustScrollbackOffset(int delta)
+    {
+        if (_handle == null) return;
+        
+        // Don't allow scrollback when in alternate screen
+        if (_handle.InAlternateScreen) return;
+        
+        var maxOffset = _handle.ScrollbackCount;
+        var newOffset = Math.Clamp(_scrollbackOffset + delta, 0, maxOffset);
+        if (newOffset != _scrollbackOffset)
+        {
+            _scrollbackOffset = newOffset;
+            MarkDirty();
+            _invalidateCallback?.Invoke();
+        }
+    }
+    
     /// <inheritdoc />
     public override InputResult HandleInput(Hex1bEvent inputEvent)
     {
@@ -145,6 +252,16 @@ public sealed class TerminalNode : Hex1bNode
         
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
+        
+        // When in scrollback mode, don't forward keyboard input to the child terminal.
+        // The scrollback keybindings are handled by ConfigureDefaultBindings above.
+        // Any non-scrollback key press scrolls back to the live view and is then forwarded.
+        if (IsInScrollbackMode && inputEvent is Hex1bKeyEvent)
+        {
+            // Let the input binding system handle it first (it will match scrollback actions).
+            // If no binding matched, this returns NotHandled and the key is consumed below.
+            return InputResult.NotHandled;
+        }
         
         // Fire and forget - we don't want to block the input loop
         _ = _handle.SendEventAsync(inputEvent);
@@ -161,9 +278,26 @@ public sealed class TerminalNode : Hex1bNode
             return InputResult.NotHandled;
         }
         
-        // Forward click events to the child terminal via unified HandleInput
-        var localEvent = mouseEvent with { X = localX, Y = localY };
-        return HandleInput(localEvent);
+        // When the child has enabled mouse tracking, forward all mouse events to it
+        // (including scroll wheel). The child app manages its own scrolling (e.g., vim).
+        if (_handle != null && _handle.MouseTrackingEnabled)
+        {
+            var localEvent = mouseEvent with { X = localX, Y = localY };
+            return HandleInput(localEvent);
+        }
+        
+        // When the child has NOT enabled mouse tracking, scroll wheel events
+        // control the scrollback view instead of being forwarded.
+        // The scroll bindings are handled by ConfigureDefaultBindings.
+        // Return NotHandled so the input binding system can match them.
+        if (mouseEvent.Button is MouseButton.ScrollUp or MouseButton.ScrollDown)
+        {
+            return InputResult.NotHandled;
+        }
+        
+        // Non-scroll mouse events: forward to the child terminal
+        var evt = mouseEvent with { X = localX, Y = localY };
+        return HandleInput(evt);
     }
     
     /// <inheritdoc />
@@ -365,80 +499,148 @@ public sealed class TerminalNode : Hex1bNode
         // Mark this version as rendered (we'll check if more output arrived after this)
         _lastRenderedVersion = currentVersion;
         
-        // Render each row that fits within our bounds
+        if (_scrollbackOffset > 0)
+        {
+            RenderWithScrollback(context, buffer, handleWidth, handleHeight);
+        }
+        else
+        {
+            RenderLive(context, buffer, handleWidth, handleHeight);
+        }
+    }
+    
+    /// <summary>
+    /// Renders the live terminal buffer (no scrollback offset).
+    /// </summary>
+    private void RenderLive(Hex1bRenderContext context, TerminalCell[,] buffer, int handleWidth, int handleHeight)
+    {
         for (int y = 0; y < Math.Min(Bounds.Height, handleHeight); y++)
         {
-            var lineBuilder = new System.Text.StringBuilder();
-            Hex1b.Theming.Hex1bColor? lastFg = null;
-            Hex1b.Theming.Hex1bColor? lastBg = null;
-            Hex1b.Theming.Hex1bColor? lastUc = null;
-            CellAttributes lastAttrs = CellAttributes.None;
+            RenderRow(context, y, (x) => buffer[y, x], handleWidth);
+        }
+    }
+    
+    /// <summary>
+    /// Renders a composite view of scrollback rows above the active buffer,
+    /// shifted up by _scrollbackOffset lines.
+    /// </summary>
+    private void RenderWithScrollback(Hex1bRenderContext context, TerminalCell[,] activeBuffer, int handleWidth, int handleHeight)
+    {
+        // Get scrollback rows
+        var scrollbackRows = _handle!.GetScrollbackSnapshot(_handle.ScrollbackCount);
+        int scrollbackCount = scrollbackRows.Length;
+        
+        // Clamp offset to available scrollback
+        var effectiveOffset = Math.Min(_scrollbackOffset, scrollbackCount);
+        
+        // The virtual buffer is: [scrollback rows (oldest to newest)] + [active buffer rows]
+        // Total virtual rows = scrollbackCount + handleHeight
+        // The viewport shows handleHeight rows starting from:
+        //   virtualStart = scrollbackCount + handleHeight - handleHeight - effectiveOffset
+        //                = scrollbackCount - effectiveOffset
+        int virtualStart = scrollbackCount - effectiveOffset;
+        
+        for (int viewY = 0; viewY < Math.Min(Bounds.Height, handleHeight); viewY++)
+        {
+            int virtualRow = virtualStart + viewY;
             
-            for (int x = 0; x < Math.Min(Bounds.Width, handleWidth); x++)
+            if (virtualRow < scrollbackCount)
             {
-                var cell = buffer[y, x];
-                
-                // Build ANSI codes for color changes
-                bool needsReset = false;
-                
-                // Check if attributes changed
-                if (cell.Attributes != lastAttrs)
+                // This row comes from scrollback
+                var sbRow = scrollbackRows[virtualRow];
+                RenderRow(context, viewY, (x) =>
                 {
-                    needsReset = true;
-                }
-                
-                // Check if colors changed (nullable struct comparison)
-                if (!Nullable.Equals(cell.Foreground, lastFg) || !Nullable.Equals(cell.Background, lastBg) || !Nullable.Equals(cell.UnderlineColor, lastUc))
+                    if (x < sbRow.Cells.Length) return sbRow.Cells[x];
+                    return TerminalCell.Empty;
+                }, handleWidth);
+            }
+            else
+            {
+                // This row comes from the active buffer
+                int activeRow = virtualRow - scrollbackCount;
+                if (activeRow < handleHeight)
                 {
-                    needsReset = true;
+                    RenderRow(context, viewY, (x) => activeBuffer[activeRow, x], handleWidth);
                 }
-                
-                if (needsReset)
-                {
-                    // Reset and apply new attributes
-                    lineBuilder.Append("\x1b[0m");
-                    
-                    if (cell.Attributes.HasFlag(CellAttributes.Bold))
-                        lineBuilder.Append("\x1b[1m");
-                    if (cell.Attributes.HasFlag(CellAttributes.Dim))
-                        lineBuilder.Append("\x1b[2m");
-                    if (cell.Attributes.HasFlag(CellAttributes.Italic))
-                        lineBuilder.Append("\x1b[3m");
-                    if (cell.Attributes.HasFlag(CellAttributes.Underline))
-                    {
-                        if (cell.UnderlineStyle != UnderlineStyle.None && cell.UnderlineStyle != UnderlineStyle.Single)
-                            lineBuilder.Append($"\x1b[4:{(int)cell.UnderlineStyle}m");
-                        else
-                            lineBuilder.Append("\x1b[4m");
-                    }
-                    if (cell.Attributes.HasFlag(CellAttributes.Reverse))
-                        lineBuilder.Append("\x1b[7m");
-                    if (cell.Attributes.HasFlag(CellAttributes.Strikethrough))
-                        lineBuilder.Append("\x1b[9m");
-                    
-                    if (cell.Foreground != null)
-                        lineBuilder.Append(cell.Foreground.Value.ToForegroundAnsi());
-                    
-                    if (cell.Background != null)
-                        lineBuilder.Append(cell.Background.Value.ToBackgroundAnsi());
-                    
-                    if (cell.UnderlineColor != null)
-                        lineBuilder.Append(cell.UnderlineColor.Value.ToUnderlineColorAnsi());
-                    
-                    lastFg = cell.Foreground;
-                    lastBg = cell.Background;
-                    lastUc = cell.UnderlineColor;
-                    lastAttrs = cell.Attributes;
-                }
-                
-                lineBuilder.Append(cell.Character);
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Renders a single row of terminal cells at the specified view Y position.
+    /// </summary>
+    private void RenderRow(Hex1bRenderContext context, int viewY, Func<int, TerminalCell> getCell, int handleWidth)
+    {
+        var lineBuilder = new System.Text.StringBuilder();
+        Hex1b.Theming.Hex1bColor? lastFg = null;
+        Hex1b.Theming.Hex1bColor? lastBg = null;
+        Hex1b.Theming.Hex1bColor? lastUc = null;
+        CellAttributes lastAttrs = CellAttributes.None;
+        
+        for (int x = 0; x < Math.Min(Bounds.Width, handleWidth); x++)
+        {
+            var cell = getCell(x);
+            
+            // Build ANSI codes for color changes
+            bool needsReset = false;
+            
+            // Check if attributes changed
+            if (cell.Attributes != lastAttrs)
+            {
+                needsReset = true;
             }
             
-            // Reset at end of line
-            lineBuilder.Append("\x1b[0m");
+            // Check if colors changed (nullable struct comparison)
+            if (!Nullable.Equals(cell.Foreground, lastFg) || !Nullable.Equals(cell.Background, lastBg) || !Nullable.Equals(cell.UnderlineColor, lastUc))
+            {
+                needsReset = true;
+            }
             
-            // Write the line at the correct position
-            context.WriteClipped(Bounds.X, Bounds.Y + y, lineBuilder.ToString());
+            if (needsReset)
+            {
+                // Reset and apply new attributes
+                lineBuilder.Append("\x1b[0m");
+                
+                if (cell.Attributes.HasFlag(CellAttributes.Bold))
+                    lineBuilder.Append("\x1b[1m");
+                if (cell.Attributes.HasFlag(CellAttributes.Dim))
+                    lineBuilder.Append("\x1b[2m");
+                if (cell.Attributes.HasFlag(CellAttributes.Italic))
+                    lineBuilder.Append("\x1b[3m");
+                if (cell.Attributes.HasFlag(CellAttributes.Underline))
+                {
+                    if (cell.UnderlineStyle != UnderlineStyle.None && cell.UnderlineStyle != UnderlineStyle.Single)
+                        lineBuilder.Append($"\x1b[4:{(int)cell.UnderlineStyle}m");
+                    else
+                        lineBuilder.Append("\x1b[4m");
+                }
+                if (cell.Attributes.HasFlag(CellAttributes.Reverse))
+                    lineBuilder.Append("\x1b[7m");
+                if (cell.Attributes.HasFlag(CellAttributes.Strikethrough))
+                    lineBuilder.Append("\x1b[9m");
+                
+                if (cell.Foreground != null)
+                    lineBuilder.Append(cell.Foreground.Value.ToForegroundAnsi());
+                
+                if (cell.Background != null)
+                    lineBuilder.Append(cell.Background.Value.ToBackgroundAnsi());
+                
+                if (cell.UnderlineColor != null)
+                    lineBuilder.Append(cell.UnderlineColor.Value.ToUnderlineColorAnsi());
+                
+                lastFg = cell.Foreground;
+                lastBg = cell.Background;
+                lastUc = cell.UnderlineColor;
+                lastAttrs = cell.Attributes;
+            }
+            
+            lineBuilder.Append(cell.Character);
         }
+        
+        // Reset at end of line
+        lineBuilder.Append("\x1b[0m");
+        
+        // Write the line at the correct position
+        context.WriteClipped(Bounds.X, Bounds.Y + viewY, lineBuilder.ToString());
     }
 }

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -44,6 +45,19 @@ public sealed record TerminalNotRunningArgs(
 /// </remarks>
 public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
 {
+    /// <summary>Rebindable action: Scroll up one line in the scrollback buffer.</summary>
+    public static readonly ActionId ScrollUpLine = new($"{nameof(TerminalWidget)}.{nameof(ScrollUpLine)}");
+    /// <summary>Rebindable action: Scroll down one line in the scrollback buffer.</summary>
+    public static readonly ActionId ScrollDownLine = new($"{nameof(TerminalWidget)}.{nameof(ScrollDownLine)}");
+    /// <summary>Rebindable action: Scroll up one page in the scrollback buffer.</summary>
+    public static readonly ActionId ScrollUpPage = new($"{nameof(TerminalWidget)}.{nameof(ScrollUpPage)}");
+    /// <summary>Rebindable action: Scroll down one page in the scrollback buffer.</summary>
+    public static readonly ActionId ScrollDownPage = new($"{nameof(TerminalWidget)}.{nameof(ScrollDownPage)}");
+    /// <summary>Rebindable action: Scroll to the top of the scrollback buffer.</summary>
+    public static readonly ActionId ScrollToTop = new($"{nameof(TerminalWidget)}.{nameof(ScrollToTop)}");
+    /// <summary>Rebindable action: Scroll to the bottom, returning to the live terminal view.</summary>
+    public static readonly ActionId ScrollToBottom = new($"{nameof(TerminalWidget)}.{nameof(ScrollToBottom)}");
+
     /// <summary>
     /// Gets the callback that builds a fallback widget when the terminal is not running.
     /// </summary>
