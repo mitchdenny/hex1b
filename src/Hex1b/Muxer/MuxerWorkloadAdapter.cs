@@ -69,7 +69,7 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     /// Connects to the server, reads the Hello and StateSync frames,
     /// and starts the background read pump.
     /// </summary>
-    internal async Task ConnectAsync(CancellationToken ct)
+    public async Task ConnectAsync(CancellationToken ct)
     {
         _stream = await _streamFactory(ct).ConfigureAwait(false);
 
