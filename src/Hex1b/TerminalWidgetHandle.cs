@@ -390,6 +390,13 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// <returns>A copy of the screen buffer cells.</returns>
     public TerminalCell[,] GetScreenBuffer()
     {
+        // Prefer the terminal's authoritative buffer when available
+        if (_terminal is { } terminal)
+        {
+            var (buffer, _, _, _, _) = terminal.GetScreenBufferSnapshot();
+            return buffer;
+        }
+        
         lock (_bufferLock)
         {
             var copy = new TerminalCell[_height, _width];
@@ -402,9 +409,29 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// Gets a snapshot of the current screen buffer with its dimensions.
     /// This is atomic - the dimensions will always match the buffer.
     /// </summary>
+    /// <remarks>
+    /// When a backing <see cref="Hex1bTerminal"/> is connected, this returns the terminal's
+    /// authoritative buffer rather than the handle's local copy. This ensures the snapshot
+    /// reflects the correct content after resize/reflow operations, where the terminal's
+    /// buffer is reflowed but the handle's local buffer may still have the old layout.
+    /// </remarks>
     /// <returns>A tuple containing the buffer copy, width, and height.</returns>
     public (TerminalCell[,] Buffer, int Width, int Height) GetScreenBufferSnapshot()
     {
+        // Prefer the terminal's authoritative buffer when available.
+        // The handle's local buffer can be stale after resize/reflow because:
+        // 1. Handle.Resize() does a simple copy of old content
+        // 2. Terminal.Resize() does a full reflow
+        // 3. The handle's buffer doesn't get the reflowed content
+        if (_terminal is { } terminal)
+        {
+            var (buffer, width, height, cursorX, cursorY) = terminal.GetScreenBufferSnapshot();
+            // Sync cursor position from the terminal's authoritative state
+            _cursorX = cursorX;
+            _cursorY = cursorY;
+            return (buffer, width, height);
+        }
+        
         lock (_bufferLock)
         {
             var copy = new TerminalCell[_height, _width];

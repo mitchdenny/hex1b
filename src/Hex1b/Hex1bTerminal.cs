@@ -1752,6 +1752,21 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets an atomic snapshot of the current screen buffer with its dimensions and cursor position.
+    /// Thread-safe — acquires the buffer lock.
+    /// </summary>
+    /// <returns>A tuple containing the buffer copy, width, height, cursor X, and cursor Y.</returns>
+    internal (TerminalCell[,] Buffer, int Width, int Height, int CursorX, int CursorY) GetScreenBufferSnapshot()
+    {
+        lock (_bufferLock)
+        {
+            var copy = new TerminalCell[_height, _width];
+            Array.Copy(_screenBuffer, copy, _screenBuffer.Length);
+            return (copy, _width, _height, _cursorX, _cursorY);
+        }
+    }
+
+    /// <summary>
     /// Enters alternate screen mode (for testing purposes).
     /// In headless mode, this just sets the flag and clears the buffer.
     /// </summary>
