@@ -41,29 +41,6 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     /// </summary>
     public bool IsMultiSelect { get; init; } = false;
 
-    /// <summary>
-    /// Optional builder that produces custom widget content for each tree item row.
-    /// When set, the returned widget is rendered in place of the default label text.
-    /// The content must be single-line (height=1) and display-only (non-focusable).
-    /// </summary>
-    /// <remarks>
-    /// <para>
-    /// The builder receives the <see cref="TreeItemWidget"/> for the current row,
-    /// allowing access to label, icon, data, and all other item properties.
-    /// The tree still renders guides, expand indicators, and checkboxes — only the
-    /// label/content area is replaced by the builder's output.
-    /// </para>
-    /// </remarks>
-    internal Func<TreeItemWidget, TreeItemContentContext, Hex1bWidget>? ItemContentBuilder { get; init; }
-
-    /// <summary>
-    /// When using <see cref="ItemContentBuilder"/>, the width in characters to allocate for
-    /// each item's label text. The label is rendered by the tree with focus/selection
-    /// highlighting and padded to this width before the content widget starts.
-    /// When 0 (default), the label's natural width is used with no padding.
-    /// </summary>
-    internal int ItemContentLabelWidth { get; init; }
-
     // Container-level event handlers
     internal Func<TreeSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
     internal Func<TreeItemActivatedEventArgs, Task>? ItemActivatedHandler { get; init; }
@@ -164,8 +141,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         IReadOnlyList<TreeItemNode> existingNodes,
         List<TreeItemNode> outputNodes,
         TreeNode parentTree,
-        ReconcileContext context,
-        int depth = 0)
+        ReconcileContext context)
     {
         for (int i = 0; i < widgets.Count; i++)
         {
@@ -278,7 +254,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             if (widget.ChildItems.Count > 0)
             {
                 var newChildren = new List<TreeItemNode>();
-                await ReconcileItemsAsync(widget.ChildItems, node.Children, newChildren, parentTree, context, depth + 1);
+                await ReconcileItemsAsync(widget.ChildItems, node.Children, newChildren, parentTree, context);
                 node.Children = newChildren;
             }
             // If widget has no children but node has dynamically loaded children, preserve them
@@ -323,35 +299,6 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             else
             {
                 node.UserIconNode = null;
-            }
-
-            // 4. Custom content (from ItemContentBuilder)
-            if (ItemContentBuilder != null)
-            {
-                // Compute left margin: guides + indicator + checkbox + icon
-                var marginOffset = depth * 3; // guide chars per depth level
-                if (node.CanExpand || node.IsLoading) marginOffset += 2; // indicator + space
-                if (IsMultiSelect) marginOffset += 4; // "[x] "
-                if (node.Icon != null) marginOffset += DisplayWidth.GetStringWidth(node.Icon) + 1;
-
-                var contentContext = new TreeItemContentContext
-                {
-                    Depth = depth,
-                    LeftMarginOffset = marginOffset,
-                    IsFocused = node.IsFocused,
-                    IsSelected = node.IsSelected,
-                    IsExpanded = node.IsExpanded,
-                    HasChildren = node.HasChildren,
-                };
-
-                var contentWidget = ItemContentBuilder(widget, contentContext);
-                node.ContentNode = await context.ReconcileChildAsync(
-                    node.ContentNode, contentWidget, node);
-                node.ContentLabelWidth = ItemContentLabelWidth;
-            }
-            else
-            {
-                node.ContentNode = null;
             }
 
             outputNodes.Add(node);

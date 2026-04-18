@@ -3,8 +3,7 @@ using Hex1b.Theming;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Context provided to <see cref="TreeWidget.ItemContentBuilder"/> when building
-/// custom content for a tree item row.
+/// Context that can be provided when building custom content for a tree item row.
 /// </summary>
 /// <remarks>
 /// <para>

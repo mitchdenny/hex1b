@@ -5,45 +5,45 @@ namespace Hex1b.Nodes;
 
 /// <summary>
 /// Composite node for the trace timeline widget. Delegates layout and rendering
-/// to an internally composed <see cref="TreeNode"/> child.
+/// to an internally composed child (SplitterNode with tree + timeline panels).
 /// </summary>
 internal sealed class TraceTimelineNode<T> : Hex1bNode
 {
     /// <summary>
-    /// The composed tree child (with custom row content).
+    /// The composed child node (Splitter with tree on left, timeline on right).
     /// </summary>
-    public Hex1bNode? TreeChild { get; set; }
+    public Hex1bNode? ComposedChild { get; set; }
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        if (TreeChild == null)
+        if (ComposedChild == null)
             return constraints.Constrain(new Size(0, 0));
 
-        return TreeChild.Measure(constraints);
+        return ComposedChild.Measure(constraints);
     }
 
     protected override void ArrangeCore(Rect bounds)
     {
         base.ArrangeCore(bounds);
-        TreeChild?.Arrange(bounds);
+        ComposedChild?.Arrange(bounds);
     }
 
     public override void Render(Hex1bRenderContext context)
     {
-        TreeChild?.Render(context);
+        ComposedChild?.Render(context);
     }
 
     public override IEnumerable<Hex1bNode> GetChildren()
     {
-        if (TreeChild != null)
-            yield return TreeChild;
+        if (ComposedChild != null)
+            yield return ComposedChild;
     }
 
     public override IEnumerable<Hex1bNode> GetFocusableNodes()
     {
-        if (TreeChild != null)
+        if (ComposedChild != null)
         {
-            foreach (var focusable in TreeChild.GetFocusableNodes())
+            foreach (var focusable in ComposedChild.GetFocusableNodes())
             {
                 yield return focusable;
             }

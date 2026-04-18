@@ -594,40 +594,14 @@ public sealed class TreeNode : Hex1bNode
 
         // Calculate max width needed
         var maxWidth = 0;
-        var hasContentNodes = false;
         foreach (var entry in items)
         {
             var guideWidth = entry.Depth * 3; // Each depth level adds 3 chars for guides
             var indicatorWidth = 2; // Expand/collapse indicator
             var checkboxWidth = MultiSelect ? 4 : 0; // "[x] " or "[ ] "
-
-            if (entry.Node.ContentNode != null)
-            {
-                // Content nodes: prefix + label + content node
-                hasContentNodes = true;
-                var prefixWidth = guideWidth + indicatorWidth + checkboxWidth;
-                var iconWidth = entry.Node.Icon != null ? DisplayWidth.GetStringWidth(entry.Node.Icon) + 1 : 0;
-                var labelWidth = Math.Max(
-                    DisplayWidth.GetStringWidth(entry.Node.Label),
-                    entry.Node.ContentLabelWidth);
-                var remainingWidth = Math.Max(1, constraints.MaxWidth - prefixWidth - iconWidth - labelWidth);
-                var contentSize = entry.Node.ContentNode.Measure(
-                    new Constraints(0, remainingWidth, 0, 1));
-                var totalWidth = prefixWidth + iconWidth + labelWidth + contentSize.Width;
-                maxWidth = Math.Max(maxWidth, totalWidth);
-            }
-            else
-            {
-                var contentWidth = DisplayWidth.GetStringWidth(entry.Node.GetDisplayText());
-                var totalWidth = guideWidth + indicatorWidth + checkboxWidth + contentWidth;
-                maxWidth = Math.Max(maxWidth, totalWidth);
-            }
-        }
-
-        // When content nodes are present, prefer filling available width
-        if (hasContentNodes)
-        {
-            maxWidth = Math.Max(maxWidth, constraints.MaxWidth);
+            var contentWidth = DisplayWidth.GetStringWidth(entry.Node.GetDisplayText());
+            var totalWidth = guideWidth + indicatorWidth + checkboxWidth + contentWidth;
+            maxWidth = Math.Max(maxWidth, totalWidth);
         }
 
         var height = items.Length;
@@ -790,68 +764,19 @@ public sealed class TreeNode : Hex1bNode
                 line.Append(' '); // Space after icon
             }
             
-            // Render content: custom content node or default label
-            if (node.ContentNode != null)
+            // Add label
+            line.Append(node.Label);
+            line.Append(resetToGlobal);
+            
+            // Write the line
+            if (context.CurrentLayoutProvider != null)
             {
-                // Render label with focus highlight (same as default path),
-                // padded to the label width stored on the node
-                var labelText = node.Label;
-                var labelDisplayWidth = DisplayWidth.GetStringWidth(labelText);
-                line.Append(labelText);
-
-                // Pad label to fill allocated width for alignment
-                if (node.ContentLabelWidth > 0 && labelDisplayWidth < node.ContentLabelWidth)
-                {
-                    line.Append(new string(' ', node.ContentLabelWidth - labelDisplayWidth));
-                }
-
-                line.Append(resetToGlobal);
-                
-                if (context.CurrentLayoutProvider != null)
-                {
-                    context.WriteClipped(x, y, line.ToString());
-                }
-                else
-                {
-                    context.SetCursorPosition(x, y);
-                    context.Write(line.ToString());
-                }
-                
-                // Calculate where the content node starts (after prefix + label)
-                var prefixWidth = guideWidth;
-                if (node.LoadingSpinnerNode != null || node.ExpandIndicatorNode != null)
-                    prefixWidth += 2; // indicator + space
-                if (node.CheckboxNode != null)
-                    prefixWidth += 4; // "[x] "
-                if (node.UserIconNode != null)
-                    prefixWidth += DisplayWidth.GetStringWidth(node.UserIconNode.Icon ?? "") + 1;
-                var labelWidth = Math.Max(labelDisplayWidth, node.ContentLabelWidth);
-                var totalPrefix = prefixWidth + labelWidth;
-                
-                var contentX = x + totalPrefix;
-                var contentWidth = Math.Max(1, Bounds.Width - totalPrefix);
-                
-                // Measure and arrange the content node
-                node.ContentNode.Measure(new Constraints(0, contentWidth, 0, 1));
-                node.ContentNode.Arrange(new Rect(contentX, y, contentWidth, 1));
-                node.ContentNode.Render(context);
+                context.WriteClipped(x, y, line.ToString());
             }
             else
             {
-                // Default: render label text
-                line.Append(node.Label);
-                line.Append(resetToGlobal);
-                
-                // Write the line
-                if (context.CurrentLayoutProvider != null)
-                {
-                    context.WriteClipped(x, y, line.ToString());
-                }
-                else
-                {
-                    context.SetCursorPosition(x, y);
-                    context.Write(line.ToString());
-                }
+                context.SetCursorPosition(x, y);
+                context.Write(line.ToString());
             }
         }
     }
