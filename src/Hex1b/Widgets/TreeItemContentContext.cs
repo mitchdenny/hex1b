@@ -1,3 +1,5 @@
+using Hex1b.Theming;
+
 namespace Hex1b.Widgets;
 
 /// <summary>
@@ -42,6 +44,18 @@ public readonly struct TreeItemContentContext
     /// Whether this item is currently selected (in multi-select mode).
     /// </summary>
     public bool IsSelected { get; init; }
+
+    /// <summary>
+    /// The foreground color that should be applied to match the tree's
+    /// current state (focused, hovered, selected, or default).
+    /// </summary>
+    public Hex1bColor ItemForegroundColor { get; init; }
+
+    /// <summary>
+    /// The background color that should be applied to match the tree's
+    /// current state (focused, hovered, selected, or default).
+    /// </summary>
+    public Hex1bColor ItemBackgroundColor { get; init; }
 
     /// <summary>
     /// Whether this item is currently expanded.

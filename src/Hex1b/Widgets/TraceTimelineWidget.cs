@@ -145,30 +145,26 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         }
 
         // Build TreeWidget with custom item content builder
+        // Tree renders the label with focus highlighting; builder returns the span bar
         var treeWidget = new TreeWidget(treeItems)
         {
+            ItemContentLabelWidth = maxLabelWidth + 1,
             ItemContentBuilder = (item, contentContext) =>
             {
                 if (!item.TryGetSpanData(out SpanTimingData? timing))
                 {
-                    return new TextBlockWidget(item.Label);
+                    return new TextBlockWidget(""); // fallback — label rendered by tree
                 }
 
-                // Adjust label width to compensate for tree indentation
-                var adjustedLabelWidth = Math.Max(1, maxLabelWidth + 1 - contentContext.LeftMarginOffset);
-
-                // Build HStack: [fixed-width label] [timeline span bar]
-                return new HStackWidget([
-                    new TextBlockWidget(item.Label) { WidthHint = Layout.SizeHint.Fixed(adjustedLabelWidth) },
-                    new TraceTimelineSpanWidget
-                    {
-                        StartFraction = timing.StartFraction,
-                        DurationFraction = timing.DurationFraction,
-                        InnerDurationFraction = timing.InnerDurationFraction,
-                        Status = timing.Status,
-                        DurationLabel = timing.DurationLabel,
-                    },
-                ]);
+                // Return just the timeline span bar — label is handled by the tree
+                return new TraceTimelineSpanWidget
+                {
+                    StartFraction = timing.StartFraction,
+                    DurationFraction = timing.DurationFraction,
+                    InnerDurationFraction = timing.InnerDurationFraction,
+                    Status = timing.Status,
+                    DurationLabel = timing.DurationLabel,
+                };
             },
         };
 

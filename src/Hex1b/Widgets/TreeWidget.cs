@@ -56,6 +56,14 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     /// </remarks>
     internal Func<TreeItemWidget, TreeItemContentContext, Hex1bWidget>? ItemContentBuilder { get; init; }
 
+    /// <summary>
+    /// When using <see cref="ItemContentBuilder"/>, the width in characters to allocate for
+    /// each item's label text. The label is rendered by the tree with focus/selection
+    /// highlighting and padded to this width before the content widget starts.
+    /// When 0 (default), the label's natural width is used with no padding.
+    /// </summary>
+    internal int ItemContentLabelWidth { get; init; }
+
     // Container-level event handlers
     internal Func<TreeSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
     internal Func<TreeItemActivatedEventArgs, Task>? ItemActivatedHandler { get; init; }
@@ -339,6 +347,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
                 var contentWidget = ItemContentBuilder(widget, contentContext);
                 node.ContentNode = await context.ReconcileChildAsync(
                     node.ContentNode, contentWidget, node);
+                node.ContentLabelWidth = ItemContentLabelWidth;
             }
             else
             {
