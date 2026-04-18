@@ -38,4 +38,15 @@ internal sealed class TraceTimelineNode<T> : Hex1bNode
         if (TreeChild != null)
             yield return TreeChild;
     }
+
+    public override IEnumerable<Hex1bNode> GetFocusableNodes()
+    {
+        if (TreeChild != null)
+        {
+            foreach (var focusable in TreeChild.GetFocusableNodes())
+            {
+                yield return focusable;
+            }
+        }
+    }
 }
