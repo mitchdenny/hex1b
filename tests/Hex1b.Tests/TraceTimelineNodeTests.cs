@@ -69,27 +69,27 @@ public class TraceTimelineNodeTests
     }
 
     [Fact]
-    public async Task Reconcile_CreatesSplitterChild()
+    public async Task Reconcile_CreatesTreeChild()
     {
         var widget = CreateWidget(CreateSimpleTrace());
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
-    public async Task Reconcile_EmptyData_NoSplitterChild()
+    public async Task Reconcile_EmptyData_NoTreeChild()
     {
         var widget = CreateWidget([]);
 
         var node = await ReconcileAsync(widget);
 
-        Assert.Null(node.SplitterChild);
+        Assert.Null(node.TreeChild);
     }
 
     [Fact]
-    public async Task Reconcile_NullData_NoSplitterChild()
+    public async Task Reconcile_NullData_NoTreeChild()
     {
         var widget = new TraceTimelineWidget<TraceSpanItem>
         {
@@ -103,7 +103,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.Null(node.SplitterChild);
+        Assert.Null(node.TreeChild);
     }
 
     #endregion
@@ -117,12 +117,8 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        // Should have a splitter with tree on left
-        var splitter = node.SplitterChild as SplitterNode;
-        Assert.NotNull(splitter);
-
-        // Left child should be a tree
-        var treeNode = FindNodeOfType<TreeNode>(splitter!);
+        // TreeChild should be a TreeNode (tree is now the direct child)
+        var treeNode = FindNodeOfType<TreeNode>(node);
         Assert.NotNull(treeNode);
     }
 
@@ -138,7 +134,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion
@@ -193,8 +189,8 @@ public class TraceTimelineNodeTests
         var node = await ReconcileAsync(widget);
 
         // The root span should start at 0 and cover 100% of the trace
-        var splitter = node.SplitterChild as SplitterNode;
-        Assert.NotNull(splitter);
+        var treeNode = FindNodeOfType<TreeNode>(node);
+        Assert.NotNull(treeNode);
     }
 
     [Fact]
@@ -213,7 +209,7 @@ public class TraceTimelineNodeTests
         var node = await ReconcileAsync(widget);
 
         // Should build successfully with child at 50% start
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion
@@ -238,7 +234,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -254,7 +250,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -270,7 +266,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -287,7 +283,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.SplitterChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion

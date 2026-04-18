@@ -594,14 +594,36 @@ public sealed class TreeNode : Hex1bNode
 
         // Calculate max width needed
         var maxWidth = 0;
+        var hasContentNodes = false;
         foreach (var entry in items)
         {
             var guideWidth = entry.Depth * 3; // Each depth level adds 3 chars for guides
             var indicatorWidth = 2; // Expand/collapse indicator
             var checkboxWidth = MultiSelect ? 4 : 0; // "[x] " or "[ ] "
-            var contentWidth = DisplayWidth.GetStringWidth(entry.Node.GetDisplayText());
-            var totalWidth = guideWidth + indicatorWidth + checkboxWidth + contentWidth;
-            maxWidth = Math.Max(maxWidth, totalWidth);
+
+            if (entry.Node.ContentNode != null)
+            {
+                // Content nodes typically want to fill available width
+                hasContentNodes = true;
+                var prefixWidth = guideWidth + indicatorWidth + checkboxWidth;
+                var iconWidth = entry.Node.Icon != null ? DisplayWidth.GetStringWidth(entry.Node.Icon) + 1 : 0;
+                var contentSize = entry.Node.ContentNode.Measure(
+                    new Constraints(0, Math.Max(1, constraints.MaxWidth - prefixWidth - iconWidth), 0, 1));
+                var totalWidth = prefixWidth + iconWidth + contentSize.Width;
+                maxWidth = Math.Max(maxWidth, totalWidth);
+            }
+            else
+            {
+                var contentWidth = DisplayWidth.GetStringWidth(entry.Node.GetDisplayText());
+                var totalWidth = guideWidth + indicatorWidth + checkboxWidth + contentWidth;
+                maxWidth = Math.Max(maxWidth, totalWidth);
+            }
+        }
+
+        // When content nodes are present, prefer filling available width
+        if (hasContentNodes)
+        {
+            maxWidth = Math.Max(maxWidth, constraints.MaxWidth);
         }
 
         var height = items.Length;
@@ -764,19 +786,59 @@ public sealed class TreeNode : Hex1bNode
                 line.Append(' '); // Space after icon
             }
             
-            // Add label
-            line.Append(node.Label);
-            line.Append(resetToGlobal);
-            
-            // Write the line
-            if (context.CurrentLayoutProvider != null)
+            // Render content: custom content node or default label
+            if (node.ContentNode != null)
             {
-                context.WriteClipped(x, y, line.ToString());
+                // Write the prefix (guides, indicators, icon) first
+                line.Append(resetToGlobal);
+                
+                if (context.CurrentLayoutProvider != null)
+                {
+                    context.WriteClipped(x, y, line.ToString());
+                }
+                else
+                {
+                    context.SetCursorPosition(x, y);
+                    context.Write(line.ToString());
+                }
+                
+                // Calculate where the content starts
+                var prefixWidth = guideWidth;
+                // indicator width
+                if (node.LoadingSpinnerNode != null || node.ExpandIndicatorNode != null)
+                    prefixWidth += 2; // indicator + space
+                // checkbox width
+                if (node.CheckboxNode != null)
+                    prefixWidth += 4; // "[x] "
+                // icon width
+                if (node.UserIconNode != null)
+                    prefixWidth += DisplayWidth.GetStringWidth(node.UserIconNode.Icon ?? "") + 1;
+                
+                var contentX = x + prefixWidth;
+                var contentWidth = Math.Max(1, Bounds.Width - prefixWidth);
+                
+                // Measure and arrange the content node
+                var contentSize = node.ContentNode.Measure(
+                    new Constraints(0, contentWidth, 0, 1));
+                node.ContentNode.Arrange(new Rect(contentX, y, contentWidth, 1));
+                node.ContentNode.Render(context);
             }
             else
             {
-                context.SetCursorPosition(x, y);
-                context.Write(line.ToString());
+                // Default: render label text
+                line.Append(node.Label);
+                line.Append(resetToGlobal);
+                
+                // Write the line
+                if (context.CurrentLayoutProvider != null)
+                {
+                    context.WriteClipped(x, y, line.ToString());
+                }
+                else
+                {
+                    context.SetCursorPosition(x, y);
+                    context.Write(line.ToString());
+                }
             }
         }
     }

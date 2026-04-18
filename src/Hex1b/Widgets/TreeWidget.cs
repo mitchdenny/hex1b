@@ -41,6 +41,21 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     /// </summary>
     public bool IsMultiSelect { get; init; } = false;
 
+    /// <summary>
+    /// Optional builder that produces custom widget content for each tree item row.
+    /// When set, the returned widget is rendered in place of the default label text.
+    /// The content must be single-line (height=1) and display-only (non-focusable).
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The builder receives the <see cref="TreeItemWidget"/> for the current row,
+    /// allowing access to label, icon, data, and all other item properties.
+    /// The tree still renders guides, expand indicators, and checkboxes — only the
+    /// label/content area is replaced by the builder's output.
+    /// </para>
+    /// </remarks>
+    internal Func<TreeItemWidget, Hex1bWidget>? ItemContentBuilder { get; init; }
+
     // Container-level event handlers
     internal Func<TreeSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
     internal Func<TreeItemActivatedEventArgs, Task>? ItemActivatedHandler { get; init; }
@@ -299,6 +314,18 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             else
             {
                 node.UserIconNode = null;
+            }
+
+            // 4. Custom content (from ItemContentBuilder)
+            if (ItemContentBuilder != null)
+            {
+                var contentWidget = ItemContentBuilder(widget);
+                node.ContentNode = await context.ReconcileChildAsync(
+                    node.ContentNode, contentWidget, node);
+            }
+            else
+            {
+                node.ContentNode = null;
             }
 
             outputNodes.Add(node);

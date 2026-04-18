@@ -89,6 +89,13 @@ public sealed class TreeItemNode : Hex1bNode
     /// User icon node. Null if no icon specified.
     /// </summary>
     public IconNode? UserIconNode { get; set; }
+
+    /// <summary>
+    /// Custom content node produced by <see cref="TreeWidget.ItemContentBuilder"/>.
+    /// When set, this node is rendered instead of the default label text.
+    /// The node is display-only and non-focusable (single row height enforced).
+    /// </summary>
+    public Hex1bNode? ContentNode { get; set; }
     
     /// <summary>
     /// User data value associated with this item.
