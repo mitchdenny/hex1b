@@ -127,11 +127,14 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
             }
         }
 
-        // Trailing gap (after bar ends) — empty
+        // Trailing gap (after bar ends) — lane color background
         var trailingCells = Math.Max(0, barWidth - endCell - 1);
         if (trailingCells > 0)
         {
+            line.Append(laneColor.ToForegroundAnsi());
+            line.Append(laneColor.ToBackgroundAnsi());
             line.Append(new string(' ', trailingCells));
+            line.Append(resetCodes);
         }
 
         // Duration label

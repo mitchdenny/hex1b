@@ -136,12 +136,13 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         var treeItems = new List<TreeItemWidget>();
         BuildTreeItems(tree, traceStart, traceDuration, treeItems);
 
-        // Capture selectors for the content builder closure
-        var labelSelector = LabelSelector;
-        var startTimeSelector = StartTimeSelector;
-        var durationSelector = DurationSelector;
-        var statusSelector = StatusSelector;
-        var innerDurationSelector = InnerDurationSelector;
+        // Compute max label width for alignment
+        var maxLabelWidth = 0;
+        foreach (var item in Data)
+        {
+            var labelWidth = DisplayWidth.GetStringWidth(LabelSelector(item));
+            if (labelWidth > maxLabelWidth) maxLabelWidth = labelWidth;
+        }
 
         // Build TreeWidget with custom item content builder
         var treeWidget = new TreeWidget(treeItems)
@@ -153,9 +154,9 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
                     return new TextBlockWidget(item.Label);
                 }
 
-                // Build HStack: [label] [timeline span bar] [duration]
+                // Build HStack: [fixed-width label] [timeline span bar]
                 return new HStackWidget([
-                    new TextBlockWidget(item.Label) { WidthHint = Layout.SizeHint.Content },
+                    new TextBlockWidget(item.Label) { WidthHint = Layout.SizeHint.Fixed(maxLabelWidth + 1) },
                     new TraceTimelineSpanWidget
                     {
                         StartFraction = timing.StartFraction,
