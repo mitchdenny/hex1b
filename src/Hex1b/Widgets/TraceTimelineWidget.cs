@@ -77,6 +77,12 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
     /// </summary>
     internal Func<T, string?>? ServiceNameSelector { get; init; }
 
+    /// <summary>
+    /// Optional custom formatter for duration labels. When null, a default formatter is used
+    /// that produces human-readable strings like "120ms", "1.2s", "2.5min".
+    /// </summary>
+    internal Func<TimeSpan, string>? DurationFormatter { get; init; }
+
     #region Fluent API
 
     /// <summary>Sets the function that extracts the display label.</summary>
@@ -110,6 +116,17 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
     /// <summary>Sets the optional function that extracts the service name.</summary>
     public TraceTimelineWidget<T> ServiceName(Func<T, string?> selector)
         => this with { ServiceNameSelector = selector };
+
+    /// <summary>
+    /// Sets a custom formatter for duration labels displayed after each span bar.
+    /// </summary>
+    /// <example>
+    /// <code>
+    /// ctx.TraceTimeline(data).FormatDuration(d => $"{d.TotalSeconds:F2}s")
+    /// </code>
+    /// </example>
+    public TraceTimelineWidget<T> FormatDuration(Func<TimeSpan, string> formatter)
+        => this with { DurationFormatter = formatter };
 
     #endregion
 
@@ -145,6 +162,16 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         var treeNode = node.TreeChild as TreeNode;
         var visibleItems = treeNode?.GetVisibleItems() ?? [];
 
+        // Compute max duration label width across visible items for alignment
+        var maxDurationLabelWidth = 0;
+        foreach (var visibleItem in visibleItems)
+        {
+            if (visibleItem.TryGetData<SpanTimingData>(out var t))
+            {
+                maxDurationLabelWidth = Math.Max(maxDurationLabelWidth, t.DurationLabel.Length);
+            }
+        }
+
         // Phase 3: Build span widgets only for visible items
         var spanWidgets = new List<Hex1bWidget>();
         foreach (var visibleItem in visibleItems)
@@ -158,6 +185,7 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
                     InnerDurationFraction = timing.InnerDurationFraction,
                     Status = timing.Status,
                     DurationLabel = timing.DurationLabel,
+                    DurationLabelWidth = maxDurationLabelWidth,
                 });
             }
         }
@@ -192,7 +220,7 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
                 ? innerDuration.Value.TotalMilliseconds / traceDuration.TotalMilliseconds
                 : null;
 
-            var timing = new SpanTimingData(startFrac, durationFrac, innerFrac, status, FormatDuration(duration));
+            var timing = new SpanTimingData(startFrac, durationFrac, innerFrac, status, FormatSpanDuration(duration));
 
             // Build tree item with timing data for correlation
             var treeItem = new TreeItemWidget(label).Data(timing);
@@ -293,7 +321,14 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         return (minStart, traceDuration);
     }
 
-    private static string FormatDuration(TimeSpan duration)
+    private string FormatSpanDuration(TimeSpan duration)
+    {
+        if (DurationFormatter != null)
+            return DurationFormatter(duration);
+        return DefaultFormatDuration(duration);
+    }
+
+    private static string DefaultFormatDuration(TimeSpan duration)
     {
         if (duration.TotalMinutes >= 1)
             return $"{duration.TotalMinutes:F1}min";

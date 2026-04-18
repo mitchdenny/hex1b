@@ -38,6 +38,12 @@ internal sealed record TraceTimelineSpanWidget : Hex1bWidget
     /// </summary>
     public string? DurationLabel { get; init; }
 
+    /// <summary>
+    /// Fixed width for the duration label column. All span bars use the same width
+    /// so bars and labels are vertically aligned. When 0, the label's natural width is used.
+    /// </summary>
+    public int DurationLabelWidth { get; init; }
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TraceTimelineSpanNode ?? new TraceTimelineSpanNode();
@@ -49,6 +55,7 @@ internal sealed record TraceTimelineSpanWidget : Hex1bWidget
         node.InnerDurationFraction = InnerDurationFraction;
         node.Status = Status;
         node.DurationLabel = DurationLabel;
+        node.DurationLabelWidth = DurationLabelWidth;
 
         return Task.FromResult<Hex1bNode>(node);
     }

@@ -15,6 +15,7 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
     public double? InnerDurationFraction { get; set; }
     public TraceSpanStatus Status { get; set; }
     public string? DurationLabel { get; set; }
+    public int DurationLabelWidth { get; set; }
 
     protected override Size MeasureCore(Constraints constraints)
     {
@@ -37,10 +38,11 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
             _ => theme.Get(TraceTimelineTheme.OkBarColor),
         };
 
-        // Reserve space for duration label at the end
+        // Reserve space for duration label at the end (fixed width for alignment)
         var labelText = DurationLabel ?? "";
-        var labelWidth = labelText.Length > 0 ? labelText.Length + 1 : 0; // +1 for space before label
-        var barWidth = Math.Max(1, Bounds.Width - labelWidth);
+        var fixedLabelWidth = DurationLabelWidth > 0 ? DurationLabelWidth : labelText.Length;
+        var labelColumnWidth = fixedLabelWidth > 0 ? fixedLabelWidth + 1 : 0; // +1 for space before label
+        var barWidth = Math.Max(1, Bounds.Width - labelColumnWidth);
 
         if (barWidth < 1)
         {
@@ -137,11 +139,15 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
             line.Append(resetCodes);
         }
 
-        // Duration label
-        if (labelWidth > 0)
+        // Duration label (right-aligned within fixed column)
+        if (labelColumnWidth > 0)
         {
             line.Append(' ');
             line.Append(durationLabelColor.ToForegroundAnsi());
+            if (labelText.Length < fixedLabelWidth)
+            {
+                line.Append(new string(' ', fixedLabelWidth - labelText.Length));
+            }
             line.Append(labelText);
             line.Append(resetCodes);
         }
