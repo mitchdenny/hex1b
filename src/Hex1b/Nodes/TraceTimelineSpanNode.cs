@@ -84,8 +84,9 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
             var singleCellUnits = Math.Max(1, endUnits - startUnits);
             if (startOffset == 0)
             {
-                // Bar starts at cell edge — use bar fg on default bg
+                // Bar starts at cell edge — bar fg on lane bg (unfilled portion = lane)
                 line.Append(barFg);
+                line.Append(laneBg);
                 line.Append(GetBlock(blocks, singleCellUnits));
                 line.Append(resetCodes);
             }
@@ -116,14 +117,16 @@ internal sealed class TraceTimelineSpanNode : Hex1bNode
             if (fullCells > 0)
             {
                 line.Append(barFg);
+                line.Append(laneBg);
                 line.Append(new string(GetBlock(blocks, 8)[0], fullCells));
                 line.Append(resetCodes);
             }
 
-            // Trailing partial cell
+            // Trailing partial cell — bar fg on lane bg (unfilled portion = lane)
             if (endOffset > 0)
             {
                 line.Append(barFg);
+                line.Append(laneBg);
                 line.Append(GetBlock(blocks, endOffset));
                 line.Append(resetCodes);
             }
