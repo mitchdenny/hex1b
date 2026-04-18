@@ -9,4 +9,10 @@
   <ItemGroup>
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
   </ItemGroup>
+
+  <ItemGroup>
+    <None Update="webfrontend-traces.json">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
 </Project>
