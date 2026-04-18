@@ -122,7 +122,8 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
             StartTimeSelector == null || DurationSelector == null ||
             SpanIdSelector == null || ParentIdSelector == null)
         {
-            node.ComposedChild = null;
+            node.TreeChild = null;
+            node.TimelineChild = null;
             return node;
         }
 
@@ -132,34 +133,48 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         // Compute trace-wide time range
         var (traceStart, traceDuration) = ComputeTimeRange();
 
-        // Build TreeWidget items and matching span widgets
+        // Build TreeWidget items with span data attached for correlation
         var treeItems = new List<TreeItemWidget>();
-        var spanWidgets = new List<Hex1bWidget>();
-        BuildWidgets(tree, traceStart, traceDuration, treeItems, spanWidgets);
+        BuildTreeItems(tree, treeItems);
 
-        // Left panel: standard TreeWidget with labels
+        // Phase 1: Reconcile the tree first (preserves expand/collapse state)
         var treeWidget = new TreeWidget(treeItems);
+        node.TreeChild = await context.ReconcileChildAsync(node.TreeChild, treeWidget, node);
 
-        // Right panel: VStack of span bar widgets (matches flattened tree order)
+        // Phase 2: Query visible items from the reconciled tree
+        var treeNode = node.TreeChild as TreeNode;
+        var visibleItems = treeNode?.GetVisibleItems() ?? [];
+
+        // Phase 3: Build span widgets only for visible items
+        var spanWidgets = new List<Hex1bWidget>();
+        foreach (var visibleItem in visibleItems)
+        {
+            if (visibleItem.TryGetData<SpanTimingData>(out var timing))
+            {
+                spanWidgets.Add(new TraceTimelineSpanWidget
+                {
+                    StartFraction = timing.StartFraction,
+                    DurationFraction = timing.DurationFraction,
+                    InnerDurationFraction = timing.InnerDurationFraction,
+                    Status = timing.Status,
+                    DurationLabel = timing.DurationLabel,
+                });
+            }
+        }
+
+        // Reconcile the timeline VStack
         var timelinePanel = new VStackWidget(spanWidgets.ToArray());
-
-        // Compose: Splitter(Tree, Timeline)
-        var splitter = new SplitterWidget(treeWidget, timelinePanel, firstSize: 30);
-
-        // Reconcile the composed widget
-        node.ComposedChild = await context.ReconcileChildAsync(node.ComposedChild, splitter, node);
+        node.TimelineChild = await context.ReconcileChildAsync(node.TimelineChild, timelinePanel, node);
 
         return node;
     }
 
-    private void BuildWidgets(
+    private void BuildTreeItems(
         List<SpanTreeEntry> treeEntries,
-        DateTimeOffset traceStart,
-        TimeSpan traceDuration,
-        List<TreeItemWidget> treeItems,
-        List<Hex1bWidget> spanWidgets)
+        List<TreeItemWidget> treeItems)
     {
         var data = Data!;
+        var (traceStart, traceDuration) = ComputeTimeRange();
 
         foreach (var entry in treeEntries)
         {
@@ -177,32 +192,16 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
                 ? innerDuration.Value.TotalMilliseconds / traceDuration.TotalMilliseconds
                 : null;
 
-            var spanWidget = new TraceTimelineSpanWidget
-            {
-                StartFraction = startFrac,
-                DurationFraction = durationFrac,
-                InnerDurationFraction = innerFrac,
-                Status = status,
-                DurationLabel = FormatDuration(duration),
-            };
+            var timing = new SpanTimingData(startFrac, durationFrac, innerFrac, status, FormatDuration(duration));
 
-            // Build tree item
-            var treeItem = new TreeItemWidget(label);
+            // Build tree item with timing data for correlation
+            var treeItem = new TreeItemWidget(label).Data(timing);
 
             if (entry.Children.Count > 0)
             {
                 var childTreeItems = new List<TreeItemWidget>();
-                var childSpanWidgets = new List<Hex1bWidget>();
-                BuildWidgets(entry.Children, traceStart, traceDuration, childTreeItems, childSpanWidgets);
+                BuildTreeItems(entry.Children, childTreeItems);
                 treeItem = treeItem.Children(childTreeItems.ToArray()).Expanded();
-
-                // This span first, then children (matches flattened tree order)
-                spanWidgets.Add(spanWidget);
-                spanWidgets.AddRange(childSpanWidgets);
-            }
-            else
-            {
-                spanWidgets.Add(spanWidget);
             }
 
             treeItems.Add(treeItem);
@@ -319,3 +318,13 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         }
     }
 }
+
+/// <summary>
+/// Pre-computed timing data for a span, stored on tree items via Data&lt;T&gt;().
+/// </summary>
+internal sealed record SpanTimingData(
+    double StartFraction,
+    double DurationFraction,
+    double? InnerDurationFraction,
+    TraceSpanStatus Status,
+    string DurationLabel);

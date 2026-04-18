@@ -69,27 +69,27 @@ public class TraceTimelineNodeTests
     }
 
     [Fact]
-    public async Task Reconcile_CreatesComposedChild()
+    public async Task Reconcile_CreatesChildren()
     {
         var widget = CreateWidget(CreateSimpleTrace());
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
-    public async Task Reconcile_EmptyData_NoComposedChild()
+    public async Task Reconcile_EmptyData_NoChildren()
     {
         var widget = CreateWidget([]);
 
         var node = await ReconcileAsync(widget);
 
-        Assert.Null(node.ComposedChild);
+        Assert.Null(node.TreeChild);
     }
 
     [Fact]
-    public async Task Reconcile_NullData_NoComposedChild()
+    public async Task Reconcile_NullData_NoChildren()
     {
         var widget = new TraceTimelineWidget<TraceSpanItem>
         {
@@ -103,7 +103,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.Null(node.ComposedChild);
+        Assert.Null(node.TreeChild);
     }
 
     #endregion
@@ -134,7 +134,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion
@@ -209,7 +209,7 @@ public class TraceTimelineNodeTests
         var node = await ReconcileAsync(widget);
 
         // Should build successfully with child at 50% start
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion
@@ -234,7 +234,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -266,7 +266,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     [Fact]
@@ -283,7 +283,7 @@ public class TraceTimelineNodeTests
 
         var node = await ReconcileAsync(widget);
 
-        Assert.NotNull(node.ComposedChild);
+        Assert.NotNull(node.TreeChild);
     }
 
     #endregion
