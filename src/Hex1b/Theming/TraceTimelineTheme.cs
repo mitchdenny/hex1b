@@ -63,7 +63,7 @@ public static class TraceTimelineTheme
     /// Foreground color for the duration label displayed after the bar.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> DurationLabelColor =
-        new($"{nameof(TraceTimelineTheme)}.{nameof(DurationLabelColor)}", () => Hex1bColor.DarkGray);
+        new($"{nameof(TraceTimelineTheme)}.{nameof(DurationLabelColor)}", () => Hex1bColor.Gray);
 
     #endregion
 
