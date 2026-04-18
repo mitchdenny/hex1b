@@ -54,7 +54,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
     /// label/content area is replaced by the builder's output.
     /// </para>
     /// </remarks>
-    internal Func<TreeItemWidget, Hex1bWidget>? ItemContentBuilder { get; init; }
+    internal Func<TreeItemWidget, TreeItemContentContext, Hex1bWidget>? ItemContentBuilder { get; init; }
 
     // Container-level event handlers
     internal Func<TreeSelectionChangedEventArgs, Task>? SelectionChangedHandler { get; init; }
@@ -156,7 +156,8 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
         IReadOnlyList<TreeItemNode> existingNodes,
         List<TreeItemNode> outputNodes,
         TreeNode parentTree,
-        ReconcileContext context)
+        ReconcileContext context,
+        int depth = 0)
     {
         for (int i = 0; i < widgets.Count; i++)
         {
@@ -269,7 +270,7 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             if (widget.ChildItems.Count > 0)
             {
                 var newChildren = new List<TreeItemNode>();
-                await ReconcileItemsAsync(widget.ChildItems, node.Children, newChildren, parentTree, context);
+                await ReconcileItemsAsync(widget.ChildItems, node.Children, newChildren, parentTree, context, depth + 1);
                 node.Children = newChildren;
             }
             // If widget has no children but node has dynamically loaded children, preserve them
@@ -319,7 +320,23 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             // 4. Custom content (from ItemContentBuilder)
             if (ItemContentBuilder != null)
             {
-                var contentWidget = ItemContentBuilder(widget);
+                // Compute left margin: guides + indicator + checkbox + icon
+                var marginOffset = depth * 3; // guide chars per depth level
+                if (node.CanExpand || node.IsLoading) marginOffset += 2; // indicator + space
+                if (IsMultiSelect) marginOffset += 4; // "[x] "
+                if (node.Icon != null) marginOffset += DisplayWidth.GetStringWidth(node.Icon) + 1;
+
+                var contentContext = new TreeItemContentContext
+                {
+                    Depth = depth,
+                    LeftMarginOffset = marginOffset,
+                    IsFocused = node.IsFocused,
+                    IsSelected = node.IsSelected,
+                    IsExpanded = node.IsExpanded,
+                    HasChildren = node.HasChildren,
+                };
+
+                var contentWidget = ItemContentBuilder(widget, contentContext);
                 node.ContentNode = await context.ReconcileChildAsync(
                     node.ContentNode, contentWidget, node);
             }

@@ -147,16 +147,19 @@ public sealed record TraceTimelineWidget<T> : Hex1bWidget
         // Build TreeWidget with custom item content builder
         var treeWidget = new TreeWidget(treeItems)
         {
-            ItemContentBuilder = item =>
+            ItemContentBuilder = (item, contentContext) =>
             {
                 if (!item.TryGetSpanData(out SpanTimingData? timing))
                 {
                     return new TextBlockWidget(item.Label);
                 }
 
+                // Adjust label width to compensate for tree indentation
+                var adjustedLabelWidth = Math.Max(1, maxLabelWidth + 1 - contentContext.LeftMarginOffset);
+
                 // Build HStack: [fixed-width label] [timeline span bar]
                 return new HStackWidget([
-                    new TextBlockWidget(item.Label) { WidthHint = Layout.SizeHint.Fixed(maxLabelWidth + 1) },
+                    new TextBlockWidget(item.Label) { WidthHint = Layout.SizeHint.Fixed(adjustedLabelWidth) },
                     new TraceTimelineSpanWidget
                     {
                         StartFraction = timing.StartFraction,
