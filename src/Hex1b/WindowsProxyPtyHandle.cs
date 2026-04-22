@@ -545,7 +545,7 @@ internal sealed class WindowsShimPtyHandle : IPtyHandle
 
     private static async Task ConnectWithRetriesAsync(Socket socket, EndPoint endpoint, Process helperProcess, CancellationToken ct)
     {
-        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(15);
         Exception? lastError = null;
 
         while (DateTime.UtcNow < deadline && !ct.IsCancellationRequested)
