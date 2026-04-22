@@ -2,7 +2,6 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using Hex1b;
 using Hex1b.Input;
-using Hex1b.Hmp1;
 using Hex1b.Widgets;
 
 // Well-known session directory

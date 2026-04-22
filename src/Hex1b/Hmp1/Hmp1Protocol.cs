@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// Reads and writes Hex1b Muxer Protocol (HMP) frames over a <see cref="Stream"/>.
@@ -14,7 +14,7 @@ namespace Hex1b.Hmp1;
 /// See docs/muxer-protocol.md for the full protocol specification.
 /// </para>
 /// </remarks>
-public static class Hmp1Protocol
+internal static class Hmp1Protocol
 {
     /// <summary>
     /// Current protocol version.
@@ -199,12 +199,12 @@ public static class Hmp1Protocol
 /// </summary>
 /// <param name="Type">The frame type.</param>
 /// <param name="Payload">The raw payload bytes.</param>
-public readonly record struct Hmp1Frame(Hmp1FrameType Type, ReadOnlyMemory<byte> Payload);
+internal readonly record struct Hmp1Frame(Hmp1FrameType Type, ReadOnlyMemory<byte> Payload);
 
 /// <summary>
 /// JSON payload for the <see cref="Hmp1FrameType.Hello"/> frame.
 /// </summary>
-public sealed class HelloPayload
+internal sealed class HelloPayload
 {
     /// <summary>Protocol version.</summary>
     public int Version { get; set; }

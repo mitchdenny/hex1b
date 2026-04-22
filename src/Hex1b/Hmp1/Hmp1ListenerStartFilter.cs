@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using Hex1b.Tokens;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// A presentation filter that starts muxer listeners when the terminal session begins.

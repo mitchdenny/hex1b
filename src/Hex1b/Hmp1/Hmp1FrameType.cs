@@ -1,4 +1,4 @@
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// Frame types for the Hex1b Muxer Protocol (HMP v1).
@@ -6,7 +6,7 @@ namespace Hex1b.Hmp1;
 /// <remarks>
 /// See docs/muxer-protocol.md for the full protocol specification.
 /// </remarks>
-public enum Hmp1FrameType : byte
+internal enum Hmp1FrameType : byte
 {
     /// <summary>
     /// Server → Client. Sent once on connection.

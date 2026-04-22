@@ -2,7 +2,7 @@ using System.Buffers.Binary;
 using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
-using Hex1b.Hmp1;
+using Hex1b;
 
 namespace Hex1b.Tests.Muxer;
 

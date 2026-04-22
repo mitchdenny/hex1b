@@ -1,4 +1,4 @@
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// Handle representing a connected muxer client. Dispose to disconnect.

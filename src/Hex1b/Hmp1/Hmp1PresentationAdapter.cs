@@ -2,7 +2,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// A presentation adapter that serves terminal output to multiple remote clients

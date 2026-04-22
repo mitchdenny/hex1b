@@ -1,7 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// A workload adapter that connects to a remote muxer server over the Hex1b Muxer Protocol (HMP).

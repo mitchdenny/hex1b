@@ -1,7 +1,7 @@
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// Extension methods for <see cref="Hex1bTerminalBuilder"/> to configure muxer adapters.
@@ -69,16 +69,19 @@ public static class Hmp1BuilderExtensions
     }
 
     /// <summary>
-    /// Configures the terminal as a muxer client. The terminal connects to a remote
-    /// muxer server over the Hex1b Muxer Protocol and displays the remote terminal locally.
+    /// Configures the terminal as an HMP v1 client. The terminal connects to a remote
+    /// server and displays its output locally.
     /// </summary>
     /// <param name="builder">The terminal builder.</param>
-    /// <param name="configure">Callback to configure the muxer client options (e.g., connection).</param>
+    /// <param name="streamFactory">
+    /// A factory that creates a bidirectional stream to the server.
+    /// Called when the terminal starts running.
+    /// </param>
     /// <returns>The builder for fluent chaining.</returns>
     /// <example>
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithHmp1Client(client => client.ConnectUnixSocket("/tmp/my-terminal.sock"))
+    ///     .WithHmp1Client(ct => MyTransport.ConnectAsync(ct))
     ///     .Build();
     ///
     /// await terminal.RunAsync();
@@ -86,19 +89,10 @@ public static class Hmp1BuilderExtensions
     /// </example>
     public static Hex1bTerminalBuilder WithHmp1Client(
         this Hex1bTerminalBuilder builder,
-        Action<Hmp1ClientOptions> configure)
+        Func<CancellationToken, Task<Stream>> streamFactory)
     {
-        ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(streamFactory);
 
-        var options = new Hmp1ClientOptions();
-        configure(options);
-
-        if (options.StreamFactory is null)
-            throw new InvalidOperationException(
-                "Muxer client must have a connection configured. " +
-                "Call ConnectUnixSocket() or ConnectStream() on the options.");
-
-        var streamFactory = options.StreamFactory;
         var adapter = new Hmp1WorkloadAdapter(streamFactory);
 
         builder.SetWorkloadFactory(_ =>
@@ -122,17 +116,26 @@ public static class Hmp1BuilderExtensions
     }
 
     /// <summary>
-    /// Configures the terminal as a muxer client with an already-connected stream.
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket.
     /// </summary>
     /// <param name="builder">The terminal builder.</param>
-    /// <param name="stream">A bidirectional stream connected to the muxer server.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
     /// <returns>The builder for fluent chaining.</returns>
-    public static Hex1bTerminalBuilder WithHmp1Client(
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHmp1UdsClient("/tmp/my-terminal.sock")
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
         this Hex1bTerminalBuilder builder,
-        Stream stream)
+        string socketPath)
     {
-        ArgumentNullException.ThrowIfNull(stream);
-        return builder.WithHmp1Client(opts => opts.ConnectStream(_ => Task.FromResult(stream)));
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        return builder.WithHmp1Client(ct => Hmp1Transports.ConnectUnixSocket(socketPath, ct));
     }
 }
 
@@ -176,6 +179,27 @@ public static class Hmp1Transports
         {
             try { File.Delete(path); }
             catch { /* ignore */ }
+        }
+    }
+
+    /// <summary>
+    /// Connects to a Unix domain socket and returns a bidirectional stream.
+    /// </summary>
+    /// <param name="path">Path to the Unix domain socket file.</param>
+    /// <param name="ct">Cancellation token.</param>
+    /// <returns>A bidirectional stream connected to the server.</returns>
+    public static async Task<Stream> ConnectUnixSocket(string path, CancellationToken ct)
+    {
+        var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            await socket.ConnectAsync(new UnixDomainSocketEndPoint(path), ct).ConfigureAwait(false);
+            return new NetworkStream(socket, ownsSocket: true);
+        }
+        catch
+        {
+            socket.Dispose();
+            throw;
         }
     }
 }

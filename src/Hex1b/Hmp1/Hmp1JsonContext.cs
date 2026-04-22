@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace Hex1b.Hmp1;
+namespace Hex1b;
 
 /// <summary>
 /// Source-generated JSON context for muxer protocol types.
