@@ -110,7 +110,7 @@ public static class TerminalRegionAnsiExtensions
                 sb.Append($"\x1b[{x + 1}G");
 
                 // Build SGR (Select Graphic Rendition) sequence
-                var sgrParams = new List<int>();
+                var sgrParts = new List<string>();
 
                 // Check if we need to reset attributes
                 var needsReset = false;
@@ -136,7 +136,7 @@ public static class TerminalRegionAnsiExtensions
 
                 if (needsReset || (currentFg.HasValue && !targetFg.HasValue) || (currentBg.HasValue && !targetBg.HasValue))
                 {
-                    sgrParams.Add(0);  // Reset all attributes
+                    sgrParts.Add("0");  // Reset all attributes
                     currentAttrs = CellAttributes.None;
                     currentFg = null;
                     currentBg = null;
@@ -144,54 +144,46 @@ public static class TerminalRegionAnsiExtensions
 
                 // Add text attributes
                 if ((targetAttrs & CellAttributes.Bold) != 0 && (currentAttrs & CellAttributes.Bold) == 0)
-                    sgrParams.Add(1);
+                    sgrParts.Add("1");
                 if ((targetAttrs & CellAttributes.Dim) != 0 && (currentAttrs & CellAttributes.Dim) == 0)
-                    sgrParams.Add(2);
+                    sgrParts.Add("2");
                 if ((targetAttrs & CellAttributes.Italic) != 0 && (currentAttrs & CellAttributes.Italic) == 0)
-                    sgrParams.Add(3);
+                    sgrParts.Add("3");
                 if ((targetAttrs & CellAttributes.Underline) != 0 && (currentAttrs & CellAttributes.Underline) == 0)
-                    sgrParams.Add(4);
+                    sgrParts.Add("4");
                 if ((targetAttrs & CellAttributes.Blink) != 0 && (currentAttrs & CellAttributes.Blink) == 0)
-                    sgrParams.Add(5);
+                    sgrParts.Add("5");
                 if ((targetAttrs & CellAttributes.Hidden) != 0 && (currentAttrs & CellAttributes.Hidden) == 0)
-                    sgrParams.Add(8);
+                    sgrParts.Add("8");
                 if ((targetAttrs & CellAttributes.Strikethrough) != 0 && (currentAttrs & CellAttributes.Strikethrough) == 0)
-                    sgrParams.Add(9);
+                    sgrParts.Add("9");
                 if ((targetAttrs & CellAttributes.Overline) != 0 && (currentAttrs & CellAttributes.Overline) == 0)
-                    sgrParams.Add(53);
+                    sgrParts.Add("53");
 
-                // Add foreground color (24-bit true color)
+                // Add foreground color preserving original encoding
                 if (targetFg.HasValue && !ColorsEqual(targetFg, currentFg))
                 {
-                    sgrParams.Add(38);
-                    sgrParams.Add(2);
-                    sgrParams.Add(targetFg.Value.R);
-                    sgrParams.Add(targetFg.Value.G);
-                    sgrParams.Add(targetFg.Value.B);
+                    sgrParts.Add(FormatColorSgr(targetFg.Value, isForeground: true));
                 }
                 else if (!targetFg.HasValue && currentFg.HasValue)
                 {
-                    sgrParams.Add(39);  // Default foreground
+                    sgrParts.Add("39");  // Default foreground
                 }
 
-                // Add background color (24-bit true color)
+                // Add background color preserving original encoding
                 if (targetBg.HasValue && !ColorsEqual(targetBg, currentBg))
                 {
-                    sgrParams.Add(48);
-                    sgrParams.Add(2);
-                    sgrParams.Add(targetBg.Value.R);
-                    sgrParams.Add(targetBg.Value.G);
-                    sgrParams.Add(targetBg.Value.B);
+                    sgrParts.Add(FormatColorSgr(targetBg.Value, isForeground: false));
                 }
                 else if (!targetBg.HasValue && currentBg.HasValue)
                 {
-                    sgrParams.Add(49);  // Default background
+                    sgrParts.Add("49");  // Default background
                 }
 
                 // Emit SGR sequence if needed
-                if (sgrParams.Count > 0)
+                if (sgrParts.Count > 0)
                 {
-                    sb.Append($"\x1b[{string.Join(";", sgrParams)}m");
+                    sb.Append($"\x1b[{string.Join(";", sgrParts)}m");
                 }
 
                 // Update current state
@@ -252,8 +244,17 @@ public static class TerminalRegionAnsiExtensions
             return true;
         if (!a.HasValue || !b.HasValue)
             return false;
-        return a.Value.R == b.Value.R && a.Value.G == b.Value.G && a.Value.B == b.Value.B;
+        return a.Value.R == b.Value.R && a.Value.G == b.Value.G && a.Value.B == b.Value.B
+            && a.Value.Kind == b.Value.Kind && a.Value.AnsiIndex == b.Value.AnsiIndex;
     }
+
+    private static string FormatColorSgr(Hex1bColor color, bool isForeground) => color.Kind switch
+    {
+        Hex1bColorKind.Standard => (isForeground ? 30 + color.AnsiIndex : 40 + color.AnsiIndex).ToString(),
+        Hex1bColorKind.Bright => (isForeground ? 90 + color.AnsiIndex : 100 + color.AnsiIndex).ToString(),
+        Hex1bColorKind.Indexed => $"{(isForeground ? "38;5" : "48;5")};{color.AnsiIndex}",
+        _ => $"{(isForeground ? "38;2" : "48;2")};{color.R};{color.G};{color.B}"
+    };
 }
 
 /// <summary>

@@ -1505,27 +1505,27 @@ public class SurfaceRenderContext : Hex1bRenderContext
 
     private static Hex1bColor GetBasicColor(int index) => index switch
     {
-        0 => Hex1bColor.FromRgb(0, 0, 0),       // Black
-        1 => Hex1bColor.FromRgb(128, 0, 0),     // Red
-        2 => Hex1bColor.FromRgb(0, 128, 0),     // Green
-        3 => Hex1bColor.FromRgb(128, 128, 0),   // Yellow
-        4 => Hex1bColor.FromRgb(0, 0, 128),     // Blue
-        5 => Hex1bColor.FromRgb(128, 0, 128),   // Magenta
-        6 => Hex1bColor.FromRgb(0, 128, 128),   // Cyan
-        7 => Hex1bColor.FromRgb(192, 192, 192), // White
+        0 => Hex1bColor.FromStandard(0, 0, 0, 0),       // Black
+        1 => Hex1bColor.FromStandard(1, 128, 0, 0),     // Red
+        2 => Hex1bColor.FromStandard(2, 0, 128, 0),     // Green
+        3 => Hex1bColor.FromStandard(3, 128, 128, 0),   // Yellow
+        4 => Hex1bColor.FromStandard(4, 0, 0, 128),     // Blue
+        5 => Hex1bColor.FromStandard(5, 128, 0, 128),   // Magenta
+        6 => Hex1bColor.FromStandard(6, 0, 128, 128),   // Cyan
+        7 => Hex1bColor.FromStandard(7, 192, 192, 192), // White
         _ => Hex1bColor.FromRgb(128, 128, 128)
     };
 
     private static Hex1bColor GetBrightColor(int index) => index switch
     {
-        0 => Hex1bColor.FromRgb(128, 128, 128), // Bright Black (Gray)
-        1 => Hex1bColor.FromRgb(255, 0, 0),     // Bright Red
-        2 => Hex1bColor.FromRgb(0, 255, 0),     // Bright Green
-        3 => Hex1bColor.FromRgb(255, 255, 0),   // Bright Yellow
-        4 => Hex1bColor.FromRgb(0, 0, 255),     // Bright Blue
-        5 => Hex1bColor.FromRgb(255, 0, 255),   // Bright Magenta
-        6 => Hex1bColor.FromRgb(0, 255, 255),   // Bright Cyan
-        7 => Hex1bColor.FromRgb(255, 255, 255), // Bright White
+        0 => Hex1bColor.FromBright(0, 128, 128, 128), // Bright Black (Gray)
+        1 => Hex1bColor.FromBright(1, 255, 0, 0),     // Bright Red
+        2 => Hex1bColor.FromBright(2, 0, 255, 0),     // Bright Green
+        3 => Hex1bColor.FromBright(3, 255, 255, 0),   // Bright Yellow
+        4 => Hex1bColor.FromBright(4, 0, 0, 255),     // Bright Blue
+        5 => Hex1bColor.FromBright(5, 255, 0, 255),   // Bright Magenta
+        6 => Hex1bColor.FromBright(6, 0, 255, 255),   // Bright Cyan
+        7 => Hex1bColor.FromBright(7, 255, 255, 255), // Bright White
         _ => Hex1bColor.FromRgb(255, 255, 255)
     };
 
@@ -1543,13 +1543,13 @@ public class SurfaceRenderContext : Hex1bRenderContext
             var r = (i / 36) * 51;
             var g = ((i / 6) % 6) * 51;
             var b = (i % 6) * 51;
-            return Hex1bColor.FromRgb((byte)r, (byte)g, (byte)b);
+            return Hex1bColor.FromIndexed((byte)index, (byte)r, (byte)g, (byte)b);
         }
         else
         {
             // Grayscale (indices 232-255)
             var gray = (index - 232) * 10 + 8;
-            return Hex1bColor.FromRgb((byte)gray, (byte)gray, (byte)gray);
+            return Hex1bColor.FromIndexed((byte)index, (byte)gray, (byte)gray, (byte)gray);
         }
     }
 
