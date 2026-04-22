@@ -538,7 +538,13 @@ public class TerminalResizeTimingTests
             // Create first terminal
             AddTerminal();
             
-            // Verify first terminal has content
+            // Wait for the app to render the first terminal (border title confirms arrangement)
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Terminal 1"), TimeSpan.FromSeconds(5), "first terminal rendered")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            
+            // Verify first terminal has content from the shell
             var handle1 = terminals[0].handle;
             await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
             var buffer1 = handle1.GetScreenBuffer();
@@ -548,7 +554,13 @@ public class TerminalResizeTimingTests
             // Create second terminal
             AddTerminal();
             
-            // Verify second terminal has content
+            // Wait for the app to render the second terminal (border title confirms arrangement)
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("Terminal 2"), TimeSpan.FromSeconds(5), "second terminal rendered")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+            
+            // Verify second terminal has content from the shell
             var handle2 = terminals[1].handle;
             await WaitForTerminalContentAsync(handle2, GetStartupTimeout(), TestContext.Current.CancellationToken);
             var buffer2 = handle2.GetScreenBuffer();
