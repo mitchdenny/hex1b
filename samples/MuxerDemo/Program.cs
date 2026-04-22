@@ -282,6 +282,17 @@ async Task ConnectToSessionAsync(SessionInfo session)
         connectedSessionName = session.Name;
         connectedSocketPath = session.SocketPath;
 
+        // When the PTY exits (shell closed), return to session list
+        handle.StateChanged += state =>
+        {
+            if (state == TerminalState.Completed)
+            {
+                view = "sessions";
+                statusMessage = $"Session '{session.Name}' exited.";
+                app?.Invalidate();
+            }
+        };
+
         _ = embeddedTerminal.RunAsync(embeddedCts.Token);
 
         // Switch to terminal view
