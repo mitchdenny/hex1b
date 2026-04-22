@@ -1,17 +1,17 @@
-namespace Hex1b.Muxer;
+namespace Hex1b.Hmp1;
 
 /// <summary>
 /// Handle representing a connected muxer client. Dispose to disconnect.
 /// </summary>
-public sealed class MuxerClientHandle : IAsyncDisposable
+public sealed class Hmp1ClientHandle : IAsyncDisposable
 {
-    private readonly MuxerPresentationAdapter.MuxerClientSession _session;
-    private readonly MuxerPresentationAdapter _adapter;
+    private readonly Hmp1PresentationAdapter.Hmp1ClientSession _session;
+    private readonly Hmp1PresentationAdapter _adapter;
     private bool _disposed;
 
-    internal MuxerClientHandle(
-        MuxerPresentationAdapter.MuxerClientSession session,
-        MuxerPresentationAdapter adapter)
+    internal Hmp1ClientHandle(
+        Hmp1PresentationAdapter.Hmp1ClientSession session,
+        Hmp1PresentationAdapter adapter)
     {
         _session = session;
         _adapter = adapter;

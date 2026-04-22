@@ -1,7 +1,7 @@
 using System.Text;
 using System.Threading.Channels;
 
-namespace Hex1b.Muxer;
+namespace Hex1b.Hmp1;
 
 /// <summary>
 /// A workload adapter that connects to a remote muxer server over the Hex1b Muxer Protocol (HMP).
@@ -17,7 +17,7 @@ namespace Hex1b.Muxer;
 /// (Unix domain socket, TCP, named pipe, etc.).
 /// </para>
 /// </remarks>
-public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
 {
     private readonly Func<CancellationToken, Task<Stream>> _streamFactory;
     private Stream? _stream;
@@ -30,7 +30,7 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     /// Creates a muxer workload adapter that connects via the given stream factory.
     /// </summary>
     /// <param name="streamFactory">Factory that creates a bidirectional stream to the server.</param>
-    public MuxerWorkloadAdapter(Func<CancellationToken, Task<Stream>> streamFactory)
+    public Hmp1WorkloadAdapter(Func<CancellationToken, Task<Stream>> streamFactory)
     {
         _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
         _outputChannel = Channel.CreateBounded<ReadOnlyMemory<byte>>(
@@ -46,7 +46,7 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     /// Creates a muxer workload adapter with an already-connected stream.
     /// </summary>
     /// <param name="stream">A bidirectional stream connected to the server.</param>
-    public MuxerWorkloadAdapter(Stream stream)
+    public Hmp1WorkloadAdapter(Stream stream)
         : this(_ => Task.FromResult(stream))
     {
         ArgumentNullException.ThrowIfNull(stream);
@@ -74,21 +74,21 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         _stream = await _streamFactory(ct).ConfigureAwait(false);
 
         // Read Hello frame
-        var helloFrame = await MuxerProtocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
+        var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Server closed connection before Hello frame.");
 
-        if (helloFrame.Type != MuxerFrameType.Hello)
+        if (helloFrame.Type != Hmp1FrameType.Hello)
             throw new InvalidOperationException($"Expected Hello frame, got {helloFrame.Type}.");
 
-        var hello = MuxerProtocol.ParseHello(helloFrame.Payload);
+        var hello = Hmp1Protocol.ParseHello(helloFrame.Payload);
         RemoteWidth = hello.Width;
         RemoteHeight = hello.Height;
 
         // Read StateSync frame
-        var syncFrame = await MuxerProtocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
+        var syncFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
             ?? throw new InvalidOperationException("Server closed connection before StateSync frame.");
 
-        if (syncFrame.Type != MuxerFrameType.StateSync)
+        if (syncFrame.Type != Hmp1FrameType.StateSync)
             throw new InvalidOperationException($"Expected StateSync frame, got {syncFrame.Type}.");
 
         // Queue the initial screen content so the terminal displays it immediately
@@ -134,7 +134,7 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
         try
         {
-            await MuxerProtocol.WriteFrameAsync(_stream, MuxerFrameType.Input, data, ct).ConfigureAwait(false);
+            await Hmp1Protocol.WriteFrameAsync(_stream, Hmp1FrameType.Input, data, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
@@ -149,7 +149,7 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
         try
         {
-            await MuxerProtocol.WriteResizeAsync(_stream, width, height, ct).ConfigureAwait(false);
+            await Hmp1Protocol.WriteResizeAsync(_stream, width, height, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
@@ -166,23 +166,23 @@ public sealed class MuxerWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         {
             while (!ct.IsCancellationRequested && _stream is not null)
             {
-                var maybeFrame = await MuxerProtocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false);
+                var maybeFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false);
                 if (maybeFrame is not { } frame)
                     break; // Server disconnected
 
                 switch (frame.Type)
                 {
-                    case MuxerFrameType.Output:
+                    case Hmp1FrameType.Output:
                         _outputChannel.Writer.TryWrite(frame.Payload);
                         break;
 
-                    case MuxerFrameType.Resize:
-                        var (width, height) = MuxerProtocol.ParseResize(frame.Payload);
+                    case Hmp1FrameType.Resize:
+                        var (width, height) = Hmp1Protocol.ParseResize(frame.Payload);
                         RemoteWidth = width;
                         RemoteHeight = height;
                         break;
 
-                    case MuxerFrameType.Exit:
+                    case Hmp1FrameType.Exit:
                         // Server terminal has exited
                         return;
                 }

@@ -1,11 +1,11 @@
 using System.Net.Sockets;
 
-namespace Hex1b.Muxer;
+namespace Hex1b.Hmp1;
 
 /// <summary>
 /// Configuration options for a muxer client (workload adapter).
 /// </summary>
-public sealed class MuxerClientOptions
+public sealed class Hmp1ClientOptions
 {
     internal Func<CancellationToken, Task<Stream>>? StreamFactory { get; private set; }
 
@@ -14,7 +14,7 @@ public sealed class MuxerClientOptions
     /// </summary>
     /// <param name="path">Path to the Unix domain socket file.</param>
     /// <returns>This options instance for chaining.</returns>
-    public MuxerClientOptions ConnectUnixSocket(string path)
+    public Hmp1ClientOptions ConnectUnixSocket(string path)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
 
@@ -43,7 +43,7 @@ public sealed class MuxerClientOptions
     /// Factory that creates a bidirectional stream to the server.
     /// </param>
     /// <returns>This options instance for chaining.</returns>
-    public MuxerClientOptions ConnectStream(Func<CancellationToken, Task<Stream>> streamFactory)
+    public Hmp1ClientOptions ConnectStream(Func<CancellationToken, Task<Stream>> streamFactory)
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
         StreamFactory = streamFactory;

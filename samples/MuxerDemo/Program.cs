@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using Hex1b;
 using Hex1b.Input;
-using Hex1b.Muxer;
+using Hex1b.Hmp1;
 using Hex1b.Widgets;
 
 // Well-known session directory
@@ -21,7 +21,7 @@ if (args is ["--server", var socketPath])
             if (OperatingSystem.IsWindows())
                 options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
         })
-        .WithMuxerServer(server => server.ListenUnixSocket(socketPath))
+        .WithHmp1UdsServer(socketPath)
         .Build();
 
     await terminal.RunAsync();
@@ -35,7 +35,7 @@ if (args is ["--server", var socketPath])
 
 Hex1bApp? app = null;
 var view = "sessions"; // "sessions" or "terminal"
-MuxerWorkloadAdapter? muxerAdapter = null;
+Hmp1WorkloadAdapter? muxerAdapter = null;
 Hex1bTerminal? embeddedTerminal = null;
 TerminalWidgetHandle? terminalHandle = null;
 CancellationTokenSource? embeddedCts = null;
@@ -265,7 +265,7 @@ async Task ConnectToSessionAsync(SessionInfo session)
         await socket.ConnectAsync(new UnixDomainSocketEndPoint(session.SocketPath));
         var stream = new NetworkStream(socket, ownsSocket: true);
 
-        muxerAdapter = new MuxerWorkloadAdapter(stream);
+        muxerAdapter = new Hmp1WorkloadAdapter(stream);
         await muxerAdapter.ConnectAsync(CancellationToken.None);
 
         // Create embedded terminal

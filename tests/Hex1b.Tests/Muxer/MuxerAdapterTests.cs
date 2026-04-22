@@ -1,6 +1,6 @@
 using System.IO.Pipelines;
 using System.Text;
-using Hex1b.Muxer;
+using Hex1b.Hmp1;
 
 namespace Hex1b.Tests.Muxer;
 
@@ -11,8 +11,8 @@ public class MuxerAdapterTests
     {
         var (serverToClient, clientToServer) = CreateDuplexStreamPair();
 
-        var server = new MuxerPresentationAdapter(80, 24);
-        var client = new MuxerWorkloadAdapter(serverToClient.ReadStream);
+        var server = new Hmp1PresentationAdapter(80, 24);
+        var client = new Hmp1WorkloadAdapter(serverToClient.ReadStream);
 
         // Server adds the client
         var handle = await server.AddClient(serverToClient.WriteStream);
@@ -33,13 +33,13 @@ public class MuxerAdapterTests
         // Create a full duplex pair
         var (stream1, stream2) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
 
         // Add client (sends Hello + StateSync)
         var handle = await server.AddClient(stream1);
 
         // Create client workload adapter connected to the other end
-        var client = new MuxerWorkloadAdapter(stream2);
+        var client = new Hmp1WorkloadAdapter(stream2);
         await client.ConnectAsync(CancellationToken.None);
 
         Assert.Equal(80, client.RemoteWidth);
@@ -64,10 +64,10 @@ public class MuxerAdapterTests
     {
         var (stream1, stream2) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
         var handle = await server.AddClient(stream1);
 
-        var client = new MuxerWorkloadAdapter(stream2);
+        var client = new Hmp1WorkloadAdapter(stream2);
         await client.ConnectAsync(CancellationToken.None);
 
         // Client sends input
@@ -89,10 +89,10 @@ public class MuxerAdapterTests
     {
         var (stream1, stream2) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
         var handle = await server.AddClient(stream1);
 
-        var client = new MuxerWorkloadAdapter(stream2);
+        var client = new Hmp1WorkloadAdapter(stream2);
         await client.ConnectAsync(CancellationToken.None);
 
         var resizeTcs = new TaskCompletionSource<(int Width, int Height)>();
@@ -119,13 +119,13 @@ public class MuxerAdapterTests
         var (stream1a, stream1b) = CreateFullDuplexPair();
         var (stream2a, stream2b) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
 
         var handle1 = await server.AddClient(stream1a);
         var handle2 = await server.AddClient(stream2a);
 
-        var client1 = new MuxerWorkloadAdapter(stream1b);
-        var client2 = new MuxerWorkloadAdapter(stream2b);
+        var client1 = new Hmp1WorkloadAdapter(stream1b);
+        var client2 = new Hmp1WorkloadAdapter(stream2b);
         await client1.ConnectAsync(CancellationToken.None);
         await client2.ConnectAsync(CancellationToken.None);
 
@@ -155,13 +155,13 @@ public class MuxerAdapterTests
         var (stream1a, stream1b) = CreateFullDuplexPair();
         var (stream2a, stream2b) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
 
         var handle1 = await server.AddClient(stream1a);
         var handle2 = await server.AddClient(stream2a);
 
-        var client1 = new MuxerWorkloadAdapter(stream1b);
-        var client2 = new MuxerWorkloadAdapter(stream2b);
+        var client1 = new Hmp1WorkloadAdapter(stream1b);
+        var client2 = new Hmp1WorkloadAdapter(stream2b);
         await client1.ConnectAsync(CancellationToken.None);
         await client2.ConnectAsync(CancellationToken.None);
 
@@ -188,14 +188,14 @@ public class MuxerAdapterTests
     }
 
     [Fact]
-    public async Task MuxerWorkloadAdapter_Disconnected_FiredOnStreamClose()
+    public async Task Hmp1WorkloadAdapter_Disconnected_FiredOnStreamClose()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
 
-        await using var server = new MuxerPresentationAdapter(80, 24);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
         var handle = await server.AddClient(stream1);
 
-        var client = new MuxerWorkloadAdapter(stream2);
+        var client = new Hmp1WorkloadAdapter(stream2);
         await client.ConnectAsync(CancellationToken.None);
 
         var disconnectedTcs = new TaskCompletionSource();

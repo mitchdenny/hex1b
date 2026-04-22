@@ -2,7 +2,7 @@ using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
 
-namespace Hex1b.Muxer;
+namespace Hex1b.Hmp1;
 
 /// <summary>
 /// A presentation adapter that serves terminal output to multiple remote clients
@@ -15,14 +15,14 @@ namespace Hex1b.Muxer;
 /// streams. Use <see cref="AddClient"/> to add new client connections.
 /// </para>
 /// <para>
-/// Each client receives a <see cref="MuxerFrameType.Hello"/> frame with the protocol
-/// version and current dimensions, followed by a <see cref="MuxerFrameType.StateSync"/>
+/// Each client receives a <see cref="Hmp1FrameType.Hello"/> frame with the protocol
+/// version and current dimensions, followed by a <see cref="Hmp1FrameType.StateSync"/>
 /// frame with a full screen snapshot so the client immediately sees the current state.
 /// </para>
 /// </remarks>
-public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentationAdapter
+public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter
 {
-    private readonly List<MuxerClientSession> _sessions = [];
+    private readonly List<Hmp1ClientSession> _sessions = [];
     private readonly object _sessionsLock = new();
     private readonly Channel<ReadOnlyMemory<byte>> _inputChannel;
     private Hex1bTerminal? _terminal;
@@ -35,7 +35,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     /// </summary>
     /// <param name="width">Initial terminal width in columns.</param>
     /// <param name="height">Initial terminal height in rows.</param>
-    public MuxerPresentationAdapter(int width = 80, int height = 24)
+    public Hmp1PresentationAdapter(int width = 80, int height = 24)
     {
         _width = width;
         _height = height;
@@ -98,7 +98,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     public void TerminalCompleted(int exitCode)
     {
         // Notify all clients that the terminal has exited
-        MuxerClientSession[] snapshot;
+        Hmp1ClientSession[] snapshot;
         lock (_sessionsLock)
         {
             snapshot = [.. _sessions];
@@ -121,17 +121,17 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     /// <param name="stream">A bidirectional stream connected to the client.</param>
     /// <param name="ct">Cancellation token.</param>
     /// <returns>A handle that can be disposed to disconnect the client.</returns>
-    public async Task<MuxerClientHandle> AddClient(Stream stream, CancellationToken ct = default)
+    public async Task<Hmp1ClientHandle> AddClient(Stream stream, CancellationToken ct = default)
     {
         ArgumentNullException.ThrowIfNull(stream);
 
         // Send Hello frame
-        await MuxerProtocol.WriteHelloAsync(stream, _width, _height, ct).ConfigureAwait(false);
+        await Hmp1Protocol.WriteHelloAsync(stream, _width, _height, ct).ConfigureAwait(false);
 
         // Atomically: capture snapshot + register client, so no output is lost
         // between snapshot creation and client registration.
         var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var session = new MuxerClientSession(stream, sessionCts);
+        var session = new Hmp1ClientSession(stream, sessionCts);
 
         byte[] syncBytes;
         lock (_sessionsLock)
@@ -156,13 +156,13 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
 
         // Send StateSync frame (outside lock, but client is already registered
         // so any concurrent output will also be queued)
-        await MuxerProtocol.WriteFrameAsync(stream, MuxerFrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
+        await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
 
         // Start per-client write pump and read pump
         session.WriteTask = Task.Run(() => WriteClientPumpAsync(session), sessionCts.Token);
         session.ReadTask = Task.Run(() => ReadClientPumpAsync(session), sessionCts.Token);
 
-        return new MuxerClientHandle(session, this);
+        return new Hmp1ClientHandle(session, this);
     }
 
     /// <inheritdoc />
@@ -227,7 +227,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
         if (_disposed) return;
         _disposed = true;
 
-        MuxerClientSession[] snapshot;
+        Hmp1ClientSession[] snapshot;
         lock (_sessionsLock)
         {
             snapshot = [.. _sessions];
@@ -247,15 +247,15 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     /// Background pump that writes queued output frames to a client's stream.
     /// Each client has its own write pump to prevent slow clients from blocking others.
     /// </summary>
-    private async Task WriteClientPumpAsync(MuxerClientSession session)
+    private async Task WriteClientPumpAsync(Hmp1ClientSession session)
     {
         try
         {
             await foreach (var data in session.OutputChannel.Reader.ReadAllAsync(session.Cts.Token)
                 .ConfigureAwait(false))
             {
-                await MuxerProtocol.WriteFrameAsync(
-                    session.Stream, MuxerFrameType.Output, data, session.Cts.Token).ConfigureAwait(false);
+                await Hmp1Protocol.WriteFrameAsync(
+                    session.Stream, Hmp1FrameType.Output, data, session.Cts.Token).ConfigureAwait(false);
                 // Flush periodically (after draining available items)
                 if (session.OutputChannel.Reader.Count == 0)
                 {
@@ -277,13 +277,13 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     /// <summary>
     /// Background pump that reads frames from a client and routes input/resize.
     /// </summary>
-    private async Task ReadClientPumpAsync(MuxerClientSession session)
+    private async Task ReadClientPumpAsync(Hmp1ClientSession session)
     {
         try
         {
             while (!session.Cts.IsCancellationRequested)
             {
-                var maybeFrame = await MuxerProtocol.ReadFrameAsync(session.Stream, session.Cts.Token)
+                var maybeFrame = await Hmp1Protocol.ReadFrameAsync(session.Stream, session.Cts.Token)
                     .ConfigureAwait(false);
 
                 if (maybeFrame is not { } frame)
@@ -291,12 +291,12 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
 
                 switch (frame.Type)
                 {
-                    case MuxerFrameType.Input:
+                    case Hmp1FrameType.Input:
                         _inputChannel.Writer.TryWrite(frame.Payload);
                         break;
 
-                    case MuxerFrameType.Resize:
-                        var (width, height) = MuxerProtocol.ParseResize(frame.Payload);
+                    case Hmp1FrameType.Resize:
+                        var (width, height) = Hmp1Protocol.ParseResize(frame.Payload);
                         session.RemoteWidth = width;
                         session.RemoteHeight = height;
                         _width = width;
@@ -317,7 +317,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
         }
     }
 
-    internal void RemoveSession(MuxerClientSession session)
+    internal void RemoveSession(Hmp1ClientSession session)
     {
         lock (_sessionsLock)
         {
@@ -327,7 +327,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
         _ = DisposeSessionAsync(session);
     }
 
-    private static async Task DisposeSessionAsync(MuxerClientSession session)
+    private static async Task DisposeSessionAsync(Hmp1ClientSession session)
     {
         session.OutputChannel.Writer.TryComplete();
 
@@ -346,13 +346,13 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
         catch { }
     }
 
-    private static async Task TrySendExitAsync(MuxerClientSession session, int exitCode)
+    private static async Task TrySendExitAsync(Hmp1ClientSession session, int exitCode)
     {
         try
         {
             // Enqueue a sentinel, then write exit directly
             session.OutputChannel.Writer.TryComplete();
-            await MuxerProtocol.WriteExitAsync(session.Stream, exitCode).ConfigureAwait(false);
+            await Hmp1Protocol.WriteExitAsync(session.Stream, exitCode).ConfigureAwait(false);
         }
         catch { }
     }
@@ -360,7 +360,7 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
     /// <summary>
     /// Internal session tracking for a connected client.
     /// </summary>
-    internal sealed class MuxerClientSession(Stream stream, CancellationTokenSource cts)
+    internal sealed class Hmp1ClientSession(Stream stream, CancellationTokenSource cts)
     {
         public Stream Stream { get; } = stream;
         public CancellationTokenSource Cts { get; } = cts;

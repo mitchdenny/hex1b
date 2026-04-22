@@ -2,11 +2,11 @@ using System.Buffers.Binary;
 using System.IO.Pipelines;
 using System.Text;
 using System.Text.Json;
-using Hex1b.Muxer;
+using Hex1b.Hmp1;
 
 namespace Hex1b.Tests.Muxer;
 
-public class MuxerProtocolTests
+public class Hmp1ProtocolTests
 {
     [Fact]
     public async Task WriteFrameAsync_ReadFrameAsync_RoundTrip()
@@ -14,12 +14,12 @@ public class MuxerProtocolTests
         var (clientStream, serverStream) = CreateStreamPair();
 
         var payload = "Hello, World!"u8.ToArray();
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Output, payload);
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Output, payload);
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.NotNull(frame);
-        Assert.Equal(MuxerFrameType.Output, frame.Value.Type);
+        Assert.Equal(Hmp1FrameType.Output, frame.Value.Type);
         Assert.Equal(payload, frame.Value.Payload.ToArray());
     }
 
@@ -28,12 +28,12 @@ public class MuxerProtocolTests
     {
         var (clientStream, serverStream) = CreateStreamPair();
 
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Exit, ReadOnlyMemory<byte>.Empty);
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Exit, ReadOnlyMemory<byte>.Empty);
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.NotNull(frame);
-        Assert.Equal(MuxerFrameType.Exit, frame.Value.Type);
+        Assert.Equal(Hmp1FrameType.Exit, frame.Value.Type);
         Assert.True(frame.Value.Payload.IsEmpty);
     }
 
@@ -44,7 +44,7 @@ public class MuxerProtocolTests
 
         await serverStream.DisposeAsync();
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.Null(frame);
     }
@@ -54,15 +54,15 @@ public class MuxerProtocolTests
     {
         var (clientStream, serverStream) = CreateStreamPair();
 
-        await MuxerProtocol.WriteHelloAsync(serverStream, 120, 40);
+        await Hmp1Protocol.WriteHelloAsync(serverStream, 120, 40);
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.NotNull(frame);
-        Assert.Equal(MuxerFrameType.Hello, frame.Value.Type);
+        Assert.Equal(Hmp1FrameType.Hello, frame.Value.Type);
 
-        var hello = MuxerProtocol.ParseHello(frame.Value.Payload);
-        Assert.Equal(MuxerProtocol.Version, hello.Version);
+        var hello = Hmp1Protocol.ParseHello(frame.Value.Payload);
+        Assert.Equal(Hmp1Protocol.Version, hello.Version);
         Assert.Equal(120, hello.Width);
         Assert.Equal(40, hello.Height);
     }
@@ -72,14 +72,14 @@ public class MuxerProtocolTests
     {
         var (clientStream, serverStream) = CreateStreamPair();
 
-        await MuxerProtocol.WriteResizeAsync(serverStream, 132, 50);
+        await Hmp1Protocol.WriteResizeAsync(serverStream, 132, 50);
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.NotNull(frame);
-        Assert.Equal(MuxerFrameType.Resize, frame.Value.Type);
+        Assert.Equal(Hmp1FrameType.Resize, frame.Value.Type);
 
-        var (width, height) = MuxerProtocol.ParseResize(frame.Value.Payload);
+        var (width, height) = Hmp1Protocol.ParseResize(frame.Value.Payload);
         Assert.Equal(132, width);
         Assert.Equal(50, height);
     }
@@ -89,14 +89,14 @@ public class MuxerProtocolTests
     {
         var (clientStream, serverStream) = CreateStreamPair();
 
-        await MuxerProtocol.WriteExitAsync(serverStream, 42);
+        await Hmp1Protocol.WriteExitAsync(serverStream, 42);
 
-        var frame = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.NotNull(frame);
-        Assert.Equal(MuxerFrameType.Exit, frame.Value.Type);
+        Assert.Equal(Hmp1FrameType.Exit, frame.Value.Type);
 
-        var exitCode = MuxerProtocol.ParseExitCode(frame.Value.Payload);
+        var exitCode = Hmp1Protocol.ParseExitCode(frame.Value.Payload);
         Assert.Equal(42, exitCode);
     }
 
@@ -105,13 +105,13 @@ public class MuxerProtocolTests
     {
         var (clientStream, serverStream) = CreateStreamPair();
 
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Output, "first"u8.ToArray());
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Output, "second"u8.ToArray());
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Output, "third"u8.ToArray());
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Output, "first"u8.ToArray());
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Output, "second"u8.ToArray());
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Output, "third"u8.ToArray());
 
-        var frame1 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var frame2 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var frame3 = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var frame1 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var frame2 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var frame3 = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
         Assert.Equal("first", Encoding.UTF8.GetString(frame1!.Value.Payload.Span));
         Assert.Equal("second", Encoding.UTF8.GetString(frame2!.Value.Payload.Span));
@@ -123,7 +123,7 @@ public class MuxerProtocolTests
     {
         var json = """{"version":99,"width":80,"height":24}"""u8.ToArray();
 
-        Assert.Throws<InvalidOperationException>(() => MuxerProtocol.ParseHello(json));
+        Assert.Throws<InvalidOperationException>(() => Hmp1Protocol.ParseHello(json));
     }
 
     [Fact]
@@ -131,7 +131,7 @@ public class MuxerProtocolTests
     {
         var shortPayload = new byte[4]; // Need 8
 
-        Assert.Throws<InvalidOperationException>(() => MuxerProtocol.ParseResize(shortPayload));
+        Assert.Throws<InvalidOperationException>(() => Hmp1Protocol.ParseResize(shortPayload));
     }
 
     [Fact]
@@ -140,26 +140,26 @@ public class MuxerProtocolTests
         var (clientStream, serverStream) = CreateStreamPair();
 
         // Write all frame types
-        await MuxerProtocol.WriteHelloAsync(serverStream, 80, 24);
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.StateSync, "screen data"u8.ToArray());
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Output, "output data"u8.ToArray());
-        await MuxerProtocol.WriteFrameAsync(serverStream, MuxerFrameType.Input, "input data"u8.ToArray());
-        await MuxerProtocol.WriteResizeAsync(serverStream, 100, 30);
-        await MuxerProtocol.WriteExitAsync(serverStream, 0);
+        await Hmp1Protocol.WriteHelloAsync(serverStream, 80, 24);
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.StateSync, "screen data"u8.ToArray());
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Output, "output data"u8.ToArray());
+        await Hmp1Protocol.WriteFrameAsync(serverStream, Hmp1FrameType.Input, "input data"u8.ToArray());
+        await Hmp1Protocol.WriteResizeAsync(serverStream, 100, 30);
+        await Hmp1Protocol.WriteExitAsync(serverStream, 0);
 
-        var f1 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var f2 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var f3 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var f4 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var f5 = await MuxerProtocol.ReadFrameAsync(clientStream);
-        var f6 = await MuxerProtocol.ReadFrameAsync(clientStream);
+        var f1 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var f2 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var f3 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var f4 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var f5 = await Hmp1Protocol.ReadFrameAsync(clientStream);
+        var f6 = await Hmp1Protocol.ReadFrameAsync(clientStream);
 
-        Assert.Equal(MuxerFrameType.Hello, f1!.Value.Type);
-        Assert.Equal(MuxerFrameType.StateSync, f2!.Value.Type);
-        Assert.Equal(MuxerFrameType.Output, f3!.Value.Type);
-        Assert.Equal(MuxerFrameType.Input, f4!.Value.Type);
-        Assert.Equal(MuxerFrameType.Resize, f5!.Value.Type);
-        Assert.Equal(MuxerFrameType.Exit, f6!.Value.Type);
+        Assert.Equal(Hmp1FrameType.Hello, f1!.Value.Type);
+        Assert.Equal(Hmp1FrameType.StateSync, f2!.Value.Type);
+        Assert.Equal(Hmp1FrameType.Output, f3!.Value.Type);
+        Assert.Equal(Hmp1FrameType.Input, f4!.Value.Type);
+        Assert.Equal(Hmp1FrameType.Resize, f5!.Value.Type);
+        Assert.Equal(Hmp1FrameType.Exit, f6!.Value.Type);
     }
 
     /// <summary>

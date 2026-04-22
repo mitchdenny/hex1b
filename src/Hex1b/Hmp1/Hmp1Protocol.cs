@@ -1,7 +1,7 @@
 using System.Buffers.Binary;
 using System.Text.Json;
 
-namespace Hex1b.Muxer;
+namespace Hex1b.Hmp1;
 
 /// <summary>
 /// Reads and writes Hex1b Muxer Protocol (HMP) frames over a <see cref="Stream"/>.
@@ -14,7 +14,7 @@ namespace Hex1b.Muxer;
 /// See docs/muxer-protocol.md for the full protocol specification.
 /// </para>
 /// </remarks>
-public static class MuxerProtocol
+public static class Hmp1Protocol
 {
     /// <summary>
     /// Current protocol version.
@@ -40,7 +40,7 @@ public static class MuxerProtocol
     /// <param name="ct">Cancellation token.</param>
     public static async ValueTask WriteFrameAsync(
         Stream stream,
-        MuxerFrameType type,
+        Hmp1FrameType type,
         ReadOnlyMemory<byte> payload,
         CancellationToken ct = default)
     {
@@ -56,7 +56,7 @@ public static class MuxerProtocol
 
         // Only flush control frames (Hello, StateSync, Resize, Exit), not Output.
         // Output frames are high-frequency and flushing each one defeats batching.
-        if (type != MuxerFrameType.Output && type != MuxerFrameType.Input)
+        if (type != Hmp1FrameType.Output && type != Hmp1FrameType.Input)
         {
             await stream.FlushAsync(ct).ConfigureAwait(false);
         }
@@ -70,7 +70,7 @@ public static class MuxerProtocol
     /// <param name="ct">Cancellation token.</param>
     /// <returns>The frame, or <c>null</c> if the stream is closed.</returns>
     /// <exception cref="InvalidOperationException">The frame is malformed or exceeds size limits.</exception>
-    public static async ValueTask<MuxerFrame?> ReadFrameAsync(
+    public static async ValueTask<Hmp1Frame?> ReadFrameAsync(
         Stream stream,
         CancellationToken ct = default)
     {
@@ -82,7 +82,7 @@ public static class MuxerProtocol
         if (headerRead < HeaderSize)
             throw new InvalidOperationException("Incomplete frame header received.");
 
-        var type = (MuxerFrameType)header[0];
+        var type = (Hmp1FrameType)header[0];
         var length = BinaryPrimitives.ReadInt32LittleEndian(header.AsSpan(1));
 
         if (length < 0 || length > MaxPayloadSize)
@@ -102,7 +102,7 @@ public static class MuxerProtocol
             payload = ReadOnlyMemory<byte>.Empty;
         }
 
-        return new MuxerFrame(type, payload);
+        return new Hmp1Frame(type, payload);
     }
 
     /// <summary>
@@ -113,8 +113,8 @@ public static class MuxerProtocol
     {
         var json = JsonSerializer.SerializeToUtf8Bytes(
             new HelloPayload { Version = Version, Width = width, Height = height },
-            MuxerJsonContext.Default.HelloPayload);
-        return WriteFrameAsync(stream, MuxerFrameType.Hello, json, ct);
+            Hmp1JsonContext.Default.HelloPayload);
+        return WriteFrameAsync(stream, Hmp1FrameType.Hello, json, ct);
     }
 
     /// <summary>
@@ -122,7 +122,7 @@ public static class MuxerProtocol
     /// </summary>
     public static HelloPayload ParseHello(ReadOnlyMemory<byte> payload)
     {
-        var hello = JsonSerializer.Deserialize(payload.Span, MuxerJsonContext.Default.HelloPayload)
+        var hello = JsonSerializer.Deserialize(payload.Span, Hmp1JsonContext.Default.HelloPayload)
             ?? throw new InvalidOperationException("Failed to parse Hello payload.");
         if (hello.Version != Version)
             throw new InvalidOperationException($"Unsupported protocol version: {hello.Version}. Expected: {Version}.");
@@ -138,7 +138,7 @@ public static class MuxerProtocol
         var payload = new byte[8];
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(0), width);
         BinaryPrimitives.WriteInt32LittleEndian(payload.AsSpan(4), height);
-        return WriteFrameAsync(stream, MuxerFrameType.Resize, payload, ct);
+        return WriteFrameAsync(stream, Hmp1FrameType.Resize, payload, ct);
     }
 
     /// <summary>
@@ -161,7 +161,7 @@ public static class MuxerProtocol
     {
         var payload = new byte[4];
         BinaryPrimitives.WriteInt32LittleEndian(payload, exitCode);
-        return WriteFrameAsync(stream, MuxerFrameType.Exit, payload, ct);
+        return WriteFrameAsync(stream, Hmp1FrameType.Exit, payload, ct);
     }
 
     /// <summary>
@@ -199,10 +199,10 @@ public static class MuxerProtocol
 /// </summary>
 /// <param name="Type">The frame type.</param>
 /// <param name="Payload">The raw payload bytes.</param>
-public readonly record struct MuxerFrame(MuxerFrameType Type, ReadOnlyMemory<byte> Payload);
+public readonly record struct Hmp1Frame(Hmp1FrameType Type, ReadOnlyMemory<byte> Payload);
 
 /// <summary>
-/// JSON payload for the <see cref="MuxerFrameType.Hello"/> frame.
+/// JSON payload for the <see cref="Hmp1FrameType.Hello"/> frame.
 /// </summary>
 public sealed class HelloPayload
 {
