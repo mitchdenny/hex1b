@@ -25,6 +25,9 @@ if (args is ["--server", var socketPath])
         .Build();
 
     await terminal.RunAsync();
+
+    // Clean up socket file on exit so clients don't see stale sessions
+    try { File.Delete(socketPath); } catch { }
     return;
 }
 

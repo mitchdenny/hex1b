@@ -108,6 +108,10 @@ public sealed class MuxerPresentationAdapter : ITerminalLifecycleAwarePresentati
         {
             _ = TrySendExitAsync(session, exitCode);
         }
+
+        // Complete the input channel so the terminal's input pump exits,
+        // allowing RunAsync to return when the workload has disconnected.
+        _inputChannel.Writer.TryComplete();
     }
 
     /// <summary>
