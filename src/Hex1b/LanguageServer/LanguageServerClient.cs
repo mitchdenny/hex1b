@@ -113,7 +113,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
             {
                 try
                 {
-                    var progress = JsonSerializer.Deserialize<WorkDoneProgress>(msg.Params.Value.GetRawText());
+                    var progress = JsonSerializer.Deserialize(msg.Params.Value.GetRawText(), LspJsonContext.Default.WorkDoneProgress);
                     if (progress != null)
                         ProgressReceived?.Invoke(progress);
                 }
@@ -167,13 +167,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
             initParams.WorkspaceFolders = [new WorkspaceFolder { Uri = _config.RootUri, Name = folderName }];
         }
 
-        var response = await _transport.SendRequestAsync("initialize", initParams, ct).ConfigureAwait(false);
+        var response = await _transport.SendRequestAsync("initialize", JsonSerializer.SerializeToElement(initParams, LspJsonContext.Default.InitializeParams), ct).ConfigureAwait(false);
         if (response.Error != null)
             throw new InvalidOperationException($"LSP initialize failed: {response.Error.Message}");
 
         if (response.Result.HasValue)
         {
-            var result = JsonSerializer.Deserialize<InitializeResult>(response.Result.Value.GetRawText());
+            var result = JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.InitializeResult);
             _serverCapabilities = result?.Capabilities;
 
             if (_serverCapabilities?.TextDocumentSync != null)
@@ -190,7 +190,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
             }
         }
 
-        await _transport.SendNotificationAsync("initialized", new { }, ct).ConfigureAwait(false);
+        await _transport.SendNotificationAsync("initialized", JsonDocument.Parse("{}").RootElement, ct).ConfigureAwait(false);
 
         // Start notification listener and wait for it to begin reading so that
         // subsequent SendRequestAsync calls don't race into the inline pump path.
@@ -212,7 +212,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         if (_transport == null) throw new InvalidOperationException("Client not started");
 
         _documentVersions[documentUri] = 1;
-        await _transport.SendNotificationAsync("textDocument/didOpen", new DidOpenTextDocumentParams
+        await _transport.SendNotificationAsync("textDocument/didOpen", JsonSerializer.SerializeToElement(new DidOpenTextDocumentParams
         {
             TextDocument = new TextDocumentItem
             {
@@ -221,7 +221,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
                 Version = 1,
                 Text = text,
             }
-        }, ct).ConfigureAwait(false);
+        }, LspJsonContext.Default.DidOpenTextDocumentParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends textDocument/didChange notification (full document sync).</summary>
@@ -231,7 +231,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
         var version = _documentVersions.GetValueOrDefault(documentUri) + 1;
         _documentVersions[documentUri] = version;
-        await _transport.SendNotificationAsync("textDocument/didChange", new DidChangeTextDocumentParams
+        await _transport.SendNotificationAsync("textDocument/didChange", JsonSerializer.SerializeToElement(new DidChangeTextDocumentParams
         {
             TextDocument = new VersionedTextDocumentIdentifier
             {
@@ -239,7 +239,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
                 Version = version,
             },
             ContentChanges = [new TextDocumentContentChangeEvent { Text = text }]
-        }, ct).ConfigureAwait(false);
+        }, LspJsonContext.Default.DidChangeTextDocumentParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends an incremental textDocument/didChange notification with specific content changes.</summary>
@@ -252,7 +252,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
 
         var version = _documentVersions.GetValueOrDefault(documentUri) + 1;
         _documentVersions[documentUri] = version;
-        await _transport.SendNotificationAsync("textDocument/didChange", new DidChangeTextDocumentParams
+        await _transport.SendNotificationAsync("textDocument/didChange", JsonSerializer.SerializeToElement(new DidChangeTextDocumentParams
         {
             TextDocument = new VersionedTextDocumentIdentifier
             {
@@ -260,7 +260,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
                 Version = version,
             },
             ContentChanges = changes.ToArray()
-        }, ct).ConfigureAwait(false);
+        }, LspJsonContext.Default.DidChangeTextDocumentParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>Requests textDocument/semanticTokens/full.</summary>
@@ -269,14 +269,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         if (_transport == null) return null;
 
         var response = await _transport.SendRequestAsync("textDocument/semanticTokens/full",
-            new SemanticTokensParams
+            JsonSerializer.SerializeToElement(new SemanticTokensParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.SemanticTokensParams), ct).ConfigureAwait(false);
 
         if (response.Error != null || !response.Result.HasValue) return null;
 
-        return JsonSerializer.Deserialize<SemanticTokensResult>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.SemanticTokensResult);
     }
 
     /// <summary>Requests textDocument/completion.</summary>
@@ -288,12 +288,12 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         if (_transport == null) return null;
 
         var response = await _transport.SendRequestAsync("textDocument/completion",
-            new CompletionParams
+            JsonSerializer.SerializeToElement(new CompletionParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character },
                 Context = context,
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.CompletionParams), ct).ConfigureAwait(false);
 
         if (response.Error != null || !response.Result.HasValue) return null;
 
@@ -301,11 +301,11 @@ internal sealed class LanguageServerClient : IAsyncDisposable
         // Response can be CompletionList or CompletionItem[]
         if (raw.ValueKind == JsonValueKind.Array)
         {
-            var items = JsonSerializer.Deserialize<CompletionItem[]>(raw.GetRawText());
+            var items = JsonSerializer.Deserialize(raw.GetRawText(), LspJsonContext.Default.CompletionItemArray);
             return new CompletionList { Items = items ?? [] };
         }
 
-        return JsonSerializer.Deserialize<CompletionList>(raw.GetRawText());
+        return JsonSerializer.Deserialize(raw.GetRawText(), LspJsonContext.Default.CompletionList);
     }
 
     /// <summary>Requests textDocument/hover.</summary>
@@ -313,13 +313,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/hover",
-            new HoverParams
+            JsonSerializer.SerializeToElement(new HoverParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.HoverParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<HoverResult>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.HoverResult);
     }
 
     /// <summary>Requests textDocument/definition.</summary>
@@ -327,16 +327,16 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/definition",
-            new DefinitionParams
+            JsonSerializer.SerializeToElement(new DefinitionParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DefinitionParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
         var raw = response.Result.Value;
         if (raw.ValueKind == JsonValueKind.Array)
-            return JsonSerializer.Deserialize<Location[]>(raw.GetRawText());
-        var single = JsonSerializer.Deserialize<Location>(raw.GetRawText());
+            return JsonSerializer.Deserialize(raw.GetRawText(), LspJsonContext.Default.LocationArray);
+        var single = JsonSerializer.Deserialize(raw.GetRawText(), LspJsonContext.Default.Location);
         return single != null ? [single] : null;
     }
 
@@ -345,14 +345,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/references",
-            new ReferenceParams
+            JsonSerializer.SerializeToElement(new ReferenceParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character },
                 Context = new ReferenceContext { IncludeDeclaration = includeDeclaration }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.ReferenceParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<Location[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.LocationArray);
     }
 
     /// <summary>Requests textDocument/rename.</summary>
@@ -360,14 +360,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/rename",
-            new RenameParams
+            JsonSerializer.SerializeToElement(new RenameParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character },
                 NewName = newName
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.RenameParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<WorkspaceEdit>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.WorkspaceEdit);
     }
 
     /// <summary>Requests textDocument/prepareRename.</summary>
@@ -375,13 +375,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/prepareRename",
-            new PrepareRenameParams
+            JsonSerializer.SerializeToElement(new PrepareRenameParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.PrepareRenameParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<PrepareRenameResult>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.PrepareRenameResult);
     }
 
     /// <summary>Requests textDocument/signatureHelp.</summary>
@@ -389,13 +389,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/signatureHelp",
-            new SignatureHelpParams
+            JsonSerializer.SerializeToElement(new SignatureHelpParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.SignatureHelpParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<SignatureHelp>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.SignatureHelp);
     }
 
     /// <summary>Requests textDocument/codeAction.</summary>
@@ -403,14 +403,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/codeAction",
-            new CodeActionParams
+            JsonSerializer.SerializeToElement(new CodeActionParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Range = range,
                 Context = new CodeActionContext()
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.CodeActionParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<CodeAction[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CodeActionArray);
     }
 
     /// <summary>Requests textDocument/formatting.</summary>
@@ -418,13 +418,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/formatting",
-            new DocumentFormattingParams
+            JsonSerializer.SerializeToElement(new DocumentFormattingParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Options = options ?? new FormattingOptions()
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DocumentFormattingParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<TextEdit[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.TextEditArray);
     }
 
     /// <summary>Requests textDocument/rangeFormatting.</summary>
@@ -432,14 +432,14 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/rangeFormatting",
-            new DocumentRangeFormattingParams
+            JsonSerializer.SerializeToElement(new DocumentRangeFormattingParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Range = range,
                 Options = options ?? new FormattingOptions()
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DocumentRangeFormattingParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<TextEdit[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.TextEditArray);
     }
 
     /// <summary>Requests textDocument/documentSymbol.</summary>
@@ -447,12 +447,12 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/documentSymbol",
-            new DocumentSymbolParams
+            JsonSerializer.SerializeToElement(new DocumentSymbolParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DocumentSymbolParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<DocumentSymbol[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.DocumentSymbolArray);
     }
 
     /// <summary>Requests textDocument/documentHighlight.</summary>
@@ -460,13 +460,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/documentHighlight",
-            new DocumentHighlightParams
+            JsonSerializer.SerializeToElement(new DocumentHighlightParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DocumentHighlightParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<DocumentHighlight[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.DocumentHighlightArray);
     }
 
     /// <summary>Requests textDocument/foldingRange.</summary>
@@ -474,12 +474,12 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/foldingRange",
-            new FoldingRangeParams
+            JsonSerializer.SerializeToElement(new FoldingRangeParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.FoldingRangeParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<FoldingRange[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.FoldingRangeArray);
     }
 
     /// <summary>Requests textDocument/selectionRange.</summary>
@@ -487,13 +487,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/selectionRange",
-            new SelectionRangeParams
+            JsonSerializer.SerializeToElement(new SelectionRangeParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Positions = positions
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.SelectionRangeParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<SelectionRange[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.SelectionRangeArray);
     }
 
     /// <summary>Requests textDocument/inlayHint.</summary>
@@ -501,13 +501,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/inlayHint",
-            new InlayHintParams
+            JsonSerializer.SerializeToElement(new InlayHintParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Range = range
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.InlayHintParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<InlayHint[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.InlayHintArray);
     }
 
     /// <summary>Requests textDocument/codeLens.</summary>
@@ -515,12 +515,12 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/codeLens",
-            new CodeLensParams
+            JsonSerializer.SerializeToElement(new CodeLensParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.CodeLensParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<CodeLens[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CodeLensArray);
     }
 
     /// <summary>Requests textDocument/prepareCallHierarchy.</summary>
@@ -528,13 +528,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/prepareCallHierarchy",
-            new CallHierarchyPrepareParams
+            JsonSerializer.SerializeToElement(new CallHierarchyPrepareParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.CallHierarchyPrepareParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<CallHierarchyItem[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CallHierarchyItemArray);
     }
 
     /// <summary>Requests callHierarchy/incomingCalls.</summary>
@@ -542,9 +542,9 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("callHierarchy/incomingCalls",
-            new CallHierarchyIncomingCallsParams { Item = item }, ct).ConfigureAwait(false);
+            JsonSerializer.SerializeToElement(new CallHierarchyIncomingCallsParams { Item = item }, LspJsonContext.Default.CallHierarchyIncomingCallsParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<CallHierarchyIncomingCall[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CallHierarchyIncomingCallArray);
     }
 
     /// <summary>Requests callHierarchy/outgoingCalls.</summary>
@@ -552,9 +552,9 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("callHierarchy/outgoingCalls",
-            new CallHierarchyOutgoingCallsParams { Item = item }, ct).ConfigureAwait(false);
+            JsonSerializer.SerializeToElement(new CallHierarchyOutgoingCallsParams { Item = item }, LspJsonContext.Default.CallHierarchyOutgoingCallsParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<CallHierarchyOutgoingCall[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CallHierarchyOutgoingCallArray);
     }
 
     /// <summary>Requests textDocument/prepareTypeHierarchy.</summary>
@@ -562,13 +562,13 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/prepareTypeHierarchy",
-            new TypeHierarchyPrepareParams
+            JsonSerializer.SerializeToElement(new TypeHierarchyPrepareParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri },
                 Position = new LspPosition { Line = line, Character = character }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.TypeHierarchyPrepareParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<TypeHierarchyItem[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.TypeHierarchyItemArray);
     }
 
     /// <summary>Requests typeHierarchy/supertypes.</summary>
@@ -576,9 +576,9 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("typeHierarchy/supertypes",
-            new TypeHierarchySupertypesParams { Item = item }, ct).ConfigureAwait(false);
+            JsonSerializer.SerializeToElement(new TypeHierarchySupertypesParams { Item = item }, LspJsonContext.Default.TypeHierarchySupertypesParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<TypeHierarchyItem[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.TypeHierarchyItemArray);
     }
 
     /// <summary>Requests typeHierarchy/subtypes.</summary>
@@ -586,9 +586,9 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("typeHierarchy/subtypes",
-            new TypeHierarchySubtypesParams { Item = item }, ct).ConfigureAwait(false);
+            JsonSerializer.SerializeToElement(new TypeHierarchySubtypesParams { Item = item }, LspJsonContext.Default.TypeHierarchySubtypesParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<TypeHierarchyItem[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.TypeHierarchyItemArray);
     }
 
     /// <summary>Requests textDocument/documentLink.</summary>
@@ -596,50 +596,50 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return null;
         var response = await _transport.SendRequestAsync("textDocument/documentLink",
-            new DocumentLinkParams
+            JsonSerializer.SerializeToElement(new DocumentLinkParams
             {
                 TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-            }, ct).ConfigureAwait(false);
+            }, LspJsonContext.Default.DocumentLinkParams), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue || response.Result.Value.ValueKind == JsonValueKind.Null) return null;
-        return JsonSerializer.Deserialize<DocumentLink[]>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.DocumentLinkArray);
     }
 
     /// <summary>Requests completionItem/resolve.</summary>
     public async Task<CompletionItem?> ResolveCompletionItemAsync(CompletionItem item, CancellationToken ct = default)
     {
         if (_transport == null) return null;
-        var response = await _transport.SendRequestAsync("completionItem/resolve", item, ct).ConfigureAwait(false);
+        var response = await _transport.SendRequestAsync("completionItem/resolve", JsonSerializer.SerializeToElement(item, LspJsonContext.Default.CompletionItem), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue) return null;
-        return JsonSerializer.Deserialize<CompletionItem>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CompletionItem);
     }
 
     /// <summary>Requests codeLens/resolve.</summary>
     public async Task<CodeLens?> ResolveCodeLensAsync(CodeLens item, CancellationToken ct = default)
     {
         if (_transport == null) return null;
-        var response = await _transport.SendRequestAsync("codeLens/resolve", item, ct).ConfigureAwait(false);
+        var response = await _transport.SendRequestAsync("codeLens/resolve", JsonSerializer.SerializeToElement(item, LspJsonContext.Default.CodeLens), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue) return null;
-        return JsonSerializer.Deserialize<CodeLens>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.CodeLens);
     }
 
     /// <summary>Requests inlayHint/resolve.</summary>
     public async Task<InlayHint?> ResolveInlayHintAsync(InlayHint item, CancellationToken ct = default)
     {
         if (_transport == null) return null;
-        var response = await _transport.SendRequestAsync("inlayHint/resolve", item, ct).ConfigureAwait(false);
+        var response = await _transport.SendRequestAsync("inlayHint/resolve", JsonSerializer.SerializeToElement(item, LspJsonContext.Default.InlayHint), ct).ConfigureAwait(false);
         if (response.Error != null || !response.Result.HasValue) return null;
-        return JsonSerializer.Deserialize<InlayHint>(response.Result.Value.GetRawText());
+        return JsonSerializer.Deserialize(response.Result.Value.GetRawText(), LspJsonContext.Default.InlayHint);
     }
 
     /// <summary>Sends textDocument/didSave notification.</summary>
     public async Task SendDidSaveAsync(string documentUri, string? text = null, CancellationToken ct = default)
     {
         if (_transport == null) return;
-        await _transport.SendNotificationAsync("textDocument/didSave", new DidSaveTextDocumentParams
+        await _transport.SendNotificationAsync("textDocument/didSave", JsonSerializer.SerializeToElement(new DidSaveTextDocumentParams
         {
             TextDocument = new TextDocumentIdentifier { Uri = documentUri },
             Text = text
-        }, ct).ConfigureAwait(false);
+        }, LspJsonContext.Default.DidSaveTextDocumentParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends textDocument/didClose notification.</summary>
@@ -647,10 +647,10 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     {
         if (_transport == null) return;
         _documentVersions.Remove(documentUri);
-        await _transport.SendNotificationAsync("textDocument/didClose", new DidCloseTextDocumentParams
+        await _transport.SendNotificationAsync("textDocument/didClose", JsonSerializer.SerializeToElement(new DidCloseTextDocumentParams
         {
             TextDocument = new TextDocumentIdentifier { Uri = documentUri }
-        }, ct).ConfigureAwait(false);
+        }, LspJsonContext.Default.DidCloseTextDocumentParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -659,7 +659,7 @@ internal sealed class LanguageServerClient : IAsyncDisposable
     internal async Task SendCancelRequestAsync(int requestId, CancellationToken ct = default)
     {
         if (_transport == null) return;
-        await _transport.SendNotificationAsync("$/cancelRequest", new { id = requestId }, ct).ConfigureAwait(false);
+        await _transport.SendNotificationAsync("$/cancelRequest", JsonSerializer.SerializeToElement(new CancelParams { Id = requestId }, LspJsonContext.Default.CancelParams), ct).ConfigureAwait(false);
     }
 
     /// <summary>Sends textDocument/didClose for all open documents and shutdown/exit.</summary>

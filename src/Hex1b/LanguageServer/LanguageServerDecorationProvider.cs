@@ -223,7 +223,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
             if (provider.TryGetProperty("legend", out var legend) &&
                 legend.TryGetProperty("tokenTypes", out var types))
             {
-                _tokenLegend = JsonSerializer.Deserialize<string[]>(types.GetRawText()) ?? SemanticTokenTypes.All;
+                _tokenLegend = JsonSerializer.Deserialize(types.GetRawText(), LspJsonContext.Default.StringArray) ?? SemanticTokenTypes.All;
             }
         }
         catch { }
@@ -287,8 +287,8 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
         {
             try
             {
-                var diagParams = JsonSerializer.Deserialize<PublishDiagnosticsParams>(
-                    notification.Params.Value.GetRawText());
+                var diagParams = JsonSerializer.Deserialize(
+                    notification.Params.Value.GetRawText(), LspJsonContext.Default.PublishDiagnosticsParams);
 
                 // Only accept diagnostics for our document
                 if (diagParams != null && diagParams.Uri == _documentUri)
@@ -479,7 +479,7 @@ public sealed class LanguageServerDecorationProvider : ITextDecorationProvider, 
             }
             else if (h.Label.ValueKind == JsonValueKind.Array)
             {
-                var parts = JsonSerializer.Deserialize<InlayHintLabelPart[]>(h.Label.GetRawText());
+                var parts = JsonSerializer.Deserialize(h.Label.GetRawText(), LspJsonContext.Default.InlayHintLabelPartArray);
                 text = parts != null ? string.Concat(parts.Select(p => p.Value)) : "";
             }
             else

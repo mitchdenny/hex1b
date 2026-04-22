@@ -156,7 +156,7 @@ public sealed class RemoteTerminalWorkloadAdapter : IHex1bTerminalWorkloadAdapte
 
         try
         {
-            var json = JsonSerializer.Serialize(new { type = "resize", cols = width, rows = height });
+            var json = $"{{\"type\":\"resize\",\"cols\":{width},\"rows\":{height}}}";
             await _ws.SendAsync(
                 Encoding.UTF8.GetBytes(json), WebSocketMessageType.Text, true, ct);
         }

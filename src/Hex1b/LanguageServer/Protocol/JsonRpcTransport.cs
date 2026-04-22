@@ -20,12 +20,6 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
     private readonly CancellationTokenSource _cts = new();
     private int _nextId;
 
-    private static readonly JsonSerializerOptions s_jsonOptions = new()
-    {
-        PropertyNamingPolicy = JsonNamingPolicy.CamelCase,
-        DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull,
-    };
-
     /// <summary>
     /// Creates a transport over the given input (server stdout) and output (server stdin) streams.
     /// </summary>
@@ -36,7 +30,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
     }
 
     /// <summary>Sends a request and returns the response.</summary>
-    public async Task<JsonRpcResponse> SendRequestAsync(string method, object? @params, CancellationToken ct = default)
+    public async Task<JsonRpcResponse> SendRequestAsync(string method, JsonElement? @params, CancellationToken ct = default)
     {
         var id = Interlocked.Increment(ref _nextId);
         var tcs = new TaskCompletionSource<JsonRpcResponse>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -45,11 +39,13 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         using var reg = ct.Register(() =>
         {
             tcs.TrySetCanceled();
-            _ = SendNotificationAsync("$/cancelRequest", new { id }, CancellationToken.None);
+            _ = SendNotificationAsync("$/cancelRequest",
+                JsonSerializer.SerializeToElement(new CancelParams { Id = id }, LspJsonContext.Default.CancelParams),
+                CancellationToken.None);
         });
 
         var request = new JsonRpcRequest { Id = id, Method = method, Params = @params };
-        await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(request, s_jsonOptions), ct).ConfigureAwait(false);
+        await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(request, LspJsonContext.Default.JsonRpcRequest), ct).ConfigureAwait(false);
 
         // If the reader loop isn't running yet (pre-initialization), pump messages inline
         if (!_readerLoopRunning)
@@ -66,10 +62,10 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
     }
 
     /// <summary>Sends a notification (no response expected).</summary>
-    public async Task SendNotificationAsync(string method, object? @params, CancellationToken ct = default)
+    public async Task SendNotificationAsync(string method, JsonElement? @params, CancellationToken ct = default)
     {
         var notification = new JsonRpcNotification { Method = method, Params = @params };
-        await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(notification, s_jsonOptions), ct).ConfigureAwait(false);
+        await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(notification, LspJsonContext.Default.JsonRpcNotification), ct).ConfigureAwait(false);
     }
 
     /// <summary>Reads the next message from the transport.</summary>
@@ -78,7 +74,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
         var body = await ReadFrameAsync(ct).ConfigureAwait(false);
         if (body == null) return null;
 
-        return JsonSerializer.Deserialize<JsonRpcResponse>(body, s_jsonOptions);
+        return JsonSerializer.Deserialize(body, LspJsonContext.Default.JsonRpcResponse);
     }
 
     /// <summary>Raised when a server-initiated notification arrives during request processing.</summary>
@@ -123,7 +119,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
     /// Raised when the server sends a request (has both id and method).
     /// The handler should return the result to send back to the server.
     /// </summary>
-    public event Func<string, JsonElement?, Task<object?>>? ServerRequestReceived;
+    public event Func<string, JsonElement?, Task<JsonElement?>>? ServerRequestReceived;
 
     private void DispatchMessage(JsonRpcResponse msg)
     {
@@ -132,7 +128,7 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
             // Server-to-client request — needs a response
             _ = Task.Run(async () =>
             {
-                object? result = null;
+                JsonElement? result = null;
                 try
                 {
                     if (ServerRequestReceived != null)
@@ -140,8 +136,8 @@ internal sealed class JsonRpcTransport : IAsyncDisposable
                 }
                 catch { }
 
-                var response = new { jsonrpc = "2.0", id = msg.Id.Value, result };
-                await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(response, s_jsonOptions), CancellationToken.None)
+                var response = new JsonRpcServerResponse { Id = msg.Id.Value, Result = result };
+                await WriteMessageAsync(JsonSerializer.SerializeToUtf8Bytes(response, LspJsonContext.Default.JsonRpcServerResponse), CancellationToken.None)
                     .ConfigureAwait(false);
             });
         }

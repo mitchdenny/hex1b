@@ -123,7 +123,7 @@ public sealed class Hex1bLanguageServerWorkspace : IAsyncDisposable
                         if (provider.TryGetProperty("legend", out var legend) &&
                             legend.TryGetProperty("tokenTypes", out var types))
                         {
-                            _tokenLegends[languageId] = JsonSerializer.Deserialize<string[]>(types.GetRawText())
+                            _tokenLegends[languageId] = JsonSerializer.Deserialize(types.GetRawText(), LspJsonContext.Default.StringArray)
                                 ?? SemanticTokenTypes.All;
                         }
                     }

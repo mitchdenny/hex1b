@@ -176,8 +176,7 @@ public sealed class WindowManager
                 onClose: handle.OnCloseValue,
                 onActivated: handle.OnActivatedValue,
                 onDeactivated: handle.OnDeactivatedValue,
-                onResultCallback: handle.OnResultCallbackValue,
-                resultType: handle.ResultTypeValue,
+                resultInvoker: handle.ResultInvokerValue,
                 showTitleBar: handle.ShowTitleBarValue,
                 leftTitleBarActions: handle.BuildLeftTitleActions(),
                 rightTitleBarActions: handle.BuildRightTitleActions(),
@@ -433,8 +432,7 @@ public sealed class WindowEntry
         Action? onClose,
         Action? onActivated,
         Action? onDeactivated,
-        object? onResultCallback,
-        Type? resultType,
+        Action<WindowEntry>? resultInvoker,
         bool showTitleBar,
         IReadOnlyList<WindowAction> leftTitleBarActions,
         IReadOnlyList<WindowAction> rightTitleBarActions,
@@ -460,8 +458,7 @@ public sealed class WindowEntry
         OnClose = onClose;
         OnActivated = onActivated;
         OnDeactivated = onDeactivated;
-        OnResultCallback = onResultCallback;
-        ResultType = resultType;
+        ResultInvoker = resultInvoker;
         ShowTitleBar = showTitleBar;
         LeftTitleBarActions = leftTitleBarActions;
         RightTitleBarActions = rightTitleBarActions;
@@ -599,14 +596,10 @@ public sealed class WindowEntry
     internal WindowNode? Node { get; set; }
 
     /// <summary>
-    /// Callback invoked when the window closes with a result (boxed Action&lt;WindowResultContext&lt;T&gt;&gt;).
+    /// Delegate that invokes the typed result callback without reflection.
+    /// Captured at registration time by <see cref="WindowHandle.OnResult{T}"/>.
     /// </summary>
-    internal object? OnResultCallback { get; }
-
-    /// <summary>
-    /// The type T for the result callback.
-    /// </summary>
-    internal Type? ResultType { get; }
+    internal Action<WindowEntry>? ResultInvoker { get; }
 
     /// <summary>
     /// The result value set by CloseWithResult. Null if cancelled.
@@ -641,26 +634,7 @@ public sealed class WindowEntry
     /// </summary>
     internal void InvokeResultCallback()
     {
-        if (OnResultCallback == null || ResultType == null)
-            return;
-
-        // Create WindowResultContext<T> and invoke the callback
-        var contextType = typeof(WindowResultContext<>).MakeGenericType(ResultType);
-        var context = Activator.CreateInstance(
-            contextType, 
-            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic,
-            null,
-            [this, ResultProvided ? ResultValue : GetDefault(ResultType), !ResultProvided],
-            null);
-
-        // Invoke the callback
-        var callbackType = typeof(Action<>).MakeGenericType(contextType);
-        callbackType.GetMethod("Invoke")!.Invoke(OnResultCallback, [context]);
-    }
-
-    private static object? GetDefault(Type type)
-    {
-        return type.IsValueType ? Activator.CreateInstance(type) : null;
+        ResultInvoker?.Invoke(this);
     }
 
     /// <summary>

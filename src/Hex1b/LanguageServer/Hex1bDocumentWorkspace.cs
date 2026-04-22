@@ -346,7 +346,7 @@ public sealed class Hex1bDocumentWorkspace : IAsyncDisposable
                         if (provider.TryGetProperty("legend", out var legend) &&
                             legend.TryGetProperty("tokenTypes", out var types))
                         {
-                            _tokenLegends[serverId] = JsonSerializer.Deserialize<string[]>(types.GetRawText())
+                            _tokenLegends[serverId] = JsonSerializer.Deserialize(types.GetRawText(), LspJsonContext.Default.StringArray)
                                 ?? SemanticTokenTypes.All;
                         }
                     }
