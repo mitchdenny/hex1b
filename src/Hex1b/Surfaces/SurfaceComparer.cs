@@ -749,7 +749,9 @@ public static class SurfaceComparer
         if (a is null || b is null) return false;
         return a.Value.R == b.Value.R && 
                a.Value.G == b.Value.G && 
-               a.Value.B == b.Value.B;
+               a.Value.B == b.Value.B &&
+               a.Value.Kind == b.Value.Kind &&
+               a.Value.AnsiIndex == b.Value.AnsiIndex;
     }
 
     private static string BuildSgrParameters(
