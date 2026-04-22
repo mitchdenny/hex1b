@@ -46,8 +46,11 @@ public class ColorIndexMappingTests
         Assert.NotNull(fg);
 
         // Index 7 (SGR 37) should be light gray (192,192,192), NOT white (255,255,255)
-        Assert.NotEqual(Hex1bColor.FromRgb(255, 255, 255), fg.Value);
-        Assert.Equal(Hex1bColor.FromRgb(192, 192, 192), fg.Value);
+        Assert.Equal(192, fg.Value.R);
+        Assert.Equal(192, fg.Value.G);
+        Assert.Equal(192, fg.Value.B);
+        Assert.Equal(Hex1bColorKind.Standard, fg.Value.Kind);
+        Assert.Equal(7, fg.Value.AnsiIndex);
     }
 
     [Fact]
@@ -61,7 +64,11 @@ public class ColorIndexMappingTests
         Assert.NotNull(fg);
 
         // Index 15 (SGR 97) should be white (255,255,255), NOT gray
-        Assert.Equal(Hex1bColor.FromRgb(255, 255, 255), fg.Value);
+        Assert.Equal(255, fg.Value.R);
+        Assert.Equal(255, fg.Value.G);
+        Assert.Equal(255, fg.Value.B);
+        Assert.Equal(Hex1bColorKind.Bright, fg.Value.Kind);
+        Assert.Equal(7, fg.Value.AnsiIndex);
     }
 
     [Fact]
@@ -96,7 +103,11 @@ public class ColorIndexMappingTests
         var snap = t.Terminal.CreateSnapshot();
         var fg = snap.GetCell(0, 0).Foreground;
         Assert.NotNull(fg);
-        Assert.Equal(Hex1bColor.FromRgb(r, g, b), fg.Value);
+        Assert.Equal(r, fg.Value.R);
+        Assert.Equal(g, fg.Value.G);
+        Assert.Equal(b, fg.Value.B);
+        Assert.Equal(Hex1bColorKind.Standard, fg.Value.Kind);
+        Assert.Equal(sgr - 30, fg.Value.AnsiIndex);
     }
 
     [Theory]
@@ -116,7 +127,11 @@ public class ColorIndexMappingTests
         var snap = t.Terminal.CreateSnapshot();
         var fg = snap.GetCell(0, 0).Foreground;
         Assert.NotNull(fg);
-        Assert.Equal(Hex1bColor.FromRgb(r, g, b), fg.Value);
+        Assert.Equal(r, fg.Value.R);
+        Assert.Equal(g, fg.Value.G);
+        Assert.Equal(b, fg.Value.B);
+        Assert.Equal(Hex1bColorKind.Bright, fg.Value.Kind);
+        Assert.Equal(sgr - 90, fg.Value.AnsiIndex);
     }
 
     [Fact]
@@ -130,7 +145,11 @@ public class ColorIndexMappingTests
         Assert.NotNull(fg);
 
         // Index 196 = 6x6x6 cube: (196-16)=180, r=180/36=5→255, g=0, b=0
-        Assert.Equal(Hex1bColor.FromRgb(255, 0, 0), fg.Value);
+        Assert.Equal(255, fg.Value.R);
+        Assert.Equal(0, fg.Value.G);
+        Assert.Equal(0, fg.Value.B);
+        Assert.Equal(Hex1bColorKind.Indexed, fg.Value.Kind);
+        Assert.Equal(196, fg.Value.AnsiIndex);
     }
 
     [Fact]
