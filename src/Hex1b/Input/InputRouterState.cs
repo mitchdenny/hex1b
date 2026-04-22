@@ -10,6 +10,12 @@ public sealed class InputRouterState
     /// Current chord state - the trie node we're in mid-chord, if any.
     /// </summary>
     internal ChordTrie? ChordNode { get; set; }
+
+    /// <summary>
+    /// Chord state for capture-override bindings (separate from normal chord state
+    /// so override chords work independently of focus-based chord routing).
+    /// </summary>
+    internal ChordTrie? CaptureOverrideChordNode { get; set; }
     
     /// <summary>
     /// The path when the chord started (to detect focus changes).
@@ -24,7 +30,7 @@ public sealed class InputRouterState
     /// <summary>
     /// Gets whether we're currently mid-chord.
     /// </summary>
-    public bool IsInChord => ChordNode != null;
+    public bool IsInChord => ChordNode != null || CaptureOverrideChordNode != null;
     
     /// <summary>
     /// Event raised when chord state changes (for UI feedback).
@@ -36,8 +42,9 @@ public sealed class InputRouterState
     /// </summary>
     public void Reset()
     {
-        var wasInChord = ChordNode != null;
+        var wasInChord = ChordNode != null || CaptureOverrideChordNode != null;
         ChordNode = null;
+        CaptureOverrideChordNode = null;
         ChordAnchorPath = null;
         ChordLayerIndex = -1;
         if (wasInChord)

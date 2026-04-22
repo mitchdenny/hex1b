@@ -537,6 +537,30 @@ public static class InputRouter
         InputBindingActionContext actionContext,
         InputRouterState state)
     {
+        // If mid-chord from a previous capture-override prefix match, continue from there
+        if (state.CaptureOverrideChordNode is { } chordNode)
+        {
+            var chordResult = chordNode.Lookup(keyEvent);
+
+            if (chordResult.IsLeaf)
+            {
+                await chordResult.ExecuteAsync(actionContext);
+                state.Reset();
+                return InputResult.Handled;
+            }
+
+            if (chordResult.HasChildren)
+            {
+                // Deeper chord — keep going
+                state.CaptureOverrideChordNode = chordResult.Node;
+                return InputResult.Handled;
+            }
+
+            // Second key didn't match any continuation — cancel the chord
+            state.Reset();
+            return InputResult.NotHandled;
+        }
+
         // Collect all capture-override bindings from the entire tree
         var overrideBindings = new List<InputBinding>();
         CollectCaptureOverrideBindings(root, overrideBindings);
@@ -562,7 +586,10 @@ public static class InputRouter
             
             if (result.HasChildren)
             {
-                // Override chord started - treat as handled
+                // Override chord started - save state so the next keypress
+                // continues the chord through TryHandleCaptureOverrideBindingsAsync.
+                state.CaptureOverrideChordNode = result.Node;
+                state.NotifyChordStateChanged();
                 return InputResult.Handled;
             }
         }
