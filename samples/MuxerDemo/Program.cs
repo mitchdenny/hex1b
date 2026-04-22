@@ -39,6 +39,7 @@ CancellationTokenSource? embeddedCts = null;
 string? connectedSessionName = null;
 string? connectedSocketPath = null;
 string? statusMessage = null;
+var serverProcesses = new Dictionary<string, Process>(); // socketPath → server process
 
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -81,8 +82,9 @@ await using var displayTerminal = Hex1bTerminal.CreateBuilder()
 
 await displayTerminal.RunAsync();
 
-// Clean up embedded terminal on exit
+// Clean up embedded terminal and all server processes on exit
 await CleanupEmbeddedTerminalAsync();
+KillAllServerProcesses();
 return;
 
 // === View builders ===
@@ -225,6 +227,8 @@ async Task CreateAndConnectSessionAsync()
         return;
     }
 
+    serverProcesses[sockPath] = process;
+
     // Wait for the socket file to appear
     for (var i = 0; i < 50; i++)
     {
@@ -334,12 +338,46 @@ async Task KillCurrentSessionAsync()
 
     await CleanupEmbeddedTerminalAsync();
 
-    // Delete the socket file to kill the server
+    // Kill the server process if we spawned it
+    KillServerProcess(socketToDelete);
+
+    // Delete the socket file
     try { File.Delete(socketToDelete); } catch { }
 
     view = "sessions";
     statusMessage = $"Killed session '{sessionName}'.";
     app?.Invalidate();
+}
+
+void KillServerProcess(string socketPath)
+{
+    if (serverProcesses.TryGetValue(socketPath, out var proc))
+    {
+        serverProcesses.Remove(socketPath);
+        try
+        {
+            if (!proc.HasExited)
+                proc.Kill(entireProcessTree: true);
+        }
+        catch { }
+        proc.Dispose();
+    }
+}
+
+void KillAllServerProcesses()
+{
+    foreach (var (path, proc) in serverProcesses)
+    {
+        try
+        {
+            if (!proc.HasExited)
+                proc.Kill(entireProcessTree: true);
+        }
+        catch { }
+        proc.Dispose();
+        try { File.Delete(path); } catch { }
+    }
+    serverProcesses.Clear();
 }
 
 static string GetShell()
