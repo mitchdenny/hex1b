@@ -829,7 +829,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     
     /// <summary>
     /// Moves the copy mode cursor by the specified row and column deltas.
-    /// Clamps to buffer bounds.
+    /// Clamps to buffer bounds and scrolls the viewport to keep the cursor visible.
     /// </summary>
     public void MoveCopyModeCursor(int rowDelta, int colDelta)
     {
@@ -841,12 +841,13 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             Math.Clamp(pos.Row + rowDelta, 0, maxRow),
             Math.Clamp(pos.Column + colDelta, 0, maxCol));
         _selection.MoveCursor(newPos);
+        EnsureCopyModeCursorVisible();
         OutputReceived?.Invoke();
     }
     
     /// <summary>
     /// Moves the copy mode cursor to an absolute position.
-    /// Clamps to buffer bounds.
+    /// Clamps to buffer bounds and scrolls the viewport to keep the cursor visible.
     /// </summary>
     public void SetCopyModeCursorPosition(int row, int column)
     {
@@ -856,6 +857,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         _selection.MoveCursor(new BufferPosition(
             Math.Clamp(row, 0, maxRow),
             Math.Clamp(column, 0, maxCol)));
+        EnsureCopyModeCursorVisible();
         OutputReceived?.Invoke();
     }
     
@@ -904,6 +906,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         }
         
         _selection.MoveCursor(new BufferPosition(Math.Min(row, maxRow), col));
+        EnsureCopyModeCursorVisible();
         OutputReceived?.Invoke();
     }
     
@@ -939,7 +942,32 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         }
         
         _selection.MoveCursor(new BufferPosition(Math.Max(row, 0), Math.Clamp(col, 0, _width - 1)));
+        EnsureCopyModeCursorVisible();
         OutputReceived?.Invoke();
+    }
+    
+    /// <summary>
+    /// Adjusts the scrollback offset so the copy mode cursor is within the visible viewport.
+    /// </summary>
+    private void EnsureCopyModeCursorVisible()
+    {
+        if (_selection == null) return;
+        int cursorRow = _selection.Cursor.Row;
+        int scrollbackCount = ScrollbackCount;
+        
+        // Visible virtual row range: [viewStart, viewStart + _height - 1]
+        int viewStart = scrollbackCount - _scrollbackOffset;
+        int viewEnd = viewStart + _height - 1;
+        
+        if (cursorRow < viewStart)
+        {
+            _scrollbackOffset = scrollbackCount - cursorRow;
+        }
+        else if (cursorRow > viewEnd)
+        {
+            _scrollbackOffset = scrollbackCount - (cursorRow - _height + 1);
+        }
+        _scrollbackOffset = Math.Max(0, _scrollbackOffset);
     }
     
     // Pending mouse selection anchor — set on Down, used on first Drag

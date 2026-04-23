@@ -578,6 +578,13 @@ public sealed class TerminalNode : Hex1bNode
         // (e.g., after scrolling back from scrollback mode to live mode).
         context.ClearRegion(Bounds);
         
+        // Sync scrollback offset from handle when in copy mode
+        // (the handle adjusts it to keep the copy cursor visible)
+        if (_handle.IsInCopyMode)
+        {
+            _scrollbackOffset = _handle.CurrentScrollbackOffset;
+        }
+        
         if (_scrollbackOffset > 0)
         {
             RenderWithScrollback(context, buffer, handleWidth, handleHeight);
