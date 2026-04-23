@@ -31,7 +31,7 @@ if (OperatingSystem.IsWindows())
     builder = builder.WithPtyProcess(options =>
     {
         options.FileName = shellName;
-        options.Arguments = ["-NoProfile", "-NoLogo"];
+        options.Arguments = ["-NoLogo"];
         options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
     });
 }
