@@ -51,8 +51,7 @@ public sealed class WindowHandle
     private Action? _onClose;
     private Action? _onActivated;
     private Action? _onDeactivated;
-    private object? _onResultCallback;
-    private Type? _resultType;
+    private Action<WindowEntry>? _resultInvoker;
 
     // Default right title actions (close button) when no builder is specified
     private static readonly IReadOnlyList<WindowAction> DefaultRightActions = [WindowAction.Close()];
@@ -298,8 +297,7 @@ public sealed class WindowHandle
     internal Action? OnCloseValue => _onClose;
     internal Action? OnActivatedValue => _onActivated;
     internal Action? OnDeactivatedValue => _onDeactivated;
-    internal object? OnResultCallbackValue => _onResultCallback;
-    internal Type? ResultTypeValue => _resultType;
+    internal Action<WindowEntry>? ResultInvokerValue => _resultInvoker;
 
     /// <summary>
     /// The associated WindowEntry when this handle is opened.
@@ -343,8 +341,12 @@ public sealed class WindowHandle
     public WindowHandle OnResult<T>(Action<WindowResultContext<T>> callback)
     {
         ArgumentNullException.ThrowIfNull(callback);
-        _onResultCallback = callback;
-        _resultType = typeof(T);
+        _resultInvoker = entry =>
+        {
+            var value = entry.ResultProvided && entry.ResultValue is T typed ? typed : default;
+            var context = new WindowResultContext<T>(entry, value, !entry.ResultProvided);
+            callback(context);
+        };
         return this;
     }
 
