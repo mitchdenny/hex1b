@@ -93,6 +93,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private TerminalSelection? _selection;
     private List<IReadOnlyList<AppliedToken>>? _outputQueue;
     
+    // Scrollback offset tracked by the TerminalNode, synced here for mouse coordinate translation
+    private int _scrollbackOffset;
+    
     /// <summary>
     /// Creates a new TerminalWidgetHandle with the specified dimensions.
     /// </summary>
@@ -183,6 +186,16 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// Raised when copy mode is entered or exited.
     /// </summary>
     public event Action<bool>? CopyModeChanged;
+    
+    /// <summary>
+    /// Gets or sets the current scrollback offset, synced from the TerminalNode.
+    /// Used for translating mouse coordinates to virtual buffer positions.
+    /// </summary>
+    public int CurrentScrollbackOffset
+    {
+        get => _scrollbackOffset;
+        set => _scrollbackOffset = value;
+    }
     
     /// <summary>
     /// Raised when text is copied via copy mode. Subscribers should send the text
@@ -927,6 +940,54 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         
         _selection.MoveCursor(new BufferPosition(Math.Max(row, 0), Math.Clamp(col, 0, _width - 1)));
         OutputReceived?.Invoke();
+    }
+    
+    /// <summary>
+    /// Handles mouse-driven selection. Translates local terminal coordinates to virtual
+    /// buffer positions and manages the selection state machine (down/drag/up).
+    /// </summary>
+    /// <param name="localX">X coordinate relative to the terminal widget bounds.</param>
+    /// <param name="localY">Y coordinate relative to the terminal widget bounds.</param>
+    /// <param name="action">The mouse action (Down starts, Drag extends, Up finalizes).</param>
+    /// <param name="mode">The selection mode to use.</param>
+    public void MouseSelect(int localX, int localY, Input.MouseAction action, SelectionMode mode)
+    {
+        int scrollbackCount = ScrollbackCount;
+        int virtualRow = scrollbackCount - _scrollbackOffset + localY;
+        int column = Math.Clamp(localX, 0, _width - 1);
+        virtualRow = Math.Clamp(virtualRow, 0, VirtualBufferHeight - 1);
+        
+        switch (action)
+        {
+            case Input.MouseAction.Down:
+                if (!_inCopyMode)
+                {
+                    EnterCopyMode();
+                }
+                // Set anchor at click position and start selection
+                _selection?.MoveCursor(new BufferPosition(virtualRow, column));
+                _selection?.StartSelection(mode);
+                OutputReceived?.Invoke();
+                break;
+                
+            case Input.MouseAction.Drag:
+                if (_selection != null && _inCopyMode)
+                {
+                    // If selection mode changed (modifier changed mid-drag), update it
+                    if (_selection.IsSelecting && _selection.Mode != mode)
+                    {
+                        _selection.ToggleMode(mode);
+                    }
+                    _selection.MoveCursor(new BufferPosition(virtualRow, column));
+                    OutputReceived?.Invoke();
+                }
+                break;
+                
+            case Input.MouseAction.Up:
+                // Selection stays active — user can refine with keyboard or press y to copy
+                OutputReceived?.Invoke();
+                break;
+        }
     }
     
     /// <summary>

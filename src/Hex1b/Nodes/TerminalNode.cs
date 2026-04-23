@@ -272,6 +272,7 @@ public sealed class TerminalNode : Hex1bNode
         if (newOffset != _scrollbackOffset)
         {
             _scrollbackOffset = newOffset;
+            _handle.CurrentScrollbackOffset = _scrollbackOffset;
             MarkDirty();
             _invalidateCallback?.Invoke();
         }
@@ -290,9 +291,9 @@ public sealed class TerminalNode : Hex1bNode
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
         
-        // When in copy mode, intercept all keyboard input.
-        // Delegate to the handle's CopyModeInput event for key mapping.
-        if (_handle.IsInCopyMode && inputEvent is Hex1bKeyEvent)
+        // When in copy mode, intercept all input (keyboard and mouse).
+        // Delegate to the handle's CopyModeInput event.
+        if (_handle.IsInCopyMode)
         {
             _handle.RaiseCopyModeInput(inputEvent);
             MarkDirty();
@@ -300,14 +301,25 @@ public sealed class TerminalNode : Hex1bNode
             return InputResult.Handled;
         }
         
-        // When NOT in copy mode, give the CopyModeInput handler a chance to intercept
-        // (e.g., to enter copy mode via a custom key like F6). If it handles the key,
-        // don't forward to the child terminal.
+        // When NOT in copy mode, give the CopyModeInput handler a chance to intercept.
+        // For keyboard: entry key like F6.
+        // For mouse: when mouse tracking is OFF, allow direct selection without explicit copy mode.
         if (inputEvent is Hex1bKeyEvent && _handle.RaiseCopyModeInput(inputEvent))
         {
             MarkDirty();
             _invalidateCallback?.Invoke();
             return InputResult.Handled;
+        }
+        
+        if (inputEvent is Hex1bMouseEvent mouseEvt && !_handle.MouseTrackingEnabled)
+        {
+            // Mouse tracking off — let consumer handle mouse for selection
+            if (_handle.RaiseCopyModeInput(inputEvent))
+            {
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            }
         }
         
         // When in scrollback mode and a non-scrollback key is pressed (no binding matched),

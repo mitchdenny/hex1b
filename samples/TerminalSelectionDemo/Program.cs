@@ -62,9 +62,28 @@ handle.CopyModeChanged += active =>
     app?.Invalidate();
 };
 
-// Handle copy mode key input — vi-style bindings and F6 entry
+// Handle copy mode input — keyboard (vi-style) and mouse selection
 handle.CopyModeInput += inputEvent =>
 {
+    // Mouse events: handle selection via click+drag
+    if (inputEvent is Hex1bMouseEvent mouse)
+    {
+        if (mouse.Button == MouseButton.Left)
+        {
+            // Determine selection mode from modifiers
+            var mode = mouse.Modifiers switch
+            {
+                Hex1bModifiers.Shift => SelectionMode.Line,
+                Hex1bModifiers.Alt => SelectionMode.Block,
+                _ => SelectionMode.Character
+            };
+            
+            handle.MouseSelect(mouse.X, mouse.Y, mouse.Action, mode);
+            return true;
+        }
+        return false;
+    }
+    
     if (inputEvent is not Hex1bKeyEvent key) return false;
     
     // F6 enters copy mode (when not already in copy mode)
