@@ -81,6 +81,14 @@ handle.CopyModeInput += inputEvent =>
             handle.MouseSelect(mouse.X, mouse.Y, mouse.Action, mode);
             return true;
         }
+        
+        // Right click copies selection and exits copy mode
+        if (mouse.Button == MouseButton.Right && mouse.Action == MouseAction.Down && handle.IsInCopyMode)
+        {
+            handle.CopySelection();
+            return true;
+        }
+        
         return false;
     }
     
