@@ -344,20 +344,34 @@ public sealed class TerminalNode : Hex1bNode
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
         
-        // When in copy mode, intercept all keyboard input for copy mode navigation
-        if (_handle.IsInCopyMode && inputEvent is Hex1bKeyEvent keyEvent)
+        if (inputEvent is Hex1bKeyEvent keyEvent)
         {
-            return HandleCopyModeInput(keyEvent);
-        }
-        
-        // When in scrollback mode and a non-scrollback key is pressed (no binding matched),
-        // snap back to live view and forward the keystroke to the terminal.
-        // This matches standard terminal behavior where typing snaps you back to the prompt.
-        if (IsInScrollbackMode && inputEvent is Hex1bKeyEvent)
-        {
-            _scrollbackOffset = 0;
-            MarkDirty();
-            _invalidateCallback?.Invoke();
+            // Enter copy mode: Alt+C or F6 (works even when terminal has captured input)
+            if (!_handle.IsInCopyMode && 
+                ((keyEvent.Key == Hex1bKey.C && keyEvent.Modifiers == Hex1bModifiers.Alt) ||
+                 (keyEvent.Key == Hex1bKey.F6 && keyEvent.Modifiers == Hex1bModifiers.None)))
+            {
+                _handle.EnterCopyMode();
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            }
+            
+            // When in copy mode, intercept all keyboard input for copy mode navigation
+            if (_handle.IsInCopyMode)
+            {
+                return HandleCopyModeInput(keyEvent);
+            }
+            
+            // When in scrollback mode and a non-scrollback key is pressed (no binding matched),
+            // snap back to live view and forward the keystroke to the terminal.
+            // This matches standard terminal behavior where typing snaps you back to the prompt.
+            if (IsInScrollbackMode)
+            {
+                _scrollbackOffset = 0;
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+            }
         }
         
         // Fire and forget - we don't want to block the input loop

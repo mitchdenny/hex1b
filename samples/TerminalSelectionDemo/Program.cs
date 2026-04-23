@@ -80,7 +80,7 @@ Hex1bWidget Build(RootContext ctx)
         }
         : new[]
         {
-            "Alt+C", "Enter Copy Mode",
+            "Alt+C / F6", "Enter Copy Mode",
             "Shift+↑/↓", "Scroll",
             "", handle.WindowTitle
         };
