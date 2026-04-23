@@ -29,12 +29,25 @@ public class TerminalMouseSelectionTests
     }
 
     [Fact]
-    public async Task MouseSelect_Down_EntersCopyModeAndStartsSelection()
+    public async Task MouseSelect_DownOnly_DoesNotEnterCopyMode()
     {
         var handle = CreateHandle(20, 5);
         await WriteText(handle, "Hello World", 0);
         
         handle.MouseSelect(2, 0, MouseAction.Down, SelectionMode.Character);
+        
+        // Single click without drag should NOT enter copy mode
+        Assert.False(handle.IsInCopyMode);
+    }
+
+    [Fact]
+    public async Task MouseSelect_DownThenDrag_EntersCopyModeAndStartsSelection()
+    {
+        var handle = CreateHandle(20, 5);
+        await WriteText(handle, "Hello World", 0);
+        
+        handle.MouseSelect(2, 0, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(5, 0, MouseAction.Drag, SelectionMode.Character);
         
         Assert.True(handle.IsInCopyMode);
         Assert.NotNull(handle.Selection);
@@ -134,17 +147,18 @@ public class TerminalMouseSelectionTests
     }
 
     [Fact]
-    public void MouseSelect_Down_WhenAlreadyInCopyMode_ResetsSelection()
+    public void MouseSelect_DragWhenAlreadyInCopyMode_SetsNewSelection()
     {
         var handle = CreateHandle(20, 5);
         handle.EnterCopyMode();
         
-        // Click to start new selection
+        // Click and drag to start new selection
         handle.MouseSelect(5, 2, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(8, 2, MouseAction.Drag, SelectionMode.Character);
         
         Assert.True(handle.Selection!.IsSelecting);
-        Assert.Equal(2, handle.Selection.Cursor.Row);
-        Assert.Equal(5, handle.Selection.Cursor.Column);
+        Assert.Equal(2, handle.Selection.Anchor.Row);
+        Assert.Equal(5, handle.Selection.Anchor.Column);
     }
 
     [Fact]
@@ -171,8 +185,9 @@ public class TerminalMouseSelectionTests
     {
         var handle = CreateHandle(10, 5);
         
-        // Click outside bounds
+        // Click and drag outside bounds
         handle.MouseSelect(100, 100, MouseAction.Down, SelectionMode.Character);
+        handle.MouseSelect(100, 100, MouseAction.Drag, SelectionMode.Character);
         
         Assert.True(handle.IsInCopyMode);
         var pos = handle.Selection!.Cursor;

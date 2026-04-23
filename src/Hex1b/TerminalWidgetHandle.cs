@@ -942,13 +942,17 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         OutputReceived?.Invoke();
     }
     
+    // Pending mouse selection anchor — set on Down, used on first Drag
+    private BufferPosition? _pendingMouseAnchor;
+    
     /// <summary>
     /// Handles mouse-driven selection. Translates local terminal coordinates to virtual
     /// buffer positions and manages the selection state machine (down/drag/up).
+    /// Only enters copy mode when the user actually drags (not on a single click).
     /// </summary>
     /// <param name="localX">X coordinate relative to the terminal widget bounds.</param>
     /// <param name="localY">Y coordinate relative to the terminal widget bounds.</param>
-    /// <param name="action">The mouse action (Down starts, Drag extends, Up finalizes).</param>
+    /// <param name="action">The mouse action (Down records anchor, Drag starts selection, Up finalizes).</param>
     /// <param name="mode">The selection mode to use.</param>
     public void MouseSelect(int localX, int localY, Input.MouseAction action, SelectionMode mode)
     {
@@ -960,17 +964,23 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         switch (action)
         {
             case Input.MouseAction.Down:
-                if (!_inCopyMode)
-                {
-                    EnterCopyMode();
-                }
-                // Set anchor at click position and start selection
-                _selection?.MoveCursor(new BufferPosition(virtualRow, column));
-                _selection?.StartSelection(mode);
-                OutputReceived?.Invoke();
+                // Record anchor position — don't enter copy mode yet (wait for drag)
+                _pendingMouseAnchor = new BufferPosition(virtualRow, column);
                 break;
                 
             case Input.MouseAction.Drag:
+                if (_pendingMouseAnchor is { } anchor)
+                {
+                    // First drag after mouse down — now enter copy mode and start selection
+                    if (!_inCopyMode)
+                    {
+                        EnterCopyMode();
+                    }
+                    _selection?.MoveCursor(anchor);
+                    _selection?.StartSelection(mode);
+                    _pendingMouseAnchor = null;
+                }
+                
                 if (_selection != null && _inCopyMode)
                 {
                     // If selection mode changed (modifier changed mid-drag), update it
@@ -984,6 +994,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                 break;
                 
             case Input.MouseAction.Up:
+                _pendingMouseAnchor = null;
                 // Selection stays active — user can refine with keyboard or press y to copy
                 OutputReceived?.Invoke();
                 break;
