@@ -303,23 +303,18 @@ public static class InputRouter
         var capturedNode = focusRing.CapturedNode;
         if (capturedNode != null)
         {
-            // Check if mouse is within the captured node's bounds
+            // Translate to local coordinates (allow negative/out-of-bounds for drag)
             var bounds = capturedNode.Bounds;
-            if (mouseEvent.X >= bounds.X && mouseEvent.X < bounds.X + bounds.Width &&
-                mouseEvent.Y >= bounds.Y && mouseEvent.Y < bounds.Y + bounds.Height)
+            var localEvent = mouseEvent with 
+            { 
+                X = mouseEvent.X - bounds.X, 
+                Y = mouseEvent.Y - bounds.Y 
+            };
+            
+            var result = capturedNode.HandleInput(localEvent);
+            if (result == InputResult.Handled)
             {
-                // Translate to local coordinates
-                var localEvent = mouseEvent with 
-                { 
-                    X = mouseEvent.X - bounds.X, 
-                    Y = mouseEvent.Y - bounds.Y 
-                };
-                
-                var result = capturedNode.HandleInput(localEvent);
-                if (result == InputResult.Handled)
-                {
-                    return Task.FromResult(InputResult.Handled);
-                }
+                return Task.FromResult(InputResult.Handled);
             }
         }
         
