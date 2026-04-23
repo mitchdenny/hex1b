@@ -153,7 +153,7 @@ handle.CopyModeInput += inputEvent =>
         case Hex1bKey.V when key.Modifiers == Hex1bModifiers.Shift:
             handle.StartOrToggleSelection(SelectionMode.Line);
             return true;
-        case Hex1bKey.V when key.Modifiers == Hex1bModifiers.Control:
+        case Hex1bKey.V when key.Modifiers == Hex1bModifiers.Alt:
             handle.StartOrToggleSelection(SelectionMode.Block);
             return true;
         case Hex1bKey.Spacebar:
@@ -188,7 +188,7 @@ Hex1bWidget Build(RootContext ctx)
         {
             "Mode", $"COPY MODE{selectionModeLabel}",
             "h/j/k/l", "Move",
-            "v/V/^V", "Char/Line/Block",
+            "v/V/Alt+V", "Char/Line/Block",
             "y/Enter", "Copy",
             "Esc", "Cancel"
         }
