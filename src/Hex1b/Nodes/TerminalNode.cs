@@ -177,8 +177,9 @@ public sealed class TerminalNode : Hex1bNode
         bindings.Mouse(MouseButton.ScrollUp).Triggers(TerminalWidget.ScrollUpLine, MouseScrollUpHandler, "Scroll up");
         bindings.Mouse(MouseButton.ScrollDown).Triggers(TerminalWidget.ScrollDownLine, MouseScrollDownHandler, "Scroll down");
         
-        // Copy mode entry
-        bindings.Shift().Key(Hex1bKey.Spacebar).Triggers(TerminalWidget.EnterCopyMode, EnterCopyModeHandler, "Enter copy mode");
+        // Copy mode entry — must override capture since TerminalNode captures all input when focused.
+        // Uses Alt+C because Shift+Space is not reliably distinguishable from Space in terminal I/O.
+        new KeyStepBuilder(bindings).OverridesCapture().Alt().Key(Hex1bKey.C).Triggers(TerminalWidget.EnterCopyMode, EnterCopyModeHandler, "Enter copy mode");
     }
     
     private Task ScrollUpLineHandler(InputBindingActionContext ctx)
