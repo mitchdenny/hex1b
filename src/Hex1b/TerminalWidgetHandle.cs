@@ -726,9 +726,9 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             _inCopyMode = true;
             _outputQueue = new List<IReadOnlyList<AppliedToken>>();
             
-            // Position cursor at bottom-left of screen in virtual coordinates
+            // Position cursor at the terminal's current cursor position in virtual coordinates
             int scrollbackCount = ScrollbackCount;
-            var initialPosition = new BufferPosition(scrollbackCount + _height - 1, 0);
+            var initialPosition = new BufferPosition(scrollbackCount + _cursorY, _cursorX);
             _selection = new TerminalSelection(initialPosition);
         }
         

@@ -45,8 +45,8 @@ public class TerminalCopyModeTests
         handle.EnterCopyMode();
         
         Assert.NotNull(handle.Selection);
-        // Cursor should be at bottom-left of screen
-        Assert.Equal(23, handle.Selection!.Cursor.Row); // scrollbackCount(0) + height(24) - 1
+        // Cursor should be at terminal's current cursor position (0,0 for fresh handle)
+        Assert.Equal(0, handle.Selection!.Cursor.Row);
         Assert.Equal(0, handle.Selection.Cursor.Column);
     }
 
@@ -231,7 +231,8 @@ public class TerminalCopyModeTests
         
         var pos = handle.CopyModeCursorPosition;
         Assert.NotNull(pos);
-        Assert.Equal(23, pos!.Value.Row);
+        // Fresh handle has cursor at (0,0)
+        Assert.Equal(0, pos!.Value.Row);
         Assert.Equal(0, pos.Value.Column);
     }
 }
