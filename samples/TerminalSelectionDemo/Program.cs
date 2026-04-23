@@ -73,7 +73,7 @@ handle.CopyModeInput += inputEvent =>
             // Determine selection mode from modifiers
             var mode = mouse.Modifiers switch
             {
-                Hex1bModifiers.Shift => SelectionMode.Line,
+                Hex1bModifiers.Control => SelectionMode.Line,
                 Hex1bModifiers.Alt => SelectionMode.Block,
                 _ => SelectionMode.Character
             };
