@@ -88,6 +88,11 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     private TerminalState _state = TerminalState.NotStarted;
     private int? _exitCode;
     
+    // Copy mode state: when active, output is queued instead of applied
+    private bool _inCopyMode;
+    private TerminalSelection? _selection;
+    private List<IReadOnlyList<AppliedToken>>? _outputQueue;
+    
     /// <summary>
     /// Creates a new TerminalWidgetHandle with the specified dimensions.
     /// </summary>
@@ -161,6 +166,29 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// Gets whether the terminal is currently running.
     /// </summary>
     public bool IsRunning => _state == TerminalState.Running;
+    
+    /// <summary>
+    /// Gets whether copy mode is currently active. When active, output from the child
+    /// process is queued rather than applied to the screen buffer, and the selection
+    /// cursor can be navigated independently.
+    /// </summary>
+    public bool IsInCopyMode => _inCopyMode;
+    
+    /// <summary>
+    /// Gets the current text selection, or null if copy mode is not active.
+    /// </summary>
+    public TerminalSelection? Selection => _selection;
+    
+    /// <summary>
+    /// Raised when copy mode is entered or exited.
+    /// </summary>
+    public event Action<bool>? CopyModeChanged;
+    
+    /// <summary>
+    /// Raised when text is copied via copy mode. Subscribers should send the text
+    /// to the system clipboard (e.g., via OSC 52).
+    /// </summary>
+    public event Action<string>? TextCopied;
     
     /// <summary>
     /// Gets the current window title set by OSC 0 or OSC 2 sequences from the child process.
@@ -527,8 +555,34 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         if (_disposed || appliedTokens.Count == 0) 
             return ValueTask.CompletedTask;
         
+        lock (_bufferLock)
+        {
+            if (_inCopyMode && _outputQueue != null)
+            {
+                // Queue output for later application — buffer is frozen during copy mode.
+                // Still process mode tokens (mouse tracking, alternate screen) immediately
+                // so state is correct when copy mode exits.
+                foreach (var applied in appliedTokens)
+                {
+                    if (applied.Token is PrivateModeToken pm)
+                        HandlePrivateModeToken(pm);
+                    else if (applied.Token is CursorShapeToken cst)
+                        HandleCursorShapeToken(cst);
+                    else if (applied.Token is OscToken osc)
+                        HandleOscToken(osc);
+                }
+                _outputQueue.Add(appliedTokens);
+                return ValueTask.CompletedTask;
+            }
+        }
+        
+        ApplyTokensToBuffer(appliedTokens);
+        return ValueTask.CompletedTask;
+    }
+    
+    private void ApplyTokensToBuffer(IReadOnlyList<AppliedToken> appliedTokens)
+    {
         int maxY = -1;
-        int droppedCount = 0;
         lock (_bufferLock)
         {
             foreach (var applied in appliedTokens)
@@ -540,16 +594,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                 }
                 else if (applied.Token is CursorShapeToken cst)
                 {
-                    _cursorShape = cst.Shape switch
-                    {
-                        1 => CursorShape.BlinkingBlock,
-                        2 => CursorShape.SteadyBlock,
-                        3 => CursorShape.BlinkingUnderline,
-                        4 => CursorShape.SteadyUnderline,
-                        5 => CursorShape.BlinkingBar,
-                        6 => CursorShape.SteadyBar,
-                        _ => CursorShape.Default
-                    };
+                    HandleCursorShapeToken(cst);
                 }
                 else if (applied.Token is OscToken osc)
                 {
@@ -564,10 +609,6 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                         _screenBuffer[impact.Y, impact.X] = impact.Cell;
                         if (impact.Y > maxY) maxY = impact.Y;
                     }
-                    else if (impact.Y >= _height)
-                    {
-                        droppedCount++;
-                    }
                 }
                 
                 // Update cursor position from the last token
@@ -577,13 +618,24 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         }
         
         // Only notify bound nodes when there are actual cell changes
-        // Cursor-only updates don't require a full repaint - RenderCursor handles that
         if (maxY >= 0)
         {
             OutputReceived?.Invoke();
         }
-        
-        return ValueTask.CompletedTask;
+    }
+    
+    private void HandleCursorShapeToken(CursorShapeToken cst)
+    {
+        _cursorShape = cst.Shape switch
+        {
+            1 => CursorShape.BlinkingBlock,
+            2 => CursorShape.SteadyBlock,
+            3 => CursorShape.BlinkingUnderline,
+            4 => CursorShape.SteadyUnderline,
+            5 => CursorShape.BlinkingBar,
+            6 => CursorShape.SteadyBar,
+            _ => CursorShape.Default
+        };
     }
     
     /// <inheritdoc />
@@ -658,6 +710,152 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         
         Resized?.Invoke(newWidth, newHeight);
     }
+    
+    // === Copy Mode ===
+    
+    /// <summary>
+    /// Enters copy mode: freezes the screen buffer and begins queuing output.
+    /// The copy mode cursor starts at the bottom-right of the visible screen.
+    /// </summary>
+    public void EnterCopyMode()
+    {
+        lock (_bufferLock)
+        {
+            if (_inCopyMode) return;
+            
+            _inCopyMode = true;
+            _outputQueue = new List<IReadOnlyList<AppliedToken>>();
+            
+            // Position cursor at bottom-left of screen in virtual coordinates
+            int scrollbackCount = ScrollbackCount;
+            var initialPosition = new BufferPosition(scrollbackCount + _height - 1, 0);
+            _selection = new TerminalSelection(initialPosition);
+        }
+        
+        CopyModeChanged?.Invoke(true);
+        OutputReceived?.Invoke(); // trigger re-render to show copy mode cursor
+    }
+    
+    /// <summary>
+    /// Exits copy mode: flushes all queued output to the screen buffer and clears the selection.
+    /// </summary>
+    public void ExitCopyMode()
+    {
+        List<IReadOnlyList<AppliedToken>>? pendingQueue;
+        
+        lock (_bufferLock)
+        {
+            if (!_inCopyMode) return;
+            
+            _inCopyMode = false;
+            _selection = null;
+            pendingQueue = _outputQueue;
+            _outputQueue = null;
+        }
+        
+        // Flush queued output outside the lock
+        if (pendingQueue != null)
+        {
+            foreach (var tokens in pendingQueue)
+            {
+                // Re-enter the normal output path
+                ApplyTokensToBuffer(tokens);
+            }
+        }
+        
+        CopyModeChanged?.Invoke(false);
+        OutputReceived?.Invoke();
+    }
+    
+    /// <summary>
+    /// Copies the currently selected text and exits copy mode.
+    /// Raises <see cref="TextCopied"/> with the selected text.
+    /// </summary>
+    /// <returns>The selected text, or null if no selection is active.</returns>
+    public string? CopySelection()
+    {
+        string? text;
+        
+        lock (_bufferLock)
+        {
+            if (!_inCopyMode || _selection == null || !_selection.IsSelecting)
+            {
+                text = null;
+            }
+            else
+            {
+                text = _selection.ExtractText(GetVirtualCellUnlocked, _width);
+            }
+        }
+        
+        ExitCopyMode();
+        
+        if (text != null)
+        {
+            TextCopied?.Invoke(text);
+        }
+        
+        return text;
+    }
+    
+    /// <summary>
+    /// Gets the copy mode cursor position in virtual buffer coordinates, or null if not in copy mode.
+    /// </summary>
+    public BufferPosition? CopyModeCursorPosition
+    {
+        get
+        {
+            lock (_bufferLock)
+            {
+                return _selection?.Cursor;
+            }
+        }
+    }
+    
+    /// <summary>
+    /// Gets a cell from the virtual buffer (scrollback + screen unified view).
+    /// Virtual row 0 is the oldest scrollback row; scrollbackCount+screenHeight-1 is the last screen row.
+    /// </summary>
+    /// <param name="virtualRow">The virtual row index.</param>
+    /// <param name="column">The column index.</param>
+    /// <returns>The cell at that position, or null if out of bounds.</returns>
+    public TerminalCell? GetVirtualCell(int virtualRow, int column)
+    {
+        lock (_bufferLock)
+        {
+            return GetVirtualCellUnlocked(virtualRow, column);
+        }
+    }
+    
+    private TerminalCell? GetVirtualCellUnlocked(int virtualRow, int column)
+    {
+        int scrollbackCount = ScrollbackCount;
+        
+        if (virtualRow < 0) return null;
+        if (column < 0 || column >= _width) return null;
+        
+        if (virtualRow < scrollbackCount)
+        {
+            // Scrollback region
+            var rows = _terminal?.GetScrollbackRows(scrollbackCount);
+            if (rows == null || virtualRow >= rows.Length) return null;
+            var cells = rows[virtualRow].Cells;
+            if (column >= cells.Length) return TerminalCell.Empty;
+            return cells[column];
+        }
+        else
+        {
+            // Screen region
+            int screenRow = virtualRow - scrollbackCount;
+            if (screenRow >= _height) return null;
+            return _screenBuffer[screenRow, column];
+        }
+    }
+    
+    /// <summary>
+    /// Gets the total number of rows in the virtual buffer (scrollback + screen).
+    /// </summary>
+    public int VirtualBufferHeight => ScrollbackCount + _height;
     
     /// <inheritdoc />
     public ValueTask DisposeAsync()

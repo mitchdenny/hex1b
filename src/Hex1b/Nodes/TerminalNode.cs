@@ -176,6 +176,9 @@ public sealed class TerminalNode : Hex1bNode
         // Mouse wheel scrollback (only when child has NOT enabled mouse tracking)
         bindings.Mouse(MouseButton.ScrollUp).Triggers(TerminalWidget.ScrollUpLine, MouseScrollUpHandler, "Scroll up");
         bindings.Mouse(MouseButton.ScrollDown).Triggers(TerminalWidget.ScrollDownLine, MouseScrollDownHandler, "Scroll down");
+        
+        // Copy mode entry
+        bindings.Shift().Key(Hex1bKey.Spacebar).Triggers(TerminalWidget.EnterCopyMode, EnterCopyModeHandler, "Enter copy mode");
     }
     
     private Task ScrollUpLineHandler(InputBindingActionContext ctx)
@@ -277,6 +280,56 @@ public sealed class TerminalNode : Hex1bNode
         }
     }
     
+    // === Copy Mode Handlers ===
+    
+    private Task EnterCopyModeHandler(InputBindingActionContext ctx)
+    {
+        if (_handle == null || _handle.IsInCopyMode) return Task.CompletedTask;
+        _handle.EnterCopyMode();
+        MarkDirty();
+        _invalidateCallback?.Invoke();
+        return Task.CompletedTask;
+    }
+    
+    private void MoveCopyModeCursor(int rowDelta, int colDelta)
+    {
+        if (_handle?.Selection == null) return;
+        var sel = _handle.Selection;
+        var pos = sel.Cursor;
+        int maxRow = _handle.VirtualBufferHeight - 1;
+        int maxCol = _handle.Width - 1;
+        var newPos = new BufferPosition(
+            Math.Clamp(pos.Row + rowDelta, 0, maxRow),
+            Math.Clamp(pos.Column + colDelta, 0, maxCol));
+        sel.MoveCursor(newPos);
+        EnsureCopyModeCursorVisible();
+        MarkDirty();
+        _invalidateCallback?.Invoke();
+    }
+    
+    private void EnsureCopyModeCursorVisible()
+    {
+        // Adjust scrollback offset so the copy mode cursor is visible
+        if (_handle?.Selection == null) return;
+        var cursorRow = _handle.Selection.Cursor.Row;
+        int scrollbackCount = _handle.ScrollbackCount;
+        int viewHeight = Math.Max(1, Bounds.Height);
+        
+        // Calculate visible virtual row range based on scrollback offset
+        int viewStart = scrollbackCount - _scrollbackOffset;
+        int viewEnd = viewStart + viewHeight - 1;
+        
+        if (cursorRow < viewStart)
+        {
+            _scrollbackOffset = scrollbackCount - cursorRow;
+        }
+        else if (cursorRow > viewEnd)
+        {
+            _scrollbackOffset = scrollbackCount - (cursorRow - viewHeight + 1);
+        }
+        _scrollbackOffset = Math.Max(0, _scrollbackOffset);
+    }
+    
     /// <inheritdoc />
     public override InputResult HandleInput(Hex1bEvent inputEvent)
     {
@@ -289,6 +342,12 @@ public sealed class TerminalNode : Hex1bNode
         
         // Forward input to the terminal
         if (_handle == null) return InputResult.NotHandled;
+        
+        // When in copy mode, intercept all keyboard input for copy mode navigation
+        if (_handle.IsInCopyMode && inputEvent is Hex1bKeyEvent keyEvent)
+        {
+            return HandleCopyModeInput(keyEvent);
+        }
         
         // When in scrollback mode and a non-scrollback key is pressed (no binding matched),
         // snap back to live view and forward the keystroke to the terminal.
@@ -303,6 +362,209 @@ public sealed class TerminalNode : Hex1bNode
         // Fire and forget - we don't want to block the input loop
         _ = _handle.SendEventAsync(inputEvent);
         return InputResult.Handled;
+    }
+    
+    private InputResult HandleCopyModeInput(Hex1bKeyEvent keyEvent)
+    {
+        if (_handle?.Selection == null) return InputResult.Handled;
+        
+        var sel = _handle.Selection;
+        
+        switch (keyEvent.Key)
+        {
+            // Cancel
+            case Hex1bKey.Escape:
+            case Hex1bKey.Q:
+                _handle.ExitCopyMode();
+                _scrollbackOffset = 0;
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            // Copy and exit
+            case Hex1bKey.Enter:
+            case Hex1bKey.Y:
+                _handle.CopySelection();
+                _scrollbackOffset = 0;
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            // Navigation - arrows
+            case Hex1bKey.UpArrow:
+            case Hex1bKey.K:
+                MoveCopyModeCursor(-1, 0);
+                return InputResult.Handled;
+            case Hex1bKey.DownArrow:
+            case Hex1bKey.J:
+                MoveCopyModeCursor(1, 0);
+                return InputResult.Handled;
+            case Hex1bKey.LeftArrow:
+            case Hex1bKey.H:
+                MoveCopyModeCursor(0, -1);
+                return InputResult.Handled;
+            case Hex1bKey.RightArrow:
+            case Hex1bKey.L:
+                MoveCopyModeCursor(0, 1);
+                return InputResult.Handled;
+            
+            // Page navigation
+            case Hex1bKey.PageUp:
+                MoveCopyModeCursor(-(Math.Max(1, Bounds.Height - 1)), 0);
+                return InputResult.Handled;
+            case Hex1bKey.PageDown:
+                MoveCopyModeCursor(Math.Max(1, Bounds.Height - 1), 0);
+                return InputResult.Handled;
+            
+            // Line start/end
+            case Hex1bKey.Home:
+            case Hex1bKey.D0:
+                sel.MoveCursor(new BufferPosition(sel.Cursor.Row, 0));
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            case Hex1bKey.End:
+                sel.MoveCursor(new BufferPosition(sel.Cursor.Row, _handle.Width - 1));
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            // Dollar sign ($) for end of line (vi convention) — mapped via Shift+4
+            
+            // Buffer top/bottom
+            case Hex1bKey.G when keyEvent.Modifiers == Hex1bModifiers.None:
+                // Lowercase g — buffer bottom
+                sel.MoveCursor(new BufferPosition(_handle.VirtualBufferHeight - 1, sel.Cursor.Column));
+                EnsureCopyModeCursorVisible();
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            case Hex1bKey.G when keyEvent.Modifiers == Hex1bModifiers.Shift:
+                // Uppercase G — also buffer bottom (in tmux, gg is top, G is bottom)
+                sel.MoveCursor(new BufferPosition(_handle.VirtualBufferHeight - 1, sel.Cursor.Column));
+                EnsureCopyModeCursorVisible();
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            // Selection toggles
+            case Hex1bKey.V when keyEvent.Modifiers == Hex1bModifiers.None:
+                if (sel.IsSelecting && sel.Mode == SelectionMode.Character)
+                    sel.ClearSelection();
+                else
+                    sel.StartSelection(SelectionMode.Character);
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            case Hex1bKey.V when keyEvent.Modifiers == Hex1bModifiers.Shift:
+                sel.ToggleMode(SelectionMode.Line);
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            case Hex1bKey.V when keyEvent.Modifiers == Hex1bModifiers.Control:
+                sel.ToggleMode(SelectionMode.Block);
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            // Word navigation
+            case Hex1bKey.W:
+                MoveWordForward();
+                return InputResult.Handled;
+            case Hex1bKey.B:
+                MoveWordBackward();
+                return InputResult.Handled;
+            
+            // Spacebar starts selection
+            case Hex1bKey.Spacebar:
+                if (!sel.IsSelecting)
+                    sel.StartSelection(SelectionMode.Character);
+                MarkDirty();
+                _invalidateCallback?.Invoke();
+                return InputResult.Handled;
+            
+            default:
+                return InputResult.Handled; // Consume all input in copy mode
+        }
+    }
+    
+    private void MoveWordForward()
+    {
+        if (_handle?.Selection == null) return;
+        var sel = _handle.Selection;
+        var pos = sel.Cursor;
+        int maxRow = _handle.VirtualBufferHeight - 1;
+        int width = _handle.Width;
+        
+        int row = pos.Row;
+        int col = pos.Column;
+        
+        // Skip current word (non-space characters)
+        while (row <= maxRow)
+        {
+            var cell = _handle.GetVirtualCell(row, col);
+            if (cell == null || string.IsNullOrWhiteSpace(cell.Value.Character)) break;
+            col++;
+            if (col >= width) { col = 0; row++; }
+        }
+        
+        // Skip whitespace
+        while (row <= maxRow)
+        {
+            var cell = _handle.GetVirtualCell(row, col);
+            if (cell == null) break;
+            if (!string.IsNullOrWhiteSpace(cell.Value.Character)) break;
+            col++;
+            if (col >= width) { col = 0; row++; }
+        }
+        
+        row = Math.Min(row, maxRow);
+        sel.MoveCursor(new BufferPosition(row, col));
+        EnsureCopyModeCursorVisible();
+        MarkDirty();
+        _invalidateCallback?.Invoke();
+    }
+    
+    private void MoveWordBackward()
+    {
+        if (_handle?.Selection == null) return;
+        var sel = _handle.Selection;
+        var pos = sel.Cursor;
+        int width = _handle.Width;
+        
+        int row = pos.Row;
+        int col = pos.Column;
+        
+        // Move back one
+        col--;
+        if (col < 0) { col = width - 1; row--; }
+        if (row < 0) { row = 0; col = 0; sel.MoveCursor(new BufferPosition(row, col)); return; }
+        
+        // Skip whitespace
+        while (row >= 0)
+        {
+            var cell = _handle.GetVirtualCell(row, col);
+            if (cell == null) break;
+            if (!string.IsNullOrWhiteSpace(cell.Value.Character)) break;
+            col--;
+            if (col < 0) { col = width - 1; row--; }
+        }
+        
+        // Skip word (non-space characters)
+        while (row >= 0)
+        {
+            var cell = _handle.GetVirtualCell(row, col);
+            if (cell == null || string.IsNullOrWhiteSpace(cell.Value.Character)) { col++; break; }
+            col--;
+            if (col < 0) { col = width - 1; row--; }
+        }
+        
+        row = Math.Max(row, 0);
+        col = Math.Clamp(col, 0, width - 1);
+        sel.MoveCursor(new BufferPosition(row, col));
+        EnsureCopyModeCursorVisible();
+        MarkDirty();
+        _invalidateCallback?.Invoke();
     }
     
     /// <inheritdoc />
@@ -562,9 +824,19 @@ public sealed class TerminalNode : Hex1bNode
     /// </summary>
     private void RenderLive(Hex1bRenderContext context, TerminalCell[,] buffer, int handleWidth, int handleHeight)
     {
+        int scrollbackCount = _handle!.ScrollbackCount;
+        var selection = _handle.IsInCopyMode ? _handle.Selection : null;
+        
         for (int y = 0; y < Math.Min(Bounds.Height, handleHeight); y++)
         {
-            RenderRow(context, y, (x) => buffer[y, x], handleWidth);
+            int virtualRow = scrollbackCount + y;
+            RenderRow(context, y, (x) => buffer[y, x], handleWidth, virtualRow, selection);
+        }
+        
+        // Render copy mode cursor
+        if (selection != null)
+        {
+            RenderCopyModeCursor(context, scrollbackCount, scrollbackCount);
         }
     }
     
@@ -577,6 +849,7 @@ public sealed class TerminalNode : Hex1bNode
         // Get scrollback rows
         var scrollbackRows = _handle!.GetScrollbackSnapshot(_handle.ScrollbackCount);
         int scrollbackCount = scrollbackRows.Length;
+        var selection = _handle.IsInCopyMode ? _handle.Selection : null;
         
         // Clamp offset to available scrollback
         var effectiveOffset = Math.Min(_scrollbackOffset, scrollbackCount);
@@ -600,7 +873,7 @@ public sealed class TerminalNode : Hex1bNode
                 {
                     if (x < sbRow.Cells.Length) return sbRow.Cells[x];
                     return TerminalCell.Empty;
-                }, handleWidth);
+                }, handleWidth, virtualRow, selection);
             }
             else
             {
@@ -608,29 +881,59 @@ public sealed class TerminalNode : Hex1bNode
                 int activeRow = virtualRow - scrollbackCount;
                 if (activeRow < handleHeight)
                 {
-                    RenderRow(context, viewY, (x) => activeBuffer[activeRow, x], handleWidth);
+                    RenderRow(context, viewY, (x) => activeBuffer[activeRow, x], handleWidth, virtualRow, selection);
                 }
             }
+        }
+        
+        // Render copy mode cursor
+        if (selection != null)
+        {
+            RenderCopyModeCursor(context, virtualStart, scrollbackCount);
+        }
+    }
+    
+    private void RenderCopyModeCursor(Hex1bRenderContext context, int virtualStart, int scrollbackCount)
+    {
+        if (_handle?.Selection == null) return;
+        var cursorPos = _handle.Selection.Cursor;
+        int viewY = cursorPos.Row - virtualStart;
+        if (viewY >= 0 && viewY < Bounds.Height && cursorPos.Column < Bounds.Width)
+        {
+            // Render a block cursor at the copy mode cursor position with inverted colors
+            var cell = _handle.GetVirtualCell(cursorPos.Row, cursorPos.Column);
+            var ch = cell?.Character ?? " ";
+            if (string.IsNullOrEmpty(ch)) ch = " ";
+            context.WriteClipped(Bounds.X + cursorPos.Column, Bounds.Y + viewY, $"\x1b[7m{ch}\x1b[0m");
         }
     }
     
     /// <summary>
     /// Renders a single row of terminal cells at the specified view Y position.
     /// </summary>
-    private void RenderRow(Hex1bRenderContext context, int viewY, Func<int, TerminalCell> getCell, int handleWidth)
+    private void RenderRow(Hex1bRenderContext context, int viewY, Func<int, TerminalCell> getCell, int handleWidth,
+        int virtualRow = -1, TerminalSelection? selection = null)
     {
         var lineBuilder = new System.Text.StringBuilder();
         Hex1b.Theming.Hex1bColor? lastFg = null;
         Hex1b.Theming.Hex1bColor? lastBg = null;
         Hex1b.Theming.Hex1bColor? lastUc = null;
         CellAttributes lastAttrs = CellAttributes.None;
+        bool lastSelected = false;
         
         for (int x = 0; x < Math.Min(Bounds.Width, handleWidth); x++)
         {
             var cell = getCell(x);
+            bool isSelected = selection != null && virtualRow >= 0 && selection.IsCellSelected(virtualRow, x);
             
             // Build ANSI codes for color changes
             bool needsReset = false;
+            
+            // Check if selection state changed
+            if (isSelected != lastSelected)
+            {
+                needsReset = true;
+            }
             
             // Check if attributes changed
             if (cell.Attributes != lastAttrs)
@@ -662,7 +965,7 @@ public sealed class TerminalNode : Hex1bNode
                     else
                         lineBuilder.Append("\x1b[4m");
                 }
-                if (cell.Attributes.HasFlag(CellAttributes.Reverse))
+                if (cell.Attributes.HasFlag(CellAttributes.Reverse) || isSelected)
                     lineBuilder.Append("\x1b[7m");
                 if (cell.Attributes.HasFlag(CellAttributes.Strikethrough))
                     lineBuilder.Append("\x1b[9m");
@@ -680,6 +983,7 @@ public sealed class TerminalNode : Hex1bNode
                 lastBg = cell.Background;
                 lastUc = cell.UnderlineColor;
                 lastAttrs = cell.Attributes;
+                lastSelected = isSelected;
             }
             
             lineBuilder.Append(cell.Character);

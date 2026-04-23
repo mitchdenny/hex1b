@@ -58,6 +58,44 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
     /// <summary>Rebindable action: Scroll to the bottom, returning to the live terminal view.</summary>
     public static readonly ActionId ScrollToBottom = new($"{nameof(TerminalWidget)}.{nameof(ScrollToBottom)}");
 
+    // Copy mode actions
+    /// <summary>Rebindable action: Enter copy mode for text selection.</summary>
+    public static readonly ActionId EnterCopyMode = new($"{nameof(TerminalWidget)}.{nameof(EnterCopyMode)}");
+    /// <summary>Rebindable action: Move the copy mode cursor up one row.</summary>
+    public static readonly ActionId CopyModeUp = new($"{nameof(TerminalWidget)}.{nameof(CopyModeUp)}");
+    /// <summary>Rebindable action: Move the copy mode cursor down one row.</summary>
+    public static readonly ActionId CopyModeDown = new($"{nameof(TerminalWidget)}.{nameof(CopyModeDown)}");
+    /// <summary>Rebindable action: Move the copy mode cursor left one column.</summary>
+    public static readonly ActionId CopyModeLeft = new($"{nameof(TerminalWidget)}.{nameof(CopyModeLeft)}");
+    /// <summary>Rebindable action: Move the copy mode cursor right one column.</summary>
+    public static readonly ActionId CopyModeRight = new($"{nameof(TerminalWidget)}.{nameof(CopyModeRight)}");
+    /// <summary>Rebindable action: Move the copy mode cursor forward one word.</summary>
+    public static readonly ActionId CopyModeWordForward = new($"{nameof(TerminalWidget)}.{nameof(CopyModeWordForward)}");
+    /// <summary>Rebindable action: Move the copy mode cursor backward one word.</summary>
+    public static readonly ActionId CopyModeWordBackward = new($"{nameof(TerminalWidget)}.{nameof(CopyModeWordBackward)}");
+    /// <summary>Rebindable action: Move the copy mode cursor up one page.</summary>
+    public static readonly ActionId CopyModePageUp = new($"{nameof(TerminalWidget)}.{nameof(CopyModePageUp)}");
+    /// <summary>Rebindable action: Move the copy mode cursor down one page.</summary>
+    public static readonly ActionId CopyModePageDown = new($"{nameof(TerminalWidget)}.{nameof(CopyModePageDown)}");
+    /// <summary>Rebindable action: Move the copy mode cursor to the start of the current line.</summary>
+    public static readonly ActionId CopyModeLineStart = new($"{nameof(TerminalWidget)}.{nameof(CopyModeLineStart)}");
+    /// <summary>Rebindable action: Move the copy mode cursor to the end of the current line.</summary>
+    public static readonly ActionId CopyModeLineEnd = new($"{nameof(TerminalWidget)}.{nameof(CopyModeLineEnd)}");
+    /// <summary>Rebindable action: Move the copy mode cursor to the top of the buffer.</summary>
+    public static readonly ActionId CopyModeBufferTop = new($"{nameof(TerminalWidget)}.{nameof(CopyModeBufferTop)}");
+    /// <summary>Rebindable action: Move the copy mode cursor to the bottom of the buffer.</summary>
+    public static readonly ActionId CopyModeBufferBottom = new($"{nameof(TerminalWidget)}.{nameof(CopyModeBufferBottom)}");
+    /// <summary>Rebindable action: Start or toggle character selection in copy mode.</summary>
+    public static readonly ActionId CopyModeStartSelection = new($"{nameof(TerminalWidget)}.{nameof(CopyModeStartSelection)}");
+    /// <summary>Rebindable action: Toggle line selection mode in copy mode.</summary>
+    public static readonly ActionId CopyModeToggleLineMode = new($"{nameof(TerminalWidget)}.{nameof(CopyModeToggleLineMode)}");
+    /// <summary>Rebindable action: Toggle block/rectangular selection mode in copy mode.</summary>
+    public static readonly ActionId CopyModeToggleBlockMode = new($"{nameof(TerminalWidget)}.{nameof(CopyModeToggleBlockMode)}");
+    /// <summary>Rebindable action: Copy the selected text and exit copy mode.</summary>
+    public static readonly ActionId CopyModeCopy = new($"{nameof(TerminalWidget)}.{nameof(CopyModeCopy)}");
+    /// <summary>Rebindable action: Cancel copy mode without copying.</summary>
+    public static readonly ActionId CopyModeCancel = new($"{nameof(TerminalWidget)}.{nameof(CopyModeCancel)}");
+
     /// <summary>
     /// Gets the callback that builds a fallback widget when the terminal is not running.
     /// </summary>
