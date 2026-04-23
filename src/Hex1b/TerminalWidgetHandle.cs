@@ -1017,6 +1017,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                         _selection.ToggleMode(mode);
                     }
                     _selection.MoveCursor(new BufferPosition(virtualRow, column));
+                    EnsureCopyModeCursorVisible();
                     OutputReceived?.Invoke();
                 }
                 break;
