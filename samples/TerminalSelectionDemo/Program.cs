@@ -173,11 +173,12 @@ handle.CopyModeInput += inputEvent =>
     }
 };
 
-// Start terminal in background
+// Start terminal in background — shut down app when process exits
 _ = Task.Run(async () =>
 {
     try { await terminal.RunAsync(cts.Token); }
     catch (OperationCanceledException) { }
+    app?.RequestStop();
 });
 
 // Build widget tree
