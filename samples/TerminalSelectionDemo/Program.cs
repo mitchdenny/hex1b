@@ -44,13 +44,14 @@ var terminal = builder
     .WithTerminalWidget(out var handle)
     .Build();
 
-// Subscribe to text copied event — update the editor with selected text
+// Subscribe to text copied event — update the editor and copy to system clipboard
 handle.TextCopied += text =>
 {
     selectedText = text;
     var deleteRange = new DocumentRange(new DocumentOffset(0), new DocumentOffset(document.Length));
     document.Apply(new ReplaceOperation(deleteRange, text));
     editorState.ClampAllCursors();
+    app?.CopyToClipboard(text);
     app?.Invalidate();
 };
 
