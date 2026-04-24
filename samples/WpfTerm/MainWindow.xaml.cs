@@ -50,7 +50,7 @@ public partial class MainWindow : Window
             .WithPtyProcess(options =>
             {
                 options.FileName = pwshPath;
-                options.Arguments = ["-NoLogo", "-NoProfile"];
+                options.Arguments = ["-NoLogo"];
                 options.WindowsPtyMode = WindowsPtyMode.Direct;
                 if (conptyDll != null)
                     options.ConptyDllPath = conptyDll;
