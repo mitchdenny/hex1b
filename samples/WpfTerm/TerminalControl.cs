@@ -86,6 +86,14 @@ public class TerminalControl : FrameworkElement
         Focusable = true;
         FocusVisualStyle = null;
         
+        // Disable anti-aliasing on cell background rectangles — prevents
+        // sub-pixel gaps between adjacent cells where the window background bleeds through
+        RenderOptions.SetEdgeMode(_visual, EdgeMode.Aliased);
+        
+        // Snap to device pixels to avoid sub-pixel rendering artifacts
+        SnapsToDevicePixels = true;
+        UseLayoutRounding = true;
+        
         // Disable WPF's Input Method Editor — prevents the system from showing
         // its own blinking caret at the mouse click position
         InputMethod.SetIsInputMethodEnabled(this, false);
@@ -184,6 +192,10 @@ public class TerminalControl : FrameworkElement
             _cellHeight = ft.Height;
             _baselineY = ft.Baseline;
         }
+
+        // Snap cell dimensions to whole pixels to prevent sub-pixel gaps
+        _cellWidth = Math.Ceiling(_cellWidth);
+        _cellHeight = Math.Ceiling(_cellHeight);
     }
 
     private static bool TryCreateGlyphTypeface(FontFamily family, FontStyle style, FontWeight weight, out GlyphTypeface? result)
