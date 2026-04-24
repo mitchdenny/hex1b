@@ -137,20 +137,7 @@ public class TerminalControl : FrameworkElement
 
     private void UpdateFont()
     {
-        // Try fonts in preference order
-        string[] fontPreferences = ["JetBrainsMono NF", "JetBrainsMono Nerd Font", "Cascadia Mono", "Consolas"];
-        FontFamily? fontFamily = null;
-        foreach (var name in fontPreferences)
-        {
-            var candidate = new FontFamily(name);
-            var typeface = new Typeface(candidate, FontStyles.Normal, FontWeights.Regular, FontStretches.Normal);
-            if (typeface.TryGetGlyphTypeface(out _))
-            {
-                fontFamily = candidate;
-                break;
-            }
-        }
-        fontFamily ??= new FontFamily("Consolas");
+        var fontFamily = new FontFamily("Cascadia Mono");
         _fallbackTypeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Regular, FontStretches.Normal);
 
         // Pre-cache GlyphTypeface variants
