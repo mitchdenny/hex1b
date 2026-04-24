@@ -63,6 +63,7 @@ public partial class MainWindow : Window
                     options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
                 }
             })
+            .WithScrollback(10000)
             .WithDimensions(_adapter.Width, _adapter.Height)
             .Build();
 
