@@ -734,12 +734,14 @@ public class TerminalControl : FrameworkElement
     // === Keyboard Input ===
 
     private int _keyDownCount;
+    private int _previewKeyDownCount;
     private int _textInputCount;
 
-    protected override void OnKeyDown(KeyEventArgs e)
+    protected override void OnPreviewKeyDown(KeyEventArgs e)
     {
-        if (_adapter == null) return;
-        _keyDownCount++;
+        _previewKeyDownCount++;
+        
+        if (_adapter == null) { base.OnPreviewKeyDown(e); return; }
 
         // Try special key encoding first (arrows, function keys, ctrl combos, etc.)
         var data = AnsiKeyEncoder.Encode(e);
@@ -751,14 +753,21 @@ public class TerminalControl : FrameworkElement
         }
 
         // For printable characters, resolve directly from the key event
-        // using ToUnicode — bypasses OnTextInput which WPF can suppress
-        // during rapid mouse activity
         var text = AnsiKeyEncoder.KeyToText(e);
         if (text != null)
         {
             _adapter.EnqueueInput(text);
             e.Handled = true;
+            return;
         }
+        
+        base.OnPreviewKeyDown(e);
+    }
+
+    protected override void OnKeyDown(KeyEventArgs e)
+    {
+        // Counted for diagnostics only — all handling is in OnPreviewKeyDown
+        _keyDownCount++;
     }
 
     protected override void OnTextInput(TextCompositionEventArgs e)
@@ -780,7 +789,7 @@ public class TerminalControl : FrameworkElement
     }
 
     /// <summary>Diagnostic: WPF event counts.</summary>
-    public (int KeyDown, int TextInput) WpfEventCounts => (_keyDownCount, _textInputCount);
+    public (int KeyDown, int PreviewKeyDown, int TextInput) WpfEventCounts => (_keyDownCount, _previewKeyDownCount, _textInputCount);
 
     // === Mouse Input ===
 
