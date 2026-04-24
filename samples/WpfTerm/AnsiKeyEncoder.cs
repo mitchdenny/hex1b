@@ -98,4 +98,21 @@ public static class AnsiKeyEncoder
 
         return Encoding.UTF8.GetBytes(text);
     }
+
+    /// <summary>
+    /// Encodes a mouse event into an SGR (mode 1006) mouse escape sequence.
+    /// Format: ESC [ &lt; button ; x ; y M (press/move) or ESC [ &lt; button ; x ; y m (release)
+    /// </summary>
+    /// <param name="button">SGR button code (0=left, 1=middle, 2=right, 64=scrollup, 65=scrolldown, +32=motion).</param>
+    /// <param name="x">1-based column.</param>
+    /// <param name="y">1-based row.</param>
+    /// <param name="isRelease">True for button release (lowercase 'm'), false for press/move (uppercase 'M').</param>
+    /// <param name="modifiers">Keyboard modifiers to encode (+4=shift, +8=alt, +16=ctrl).</param>
+    public static byte[] EncodeMouse(int button, int x, int y, bool isRelease, int modifiers = 0)
+    {
+        button |= modifiers;
+        var terminator = isRelease ? 'm' : 'M';
+        var seq = $"\x1b[<{button};{x};{y}{terminator}";
+        return Encoding.ASCII.GetBytes(seq);
+    }
 }

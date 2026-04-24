@@ -268,6 +268,93 @@ public class TerminalControl : FrameworkElement
         }
     }
 
+    // === Mouse Input ===
+
+    private MouseButton _lastPressedButton;
+    private bool _mouseButtonDown;
+
+    protected override void OnMouseDown(MouseButtonEventArgs e)
+    {
+        if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
+
+        Focus();
+        CaptureMouse();
+
+        var pos = CellPosition(e);
+        int button = WpfButtonToSgr(e.ChangedButton);
+        if (button < 0) return;
+
+        int modifiers = GetMouseModifiers();
+        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
+        _lastPressedButton = e.ChangedButton;
+        _mouseButtonDown = true;
+        e.Handled = true;
+    }
+
+    protected override void OnMouseUp(MouseButtonEventArgs e)
+    {
+        if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
+
+        ReleaseMouseCapture();
+
+        var pos = CellPosition(e);
+        int button = WpfButtonToSgr(e.ChangedButton);
+        if (button < 0) return;
+
+        int modifiers = GetMouseModifiers();
+        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: true, modifiers));
+        _mouseButtonDown = false;
+        e.Handled = true;
+    }
+
+    protected override void OnMouseMove(MouseEventArgs e)
+    {
+        if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
+        if (!_mouseButtonDown) return; // Only send drag events (mode 1002 behavior)
+
+        var pos = CellPosition(e);
+        int button = WpfButtonToSgr(_lastPressedButton) | 32; // 32 = motion flag
+        int modifiers = GetMouseModifiers();
+        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
+    }
+
+    protected override void OnMouseWheel(MouseWheelEventArgs e)
+    {
+        if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
+
+        var pos = CellPosition(e);
+        int button = e.Delta > 0 ? 64 : 65; // 64=scroll up, 65=scroll down
+        int modifiers = GetMouseModifiers();
+        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
+        e.Handled = true;
+    }
+
+    private (int x, int y) CellPosition(MouseEventArgs e)
+    {
+        var point = e.GetPosition(this);
+        // SGR mouse uses 1-based coordinates
+        int col = Math.Max(1, (int)(point.X / _cellWidth) + 1);
+        int row = Math.Max(1, (int)(point.Y / _cellHeight) + 1);
+        return (col, row);
+    }
+
+    private static int WpfButtonToSgr(MouseButton button) => button switch
+    {
+        MouseButton.Left => 0,
+        MouseButton.Middle => 1,
+        MouseButton.Right => 2,
+        _ => -1
+    };
+
+    private static int GetMouseModifiers()
+    {
+        int mods = 0;
+        if (Keyboard.IsKeyDown(Key.LeftShift) || Keyboard.IsKeyDown(Key.RightShift)) mods |= 4;
+        if (Keyboard.IsKeyDown(Key.LeftAlt) || Keyboard.IsKeyDown(Key.RightAlt)) mods |= 8;
+        if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) mods |= 16;
+        return mods;
+    }
+
     // === Visual tree ===
 
     protected override int VisualChildrenCount => _children.Count;

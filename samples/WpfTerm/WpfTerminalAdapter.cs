@@ -22,6 +22,8 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
     private int _cursorX;
     private int _cursorY;
     private bool _cursorVisible = true;
+    private bool _mouseTrackingEnabled;
+    private bool _sgrMouseModeEnabled;
     private bool _disposed;
 
     public WpfTerminalAdapter(int width = 120, int height = 30)
@@ -38,9 +40,14 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
     public int CursorY => _cursorY;
     public bool CursorVisible => _cursorVisible;
 
+    /// <summary>
+    /// Whether the child process has enabled mouse tracking (modes 1000/1002/1003).
+    /// </summary>
+    public bool MouseTrackingEnabled => _mouseTrackingEnabled;
+
     public TerminalCapabilities Capabilities { get; } = new()
     {
-        SupportsMouse = false,
+        SupportsMouse = true,
         Supports256Colors = true,
         SupportsTrueColor = true,
     };
@@ -126,6 +133,9 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
                 if (applied.Token is PrivateModeToken pm)
                 {
                     if (pm.Mode == 25) _cursorVisible = pm.Enable;
+                    // Mouse tracking modes
+                    if (pm.Mode is 1000 or 1002 or 1003) _mouseTrackingEnabled = pm.Enable;
+                    if (pm.Mode == 1006) _sgrMouseModeEnabled = pm.Enable;
                 }
 
                 // Apply cell impacts
