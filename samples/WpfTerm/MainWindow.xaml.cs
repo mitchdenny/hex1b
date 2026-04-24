@@ -36,7 +36,9 @@ public partial class MainWindow : Window
         _adapter = new WpfTerminalAdapter(120, 30);
 
         // Try to use custom conpty.dll for VT passthrough (enables KGP natively through ConPTY)
-        var conptyDll = FindConptyDll();
+        // Set HEX1B_CONPTY=kernel32 env var to force OS ConPTY for debugging
+        var forceKernel32 = Environment.GetEnvironmentVariable("HEX1B_CONPTY") == "kernel32";
+        var conptyDll = forceKernel32 ? null : FindConptyDll();
 
         // Only use side-channel pipe when custom conpty.dll is NOT available
         if (conptyDll == null)
