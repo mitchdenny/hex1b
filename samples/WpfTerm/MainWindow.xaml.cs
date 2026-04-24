@@ -51,7 +51,8 @@ public partial class MainWindow : Window
         diagTimer.Tick += (_, _) =>
         {
             var placements = _adapter!.GetKgpPlacements();
-            Title = $"WpfTerm — KGP tokens:{_adapter.KgpTokensReceived} placements:{placements.Count}";
+            var stats = _adapter.TokenStats;
+            Title = $"WpfTerm — kgp:{_adapter.KgpTokensReceived} place:{placements.Count} unrec:{stats.Unrecognized} total:{stats.Total}";
         };
         diagTimer.Start();
 

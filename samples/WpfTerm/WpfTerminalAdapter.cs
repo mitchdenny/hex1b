@@ -28,6 +28,8 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     private bool _disposed;
     private Hex1bTerminal? _terminal;
     private int _kgpTokensReceived;
+    private int _totalTokensReceived;
+    private int _unrecognizedTokensReceived;
 
     public WpfTerminalAdapter(int width = 120, int height = 30)
     {
@@ -48,6 +50,11 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     /// Diagnostic: number of KGP tokens received from the terminal.
     /// </summary>
     public int KgpTokensReceived => _kgpTokensReceived;
+    
+    /// <summary>
+    /// Diagnostic: total tokens and unrecognized tokens received.
+    /// </summary>
+    public (int Total, int Unrecognized) TokenStats => (_totalTokensReceived, _unrecognizedTokensReceived);
 
     /// <summary>
     /// Whether the child process has enabled mouse tracking (modes 1000/1002/1003).
@@ -151,6 +158,10 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
         {
             foreach (var applied in appliedTokens)
             {
+                _totalTokensReceived++;
+                
+                if (applied.Token is UnrecognizedSequenceToken)
+                    _unrecognizedTokensReceived++;
                 // Track mode changes
                 if (applied.Token is PrivateModeToken pm)
                 {

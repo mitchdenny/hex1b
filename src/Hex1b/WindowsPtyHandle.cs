@@ -180,10 +180,17 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     private CancellationTokenSource? _cts;          // For signaling shutdown
     
     private bool _disposed;
+    private bool _passthroughSupported;
     
     // === IPtyHandle Implementation ===
     
     public int ProcessId => _processId;
+    
+    /// <summary>
+    /// Whether PSEUDOCONSOLE_PASSTHROUGH was accepted by CreatePseudoConsole.
+    /// When true, ConPTY passes VT sequences (including APC) through unmodified.
+    /// </summary>
+    internal bool PassthroughSupported => _passthroughSupported;
     
     public Task StartAsync(
         string fileName,
@@ -233,7 +240,12 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             if (hr != 0)
             {
                 // Passthrough not supported on this Windows version — fall back without it
+                _passthroughSupported = false;
                 hr = CreatePseudoConsole(size, pipePtyInputRead, pipePtyOutputWrite, 0, out _hPC);
+            }
+            else
+            {
+                _passthroughSupported = true;
             }
             if (hr != 0)
                 throw new Win32Exception(hr, "Failed to create pseudo console");
