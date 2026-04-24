@@ -193,9 +193,13 @@ public class TerminalControl : FrameworkElement
             _baselineY = ft.Baseline;
         }
 
-        // Snap cell dimensions to physical pixel boundaries
-        _cellWidth = SnapToPixel(_cellWidth);
-        _cellHeight = SnapToPixel(_cellHeight);
+        // Snap cell dimensions to exact physical pixel counts (ceiling).
+        // Using ceiling ensures full pixel coverage. Since cell dimensions
+        // are exact multiples of (1/dpiScale), any integer multiple of
+        // cellWidth/cellHeight is also pixel-aligned — no per-coordinate
+        // snapping needed.
+        _cellWidth = Math.Ceiling(_cellWidth * _dpiScale) / _dpiScale;
+        _cellHeight = Math.Ceiling(_cellHeight * _dpiScale) / _dpiScale;
     }
 
     /// <summary>
@@ -328,11 +332,11 @@ public class TerminalControl : FrameworkElement
 
                 int runLen = x - runStart;
                 // Use integer pixel coordinates to eliminate sub-pixel gaps
-                double px = SnapToPixel(runStart * _cellWidth);
-                double pxEnd = SnapToPixel((runStart + runLen) * _cellWidth);
+                double px = runStart * _cellWidth;
+                double pxEnd = (runStart + runLen) * _cellWidth;
                 double runWidth = pxEnd - px;
-                double py2 = SnapToPixel(y * _cellHeight);
-                double pyEnd = SnapToPixel((y + 1) * _cellHeight);
+                double py2 = y * _cellHeight;
+                double pyEnd = (y + 1) * _cellHeight;
                 double rowHeight = pyEnd - py2;
 
                 // Draw background for the entire run — skip cells covered by behind-text KGP images
@@ -348,8 +352,8 @@ public class TerminalControl : FrameworkElement
                             {
                                 if (i > segStart)
                                 {
-                                    double segPx = SnapToPixel(segStart * _cellWidth);
-                                    double segEnd = SnapToPixel(i * _cellWidth);
+                                    double segPx = segStart * _cellWidth;
+                                    double segEnd = i * _cellWidth;
                                     dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                                 }
                                 segStart = i + 1;
@@ -357,8 +361,8 @@ public class TerminalControl : FrameworkElement
                         }
                         if (runStart + runLen > segStart)
                         {
-                            double segPx = SnapToPixel(segStart * _cellWidth);
-                            double segEnd = SnapToPixel((runStart + runLen) * _cellWidth);
+                            double segPx = segStart * _cellWidth;
+                            double segEnd = (runStart + runLen) * _cellWidth;
                             dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                         }
                     }
@@ -402,10 +406,10 @@ public class TerminalControl : FrameworkElement
             cursorX >= 0 && cursorX < width &&
             cursorY >= 0 && cursorY < height)
         {
-            double cx = SnapToPixel(cursorX * _cellWidth);
-            double cxEnd = SnapToPixel((cursorX + 1) * _cellWidth);
-            double cy = SnapToPixel(cursorY * _cellHeight);
-            double cyEnd = SnapToPixel((cursorY + 1) * _cellHeight);
+            double cx = cursorX * _cellWidth;
+            double cxEnd = (cursorX + 1) * _cellWidth;
+            double cy = cursorY * _cellHeight;
+            double cyEnd = (cursorY + 1) * _cellHeight;
             double cw = cxEnd - cx;
             double ch2 = cyEnd - cy;
 
