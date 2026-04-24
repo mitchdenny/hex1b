@@ -733,9 +733,13 @@ public class TerminalControl : FrameworkElement
 
     // === Keyboard Input ===
 
+    private int _keyDownCount;
+    private int _textInputCount;
+
     protected override void OnKeyDown(KeyEventArgs e)
     {
         if (_adapter == null) return;
+        _keyDownCount++;
 
         var data = AnsiKeyEncoder.Encode(e);
         if (data != null)
@@ -748,6 +752,7 @@ public class TerminalControl : FrameworkElement
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
         if (_adapter == null) return;
+        _textInputCount++;
 
         var data = AnsiKeyEncoder.EncodeText(e.Text);
         if (data != null)
@@ -756,6 +761,9 @@ public class TerminalControl : FrameworkElement
             e.Handled = true;
         }
     }
+
+    /// <summary>Diagnostic: WPF event counts.</summary>
+    public (int KeyDown, int TextInput) WpfEventCounts => (_keyDownCount, _textInputCount);
 
     // === Mouse Input ===
 
