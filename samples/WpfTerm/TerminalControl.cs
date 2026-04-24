@@ -286,7 +286,6 @@ public class TerminalControl : FrameworkElement
     {
         for (int y = 0; y < height; y++)
         {
-            double py = y * _cellHeight;
             int x = 0;
 
             while (x < width)
@@ -319,8 +318,13 @@ public class TerminalControl : FrameworkElement
                 }
 
                 int runLen = x - runStart;
-                double px = runStart * _cellWidth;
-                double runWidth = runLen * _cellWidth;
+                // Use integer pixel coordinates to eliminate sub-pixel gaps
+                double px = Math.Round(runStart * _cellWidth);
+                double pxEnd = Math.Round((runStart + runLen) * _cellWidth);
+                double runWidth = pxEnd - px;
+                double py2 = Math.Round(y * _cellHeight);
+                double pyEnd = Math.Round((y + 1) * _cellHeight);
+                double rowHeight = pyEnd - py2;
 
                 // Draw background for the entire run — skip cells covered by behind-text KGP images
                 if (bg != null)
@@ -333,27 +337,25 @@ public class TerminalControl : FrameworkElement
                         {
                             if (kgpCoveredCells.Contains((i, y)))
                             {
-                                // Draw any accumulated uncovered segment
                                 if (i > segStart)
                                 {
-                                    double segPx = segStart * _cellWidth;
-                                    double segW = (i - segStart) * _cellWidth;
-                                    dc.DrawRectangle(bg, null, new Rect(segPx, py, segW, _cellHeight));
+                                    double segPx = Math.Round(segStart * _cellWidth);
+                                    double segEnd = Math.Round(i * _cellWidth);
+                                    dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                                 }
                                 segStart = i + 1;
                             }
                         }
-                        // Draw remaining uncovered segment
                         if (runStart + runLen > segStart)
                         {
-                            double segPx = segStart * _cellWidth;
-                            double segW = (runStart + runLen - segStart) * _cellWidth;
-                            dc.DrawRectangle(bg, null, new Rect(segPx, py, segW, _cellHeight));
+                            double segPx = Math.Round(segStart * _cellWidth);
+                            double segEnd = Math.Round((runStart + runLen) * _cellWidth);
+                            dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                         }
                     }
                     else
                     {
-                        dc.DrawRectangle(bg, null, new Rect(px, py, runWidth, _cellHeight));
+                        dc.DrawRectangle(bg, null, new Rect(px, py2, runWidth, rowHeight));
                     }
                 }
 
@@ -361,28 +363,27 @@ public class TerminalControl : FrameworkElement
                 var glyphTypeface = GetGlyphTypeface(bold, italic);
                 if (glyphTypeface != null)
                 {
-                    DrawGlyphRun(dc, glyphTypeface, buffer, y, runStart, runLen, px, py, fg!, dim);
+                    DrawGlyphRun(dc, glyphTypeface, buffer, y, runStart, runLen, px, py2, fg!, dim);
                 }
                 else
                 {
-                    // Fallback: single FormattedText for the whole run
-                    DrawFormattedRun(dc, buffer, y, runStart, runLen, px, py, fg!, bold, italic, dim);
+                    DrawFormattedRun(dc, buffer, y, runStart, runLen, px, py2, fg!, bold, italic, dim);
                 }
 
                 // Draw underline for the run
                 if (underline)
                 {
                     var pen = GetOrCreatePen(fg!);
-                    double underlineY = py + _cellHeight - 2;
-                    dc.DrawLine(pen, new Point(px, underlineY), new Point(px + runWidth, underlineY));
+                    double underlineY = py2 + rowHeight - 2;
+                    dc.DrawLine(pen, new Point(px, underlineY), new Point(pxEnd, underlineY));
                 }
 
                 // Draw strikethrough for the run
                 if (strikethrough)
                 {
                     var pen = GetOrCreatePen(fg!);
-                    double strikeY = py + _cellHeight / 2;
-                    dc.DrawLine(pen, new Point(px, strikeY), new Point(px + runWidth, strikeY));
+                    double strikeY = py2 + rowHeight / 2;
+                    dc.DrawLine(pen, new Point(px, strikeY), new Point(pxEnd, strikeY));
                 }
             }
         }
@@ -392,8 +393,12 @@ public class TerminalControl : FrameworkElement
             cursorX >= 0 && cursorX < width &&
             cursorY >= 0 && cursorY < height)
         {
-            double cx = cursorX * _cellWidth;
-            double cy = cursorY * _cellHeight;
+            double cx = Math.Round(cursorX * _cellWidth);
+            double cxEnd = Math.Round((cursorX + 1) * _cellWidth);
+            double cy = Math.Round(cursorY * _cellHeight);
+            double cyEnd = Math.Round((cursorY + 1) * _cellHeight);
+            double cw = cxEnd - cx;
+            double ch2 = cyEnd - cy;
 
             // Determine effective shape (Default → BlinkingBlock)
             var shape = cursorShape == CursorShape.Default ? CursorShape.BlinkingBlock : cursorShape;
@@ -402,9 +407,7 @@ public class TerminalControl : FrameworkElement
             {
                 case CursorShape.BlinkingBlock:
                 case CursorShape.SteadyBlock:
-                    // Full block cursor — draw inverted cell
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, _cellWidth, _cellHeight));
-                    // Re-draw the character in inverted color
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, cw, ch2));
                     var blockCell = buffer[cursorY, cursorX];
                     var ch = blockCell.Character;
                     if (!string.IsNullOrEmpty(ch) && ch != " " && _regularGlyph != null)
@@ -426,14 +429,12 @@ public class TerminalControl : FrameworkElement
 
                 case CursorShape.BlinkingBar:
                 case CursorShape.SteadyBar:
-                    // Vertical bar cursor (2px wide)
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, ch2));
                     break;
 
                 case CursorShape.BlinkingUnderline:
                 case CursorShape.SteadyUnderline:
-                    // Underline cursor (2px tall at bottom of cell)
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy + _cellHeight - 2, _cellWidth, 2));
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy + ch2 - 2, cw, 2));
                     break;
             }
         }
