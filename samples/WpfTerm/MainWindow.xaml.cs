@@ -35,8 +35,11 @@ public partial class MainWindow : Window
 
         _adapter = new WpfTerminalAdapter(120, 30);
 
-        // Create KGP side-channel pipe server — child processes will send
-        // KGP image data here since ConPTY strips APC sequences
+        // Try to use custom conpty.dll for VT passthrough (enables KGP through ConPTY)
+        var conptyDll = FindConptyDll();
+
+        // Create KGP side-channel pipe server as fallback — child processes will send
+        // KGP image data here if ConPTY strips APC sequences
         _kgpPipeServer = new KgpPipeServer();
         _kgpPipeServer.Start();
 
@@ -47,6 +50,8 @@ public partial class MainWindow : Window
                 options.FileName = pwshPath;
                 options.Arguments = ["-NoLogo", "-NoProfile"];
                 options.WindowsPtyMode = WindowsPtyMode.Direct;
+                if (conptyDll != null)
+                    options.ConptyDllPath = conptyDll;
                 // Pass KGP pipe name to child so it can divert KGP there
                 options.Environment ??= new Dictionary<string, string>();
                 options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
@@ -65,7 +70,8 @@ public partial class MainWindow : Window
         {
             var placements = _adapter!.GetKgpPlacements();
             var stats = _adapter.TokenStats;
-            Title = $"WpfTerm — kgp:{_adapter.KgpTokensReceived} place:{placements.Count} unrec:{stats.Unrecognized} total:{stats.Total}";
+            var backend = conptyDll != null ? "conpty.dll" : "kernel32";
+            Title = $"WpfTerm [{backend}] — kgp:{_adapter.KgpTokensReceived} place:{placements.Count} unrec:{stats.Unrecognized} total:{stats.Total}";
         };
         diagTimer.Start();
 
@@ -135,6 +141,38 @@ public partial class MainWindow : Window
             catch (ArgumentException)
             {
             }
+        }
+
+        return null;
+    }
+
+    private static string? FindConptyDll()
+    {
+        // 1. Next to our exe
+        var local = Path.Combine(AppContext.BaseDirectory, "conpty", "conpty.dll");
+        if (File.Exists(local)) return local;
+
+        // 2. Search VS Code installations for the bundled conpty.dll
+        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        string[] vsCodePaths =
+        [
+            Path.Combine(localAppData, "Programs", "Microsoft VS Code Insiders"),
+            Path.Combine(localAppData, "Programs", "Microsoft VS Code"),
+        ];
+
+        foreach (var vsCodeRoot in vsCodePaths)
+        {
+            if (!Directory.Exists(vsCodeRoot)) continue;
+            try
+            {
+                var matches = Directory.GetFiles(vsCodeRoot, "conpty.dll", SearchOption.AllDirectories);
+                // Find the one inside node-pty (not conpty.node)
+                var nodePtyDll = matches.FirstOrDefault(p =>
+                    p.Contains("node-pty", StringComparison.OrdinalIgnoreCase) &&
+                    p.Contains("conpty\\conpty.dll", StringComparison.OrdinalIgnoreCase));
+                if (nodePtyDll != null) return nodePtyDll;
+            }
+            catch { }
         }
 
         return null;
