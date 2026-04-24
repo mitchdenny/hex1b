@@ -492,9 +492,11 @@ public class TerminalControl : FrameworkElement
                 return;
             }
 
-            // Position each glyph independently — no cumulative advance drift
-            double glyphX = ColToX(col);
-            double advance = ColToX(col + 1) - glyphX;
+            // Position glyph using exact font metrics (no pixel snapping).
+            // Background rects use ColToX for pixel-snapped boundaries,
+            // but glyphs use exact col * _cellWidth to preserve font spacing
+            // for characters like braille that must tile precisely.
+            double glyphX = col * _cellWidth;
 
 #pragma warning disable CS0618
             var glyphRun = new GlyphRun(
@@ -505,7 +507,7 @@ public class TerminalControl : FrameworkElement
                 pixelsPerDip: (float)_dpiScale,
                 glyphIndices: [glyphIndex],
                 baselineOrigin: new Point(glyphX, py + _baselineY),
-                advanceWidths: [advance],
+                advanceWidths: [_cellWidth],
                 glyphOffsets: null,
                 characters: null,
                 deviceFontName: null,
