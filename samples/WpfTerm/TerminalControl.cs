@@ -308,103 +308,76 @@ public class TerminalControl : FrameworkElement
         int cursorX, int cursorY, bool cursorVisible, CursorShape cursorShape,
         HashSet<(int, int)>? kgpCoveredCells)
     {
+        var charMap = (_regularGlyph ?? _boldGlyph)?.CharacterToGlyphMap;
+
         for (int y = 0; y < height; y++)
         {
-            int x = 0;
+            double cellY = y * _cellHeight;
 
-            while (x < width)
+            for (int x = 0; x < width; x++)
             {
                 var cell = buffer[y, x];
+                double cellX = x * _cellWidth;
 
-                // Determine effective colors (handle reverse)
                 var fg = cell.IsReverse ? GetBrush(cell.Background, DefaultBackground) : GetBrush(cell.Foreground, DefaultForeground);
                 var bg = cell.IsReverse ? GetBrush(cell.Foreground, DefaultForeground) : GetBrush(cell.Background, null);
-                bool bold = cell.IsBold;
-                bool italic = cell.IsItalic;
-                bool dim = cell.IsDim;
-                bool underline = cell.IsUnderline;
-                bool strikethrough = cell.IsStrikethrough;
 
-                // Scan for a run of cells with the same style
-                int runStart = x;
-                x++;
-                while (x < width)
+                // Draw cell background
+                if (bg != null && !(kgpCoveredCells?.Contains((x, y)) == true))
                 {
-                    var next = buffer[y, x];
-                    var nextFg = next.IsReverse ? GetBrush(next.Background, DefaultBackground) : GetBrush(next.Foreground, DefaultForeground);
-                    var nextBg = next.IsReverse ? GetBrush(next.Foreground, DefaultForeground) : GetBrush(next.Background, null);
-
-                    if (nextFg != fg || nextBg != bg ||
-                        next.IsBold != bold || next.IsItalic != italic || next.IsDim != dim ||
-                        next.IsUnderline != underline || next.IsStrikethrough != strikethrough)
-                        break;
-                    x++;
+                    dc.DrawRectangle(bg, null, new Rect(cellX, cellY, _cellWidth, _cellHeight));
                 }
 
-                int runLen = x - runStart;
-                double px = ColToX(runStart);
-                double pxEnd = ColToX(runStart + runLen);
-                double runWidth = pxEnd - px;
-                double py2 = RowToY(y);
-                double rowHeight = RowToY(y + 1) - py2;
-
-                // Draw background for the entire run — skip cells covered by behind-text KGP images
-                if (bg != null)
+                // Draw character
+                var ch = cell.Character;
+                if (!string.IsNullOrEmpty(ch) && ch != " ")
                 {
-                    if (kgpCoveredCells != null)
+                    bool bold = cell.IsBold;
+                    bool italic = cell.IsItalic;
+                    var glyphTypeface = GetGlyphTypeface(bold, italic);
+                    var activeCharMap = glyphTypeface?.CharacterToGlyphMap ?? charMap;
+
+                    if (activeCharMap != null && glyphTypeface != null)
                     {
-                        int segStart = runStart;
-                        for (int i = runStart; i < runStart + runLen; i++)
+                        int codepoint = char.ConvertToUtf32(ch, 0);
+                        if (activeCharMap.TryGetValue(codepoint, out ushort glyphIndex))
                         {
-                            if (kgpCoveredCells.Contains((i, y)))
-                            {
-                                if (i > segStart)
-                                {
-                                    double segPx = ColToX(segStart);
-                                    double segEnd = ColToX(i);
-                                    dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
-                                }
-                                segStart = i + 1;
-                            }
+                            if (cell.IsDim) dc.PushOpacity(0.5);
+#pragma warning disable CS0618
+                            var glyphRun = new GlyphRun(
+                                glyphTypeface, 0, false, _fontSize, (float)_dpiScale,
+                                [glyphIndex],
+                                new Point(cellX, cellY + _baselineY),
+                                [_cellWidth],
+                                null, null, null, null, null, null);
+#pragma warning restore CS0618
+                            dc.DrawGlyphRun(fg!, glyphRun);
+                            if (cell.IsDim) dc.Pop();
                         }
-                        if (runStart + runLen > segStart)
+                        else
                         {
-                            double segPx = ColToX(segStart);
-                            double segEnd = ColToX(runStart + runLen);
-                            dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
+                            // Font fallback via FormattedText for unmapped glyphs
+                            DrawFormattedCell(dc, ch, cellX, cellY, fg!, cell.IsBold, cell.IsItalic, cell.IsDim);
                         }
                     }
                     else
                     {
-                        dc.DrawRectangle(bg, null, new Rect(px, py2, runWidth, rowHeight));
+                        DrawFormattedCell(dc, ch, cellX, cellY, fg!, cell.IsBold, cell.IsItalic, cell.IsDim);
                     }
                 }
 
-                // Build GlyphRun for the text
-                var glyphTypeface = GetGlyphTypeface(bold, italic);
-                if (glyphTypeface != null)
-                {
-                    DrawGlyphRun(dc, glyphTypeface, buffer, y, runStart, runLen, px, py2, fg!, dim);
-                }
-                else
-                {
-                    DrawFormattedRun(dc, buffer, y, runStart, runLen, px, py2, fg!, bold, italic, dim);
-                }
-
-                // Draw underline for the run
-                if (underline)
+                // Draw underline
+                if (cell.IsUnderline)
                 {
                     var pen = GetOrCreatePen(fg!);
-                    double underlineY = py2 + rowHeight - 2;
-                    dc.DrawLine(pen, new Point(px, underlineY), new Point(pxEnd, underlineY));
+                    dc.DrawLine(pen, new Point(cellX, cellY + _cellHeight - 2), new Point(cellX + _cellWidth, cellY + _cellHeight - 2));
                 }
 
-                // Draw strikethrough for the run
-                if (strikethrough)
+                // Draw strikethrough
+                if (cell.IsStrikethrough)
                 {
                     var pen = GetOrCreatePen(fg!);
-                    double strikeY = py2 + rowHeight / 2;
-                    dc.DrawLine(pen, new Point(px, strikeY), new Point(pxEnd, strikeY));
+                    dc.DrawLine(pen, new Point(cellX, cellY + _cellHeight / 2), new Point(cellX + _cellWidth, cellY + _cellHeight / 2));
                 }
             }
         }
@@ -414,50 +387,71 @@ public class TerminalControl : FrameworkElement
             cursorX >= 0 && cursorX < width &&
             cursorY >= 0 && cursorY < height)
         {
-            double cx = ColToX(cursorX);
-            double cxEnd = ColToX(cursorX + 1);
-            double cy = RowToY(cursorY);
-            double cyEnd = RowToY(cursorY + 1);
-            double cw = cxEnd - cx;
-            double ch2 = cyEnd - cy;
+            double cx = cursorX * _cellWidth;
+            double cy = cursorY * _cellHeight;
 
-            // Determine effective shape (Default → BlinkingBlock)
             var shape = cursorShape == CursorShape.Default ? CursorShape.BlinkingBlock : cursorShape;
 
             switch (shape)
             {
                 case CursorShape.BlinkingBlock:
                 case CursorShape.SteadyBlock:
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, cw, ch2));
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, _cellWidth, _cellHeight));
                     var blockCell = buffer[cursorY, cursorX];
-                    var ch = blockCell.Character;
-                    if (!string.IsNullOrEmpty(ch) && ch != " " && _regularGlyph != null)
+                    var bch = blockCell.Character;
+                    if (!string.IsNullOrEmpty(bch) && bch != " " && _regularGlyph != null)
                     {
-                        var charMap = _regularGlyph.CharacterToGlyphMap;
-                        int codepoint = char.ConvertToUtf32(ch, 0);
-                        if (charMap.TryGetValue(codepoint, out ushort glyphIdx))
+                        var cMap2 = _regularGlyph.CharacterToGlyphMap;
+                        int cp = char.ConvertToUtf32(bch, 0);
+                        if (cMap2.TryGetValue(cp, out ushort gi))
                         {
 #pragma warning disable CS0618
-                            var glyphRun = new GlyphRun(
+                            var gr = new GlyphRun(
                                 _regularGlyph, 0, false, _fontSize, (float)_dpiScale,
-                                [glyphIdx], new Point(cx, cy + _baselineY),
-                                [cw], null, null, null, null, null, null);
+                                [gi], new Point(cx, cy + _baselineY),
+                                [_cellWidth], null, null, null, null, null, null);
 #pragma warning restore CS0618
-                            dc.DrawGlyphRun(DefaultBackground, glyphRun);
+                            dc.DrawGlyphRun(DefaultBackground, gr);
                         }
                     }
                     break;
 
                 case CursorShape.BlinkingBar:
                 case CursorShape.SteadyBar:
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, ch2));
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
                     break;
 
                 case CursorShape.BlinkingUnderline:
                 case CursorShape.SteadyUnderline:
-                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy + ch2 - 2, cw, 2));
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy + _cellHeight - 2, _cellWidth, 2));
                     break;
             }
+        }
+    }
+
+    /// <summary>
+    /// Draws a single cell character using FormattedText (font fallback for unmapped glyphs).
+    /// </summary>
+    private void DrawFormattedCell(DrawingContext dc, string ch, double x, double y,
+        SolidColorBrush fg, bool bold, bool italic, bool dim)
+    {
+        var weight = bold ? FontWeights.Bold : FontWeights.Regular;
+        var style = italic ? FontStyles.Italic : FontStyles.Normal;
+        var tf = new Typeface(_fallbackTypeface.FontFamily, style, weight, FontStretches.Normal);
+
+        var ft = new FormattedText(
+            ch, CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+            tf, _fontSize, fg, _dpiScale);
+
+        if (dim)
+        {
+            dc.PushOpacity(0.5);
+            dc.DrawText(ft, new Point(x, y));
+            dc.Pop();
+        }
+        else
+        {
+            dc.DrawText(ft, new Point(x, y));
         }
     }
 
