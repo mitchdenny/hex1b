@@ -4102,6 +4102,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         _inAlternateScreen = false;
         
+        // Clear KGP placements — they belong to the alternate screen session
+        _kgpPlacements.Clear();
+        
         // Only restore if we actually saved state when entering alternate screen
         // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
         if (_savedMainScreenBuffer != null)
