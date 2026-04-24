@@ -51,6 +51,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
         SupportsMouse = true,
         Supports256Colors = true,
         SupportsTrueColor = true,
+        SupportsKgp = true,
     };
 
     public event Action<int, int>? Resized;
@@ -149,6 +150,12 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                     // Mouse tracking modes
                     if (pm.Mode is 1000 or 1002 or 1003) _mouseTrackingEnabled = pm.Enable;
                     if (pm.Mode == 1006) _sgrMouseModeEnabled = pm.Enable;
+                }
+
+                // KGP tokens modify placements outside the cell buffer — still need a re-render
+                if (applied.Token is KgpToken)
+                {
+                    hasChanges = true;
                 }
 
                 // Apply cell impacts
