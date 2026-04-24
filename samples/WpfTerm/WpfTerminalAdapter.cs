@@ -15,6 +15,8 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Channel<byte[]> _inputChannel = Channel.CreateUnbounded<byte[]>(
         new UnboundedChannelOptions { SingleReader = true });
+    private readonly Channel<byte[]> _mouseInputChannel = Channel.CreateUnbounded<byte[]>(
+        new UnboundedChannelOptions { SingleReader = true });
 
     private TerminalCell[,] _screenBuffer;
     private int _width;
@@ -121,9 +123,16 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     {
         if (!_disposed)
         {
-            _inputChannel.Writer.TryWrite(data);
-            if (isMouse) Interlocked.Increment(ref _mouseInputCount);
-            else Interlocked.Increment(ref _keyInputCount);
+            if (isMouse)
+            {
+                _mouseInputChannel.Writer.TryWrite(data);
+                Interlocked.Increment(ref _mouseInputCount);
+            }
+            else
+            {
+                _inputChannel.Writer.TryWrite(data);
+                Interlocked.Increment(ref _keyInputCount);
+            }
         }
     }
 
@@ -264,8 +273,25 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
 
         try
         {
-            var data = await _inputChannel.Reader.ReadAsync(ct);
-            return data;
+            while (!ct.IsCancellationRequested)
+            {
+                // Always prioritize keyboard input over mouse
+                if (_inputChannel.Reader.TryRead(out var keyData))
+                    return keyData;
+
+                // No keyboard pending — check mouse
+                if (_mouseInputChannel.Reader.TryRead(out var mouseData))
+                    return mouseData;
+
+                // Nothing available — wait for either channel
+                var keyTask = _inputChannel.Reader.WaitToReadAsync(ct).AsTask();
+                var mouseTask = _mouseInputChannel.Reader.WaitToReadAsync(ct).AsTask();
+                await Task.WhenAny(keyTask, mouseTask);
+                
+                // Loop back to drain keyboard first
+            }
+
+            return ReadOnlyMemory<byte>.Empty;
         }
         catch (OperationCanceledException)
         {
@@ -311,6 +337,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
         _disposed = true;
 
         _inputChannel.Writer.TryComplete();
+        _mouseInputChannel.Writer.TryComplete();
         Disconnected?.Invoke();
         _disconnected.TrySetResult();
 
