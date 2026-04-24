@@ -322,10 +322,10 @@ public class TerminalControl : FrameworkElement
                 var fg = cell.IsReverse ? GetBrush(cell.Background, DefaultBackground) : GetBrush(cell.Foreground, DefaultForeground);
                 var bg = cell.IsReverse ? GetBrush(cell.Foreground, DefaultForeground) : GetBrush(cell.Background, null);
 
-                // Draw cell background
+                // Draw cell background — extend by 1px overlap to prevent sub-pixel gaps
                 if (bg != null && !(kgpCoveredCells?.Contains((x, y)) == true))
                 {
-                    dc.DrawRectangle(bg, null, new Rect(cellX, cellY, _cellWidth, _cellHeight));
+                    dc.DrawRectangle(bg, null, new Rect(cellX, cellY, _cellWidth + 1, _cellHeight + 1));
                 }
 
                 // Draw character
