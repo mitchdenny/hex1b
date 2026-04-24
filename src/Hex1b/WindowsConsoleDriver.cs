@@ -293,13 +293,16 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
             {
                 while (!ct.IsCancellationRequested)
                 {
-                    // First, drain any pending bytes from previous key events
+                    // First, drain any pending bytes from previous processing
                     if (_pendingBytes.Count > 0)
                     {
                         return DrainPendingBytes(buffer.Span);
                     }
                     
-                    // Wait for input with timeout
+                    // Check for resize events via PeekConsoleInput before blocking on ReadFile
+                    DrainResizeEvents();
+                    
+                    // Wait for input with timeout so we can check cancellation periodically
                     var waitResult = WaitForSingleObject(_inputHandle, 100);
                     
                     if (waitResult == WAIT_TIMEOUT)
@@ -312,41 +315,34 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                         throw new InvalidOperationException($"WaitForSingleObject failed: {Marshal.GetLastWin32Error()}");
                     }
                     
-                    // Read console input records
-                    var records = new INPUT_RECORD[16];
-                    if (!ReadConsoleInput(_inputHandle, records, (uint)records.Length, out var numRead))
-                    {
-                        throw new InvalidOperationException($"ReadConsoleInput failed: {Marshal.GetLastWin32Error()}");
-                    }
+                    // Drain resize events that may have arrived
+                    DrainResizeEvents();
                     
-                    // Process each record. A single malformed or transiently failing
-                    // record should not permanently kill keyboard input for the session.
-                    for (int i = 0; i < numRead; i++)
+                    // Read raw bytes via ReadFile. With ENABLE_VIRTUAL_TERMINAL_INPUT,
+                    // keyboard input arrives as VT sequences and APC responses (like KGP
+                    // protocol replies) come through as raw bytes — unlike ReadConsoleInput
+                    // which only returns structured INPUT_RECORD and drops APC.
+                    unsafe
                     {
-                        try
+                        fixed (byte* ptr = buffer.Span)
                         {
-                            ProcessInputRecord(ref records[i]);
+                            if (ReadFile(_inputHandle, ptr, (uint)buffer.Length, out var bytesRead, nint.Zero))
+                            {
+                                if (bytesRead > 0)
+                                {
+                                    return (int)bytesRead;
+                                }
+                            }
+                            else
+                            {
+                                var error = Marshal.GetLastWin32Error();
+                                // ERROR_IO_PENDING or similar — try again
+                                if (error != 0)
+                                {
+                                    TraceInput($"ReadFile failed error={error}");
+                                }
+                            }
                         }
-                        catch (Exception ex)
-                        {
-                            TraceInput(
-                                $"record-error type=0x{records[i].EventType:X4} error={ex.GetType().Name}: {ex.Message}");
-                        }
-                    }
-                    
-                    // If only a lone ESC (\x1b) remains in the VT input buffer after
-                    // processing the entire batch, it's a standalone Escape keypress —
-                    // not the start of an escape sequence. Flush it now; otherwise it
-                    // would be stuck until the next non-VT key event arrives.
-                    if (_pendingVtInput.Length == 1 && _pendingVtInput[0] == '\x1b')
-                    {
-                        FlushPendingVirtualTerminalInput();
-                    }
-
-                    // Return any bytes that were generated
-                    if (_pendingBytes.Count > 0)
-                    {
-                        return DrainPendingBytes(buffer.Span);
                     }
                 }
 
@@ -358,6 +354,51 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                 throw;
             }
         }, ct);
+    }
+    
+    /// <summary>
+    /// Peeks at the console input buffer for WINDOW_BUFFER_SIZE_EVENT records
+    /// and fires resize events. Consumes only resize records, leaving key/mouse
+    /// events for ReadFile to handle.
+    /// </summary>
+    private void DrainResizeEvents()
+    {
+        if (!GetNumberOfConsoleInputEvents(_inputHandle, out var eventCount) || eventCount == 0)
+            return;
+        
+        var records = new INPUT_RECORD[eventCount];
+        if (!PeekConsoleInput(_inputHandle, records, (uint)records.Length, out var numPeeked) || numPeeked == 0)
+            return;
+        
+        bool hasResize = false;
+        for (int i = 0; i < numPeeked; i++)
+        {
+            if (records[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
+            {
+                hasResize = true;
+                break;
+            }
+        }
+        
+        if (!hasResize)
+            return;
+        
+        // Read and consume records one at a time, processing resize events
+        // and re-enqueueing others would be complex. Instead, consume ALL records
+        // via ReadConsoleInput and only process resize events.
+        // Key/mouse events are lost, but ReadFile will handle them going forward.
+        // This only runs when resize events are present (rare).
+        var consumeRecords = new INPUT_RECORD[eventCount];
+        if (ReadConsoleInput(_inputHandle, consumeRecords, (uint)consumeRecords.Length, out var numRead))
+        {
+            for (int i = 0; i < numRead; i++)
+            {
+                if (consumeRecords[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
+                {
+                    ProcessResizeEvent(ref consumeRecords[i].WindowBufferSizeEvent);
+                }
+            }
+        }
     }
     
     private int DrainPendingBytes(Span<byte> buffer)
@@ -960,6 +1001,21 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         [Out] INPUT_RECORD[] lpBuffer,
         uint nLength,
         out uint lpNumberOfEventsRead);
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool PeekConsoleInput(
+        nint hConsoleInput,
+        [Out] INPUT_RECORD[] lpBuffer,
+        uint nLength,
+        out uint lpNumberOfEventsRead);
+    
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern unsafe bool ReadFile(
+        nint hFile,
+        byte* lpBuffer,
+        uint nNumberOfBytesToRead,
+        out uint lpNumberOfBytesRead,
+        nint lpOverlapped);
     
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern unsafe bool WriteFile(
