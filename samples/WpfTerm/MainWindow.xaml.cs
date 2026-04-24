@@ -1,5 +1,7 @@
 using System.IO;
 using System.Windows;
+using System.Windows.Input;
+using System.Windows.Media;
 using Hex1b;
 using Hex1b.Kgp;
 
@@ -66,9 +68,11 @@ public partial class MainWindow : Window
 
         Terminal.Attach(_adapter);
 
-        // Show ConPTY backend in title bar
+        // Sync title bar color with terminal's top row background
+        _adapter.OutputReceived += () => Dispatcher.BeginInvoke(SyncTitleBarColor);
+
         var backend = conptyDll != null ? "conpty.dll" : "kernel32";
-        Title = $"WpfTerm [{backend}]";
+        TitleText.Text = $"WpfTerm [{backend}]";
 
         // Run the terminal on a background task
         _runTask = Task.Run(async () =>
@@ -171,5 +175,77 @@ public partial class MainWindow : Window
         }
 
         return null;
+    }
+
+    // === Custom title bar ===
+
+    private void TitleBar_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        if (e.ClickCount == 2)
+        {
+            MaximizeButton_Click(sender, e);
+        }
+        else
+        {
+            DragMove();
+        }
+    }
+
+    private void MinimizeButton_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState.Minimized;
+
+    private void MaximizeButton_Click(object sender, RoutedEventArgs e)
+        => WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+
+    private void CloseButton_Click(object sender, RoutedEventArgs e)
+        => Close();
+
+    /// <summary>
+    /// Samples the dominant background color from the top row of the terminal
+    /// buffer and applies it to the title bar.
+    /// </summary>
+    private void SyncTitleBarColor()
+    {
+        if (_adapter == null) return;
+
+        _adapter.RenderUnderLock((buffer, width, height, _, _, _, _) =>
+        {
+            if (height == 0 || width == 0) return;
+
+            // Count background colors in the top row
+            var colorCounts = new Dictionary<uint, int>();
+            for (int x = 0; x < width; x++)
+            {
+                var cell = buffer[0, x];
+                var bg = cell.IsReverse ? cell.Foreground : cell.Background;
+                uint key = bg.HasValue && !bg.Value.IsDefault
+                    ? ((uint)bg.Value.R << 16) | ((uint)bg.Value.G << 8) | bg.Value.B
+                    : 0x1E1E1E; // default background
+                colorCounts[key] = colorCounts.GetValueOrDefault(key) + 1;
+            }
+
+            // Pick the most common color
+            uint dominant = 0x1E1E1E;
+            int maxCount = 0;
+            foreach (var (color, count) in colorCounts)
+            {
+                if (count > maxCount) { dominant = color; maxCount = count; }
+            }
+
+            var r = (byte)((dominant >> 16) & 0xFF);
+            var g = (byte)((dominant >> 8) & 0xFF);
+            var b = (byte)(dominant & 0xFF);
+
+            Dispatcher.BeginInvoke(() =>
+            {
+                TitleBar.Background = new SolidColorBrush(Color.FromRgb(r, g, b));
+
+                // Adjust title text brightness for readability
+                double luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255.0;
+                TitleText.Foreground = new SolidColorBrush(luminance > 0.5
+                    ? Color.FromRgb(0x33, 0x33, 0x33)
+                    : Color.FromRgb(0x99, 0x99, 0x99));
+            });
+        });
     }
 }
