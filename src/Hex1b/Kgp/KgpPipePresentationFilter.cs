@@ -28,33 +28,49 @@ internal sealed class KgpPipePresentationFilter : IHex1bTerminalPresentationFilt
     {
         if (!_client.IsConnected)
         {
-            // Pipe disconnected — pass everything through to stdout
             return ValueTask.FromResult<IReadOnlyList<AnsiToken>>(
                 appliedTokens.Select(t => t.Token).ToList());
         }
 
         var passThrough = new List<AnsiToken>();
 
-        foreach (var applied in appliedTokens)
+        for (int i = 0; i < appliedTokens.Count; i++)
         {
-            // Check if this is a KGP APC sequence (emitted as UnrecognizedSequenceToken)
+            var applied = appliedTokens[i];
+
+            // Intercept CursorPositionToken that precedes KGP APC — divert to pipe
+            // so it doesn't leak to ConPTY and displace text rendering
+            if (applied.Token is CursorPositionToken cup && i + 1 < appliedTokens.Count)
+            {
+                var next = appliedTokens[i + 1].Token;
+                if ((next is UnrecognizedSequenceToken nextUnrec && IsKgpApc(nextUnrec.Sequence)) ||
+                    next is KgpToken)
+                {
+                    _client.Write($"\x1b[{cup.Row};{cup.Column}H");
+                    continue;
+                }
+            }
+
             if (applied.Token is UnrecognizedSequenceToken unrec && IsKgpApc(unrec.Sequence))
             {
-                // Send cursor position before KGP so parent places image correctly.
-                // CSI row;col H (1-based) sets the cursor in the parent terminal.
-                _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
+                // If no preceding CursorPositionToken was diverted, send cursor now
+                if (i == 0 || appliedTokens[i - 1].Token is not CursorPositionToken)
+                {
+                    _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
+                }
                 _client.Write(unrec.Sequence);
             }
             else if (applied.Token is KgpToken kgp)
             {
-                // Direct KGP token — send cursor position + serialized token
-                _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
+                if (i == 0 || appliedTokens[i - 1].Token is not CursorPositionToken)
+                {
+                    _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
+                }
                 var serialized = AnsiTokenSerializer.Serialize([kgp]);
                 _client.Write(serialized);
             }
             else
             {
-                // Normal token — pass through to stdout
                 passThrough.Add(applied.Token);
             }
         }
