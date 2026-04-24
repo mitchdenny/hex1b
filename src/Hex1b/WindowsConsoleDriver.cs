@@ -358,22 +358,23 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     /// <summary>
     /// Peeks at the console input buffer for WINDOW_BUFFER_SIZE_EVENT records
-    /// and fires resize events. Consumes only resize records, leaving key/mouse
-    /// events for ReadFile to handle.
+    /// and fires resize events. Reads events one at a time to avoid consuming
+    /// key/mouse events that ReadFile needs.
     /// </summary>
     private void DrainResizeEvents()
     {
         if (!GetNumberOfConsoleInputEvents(_inputHandle, out var eventCount) || eventCount == 0)
             return;
         
-        var records = new INPUT_RECORD[eventCount];
-        if (!PeekConsoleInput(_inputHandle, records, (uint)records.Length, out var numPeeked) || numPeeked == 0)
+        var peekRecords = new INPUT_RECORD[eventCount];
+        if (!PeekConsoleInput(_inputHandle, peekRecords, (uint)peekRecords.Length, out var numPeeked) || numPeeked == 0)
             return;
         
+        // Check if any resize events are present
         bool hasResize = false;
         for (int i = 0; i < numPeeked; i++)
         {
-            if (records[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
+            if (peekRecords[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
             {
                 hasResize = true;
                 break;
@@ -383,20 +384,31 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
         if (!hasResize)
             return;
         
-        // Read and consume records one at a time, processing resize events
-        // and re-enqueueing others would be complex. Instead, consume ALL records
-        // via ReadConsoleInput and only process resize events.
-        // Key/mouse events are lost, but ReadFile will handle them going forward.
-        // This only runs when resize events are present (rare).
-        var consumeRecords = new INPUT_RECORD[eventCount];
-        if (ReadConsoleInput(_inputHandle, consumeRecords, (uint)consumeRecords.Length, out var numRead))
+        // Read events one at a time. Consume resize events and any non-key/mouse
+        // events (like focus events). Leave key/mouse events for ReadFile by
+        // not calling ReadConsoleInput when a key/mouse record is at the head.
+        var singleRecord = new INPUT_RECORD[1];
+        while (GetNumberOfConsoleInputEvents(_inputHandle, out var remaining) && remaining > 0)
         {
-            for (int i = 0; i < numRead; i++)
+            // Peek at the head
+            if (!PeekConsoleInput(_inputHandle, singleRecord, 1, out var peeked) || peeked == 0)
+                break;
+            
+            if (singleRecord[0].EventType == WINDOW_BUFFER_SIZE_EVENT)
             {
-                if (consumeRecords[i].EventType == WINDOW_BUFFER_SIZE_EVENT)
-                {
-                    ProcessResizeEvent(ref consumeRecords[i].WindowBufferSizeEvent);
-                }
+                // Consume and process resize
+                ReadConsoleInput(_inputHandle, singleRecord, 1, out _);
+                ProcessResizeEvent(ref singleRecord[0].WindowBufferSizeEvent);
+            }
+            else if (singleRecord[0].EventType is KEY_EVENT or MOUSE_EVENT)
+            {
+                // Stop — don't consume key/mouse events, ReadFile needs them
+                break;
+            }
+            else
+            {
+                // Consume and discard other event types (focus, menu, etc.)
+                ReadConsoleInput(_inputHandle, singleRecord, 1, out _);
             }
         }
     }

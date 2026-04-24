@@ -696,10 +696,28 @@ public class TerminalControl : FrameworkElement
         }
     }
 
+    private System.Windows.Threading.DispatcherTimer? _resizeTimer;
+
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
     {
         base.OnRenderSizeChanged(sizeInfo);
-        UpdateTerminalSize();
+        
+        // Debounce resize — WPF fires this for every pixel during window drag.
+        // Coalesce into a single resize after the drag settles.
+        if (_resizeTimer == null)
+        {
+            _resizeTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(50)
+            };
+            _resizeTimer.Tick += (_, _) =>
+            {
+                _resizeTimer.Stop();
+                UpdateTerminalSize();
+            };
+        }
+        _resizeTimer.Stop();
+        _resizeTimer.Start();
     }
 
     private void UpdateTerminalSize()
