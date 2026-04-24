@@ -763,6 +763,9 @@ public class TerminalControl : FrameworkElement
     private bool _mouseButtonDown;
     private int _lastMouseCellX = -1;
     private int _lastMouseCellY = -1;
+    private int _pendingMouseButton = -1;
+    private int _pendingMouseModifiers;
+    private System.Windows.Threading.DispatcherTimer? _mouseMotionTimer;
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
@@ -813,23 +816,42 @@ public class TerminalControl : FrameworkElement
 
         var pos = CellPosition(e);
         
-        // Only send when the cell position actually changes — suppresses
-        // sub-cell pixel moves that flood the PTY and drown out keyboard input
+        // Only send when the cell position actually changes
         if (pos.x == _lastMouseCellX && pos.y == _lastMouseCellY) return;
         _lastMouseCellX = pos.x;
         _lastMouseCellY = pos.y;
 
-        int button;
-        if (_mouseButtonDown)
+        int button = _mouseButtonDown
+            ? WpfButtonToSgr(_lastPressedButton) | 32
+            : 35;
+
+        // Coalesce mouse motion: store the latest position and send on a short timer.
+        // This prevents mouse events from flooding the input channel and drowning
+        // out keyboard input that arrives between mouse moves.
+        _pendingMouseButton = button;
+        _pendingMouseModifiers = GetMouseModifiers();
+        
+        if (_mouseMotionTimer == null)
         {
-            button = WpfButtonToSgr(_lastPressedButton) | 32;
+            _mouseMotionTimer = new System.Windows.Threading.DispatcherTimer
+            {
+                Interval = TimeSpan.FromMilliseconds(16) // ~60fps max
+            };
+            _mouseMotionTimer.Tick += (_, _) =>
+            {
+                _mouseMotionTimer.Stop();
+                if (_adapter != null && _pendingMouseButton >= 0)
+                {
+                    _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(
+                        _pendingMouseButton, _lastMouseCellX, _lastMouseCellY,
+                        isRelease: false, _pendingMouseModifiers));
+                    _pendingMouseButton = -1;
+                }
+            };
         }
-        else
-        {
-            button = 35;
-        }
-        int modifiers = GetMouseModifiers();
-        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
+        
+        _mouseMotionTimer.Stop();
+        _mouseMotionTimer.Start();
     }
 
     protected override void OnMouseWheel(MouseWheelEventArgs e)
