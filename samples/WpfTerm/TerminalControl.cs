@@ -137,7 +137,7 @@ public class TerminalControl : FrameworkElement
 
     private void UpdateFont()
     {
-        var fontFamily = new FontFamily("Cascadia Mono, Consolas");
+        var fontFamily = new FontFamily("JetBrainsMono Nerd Font, Cascadia Mono, Consolas");
         _fallbackTypeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Regular, FontStretches.Normal);
 
         // Pre-cache GlyphTypeface variants
