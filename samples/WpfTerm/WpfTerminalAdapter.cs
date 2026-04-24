@@ -9,7 +9,7 @@ namespace WpfTerm;
 /// Receives pre-parsed cell impacts (no ANSI parsing needed) and
 /// exposes the screen buffer for the WPF control to render from.
 /// </summary>
-public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IAsyncDisposable
+public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -25,6 +25,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
     private bool _mouseTrackingEnabled;
     private bool _sgrMouseModeEnabled;
     private bool _disposed;
+    private Hex1bTerminal? _terminal;
 
     public WpfTerminalAdapter(int width = 120, int height = 30)
     {
@@ -208,6 +209,29 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
     public ValueTask EnterRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
     public ValueTask ExitRawModeAsync(CancellationToken ct = default) => ValueTask.CompletedTask;
     public (int Row, int Column) GetCursorPosition() => (_cursorY, _cursorX);
+
+    // === ITerminalLifecycleAwarePresentationAdapter ===
+
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalCreated(Hex1bTerminal terminal)
+    {
+        _terminal = terminal;
+    }
+
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalStarted() { }
+
+    void ITerminalLifecycleAwarePresentationAdapter.TerminalCompleted(int exitCode) { }
+
+    /// <summary>
+    /// Gets the active KGP placements from the terminal, or empty if not available.
+    /// </summary>
+    public IReadOnlyList<KgpPlacement> GetKgpPlacements()
+        => _terminal?.KgpPlacements ?? [];
+
+    /// <summary>
+    /// Gets KGP image data by image ID from the terminal's image store.
+    /// </summary>
+    public KgpImageData? GetKgpImage(uint imageId)
+        => _terminal?.KgpImageStore.GetImageById(imageId);
 
     public ValueTask DisposeAsync()
     {

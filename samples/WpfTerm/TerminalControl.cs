@@ -2,6 +2,7 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Imaging;
 using Hex1b;
 using Hex1b.Theming;
 
@@ -29,6 +30,9 @@ public class TerminalControl : FrameworkElement
     private GlyphTypeface? _boldGlyph;
     private GlyphTypeface? _italicGlyph;
     private GlyphTypeface? _boldItalicGlyph;
+
+    // KGP image cache: ImageId → (contentHash, bitmap)
+    private readonly Dictionary<uint, (byte[] Hash, BitmapSource Bitmap)> _kgpBitmapCache = new();
     // Fallback for chars not in glyph typeface
     private Typeface _fallbackTypeface = null!;
 
@@ -187,6 +191,9 @@ public class TerminalControl : FrameworkElement
     {
         if (_adapter == null) return;
 
+        // Grab KGP placements outside the buffer lock (KgpPlacements takes its own lock)
+        var placements = _adapter.GetKgpPlacements();
+
         var dc = _visual.RenderOpen();
         try
         {
@@ -196,7 +203,14 @@ public class TerminalControl : FrameworkElement
             // Read directly from the adapter's buffer under lock — no copy needed
             _adapter.RenderUnderLock((buffer, width, height, cursorX, cursorY, cursorVisible) =>
             {
+                // Pass 1: KGP images behind text (ZIndex < 0)
+                RenderKgpImages(dc, placements, width, height, zBehindText: true);
+
+                // Pass 2: Text and cell backgrounds
                 RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible);
+
+                // Pass 3: KGP images on top of text (ZIndex >= 0)
+                RenderKgpImages(dc, placements, width, height, zBehindText: false);
             });
         }
         finally
@@ -450,6 +464,143 @@ public class TerminalControl : FrameworkElement
             PenCache[key] = pen;
         }
         return pen;
+    }
+
+    // === KGP Image Rendering ===
+
+    /// <summary>
+    /// Renders KGP image placements at the appropriate z-order layer.
+    /// </summary>
+    private void RenderKgpImages(DrawingContext dc, IReadOnlyList<KgpPlacement> placements,
+        int termWidth, int termHeight, bool zBehindText)
+    {
+        if (_adapter == null || placements.Count == 0) return;
+
+        foreach (var placement in placements)
+        {
+            bool isBehind = placement.ZIndex < 0;
+            if (isBehind != zBehindText) continue;
+
+            // Skip placements entirely off-screen
+            if (placement.Row >= termHeight || placement.Column >= termWidth) continue;
+            if (placement.Row + (int)placement.DisplayRows <= 0 || placement.Column + (int)placement.DisplayColumns <= 0) continue;
+
+            var imageData = _adapter.GetKgpImage(placement.ImageId);
+            if (imageData == null) continue;
+
+            var bitmap = GetOrCreateKgpBitmap(imageData);
+            if (bitmap == null) continue;
+
+            // Calculate display rect in pixels
+            double destX = placement.Column * _cellWidth + placement.CellOffsetX;
+            double destY = placement.Row * _cellHeight + placement.CellOffsetY;
+            double destW = placement.DisplayColumns * _cellWidth;
+            double destH = placement.DisplayRows * _cellHeight;
+
+            // Handle source clipping
+            if (placement.SourceX > 0 || placement.SourceY > 0 ||
+                placement.SourceWidth > 0 || placement.SourceHeight > 0)
+            {
+                int srcX = (int)placement.SourceX;
+                int srcY = (int)placement.SourceY;
+                int srcW = placement.SourceWidth > 0 ? (int)placement.SourceWidth : (int)imageData.Width - srcX;
+                int srcH = placement.SourceHeight > 0 ? (int)placement.SourceHeight : (int)imageData.Height - srcY;
+
+                // Clamp to image bounds
+                srcW = Math.Min(srcW, (int)imageData.Width - srcX);
+                srcH = Math.Min(srcH, (int)imageData.Height - srcY);
+
+                if (srcW > 0 && srcH > 0)
+                {
+                    var cropped = new CroppedBitmap(bitmap, new Int32Rect(srcX, srcY, srcW, srcH));
+                    dc.DrawImage(cropped, new Rect(destX, destY, destW, destH));
+                }
+            }
+            else
+            {
+                dc.DrawImage(bitmap, new Rect(destX, destY, destW, destH));
+            }
+        }
+    }
+
+    /// <summary>
+    /// Gets or creates a cached WPF BitmapSource from KGP image data.
+    /// </summary>
+    private BitmapSource? GetOrCreateKgpBitmap(KgpImageData imageData)
+    {
+        // Check cache — invalidate if content hash changed
+        if (_kgpBitmapCache.TryGetValue(imageData.ImageId, out var cached))
+        {
+            if (cached.Hash.AsSpan().SequenceEqual(imageData.ContentHash))
+                return cached.Bitmap;
+        }
+
+        var bitmap = ConvertKgpToBitmap(imageData);
+        if (bitmap != null)
+        {
+            bitmap.Freeze();
+            _kgpBitmapCache[imageData.ImageId] = (imageData.ContentHash, bitmap);
+        }
+        return bitmap;
+    }
+
+    /// <summary>
+    /// Converts raw KGP pixel data to a WPF BitmapSource.
+    /// </summary>
+    private static BitmapSource? ConvertKgpToBitmap(KgpImageData imageData)
+    {
+        int w = (int)imageData.Width;
+        int h = (int)imageData.Height;
+        if (w <= 0 || h <= 0) return null;
+
+        switch (imageData.Format)
+        {
+            case KgpFormat.Rgba32:
+            {
+                // Convert RGBA → BGRA (WPF expects BGRA)
+                int expectedSize = w * h * 4;
+                if (imageData.Data.Length < expectedSize) return null;
+
+                var bgra = new byte[expectedSize];
+                for (int i = 0; i < expectedSize; i += 4)
+                {
+                    bgra[i + 0] = imageData.Data[i + 2]; // B ← R
+                    bgra[i + 1] = imageData.Data[i + 1]; // G ← G
+                    bgra[i + 2] = imageData.Data[i + 0]; // R ← B
+                    bgra[i + 3] = imageData.Data[i + 3]; // A ← A
+                }
+
+                return BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgra32, null, bgra, w * 4);
+            }
+
+            case KgpFormat.Rgb24:
+            {
+                // Convert RGB → BGR (WPF expects BGR)
+                int expectedSize = w * h * 3;
+                if (imageData.Data.Length < expectedSize) return null;
+
+                var bgr = new byte[expectedSize];
+                for (int i = 0; i < expectedSize; i += 3)
+                {
+                    bgr[i + 0] = imageData.Data[i + 2]; // B ← R
+                    bgr[i + 1] = imageData.Data[i + 1]; // G ← G
+                    bgr[i + 2] = imageData.Data[i + 0]; // R ← B
+                }
+
+                return BitmapSource.Create(w, h, 96, 96, PixelFormats.Bgr24, null, bgr, w * 3);
+            }
+
+            case KgpFormat.Png:
+            {
+                // PNG: decode directly via WPF's built-in PNG decoder
+                using var stream = new System.IO.MemoryStream(imageData.Data);
+                var decoder = new PngBitmapDecoder(stream, BitmapCreateOptions.PreservePixelFormat, BitmapCacheOption.OnLoad);
+                return decoder.Frames.Count > 0 ? decoder.Frames[0] : null;
+            }
+
+            default:
+                return null;
+        }
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)

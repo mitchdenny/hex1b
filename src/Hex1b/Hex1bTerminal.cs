@@ -6157,14 +6157,14 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // ---- KGP (Kitty Graphics Protocol) ----
 
     /// <summary>
-    /// Gets the KGP image store for testing and inspection.
+    /// Gets the KGP image store for accessing transmitted image data.
     /// </summary>
-    internal KgpImageStore KgpImageStore => _kgpImageStore;
+    public KgpImageStore KgpImageStore => _kgpImageStore;
 
     /// <summary>
-    /// Gets the active KGP placements for testing and inspection.
+    /// Gets a snapshot of the active KGP placements.
     /// </summary>
-    internal IReadOnlyList<KgpPlacement> KgpPlacements
+    public IReadOnlyList<KgpPlacement> KgpPlacements
     {
         get { lock (_bufferLock) return _kgpPlacements.ToList(); }
     }
