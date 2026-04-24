@@ -809,9 +809,9 @@ public class TerminalControl : FrameworkElement
                     char ch = (char)wParam;
                     if (ch >= 0x20) // printable (space and above)
                     {
-                        var bytes = System.Text.Encoding.UTF8.GetBytes(new[] { ch });
+                        var bytes = System.Text.Encoding.UTF8.GetBytes([ch]);
                         _adapter.EnqueueInput(bytes);
-                        handled = true; // Suppress WPF TextInput for this char
+                        // Don't set handled — let WPF see it too (OnTextInput will suppress)
                     }
                 }
                 break;
