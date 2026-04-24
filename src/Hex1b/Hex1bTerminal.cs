@@ -667,6 +667,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var decodedText = new string(chars);
 
                 var text = _incompleteInputSequenceBuffer + decodedText;
+                var hadBufferedInput = _incompleteInputSequenceBuffer.Length > 0;
                 _incompleteInputSequenceBuffer = "";
 
                 var extracted = ExtractIncompleteEscapeSequence(text);
@@ -675,7 +676,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (!string.IsNullOrEmpty(completeText))
                 {
-                    await DispatchCompleteInputTextAsync(completeText, data, ct);
+                    // When incomplete buffer was prepended, rawData doesn't contain the
+                    // buffered bytes — re-encode from completeText to avoid losing them.
+                    var effectiveRawData = hadBufferedInput
+                        ? (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes(completeText)
+                        : data;
+                    await DispatchCompleteInputTextAsync(completeText, effectiveRawData, ct);
                 }
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
