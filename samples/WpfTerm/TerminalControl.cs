@@ -457,10 +457,13 @@ public class TerminalControl : FrameworkElement
             }
             else
             {
-                // Unknown glyph — use .notdef (index 0) or tofu
-                hasGlyphs = true;
-                glyphIndices.Add(0);
-                advanceWidths.Add(_cellWidth);
+                // Glyph not in this typeface — fall back to FormattedText for
+                // the entire run, which handles WPF font fallback automatically
+                DrawFormattedRun(dc, buffer, row, startCol, count, px, py, fg,
+                    glyphTypeface == _boldGlyph || glyphTypeface == _boldItalicGlyph,
+                    glyphTypeface == _italicGlyph || glyphTypeface == _boldItalicGlyph,
+                    dim);
+                return;
             }
         }
 
