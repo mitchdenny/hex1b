@@ -22,6 +22,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     private int _cursorX;
     private int _cursorY;
     private bool _cursorVisible = true;
+    private CursorShape _cursorShape = CursorShape.Default;
     private bool _mouseTrackingEnabled;
     private bool _sgrMouseModeEnabled;
     private bool _disposed;
@@ -40,6 +41,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     public int CursorX => _cursorX;
     public int CursorY => _cursorY;
     public bool CursorVisible => _cursorVisible;
+    public CursorShape CursorShape => _cursorShape;
 
     /// <summary>
     /// Whether the child process has enabled mouse tracking (modes 1000/1002/1003).
@@ -80,11 +82,11 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     /// Allows the renderer to read the buffer directly under lock — zero-copy path.
     /// The callback must not capture or store the buffer reference.
     /// </summary>
-    public void RenderUnderLock(Action<TerminalCell[,], int, int, int, int, bool> renderCallback)
+    public void RenderUnderLock(Action<TerminalCell[,], int, int, int, int, bool, CursorShape> renderCallback)
     {
         lock (_bufferLock)
         {
-            renderCallback(_screenBuffer, _width, _height, _cursorX, _cursorY, _cursorVisible);
+            renderCallback(_screenBuffer, _width, _height, _cursorX, _cursorY, _cursorVisible, _cursorShape);
         }
     }
 
@@ -150,6 +152,21 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                     // Mouse tracking modes
                     if (pm.Mode is 1000 or 1002 or 1003) _mouseTrackingEnabled = pm.Enable;
                     if (pm.Mode == 1006) _sgrMouseModeEnabled = pm.Enable;
+                }
+
+                // Track cursor shape changes
+                if (applied.Token is CursorShapeToken cst)
+                {
+                    _cursorShape = cst.Shape switch
+                    {
+                        1 => CursorShape.BlinkingBlock,
+                        2 => CursorShape.SteadyBlock,
+                        3 => CursorShape.BlinkingUnderline,
+                        4 => CursorShape.SteadyUnderline,
+                        5 => CursorShape.BlinkingBar,
+                        6 => CursorShape.SteadyBar,
+                        _ => CursorShape.Default
+                    };
                 }
 
                 // KGP tokens modify placements outside the cell buffer — still need a re-render

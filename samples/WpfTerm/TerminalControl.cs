@@ -201,13 +201,13 @@ public class TerminalControl : FrameworkElement
             dc.DrawRectangle(DefaultBackground, null, new Rect(0, 0, ActualWidth, ActualHeight));
 
             // Read directly from the adapter's buffer under lock — no copy needed
-            _adapter.RenderUnderLock((buffer, width, height, cursorX, cursorY, cursorVisible) =>
+            _adapter.RenderUnderLock((buffer, width, height, cursorX, cursorY, cursorVisible, cursorShape) =>
             {
                 // Pass 1: KGP images behind text (ZIndex < 0)
                 RenderKgpImages(dc, placements, width, height, zBehindText: true);
 
                 // Pass 2: Text and cell backgrounds
-                RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible);
+                RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible, cursorShape);
 
                 // Pass 3: KGP images on top of text (ZIndex >= 0)
                 RenderKgpImages(dc, placements, width, height, zBehindText: false);
@@ -223,7 +223,7 @@ public class TerminalControl : FrameworkElement
     /// Core rendering: scans rows for attribute runs and draws them as batched GlyphRuns.
     /// </summary>
     private void RenderBuffer(DrawingContext dc, TerminalCell[,] buffer, int width, int height,
-        int cursorX, int cursorY, bool cursorVisible)
+        int cursorX, int cursorY, bool cursorVisible, CursorShape cursorShape)
     {
         for (int y = 0; y < height; y++)
         {
@@ -306,7 +306,48 @@ public class TerminalControl : FrameworkElement
         {
             double cx = cursorX * _cellWidth;
             double cy = cursorY * _cellHeight;
-            dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+
+            // Determine effective shape (Default → BlinkingBlock)
+            var shape = cursorShape == CursorShape.Default ? CursorShape.BlinkingBlock : cursorShape;
+
+            switch (shape)
+            {
+                case CursorShape.BlinkingBlock:
+                case CursorShape.SteadyBlock:
+                    // Full block cursor — draw inverted cell
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, _cellWidth, _cellHeight));
+                    // Re-draw the character in inverted color
+                    var blockCell = buffer[cursorY, cursorX];
+                    var ch = blockCell.Character;
+                    if (!string.IsNullOrEmpty(ch) && ch != " " && _regularGlyph != null)
+                    {
+                        var charMap = _regularGlyph.CharacterToGlyphMap;
+                        int codepoint = char.ConvertToUtf32(ch, 0);
+                        if (charMap.TryGetValue(codepoint, out ushort glyphIdx))
+                        {
+#pragma warning disable CS0618
+                            var glyphRun = new GlyphRun(
+                                _regularGlyph, 0, false, _fontSize, (float)_dpiScale,
+                                [glyphIdx], new Point(cx, cy + _baselineY),
+                                [_cellWidth], null, null, null, null, null, null);
+#pragma warning restore CS0618
+                            dc.DrawGlyphRun(DefaultBackground, glyphRun);
+                        }
+                    }
+                    break;
+
+                case CursorShape.BlinkingBar:
+                case CursorShape.SteadyBar:
+                    // Vertical bar cursor (2px wide)
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+                    break;
+
+                case CursorShape.BlinkingUnderline:
+                case CursorShape.SteadyUnderline:
+                    // Underline cursor (2px tall at bottom of cell)
+                    dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy + _cellHeight - 2, _cellWidth, 2));
+                    break;
+            }
         }
     }
 
