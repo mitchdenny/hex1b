@@ -761,6 +761,8 @@ public class TerminalControl : FrameworkElement
 
     private MouseButton _lastPressedButton;
     private bool _mouseButtonDown;
+    private int _lastMouseCellX = -1;
+    private int _lastMouseCellY = -1;
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
@@ -810,15 +812,20 @@ public class TerminalControl : FrameworkElement
         if (!_mouseButtonDown && !_adapter.MouseMotionEnabled) return;
 
         var pos = CellPosition(e);
+        
+        // Only send when the cell position actually changes — suppresses
+        // sub-cell pixel moves that flood the PTY and drown out keyboard input
+        if (pos.x == _lastMouseCellX && pos.y == _lastMouseCellY) return;
+        _lastMouseCellX = pos.x;
+        _lastMouseCellY = pos.y;
+
         int button;
         if (_mouseButtonDown)
         {
-            // Drag: button code + 32 (motion flag)
             button = WpfButtonToSgr(_lastPressedButton) | 32;
         }
         else
         {
-            // Motion with no button: 35 = 32 (motion) + 3 (no button)
             button = 35;
         }
         int modifiers = GetMouseModifiers();
