@@ -66,30 +66,33 @@
             <RowDefinition Height="*"/>
         </Grid.RowDefinitions>
 
-        <!-- Custom title bar -->
-        <Border x:Name="TitleBar" Grid.Row="0" Background="#1E1E1E"
-                MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
-            <DockPanel LastChildFill="True">
-                <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
-                    <Button Content="─" Click="MinimizeButton_Click" Style="{StaticResource TitleBarButton}" />
-                    <Button Content="□" Click="MaximizeButton_Click" Style="{StaticResource TitleBarButton}" />
-                    <Button Content="✕" Click="CloseButton_Click" Style="{StaticResource CloseButton}" />
-                </StackPanel>
-                <TextBlock x:Name="TitleText" Text="WpfTerm" Foreground="#999999" FontSize="12"
-                           VerticalAlignment="Center" Margin="12,0,0,0" />
-            </DockPanel>
-        </Border>
-
-        <!-- Terminal with top shadow -->
-        <Grid Grid.Row="1">
-            <Border Height="8" VerticalAlignment="Top" IsHitTestVisible="False" Panel.ZIndex="1">
+        <!-- Custom title bar with shadow at bottom flowing up into it -->
+        <Grid Grid.Row="0">
+            <Border x:Name="TitleBar" Background="#1E1E1E"
+                    MouseLeftButtonDown="TitleBar_MouseLeftButtonDown">
+                <DockPanel LastChildFill="True">
+                    <StackPanel DockPanel.Dock="Right" Orientation="Horizontal" VerticalAlignment="Center" Margin="0,0,4,0">
+                        <Button Content="─" Click="MinimizeButton_Click" Style="{StaticResource TitleBarButton}" />
+                        <Button Content="□" Click="MaximizeButton_Click" Style="{StaticResource TitleBarButton}" />
+                        <Button Content="✕" Click="CloseButton_Click" Style="{StaticResource CloseButton}" />
+                    </StackPanel>
+                    <TextBlock x:Name="TitleText" Text="WpfTerm" Foreground="#999999" FontSize="12"
+                               VerticalAlignment="Center" Margin="12,0,0,0" />
+                </DockPanel>
+            </Border>
+            <!-- Drop shadow flowing upward from terminal into title bar -->
+            <Border Height="12" VerticalAlignment="Bottom" IsHitTestVisible="False" Panel.ZIndex="1">
                 <Border.Background>
-                    <LinearGradientBrush StartPoint="0,0" EndPoint="0,1">
-                        <GradientStop Color="#60000000" Offset="0"/>
+                    <LinearGradientBrush StartPoint="0,1" EndPoint="0,0">
+                        <GradientStop Color="#80000000" Offset="0"/>
                         <GradientStop Color="#00000000" Offset="1"/>
                     </LinearGradientBrush>
                 </Border.Background>
             </Border>
+        </Grid>
+
+        <!-- Terminal content -->
+        <Grid Grid.Row="1">
             <local:TerminalControl x:Name="Terminal" />
         </Grid>
     </Grid>
