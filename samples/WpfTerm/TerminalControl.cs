@@ -1,6 +1,8 @@
 using System.Globalization;
+using System.Runtime.InteropServices;
 using System.Windows;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using Hex1b;
@@ -111,12 +113,21 @@ public class TerminalControl : FrameworkElement
         ScheduleRender();
     }
 
+    private int _wmKeyDownCount;
+    private int _wmCharCount;
+
     private void OnLoaded(object sender, RoutedEventArgs e)
     {
         var source = PresentationSource.FromVisual(this);
         if (source?.CompositionTarget != null)
         {
             _dpiScale = source.CompositionTarget.TransformToDevice.M11;
+        }
+
+        // Hook Win32 messages directly to count WM_KEYDOWN and WM_CHAR
+        if (source is HwndSource hwndSource)
+        {
+            hwndSource.AddHook(WndProc);
         }
 
         Focus();
@@ -777,6 +788,29 @@ public class TerminalControl : FrameworkElement
 
     /// <summary>Diagnostic: WPF event counts.</summary>
     public (int KeyDown, int PreviewKeyDown, int TextInput) WpfEventCounts => (_keyDownCount, _previewKeyDownCount, _textInputCount);
+
+    /// <summary>Diagnostic: Win32 message counts.</summary>
+    public (int WmKeyDown, int WmChar) Win32Counts => (_wmKeyDownCount, _wmCharCount);
+
+    private const int WM_KEYDOWN = 0x0100;
+    private const int WM_CHAR = 0x0102;
+    private const int WM_SYSKEYDOWN = 0x0104;
+
+    private IntPtr WndProc(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled)
+    {
+        switch (msg)
+        {
+            case WM_KEYDOWN:
+            case WM_SYSKEYDOWN:
+                _wmKeyDownCount++;
+                break;
+            case WM_CHAR:
+                _wmCharCount++;
+                break;
+        }
+        // Don't set handled — let WPF process normally
+        return IntPtr.Zero;
+    }
 
     // === Mouse Input ===
 

@@ -80,8 +80,9 @@ public partial class MainWindow : Window
             var stats = _adapter.TokenStats;
             var input = _adapter.InputStats;
             var wpf = Terminal.WpfEventCounts;
+            var win32 = Terminal.Win32Counts;
             var backend = conptyDll != null ? "conpty.dll" : "kernel32";
-            Title = $"WpfTerm [{backend}] — wpf:pk{wpf.PreviewKeyDown}/kd{wpf.KeyDown}/ti{wpf.TextInput} in:k{input.Keys}/m{input.Mouse}";
+            Title = $"WpfTerm [{backend}] — wm:kd{win32.WmKeyDown}/ch{win32.WmChar} wpf:pk{wpf.PreviewKeyDown}/kd{wpf.KeyDown}/ti{wpf.TextInput} in:k{input.Keys}/m{input.Mouse}";
         };
         diagTimer.Start();
 
