@@ -20,6 +20,16 @@ public partial class MainWindow : Window
         InitializeComponent();
         Loaded += OnLoaded;
         Closing += OnClosing;
+        SourceInitialized += OnSourceInitialized;
+    }
+
+    private void OnSourceInitialized(object? sender, EventArgs e)
+    {
+        // Remove the 1px white border that Windows draws on borderless windows
+        if (PresentationSource.FromVisual(this) is System.Windows.Interop.HwndSource hwnd)
+        {
+            hwnd.CompositionTarget.BackgroundColor = System.Windows.Media.Colors.Black;
+        }
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
