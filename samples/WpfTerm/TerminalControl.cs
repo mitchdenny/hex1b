@@ -6,6 +6,8 @@ using System.Windows.Media.Imaging;
 using Hex1b;
 using Hex1b.Theming;
 
+using InputMethod = System.Windows.Input.InputMethod;
+
 namespace WpfTerm;
 
 /// <summary>
@@ -81,6 +83,10 @@ public class TerminalControl : FrameworkElement
 
         Focusable = true;
         FocusVisualStyle = null;
+        
+        // Disable WPF's Input Method Editor — prevents the system from showing
+        // its own blinking caret at the mouse click position
+        InputMethod.SetIsInputMethodEnabled(this, false);
 
         _fontSize = 14;
         UpdateFont();
@@ -694,19 +700,25 @@ public class TerminalControl : FrameworkElement
 
     protected override void OnMouseDown(MouseButtonEventArgs e)
     {
-        if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
-
+        // Always take keyboard focus on click
         Focus();
-        CaptureMouse();
 
-        var pos = CellPosition(e);
-        int button = WpfButtonToSgr(e.ChangedButton);
-        if (button < 0) return;
+        if (_adapter == null) return;
 
-        int modifiers = GetMouseModifiers();
-        _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
-        _lastPressedButton = e.ChangedButton;
-        _mouseButtonDown = true;
+        if (_adapter.MouseTrackingEnabled)
+        {
+            CaptureMouse();
+
+            var pos = CellPosition(e);
+            int button = WpfButtonToSgr(e.ChangedButton);
+            if (button < 0) return;
+
+            int modifiers = GetMouseModifiers();
+            _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
+            _lastPressedButton = e.ChangedButton;
+            _mouseButtonDown = true;
+        }
+
         e.Handled = true;
     }
 
