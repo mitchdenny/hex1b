@@ -318,6 +318,14 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
                     // Drain resize events that may have arrived
                     DrainResizeEvents();
                     
+                    // After draining resize events, check if there's still data to read.
+                    // If DrainResizeEvents consumed the event that woke us, ReadFile would
+                    // block. Go back to WaitForSingleObject instead.
+                    if (!GetNumberOfConsoleInputEvents(_inputHandle, out var remaining) || remaining == 0)
+                    {
+                        continue;
+                    }
+                    
                     // Read raw bytes via ReadFile. With ENABLE_VIRTUAL_TERMINAL_INPUT,
                     // keyboard input arrives as VT sequences and APC responses (like KGP
                     // protocol replies) come through as raw bytes — unlike ReadConsoleInput
