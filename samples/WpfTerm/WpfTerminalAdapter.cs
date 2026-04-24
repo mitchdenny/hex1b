@@ -75,6 +75,18 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IA
     }
 
     /// <summary>
+    /// Allows the renderer to read the buffer directly under lock — zero-copy path.
+    /// The callback must not capture or store the buffer reference.
+    /// </summary>
+    public void RenderUnderLock(Action<TerminalCell[,], int, int, int, int, bool> renderCallback)
+    {
+        lock (_bufferLock)
+        {
+            renderCallback(_screenBuffer, _width, _height, _cursorX, _cursorY, _cursorVisible);
+        }
+    }
+
+    /// <summary>
     /// Enqueues raw ANSI input bytes to be sent to the PTY process.
     /// Called by the WPF keyboard handler.
     /// </summary>

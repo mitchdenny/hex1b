@@ -8,7 +8,8 @@ using Hex1b.Theming;
 namespace WpfTerm;
 
 /// <summary>
-/// A WPF control that renders a terminal screen buffer using DrawingVisual.
+/// A WPF control that renders a terminal screen buffer using DrawingVisual
+/// with GlyphRun batching and render coalescing for performance.
 /// </summary>
 public class TerminalControl : FrameworkElement
 {
@@ -18,9 +19,21 @@ public class TerminalControl : FrameworkElement
     private WpfTerminalAdapter? _adapter;
     private double _cellWidth;
     private double _cellHeight;
-    private Typeface _typeface = null!;
+    private double _baselineY;
     private double _fontSize;
     private double _dpiScale = 1.0;
+    private bool _renderPending;
+
+    // Pre-cached typeface variants
+    private GlyphTypeface? _regularGlyph;
+    private GlyphTypeface? _boldGlyph;
+    private GlyphTypeface? _italicGlyph;
+    private GlyphTypeface? _boldItalicGlyph;
+    // Fallback for chars not in glyph typeface
+    private Typeface _fallbackTypeface = null!;
+
+    // Cached pens
+    private static readonly Dictionary<int, Pen> PenCache = new();
 
     // Cached brushes for ANSI colors
     private static readonly SolidColorBrush[] AnsiStandardBrushes =
@@ -84,9 +97,8 @@ public class TerminalControl : FrameworkElement
         _adapter = adapter;
         _adapter.OutputReceived += OnOutputReceived;
 
-        // Trigger initial resize based on current control size
         UpdateTerminalSize();
-        InvalidateVisual();
+        ScheduleRender();
     }
 
     private void OnLoaded(object sender, RoutedEventArgs e)
@@ -98,131 +110,346 @@ public class TerminalControl : FrameworkElement
         }
 
         Focus();
+        UpdateFont();
         UpdateTerminalSize();
     }
 
     private void UpdateFont()
     {
-        // Try Cascadia Mono first, fall back to Consolas
-        _typeface = new Typeface(new FontFamily("Cascadia Mono, Consolas"), FontStyles.Normal, FontWeights.Regular, FontStretches.Normal);
+        var fontFamily = new FontFamily("Cascadia Mono, Consolas");
+        _fallbackTypeface = new Typeface(fontFamily, FontStyles.Normal, FontWeights.Regular, FontStretches.Normal);
 
-        // Measure a character to get cell dimensions
-        var ft = new FormattedText(
-            "M",
-            CultureInfo.InvariantCulture,
-            FlowDirection.LeftToRight,
-            _typeface,
-            _fontSize,
-            Brushes.White,
-            _dpiScale);
+        // Pre-cache GlyphTypeface variants
+        TryCreateGlyphTypeface(fontFamily, FontStyles.Normal, FontWeights.Regular, out _regularGlyph);
+        TryCreateGlyphTypeface(fontFamily, FontStyles.Normal, FontWeights.Bold, out _boldGlyph);
+        TryCreateGlyphTypeface(fontFamily, FontStyles.Italic, FontWeights.Regular, out _italicGlyph);
+        TryCreateGlyphTypeface(fontFamily, FontStyles.Italic, FontWeights.Bold, out _boldItalicGlyph);
 
-        _cellWidth = ft.WidthIncludingTrailingWhitespace;
-        _cellHeight = ft.Height;
+        // Measure cell dimensions from the glyph typeface
+        if (_regularGlyph != null)
+        {
+            double emSize = _fontSize;
+            _cellHeight = _regularGlyph.Height * emSize;
+            _baselineY = _regularGlyph.Baseline * emSize;
+            // Use advance width of 'M' for cell width
+            if (_regularGlyph.CharacterToGlyphMap.TryGetValue('M', out ushort mGlyph))
+            {
+                _cellWidth = _regularGlyph.AdvanceWidths[mGlyph] * emSize;
+            }
+            else
+            {
+                _cellWidth = emSize * 0.6; // fallback
+            }
+        }
+        else
+        {
+            // Fallback measurement using FormattedText
+            var ft = new FormattedText("M", CultureInfo.InvariantCulture, FlowDirection.LeftToRight,
+                _fallbackTypeface, _fontSize, Brushes.White, _dpiScale);
+            _cellWidth = ft.WidthIncludingTrailingWhitespace;
+            _cellHeight = ft.Height;
+            _baselineY = ft.Baseline;
+        }
+    }
+
+    private static bool TryCreateGlyphTypeface(FontFamily family, FontStyle style, FontWeight weight, out GlyphTypeface? result)
+    {
+        var typeface = new Typeface(family, style, weight, FontStretches.Normal);
+        if (typeface.TryGetGlyphTypeface(out var glyph))
+        {
+            result = glyph;
+            return true;
+        }
+        result = null;
+        return false;
     }
 
     private void OnOutputReceived()
     {
-        // Marshal to UI thread
-        Dispatcher.BeginInvoke(new Action(Render));
+        ScheduleRender();
+    }
+
+    /// <summary>
+    /// Coalesces multiple output events into a single render on the next frame.
+    /// </summary>
+    private void ScheduleRender()
+    {
+        if (_renderPending) return;
+        _renderPending = true;
+        Dispatcher.BeginInvoke(System.Windows.Threading.DispatcherPriority.Render, new Action(() =>
+        {
+            _renderPending = false;
+            Render();
+        }));
     }
 
     private void Render()
     {
         if (_adapter == null) return;
 
-        var snapshot = _adapter.GetSnapshot();
         var dc = _visual.RenderOpen();
-
         try
         {
-            // Draw background fill
+            // Full background fill
             dc.DrawRectangle(DefaultBackground, null, new Rect(0, 0, ActualWidth, ActualHeight));
 
-            int width = snapshot.Width;
-            int height = snapshot.Height;
-
-            for (int y = 0; y < height; y++)
+            // Read directly from the adapter's buffer under lock — no copy needed
+            _adapter.RenderUnderLock((buffer, width, height, cursorX, cursorY, cursorVisible) =>
             {
-                for (int x = 0; x < width; x++)
-                {
-                    var cell = snapshot.Buffer[y, x];
-                    double px = x * _cellWidth;
-                    double py = y * _cellHeight;
-
-                    var fg = cell.IsReverse ? GetBrush(cell.Background, DefaultBackground) : GetBrush(cell.Foreground, DefaultForeground);
-                    var bg = cell.IsReverse ? GetBrush(cell.Foreground, DefaultForeground) : GetBrush(cell.Background, null);
-
-                    // Draw cell background if not default
-                    if (bg != null)
-                    {
-                        dc.DrawRectangle(bg, null, new Rect(px, py, _cellWidth, _cellHeight));
-                    }
-
-                    // Draw character
-                    var ch = cell.Character;
-                    if (!string.IsNullOrEmpty(ch) && ch != " ")
-                    {
-                        var weight = cell.IsBold ? FontWeights.Bold : FontWeights.Regular;
-                        var style = cell.IsItalic ? FontStyles.Italic : FontStyles.Normal;
-                        var tf = new Typeface(_typeface.FontFamily, style, weight, FontStretches.Normal);
-
-                        var ft = new FormattedText(
-                            ch,
-                            CultureInfo.InvariantCulture,
-                            FlowDirection.LeftToRight,
-                            tf,
-                            _fontSize,
-                            fg,
-                            _dpiScale);
-
-                        if (cell.IsDim)
-                        {
-                            dc.PushOpacity(0.5);
-                            dc.DrawText(ft, new Point(px, py));
-                            dc.Pop();
-                        }
-                        else
-                        {
-                            dc.DrawText(ft, new Point(px, py));
-                        }
-                    }
-
-                    // Draw underline
-                    if (cell.IsUnderline)
-                    {
-                        var pen = new Pen(fg, 1);
-                        pen.Freeze();
-                        double underlineY = py + _cellHeight - 2;
-                        dc.DrawLine(pen, new Point(px, underlineY), new Point(px + _cellWidth, underlineY));
-                    }
-
-                    // Draw strikethrough
-                    if (cell.IsStrikethrough)
-                    {
-                        var pen = new Pen(fg, 1);
-                        pen.Freeze();
-                        double strikeY = py + _cellHeight / 2;
-                        dc.DrawLine(pen, new Point(px, strikeY), new Point(px + _cellWidth, strikeY));
-                    }
-                }
-            }
-
-            // Draw cursor
-            if (snapshot.CursorVisible &&
-                snapshot.CursorX >= 0 && snapshot.CursorX < width &&
-                snapshot.CursorY >= 0 && snapshot.CursorY < height)
-            {
-                double cx = snapshot.CursorX * _cellWidth;
-                double cy = snapshot.CursorY * _cellHeight;
-
-                // Draw a bar cursor
-                dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
-            }
+                RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible);
+            });
         }
         finally
         {
             dc.Close();
         }
+    }
+
+    /// <summary>
+    /// Core rendering: scans rows for attribute runs and draws them as batched GlyphRuns.
+    /// </summary>
+    private void RenderBuffer(DrawingContext dc, TerminalCell[,] buffer, int width, int height,
+        int cursorX, int cursorY, bool cursorVisible)
+    {
+        for (int y = 0; y < height; y++)
+        {
+            double py = y * _cellHeight;
+            int x = 0;
+
+            while (x < width)
+            {
+                var cell = buffer[y, x];
+
+                // Determine effective colors (handle reverse)
+                var fg = cell.IsReverse ? GetBrush(cell.Background, DefaultBackground) : GetBrush(cell.Foreground, DefaultForeground);
+                var bg = cell.IsReverse ? GetBrush(cell.Foreground, DefaultForeground) : GetBrush(cell.Background, null);
+                bool bold = cell.IsBold;
+                bool italic = cell.IsItalic;
+                bool dim = cell.IsDim;
+                bool underline = cell.IsUnderline;
+                bool strikethrough = cell.IsStrikethrough;
+
+                // Scan for a run of cells with the same style
+                int runStart = x;
+                x++;
+                while (x < width)
+                {
+                    var next = buffer[y, x];
+                    var nextFg = next.IsReverse ? GetBrush(next.Background, DefaultBackground) : GetBrush(next.Foreground, DefaultForeground);
+                    var nextBg = next.IsReverse ? GetBrush(next.Foreground, DefaultForeground) : GetBrush(next.Background, null);
+
+                    if (nextFg != fg || nextBg != bg ||
+                        next.IsBold != bold || next.IsItalic != italic || next.IsDim != dim ||
+                        next.IsUnderline != underline || next.IsStrikethrough != strikethrough)
+                        break;
+                    x++;
+                }
+
+                int runLen = x - runStart;
+                double px = runStart * _cellWidth;
+                double runWidth = runLen * _cellWidth;
+
+                // Draw background for the entire run
+                if (bg != null)
+                {
+                    dc.DrawRectangle(bg, null, new Rect(px, py, runWidth, _cellHeight));
+                }
+
+                // Build GlyphRun for the text
+                var glyphTypeface = GetGlyphTypeface(bold, italic);
+                if (glyphTypeface != null)
+                {
+                    DrawGlyphRun(dc, glyphTypeface, buffer, y, runStart, runLen, px, py, fg!, dim);
+                }
+                else
+                {
+                    // Fallback: single FormattedText for the whole run
+                    DrawFormattedRun(dc, buffer, y, runStart, runLen, px, py, fg!, bold, italic, dim);
+                }
+
+                // Draw underline for the run
+                if (underline)
+                {
+                    var pen = GetOrCreatePen(fg!);
+                    double underlineY = py + _cellHeight - 2;
+                    dc.DrawLine(pen, new Point(px, underlineY), new Point(px + runWidth, underlineY));
+                }
+
+                // Draw strikethrough for the run
+                if (strikethrough)
+                {
+                    var pen = GetOrCreatePen(fg!);
+                    double strikeY = py + _cellHeight / 2;
+                    dc.DrawLine(pen, new Point(px, strikeY), new Point(px + runWidth, strikeY));
+                }
+            }
+        }
+
+        // Draw cursor
+        if (cursorVisible &&
+            cursorX >= 0 && cursorX < width &&
+            cursorY >= 0 && cursorY < height)
+        {
+            double cx = cursorX * _cellWidth;
+            double cy = cursorY * _cellHeight;
+            dc.DrawRectangle(CursorBrush, null, new Rect(cx, cy, 2, _cellHeight));
+        }
+    }
+
+    /// <summary>
+    /// Draws a run of characters using a single GlyphRun — much faster than FormattedText.
+    /// </summary>
+    private void DrawGlyphRun(DrawingContext dc, GlyphTypeface glyphTypeface,
+        TerminalCell[,] buffer, int row, int startCol, int count,
+        double px, double py, SolidColorBrush fg, bool dim)
+    {
+        var glyphIndices = new List<ushort>(count);
+        var advanceWidths = new List<double>(count);
+        var charMap = glyphTypeface.CharacterToGlyphMap;
+        double emSize = _fontSize;
+        int skippedLeading = 0;
+        bool hasGlyphs = false;
+
+        for (int i = 0; i < count; i++)
+        {
+            var ch = buffer[row, startCol + i].Character;
+            if (string.IsNullOrEmpty(ch) || ch == " ")
+            {
+                if (!hasGlyphs)
+                {
+                    skippedLeading++;
+                    continue;
+                }
+                // Use space glyph to maintain positioning
+                if (charMap.TryGetValue(' ', out ushort spaceGlyph))
+                {
+                    glyphIndices.Add(spaceGlyph);
+                    advanceWidths.Add(_cellWidth);
+                }
+                continue;
+            }
+
+            // Get glyph for first codepoint of grapheme cluster
+            int codepoint = char.ConvertToUtf32(ch, 0);
+            if (charMap.TryGetValue(codepoint, out ushort glyphIndex))
+            {
+                hasGlyphs = true;
+                glyphIndices.Add(glyphIndex);
+                advanceWidths.Add(_cellWidth);
+            }
+            else
+            {
+                // Unknown glyph — use .notdef (index 0) or tofu
+                hasGlyphs = true;
+                glyphIndices.Add(0);
+                advanceWidths.Add(_cellWidth);
+            }
+        }
+
+        if (glyphIndices.Count == 0) return;
+
+        double originX = px + skippedLeading * _cellWidth;
+        var origin = new Point(originX, py + _baselineY);
+
+#pragma warning disable CS0618 // GlyphRun constructor is obsolete but the replacement requires .NET 9+
+        var glyphRun = new GlyphRun(
+            glyphTypeface,
+            bidiLevel: 0,
+            isSideways: false,
+            renderingEmSize: emSize,
+            pixelsPerDip: (float)_dpiScale,
+            glyphIndices: glyphIndices,
+            baselineOrigin: origin,
+            advanceWidths: advanceWidths,
+            glyphOffsets: null,
+            characters: null,
+            deviceFontName: null,
+            clusterMap: null,
+            caretStops: null,
+            language: null);
+#pragma warning restore CS0618
+
+        if (dim)
+        {
+            dc.PushOpacity(0.5);
+            dc.DrawGlyphRun(fg, glyphRun);
+            dc.Pop();
+        }
+        else
+        {
+            dc.DrawGlyphRun(fg, glyphRun);
+        }
+    }
+
+    /// <summary>
+    /// Fallback path: draws a run using a single FormattedText (still much better than per-cell).
+    /// </summary>
+    private void DrawFormattedRun(DrawingContext dc, TerminalCell[,] buffer, int row,
+        int startCol, int count, double px, double py,
+        SolidColorBrush fg, bool bold, bool italic, bool dim)
+    {
+        // Build string for the run
+        var chars = new char[count];
+        bool hasContent = false;
+        for (int i = 0; i < count; i++)
+        {
+            var ch = buffer[row, startCol + i].Character;
+            if (!string.IsNullOrEmpty(ch) && ch != " ")
+            {
+                chars[i] = ch[0];
+                hasContent = true;
+            }
+            else
+            {
+                chars[i] = ' ';
+            }
+        }
+
+        if (!hasContent) return;
+
+        var weight = bold ? FontWeights.Bold : FontWeights.Regular;
+        var style = italic ? FontStyles.Italic : FontStyles.Normal;
+        var tf = new Typeface(_fallbackTypeface.FontFamily, style, weight, FontStretches.Normal);
+
+        var ft = new FormattedText(
+            new string(chars),
+            CultureInfo.InvariantCulture,
+            FlowDirection.LeftToRight,
+            tf,
+            _fontSize,
+            fg,
+            _dpiScale);
+
+        if (dim)
+        {
+            dc.PushOpacity(0.5);
+            dc.DrawText(ft, new Point(px, py));
+            dc.Pop();
+        }
+        else
+        {
+            dc.DrawText(ft, new Point(px, py));
+        }
+    }
+
+    private GlyphTypeface? GetGlyphTypeface(bool bold, bool italic) => (bold, italic) switch
+    {
+        (false, false) => _regularGlyph,
+        (true, false) => _boldGlyph ?? _regularGlyph,
+        (false, true) => _italicGlyph ?? _regularGlyph,
+        (true, true) => _boldItalicGlyph ?? _boldGlyph ?? _regularGlyph,
+    };
+
+    private static Pen GetOrCreatePen(SolidColorBrush brush)
+    {
+        int key = brush.Color.GetHashCode();
+        if (!PenCache.TryGetValue(key, out var pen))
+        {
+            pen = new Pen(brush, 1);
+            pen.Freeze();
+            PenCache[key] = pen;
+        }
+        return pen;
     }
 
     protected override void OnRenderSizeChanged(SizeChangedInfo sizeInfo)
@@ -239,7 +466,7 @@ public class TerminalControl : FrameworkElement
         int rows = Math.Max(1, (int)(ActualHeight / _cellHeight));
 
         _adapter.TriggerResize(cols, rows);
-        Render();
+        ScheduleRender();
     }
 
     // === Keyboard Input ===
@@ -310,10 +537,10 @@ public class TerminalControl : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
-        if (!_mouseButtonDown) return; // Only send drag events (mode 1002 behavior)
+        if (!_mouseButtonDown) return;
 
         var pos = CellPosition(e);
-        int button = WpfButtonToSgr(_lastPressedButton) | 32; // 32 = motion flag
+        int button = WpfButtonToSgr(_lastPressedButton) | 32;
         int modifiers = GetMouseModifiers();
         _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
     }
@@ -323,7 +550,7 @@ public class TerminalControl : FrameworkElement
         if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
 
         var pos = CellPosition(e);
-        int button = e.Delta > 0 ? 64 : 65; // 64=scroll up, 65=scroll down
+        int button = e.Delta > 0 ? 64 : 65;
         int modifiers = GetMouseModifiers();
         _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
         e.Handled = true;
@@ -332,7 +559,6 @@ public class TerminalControl : FrameworkElement
     private (int x, int y) CellPosition(MouseEventArgs e)
     {
         var point = e.GetPosition(this);
-        // SGR mouse uses 1-based coordinates
         int col = Math.Max(1, (int)(point.X / _cellWidth) + 1);
         int row = Math.Max(1, (int)(point.Y / _cellHeight) + 1);
         return (col, row);
@@ -377,7 +603,6 @@ public class TerminalControl : FrameworkElement
         };
     }
 
-    // Simple brush cache for RGB colors
     private static readonly Dictionary<int, SolidColorBrush> BrushCache = new();
 
     private static SolidColorBrush Cached(byte r, byte g, byte b)
@@ -394,14 +619,9 @@ public class TerminalControl : FrameworkElement
     private static SolidColorBrush? GetIndexedBrush(int index)
     {
         if (index < 0) return null;
-
-        // Standard colors 0-7
         if (index < 8) return AnsiStandardBrushes[index];
-
-        // Bright colors 8-15
         if (index < 16) return AnsiBrightBrushes[index - 8];
 
-        // 216-color cube (indices 16-231)
         if (index < 232)
         {
             int i = index - 16;
@@ -414,7 +634,6 @@ public class TerminalControl : FrameworkElement
                 (byte)(b == 0 ? 0 : 55 + b * 40));
         }
 
-        // Grayscale ramp (indices 232-255)
         if (index < 256)
         {
             byte v = (byte)(8 + (index - 232) * 10);
