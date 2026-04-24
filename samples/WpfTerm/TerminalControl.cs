@@ -468,87 +468,55 @@ public class TerminalControl : FrameworkElement
         TerminalCell[,] buffer, int row, int startCol, int count,
         double px, double py, SolidColorBrush fg, bool dim)
     {
-        var glyphIndices = new List<ushort>(count);
-        var advanceWidths = new List<double>(count);
         var charMap = glyphTypeface.CharacterToGlyphMap;
         double emSize = _fontSize;
-        int skippedLeading = 0;
-        bool hasGlyphs = false;
+
+        if (dim) dc.PushOpacity(0.5);
 
         for (int i = 0; i < count; i++)
         {
-            // Per-glyph advance width snapped to pixel boundaries
             int col = startCol + i;
-            double advance = ColToX(col + 1) - ColToX(col);
-
             var ch = buffer[row, col].Character;
             if (string.IsNullOrEmpty(ch) || ch == " ")
-            {
-                if (!hasGlyphs)
-                {
-                    skippedLeading++;
-                    continue;
-                }
-                if (charMap.TryGetValue(' ', out ushort spaceGlyph))
-                {
-                    glyphIndices.Add(spaceGlyph);
-                    advanceWidths.Add(advance);
-                }
                 continue;
-            }
 
             int codepoint = char.ConvertToUtf32(ch, 0);
-            if (charMap.TryGetValue(codepoint, out ushort glyphIndex))
+            if (!charMap.TryGetValue(codepoint, out ushort glyphIndex))
             {
-                hasGlyphs = true;
-                glyphIndices.Add(glyphIndex);
-                advanceWidths.Add(advance);
-            }
-            else
-            {
-                // Glyph not in this typeface — fall back to FormattedText for
-                // the entire run, which handles WPF font fallback automatically
+                // Glyph not in this typeface — fall back to FormattedText
+                if (dim) dc.Pop();
                 DrawFormattedRun(dc, buffer, row, startCol, count, px, py, fg,
                     glyphTypeface == _boldGlyph || glyphTypeface == _boldItalicGlyph,
                     glyphTypeface == _italicGlyph || glyphTypeface == _boldItalicGlyph,
                     dim);
                 return;
             }
-        }
 
-        if (glyphIndices.Count == 0) return;
+            // Position each glyph independently — no cumulative advance drift
+            double glyphX = ColToX(col);
+            double advance = ColToX(col + 1) - glyphX;
 
-        double originX = ColToX(startCol + skippedLeading);
-        var origin = new Point(originX, py + _baselineY);
-
-#pragma warning disable CS0618 // GlyphRun constructor is obsolete but the replacement requires .NET 9+
-        var glyphRun = new GlyphRun(
-            glyphTypeface,
-            bidiLevel: 0,
-            isSideways: false,
-            renderingEmSize: emSize,
-            pixelsPerDip: (float)_dpiScale,
-            glyphIndices: glyphIndices,
-            baselineOrigin: origin,
-            advanceWidths: advanceWidths,
-            glyphOffsets: null,
-            characters: null,
-            deviceFontName: null,
-            clusterMap: null,
-            caretStops: null,
-            language: null);
+#pragma warning disable CS0618
+            var glyphRun = new GlyphRun(
+                glyphTypeface,
+                bidiLevel: 0,
+                isSideways: false,
+                renderingEmSize: emSize,
+                pixelsPerDip: (float)_dpiScale,
+                glyphIndices: [glyphIndex],
+                baselineOrigin: new Point(glyphX, py + _baselineY),
+                advanceWidths: [advance],
+                glyphOffsets: null,
+                characters: null,
+                deviceFontName: null,
+                clusterMap: null,
+                caretStops: null,
+                language: null);
 #pragma warning restore CS0618
+            dc.DrawGlyphRun(fg, glyphRun);
+        }
 
-        if (dim)
-        {
-            dc.PushOpacity(0.5);
-            dc.DrawGlyphRun(fg, glyphRun);
-            dc.Pop();
-        }
-        else
-        {
-            dc.DrawGlyphRun(fg, glyphRun);
-        }
+        if (dim) dc.Pop();
     }
 
     /// <summary>
