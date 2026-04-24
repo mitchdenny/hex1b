@@ -772,20 +772,10 @@ public class TerminalControl : FrameworkElement
 
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
-        // Handled entirely in OnKeyDown to avoid WPF suppression during mouse activity.
-        // This is kept as a fallback for IME composition if needed in the future.
-        if (_adapter == null) return;
+        // All character input is handled in OnPreviewKeyDown via KeyToText.
+        // Suppress TextInput to prevent duplicate characters.
         _textInputCount++;
-
-        if (!e.Handled)
-        {
-            var data = AnsiKeyEncoder.EncodeText(e.Text);
-            if (data != null)
-            {
-                _adapter.EnqueueInput(data);
-                e.Handled = true;
-            }
-        }
+        e.Handled = true;
     }
 
     /// <summary>Diagnostic: WPF event counts.</summary>
