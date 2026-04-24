@@ -743,20 +743,13 @@ public class TerminalControl : FrameworkElement
         
         if (_adapter == null) { base.OnPreviewKeyDown(e); return; }
 
-        // Try special key encoding first (arrows, function keys, ctrl combos, etc.)
+        // Only handle special keys (arrows, function keys, ctrl combos) here.
+        // Printable characters go through OnTextInput for correct keyboard
+        // layout/shift/capslock handling without ToUnicode side effects.
         var data = AnsiKeyEncoder.Encode(e);
         if (data != null)
         {
             _adapter.EnqueueInput(data);
-            e.Handled = true;
-            return;
-        }
-
-        // For printable characters, resolve directly from the key event
-        var text = AnsiKeyEncoder.KeyToText(e);
-        if (text != null)
-        {
-            _adapter.EnqueueInput(text);
             e.Handled = true;
             return;
         }
@@ -766,16 +759,20 @@ public class TerminalControl : FrameworkElement
 
     protected override void OnKeyDown(KeyEventArgs e)
     {
-        // Counted for diagnostics only — all handling is in OnPreviewKeyDown
         _keyDownCount++;
     }
 
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
-        // All character input is handled in OnPreviewKeyDown via KeyToText.
-        // Suppress TextInput to prevent duplicate characters.
+        if (_adapter == null) return;
         _textInputCount++;
-        e.Handled = true;
+
+        var data = AnsiKeyEncoder.EncodeText(e.Text);
+        if (data != null)
+        {
+            _adapter.EnqueueInput(data);
+            e.Handled = true;
+        }
     }
 
     /// <summary>Diagnostic: WPF event counts.</summary>

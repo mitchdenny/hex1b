@@ -653,6 +653,11 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         }
     }
     
+    private long _ptyBytesWritten;
+    
+    /// <summary>Total bytes written to PTY input pipe.</summary>
+    internal long PtyBytesWritten => Interlocked.Read(ref _ptyBytesWritten);
+    
     private void WriteThreadProc()
     {
         // Cache the token — same rationale as ReadThreadProc (see comment there).
@@ -692,6 +697,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 {
                     _writeStream.Write(data, 0, data.Length);
                     _writeStream.Flush();
+                    Interlocked.Add(ref _ptyBytesWritten, data.Length);
                 }
                 catch (IOException)
                 {
