@@ -105,7 +105,7 @@ internal sealed class SessionManagerApp
 
         return ctx.VStack(v =>
         [
-            v.Terminal(handle).Fill(),
+            v.Terminal(handle).CopyModeBindings().Fill(),
             v.InfoBar(s =>
             [
                 s.Section("Ctrl+B S"),
