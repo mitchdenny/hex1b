@@ -1,3 +1,4 @@
+using System.Runtime.InteropServices;
 using System.Text;
 using System.Windows.Input;
 
@@ -8,6 +9,14 @@ namespace WpfTerm;
 /// </summary>
 public static class AnsiKeyEncoder
 {
+    [DllImport("user32.dll")]
+    private static extern int ToUnicode(
+        uint wVirtKey, uint wScanCode, byte[] lpKeyState,
+        [Out, MarshalAs(UnmanagedType.LPWStr)] StringBuilder pwszBuff,
+        int cchBuff, uint wFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetKeyboardState(byte[] lpKeyState);
     /// <summary>
     /// Encodes a WPF key event into the ANSI byte sequence that a terminal would send.
     /// Returns null if the key should be ignored.
@@ -97,6 +106,36 @@ public static class AnsiKeyEncoder
             return null;
 
         return Encoding.UTF8.GetBytes(text);
+    }
+
+    /// <summary>
+    /// Converts a WPF KeyEventArgs to a printable character using Win32 ToUnicode.
+    /// Returns UTF-8 bytes of the character, or null if the key isn't printable.
+    /// This bypasses WPF's TextInput which can be suppressed during mouse activity.
+    /// </summary>
+    public static byte[]? KeyToText(KeyEventArgs e)
+    {
+        var key = e.Key == Key.System ? e.SystemKey : e.Key;
+        var virtualKey = (uint)KeyInterop.VirtualKeyFromKey(key);
+        var scanCode = (uint)((e.SystemKey != Key.None ? KeyInterop.VirtualKeyFromKey(e.SystemKey) : KeyInterop.VirtualKeyFromKey(e.Key)));
+
+        var keyboardState = new byte[256];
+        if (!GetKeyboardState(keyboardState))
+            return null;
+
+        var sb = new StringBuilder(4);
+        int result = ToUnicode(virtualKey, 0, keyboardState, sb, sb.Capacity, 0);
+
+        if (result <= 0 || sb.Length == 0)
+            return null;
+
+        var ch = sb.ToString(0, result);
+
+        // Filter out control characters that should be handled by Encode()
+        if (ch.Length == 1 && ch[0] < 0x20)
+            return null;
+
+        return Encoding.UTF8.GetBytes(ch);
     }
 
     /// <summary>

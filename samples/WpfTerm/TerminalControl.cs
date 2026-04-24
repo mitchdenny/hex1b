@@ -741,24 +741,41 @@ public class TerminalControl : FrameworkElement
         if (_adapter == null) return;
         _keyDownCount++;
 
+        // Try special key encoding first (arrows, function keys, ctrl combos, etc.)
         var data = AnsiKeyEncoder.Encode(e);
         if (data != null)
         {
             _adapter.EnqueueInput(data);
+            e.Handled = true;
+            return;
+        }
+
+        // For printable characters, resolve directly from the key event
+        // using ToUnicode — bypasses OnTextInput which WPF can suppress
+        // during rapid mouse activity
+        var text = AnsiKeyEncoder.KeyToText(e);
+        if (text != null)
+        {
+            _adapter.EnqueueInput(text);
             e.Handled = true;
         }
     }
 
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
+        // Handled entirely in OnKeyDown to avoid WPF suppression during mouse activity.
+        // This is kept as a fallback for IME composition if needed in the future.
         if (_adapter == null) return;
         _textInputCount++;
 
-        var data = AnsiKeyEncoder.EncodeText(e.Text);
-        if (data != null)
+        if (!e.Handled)
         {
-            _adapter.EnqueueInput(data);
-            e.Handled = true;
+            var data = AnsiKeyEncoder.EncodeText(e.Text);
+            if (data != null)
+            {
+                _adapter.EnqueueInput(data);
+                e.Handled = true;
+            }
         }
     }
 
