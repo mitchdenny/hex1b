@@ -1,0 +1,10 @@
+<Window x:Class="WpfTerm.MainWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:local="clr-namespace:WpfTerm"
+        Title="WpfTerm — Hex1b Terminal Emulator"
+        Width="1024" Height="768"
+        Background="#1E1E1E"
+        WindowStartupLocation="CenterScreen">
+    <local:TerminalControl x:Name="Terminal" />
+</Window>
