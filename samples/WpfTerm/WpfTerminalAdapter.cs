@@ -1,5 +1,6 @@
 using System.Threading.Channels;
 using Hex1b;
+using Hex1b.Reflow;
 using Hex1b.Tokens;
 
 namespace WpfTerm;
@@ -9,7 +10,7 @@ namespace WpfTerm;
 /// Receives pre-parsed cell impacts (no ANSI parsing needed) and
 /// exposes the screen buffer for the WPF control to render from.
 /// </summary>
-public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, IAsyncDisposable
+public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, ITerminalLifecycleAwarePresentationAdapter, ITerminalReflowProvider, IAsyncDisposable
 {
     private readonly object _bufferLock = new();
     private readonly TaskCompletionSource _disconnected = new(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -292,6 +293,25 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     void ITerminalLifecycleAwarePresentationAdapter.TerminalStarted() { }
 
     void ITerminalLifecycleAwarePresentationAdapter.TerminalCompleted(int exitCode) { }
+
+    // === ITerminalReflowProvider ===
+
+    private ITerminalReflowProvider _reflowStrategy = GhosttyReflowStrategy.Instance;
+
+    public bool ReflowEnabled => true;
+
+    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
+
+    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
+
+    /// <summary>
+    /// Configures the reflow strategy. Defaults to Ghostty-style reflow.
+    /// </summary>
+    public WpfTerminalAdapter WithReflow(ITerminalReflowProvider strategy)
+    {
+        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
+        return this;
+    }
 
     /// <summary>
     /// Gets the active KGP placements from the terminal, or empty if not available.
