@@ -148,7 +148,11 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                 // Track mode changes
                 if (applied.Token is PrivateModeToken pm)
                 {
-                    if (pm.Mode == 25) _cursorVisible = pm.Enable;
+                    if (pm.Mode == 25)
+                    {
+                        _cursorVisible = pm.Enable;
+                        hasChanges = true;
+                    }
                     // Mouse tracking modes
                     if (pm.Mode is 1000 or 1002 or 1003) _mouseTrackingEnabled = pm.Enable;
                     if (pm.Mode == 1006) _sgrMouseModeEnabled = pm.Enable;
@@ -167,6 +171,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                         6 => CursorShape.SteadyBar,
                         _ => CursorShape.Default
                     };
+                    hasChanges = true;
                 }
 
                 // KGP tokens modify placements outside the cell buffer — still need a re-render
@@ -185,9 +190,15 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                     }
                 }
 
-                // Update cursor from last token
-                _cursorX = Math.Clamp(applied.CursorXAfter, 0, Math.Max(0, _width - 1));
-                _cursorY = Math.Clamp(applied.CursorYAfter, 0, Math.Max(0, _height - 1));
+                // Track cursor position — trigger re-render if cursor moved
+                int newCursorX = Math.Clamp(applied.CursorXAfter, 0, Math.Max(0, _width - 1));
+                int newCursorY = Math.Clamp(applied.CursorYAfter, 0, Math.Max(0, _height - 1));
+                if (newCursorX != _cursorX || newCursorY != _cursorY)
+                {
+                    _cursorX = newCursorX;
+                    _cursorY = newCursorY;
+                    hasChanges = true;
+                }
             }
         }
 
