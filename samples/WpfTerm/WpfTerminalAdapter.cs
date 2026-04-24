@@ -27,6 +27,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     private bool _sgrMouseModeEnabled;
     private bool _disposed;
     private Hex1bTerminal? _terminal;
+    private int _kgpTokensReceived;
 
     public WpfTerminalAdapter(int width = 120, int height = 30)
     {
@@ -42,6 +43,11 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     public int CursorY => _cursorY;
     public bool CursorVisible => _cursorVisible;
     public CursorShape CursorShape => _cursorShape;
+
+    /// <summary>
+    /// Diagnostic: number of KGP tokens received from the terminal.
+    /// </summary>
+    public int KgpTokensReceived => _kgpTokensReceived;
 
     /// <summary>
     /// Whether the child process has enabled mouse tracking (modes 1000/1002/1003).
@@ -177,6 +183,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                 // KGP tokens modify placements outside the cell buffer — still need a re-render
                 if (applied.Token is KgpToken)
                 {
+                    _kgpTokensReceived++;
                     hasChanges = true;
                 }
 

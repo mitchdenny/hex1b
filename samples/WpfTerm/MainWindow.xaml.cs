@@ -46,6 +46,15 @@ public partial class MainWindow : Window
 
         Terminal.Attach(_adapter);
 
+        // Diagnostic: show KGP stats in title bar
+        var diagTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        diagTimer.Tick += (_, _) =>
+        {
+            var placements = _adapter!.GetKgpPlacements();
+            Title = $"WpfTerm — KGP tokens:{_adapter.KgpTokensReceived} placements:{placements.Count}";
+        };
+        diagTimer.Start();
+
         // Run the terminal on a background task
         _runTask = Task.Run(async () =>
         {
