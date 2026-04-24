@@ -24,6 +24,7 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     private bool _cursorVisible = true;
     private CursorShape _cursorShape = CursorShape.Default;
     private bool _mouseTrackingEnabled;
+    private bool _mouseMotionEnabled; // Mode 1003: report all motion, not just drag
     private bool _sgrMouseModeEnabled;
     private bool _disposed;
     private Hex1bTerminal? _terminal;
@@ -60,6 +61,12 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
     /// Whether the child process has enabled mouse tracking (modes 1000/1002/1003).
     /// </summary>
     public bool MouseTrackingEnabled => _mouseTrackingEnabled;
+
+    /// <summary>
+    /// Whether the child process wants all mouse motion events (mode 1003),
+    /// not just drag events (mode 1002) or clicks only (mode 1000).
+    /// </summary>
+    public bool MouseMotionEnabled => _mouseMotionEnabled;
 
     public TerminalCapabilities Capabilities { get; } = new()
     {
@@ -171,7 +178,11 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
                         hasChanges = true;
                     }
                     // Mouse tracking modes
-                    if (pm.Mode is 1000 or 1002 or 1003) _mouseTrackingEnabled = pm.Enable;
+                    if (pm.Mode is 1000 or 1002 or 1003)
+                    {
+                        _mouseTrackingEnabled = pm.Enable;
+                        _mouseMotionEnabled = pm.Enable && pm.Mode == 1003;
+                    }
                     if (pm.Mode == 1006) _sgrMouseModeEnabled = pm.Enable;
                 }
 

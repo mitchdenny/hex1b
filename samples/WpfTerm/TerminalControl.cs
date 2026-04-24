@@ -787,10 +787,22 @@ public class TerminalControl : FrameworkElement
     protected override void OnMouseMove(MouseEventArgs e)
     {
         if (_adapter == null || !_adapter.MouseTrackingEnabled) return;
-        if (!_mouseButtonDown) return;
+        
+        // Mode 1003: report all motion. Mode 1002: only report drag (button held).
+        if (!_mouseButtonDown && !_adapter.MouseMotionEnabled) return;
 
         var pos = CellPosition(e);
-        int button = WpfButtonToSgr(_lastPressedButton) | 32;
+        int button;
+        if (_mouseButtonDown)
+        {
+            // Drag: button code + 32 (motion flag)
+            button = WpfButtonToSgr(_lastPressedButton) | 32;
+        }
+        else
+        {
+            // Motion with no button: 35 = 32 (motion) + 3 (no button)
+            button = 35;
+        }
         int modifiers = GetMouseModifiers();
         _adapter.EnqueueInput(AnsiKeyEncoder.EncodeMouse(button, pos.x, pos.y, isRelease: false, modifiers));
     }
