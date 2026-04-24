@@ -443,7 +443,7 @@ public class TerminalControl : FrameworkElement
                             var glyphRun = new GlyphRun(
                                 _regularGlyph, 0, false, _fontSize, (float)_dpiScale,
                                 [glyphIdx], new Point(cx, cy + _baselineY),
-                                [_cellWidth], null, null, null, null, null, null);
+                                [cw], null, null, null, null, null, null);
 #pragma warning restore CS0618
                             dc.DrawGlyphRun(DefaultBackground, glyphRun);
                         }
@@ -479,7 +479,11 @@ public class TerminalControl : FrameworkElement
 
         for (int i = 0; i < count; i++)
         {
-            var ch = buffer[row, startCol + i].Character;
+            // Per-glyph advance width snapped to pixel boundaries
+            int col = startCol + i;
+            double advance = ColToX(col + 1) - ColToX(col);
+
+            var ch = buffer[row, col].Character;
             if (string.IsNullOrEmpty(ch) || ch == " ")
             {
                 if (!hasGlyphs)
@@ -487,22 +491,20 @@ public class TerminalControl : FrameworkElement
                     skippedLeading++;
                     continue;
                 }
-                // Use space glyph to maintain positioning
                 if (charMap.TryGetValue(' ', out ushort spaceGlyph))
                 {
                     glyphIndices.Add(spaceGlyph);
-                    advanceWidths.Add(_cellWidth);
+                    advanceWidths.Add(advance);
                 }
                 continue;
             }
 
-            // Get glyph for first codepoint of grapheme cluster
             int codepoint = char.ConvertToUtf32(ch, 0);
             if (charMap.TryGetValue(codepoint, out ushort glyphIndex))
             {
                 hasGlyphs = true;
                 glyphIndices.Add(glyphIndex);
-                advanceWidths.Add(_cellWidth);
+                advanceWidths.Add(advance);
             }
             else
             {
@@ -518,7 +520,7 @@ public class TerminalControl : FrameworkElement
 
         if (glyphIndices.Count == 0) return;
 
-        double originX = px + skippedLeading * _cellWidth;
+        double originX = ColToX(startCol + skippedLeading);
         var origin = new Point(originX, py + _baselineY);
 
 #pragma warning disable CS0618 // GlyphRun constructor is obsolete but the replacement requires .NET 9+
