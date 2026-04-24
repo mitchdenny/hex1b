@@ -75,4 +75,12 @@ public sealed class CopyModeBindingsOptions
     public Hex1bModifiers MouseBlockModifier { get; set; } = Hex1bModifiers.Alt;
     /// <summary>Mouse button that copies the selection.</summary>
     public MouseButton MouseCopyButton { get; set; } = MouseButton.Right;
+
+    // Clipboard
+    /// <summary>
+    /// Callback to copy text to the system clipboard. When null (default), the framework
+    /// automatically uses the Hex1bApp's OSC 52 clipboard support.
+    /// Set to a custom callback to override clipboard behavior, or set to <c>_ => { }</c> to disable.
+    /// </summary>
+    public Action<string>? CopyToClipboard { get; set; }
 }

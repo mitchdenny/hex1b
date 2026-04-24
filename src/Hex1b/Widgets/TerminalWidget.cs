@@ -140,7 +140,7 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         node.Bind();
         
         // Attach copy mode helper if configured
-        node.AttachCopyModeHelper(CopyModeOptions);
+        node.AttachCopyModeHelper(CopyModeOptions, context.CopyToClipboardCallback);
         
         // If terminal is not running and we have a fallback builder, reconcile the fallback widget
         if (Handle.State != TerminalState.Running && NotRunningBuilder != null)

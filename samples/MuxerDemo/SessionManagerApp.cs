@@ -12,7 +12,6 @@ internal sealed class SessionManagerApp
 {
     private readonly SessionManager _sessions;
     private Hex1bApp? _app;
-    private TerminalWidgetHandle? _clipboardWiredHandle;
 
     public SessionManagerApp(SessionManager sessions)
     {
@@ -100,13 +99,6 @@ internal sealed class SessionManagerApp
     private Hex1bWidget BuildTerminalView<TParent>(WidgetContext<TParent> ctx, TerminalWidgetHandle handle)
         where TParent : Hex1bWidget
     {
-        // Wire clipboard once per handle
-        if (_clipboardWiredHandle != handle)
-        {
-            _clipboardWiredHandle = handle;
-            handle.TextCopied += text => _app?.CopyToClipboard(text);
-        }
-        
         var dims = _sessions.Adapter is not null
             ? $"{_sessions.Adapter.RemoteWidth}\u00d7{_sessions.Adapter.RemoteHeight}"
             : "";

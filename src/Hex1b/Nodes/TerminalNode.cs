@@ -447,7 +447,7 @@ public sealed class TerminalNode : Hex1bNode
     /// <summary>
     /// Attaches or detaches the copy mode helper based on widget configuration.
     /// </summary>
-    internal void AttachCopyModeHelper(CopyModeBindingsOptions? options)
+    internal void AttachCopyModeHelper(CopyModeBindingsOptions? options, Action<string>? defaultClipboard = null)
     {
         if (options == null)
         {
@@ -464,6 +464,9 @@ public sealed class TerminalNode : Hex1bNode
         {
             _copyModeHelper = new TerminalCopyModeHelper(_handle, options);
         }
+        
+        // Set the default clipboard callback from the app
+        _copyModeHelper.SetDefaultClipboard(defaultClipboard);
     }
     
     private void OnOutputReceived()

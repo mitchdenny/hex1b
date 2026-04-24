@@ -118,7 +118,8 @@ public sealed class ReconcileContext
         Action? releaseCaptureCallback = null,
         Action<TimeSpan, Action>? scheduleTimerCallback = null,
         WindowManagerRegistry? windowManagerRegistry = null,
-        Action<Func<Hex1bNode, bool>>? requestFocusCallback = null)
+        Action<Func<Hex1bNode, bool>>? requestFocusCallback = null,
+        Action<string>? copyToClipboardCallback = null)
     {
         Parent = parent;
         _ancestors = ancestors ?? Array.Empty<Hex1bNode>();
@@ -131,12 +132,19 @@ public sealed class ReconcileContext
         ScheduleTimerCallback = scheduleTimerCallback;
         WindowManagerRegistry = windowManagerRegistry;
         RequestFocusCallback = requestFocusCallback;
+        CopyToClipboardCallback = copyToClipboardCallback;
     }
 
     /// <summary>
     /// The window manager registry for registering WindowPanels.
     /// </summary>
     internal WindowManagerRegistry? WindowManagerRegistry { get; }
+    
+    /// <summary>
+    /// Callback to copy text to the system clipboard (e.g., via OSC 52).
+    /// Used by TerminalWidget copy mode to automatically wire clipboard support.
+    /// </summary>
+    internal Action<string>? CopyToClipboardCallback { get; }
 
     /// <summary>
     /// Creates a root reconcile context (no parent).
@@ -149,11 +157,12 @@ public sealed class ReconcileContext
         Action? releaseCaptureCallback = null,
         Action<TimeSpan, Action>? scheduleTimerCallback = null,
         WindowManagerRegistry? windowManagerRegistry = null,
-        Action<Func<Hex1bNode, bool>>? requestFocusCallback = null) 
+        Action<Func<Hex1bNode, bool>>? requestFocusCallback = null,
+        Action<string>? copyToClipboardCallback = null) 
         => new(null, focusRing ?? new FocusRing(), cancellationToken, invalidateCallback: invalidateCallback, 
             captureInputCallback: captureInputCallback, releaseCaptureCallback: releaseCaptureCallback,
             scheduleTimerCallback: scheduleTimerCallback, windowManagerRegistry: windowManagerRegistry,
-            requestFocusCallback: requestFocusCallback);
+            requestFocusCallback: requestFocusCallback, copyToClipboardCallback: copyToClipboardCallback);
 
     /// <summary>
     /// Creates a child context with the specified parent.
@@ -165,7 +174,8 @@ public sealed class ReconcileContext
         var newAncestors = new List<Hex1bNode>(_ancestors.Count + 1) { parent };
         newAncestors.AddRange(_ancestors);
         return new ReconcileContext(parent, FocusRing, CancellationToken, newAncestors, LayoutAxis, InvalidateCallback, 
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback)
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
+            CopyToClipboardCallback)
         {
             DiagnosticTimingEnabled = DiagnosticTimingEnabled,
             Metrics = Metrics,
@@ -180,7 +190,8 @@ public sealed class ReconcileContext
     public ReconcileContext WithLayoutAxis(LayoutAxis axis)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), axis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback)
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
+            CopyToClipboardCallback)
         { IsNew = IsNew, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
     
@@ -191,7 +202,8 @@ public sealed class ReconcileContext
     public ReconcileContext WithChildPosition(int index, int count)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback)
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
+            CopyToClipboardCallback)
         { IsNew = IsNew, ChildIndex = index, ChildCount = count, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = _inputOverrides };
     }
 
@@ -202,7 +214,8 @@ public sealed class ReconcileContext
     internal ReconcileContext WithInputOverrides(IReadOnlyDictionary<Type, Action<InputBindingsBuilder>> overrides)
     {
         return new ReconcileContext(Parent, FocusRing, CancellationToken, _ancestors.ToList(), LayoutAxis, InvalidateCallback,
-            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback)
+            CaptureInputCallback, ReleaseCaptureCallback, ScheduleTimerCallback, WindowManagerRegistry, RequestFocusCallback,
+            CopyToClipboardCallback)
         { IsNew = IsNew, ChildIndex = ChildIndex, ChildCount = ChildCount, DiagnosticTimingEnabled = DiagnosticTimingEnabled, Metrics = Metrics, _inputOverrides = overrides };
     }
 

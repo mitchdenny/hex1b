@@ -11,6 +11,7 @@ internal sealed class TerminalCopyModeHelper
 {
     private readonly TerminalWidgetHandle _handle;
     private readonly CopyModeBindingsOptions _options;
+    private Action<string>? _clipboardCallback;
 
     public TerminalCopyModeHelper(TerminalWidgetHandle handle, CopyModeBindingsOptions options)
     {
@@ -18,6 +19,30 @@ internal sealed class TerminalCopyModeHelper
         _options = options;
         _handle.CopyModeInput += HandleInput;
         _handle.CopyModeChanged += OnCopyModeChanged;
+        
+        // Wire clipboard if a callback is provided
+        if (options.CopyToClipboard != null)
+        {
+            _clipboardCallback = options.CopyToClipboard;
+            _handle.TextCopied += _clipboardCallback;
+        }
+    }
+
+    /// <summary>
+    /// Sets the default clipboard callback (used by the framework when no custom
+    /// callback is configured). Called during reconciliation with the app's CopyToClipboard.
+    /// </summary>
+    internal void SetDefaultClipboard(Action<string>? clipboard)
+    {
+        if (_options.CopyToClipboard != null) return; // user provided custom callback
+        
+        // Remove old default
+        if (_clipboardCallback != null)
+            _handle.TextCopied -= _clipboardCallback;
+        
+        _clipboardCallback = clipboard;
+        if (_clipboardCallback != null)
+            _handle.TextCopied += _clipboardCallback;
     }
 
     /// <summary>
@@ -27,6 +52,9 @@ internal sealed class TerminalCopyModeHelper
     {
         _handle.CopyModeInput -= HandleInput;
         _handle.CopyModeChanged -= OnCopyModeChanged;
+        if (_clipboardCallback != null)
+            _handle.TextCopied -= _clipboardCallback;
+        _clipboardCallback = null;
     }
 
     private void OnCopyModeChanged(bool active)

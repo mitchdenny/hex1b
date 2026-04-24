@@ -36,13 +36,12 @@ var terminal = builder
     .WithTerminalWidget(out var handle)
     .Build();
 
-// Wire clipboard and editor updates
+// Update editor when text is copied (clipboard is handled automatically by CopyModeBindings)
 handle.TextCopied += text =>
 {
     var deleteRange = new DocumentRange(new DocumentOffset(0), new DocumentOffset(document.Length));
     document.Apply(new ReplaceOperation(deleteRange, text));
     editorState.ClampAllCursors();
-    app?.CopyToClipboard(text);
     app?.Invalidate();
 };
 
