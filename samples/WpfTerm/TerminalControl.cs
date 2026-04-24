@@ -195,14 +195,12 @@ public class TerminalControl : FrameworkElement
             _baselineY = ft.Baseline;
         }
 
-        // Store the physical pixel cell width for pixel-perfect position calculation.
-        // At fractional DPI, no single DIP cell width produces pixel-aligned positions
-        // for every column. Instead, we compute each position as:
-        //   Round(col * _physCellWidth) / _dpiScale
-        _physCellWidth = Math.Ceiling(_cellWidth * _dpiScale);
-        _physCellHeight = Math.Ceiling(_cellHeight * _dpiScale);
-        _cellWidth = _physCellWidth / _dpiScale;
-        _cellHeight = _physCellHeight / _dpiScale;
+        // Use the font's exact metrics for physical pixel calculations.
+        // Don't ceil — ColToX/RowToY handle pixel snapping per-position.
+        // Ceiling causes cell dimensions to be wider than glyph metrics,
+        // creating gaps within braille and other cell-filling characters.
+        _physCellWidth = _cellWidth * _dpiScale;
+        _physCellHeight = _cellHeight * _dpiScale;
     }
 
     /// <summary>
