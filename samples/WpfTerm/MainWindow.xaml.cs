@@ -35,13 +35,15 @@ public partial class MainWindow : Window
 
         _adapter = new WpfTerminalAdapter(120, 30);
 
-        // Try to use custom conpty.dll for VT passthrough (enables KGP through ConPTY)
+        // Try to use custom conpty.dll for VT passthrough (enables KGP natively through ConPTY)
         var conptyDll = FindConptyDll();
 
-        // Create KGP side-channel pipe server as fallback — child processes will send
-        // KGP image data here if ConPTY strips APC sequences
-        _kgpPipeServer = new KgpPipeServer();
-        _kgpPipeServer.Start();
+        // Only use side-channel pipe when custom conpty.dll is NOT available
+        if (conptyDll == null)
+        {
+            _kgpPipeServer = new KgpPipeServer();
+            _kgpPipeServer.Start();
+        }
 
         _terminal = Hex1bTerminal.CreateBuilder()
             .WithPresentation(_adapter)
@@ -52,15 +54,21 @@ public partial class MainWindow : Window
                 options.WindowsPtyMode = WindowsPtyMode.Direct;
                 if (conptyDll != null)
                     options.ConptyDllPath = conptyDll;
-                // Pass KGP pipe name to child so it can divert KGP there
-                options.Environment ??= new Dictionary<string, string>();
-                options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
+                // Only set pipe env var when falling back to side-channel
+                if (_kgpPipeServer != null)
+                {
+                    options.Environment ??= new Dictionary<string, string>();
+                    options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
+                }
             })
             .WithDimensions(_adapter.Width, _adapter.Height)
             .Build();
 
-        // Wire pipe server to terminal — KGP tokens from pipe get processed
-        _kgpPipeServer.SetTokenHandler(token => _terminal.ProcessKgpFromSideChannel(token));
+        // Wire pipe server to terminal if using side-channel
+        if (_kgpPipeServer != null)
+        {
+            _kgpPipeServer.SetTokenHandler(token => _terminal.ProcessKgpFromSideChannel(token));
+        }
 
         Terminal.Attach(_adapter);
 
