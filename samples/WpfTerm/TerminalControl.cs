@@ -314,19 +314,40 @@ public class TerminalControl : FrameworkElement
         {
             double cellY = y * _cellHeight;
 
+            // Pass 1: Draw backgrounds as continuous runs to eliminate sub-pixel gaps
+            int bgRunStart = 0;
+            SolidColorBrush? bgRunBrush = null;
+            for (int x = 0; x <= width; x++)
+            {
+                SolidColorBrush? cellBg = null;
+                if (x < width)
+                {
+                    var c = buffer[y, x];
+                    cellBg = c.IsReverse ? GetBrush(c.Foreground, DefaultForeground) : GetBrush(c.Background, null);
+                    if (kgpCoveredCells?.Contains((x, y)) == true) cellBg = null;
+                }
+
+                if (cellBg != bgRunBrush || x == width)
+                {
+                    // Flush previous run
+                    if (bgRunBrush != null && x > bgRunStart)
+                    {
+                        double runX = bgRunStart * _cellWidth;
+                        double runW = (x - bgRunStart) * _cellWidth;
+                        dc.DrawRectangle(bgRunBrush, null, new Rect(runX, cellY, runW, _cellHeight));
+                    }
+                    bgRunStart = x;
+                    bgRunBrush = cellBg;
+                }
+            }
+
+            // Pass 2: Draw characters per-cell
             for (int x = 0; x < width; x++)
             {
                 var cell = buffer[y, x];
                 double cellX = x * _cellWidth;
 
                 var fg = cell.IsReverse ? GetBrush(cell.Background, DefaultBackground) : GetBrush(cell.Foreground, DefaultForeground);
-                var bg = cell.IsReverse ? GetBrush(cell.Foreground, DefaultForeground) : GetBrush(cell.Background, null);
-
-                // Draw cell background — extend by 1px overlap to prevent sub-pixel gaps
-                if (bg != null && !(kgpCoveredCells?.Contains((x, y)) == true))
-                {
-                    dc.DrawRectangle(bg, null, new Rect(cellX, cellY, _cellWidth + 1, _cellHeight + 1));
-                }
 
                 // Draw character
                 var ch = cell.Character;
