@@ -296,22 +296,15 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
 
     // === ITerminalReflowProvider ===
 
-    private ITerminalReflowProvider _reflowStrategy = GhosttyReflowStrategy.Instance;
+    // Disable reflow — ConPTY handles reflow internally when ResizePseudoConsole
+    // is called. It re-renders the console buffer at the new width and sends us
+    // the full repaint. Our terminal just needs to accept the new content.
+    // If we also try to reflow, the two fight and produce incorrect output.
+    public bool ReflowEnabled => false;
 
-    public bool ReflowEnabled => true;
+    public bool ShouldClearSoftWrapOnAbsolutePosition => false;
 
-    public bool ShouldClearSoftWrapOnAbsolutePosition => _reflowStrategy.ShouldClearSoftWrapOnAbsolutePosition;
-
-    public ReflowResult Reflow(ReflowContext context) => _reflowStrategy.Reflow(context);
-
-    /// <summary>
-    /// Configures the reflow strategy. Defaults to Ghostty-style reflow.
-    /// </summary>
-    public WpfTerminalAdapter WithReflow(ITerminalReflowProvider strategy)
-    {
-        _reflowStrategy = strategy ?? throw new ArgumentNullException(nameof(strategy));
-        return this;
-    }
+    public ReflowResult Reflow(ReflowContext context) => GhosttyReflowStrategy.Instance.Reflow(context);
 
     /// <summary>
     /// Gets the active KGP placements from the terminal, or empty if not available.
