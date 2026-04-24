@@ -32,7 +32,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     // === Dynamic ConPTY function delegates ===
     
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
-    private delegate int CreatePseudoConsoleDelegate(COORD size, SafeFileHandle hInput, SafeFileHandle hOutput, uint dwFlags, out IntPtr phPC);
+    private delegate int CreatePseudoConsoleDelegate(COORD size, IntPtr hInput, IntPtr hOutput, uint dwFlags, out IntPtr phPC);
     
     [UnmanagedFunctionPointer(CallingConvention.StdCall)]
     private delegate int ResizePseudoConsoleDelegate(IntPtr hPC, COORD size);
@@ -293,7 +293,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             
             // Create the pseudo console
             var size = new COORD { X = (short)width, Y = (short)height };
-            int hr = _fnCreate(size, pipePtyInputRead, pipePtyOutputWrite, 0, out _hPC);
+            int hr = _fnCreate(size, pipePtyInputRead.DangerousGetHandle(), pipePtyOutputWrite.DangerousGetHandle(), 0, out _hPC);
             if (hr != 0)
                 throw new Win32Exception(hr, "Failed to create pseudo console");
             
