@@ -541,12 +541,28 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         // Signal shutdown to background threads
         _cts?.Cancel();
         
+        // Close pseudo console FIRST — this signals the child process to exit
+        if (_hPC != IntPtr.Zero)
+        {
+            _fnClose?.Invoke(_hPC);
+            _hPC = IntPtr.Zero;
+        }
+        
+        // Give the process a brief moment to exit gracefully, then terminate
+        if (_hProcess != IntPtr.Zero)
+        {
+            if (WaitForSingleObject(_hProcess, 300) != WAIT_OBJECT_0)
+            {
+                _ = TerminateProcess(_hProcess, 1);
+                WaitForSingleObject(_hProcess, 200);
+            }
+        }
+        
         // Close channels to unblock threads waiting on channel operations
         _outputChannel?.Writer.TryComplete();
         _inputChannel?.Writer.TryComplete();
         
-        // Close streams FIRST to unblock blocking Read()/Write() calls in threads
-        // This causes the blocking I/O to throw, allowing threads to exit
+        // Close streams to unblock blocking Read()/Write() calls in threads
         if (_writeStream != null)
         {
             try { _writeStream.Close(); } catch { }
@@ -559,27 +575,19 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             _readStream = null;
         }
         
-        // Close pipe handles to ensure threads are unblocked
+        // Close pipe handles
         _pipeOurInputWrite?.Dispose();
         _pipeOurInputWrite = null;
         _pipePtyOutputRead?.Dispose();
         _pipePtyOutputRead = null;
         
-        // Now wait for threads to exit (they should exit quickly now)
-        _readThread?.Join(TimeSpan.FromSeconds(2));
-        _writeThread?.Join(TimeSpan.FromSeconds(2));
+        // Wait briefly for threads to exit
+        _readThread?.Join(TimeSpan.FromMilliseconds(500));
+        _writeThread?.Join(TimeSpan.FromMilliseconds(500));
         
-        // Dispose CTS
         _cts?.Dispose();
         
-        // Close pseudo console
-        if (_hPC != IntPtr.Zero)
-        {
-            _fnClose?.Invoke(_hPC);
-            _hPC = IntPtr.Zero;
-        }
-        
-        // Close process handles
+        // Clean up process handles
         if (_hThread != IntPtr.Zero)
         {
             CloseHandle(_hThread);
@@ -588,12 +596,6 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         
         if (_hProcess != IntPtr.Zero)
         {
-            if (WaitForSingleObject(_hProcess, 0) != WAIT_OBJECT_0)
-            {
-                _ = TerminateProcess(_hProcess, 1);
-                WaitForSingleObject(_hProcess, 500);
-            }
-
             CloseHandle(_hProcess);
             _hProcess = IntPtr.Zero;
         }
