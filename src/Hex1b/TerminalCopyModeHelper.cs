@@ -45,7 +45,7 @@ internal sealed class TerminalCopyModeHelper
         // Entry key (when not in copy mode)
         if (!_handle.IsInCopyMode)
         {
-            if (key.Modifiers == Hex1bModifiers.None && _options.EnterKeys.Contains(key.Key))
+            if (MatchesAny(_options.EnterKeys, key))
             {
                 _handle.EnterCopyMode();
                 return true;
@@ -53,68 +53,66 @@ internal sealed class TerminalCopyModeHelper
             return false;
         }
 
-        // Copy mode key handling
-        if (key.Modifiers == Hex1bModifiers.None && _options.CancelKeys.Contains(key.Key))
+        // Copy mode key handling — cancel/copy first
+        if (MatchesAny(_options.CancelKeys, key))
         {
             _handle.ExitCopyMode();
             return true;
         }
 
-        if (key.Modifiers == Hex1bModifiers.None && _options.CopyKeys.Contains(key.Key))
+        if (MatchesAny(_options.CopyKeys, key))
         {
             _handle.CopySelection();
             return true;
         }
 
-        // Modifier-specific bindings first (so Alt+V matches block selection before V matches navigation)
-        foreach (var (k, m) in _options.LineSelectionKeys)
-        {
-            if (key.Key == k && key.Modifiers == m)
-            { _handle.StartOrToggleSelection(SelectionMode.Line); UpdateState(); return true; }
-        }
-        foreach (var (k, m) in _options.BlockSelectionKeys)
-        {
-            if (key.Key == k && key.Modifiers == m)
-            { _handle.StartOrToggleSelection(SelectionMode.Block); UpdateState(); return true; }
-        }
-        foreach (var (k, m) in _options.BufferTopKeys)
-        {
-            if (key.Key == k && key.Modifiers == m)
-            { _handle.SetCopyModeCursorPosition(0, _handle.Selection!.Cursor.Column); UpdateState(); return true; }
-        }
-        foreach (var (k, m) in _options.BufferBottomKeys)
-        {
-            if (key.Key == k && key.Modifiers == m)
-            { _handle.SetCopyModeCursorPosition(_handle.VirtualBufferHeight - 1, _handle.Selection!.Cursor.Column); UpdateState(); return true; }
-        }
-
-        // Character selection (no modifier)
-        if (key.Modifiers == Hex1bModifiers.None && _options.CharacterSelectionKeys.Contains(key.Key))
+        // Selection mode bindings (checked before navigation to avoid conflicts like V vs cursor keys)
+        if (MatchesAny(_options.LineSelectionKeys, key))
+        { _handle.StartOrToggleSelection(SelectionMode.Line); UpdateState(); return true; }
+        if (MatchesAny(_options.BlockSelectionKeys, key))
+        { _handle.StartOrToggleSelection(SelectionMode.Block); UpdateState(); return true; }
+        if (MatchesAny(_options.CharacterSelectionKeys, key))
         { _handle.StartOrToggleSelection(SelectionMode.Character); UpdateState(); return true; }
 
-        // Navigation — check key regardless of modifiers so Alt+J etc. still work
-        if (_options.CursorUpKeys.Contains(key.Key))
+        // Buffer top/bottom
+        if (MatchesAny(_options.BufferTopKeys, key))
+        { _handle.SetCopyModeCursorPosition(0, _handle.Selection!.Cursor.Column); UpdateState(); return true; }
+        if (MatchesAny(_options.BufferBottomKeys, key))
+        { _handle.SetCopyModeCursorPosition(_handle.VirtualBufferHeight - 1, _handle.Selection!.Cursor.Column); UpdateState(); return true; }
+
+        // Navigation
+        if (MatchesAny(_options.CursorUpKeys, key))
         { _handle.MoveCopyModeCursor(-1, 0); UpdateState(); return true; }
-        if (_options.CursorDownKeys.Contains(key.Key))
+        if (MatchesAny(_options.CursorDownKeys, key))
         { _handle.MoveCopyModeCursor(1, 0); UpdateState(); return true; }
-        if (_options.CursorLeftKeys.Contains(key.Key))
+        if (MatchesAny(_options.CursorLeftKeys, key))
         { _handle.MoveCopyModeCursor(0, -1); UpdateState(); return true; }
-        if (_options.CursorRightKeys.Contains(key.Key))
+        if (MatchesAny(_options.CursorRightKeys, key))
         { _handle.MoveCopyModeCursor(0, 1); UpdateState(); return true; }
-        if (key.Modifiers == Hex1bModifiers.None && _options.WordForwardKeys.Contains(key.Key))
+        if (MatchesAny(_options.WordForwardKeys, key))
         { _handle.MoveWordForward(); UpdateState(); return true; }
-        if (key.Modifiers == Hex1bModifiers.None && _options.WordBackwardKeys.Contains(key.Key))
+        if (MatchesAny(_options.WordBackwardKeys, key))
         { _handle.MoveWordBackward(); UpdateState(); return true; }
-        if (_options.PageUpKeys.Contains(key.Key))
+        if (MatchesAny(_options.PageUpKeys, key))
         { _handle.MoveCopyModeCursor(-20, 0); UpdateState(); return true; }
-        if (_options.PageDownKeys.Contains(key.Key))
+        if (MatchesAny(_options.PageDownKeys, key))
         { _handle.MoveCopyModeCursor(20, 0); UpdateState(); return true; }
-        if (_options.LineStartKeys.Contains(key.Key))
+        if (MatchesAny(_options.LineStartKeys, key))
         { _handle.SetCopyModeCursorPosition(_handle.Selection!.Cursor.Row, 0); UpdateState(); return true; }
-        if (_options.LineEndKeys.Contains(key.Key))
+        if (MatchesAny(_options.LineEndKeys, key))
         { _handle.SetCopyModeCursorPosition(_handle.Selection!.Cursor.Row, _handle.Width - 1); UpdateState(); return true; }
 
         return true; // consume all keys in copy mode
+    }
+    
+    private static bool MatchesAny(KeyBinding[] bindings, Hex1bKeyEvent key)
+    {
+        foreach (var binding in bindings)
+        {
+            if (binding.Matches(key))
+                return true;
+        }
+        return false;
     }
 
     private bool HandleMouseInput(Hex1bMouseEvent mouse)
