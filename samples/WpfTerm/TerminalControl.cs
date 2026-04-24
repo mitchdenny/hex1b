@@ -24,6 +24,8 @@ public class TerminalControl : FrameworkElement
     private WpfTerminalAdapter? _adapter;
     private double _cellWidth;
     private double _cellHeight;
+    private double _physCellWidth;
+    private double _physCellHeight;
     private double _baselineY;
     private double _fontSize;
     private double _dpiScale = 1.0;
@@ -193,14 +195,25 @@ public class TerminalControl : FrameworkElement
             _baselineY = ft.Baseline;
         }
 
-        // Snap cell dimensions to exact physical pixel counts (ceiling).
-        // Using ceiling ensures full pixel coverage. Since cell dimensions
-        // are exact multiples of (1/dpiScale), any integer multiple of
-        // cellWidth/cellHeight is also pixel-aligned — no per-coordinate
-        // snapping needed.
-        _cellWidth = Math.Ceiling(_cellWidth * _dpiScale) / _dpiScale;
-        _cellHeight = Math.Ceiling(_cellHeight * _dpiScale) / _dpiScale;
+        // Store the physical pixel cell width for pixel-perfect position calculation.
+        // At fractional DPI, no single DIP cell width produces pixel-aligned positions
+        // for every column. Instead, we compute each position as:
+        //   Round(col * _physCellWidth) / _dpiScale
+        _physCellWidth = Math.Ceiling(_cellWidth * _dpiScale);
+        _physCellHeight = Math.Ceiling(_cellHeight * _dpiScale);
+        _cellWidth = _physCellWidth / _dpiScale;
+        _cellHeight = _physCellHeight / _dpiScale;
     }
+
+    /// <summary>
+    /// Returns the pixel-snapped X position for a column.
+    /// </summary>
+    private double ColToX(int col) => Math.Round(col * _physCellWidth) / _dpiScale;
+
+    /// <summary>
+    /// Returns the pixel-snapped Y position for a row.
+    /// </summary>
+    private double RowToY(int row) => Math.Round(row * _physCellHeight) / _dpiScale;
 
     /// <summary>
     /// Snaps a DIP value to the nearest physical pixel boundary for the current DPI.
@@ -331,20 +344,17 @@ public class TerminalControl : FrameworkElement
                 }
 
                 int runLen = x - runStart;
-                // Use integer pixel coordinates to eliminate sub-pixel gaps
-                double px = runStart * _cellWidth;
-                double pxEnd = (runStart + runLen) * _cellWidth;
+                double px = ColToX(runStart);
+                double pxEnd = ColToX(runStart + runLen);
                 double runWidth = pxEnd - px;
-                double py2 = y * _cellHeight;
-                double pyEnd = (y + 1) * _cellHeight;
-                double rowHeight = pyEnd - py2;
+                double py2 = RowToY(y);
+                double rowHeight = RowToY(y + 1) - py2;
 
                 // Draw background for the entire run — skip cells covered by behind-text KGP images
                 if (bg != null)
                 {
                     if (kgpCoveredCells != null)
                     {
-                        // Draw background only for uncovered segments within the run
                         int segStart = runStart;
                         for (int i = runStart; i < runStart + runLen; i++)
                         {
@@ -352,8 +362,8 @@ public class TerminalControl : FrameworkElement
                             {
                                 if (i > segStart)
                                 {
-                                    double segPx = segStart * _cellWidth;
-                                    double segEnd = i * _cellWidth;
+                                    double segPx = ColToX(segStart);
+                                    double segEnd = ColToX(i);
                                     dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                                 }
                                 segStart = i + 1;
@@ -361,8 +371,8 @@ public class TerminalControl : FrameworkElement
                         }
                         if (runStart + runLen > segStart)
                         {
-                            double segPx = segStart * _cellWidth;
-                            double segEnd = (runStart + runLen) * _cellWidth;
+                            double segPx = ColToX(segStart);
+                            double segEnd = ColToX(runStart + runLen);
                             dc.DrawRectangle(bg, null, new Rect(segPx, py2, segEnd - segPx, rowHeight));
                         }
                     }
@@ -406,10 +416,10 @@ public class TerminalControl : FrameworkElement
             cursorX >= 0 && cursorX < width &&
             cursorY >= 0 && cursorY < height)
         {
-            double cx = cursorX * _cellWidth;
-            double cxEnd = (cursorX + 1) * _cellWidth;
-            double cy = cursorY * _cellHeight;
-            double cyEnd = (cursorY + 1) * _cellHeight;
+            double cx = ColToX(cursorX);
+            double cxEnd = ColToX(cursorX + 1);
+            double cy = RowToY(cursorY);
+            double cyEnd = RowToY(cursorY + 1);
             double cw = cxEnd - cx;
             double ch2 = cyEnd - cy;
 
