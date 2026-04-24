@@ -404,11 +404,10 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 FullMode = BoundedChannelFullMode.Wait
             });
             
-            _inputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(16)
+            _inputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
             {
                 SingleReader = true,
-                SingleWriter = true,
-                FullMode = BoundedChannelFullMode.Wait
+                SingleWriter = false
             });
             
             _cts = new CancellationTokenSource();
