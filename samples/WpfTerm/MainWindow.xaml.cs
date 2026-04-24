@@ -35,17 +35,15 @@ public partial class MainWindow : Window
 
         _adapter = new WpfTerminalAdapter(120, 30);
 
-        // Try to use custom conpty.dll for VT passthrough (enables KGP natively through ConPTY)
-        // Set HEX1B_CONPTY=kernel32 env var to force OS ConPTY for debugging
-        var forceKernel32 = Environment.GetEnvironmentVariable("HEX1B_CONPTY") == "kernel32";
-        var conptyDll = forceKernel32 ? null : FindConptyDll();
+        // ConPTY backend selection:
+        // - Default: OS kernel32 ConPTY (most compatible)
+        // - Set HEX1B_CONPTY=custom to use VS Code's conpty.dll (enables KGP passthrough but may break some apps)
+        var useCustomConpty = Environment.GetEnvironmentVariable("HEX1B_CONPTY") == "custom";
+        var conptyDll = useCustomConpty ? FindConptyDll() : null;
 
-        // Only use side-channel pipe when custom conpty.dll is NOT available
-        if (conptyDll == null)
-        {
-            _kgpPipeServer = new KgpPipeServer();
-            _kgpPipeServer.Start();
-        }
+        // KGP side-channel pipe — always available as fallback for KGP when using kernel32 ConPTY
+        _kgpPipeServer = new KgpPipeServer();
+        _kgpPipeServer.Start();
 
         _terminal = Hex1bTerminal.CreateBuilder()
             .WithPresentation(_adapter)
@@ -56,22 +54,15 @@ public partial class MainWindow : Window
                 options.WindowsPtyMode = WindowsPtyMode.Direct;
                 if (conptyDll != null)
                     options.ConptyDllPath = conptyDll;
-                // Only set pipe env var when falling back to side-channel
-                if (_kgpPipeServer != null)
-                {
-                    options.Environment ??= new Dictionary<string, string>();
-                    options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
-                }
+                options.Environment ??= new Dictionary<string, string>();
+                options.Environment["HEX1B_KGP_PIPE"] = _kgpPipeServer.PipeName;
             })
             .WithScrollback(10000)
             .WithDimensions(_adapter.Width, _adapter.Height)
             .Build();
 
-        // Wire pipe server to terminal if using side-channel
-        if (_kgpPipeServer != null)
-        {
-            _kgpPipeServer.SetTokenHandler(token => _terminal.ProcessKgpFromSideChannel(token));
-        }
+        // Wire pipe server to terminal — KGP tokens from pipe get processed
+        _kgpPipeServer.SetTokenHandler(token => _terminal.ProcessKgpFromSideChannel(token));
 
         Terminal.Attach(_adapter);
 
