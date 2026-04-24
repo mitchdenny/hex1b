@@ -75,4 +75,36 @@ public static class TerminalExtensions
         this TerminalWidget widget,
         int rows)
         => widget with { MouseWheelScrollAmount = rows };
+    
+    /// <summary>
+    /// Enables standard copy mode bindings with configurable key and mouse mappings.
+    /// Provides vi-style keyboard navigation, character/line/block selection,
+    /// and mouse drag-to-select with modifier keys.
+    /// </summary>
+    /// <param name="widget">The TerminalWidget to configure.</param>
+    /// <param name="configure">Optional callback to customize the default bindings.</param>
+    /// <returns>The configured TerminalWidget.</returns>
+    /// <example>
+    /// <description>Enable copy mode with default vi-style bindings:</description>
+    /// <code>
+    /// ctx.Terminal(handle).CopyModeBindings().Fill()
+    /// </code>
+    /// </example>
+    /// <example>
+    /// <description>Customize the entry key:</description>
+    /// <code>
+    /// ctx.Terminal(handle).CopyModeBindings(options =>
+    /// {
+    ///     options.EnterKeys = [Hex1bKey.F5];
+    /// }).Fill()
+    /// </code>
+    /// </example>
+    public static TerminalWidget CopyModeBindings(
+        this TerminalWidget widget,
+        Action<CopyModeBindingsOptions>? configure = null)
+    {
+        var options = new CopyModeBindingsOptions();
+        configure?.Invoke(options);
+        return widget with { CopyModeOptions = options };
+    }
 }

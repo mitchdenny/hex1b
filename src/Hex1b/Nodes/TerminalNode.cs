@@ -47,6 +47,9 @@ public sealed class TerminalNode : Hex1bNode
     // and keyboard input is intercepted for scrollback navigation instead of forwarded to the child
     private int _scrollbackOffset;
     
+    // Copy mode helper (attached via CopyModeBindings)
+    private TerminalCopyModeHelper? _copyModeHelper;
+    
     /// <summary>
     /// Number of rows to scroll per mouse wheel tick.
     /// </summary>
@@ -439,6 +442,28 @@ public sealed class TerminalNode : Hex1bNode
             _outputReceivedHandler = null;
         }
         _isBound = false;
+    }
+    
+    /// <summary>
+    /// Attaches or detaches the copy mode helper based on widget configuration.
+    /// </summary>
+    internal void AttachCopyModeHelper(CopyModeBindingsOptions? options)
+    {
+        if (options == null)
+        {
+            // Detach existing helper if any
+            _copyModeHelper?.Detach();
+            _copyModeHelper = null;
+            return;
+        }
+        
+        if (_handle == null) return;
+        
+        // Only create if not already attached (or if handle changed)
+        if (_copyModeHelper == null)
+        {
+            _copyModeHelper = new TerminalCopyModeHelper(_handle, options);
+        }
     }
     
     private void OnOutputReceived()

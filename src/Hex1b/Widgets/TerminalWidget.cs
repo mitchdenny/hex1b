@@ -106,6 +106,12 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
     /// </summary>
     public int MouseWheelScrollAmount { get; init; } = 3;
     
+    /// <summary>
+    /// Gets the copy mode bindings options, or null if copy mode bindings are not configured.
+    /// Set via <see cref="TerminalExtensions.CopyModeBindings"/>.
+    /// </summary>
+    internal CopyModeBindingsOptions? CopyModeOptions { get; init; }
+    
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TerminalNode ?? new TerminalNode();
@@ -132,6 +138,9 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         
         // Bind to the new handle
         node.Bind();
+        
+        // Attach copy mode helper if configured
+        node.AttachCopyModeHelper(CopyModeOptions);
         
         // If terminal is not running and we have a fallback builder, reconcile the fallback widget
         if (Handle.State != TerminalState.Running && NotRunningBuilder != null)

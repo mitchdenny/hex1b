@@ -188,6 +188,28 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     public event Action<bool>? CopyModeChanged;
     
     /// <summary>
+    /// Gets the current copy mode state.
+    /// </summary>
+    public CopyModeState CopyModeState { get; private set; }
+    
+    /// <summary>
+    /// Updates <see cref="CopyModeState"/> based on current selection state.
+    /// Called by the copy mode helper after state changes.
+    /// </summary>
+    internal void UpdateCopyModeState()
+    {
+        CopyModeState = !_inCopyMode ? CopyModeState.Inactive
+            : _selection is { IsSelecting: true } sel ? sel.Mode switch
+            {
+                SelectionMode.Character => CopyModeState.CharacterSelection,
+                SelectionMode.Line => CopyModeState.LineSelection,
+                SelectionMode.Block => CopyModeState.BlockSelection,
+                _ => CopyModeState.Active
+            }
+            : CopyModeState.Active;
+    }
+    
+    /// <summary>
     /// Gets or sets the current scrollback offset, synced from the TerminalNode.
     /// Used for translating mouse coordinates to virtual buffer positions.
     /// </summary>
