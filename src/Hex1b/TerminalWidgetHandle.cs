@@ -763,6 +763,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             
             _inCopyMode = false;
             _selection = null;
+            _scrollbackOffset = 0; // snap back to live view
             pendingQueue = _outputQueue;
             _outputQueue = null;
         }
