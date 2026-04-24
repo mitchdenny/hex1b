@@ -1062,7 +1062,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         
         if (_dragScrollTimer == null)
         {
-            _dragScrollTimer = new Timer(DragScrollTick, null, 500, 500);
+            _dragScrollTimer = new Timer(DragScrollTick, null, 100, 100);
         }
     }
     
