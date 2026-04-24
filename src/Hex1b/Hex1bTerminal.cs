@@ -63,6 +63,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly TimeProvider _timeProvider;
     private readonly KgpImageStore _kgpImageStore = new();
     private readonly List<KgpPlacement> _kgpPlacements = new();
+    private Kgp.KgpPipeServer? _kgpPipeServer;
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -254,6 +255,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
+        
+        // Auto-install KGP pipe filter if parent advertised a side-channel pipe.
+        // This diverts KGP APC sequences from stdout to the pipe, bypassing ConPTY.
+        if (OperatingSystem.IsWindows())
+        {
+            var kgpPipeFilter = Kgp.KgpPipePresentationFilter.TryCreate();
+            if (kgpPipeFilter != null)
+            {
+                _presentationFilters = [kgpPipeFilter, .. _presentationFilters];
+            }
+        }
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
         if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
@@ -6170,8 +6182,49 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     }
 
     /// <summary>
+    /// Gets the KGP side-channel pipe name, or null if not active.
+    /// Child processes should send KGP APC sequences to this pipe
+    /// when ConPTY would strip them from stdout.
+    /// </summary>
+    public string? KgpPipeName => _kgpPipeServer?.PipeName;
+
+    /// <summary>
+    /// Ensures the KGP side-channel pipe server is running.
+    /// Called during terminal setup when KGP is supported.
+    /// </summary>
+    internal void EnsureKgpPipeServer()
+    {
+        if (_kgpPipeServer != null) return;
+        if (!Capabilities.SupportsKgp) return;
+
+        _kgpPipeServer = new Kgp.KgpPipeServer();
+        _kgpPipeServer.SetTokenHandler(ProcessKgpFromSideChannel);
+        _kgpPipeServer.Start();
+    }
+
+    /// <summary>
     /// Processes a KGP (Kitty Graphics Protocol) command.
     /// </summary>
+    /// <summary>
+    /// Processes a KGP token received via the side-channel pipe (bypassing ConPTY).
+    /// Called from <see cref="Kgp.KgpPipeServer"/> when child processes send KGP
+    /// data over the named pipe because ConPTY strips APC sequences.
+    /// </summary>
+    public void ProcessKgpFromSideChannel(KgpToken token)
+    {
+        lock (_bufferLock)
+        {
+            ProcessKgpCommand(token);
+        }
+
+        // Notify the presentation adapter that KGP data changed
+        if (_presentation is ICellImpactAwarePresentationAdapter impactAware)
+        {
+            var applied = AppliedToken.WithNoCellImpacts(token, _cursorX, _cursorY, _cursorX, _cursorY);
+            _ = impactAware.WriteOutputWithImpactsAsync([applied]);
+        }
+    }
+
     private void ProcessKgpCommand(KgpToken token)
     {
         if (!Capabilities.SupportsKgp)
