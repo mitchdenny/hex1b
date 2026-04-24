@@ -754,6 +754,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     /// </summary>
     public void ExitCopyMode()
     {
+        StopDragScrollTimer();
         List<IReadOnlyList<AppliedToken>>? pendingQueue;
         
         lock (_bufferLock)
@@ -973,10 +974,17 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     // Pending mouse selection anchor — set on Down, used on first Drag
     private BufferPosition? _pendingMouseAnchor;
     
+    // Auto-scroll timer for drag-outside-bounds
+    private Timer? _dragScrollTimer;
+    private int _dragScrollDirection; // -1 = up, +1 = down, 0 = none
+    private int _dragLastColumn;
+    private SelectionMode _dragLastMode;
+    
     /// <summary>
     /// Handles mouse-driven selection. Translates local terminal coordinates to virtual
     /// buffer positions and manages the selection state machine (down/drag/up).
     /// Only enters copy mode when the user actually drags (not on a single click).
+    /// When dragging outside the viewport, auto-scrolls every 500ms.
     /// </summary>
     /// <param name="localX">X coordinate relative to the terminal widget bounds.</param>
     /// <param name="localY">Y coordinate relative to the terminal widget bounds.</param>
@@ -994,6 +1002,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
             case Input.MouseAction.Down:
                 // Record anchor position — don't enter copy mode yet (wait for drag)
                 _pendingMouseAnchor = new BufferPosition(virtualRow, column);
+                StopDragScrollTimer();
                 break;
                 
             case Input.MouseAction.Drag:
@@ -1019,15 +1028,65 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                     _selection.MoveCursor(new BufferPosition(virtualRow, column));
                     EnsureCopyModeCursorVisible();
                     OutputReceived?.Invoke();
+                    
+                    // Start/stop auto-scroll timer based on whether mouse is out of bounds
+                    if (localY < 0)
+                    {
+                        StartDragScrollTimer(-1, column, mode);
+                    }
+                    else if (localY >= _height)
+                    {
+                        StartDragScrollTimer(1, column, mode);
+                    }
+                    else
+                    {
+                        StopDragScrollTimer();
+                    }
                 }
                 break;
                 
             case Input.MouseAction.Up:
                 _pendingMouseAnchor = null;
+                StopDragScrollTimer();
                 // Selection stays active — user can refine with keyboard or press y to copy
                 OutputReceived?.Invoke();
                 break;
         }
+    }
+    
+    private void StartDragScrollTimer(int direction, int column, SelectionMode mode)
+    {
+        _dragScrollDirection = direction;
+        _dragLastColumn = column;
+        _dragLastMode = mode;
+        
+        if (_dragScrollTimer == null)
+        {
+            _dragScrollTimer = new Timer(DragScrollTick, null, 500, 500);
+        }
+    }
+    
+    private void StopDragScrollTimer()
+    {
+        _dragScrollTimer?.Dispose();
+        _dragScrollTimer = null;
+        _dragScrollDirection = 0;
+    }
+    
+    private void DragScrollTick(object? state)
+    {
+        if (!_inCopyMode || _selection == null || _dragScrollDirection == 0) 
+        {
+            StopDragScrollTimer();
+            return;
+        }
+        
+        // Move cursor one row in the scroll direction
+        var pos = _selection.Cursor;
+        int newRow = Math.Clamp(pos.Row + _dragScrollDirection, 0, VirtualBufferHeight - 1);
+        _selection.MoveCursor(new BufferPosition(newRow, _dragLastColumn));
+        EnsureCopyModeCursorVisible();
+        OutputReceived?.Invoke();
     }
     
     /// <summary>
@@ -1095,6 +1154,7 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
         if (_disposed) return ValueTask.CompletedTask;
         _disposed = true;
         
+        StopDragScrollTimer();
         Disconnected?.Invoke();
         _disconnected.TrySetResult();
         
