@@ -209,11 +209,27 @@ public class TerminalControl : FrameworkElement
             // Read directly from the adapter's buffer under lock — no copy needed
             _adapter.RenderUnderLock((buffer, width, height, cursorX, cursorY, cursorVisible, cursorShape) =>
             {
+                // Build a set of cells covered by behind-text KGP images
+                // so the text pass doesn't draw opaque backgrounds over them
+                HashSet<(int, int)>? kgpCoveredCells = null;
+                var behindPlacements = placements.Where(p => p.ZIndex < 0).ToList();
+                if (behindPlacements.Count > 0)
+                {
+                    kgpCoveredCells = new HashSet<(int, int)>();
+                    foreach (var p in behindPlacements)
+                    {
+                        for (int py = p.Row; py < p.Row + (int)p.DisplayRows && py < height; py++)
+                            for (int px = p.Column; px < p.Column + (int)p.DisplayColumns && px < width; px++)
+                                if (py >= 0 && px >= 0)
+                                    kgpCoveredCells.Add((px, py));
+                    }
+                }
+
                 // Pass 1: KGP images behind text (ZIndex < 0)
                 RenderKgpImages(dc, placements, width, height, zBehindText: true);
 
-                // Pass 2: Text and cell backgrounds
-                RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible, cursorShape);
+                // Pass 2: Text and cell backgrounds (skipping bg for KGP-covered cells)
+                RenderBuffer(dc, buffer, width, height, cursorX, cursorY, cursorVisible, cursorShape, kgpCoveredCells);
 
                 // Pass 3: KGP images on top of text (ZIndex >= 0)
                 RenderKgpImages(dc, placements, width, height, zBehindText: false);
@@ -229,7 +245,8 @@ public class TerminalControl : FrameworkElement
     /// Core rendering: scans rows for attribute runs and draws them as batched GlyphRuns.
     /// </summary>
     private void RenderBuffer(DrawingContext dc, TerminalCell[,] buffer, int width, int height,
-        int cursorX, int cursorY, bool cursorVisible, CursorShape cursorShape)
+        int cursorX, int cursorY, bool cursorVisible, CursorShape cursorShape,
+        HashSet<(int, int)>? kgpCoveredCells)
     {
         for (int y = 0; y < height; y++)
         {
@@ -269,10 +286,39 @@ public class TerminalControl : FrameworkElement
                 double px = runStart * _cellWidth;
                 double runWidth = runLen * _cellWidth;
 
-                // Draw background for the entire run
+                // Draw background for the entire run — skip cells covered by behind-text KGP images
                 if (bg != null)
                 {
-                    dc.DrawRectangle(bg, null, new Rect(px, py, runWidth, _cellHeight));
+                    if (kgpCoveredCells != null)
+                    {
+                        // Draw background only for uncovered segments within the run
+                        int segStart = runStart;
+                        for (int i = runStart; i < runStart + runLen; i++)
+                        {
+                            if (kgpCoveredCells.Contains((i, y)))
+                            {
+                                // Draw any accumulated uncovered segment
+                                if (i > segStart)
+                                {
+                                    double segPx = segStart * _cellWidth;
+                                    double segW = (i - segStart) * _cellWidth;
+                                    dc.DrawRectangle(bg, null, new Rect(segPx, py, segW, _cellHeight));
+                                }
+                                segStart = i + 1;
+                            }
+                        }
+                        // Draw remaining uncovered segment
+                        if (runStart + runLen > segStart)
+                        {
+                            double segPx = segStart * _cellWidth;
+                            double segW = (runStart + runLen - segStart) * _cellWidth;
+                            dc.DrawRectangle(bg, null, new Rect(segPx, py, segW, _cellHeight));
+                        }
+                    }
+                    else
+                    {
+                        dc.DrawRectangle(bg, null, new Rect(px, py, runWidth, _cellHeight));
+                    }
                 }
 
                 // Build GlyphRun for the text
