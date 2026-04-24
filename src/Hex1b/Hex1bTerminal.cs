@@ -63,6 +63,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly TimeProvider _timeProvider;
     private readonly KgpImageStore _kgpImageStore = new();
     private readonly List<KgpPlacement> _kgpPlacements = new();
+    private Kgp.KgpPipeServer? _kgpPipeServer;
     
     // Lock to protect screen buffer state from concurrent access.
     // The resize event comes from the input thread while the output pump
@@ -254,6 +255,17 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
         _presentationFilters = options.PresentationFilters?.ToList() ?? [];
         _timeProvider = options.TimeProvider ?? TimeProvider.System;
         _sessionStart = _timeProvider.GetUtcNow();
+        
+        // Auto-install KGP pipe filter if parent advertised a side-channel pipe.
+        // This diverts KGP APC sequences from stdout to the pipe, bypassing ConPTY.
+        if (OperatingSystem.IsWindows())
+        {
+            var kgpPipeFilter = Kgp.KgpPipePresentationFilter.TryCreate();
+            if (kgpPipeFilter != null)
+            {
+                _presentationFilters = [kgpPipeFilter, .. _presentationFilters];
+            }
+        }
         
         // Notify lifecycle-aware presentation adapters that the terminal is created
         if (presentation is ITerminalLifecycleAwarePresentationAdapter lifecycleAdapter)
@@ -655,6 +667,7 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 var decodedText = new string(chars);
 
                 var text = _incompleteInputSequenceBuffer + decodedText;
+                var hadBufferedInput = _incompleteInputSequenceBuffer.Length > 0;
                 _incompleteInputSequenceBuffer = "";
 
                 var extracted = ExtractIncompleteEscapeSequence(text);
@@ -663,7 +676,12 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
 
                 if (!string.IsNullOrEmpty(completeText))
                 {
-                    await DispatchCompleteInputTextAsync(completeText, data, ct);
+                    // When incomplete buffer was prepended, rawData doesn't contain the
+                    // buffered bytes — re-encode from completeText to avoid losing them.
+                    var effectiveRawData = hadBufferedInput
+                        ? (ReadOnlyMemory<byte>)Encoding.UTF8.GetBytes(completeText)
+                        : data;
+                    await DispatchCompleteInputTextAsync(completeText, effectiveRawData, ct);
                 }
 
                 // If there is an incomplete escape sequence and the timeout is enabled,
@@ -4090,6 +4108,9 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     {
         _inAlternateScreen = false;
         
+        // Clear KGP placements — they belong to the alternate screen session
+        _kgpPlacements.Clear();
+        
         // Only restore if we actually saved state when entering alternate screen
         // If _savedMainScreenBuffer is null, this is an unbalanced exit - do nothing
         if (_savedMainScreenBuffer != null)
@@ -6157,21 +6178,72 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // ---- KGP (Kitty Graphics Protocol) ----
 
     /// <summary>
-    /// Gets the KGP image store for testing and inspection.
+    /// Gets the KGP image store for accessing transmitted image data.
     /// </summary>
-    internal KgpImageStore KgpImageStore => _kgpImageStore;
+    public KgpImageStore KgpImageStore => _kgpImageStore;
 
     /// <summary>
-    /// Gets the active KGP placements for testing and inspection.
+    /// Gets a snapshot of the active KGP placements.
     /// </summary>
-    internal IReadOnlyList<KgpPlacement> KgpPlacements
+    public IReadOnlyList<KgpPlacement> KgpPlacements
     {
         get { lock (_bufferLock) return _kgpPlacements.ToList(); }
     }
 
     /// <summary>
+    /// Gets the KGP side-channel pipe name, or null if not active.
+    /// Child processes should send KGP APC sequences to this pipe
+    /// when ConPTY would strip them from stdout.
+    /// </summary>
+    public string? KgpPipeName => _kgpPipeServer?.PipeName;
+
+    /// <summary>
+    /// Ensures the KGP side-channel pipe server is running.
+    /// Called during terminal setup when KGP is supported.
+    /// </summary>
+    internal void EnsureKgpPipeServer()
+    {
+        if (_kgpPipeServer != null) return;
+        if (!Capabilities.SupportsKgp) return;
+
+        _kgpPipeServer = new Kgp.KgpPipeServer();
+        _kgpPipeServer.SetTokenHandler(ProcessKgpFromSideChannel);
+        _kgpPipeServer.Start();
+    }
+
+    /// <summary>
     /// Processes a KGP (Kitty Graphics Protocol) command.
     /// </summary>
+    /// <summary>
+    /// Processes a token received via the side-channel pipe (bypassing ConPTY).
+    /// Handles CursorPositionToken (sets cursor for placement) and KgpToken (image data).
+    /// </summary>
+    public void ProcessKgpFromSideChannel(AnsiToken token)
+    {
+        lock (_bufferLock)
+        {
+            if (token is CursorPositionToken cup)
+            {
+                // Set cursor position for the next KGP placement (1-based → 0-based)
+                _cursorY = Math.Clamp(cup.Row - 1, 0, _height - 1);
+                _cursorX = Math.Clamp(cup.Column - 1, 0, _width - 1);
+                return;
+            }
+
+            if (token is KgpToken kgpToken)
+            {
+                ProcessKgpCommand(kgpToken);
+            }
+        }
+
+        // Notify the presentation adapter that KGP data changed
+        if (token is KgpToken kgp && _presentation is ICellImpactAwarePresentationAdapter impactAware)
+        {
+            var applied = AppliedToken.WithNoCellImpacts(kgp, _cursorX, _cursorY, _cursorX, _cursorY);
+            _ = impactAware.WriteOutputWithImpactsAsync([applied]);
+        }
+    }
+
     private void ProcessKgpCommand(KgpToken token)
     {
         if (!Capabilities.SupportsKgp)

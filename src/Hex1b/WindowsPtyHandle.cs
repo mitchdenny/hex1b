@@ -24,9 +24,84 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     private const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     private const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
+    private const uint PSEUDOCONSOLE_INHERIT_CURSOR = 0x00000001;
     private const uint INFINITE = 0xFFFFFFFF;
     private const uint WAIT_OBJECT_0 = 0;
     private const uint STILL_ACTIVE = 259;
+    
+    // === Dynamic ConPTY function delegates ===
+    
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int CreatePseudoConsoleDelegate(COORD size, IntPtr hInput, IntPtr hOutput, uint dwFlags, out IntPtr phPC);
+    
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate int ResizePseudoConsoleDelegate(IntPtr hPC, COORD size);
+    
+    [UnmanagedFunctionPointer(CallingConvention.StdCall)]
+    private delegate void ClosePseudoConsoleDelegate(IntPtr hPC);
+    
+    private static CreatePseudoConsoleDelegate? _fnCreate;
+    private static ResizePseudoConsoleDelegate? _fnResize;
+    private static ClosePseudoConsoleDelegate? _fnClose;
+    private static bool _usingConptyDll;
+    private static bool _conptyResolved;
+    private static readonly object _conptyLock = new();
+    
+    /// <summary>
+    /// Optional path to a custom conpty.dll (e.g. from microsoft/terminal).
+    /// When set, the custom DLL is used instead of the OS kernel32.dll ConPTY,
+    /// enabling VT passthrough for protocols like KGP.
+    /// </summary>
+    public static string? ConptyDllPath { get; set; }
+    
+    /// <summary>
+    /// Whether the custom conpty.dll is being used instead of the OS ConPTY.
+    /// </summary>
+    public static bool UsingConptyDll => _usingConptyDll;
+    
+    private static void EnsureConptyResolved()
+    {
+        if (_conptyResolved) return;
+        lock (_conptyLock)
+        {
+            if (_conptyResolved) return;
+            
+            // Try loading custom conpty.dll first
+            if (!string.IsNullOrEmpty(ConptyDllPath) && File.Exists(ConptyDllPath))
+            {
+                var hLib = NativeLibrary.Load(ConptyDllPath);
+                if (hLib != IntPtr.Zero)
+                {
+                    // Custom DLL uses Conpty* prefixed function names
+                    if (NativeLibrary.TryGetExport(hLib, "ConptyCreatePseudoConsole", out var pCreate) &&
+                        NativeLibrary.TryGetExport(hLib, "ConptyResizePseudoConsole", out var pResize) &&
+                        NativeLibrary.TryGetExport(hLib, "ConptyClosePseudoConsole", out var pClose))
+                    {
+                        _fnCreate = Marshal.GetDelegateForFunctionPointer<CreatePseudoConsoleDelegate>(pCreate);
+                        _fnResize = Marshal.GetDelegateForFunctionPointer<ResizePseudoConsoleDelegate>(pResize);
+                        _fnClose = Marshal.GetDelegateForFunctionPointer<ClosePseudoConsoleDelegate>(pClose);
+                        _usingConptyDll = true;
+                        _conptyResolved = true;
+                        return;
+                    }
+                }
+            }
+            
+            // Fall back to OS kernel32.dll
+            var hKernel = NativeLibrary.Load("kernel32.dll");
+            if (NativeLibrary.TryGetExport(hKernel, "CreatePseudoConsole", out var pK32Create) &&
+                NativeLibrary.TryGetExport(hKernel, "ResizePseudoConsole", out var pK32Resize) &&
+                NativeLibrary.TryGetExport(hKernel, "ClosePseudoConsole", out var pK32Close))
+            {
+                _fnCreate = Marshal.GetDelegateForFunctionPointer<CreatePseudoConsoleDelegate>(pK32Create);
+                _fnResize = Marshal.GetDelegateForFunctionPointer<ResizePseudoConsoleDelegate>(pK32Resize);
+                _fnClose = Marshal.GetDelegateForFunctionPointer<ClosePseudoConsoleDelegate>(pK32Close);
+            }
+            
+            _usingConptyDll = false;
+            _conptyResolved = true;
+        }
+    }
     
     // === P/Invoke Structures ===
     
@@ -84,21 +159,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         public int dwThreadId;
     }
     
-    // === P/Invoke Functions ===
-    
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern int CreatePseudoConsole(
-        COORD size,
-        SafeFileHandle hInput,
-        SafeFileHandle hOutput,
-        uint dwFlags,
-        out IntPtr phPC);
-    
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern int ResizePseudoConsole(IntPtr hPC, COORD size);
-    
-    [DllImport("kernel32.dll", SetLastError = true)]
-    private static extern void ClosePseudoConsole(IntPtr hPC);
+    // === P/Invoke Functions (non-ConPTY) ===
     
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern bool CreatePipe(
@@ -225,9 +286,14 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         
         try
         {
+            EnsureConptyResolved();
+            
+            if (_fnCreate == null || _fnResize == null || _fnClose == null)
+                throw new PlatformNotSupportedException("ConPTY API not available on this system.");
+            
             // Create the pseudo console
             var size = new COORD { X = (short)width, Y = (short)height };
-            int hr = CreatePseudoConsole(size, pipePtyInputRead, pipePtyOutputWrite, 0, out _hPC);
+            int hr = _fnCreate(size, pipePtyInputRead.DangerousGetHandle(), pipePtyOutputWrite.DangerousGetHandle(), 0, out _hPC);
             if (hr != 0)
                 throw new Win32Exception(hr, "Failed to create pseudo console");
             
@@ -338,11 +404,10 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 FullMode = BoundedChannelFullMode.Wait
             });
             
-            _inputChannel = Channel.CreateBounded<byte[]>(new BoundedChannelOptions(16)
+            _inputChannel = Channel.CreateUnbounded<byte[]>(new UnboundedChannelOptions
             {
                 SingleReader = true,
-                SingleWriter = true,
-                FullMode = BoundedChannelFullMode.Wait
+                SingleWriter = false
             });
             
             _cts = new CancellationTokenSource();
@@ -372,7 +437,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             _pipePtyOutputRead?.Dispose();
             if (_hPC != IntPtr.Zero)
             {
-                ClosePseudoConsole(_hPC);
+                _fnClose?.Invoke(_hPC);
                 _hPC = IntPtr.Zero;
             }
             throw;
@@ -430,7 +495,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             return;
         
         var size = new COORD { X = (short)width, Y = (short)height };
-        ResizePseudoConsole(_hPC, size);
+        _fnResize?.Invoke(_hPC, size);
     }
     
     public void Kill(int signal)
@@ -476,12 +541,28 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         // Signal shutdown to background threads
         _cts?.Cancel();
         
+        // Close pseudo console FIRST — this signals the child process to exit
+        if (_hPC != IntPtr.Zero)
+        {
+            _fnClose?.Invoke(_hPC);
+            _hPC = IntPtr.Zero;
+        }
+        
+        // Give the process a brief moment to exit gracefully, then terminate
+        if (_hProcess != IntPtr.Zero)
+        {
+            if (WaitForSingleObject(_hProcess, 300) != WAIT_OBJECT_0)
+            {
+                _ = TerminateProcess(_hProcess, 1);
+                WaitForSingleObject(_hProcess, 200);
+            }
+        }
+        
         // Close channels to unblock threads waiting on channel operations
         _outputChannel?.Writer.TryComplete();
         _inputChannel?.Writer.TryComplete();
         
-        // Close streams FIRST to unblock blocking Read()/Write() calls in threads
-        // This causes the blocking I/O to throw, allowing threads to exit
+        // Close streams to unblock blocking Read()/Write() calls in threads
         if (_writeStream != null)
         {
             try { _writeStream.Close(); } catch { }
@@ -494,27 +575,19 @@ internal sealed class WindowsPtyHandle : IPtyHandle
             _readStream = null;
         }
         
-        // Close pipe handles to ensure threads are unblocked
+        // Close pipe handles
         _pipeOurInputWrite?.Dispose();
         _pipeOurInputWrite = null;
         _pipePtyOutputRead?.Dispose();
         _pipePtyOutputRead = null;
         
-        // Now wait for threads to exit (they should exit quickly now)
-        _readThread?.Join(TimeSpan.FromSeconds(2));
-        _writeThread?.Join(TimeSpan.FromSeconds(2));
+        // Wait briefly for threads to exit
+        _readThread?.Join(TimeSpan.FromMilliseconds(500));
+        _writeThread?.Join(TimeSpan.FromMilliseconds(500));
         
-        // Dispose CTS
         _cts?.Dispose();
         
-        // Close pseudo console
-        if (_hPC != IntPtr.Zero)
-        {
-            ClosePseudoConsole(_hPC);
-            _hPC = IntPtr.Zero;
-        }
-        
-        // Close process handles
+        // Clean up process handles
         if (_hThread != IntPtr.Zero)
         {
             CloseHandle(_hThread);
@@ -523,12 +596,6 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         
         if (_hProcess != IntPtr.Zero)
         {
-            if (WaitForSingleObject(_hProcess, 0) != WAIT_OBJECT_0)
-            {
-                _ = TerminateProcess(_hProcess, 1);
-                WaitForSingleObject(_hProcess, 500);
-            }
-
             CloseHandle(_hProcess);
             _hProcess = IntPtr.Zero;
         }
@@ -588,6 +655,11 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         }
     }
     
+    private long _ptyBytesWritten;
+    
+    /// <summary>Total bytes written to PTY input pipe.</summary>
+    internal long PtyBytesWritten => Interlocked.Read(ref _ptyBytesWritten);
+    
     private void WriteThreadProc()
     {
         // Cache the token — same rationale as ReadThreadProc (see comment there).
@@ -627,6 +699,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
                 {
                     _writeStream.Write(data, 0, data.Length);
                     _writeStream.Flush();
+                    Interlocked.Add(ref _ptyBytesWritten, data.Length);
                 }
                 catch (IOException)
                 {

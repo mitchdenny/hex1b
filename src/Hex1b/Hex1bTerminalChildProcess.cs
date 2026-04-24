@@ -343,6 +343,11 @@ public sealed class Hex1bTerminalChildProcess : IHex1bTerminalWorkloadAdapter
         }
         env[nestingLevelKey] = nestingLevel.ToString();
         
+        // Advertise terminal capabilities to child processes so they can skip
+        // probing (which doesn't work on Windows via ReadConsoleInput).
+        // Hex1b terminals always support KGP parsing in the terminal engine.
+        env["HEX1B_TERMINAL_KGP"] = "1";
+        
         // Apply custom environment (can override nesting level if explicitly set)
         if (_environment != null)
         {

@@ -249,8 +249,16 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
 
         // Windows uses console input records rather than a raw stdin byte stream, so
         // KGP APC replies are not currently probeable through the built-in console driver.
+        // However, if a parent Hex1b terminal has advertised KGP support via environment
+        // variable, trust that and enable KGP without probing.
         if (_driver is WindowsConsoleDriver)
+        {
+            if (Environment.GetEnvironmentVariable("HEX1B_TERMINAL_KGP") == "1")
+            {
+                _capabilities = _capabilities with { SupportsKgp = true };
+            }
             return;
+        }
 
         _driver.Write(KgpProbeQuery);
         _driver.Flush();
