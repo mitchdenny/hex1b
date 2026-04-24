@@ -775,15 +775,10 @@ public class TerminalControl : FrameworkElement
 
     protected override void OnTextInput(TextCompositionEventArgs e)
     {
-        if (_adapter == null) return;
+        // Printable chars are handled via WM_CHAR hook.
+        // This suppresses the WPF TextInput to prevent duplicates.
         _textInputCount++;
-
-        var data = AnsiKeyEncoder.EncodeText(e.Text);
-        if (data != null)
-        {
-            _adapter.EnqueueInput(data);
-            e.Handled = true;
-        }
+        e.Handled = true;
     }
 
     /// <summary>Diagnostic: WPF event counts.</summary>
@@ -806,9 +801,21 @@ public class TerminalControl : FrameworkElement
                 break;
             case WM_CHAR:
                 _wmCharCount++;
+                // Handle printable characters directly from WM_CHAR.
+                // This bypasses WPF's TextInput which drops ~4% of events
+                // during rapid mouse activity.
+                if (_adapter != null)
+                {
+                    char ch = (char)wParam;
+                    if (ch >= 0x20) // printable (space and above)
+                    {
+                        var bytes = System.Text.Encoding.UTF8.GetBytes(new[] { ch });
+                        _adapter.EnqueueInput(bytes);
+                        handled = true; // Suppress WPF TextInput for this char
+                    }
+                }
                 break;
         }
-        // Don't set handled — let WPF process normally
         return IntPtr.Zero;
     }
 
