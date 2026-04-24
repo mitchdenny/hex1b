@@ -110,17 +110,25 @@ public sealed class WpfTerminalAdapter : ICellImpactAwarePresentationAdapter, IT
         }
     }
 
+    private int _keyInputCount;
+    private int _mouseInputCount;
+
     /// <summary>
     /// Enqueues raw ANSI input bytes to be sent to the PTY process.
     /// Called by the WPF keyboard handler.
     /// </summary>
-    public void EnqueueInput(byte[] data)
+    public void EnqueueInput(byte[] data, bool isMouse = false)
     {
         if (!_disposed)
         {
             _inputChannel.Writer.TryWrite(data);
+            if (isMouse) Interlocked.Increment(ref _mouseInputCount);
+            else Interlocked.Increment(ref _keyInputCount);
         }
     }
+
+    /// <summary>Diagnostic counters for input events.</summary>
+    public (int Keys, int Mouse) InputStats => (_keyInputCount, _mouseInputCount);
 
     /// <summary>
     /// Triggers a resize of the terminal dimensions.

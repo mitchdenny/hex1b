@@ -78,8 +78,9 @@ public partial class MainWindow : Window
         {
             var placements = _adapter!.GetKgpPlacements();
             var stats = _adapter.TokenStats;
+            var input = _adapter.InputStats;
             var backend = conptyDll != null ? "conpty.dll" : "kernel32";
-            Title = $"WpfTerm [{backend}] — kgp:{_adapter.KgpTokensReceived} place:{placements.Count} unrec:{stats.Unrecognized} total:{stats.Total}";
+            Title = $"WpfTerm [{backend}] — in:k{input.Keys}/m{input.Mouse} kgp:{_adapter.KgpTokensReceived} place:{placements.Count}";
         };
         diagTimer.Start();
 
