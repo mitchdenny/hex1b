@@ -1,24 +1,29 @@
 # Makefile for libhex1binterop - Native interop library for Hex1b
 #
 # Builds for the current platform:
-#   make           - Build for current platform
-#   make clean     - Remove build artifacts
+#   make                    - Build for current platform
+#   make TARGET_ARCH=x86_64 - Cross-compile for x86_64 (on macOS ARM64)
+#   make clean              - Remove build artifacts
 #
-# Cross-compilation is handled separately via CI/CD
 
 CC = gcc
 CFLAGS = -Wall -Wextra -O2 -fPIC
 LDFLAGS = -shared
 
+# Allow overriding the target architecture for cross-compilation
+TARGET_ARCH ?= $(shell uname -m)
+
 # Detect platform and set library extension and flags
 UNAME_S := $(shell uname -s)
-UNAME_M := $(shell uname -m)
 
 ifeq ($(UNAME_S),Darwin)
     TARGET = libhex1binterop.dylib
     LDFLAGS += -dynamiclib -install_name @rpath/libhex1binterop.dylib
     # macOS needs util library for PTY functions
     LDFLAGS += -lutil
+    # Add arch flag for cross-compilation on macOS
+    CFLAGS += -arch $(TARGET_ARCH)
+    LDFLAGS += -arch $(TARGET_ARCH)
 else
     TARGET = libhex1binterop.so
     LDFLAGS += -lpthread -lutil
@@ -26,13 +31,13 @@ endif
 
 # Determine RID for output directory
 ifeq ($(UNAME_S),Darwin)
-    ifeq ($(UNAME_M),arm64)
+    ifeq ($(TARGET_ARCH),arm64)
         RID = osx-arm64
     else
         RID = osx-x64
     endif
 else
-    ifeq ($(UNAME_M),aarch64)
+    ifeq ($(TARGET_ARCH),aarch64)
         RID = linux-arm64
     else
         RID = linux-x64
