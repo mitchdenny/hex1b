@@ -75,19 +75,9 @@ public partial class MainWindow : Window
 
         Terminal.Attach(_adapter);
 
-        // Diagnostic: show KGP stats in title bar
-        var diagTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-        diagTimer.Tick += (_, _) =>
-        {
-            var placements = _adapter!.GetKgpPlacements();
-            var stats = _adapter.TokenStats;
-            var input = _adapter.InputStats;
-            var wpf = Terminal.WpfEventCounts;
-            var win32 = Terminal.Win32Counts;
-            var backend = conptyDll != null ? "conpty.dll" : "kernel32";
-            Title = $"WpfTerm [{backend}] — wm:kd{win32.WmKeyDown}/ch{win32.WmChar} wpf:pk{wpf.PreviewKeyDown}/kd{wpf.KeyDown}/ti{wpf.TextInput} in:k{input.Keys}/m{input.Mouse}";
-        };
-        diagTimer.Start();
+        // Show ConPTY backend in title bar
+        var backend = conptyDll != null ? "conpty.dll" : "kernel32";
+        Title = $"WpfTerm [{backend}]";
 
         // Run the terminal on a background task
         _runTask = Task.Run(async () =>
