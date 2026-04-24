@@ -24,6 +24,7 @@ internal sealed class WindowsPtyHandle : IPtyHandle
     private const uint EXTENDED_STARTUPINFO_PRESENT = 0x00080000;
     private const uint CREATE_UNICODE_ENVIRONMENT = 0x00000400;
     private const int PROC_THREAD_ATTRIBUTE_PSEUDOCONSOLE = 0x00020016;
+    private const uint PSEUDOCONSOLE_PASSTHROUGH = 0x00000008;
     private const uint INFINITE = 0xFFFFFFFF;
     private const uint WAIT_OBJECT_0 = 0;
     private const uint STILL_ACTIVE = 259;
@@ -225,9 +226,15 @@ internal sealed class WindowsPtyHandle : IPtyHandle
         
         try
         {
-            // Create the pseudo console
+            // Create the pseudo console with passthrough mode if available (Windows 11 24H2+).
+            // Passthrough allows APC sequences (KGP, Sixel) to flow through ConPTY unmodified.
             var size = new COORD { X = (short)width, Y = (short)height };
-            int hr = CreatePseudoConsole(size, pipePtyInputRead, pipePtyOutputWrite, 0, out _hPC);
+            int hr = CreatePseudoConsole(size, pipePtyInputRead, pipePtyOutputWrite, PSEUDOCONSOLE_PASSTHROUGH, out _hPC);
+            if (hr != 0)
+            {
+                // Passthrough not supported on this Windows version — fall back without it
+                hr = CreatePseudoConsole(size, pipePtyInputRead, pipePtyOutputWrite, 0, out _hPC);
+            }
             if (hr != 0)
                 throw new Win32Exception(hr, "Failed to create pseudo console");
             
