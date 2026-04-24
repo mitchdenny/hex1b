@@ -14,7 +14,7 @@ public sealed class KgpPipeServer : IAsyncDisposable
     private readonly string _pipeName;
     private readonly CancellationTokenSource _cts = new();
     private Task? _listenTask;
-    private Action<KgpToken>? _tokenHandler;
+    private Action<AnsiToken>? _tokenHandler;
 
     /// <summary>
     /// The pipe name to pass to child processes via HEX1B_KGP_PIPE env var.
@@ -27,9 +27,10 @@ public sealed class KgpPipeServer : IAsyncDisposable
     }
 
     /// <summary>
-    /// Sets the handler called when KGP tokens arrive from child processes.
+    /// Sets the handler called when tokens arrive from child processes.
+    /// Receives CursorPositionToken (for placement) and KgpToken (for image data).
     /// </summary>
-    public void SetTokenHandler(Action<KgpToken> handler)
+    public void SetTokenHandler(Action<AnsiToken> handler)
     {
         _tokenHandler = handler;
     }
@@ -103,9 +104,10 @@ public sealed class KgpPipeServer : IAsyncDisposable
         int lastConsumedEnd = 0;
         foreach (var token in tokens)
         {
-            if (token is KgpToken kgpToken)
+            // Forward cursor position tokens (for placement) and KGP tokens
+            if (token is KgpToken or CursorPositionToken)
             {
-                _tokenHandler?.Invoke(kgpToken);
+                _tokenHandler?.Invoke(token);
             }
             var serialized = AnsiTokenSerializer.Serialize([token]);
             lastConsumedEnd += serialized.Length;

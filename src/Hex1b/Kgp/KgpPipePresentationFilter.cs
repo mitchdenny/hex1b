@@ -40,12 +40,15 @@ internal sealed class KgpPipePresentationFilter : IHex1bTerminalPresentationFilt
             // Check if this is a KGP APC sequence (emitted as UnrecognizedSequenceToken)
             if (applied.Token is UnrecognizedSequenceToken unrec && IsKgpApc(unrec.Sequence))
             {
-                // Divert to pipe
+                // Send cursor position before KGP so parent places image correctly.
+                // CSI row;col H (1-based) sets the cursor in the parent terminal.
+                _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
                 _client.Write(unrec.Sequence);
             }
             else if (applied.Token is KgpToken kgp)
             {
-                // Direct KGP token — serialize and send to pipe
+                // Direct KGP token — send cursor position + serialized token
+                _client.Write($"\x1b[{applied.CursorYBefore + 1};{applied.CursorXBefore + 1}H");
                 var serialized = AnsiTokenSerializer.Serialize([kgp]);
                 _client.Write(serialized);
             }

@@ -6206,21 +6206,31 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// Processes a KGP (Kitty Graphics Protocol) command.
     /// </summary>
     /// <summary>
-    /// Processes a KGP token received via the side-channel pipe (bypassing ConPTY).
-    /// Called from <see cref="Kgp.KgpPipeServer"/> when child processes send KGP
-    /// data over the named pipe because ConPTY strips APC sequences.
+    /// Processes a token received via the side-channel pipe (bypassing ConPTY).
+    /// Handles CursorPositionToken (sets cursor for placement) and KgpToken (image data).
     /// </summary>
-    public void ProcessKgpFromSideChannel(KgpToken token)
+    public void ProcessKgpFromSideChannel(AnsiToken token)
     {
         lock (_bufferLock)
         {
-            ProcessKgpCommand(token);
+            if (token is CursorPositionToken cup)
+            {
+                // Set cursor position for the next KGP placement (1-based → 0-based)
+                _cursorY = Math.Clamp(cup.Row - 1, 0, _height - 1);
+                _cursorX = Math.Clamp(cup.Column - 1, 0, _width - 1);
+                return;
+            }
+
+            if (token is KgpToken kgpToken)
+            {
+                ProcessKgpCommand(kgpToken);
+            }
         }
 
         // Notify the presentation adapter that KGP data changed
-        if (_presentation is ICellImpactAwarePresentationAdapter impactAware)
+        if (token is KgpToken kgp && _presentation is ICellImpactAwarePresentationAdapter impactAware)
         {
-            var applied = AppliedToken.WithNoCellImpacts(token, _cursorX, _cursorY, _cursorX, _cursorY);
+            var applied = AppliedToken.WithNoCellImpacts(kgp, _cursorX, _cursorY, _cursorX, _cursorY);
             _ = impactAware.WriteOutputWithImpactsAsync([applied]);
         }
     }
