@@ -1,0 +1,1870 @@
+{
+  "resourceSpans": [
+    {
+      "scopeSpans": [
+        {
+          "scope": {
+            "name": "Microsoft.AspNetCore"
+          },
+          "spans": [
+            {
+              "traceId": "977d454897fb2a26a21697cd2632b137",
+              "spanId": "a26f9404426f7ce8",
+              "name": "GET /",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380416318400",
+              "endTimeUnixNano": "1776494380496187300",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "bd0be0b02e627ce2ae45edb1fff867d0",
+              "spanId": "a0ed512ac993f538",
+              "name": "GET lib/bootstrap/dist/css/bootstrap.min.43atpzeawx.css",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380503883400",
+              "endTimeUnixNano": "1776494380522018800",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/lib/bootstrap/dist/css/bootstrap.min.43atpzeawx.css"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "lib/bootstrap/dist/css/bootstrap.min.43atpzeawx.css"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "d5e52b60ef247583808b473699be6e71",
+              "spanId": "4d34f7795831e1f4",
+              "name": "GET k8stest5.Web.se9aso9acb.styles.css",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380504709700",
+              "endTimeUnixNano": "1776494380515089900",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/k8stest5.Web.se9aso9acb.styles.css"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "k8stest5.Web.se9aso9acb.styles.css"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "e2abf61fa3f59a5cf5ab9f385f868dd3",
+              "spanId": "c47ba380aea35074",
+              "name": "GET app.d4myyhw84x.css",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380504709900",
+              "endTimeUnixNano": "1776494380519395000",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/app.d4myyhw84x.css"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "app.d4myyhw84x.css"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "cb0a537c33e4dac29ed2686cd3c9f785",
+              "spanId": "628bda2b3f299ee9",
+              "name": "GET _framework/blazor.web.qcnkhbt5lj.js",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380516274500",
+              "endTimeUnixNano": "1776494380526659200",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/_framework/blazor.web.qcnkhbt5lj.js"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "_framework/blazor.web.qcnkhbt5lj.js"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "ae507d60e37079ab72951bf923828002",
+              "spanId": "0ff0b2c9abd0c01e",
+              "name": "GET favicon.png",
+              "kind": 2,
+              "startTimeUnixNano": "1776494380626358400",
+              "endTimeUnixNano": "1776494380630218700",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/favicon.png"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "favicon.png"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "14afc2dafddb8e9fa3d644dd420f9d10",
+              "spanId": "89caee181ff0dc90",
+              "name": "GET /counter",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381880577600",
+              "endTimeUnixNano": "1776494381906964900",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/counter"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/counter"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "fbfffe1564d426e8a937fee529fbe23f",
+              "spanId": "bce9768e72a83d1b",
+              "name": "GET /_blazor/initializers/",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381911608500",
+              "endTimeUnixNano": "1776494381912656200",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/_blazor/initializers"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/_blazor/initializers/"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "821cd932ca58458f9cd129166c7f2449",
+              "spanId": "cf8c99e0b3d86072",
+              "name": "POST /_blazor/negotiate",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381915737300",
+              "endTimeUnixNano": "1776494381918664800",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "url.query",
+                  "value": {
+                    "stringValue": "?negotiateVersion=1"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/_blazor/negotiate"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/_blazor/negotiate"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+              "spanId": "9e49657982e19598",
+              "name": "CONNECT /_blazor",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381920244800",
+              "endTimeUnixNano": "1776494384372950700",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "url.query",
+                  "value": {
+                    "stringValue": "?id=lcEGgtHVUSdmCv8CtNzDig"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "CONNECT"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/_blazor"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.long_running",
+                  "value": {
+                    "stringValue": "true"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/_blazor"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "1503a62e62165acfba8a9f437f8f4d18",
+              "spanId": "864ca40dd9198bc9",
+              "name": "GET /weather",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382259566800",
+              "endTimeUnixNano": "1776494412352563300",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/weather"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "Polly.Timeout.TimeoutRejectedException"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/weather"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ],
+              "status": {
+                "message": "",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "3a147d56c408a93bdafb24fb9b1453a0",
+              "spanId": "7635a20be1b96435",
+              "name": "GET /",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382771273100",
+              "endTimeUnixNano": "1776494382772477900",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "0ac54468bb570df13a6a222efe42eb84",
+              "spanId": "4dcb93466a0f08ab",
+              "name": "POST /_blazor/disconnect/",
+              "kind": 2,
+              "startTimeUnixNano": "1776494384370842000",
+              "endTimeUnixNano": "1776494384376770600",
+              "attributes": [
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7294"
+                  }
+                },
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "POST"
+                  }
+                },
+                {
+                  "key": "url.scheme",
+                  "value": {
+                    "stringValue": "https"
+                  }
+                },
+                {
+                  "key": "url.path",
+                  "value": {
+                    "stringValue": "/_blazor/disconnect"
+                  }
+                },
+                {
+                  "key": "network.protocol.version",
+                  "value": {
+                    "stringValue": "2"
+                  }
+                },
+                {
+                  "key": "user_agent.original",
+                  "value": {
+                    "stringValue": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/147.0.0.0 Safari/537.36 Edg/147.0.0.0"
+                  }
+                },
+                {
+                  "key": "http.route",
+                  "value": {
+                    "stringValue": "/_blazor/disconnect/"
+                  }
+                },
+                {
+                  "key": "http.response.status_code",
+                  "value": {
+                    "stringValue": "200"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "webfrontend"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "Microsoft.AspNetCore.Components"
+          },
+          "spans": [
+            {
+              "traceId": "e313ad6b1ac8d313168e57bc5265138b",
+              "spanId": "598c240eb1c0944b",
+              "name": "Route / -> k8stest5.Web.Components.Pages.Home",
+              "kind": 1,
+              "startTimeUnixNano": "1776494380465383500",
+              "endTimeUnixNano": "1776494380467145900",
+              "attributes": [
+                {
+                  "key": "aspnetcore.components.type",
+                  "value": {
+                    "stringValue": "k8stest5.Web.Components.Pages.Home"
+                  }
+                },
+                {
+                  "key": "aspnetcore.components.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "977d454897fb2a26a21697cd2632b137",
+                  "spanId": "a26f9404426f7ce8",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "bdb9673ef3237d649ea4857c76ebd5d1",
+              "spanId": "b746eb589034dc94",
+              "name": "Route /counter -> k8stest5.Web.Components.Pages.Counter",
+              "kind": 1,
+              "startTimeUnixNano": "1776494381885594000",
+              "endTimeUnixNano": "1776494381885926000",
+              "attributes": [
+                {
+                  "key": "aspnetcore.components.type",
+                  "value": {
+                    "stringValue": "k8stest5.Web.Components.Pages.Counter"
+                  }
+                },
+                {
+                  "key": "aspnetcore.components.route",
+                  "value": {
+                    "stringValue": "/counter"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "14afc2dafddb8e9fa3d644dd420f9d10",
+                  "spanId": "89caee181ff0dc90",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "4bfd1bf242ef6eec33d6fa00cf798f01",
+              "spanId": "0f0cb247515100da",
+              "name": "Route /weather -> k8stest5.Web.Components.Pages.Weather",
+              "kind": 1,
+              "startTimeUnixNano": "1776494382273082900",
+              "endTimeUnixNano": "1776494382273138500",
+              "attributes": [
+                {
+                  "key": "aspnetcore.components.type",
+                  "value": {
+                    "stringValue": "k8stest5.Web.Components.Pages.Weather"
+                  }
+                },
+                {
+                  "key": "aspnetcore.components.route",
+                  "value": {
+                    "stringValue": "/weather"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "1503a62e62165acfba8a9f437f8f4d18",
+                  "spanId": "864ca40dd9198bc9",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "f56d2142646c7f859f71ce55e96d796b",
+              "spanId": "23cec68fbd4ca757",
+              "name": "Route / -> k8stest5.Web.Components.Pages.Home",
+              "kind": 1,
+              "startTimeUnixNano": "1776494382771778600",
+              "endTimeUnixNano": "1776494382771796800",
+              "attributes": [
+                {
+                  "key": "aspnetcore.components.type",
+                  "value": {
+                    "stringValue": "k8stest5.Web.Components.Pages.Home"
+                  }
+                },
+                {
+                  "key": "aspnetcore.components.route",
+                  "value": {
+                    "stringValue": "/"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "3a147d56c408a93bdafb24fb9b1453a0",
+                  "spanId": "7635a20be1b96435",
+                  "traceState": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "OpenTelemetry.Instrumentation.StackExchangeRedis",
+            "version": "1.0.0.13"
+          },
+          "spans": [
+            {
+              "traceId": "1bda056c5abf97d58f3c8cd3aeb8f9a0",
+              "spanId": "34c06b0835145cd8",
+              "parentSpanId": "bbffedc868152135",
+              "name": "PING",
+              "kind": 3,
+              "startTimeUnixNano": "1776494380901102400",
+              "endTimeUnixNano": "1776494380905071500",
+              "attributes": [
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "db.redis.flags",
+                  "value": {
+                    "stringValue": "None"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "PING"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "50940"
+                  }
+                },
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "stringValue": "-1"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "cache"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1776494380903606100",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1776494380903733300",
+                  "name": "Sent"
+                },
+                {
+                  "timeUnixNano": "1776494380905001300",
+                  "name": "ResponseReceived"
+                }
+              ]
+            },
+            {
+              "traceId": "1bda056c5abf97d58f3c8cd3aeb8f9a0",
+              "spanId": "68e31509069b5115",
+              "parentSpanId": "bbffedc868152135",
+              "name": "PING",
+              "kind": 3,
+              "startTimeUnixNano": "1776494380905945800",
+              "endTimeUnixNano": "1776494380907775700",
+              "attributes": [
+                {
+                  "key": "db.system",
+                  "value": {
+                    "stringValue": "redis"
+                  }
+                },
+                {
+                  "key": "db.redis.flags",
+                  "value": {
+                    "stringValue": "None"
+                  }
+                },
+                {
+                  "key": "db.statement",
+                  "value": {
+                    "stringValue": "PING"
+                  }
+                },
+                {
+                  "key": "net.peer.name",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "net.peer.port",
+                  "value": {
+                    "stringValue": "50940"
+                  }
+                },
+                {
+                  "key": "db.redis.database_index",
+                  "value": {
+                    "stringValue": "-1"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "cache"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1776494380906883900",
+                  "name": "Enqueued"
+                },
+                {
+                  "timeUnixNano": "1776494380906890000",
+                  "name": "Sent"
+                },
+                {
+                  "timeUnixNano": "1776494380907766700",
+                  "name": "ResponseReceived"
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "Microsoft.AspNetCore.SignalR.Server"
+          },
+          "spans": [
+            {
+              "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+              "spanId": "e94cbf9687a1cb1f",
+              "parentSpanId": "9e49657982e19598",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnConnectedAsync",
+              "kind": 1,
+              "startTimeUnixNano": "1776494381932568800",
+              "endTimeUnixNano": "1776494381932577700",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnConnectedAsync"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+              "spanId": "2eb73fa80588f1f3",
+              "parentSpanId": "9e49657982e19598",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnDisconnectedAsync",
+              "kind": 1,
+              "startTimeUnixNano": "1776494384369733200",
+              "endTimeUnixNano": "1776494384371625400",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnDisconnectedAsync"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ]
+            },
+            {
+              "traceId": "e4a6abadef3b8e42c9d762c96b243123",
+              "spanId": "e60bc5bc0be2f550",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/StartCircuit",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381935834200",
+              "endTimeUnixNano": "1776494381956671500",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "StartCircuit"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "e7dabb1512512a158261001fc68cc854",
+              "spanId": "b7b0c6ff768294a6",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/UpdateRootComponents",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381957304100",
+              "endTimeUnixNano": "1776494381980965300",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "UpdateRootComponents"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "3703eb9f57dd67f70c9f66eb9c5f7778",
+              "spanId": "77b7859a8f911ff3",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/EndInvokeJSFromDotNet",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381981014400",
+              "endTimeUnixNano": "1776494381982193300",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "EndInvokeJSFromDotNet"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "acc86f1308dc2e976325b9d45782b823",
+              "spanId": "22781d08aac820a0",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnRenderCompleted",
+              "kind": 2,
+              "startTimeUnixNano": "1776494381982233800",
+              "endTimeUnixNano": "1776494381983669000",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnRenderCompleted"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "11c3171bd8ed06217921a3054d863e89",
+              "spanId": "5c39a6ba270d5a29",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnLocationChanged",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382255738500",
+              "endTimeUnixNano": "1776494382256076000",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnLocationChanged"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "1f4b2748619ef7cebd50afac820cf0c0",
+              "spanId": "e2647bba11020094",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/UpdateRootComponents",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382360723000",
+              "endTimeUnixNano": "1776494382363001300",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "UpdateRootComponents"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "4ef39bab5735bc70c49e968f128ab345",
+              "spanId": "ebdf9956e1de495d",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnRenderCompleted",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382363051200",
+              "endTimeUnixNano": "1776494382363089700",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnRenderCompleted"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            },
+            {
+              "traceId": "bc070d6f3373a3ac76a448f85d2820e8",
+              "spanId": "a74d8e803e0172f0",
+              "name": "Microsoft.AspNetCore.Components.Server.ComponentHub/OnLocationChanged",
+              "kind": 2,
+              "startTimeUnixNano": "1776494382766779400",
+              "endTimeUnixNano": "1776494382766826200",
+              "attributes": [
+                {
+                  "key": "rpc.method",
+                  "value": {
+                    "stringValue": "OnLocationChanged"
+                  }
+                },
+                {
+                  "key": "rpc.system",
+                  "value": {
+                    "stringValue": "signalr"
+                  }
+                },
+                {
+                  "key": "rpc.service",
+                  "value": {
+                    "stringValue": "Microsoft.AspNetCore.Components.Server.ComponentHub"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "Microsoft.AspNetCore.Components.Server.Circuits"
+          },
+          "spans": [
+            {
+              "traceId": "9077439195ee560961886b40feaeeb95",
+              "spanId": "b8588a0bca79efeb",
+              "name": "Circuit mh1FsY60sMPBZpaPqXAVmHKRGER9bthUq-BYFe2lCMw",
+              "kind": 1,
+              "startTimeUnixNano": "1776494381956076500",
+              "endTimeUnixNano": "1776494381956130100",
+              "attributes": [
+                {
+                  "key": "aspnetcore.components.circuit.id",
+                  "value": {
+                    "stringValue": "mh1FsY60sMPBZpaPqXAVmHKRGER9bthUq-BYFe2lCMw"
+                  }
+                }
+              ],
+              "links": [
+                {
+                  "traceId": "5c6e139fa7729e31038c68df1ec2a7c6",
+                  "spanId": "9e49657982e19598",
+                  "traceState": ""
+                },
+                {
+                  "traceId": "e4a6abadef3b8e42c9d762c96b243123",
+                  "spanId": "e60bc5bc0be2f550",
+                  "traceState": ""
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "scope": {
+            "name": "System.Net.Http"
+          },
+          "spans": [
+            {
+              "traceId": "1503a62e62165acfba8a9f437f8f4d18",
+              "spanId": "a0277bd0401d0f49",
+              "parentSpanId": "864ca40dd9198bc9",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1776494382344992400",
+              "endTimeUnixNano": "1776494392331551600",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7388"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "https://localhost:7388/weatherforecast"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "apiservice"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1776494392331551600",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "A task was canceled."
+                      }
+                    },
+                    {
+                      "key": "exception.stacktrace",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException: A task was canceled.\r\n   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)\r\n   at System.Net.Http.HttpConnectionWaiter`1.WaitForConnectionWithTelemetryAsync(HttpRequestMessage request, HttpConnectionPool pool, Boolean async, CancellationToken requestCancellationToken)\r\n   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)\r\n   at System.Net.Http.Metrics.MetricsHandler.SendAsyncWithMetrics(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)\r\n   at System.Net.Http.DiagnosticsHandler.SendAsyncCore(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "1503a62e62165acfba8a9f437f8f4d18",
+              "spanId": "299cd6982997f63b",
+              "parentSpanId": "864ca40dd9198bc9",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1776494394000078000",
+              "endTimeUnixNano": "1776494404014553200",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7388"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "https://localhost:7388/weatherforecast"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "apiservice"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1776494404014553200",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "A task was canceled."
+                      }
+                    },
+                    {
+                      "key": "exception.stacktrace",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException: A task was canceled.\r\n   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)\r\n   at System.Net.Http.HttpConnectionWaiter`1.WaitForConnectionWithTelemetryAsync(HttpRequestMessage request, HttpConnectionPool pool, Boolean async, CancellationToken requestCancellationToken)\r\n   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)\r\n   at System.Net.Http.Metrics.MetricsHandler.SendAsyncWithMetrics(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)\r\n   at System.Net.Http.DiagnosticsHandler.SendAsyncCore(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "",
+                "code": 2
+              }
+            },
+            {
+              "traceId": "1503a62e62165acfba8a9f437f8f4d18",
+              "spanId": "8454fea193cf6c71",
+              "parentSpanId": "864ca40dd9198bc9",
+              "name": "GET",
+              "kind": 3,
+              "startTimeUnixNano": "1776494405604366400",
+              "endTimeUnixNano": "1776494412319423800",
+              "attributes": [
+                {
+                  "key": "http.request.method",
+                  "value": {
+                    "stringValue": "GET"
+                  }
+                },
+                {
+                  "key": "server.address",
+                  "value": {
+                    "stringValue": "localhost"
+                  }
+                },
+                {
+                  "key": "server.port",
+                  "value": {
+                    "stringValue": "7388"
+                  }
+                },
+                {
+                  "key": "url.full",
+                  "value": {
+                    "stringValue": "https://localhost:7388/weatherforecast"
+                  }
+                },
+                {
+                  "key": "error.type",
+                  "value": {
+                    "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                  }
+                },
+                {
+                  "key": "aspire.destination",
+                  "value": {
+                    "stringValue": "apiservice"
+                  }
+                }
+              ],
+              "events": [
+                {
+                  "timeUnixNano": "1776494412319423800",
+                  "name": "exception",
+                  "attributes": [
+                    {
+                      "key": "exception.message",
+                      "value": {
+                        "stringValue": "A task was canceled."
+                      }
+                    },
+                    {
+                      "key": "exception.stacktrace",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException: A task was canceled.\r\n   at System.Threading.Tasks.TaskCompletionSourceWithCancellation`1.WaitWithCancellationAsync(CancellationToken cancellationToken)\r\n   at System.Net.Http.HttpConnectionWaiter`1.WaitForConnectionWithTelemetryAsync(HttpRequestMessage request, HttpConnectionPool pool, Boolean async, CancellationToken requestCancellationToken)\r\n   at System.Net.Http.HttpConnectionPool.SendWithVersionDetectionAndRetryAsync(HttpRequestMessage request, Boolean async, Boolean doRequestAuth, CancellationToken cancellationToken)\r\n   at System.Net.Http.Metrics.MetricsHandler.SendAsyncWithMetrics(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)\r\n   at System.Net.Http.DiagnosticsHandler.SendAsyncCore(HttpRequestMessage request, Boolean async, CancellationToken cancellationToken)"
+                      }
+                    },
+                    {
+                      "key": "exception.type",
+                      "value": {
+                        "stringValue": "System.Threading.Tasks.TaskCanceledException"
+                      }
+                    }
+                  ]
+                }
+              ],
+              "status": {
+                "message": "",
+                "code": 2
+              }
+            }
+          ]
+        }
+      ],
+      "resource": {
+        "attributes": [
+          {
+            "key": "service.name",
+            "value": {
+              "stringValue": "webfrontend"
+            }
+          },
+          {
+            "key": "service.instance.id",
+            "value": {
+              "stringValue": "uvhvfkxc"
+            }
+          },
+          {
+            "key": "telemetry.sdk.language",
+            "value": {
+              "stringValue": "dotnet"
+            }
+          },
+          {
+            "key": "telemetry.sdk.name",
+            "value": {
+              "stringValue": "opentelemetry"
+            }
+          },
+          {
+            "key": "telemetry.sdk.version",
+            "value": {
+              "stringValue": "1.15.0"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

@@ -38,6 +38,19 @@ public sealed class TreeNode : Hex1bNode
     internal List<FlattenedTreeEntry> FlattenedItems { get; } = new();
 
     /// <summary>
+    /// Gets the list of currently visible (expanded) tree item nodes, in display order.
+    /// </summary>
+    /// <remarks>
+    /// This reflects the tree's current expand/collapse state. Collapsed children
+    /// are excluded. Useful for building companion panels that must stay in sync
+    /// with the tree's visible rows.
+    /// </remarks>
+    public IReadOnlyList<TreeItemNode> GetVisibleItems()
+    {
+        return FlattenedItems.Select(e => e.Node).ToList();
+    }
+
+    /// <summary>
     /// Index of the currently focused item in the flattened view.
     /// </summary>
     private int _focusedIndex;
