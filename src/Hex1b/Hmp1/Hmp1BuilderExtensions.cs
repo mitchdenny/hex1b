@@ -69,6 +69,73 @@ public static class Hmp1BuilderExtensions
     }
 
     /// <summary>
+    /// Adds an HMP v1 server listener on a Unix domain socket with a stream transform applied
+    /// to each accepted client connection. Use this to wrap transport streams with encryption,
+    /// compression, or other transformations before HMP v1 framing is applied.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket file.</param>
+    /// <param name="streamTransform">
+    /// A function that wraps the raw transport stream. Called once per client connection.
+    /// The returned stream is used for HMP v1 protocol communication.
+    /// </param>
+    /// <returns>The builder for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithHmp1UdsServer("/tmp/my-terminal.sock", stream => WrapWithCompression(stream))
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1UdsServer(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Stream> streamTransform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        ArgumentNullException.ThrowIfNull(streamTransform);
+        return builder.WithHmp1Server(ct => TransformStreams(
+            Hmp1Transports.ListenUnixSocket(socketPath, ct), streamTransform));
+    }
+
+    /// <summary>
+    /// Adds an HMP v1 server listener on a Unix domain socket with an async stream transform
+    /// applied to each accepted client connection. Use this when the stream wrapping requires
+    /// asynchronous setup, such as a TLS handshake.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket file.</param>
+    /// <param name="streamTransform">
+    /// An async function that wraps the raw transport stream. Called once per client connection.
+    /// The returned stream is used for HMP v1 protocol communication.
+    /// </param>
+    /// <returns>The builder for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithPtyProcess("bash")
+    ///     .WithHmp1UdsServer("/tmp/my-terminal.sock", async stream =>
+    ///     {
+    ///         var sslStream = new SslStream(stream);
+    ///         await sslStream.AuthenticateAsServerAsync(serverCert);
+    ///         return sslStream;
+    ///     })
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1UdsServer(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Task<Stream>> streamTransform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        ArgumentNullException.ThrowIfNull(streamTransform);
+        return builder.WithHmp1Server(ct => TransformStreamsAsync(
+            Hmp1Transports.ListenUnixSocket(socketPath, ct), streamTransform));
+    }
+
+    /// <summary>
     /// Configures the terminal as an HMP v1 client. The terminal connects to a remote
     /// server and displays its output locally.
     /// </summary>
@@ -136,6 +203,90 @@ public static class Hmp1BuilderExtensions
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
         return builder.WithHmp1Client(ct => Hmp1Transports.ConnectUnixSocket(socketPath, ct));
+    }
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket
+    /// with a stream transform applied after connection. Use this to wrap transport streams
+    /// with encryption, compression, or other transformations before HMP v1 framing is applied.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
+    /// <param name="streamTransform">
+    /// A function that wraps the raw transport stream.
+    /// The returned stream is used for HMP v1 protocol communication.
+    /// </param>
+    /// <returns>The builder for fluent chaining.</returns>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Stream> streamTransform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        ArgumentNullException.ThrowIfNull(streamTransform);
+        return builder.WithHmp1Client(async ct =>
+        {
+            var stream = await Hmp1Transports.ConnectUnixSocket(socketPath, ct);
+            return streamTransform(stream);
+        });
+    }
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket
+    /// with an async stream transform applied after connection. Use this when the stream
+    /// wrapping requires asynchronous setup, such as a TLS handshake.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
+    /// <param name="streamTransform">
+    /// An async function that wraps the raw transport stream.
+    /// The returned stream is used for HMP v1 protocol communication.
+    /// </param>
+    /// <returns>The builder for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHmp1UdsClient("/tmp/my-terminal.sock", async stream =>
+    ///     {
+    ///         var sslStream = new SslStream(stream);
+    ///         await sslStream.AuthenticateAsClientAsync("localhost");
+    ///         return sslStream;
+    ///     })
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Task<Stream>> streamTransform)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        ArgumentNullException.ThrowIfNull(streamTransform);
+        return builder.WithHmp1Client(async ct =>
+        {
+            var stream = await Hmp1Transports.ConnectUnixSocket(socketPath, ct);
+            return await streamTransform(stream);
+        });
+    }
+
+    private static async IAsyncEnumerable<Stream> TransformStreams(
+        IAsyncEnumerable<Stream> source,
+        Func<Stream, Stream> transform)
+    {
+        await foreach (var stream in source)
+        {
+            yield return transform(stream);
+        }
+    }
+
+    private static async IAsyncEnumerable<Stream> TransformStreamsAsync(
+        IAsyncEnumerable<Stream> source,
+        Func<Stream, Task<Stream>> transform)
+    {
+        await foreach (var stream in source)
+        {
+            yield return await transform(stream);
+        }
     }
 }
 
