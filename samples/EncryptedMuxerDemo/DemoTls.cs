@@ -70,14 +70,10 @@ internal static class DemoTls
             DateTimeOffset.UtcNow.AddMinutes(-5),
             DateTimeOffset.UtcNow.AddHours(1));
 
-        // On Windows, export and re-import so the private key is usable with SslStream
-        if (OperatingSystem.IsWindows())
-        {
-            var pfxBytes = cert.Export(X509ContentType.Pfx);
-            cert.Dispose();
-            return X509CertificateLoader.LoadPkcs12(pfxBytes, null, X509KeyStorageFlags.EphemeralKeySet);
-        }
-
-        return cert;
+        // Export to PFX and re-import so the private key is in a format SslStream can use.
+        // Use MachineKeySet to avoid "ephemeral keys not supported" errors on some Windows versions.
+        var pfxBytes = cert.Export(X509ContentType.Pfx);
+        cert.Dispose();
+        return X509CertificateLoader.LoadPkcs12(pfxBytes, null, X509KeyStorageFlags.MachineKeySet);
     }
 }
