@@ -86,6 +86,8 @@ public sealed class FirstRunExperience
                     ])
                 ),
 
+                h.VSeparator(),
+
                 // Instructions — vertically centered alongside the QR code
                 h.Align(Alignment.VCenter,
                     h.VStack(text => [
