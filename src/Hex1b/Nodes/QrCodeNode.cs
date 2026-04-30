@@ -74,14 +74,48 @@ public sealed class QrCodeNode : Hex1bNode
         {
             using var generator = new QRCodeGenerator();
             using var qrCodeData = generator.CreateQrCode(_data, QRCodeGenerator.ECCLevel.Q);
-            _matrix = qrCodeData.ModuleMatrix;
-            _matrixSize = _matrix.Count;
+            var raw = qrCodeData.ModuleMatrix;
+
+            // QRCoder bakes in a quiet zone — trim empty border rows/columns
+            var size = raw.Count;
+            var firstFilled = 0;
+            while (firstFilled < size && !HasFilledModule(raw, firstFilled))
+                firstFilled++;
+
+            var lastFilled = size - 1;
+            while (lastFilled > firstFilled && !HasFilledModule(raw, lastFilled))
+                lastFilled--;
+
+            var trimmedSize = lastFilled - firstFilled + 1;
+            _matrix = new List<BitArray>(trimmedSize);
+            for (var i = firstFilled; i <= lastFilled; i++)
+            {
+                var srcRow = raw[i];
+                var trimmedRow = new BitArray(trimmedSize);
+                for (var j = 0; j < trimmedSize; j++)
+                    trimmedRow[j] = srcRow[firstFilled + j];
+                _matrix.Add(trimmedRow);
+            }
+            _matrixSize = trimmedSize;
         }
         catch
         {
             _matrix = new List<BitArray>();
             _matrixSize = 0;
         }
+    }
+
+    /// <summary>
+    /// Checks if a row in the matrix has any filled (dark) modules.
+    /// </summary>
+    private static bool HasFilledModule(List<BitArray> matrix, int row)
+    {
+        var r = matrix[row];
+        for (var i = 0; i < r.Length; i++)
+        {
+            if (r[i]) return true;
+        }
+        return false;
     }
 
     /// <summary>
