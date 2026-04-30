@@ -20,6 +20,7 @@ public sealed class ShellScreen
     private readonly PanelManager _panelManager;
 
     private bool _showHelp;
+    private readonly Dictionary<ShellPanel, string?> _savingPanels = new();
 
     private static readonly string HelpMarkdown = """
         # Cloud Term Help
@@ -331,27 +332,80 @@ public sealed class ShellScreen
 
         var (editorState, highlighter) = panel.Data is (EditorState es, YamlSyntaxHighlighter yh)
             ? (es, yh)
-            : (new EditorState(new Hex1b.Documents.Hex1bDocument("")), new YamlSyntaxHighlighter());
+            : (new EditorState(new Hex1bDocument("")), new YamlSyntaxHighlighter());
+
+        var isSaving = _savingPanels.TryGetValue(panel, out var saveMessage);
 
         return ctx.ThemePanel(
             t => t.Set(BorderTheme.BorderColor, borderColor),
             ctx.Border(b =>
             [
-                b.Editor(editorState)
-                    .LineNumbers()
-                    .Decorations(highlighter)
-                    .Fill()
-                    .WithInputBindings(bindings =>
+                b.VStack(v =>
+                {
+                    var widgets = new List<Hex1bWidget>();
+
+                    // Save banner
+                    if (isSaving)
                     {
-                        bindings.Ctrl().Key(Hex1bKey.S)
-                            .OverridesCapture()
-                            .Action(_ =>
+                        widgets.Add(
+                            v.ThemePanel(
+                                t => t
+                                    .Set(GlobalTheme.ForegroundColor, Hex1bColor.White)
+                                    .Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 100, 200)),
+                                v.HStack(h => [
+                                    h.Text(" "),
+                                    h.Spinner(SpinnerStyle.Dots),
+                                    h.Text($" {saveMessage ?? "Saving..."}"),
+                                ]).Height(SizeHint.Content)
+                            )
+                        );
+                    }
+
+                    // Editor
+                    widgets.Add(
+                        v.Editor(editorState)
+                            .LineNumbers()
+                            .Decorations(highlighter)
+                            .Fill()
+                            .WithInputBindings(bindings =>
                             {
-                                _appState.StatusMessage = "Saved (simulated)";
-                                app.Invalidate();
-                            }, "Save");
-                    }),
+                                bindings.Ctrl().Key(Hex1bKey.S)
+                                    .OverridesCapture()
+                                    .Action(_ =>
+                                    {
+                                        if (!_savingPanels.ContainsKey(panel))
+                                        {
+                                            var capturedPanel = panel;
+                                            Task.Run(async () => await SaveAsync(capturedPanel, app));
+                                        }
+                                    }, "Save");
+                            })
+                    );
+
+                    return widgets.ToArray();
+                }).Fill(),
             ]).Title(panel.Title).Fill()
         );
+    }
+
+    private async Task SaveAsync(ShellPanel panel, Hex1bApp app)
+    {
+        _savingPanels[panel] = "Saving to cluster...";
+        app.Invalidate();
+
+        await Task.Delay(800);
+
+        _savingPanels[panel] = "Validating YAML...";
+        app.Invalidate();
+
+        await Task.Delay(600);
+
+        _savingPanels[panel] = "Applying changes...";
+        app.Invalidate();
+
+        await Task.Delay(400);
+
+        _savingPanels.Remove(panel);
+        app.Invalidate();
     }
 }
