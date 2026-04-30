@@ -151,7 +151,7 @@ public sealed class CloudShellWidget
         return ctx.VStack(outer =>
         [
             // Scrollable history
-            outer.VScrollPanel(sp =>
+            (outer.VScrollPanel(sp =>
             {
                 var widgets = new List<Hex1bWidget>();
 
@@ -167,7 +167,7 @@ public sealed class CloudShellWidget
                 }
 
                 return widgets.ToArray();
-            }).Fill(),
+            }) with { IsFollowing = true }).Fill(),
 
             // Prompt line at bottom
             outer.HStack(h =>
@@ -198,6 +198,7 @@ public sealed class CloudShellWidget
                         }
 
                         app.Invalidate();
+                        app.RequestFocus(n => n is TextBoxNode);
                     })
                     .FillWidth(),
             ]).Height(SizeHint.Content),
