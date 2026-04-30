@@ -103,6 +103,8 @@ public sealed class ShellScreen
                             panelWidget = BuildDataBrowserPanel(h, panel, isFocused);
                         else if (panel.Tag == "editor")
                             panelWidget = BuildEditorPanel(h, panel, isFocused, app);
+                        else if (panel.Tag == "monitor")
+                            panelWidget = BuildMonitorPanel(h, panel, isFocused);
                         else if (panel.IsTerminal)
                             panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
                         else
@@ -138,11 +140,11 @@ public sealed class ShellScreen
 
                     sections.Add(s.Section("Ctrl+P ←/→"));
                     sections.Add(s.Separator(" "));
-                    sections.Add(s.Section("Zoom"));
-                    sections.Add(s.Separator("  "));
-                    sections.Add(s.Section("Ctrl+P PgUp/Dn"));
-                    sections.Add(s.Separator(" "));
                     sections.Add(s.Section("Focus"));
+                    sections.Add(s.Separator("  "));
+                    sections.Add(s.Section("Ctrl+P ↑/↓"));
+                    sections.Add(s.Separator(" "));
+                    sections.Add(s.Section("Zoom"));
                     sections.Add(s.Separator("  "));
                     sections.Add(s.Section("Ctrl+P Q"));
                     sections.Add(s.Separator(" "));
@@ -182,20 +184,20 @@ public sealed class ShellScreen
             // Ctrl+P then → to zoom out (show more panels)
             bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.RightArrow)
                 .OverridesCapture()
-                .Action(_ => _panelManager.ZoomOut(), "Zoom out");
+                .Action(_ => _panelManager.FocusNext(), "Focus next panel");
 
             // Ctrl+P then ← to zoom in (show fewer panels)
             bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.LeftArrow)
                 .OverridesCapture()
-                .Action(_ => _panelManager.ZoomIn(), "Zoom in");
-
-            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.PageDown)
-                .OverridesCapture()
-                .Action(_ => _panelManager.FocusNext(), "Focus next panel");
-
-            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.PageUp)
-                .OverridesCapture()
                 .Action(_ => _panelManager.FocusPrevious(), "Focus previous panel");
+
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.DownArrow)
+                .OverridesCapture()
+                .Action(_ => _panelManager.ZoomOut(), "Zoom out");
+
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.UpArrow)
+                .OverridesCapture()
+                .Action(_ => _panelManager.ZoomIn(), "Zoom in");
 
             bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.Q)
                 .OverridesCapture()
@@ -408,4 +410,49 @@ public sealed class ShellScreen
         _savingPanels.Remove(panel);
         app.Invalidate();
     }
+
+    private Hex1bWidget BuildMonitorPanel<TParent>(
+        WidgetContext<TParent> ctx, ShellPanel panel, bool isFocused)
+        where TParent : Hex1bWidget
+    {
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        var monitor = panel.Data as ClusterMonitorState;
+        monitor?.Update();
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
+            {
+                if (monitor == null)
+                    return [b.Text("  No monitor data.").Fill()];
+
+                var widgets = new List<Hex1bWidget>();
+
+                for (var i = 0; i < monitor.Nodes.Count; i++)
+                {
+                    var (nodeName, samples) = monitor.Nodes[i];
+                    var color = ClusterMonitorState.NodeColors[i % ClusterMonitorState.NodeColors.Length];
+                    var snapshot = samples.ToArray();
+
+                    widgets.Add(
+                        b.TimeSeriesChart(snapshot)
+                            .Label(s => s.Time)
+                            .Value(s => s.Usage)
+                            .Title($"{nodeName} CPU %")
+                            .Range(0, 100)
+                            .ShowGridLines()
+                            .Fill(Hex1b.Charts.FillStyle.Braille)
+                            .FillHeight(1)
+                            .RedrawAfter(1000)
+                    );
+                }
+
+                return widgets.ToArray();
+            }).Title(panel.Title).Fill()
+        );
+    }
 }
+

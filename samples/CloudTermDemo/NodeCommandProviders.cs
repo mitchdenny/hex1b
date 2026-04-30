@@ -160,6 +160,17 @@ internal sealed class AksClusterCommandProvider : INodeCommandProvider
         root.Subcommands.Add(scaleCommand);
 
         EditCommandHelper.AddEditCommand(root, getContext, node => MockYaml.ForAksCluster(node.Name));
+
+        var monitorCommand = new Command("monitor", "Open live CPU monitoring for cluster nodes");
+        monitorCommand.SetAction(async (parseResult, ct) =>
+        {
+            var ctx = getContext();
+            var cluster = ctx.ShellState.CurrentNode;
+            var state = new ClusterMonitorState(cluster.Name);
+            ctx.PanelManager.InsertPanelRight($"monitor: {cluster.Name}", tag: "monitor", data: state);
+            ctx.SetTextResult($"  Monitoring {cluster.Name}...");
+        });
+        root.Subcommands.Add(monitorCommand);
     }
 }
 
