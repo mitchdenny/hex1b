@@ -35,17 +35,19 @@ public sealed class ResourceListResult : CommandResult
         return ctx.Table((IReadOnlyList<ResourceRow>)Rows)
             .Header(h =>
             [
-                h.Cell("Type").Width(SizeHint.Fixed(18)),
                 h.Cell("Name").Width(SizeHint.Fill),
+                h.Cell("Type").Width(SizeHint.Fixed(18)),
                 h.Cell("Details").Width(SizeHint.Fill),
             ])
             .Row((r, row, state) =>
             [
-                r.Cell(row.Type),
                 r.Cell(row.Name),
+                r.Cell(row.Type),
                 r.Cell(row.Description ?? ""),
             ])
+            .RowKey(r => r.Name)
             .Compact()
+            .FillWidth()
             .ContentHeight();
     }
 }
@@ -129,6 +131,9 @@ public sealed class CloudShellWidget
     private bool _isExecuting;
     private string _spinnerMessage = "Running...";
     private Hex1bApp? _app;
+
+    /// <summary>The most recent ResourceListResult, for data browsing panel.</summary>
+    public ResourceListResult? LastResourceList { get; private set; }
 
     public CloudShellWidget(
         CloudShellState shellState,
@@ -267,9 +272,13 @@ public sealed class CloudShellWidget
 
         await _commandRegistry.ExecuteAsync(input, execContext);
 
+        var result = execContext.Result ?? new TextResult();
+        if (result is ResourceListResult rlr)
+            LastResourceList = rlr;
+
         _history.Add(new ShellHistoryEntry(
             $"{prompt}{input}",
-            execContext.Result ?? new TextResult()
+            result
         ));
 
         _isExecuting = false;

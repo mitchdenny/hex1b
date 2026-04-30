@@ -104,6 +104,25 @@ public sealed class PanelManager
         _app?.Invalidate();
     }
 
+    /// <summary>Opens a content panel (non-terminal) with the given tag.</summary>
+    public void OpenContentPanel(string title, string tag)
+    {
+        // Don't open duplicates of the same tag
+        var existing = _panels.FindIndex(p => p.Tag == tag);
+        if (existing >= 0)
+        {
+            FocusedIndex = existing;
+            _app?.Invalidate();
+            return;
+        }
+
+        var tutorialIndex = _panels.FindIndex(p => p.Tag == "tutorial");
+        var insertAt = tutorialIndex >= 0 ? tutorialIndex : _panels.Count;
+        _panels.Insert(insertAt, ShellPanel.Content(title, tag: tag));
+        FocusedIndex = insertAt;
+        _app?.Invalidate();
+    }
+
     public void FocusNext()
     {
         if (_panels.Count > 0)

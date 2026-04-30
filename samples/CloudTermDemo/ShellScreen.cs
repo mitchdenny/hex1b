@@ -98,6 +98,8 @@ public sealed class ShellScreen
                             panelWidget = BuildCloudShellPanel(h, panel.Title, isFocused, app);
                         else if (panel.Tag == "tutorial")
                             panelWidget = BuildTutorialPanel(h, isFocused);
+                        else if (panel.Tag == "data-browser")
+                            panelWidget = BuildDataBrowserPanel(h, isFocused);
                         else if (panel.IsTerminal)
                             panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
                         else
@@ -176,6 +178,15 @@ public sealed class ShellScreen
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.Q)
                 .OverridesCapture()
                 .Action(async _ => await _panelManager.CloseCurrentPanelAsync(), "Close panel");
+
+            // Ctrl+Z then O to open data browser for last resource list
+            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.O)
+                .OverridesCapture()
+                .Action(_ =>
+                {
+                    if (_cloudShell.LastResourceList != null)
+                        _panelManager.OpenContentPanel("Data Browser", "data-browser");
+                }, "Open data browser");
         });
     }
 
@@ -249,6 +260,42 @@ public sealed class ShellScreen
             [
                 b.Text("").Fill(),
             ]).Title(title).Fill()
+        );
+    }
+
+    private Hex1bWidget BuildDataBrowserPanel<TParent>(
+        WidgetContext<TParent> ctx, bool isFocused)
+        where TParent : Hex1bWidget
+    {
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        var data = _cloudShell.LastResourceList;
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
+            [
+                data != null
+                    ? b.Table((IReadOnlyList<ResourceListResult.ResourceRow>)data.Rows)
+                        .Header(h =>
+                        [
+                            h.Cell("Name").Width(SizeHint.Fill),
+                            h.Cell("Type").Width(SizeHint.Fixed(18)),
+                            h.Cell("Details").Width(SizeHint.Fill),
+                        ])
+                        .Row((r, row, state) =>
+                        [
+                            r.Cell(row.Name),
+                            r.Cell(row.Type),
+                            r.Cell(row.Description ?? ""),
+                        ])
+                        .RowKey(r => r.Name)
+                        .FillWidth()
+                        .FillHeight()
+                    : b.Text("  No data. Run 'ls' first.").Fill(),
+            ]).Title("Data Browser").Fill()
         );
     }
 }
