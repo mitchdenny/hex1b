@@ -13,6 +13,9 @@ public sealed class ShellPanel : IAsyncDisposable
     public bool IsTerminal => Handle != null;
     public string? Tag { get; init; }
 
+    /// <summary>Arbitrary data associated with this panel (e.g. a ResourceListResult).</summary>
+    public object? Data { get; init; }
+
     private readonly Task _runTask;
 
     public ShellPanel(string title, TerminalWidgetHandle? handle, Hex1bTerminal? terminal, Task? runTask)
@@ -23,8 +26,8 @@ public sealed class ShellPanel : IAsyncDisposable
         _runTask = runTask ?? Task.CompletedTask;
     }
 
-    public static ShellPanel Content(string title, string? tag = null)
-        => new(title, null, null, null) { Tag = tag };
+    public static ShellPanel Content(string title, string? tag = null, object? data = null)
+        => new(title, null, null, null) { Tag = tag, Data = data };
 
     public async ValueTask DisposeAsync()
     {
@@ -142,6 +145,29 @@ public sealed class PanelManager
         _panels.Insert(insertAt, ShellPanel.Content(title, tag: tag));
         FocusedIndex = insertAt;
         EnsureFocusedVisible();
+        _app?.Invalidate();
+    }
+
+    /// <summary>
+    /// Inserts a panel immediately to the right of the focused panel.
+    /// Adjusts zoom to show both the focused panel and the new one.
+    /// </summary>
+    public void InsertPanelRight(string title, string? tag = null, object? data = null)
+    {
+        var insertAt = Math.Min(FocusedIndex + 1, _panels.Count);
+        _panels.Insert(insertAt, ShellPanel.Content(title, tag: tag, data: data));
+
+        // Ensure both the current and new panel are visible
+        if (Zoom < 2) Zoom = 2;
+        if (Zoom > _panels.Count) Zoom = _panels.Count;
+
+        // Keep focus on current panel, but ensure the new one is in the viewport
+        EnsureFocusedVisible();
+        // Also make sure insertAt is visible
+        if (insertAt >= ViewportStart + Zoom)
+            ViewportStart = insertAt - Zoom + 1;
+        ClampViewport();
+
         _app?.Invalidate();
     }
 

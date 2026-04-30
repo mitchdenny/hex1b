@@ -98,7 +98,7 @@ public sealed class ShellScreen
                         else if (panel.Tag == "tutorial")
                             panelWidget = BuildTutorialPanel(h, isFocused);
                         else if (panel.Tag == "data-browser")
-                            panelWidget = BuildDataBrowserPanel(h, isFocused);
+                            panelWidget = BuildDataBrowserPanel(h, panel, isFocused);
                         else if (panel.IsTerminal)
                             panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
                         else
@@ -180,13 +180,14 @@ public sealed class ShellScreen
                 .OverridesCapture()
                 .Action(async _ => await _panelManager.CloseCurrentPanelAsync(), "Close panel");
 
-            // Ctrl+Z then O to open data browser for last resource list
+            // Ctrl+Z then O to open data browser to the right with last ls result
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.O)
                 .OverridesCapture()
                 .Action(_ =>
                 {
-                    if (_cloudShell.LastResourceList != null)
-                        _panelManager.OpenContentPanel("Data Browser", "data-browser");
+                    var data = _cloudShell.LastResourceList;
+                    if (data != null)
+                        _panelManager.InsertPanelRight("Data Browser", tag: "data-browser", data: data);
                 }, "Open data browser");
         });
     }
@@ -265,14 +266,14 @@ public sealed class ShellScreen
     }
 
     private Hex1bWidget BuildDataBrowserPanel<TParent>(
-        WidgetContext<TParent> ctx, bool isFocused)
+        WidgetContext<TParent> ctx, ShellPanel panel, bool isFocused)
         where TParent : Hex1bWidget
     {
         var borderColor = isFocused
             ? Hex1bColor.FromRgb(60, 130, 255)
             : Hex1bColor.Gray;
 
-        var data = _cloudShell.LastResourceList;
+        var data = panel.Data as ResourceListResult;
 
         return ctx.ThemePanel(
             t => t.Set(BorderTheme.BorderColor, borderColor),
@@ -295,8 +296,8 @@ public sealed class ShellScreen
                         .RowKey(r => r.Name)
                         .FillWidth()
                         .FillHeight()
-                    : b.Text("  No data. Run 'ls' first.").Fill(),
-            ]).Title("Data Browser").Fill()
+                    : b.Text("  No data.").Fill(),
+            ]).Title(panel.Title).Fill()
         );
     }
 }
