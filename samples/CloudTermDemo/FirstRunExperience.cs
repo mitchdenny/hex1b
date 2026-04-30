@@ -24,12 +24,18 @@ public sealed class FirstRunExperience
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
+        // Light blue ANSI for the device code
+        var codeText = $"\x1b[38;2;100;180;255m{DeviceCode}\x1b[0m";
+
         return ctx.Center(
             ctx.HStack(h => [
 
-                // QR code
+                // QR code with device code underneath
                 h.Padding(0, 3, 0, 0,
-                    h.QrCode(DeviceLoginUrl).WithQuietZone(0)
+                    h.VStack(qr => [
+                        qr.QrCode(DeviceLoginUrl).WithQuietZone(0),
+                        qr.Text(codeText),
+                    ])
                 ),
 
                 // Instructions — vertically centered alongside the QR code
@@ -43,11 +49,13 @@ public sealed class FirstRunExperience
                         text.Text(""),
                         text.Text("Scan the QR code with your phone, or"),
                         text.Text($"visit {DeviceLoginUrl}"),
-                        text.Text("and enter the code:"),
+                        text.Text("and enter the code shown below the"),
+                        text.Text("QR code to get started."),
                         text.Text(""),
-                        text.Text(DeviceCode),
-                        text.Text(""),
-                        text.Text("Waiting for authentication..."),
+                        text.HStack(s => [
+                            s.Spinner(SpinnerStyle.Dots),
+                            s.Text(" Waiting for authentication..."),
+                        ]),
                     ])
                 ),
 
