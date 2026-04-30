@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace CloudTermDemo;
@@ -24,17 +25,17 @@ public sealed class FirstRunExperience
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
-        // Light blue ANSI for the device code
-        var codeText = $"\x1b[38;2;100;180;255m{DeviceCode}\x1b[0m";
-
         return ctx.Center(
             ctx.HStack(h => [
 
-                // QR code with device code underneath
+                // QR code with device code underneath in light blue
                 h.Padding(0, 3, 0, 0,
                     h.VStack(qr => [
                         qr.QrCode(DeviceLoginUrl).WithQuietZone(0),
-                        qr.Text(codeText),
+                        qr.ThemePanel(
+                            t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(100, 180, 255)),
+                            qr.Text(DeviceCode)
+                        ),
                     ])
                 ),
 
