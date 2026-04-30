@@ -1,52 +1,60 @@
 namespace CloudTermDemo;
 
 /// <summary>
-/// A fluffy cumulus cloud as a greyscale pixel bitmap for half-block rendering.
+/// A cloud-computing-style cloud icon as a greyscale pixel bitmap for half-block rendering.
 /// Each value is 0 (transparent) to 255 (fully opaque white).
-/// The bitmap is 48 pixels wide × 24 pixels tall, rendering as 48×12 terminal cells.
+/// The bitmap is 60 pixels wide × 30 pixels tall, rendering as 60×15 terminal cells.
 /// </summary>
 /// <remarks>
-/// Designed to resemble the classic "cloud computing" icon — a rounded cumulus shape
-/// with soft edges achieved via graduated alpha values.
+/// Shaped after the classic cloud computing icon silhouette: flat bottom, four bumps
+/// along the top (small left, two medium center, one large right-top), roughly 4:3
+/// aspect ratio — similar to the Azure/AWS/GCP cloud icon style.
 /// </remarks>
 internal static class CloudBitmap
 {
-    public const int Width = 48;
-    public const int Height = 24;
+    public const int Width = 60;
+    public const int Height = 30;
 
-    // Greyscale alpha values: 0=transparent, 255=solid white
-    // Soft edges use intermediate values (40-180) for the half-block blending
     public static readonly byte[,] Pixels = GenerateCloud();
 
     private static byte[,] GenerateCloud()
     {
         var pixels = new byte[Height, Width];
 
-        // Define the cloud as overlapping ellipses with soft falloff
-        // Each ellipse: (centerX, centerY, radiusX, radiusY, brightness)
+        // Cloud computing icon shape: 4 bumps (small-left, med, med-large, large-right)
+        // with a flat bottom. Coordinates designed for a 60×30 canvas.
         (double cx, double cy, double rx, double ry, double strength)[] blobs =
         [
-            // Main body — large central mass
-            (24, 14, 18, 7, 1.0),
+            // ── Flat bottom / main body ──
+            // Wide horizontal ellipse that forms the flat base
+            (30, 22, 24, 5, 1.0),
+            (30, 20, 22, 6, 1.0),
 
-            // Top billow — the classic bumpy top
-            (18, 8, 8, 6, 1.0),
-            (28, 6, 10, 7, 1.0),
-            (36, 9, 7, 5.5, 0.95),
-            (12, 11, 7, 5, 0.9),
+            // ── Bump 1: small left bump ──
+            (12, 15, 7, 6, 1.0),
+            (14, 13, 6, 5, 0.9),
 
-            // Upper detail bumps
-            (22, 5, 5, 4, 0.85),
-            (33, 5, 5, 3.5, 0.8),
-            (15, 7, 5, 4, 0.8),
+            // ── Bump 2: medium-left center bump ──
+            (22, 10, 8, 7, 1.0),
+            (24, 8, 7, 6, 0.95),
 
-            // Fill gaps in the body
-            (24, 11, 14, 6, 0.95),
-            (20, 13, 12, 5, 0.9),
-            (30, 12, 10, 5, 0.9),
+            // ── Bump 3: medium-right center bump ──
+            (36, 8, 9, 7, 1.0),
+            (34, 6, 7, 5.5, 0.9),
 
-            // Soften the flat bottom slightly
-            (24, 17, 16, 3, 0.7),
+            // ── Bump 4: large right bump (tallest, most prominent) ──
+            (46, 10, 10, 8, 1.0),
+            (47, 6, 8, 6, 1.0),
+            (48, 4, 6, 4.5, 0.95),
+
+            // ── Fill: connect bumps smoothly into the body ──
+            (20, 16, 14, 7, 1.0),
+            (35, 14, 14, 8, 1.0),
+            (28, 12, 12, 6, 0.95),
+            (42, 12, 10, 6, 0.95),
+
+            // ── Bottom fill: ensure the base is solid and flat ──
+            (30, 24, 22, 3, 0.9),
         ];
 
         for (var y = 0; y < Height; y++)
@@ -63,7 +71,6 @@ internal static class CloudBitmap
 
                     if (dist < 1.0)
                     {
-                        // Smooth falloff using smoothstep-like curve
                         var edge = 1.0 - dist;
                         var alpha = edge * edge * (3.0 - 2.0 * edge); // smoothstep
                         alpha *= strength;
@@ -71,14 +78,20 @@ internal static class CloudBitmap
                     }
                 }
 
-                // Flatten: boost mid-values toward white so the cloud reads as solid
-                // with soft edges only at the perimeter
-                var flattened = maxAlpha > 0.15
-                    ? Math.Clamp((maxAlpha - 0.15) / 0.55, 0, 1)  // remap 0.15–0.70 → 0–1
+                // Flatten: boost mid-values toward solid white, soft edges at perimeter only
+                var flattened = maxAlpha > 0.12
+                    ? Math.Clamp((maxAlpha - 0.12) / 0.45, 0, 1)
                     : 0.0;
                 flattened = flattened * flattened * (3.0 - 2.0 * flattened); // extra smoothstep
                 pixels[y, x] = (byte)(Math.Clamp(flattened, 0, 1) * 255);
             }
+        }
+
+        // Trim: ensure bottom row is flat — zero out anything below the body
+        for (var x = 0; x < Width; x++)
+        {
+            for (var y = 26; y < Height; y++)
+                pixels[y, x] = 0;
         }
 
         return pixels;
