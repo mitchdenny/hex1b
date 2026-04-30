@@ -22,8 +22,8 @@ public class QrCodeNodeTests
         // QR code for this URL should be non-zero
         Assert.True(size.Width > 0, "Width should be greater than 0");
         Assert.True(size.Height > 0, "Height should be greater than 0");
-        // Width is doubled (2 chars per module) so width = height * 2
-        Assert.Equal(size.Height * 2, size.Width);
+        // Half-block: width = totalModules, height = (totalModules + 1) / 2
+        Assert.Equal((size.Width + 1) / 2, size.Height);
     }
 
     [Fact]
@@ -47,9 +47,11 @@ public class QrCodeNodeTests
         var sizeWith = nodeWithQuietZone.Measure(Constraints.Unbounded);
 
         // With quiet zone should be larger by 2 * quietZone (both sides)
-        // Width is doubled (2 chars per module), so quiet zone adds 2 * 2 * 2 = 8 chars
-        Assert.Equal(sizeWithout.Width + 8, sizeWith.Width);
-        Assert.Equal(sizeWithout.Height + 4, sizeWith.Height);
+        // Half-block: width adds 2*2=4, height adds (4+1)/2 - but we compare totals
+        Assert.Equal(sizeWithout.Width + 4, sizeWith.Width);
+        // Height: half-block packs 2 rows per cell, quiet zone of 2 adds 4 modules
+        var expectedHeightDiff = (sizeWithout.Width + 4 + 1) / 2 - (sizeWithout.Width + 1) / 2;
+        Assert.Equal(expectedHeightDiff, sizeWith.Height - sizeWithout.Height);
     }
 
     [Fact]

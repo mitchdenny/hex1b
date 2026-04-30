@@ -11,20 +11,14 @@ namespace Hex1b;
 /// </summary>
 /// <remarks>
 /// <para>
-/// QrCodeNode handles generating, measuring, arranging, and rendering QR codes using
-/// Unicode block characters (█). The QR code is generated using the QRCoder library
-/// and rendered to the terminal as a grid of blocks.
-/// </para>
-/// <para>
-/// This node is not focusable and does not handle input.
+/// QrCodeNode renders QR codes using Unicode half-block characters (▀▄) for compact
+/// display — two QR module rows per terminal row. The QR code is generated using the
+/// QRCoder library.
 /// </para>
 /// </remarks>
 /// <seealso cref="QrCodeWidget"/>
 public sealed class QrCodeNode : Hex1bNode
 {
-    private const string FilledBlock = "██";
-    private const string EmptySpace = "  ";
-    
     private string _data = "";
     private List<BitArray>? _matrix;
     private int _matrixSize = 0;
@@ -32,9 +26,6 @@ public sealed class QrCodeNode : Hex1bNode
     /// <summary>
     /// Gets or sets the data to encode in the QR code.
     /// </summary>
-    /// <remarks>
-    /// When this property changes, the node is marked dirty and the QR code is regenerated.
-    /// </remarks>
     public string Data 
     { 
         get => _data; 
@@ -43,7 +34,7 @@ public sealed class QrCodeNode : Hex1bNode
             if (_data != value)
             {
                 _data = value;
-                _matrix = null; // Invalidate cached matrix
+                _matrix = null;
                 MarkDirty();
             }
         }
@@ -54,10 +45,6 @@ public sealed class QrCodeNode : Hex1bNode
     /// <summary>
     /// Gets or sets the number of module widths to use as a border (quiet zone).
     /// </summary>
-    /// <remarks>
-    /// The quiet zone is the white border around the QR code. A value of 0 disables it.
-    /// When this property changes, the node is marked dirty.
-    /// </remarks>
     public int QuietZone 
     { 
         get => _quietZone; 
@@ -71,9 +58,6 @@ public sealed class QrCodeNode : Hex1bNode
         }
     }
 
-    /// <summary>
-    /// Generates the QR code matrix if not already cached.
-    /// </summary>
     private void EnsureMatrix()
     {
         if (_matrix != null)
@@ -95,48 +79,34 @@ public sealed class QrCodeNode : Hex1bNode
         }
         catch
         {
-            // If QR generation fails (e.g., data too long), use empty matrix
             _matrix = new List<BitArray>();
             _matrixSize = 0;
         }
     }
 
     /// <summary>
-    /// Measures the size required to display the QR code within the given constraints.
+    /// Measures the size required to display the QR code.
+    /// Each module is 1 character wide; two module rows are packed into one terminal row
+    /// using half-block characters.
     /// </summary>
-    /// <param name="constraints">The size constraints for layout.</param>
-    /// <returns>
-    /// The measured size. Width and height include the QR code matrix plus quiet zone borders.
-    /// </returns>
-    /// <remarks>
-    /// Each QR code module is rendered as a single character (█). The quiet zone adds
-    /// additional characters on all sides. If the data is empty or invalid, returns (0,0).
-    /// </remarks>
     protected override Size MeasureCore(Constraints constraints)
     {
         EnsureMatrix();
         
         if (_matrixSize == 0)
-        {
             return constraints.Constrain(new Size(0, 0));
-        }
 
-        // Total modules = matrix size + quiet zone on both sides
         var totalModules = _matrixSize + (QuietZone * 2);
-        
-        // Width is doubled because each module renders as 2 characters ("██" or "  ")
-        // Height stays as-is (one row per module)
-        return constraints.Constrain(new Size(totalModules * 2, totalModules));
+        var width = totalModules;
+        var height = (totalModules + 1) / 2;
+        return constraints.Constrain(new Size(width, height));
     }
 
     /// <summary>
-    /// Renders the QR code to the terminal using block characters.
+    /// Renders the QR code using half-block characters (▀▄█ and space).
+    /// Two module rows are packed per terminal row: the upper half-block represents
+    /// the top row and the background color represents the bottom row.
     /// </summary>
-    /// <param name="context">The render context providing terminal access and inherited styling.</param>
-    /// <remarks>
-    /// The QR code is rendered using "█" for filled modules and " " for empty modules.
-    /// Inherited colors from parent nodes are applied automatically to the block characters.
-    /// </remarks>
     public override void Render(Hex1bRenderContext context)
     {
         EnsureMatrix();
@@ -144,48 +114,71 @@ public sealed class QrCodeNode : Hex1bNode
         if (_matrixSize == 0)
             return;
 
-        var colorCodes = context.Theme.GetGlobalColorCodes();
-        var resetCodes = !string.IsNullOrEmpty(colorCodes) ? context.Theme.GetResetToGlobalCodes() : "";
-
         var totalModules = _matrixSize + (QuietZone * 2);
-        
-        // Render with quiet zone
-        for (int y = 0; y < Bounds.Height && y < totalModules; y++)
+        var terminalRows = (totalModules + 1) / 2;
+
+        // QR standard: dark modules on light background
+        // We use: fg = color of top row, bg = color of bottom row
+        // ▀ = top half filled (fg visible on top, bg on bottom)
+        var fgBlack = "\x1b[30m";    // dark module
+        var bgBlack = "\x1b[40m";
+        var bgWhite = "\x1b[107m";
+        var reset = "\x1b[0m";
+
+        for (var row = 0; row < terminalRows && row < Bounds.Height; row++)
         {
+            var topModuleRow = row * 2;
+            var botModuleRow = topModuleRow + 1;
+
             var line = "";
-            
-            for (int x = 0; x < totalModules; x++)
+
+            for (var x = 0; x < totalModules; x++)
             {
-                // Check if we're in the quiet zone
-                if (x < QuietZone || x >= _matrixSize + QuietZone ||
-                    y < QuietZone || y >= _matrixSize + QuietZone)
+                var topFilled = IsModuleFilled(x, topModuleRow, totalModules);
+                var botFilled = botModuleRow < totalModules && IsModuleFilled(x, botModuleRow, totalModules);
+
+                if (topFilled && botFilled)
                 {
-                    line += EmptySpace; // Quiet zone is empty
+                    // Both dark: full block with dark fg (bg doesn't matter)
+                    line += $"{fgBlack}{bgBlack}█";
+                }
+                else if (!topFilled && !botFilled)
+                {
+                    // Both light: space with white bg
+                    line += $"{bgWhite} ";
+                }
+                else if (topFilled)
+                {
+                    // Top dark, bottom light: ▀ with black fg, white bg
+                    line += $"{fgBlack}{bgWhite}▀";
                 }
                 else
                 {
-                    var matrixX = x - QuietZone;
-                    var matrixY = y - QuietZone;
-                    
-                    // Check if this module is filled
-                    var isFilled = matrixY < _matrix!.Count && 
-                                   matrixX < _matrix[matrixY].Length && 
-                                   _matrix[matrixY][matrixX];
-                    
-                    line += isFilled ? FilledBlock : EmptySpace;
+                    // Top light, bottom dark: ▄ with black fg, white bg
+                    line += $"{fgBlack}{bgWhite}▄";
                 }
             }
-            
-            var renderY = Bounds.Y + y;
-            
-            if (!string.IsNullOrEmpty(colorCodes))
-            {
-                context.WriteClipped(Bounds.X, renderY, $"{colorCodes}{line}{resetCodes}");
-            }
-            else
-            {
-                context.WriteClipped(Bounds.X, renderY, line);
-            }
+
+            line += reset;
+            context.WriteClipped(Bounds.X, Bounds.Y + row, line);
         }
+    }
+
+    /// <summary>
+    /// Checks whether a module at the given position is filled (dark).
+    /// Quiet zone modules are always empty (light).
+    /// </summary>
+    private bool IsModuleFilled(int x, int y, int totalModules)
+    {
+        if (x < QuietZone || x >= _matrixSize + QuietZone ||
+            y < QuietZone || y >= _matrixSize + QuietZone)
+            return false;
+
+        var matrixX = x - QuietZone;
+        var matrixY = y - QuietZone;
+
+        return matrixY < _matrix!.Count &&
+               matrixX < _matrix[matrixY].Length &&
+               _matrix[matrixY][matrixX];
     }
 }
