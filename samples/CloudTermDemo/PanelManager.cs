@@ -90,16 +90,35 @@ public sealed class PanelManager
             .WithTerminalWidget(out var handle)
             .Build();
 
+        ShellPanel? panelRef = null;
+
         var runTask = Task.Run(async () =>
         {
             try { await terminal.RunAsync(); }
             catch (OperationCanceledException) { }
+            finally
+            {
+                // Auto-remove when terminal exits
+                if (panelRef != null)
+                {
+                    var idx = _panels.IndexOf(panelRef);
+                    if (idx >= 0)
+                    {
+                        _panels.RemoveAt(idx);
+                        if (FocusedIndex >= _panels.Count)
+                            FocusedIndex = Math.Max(0, _panels.Count - 1);
+                        _app?.Invalidate();
+                    }
+                }
+            }
         });
 
         // Insert before tutorial (which is always last)
         var tutorialIndex = _panels.FindIndex(p => p.Tag == "tutorial");
         var insertAt = tutorialIndex >= 0 ? tutorialIndex : _panels.Count;
-        _panels.Insert(insertAt, new ShellPanel(title, handle, terminal, runTask));
+        var panel = new ShellPanel(title, handle, terminal, runTask);
+        panelRef = panel;
+        _panels.Insert(insertAt, panel);
         FocusedIndex = insertAt;
         _app?.Invalidate();
     }
