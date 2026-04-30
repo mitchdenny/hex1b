@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Reflection;
 using Hex1b;
+using Hex1b.Input;
 using Hex1b.Widgets;
 
 namespace CloudTermDemo;
@@ -67,7 +68,20 @@ public sealed class SplashScreen
             return layers;
         })
         .RedrawAfter(TimeSpan.FromMilliseconds(33))
-        .Fill();
+        .Fill()
+        .WithInputBindings(bindings =>
+        {
+            void Skip(InputBindingActionContext _)
+            {
+                _appState.CurrentScreen = AppScreen.FirstRun;
+                _appState.StatusMessage = "First run setup";
+                app.Invalidate();
+            }
+
+            bindings.Key(Hex1bKey.Enter).Global().Action(Skip, "Skip splash");
+            bindings.Key(Hex1bKey.Spacebar).Global().Action(Skip, "Skip splash");
+            bindings.Key(Hex1bKey.Escape).Global().Action(Skip, "Skip splash");
+        });
     }
 
     private static string GetHex1bVersion()
