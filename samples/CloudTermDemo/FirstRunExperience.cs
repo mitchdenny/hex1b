@@ -39,7 +39,11 @@ public sealed class FirstRunExperience
                                     info.Text(""),
                                     info.ThemePanel(
                                         t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(100, 180, 255)),
-                                        info.Align(Alignment.HCenter, info.Text(DeviceCode))
+                                        info.HStack(code => [
+                                            code.Text(DeviceCode),
+                                            code.Text(" "),
+                                            code.Icon("📋").OnClick(_ => app.CopyToClipboard(DeviceCode)),
+                                        ])
                                     ),
                                 ])
                             )
