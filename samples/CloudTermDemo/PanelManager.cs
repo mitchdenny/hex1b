@@ -50,7 +50,11 @@ public sealed class PanelManager
         var terminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(80, 24)
             .WithScrollback()
-            .WithPtyProcess("docker", "run", "-it", "--rm", "ubuntu", "/bin/bash")
+            .WithPtyProcess(options =>
+            {
+                options.FileName = "docker";
+                options.Arguments = ["run", "-it", "--rm", "ubuntu", "/bin/bash"];
+            })
             .WithTerminalWidget(out var handle)
             .Build();
 
