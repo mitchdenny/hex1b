@@ -399,6 +399,12 @@ public sealed class Hex1bTerminalBuilder
             var width = presentation?.Width ?? _width;
             var height = presentation?.Height ?? _height;
 
+            // Configure custom conpty.dll if specified
+            if (!string.IsNullOrEmpty(options.ConptyDllPath))
+            {
+                WindowsPtyHandle.ConptyDllPath = options.ConptyDllPath;
+            }
+
             var process = new Hex1bTerminalChildProcess(
                 options.FileName,
                 options.Arguments?.ToArray() ?? [],
@@ -1420,4 +1426,11 @@ public sealed class Hex1bTerminalProcessOptions
     /// When null, Hex1b searches the application output and packaged runtime locations automatically.
     /// </remarks>
     public string? WindowsPtyHostPath { get; set; }
+
+    /// <summary>
+    /// Gets or sets the path to a custom conpty.dll (e.g. from microsoft/terminal).
+    /// When set, Hex1b loads this DLL instead of using the OS kernel32.dll ConPTY,
+    /// enabling full VT passthrough for protocols like KGP.
+    /// </summary>
+    public string? ConptyDllPath { get; set; }
 }
