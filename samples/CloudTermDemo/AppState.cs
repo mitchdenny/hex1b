@@ -9,6 +9,7 @@ public enum AppScreen
 {
     Splash,
     FirstRun,
+    Shell,
     Main,
 }
 

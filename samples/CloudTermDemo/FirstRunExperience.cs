@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Animation;
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -110,6 +111,19 @@ public sealed class FirstRunExperience
                 ),
 
             ])
-        ).Fill();
+        ).Fill()
+        .WithInputBindings(bindings =>
+        {
+            void Skip(InputBindingActionContext _)
+            {
+                _appState.CurrentScreen = AppScreen.Shell;
+                _appState.StatusMessage = "Ready";
+                app.Invalidate();
+            }
+
+            bindings.Key(Hex1bKey.Enter).Global().Action(Skip, "Continue");
+            bindings.Key(Hex1bKey.Spacebar).Global().Action(Skip, "Continue");
+            bindings.Key(Hex1bKey.Escape).Global().Action(Skip, "Continue");
+        });
     }
 }

@@ -9,12 +9,17 @@ builder.Services.AddSingleton<AppState>();
 builder.Services.AddSingleton<SplashScreen>();
 builder.Services.AddSingleton<FirstRunExperience>();
 builder.Services.AddSingleton<MainScreen>();
+builder.Services.AddSingleton<TutorialService>();
+builder.Services.AddSingleton(_ => new CloudShellState(CloudModel.BuildHierarchy()));
+builder.Services.AddSingleton<CloudTerminalHost>();
+builder.Services.AddSingleton<ShellScreen>();
 
 var host = builder.Build();
 
 var appState = host.Services.GetRequiredService<AppState>();
 var splashScreen = host.Services.GetRequiredService<SplashScreen>();
 var firstRunExperience = host.Services.GetRequiredService<FirstRunExperience>();
+var shellScreen = host.Services.GetRequiredService<ShellScreen>();
 var mainScreen = host.Services.GetRequiredService<MainScreen>();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -23,6 +28,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         {
             AppScreen.Splash => splashScreen.Build(ctx, app),
             AppScreen.FirstRun => firstRunExperience.Build(ctx, app),
+            AppScreen.Shell => shellScreen.Build(ctx, app),
             AppScreen.Main => mainScreen.Build(ctx, app),
             _ => mainScreen.Build(ctx, app),
         })
