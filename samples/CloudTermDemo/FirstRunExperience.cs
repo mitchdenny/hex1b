@@ -28,13 +28,21 @@ public sealed class FirstRunExperience
         return ctx.Center(
             ctx.HStack(h => [
 
-                // QR code with device code underneath in light blue
+                // QR code with URL and device code underneath, centered
                 h.Padding(0, 3, 0, 0,
                     h.VStack(qr => [
                         qr.QrCode(DeviceLoginUrl).WithQuietZone(0),
-                        qr.ThemePanel(
-                            t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(100, 180, 255)),
-                            qr.Text(DeviceCode)
+                        qr.Padding(0, 0, 1, 0,
+                            qr.Align(Alignment.HCenter,
+                                qr.VStack(info => [
+                                    info.Hyperlink(DeviceLoginUrl, DeviceLoginUrl),
+                                    info.Text(""),
+                                    info.ThemePanel(
+                                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(100, 180, 255)),
+                                        info.Align(Alignment.HCenter, info.Text(DeviceCode))
+                                    ),
+                                ])
+                            )
                         ),
                     ])
                 ),
