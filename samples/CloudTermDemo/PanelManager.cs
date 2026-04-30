@@ -1,4 +1,6 @@
 using Hex1b;
+using Hex1b.Documents;
+using Hex1b.Widgets;
 
 namespace CloudTermDemo;
 
@@ -169,6 +171,18 @@ public sealed class PanelManager
         ClampViewport();
 
         _app?.Invalidate();
+    }
+
+    /// <summary>
+    /// Opens an editor panel to the right of the focused panel with YAML content.
+    /// </summary>
+    public void OpenEditorPanel(string title, string yamlContent)
+    {
+        var document = new Hex1bDocument(yamlContent);
+        var editorState = new EditorState(document);
+        var highlighter = new YamlSyntaxHighlighter();
+
+        InsertPanelRight(title, tag: "editor", data: (editorState, highlighter));
     }
 
     /// <summary>Move focus to next panel, sliding viewport if at the edge.</summary>

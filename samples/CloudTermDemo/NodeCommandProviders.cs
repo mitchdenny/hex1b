@@ -3,6 +3,26 @@ using System.CommandLine;
 namespace CloudTermDemo;
 
 /// <summary>
+/// Helper to add the 'edit' command to resource types that support YAML editing.
+/// </summary>
+internal static class EditCommandHelper
+{
+    public static void AddEditCommand(RootCommand root, Func<CommandExecutionContext> getContext, Func<CloudNode, string> yamlProvider)
+    {
+        var editCommand = new Command("edit", "Edit this resource's YAML in the editor");
+        editCommand.SetAction(async (parseResult, ct) =>
+        {
+            var ctx = getContext();
+            var node = ctx.ShellState.CurrentNode;
+            var yaml = yamlProvider(node);
+            ctx.PanelManager.OpenEditorPanel($"edit: {node.Name}", yaml);
+            ctx.SetTextResult($"  Editing {node.TypeLabel} '{node.Name}'...");
+        });
+        root.Subcommands.Add(editCommand);
+    }
+}
+
+/// <summary>
 /// Commands available when inside a Pod: attach, logs, describe.
 /// </summary>
 internal sealed class PodCommandProvider : INodeCommandProvider
@@ -55,6 +75,12 @@ internal sealed class PodCommandProvider : INodeCommandProvider
             ctx.WriteLine($"  Memory:     {Random.Shared.Next(64, 512)}Mi");
         });
         root.Subcommands.Add(describeCommand);
+
+        EditCommandHelper.AddEditCommand(root, getContext, node =>
+        {
+            var ns = node.Parent?.Name ?? "default";
+            return MockYaml.ForPod(node.Name, ns);
+        });
     }
 }
 
@@ -95,6 +121,8 @@ internal sealed class NamespaceCommandProvider : INodeCommandProvider
         getCommand.Subcommands.Add(getServicesCommand);
 
         root.Subcommands.Add(getCommand);
+
+        EditCommandHelper.AddEditCommand(root, getContext, node => MockYaml.ForNamespace(node.Name));
     }
 }
 
@@ -130,6 +158,8 @@ internal sealed class AksClusterCommandProvider : INodeCommandProvider
             ctx.WriteLine($"  (simulated — would take 3-5 minutes)");
         });
         root.Subcommands.Add(scaleCommand);
+
+        EditCommandHelper.AddEditCommand(root, getContext, node => MockYaml.ForAksCluster(node.Name));
     }
 }
 
@@ -170,6 +200,8 @@ internal sealed class AppServiceCommandProvider : INodeCommandProvider
             ctx.WriteLine($"  https://{ctx.ShellState.CurrentNode.Name}.azurewebsites.net");
         });
         root.Subcommands.Add(browseCommand);
+
+        EditCommandHelper.AddEditCommand(root, getContext, node => MockYaml.ForAppService(node.Name));
     }
 }
 

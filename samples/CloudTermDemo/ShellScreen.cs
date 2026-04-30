@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Documents;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -99,6 +100,8 @@ public sealed class ShellScreen
                             panelWidget = BuildTutorialPanel(h, isFocused);
                         else if (panel.Tag == "data-browser")
                             panelWidget = BuildDataBrowserPanel(h, panel, isFocused);
+                        else if (panel.Tag == "editor")
+                            panelWidget = BuildEditorPanel(h, panel, isFocused, app);
                         else if (panel.IsTerminal)
                             panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
                         else
@@ -110,33 +113,50 @@ public sealed class ShellScreen
                     return panels.ToArray();
                 }).Fill(),
 
-                // Info bar
+                // Info bar — context-sensitive
                 v.InfoBar(s =>
-                [
-                    s.Section("F1"),
-                    s.Separator(" "),
-                    s.Section("Help"),
-                    s.Separator("  "),
-                    s.Section("Ctrl+Z ←/→"),
-                    s.Separator(" "),
-                    s.Section("Zoom"),
-                    s.Separator("  "),
-                    s.Section("Ctrl+Z PgUp/Dn"),
-                    s.Separator(" "),
-                    s.Section("Focus"),
-                    s.Separator("  "),
-                    s.Section("Ctrl+Z Q"),
-                    s.Separator(" "),
-                    s.Section("Close"),
-                    s.Spacer(),
-                    s.Section($"[{_panelManager.FocusedIndex + 1}/{_panelManager.PanelCount}] Zoom:{_panelManager.Zoom}"),
-                ]),
+                {
+                    var sections = new List<IInfoBarChild>();
+
+                    sections.Add(s.Section("F1"));
+                    sections.Add(s.Separator(" "));
+                    sections.Add(s.Section("Help"));
+                    sections.Add(s.Separator("  "));
+
+                    // Context-sensitive shortcuts for focused panel
+                    var focusedPanel = _panelManager.FocusedIndex >= 0 && _panelManager.FocusedIndex < _panelManager.PanelCount
+                        ? _panelManager.Panels[_panelManager.FocusedIndex] : null;
+
+                    if (focusedPanel?.Tag == "editor")
+                    {
+                        sections.Add(s.Section("Ctrl+S"));
+                        sections.Add(s.Separator(" "));
+                        sections.Add(s.Section("Save"));
+                        sections.Add(s.Separator("  "));
+                    }
+
+                    sections.Add(s.Section("Ctrl+Z ←/→"));
+                    sections.Add(s.Separator(" "));
+                    sections.Add(s.Section("Zoom"));
+                    sections.Add(s.Separator("  "));
+                    sections.Add(s.Section("Ctrl+Z PgUp/Dn"));
+                    sections.Add(s.Separator(" "));
+                    sections.Add(s.Section("Focus"));
+                    sections.Add(s.Separator("  "));
+                    sections.Add(s.Section("Ctrl+Z Q"));
+                    sections.Add(s.Separator(" "));
+                    sections.Add(s.Section("Close"));
+                    sections.Add(s.Spacer());
+                    sections.Add(s.Section($"[{_panelManager.FocusedIndex + 1}/{_panelManager.PanelCount}] Zoom:{_panelManager.Zoom}"));
+
+                    return sections;
+                }),
             ]),
 
             // Help overlay
             _showHelp
                 ? z.Backdrop(
-                    z.Padding(4, 4, 2, 2,
+                    z.Padding(8, 8, 3, 3,
                         z.Border(b =>
                         [
                             b.VScrollPanel(sp =>
@@ -297,6 +317,40 @@ public sealed class ShellScreen
                         .FillWidth()
                         .FillHeight()
                     : b.Text("  No data.").Fill(),
+            ]).Title(panel.Title).Fill()
+        );
+    }
+
+    private Hex1bWidget BuildEditorPanel<TParent>(
+        WidgetContext<TParent> ctx, ShellPanel panel, bool isFocused, Hex1bApp app)
+        where TParent : Hex1bWidget
+    {
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        var (editorState, highlighter) = panel.Data is (EditorState es, YamlSyntaxHighlighter yh)
+            ? (es, yh)
+            : (new EditorState(new Hex1b.Documents.Hex1bDocument("")), new YamlSyntaxHighlighter());
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
+            [
+                b.Editor(editorState)
+                    .LineNumbers()
+                    .Decorations(highlighter)
+                    .Fill()
+                    .WithInputBindings(bindings =>
+                    {
+                        bindings.Ctrl().Key(Hex1bKey.S)
+                            .OverridesCapture()
+                            .Action(_ =>
+                            {
+                                _appState.StatusMessage = "Saved (simulated)";
+                                app.Invalidate();
+                            }, "Save");
+                    }),
             ]).Title(panel.Title).Fill()
         );
     }
