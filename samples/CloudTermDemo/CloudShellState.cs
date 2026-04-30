@@ -49,6 +49,22 @@ public sealed class CloudShellState
     }
 
     /// <summary>
+    /// Returns the full ancestor chain from root to current node.
+    /// </summary>
+    public List<CloudNode> GetAncestorChain()
+    {
+        var chain = new List<CloudNode>();
+        var node = CurrentNode;
+        while (node != null)
+        {
+            chain.Add(node);
+            node = node.Parent;
+        }
+        chain.Reverse();
+        return chain;
+    }
+
+    /// <summary>
     /// Navigate into a child by name. Returns true if found.
     /// </summary>
     public bool NavigateTo(string name)

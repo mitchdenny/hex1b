@@ -146,10 +146,42 @@ public sealed class CloudShellWidget
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
-        var prompt = $"{_shellState.GetPrompt()} > ";
+        var currentNode = _shellState.CurrentNode;
+        var prompt = $"{currentNode.Name} > ";
 
         return ctx.VStack(outer =>
         [
+            // Context breadcrumb (up to 4 lines)
+            outer.VStack(bc =>
+            {
+                var chain = _shellState.GetAncestorChain();
+                var lines = new List<Hex1bWidget>();
+
+                if (chain.Count <= 4)
+                {
+                    // Show all nodes
+                    foreach (var node in chain)
+                        lines.Add(bc.Text($"  {Indent(chain, node)}{node.TypeLabel}: {node.Name}"));
+                }
+                else
+                {
+                    // First two
+                    lines.Add(bc.Text($"  {chain[0].TypeLabel}: {chain[0].Name}"));
+                    lines.Add(bc.Text($"    {chain[1].TypeLabel}: {chain[1].Name}"));
+                    // Ellipsis
+                    lines.Add(bc.Text($"      ..."));
+                    // Last two
+                    var second = chain[^2];
+                    var last = chain[^1];
+                    lines.Add(bc.Text($"    {second.TypeLabel}: {second.Name}"));
+                    lines.Add(bc.Text($"      {last.TypeLabel}: {last.Name}"));
+                }
+
+                return lines.ToArray();
+            }).Height(SizeHint.Content),
+
+            outer.Separator(),
+
             // Scrollable history
             (outer.VScrollPanel(sp =>
             {
@@ -203,5 +235,11 @@ public sealed class CloudShellWidget
                     .FillWidth(),
             ]).Height(SizeHint.Content),
         ]);
+    }
+
+    private static string Indent(List<CloudNode> chain, CloudNode node)
+    {
+        var depth = chain.IndexOf(node);
+        return new string(' ', depth * 2);
     }
 }
