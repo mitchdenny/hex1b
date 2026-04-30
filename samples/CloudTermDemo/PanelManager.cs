@@ -156,14 +156,14 @@ public sealed class PanelManager
         }
     }
 
-    /// <summary>Closes the currently focused panel (can't close cloud shell or tutorial).</summary>
+    /// <summary>Closes the currently focused panel (can't close cloud shell).</summary>
     public async Task CloseCurrentPanelAsync()
     {
         if (FocusedIndex >= 0 && FocusedIndex < _panels.Count)
         {
             var panel = _panels[FocusedIndex];
-            // Don't close cloud shell or tutorial
-            if (panel.Tag is "cloud-shell" or "tutorial")
+            // Don't close cloud shell
+            if (panel.Tag is "cloud-shell")
                 return;
 
             _panels.RemoveAt(FocusedIndex);
@@ -180,7 +180,7 @@ public sealed class PanelManager
         if (index >= 0 && index < _panels.Count)
         {
             var panel = _panels[index];
-            if (panel.Tag is "cloud-shell" or "tutorial")
+            if (panel.Tag is "cloud-shell")
                 return;
 
             _panels.RemoveAt(index);
