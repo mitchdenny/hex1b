@@ -33,33 +33,33 @@ internal static class CloudEffects
 
             // === Flow field: warp coordinates through swirling vortices ===
 
-            // Several swirl centers that drift slowly
-            var swirl1X = 0.3 + Math.Sin(t * 0.07) * 0.1;
-            var swirl1Y = 0.4 + Math.Cos(t * 0.09) * 0.1;
-            var swirl2X = 0.7 + Math.Cos(t * 0.06) * 0.12;
-            var swirl2Y = 0.3 + Math.Sin(t * 0.08) * 0.08;
-            var swirl3X = 0.5 + Math.Sin(t * 0.05 + 1.0) * 0.15;
-            var swirl3Y = 0.7 + Math.Cos(t * 0.07 + 2.0) * 0.1;
+            // Several swirl centers that drift visibly
+            var swirl1X = 0.3 + Math.Sin(t * 0.4) * 0.15;
+            var swirl1Y = 0.4 + Math.Cos(t * 0.5) * 0.15;
+            var swirl2X = 0.7 + Math.Cos(t * 0.35) * 0.18;
+            var swirl2Y = 0.3 + Math.Sin(t * 0.45) * 0.12;
+            var swirl3X = 0.5 + Math.Sin(t * 0.3 + 1.0) * 0.2;
+            var swirl3Y = 0.7 + Math.Cos(t * 0.4 + 2.0) * 0.15;
 
             // Accumulate angular displacement from each vortex
             var warpX = nx;
             var warpY = ny;
 
-            ApplySwirl(ref warpX, ref warpY, swirl1X, swirl1Y, 0.25, t * 0.4, 1.0);
-            ApplySwirl(ref warpX, ref warpY, swirl2X, swirl2Y, 0.20, t * -0.35, 0.8);
-            ApplySwirl(ref warpX, ref warpY, swirl3X, swirl3Y, 0.30, t * 0.3, 0.6);
+            ApplySwirl(ref warpX, ref warpY, swirl1X, swirl1Y, 0.35, t * 2.0, 1.0);
+            ApplySwirl(ref warpX, ref warpY, swirl2X, swirl2Y, 0.30, t * -1.8, 0.8);
+            ApplySwirl(ref warpX, ref warpY, swirl3X, swirl3Y, 0.40, t * 1.5, 0.6);
 
             // === Layered noise on warped coordinates for brushstroke texture ===
 
             // Large swirling bands
-            var n1 = Math.Sin(warpX * 12.0 + warpY * 8.0 + t * 0.2);
+            var n1 = Math.Sin(warpX * 12.0 + warpY * 8.0 + t * 0.8);
 
             // Medium detail — cross-hatched swirls
-            var n2 = Math.Sin(warpX * 20.0 - warpY * 14.0 + t * 0.15) * 0.5;
+            var n2 = Math.Sin(warpX * 20.0 - warpY * 14.0 + t * 0.6) * 0.5;
 
             // Fine brushstroke grain
-            var n3 = Math.Sin(warpX * 35.0 + warpY * 25.0 - t * 0.3)
-                   * Math.Cos(warpX * 18.0 - warpY * 30.0 + t * 0.25) * 0.3;
+            var n3 = Math.Sin(warpX * 35.0 + warpY * 25.0 - t * 1.2)
+                   * Math.Cos(warpX * 18.0 - warpY * 30.0 + t * 0.9) * 0.3;
 
             var noise = (n1 + n2 + n3) / 1.8;  // -1..1 range
 
