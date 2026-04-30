@@ -47,12 +47,10 @@ public sealed class PanelManager
     /// </summary>
     public void OpenTerminalPanel(string title)
     {
-        var shell = OperatingSystem.IsWindows() ? "powershell" : "bash";
-
         var terminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(80, 24)
             .WithScrollback()
-            .WithPtyProcess(shell)
+            .WithPtyProcess("docker", "run", "-it", "--rm", "ubuntu", "/bin/bash")
             .WithTerminalWidget(out var handle)
             .Build();
 
