@@ -14,62 +14,56 @@ internal static class CloudEffects
     private static readonly Hex1bColor TextFgColor = Hex1bColor.FromRgb(255, 255, 255);
 
     /// <summary>
-    /// Starry Night-inspired swirling blue background. Creates visible swirl patterns
-    /// using flow-field distortion with tightly clamped blue tones, evoking Van Gogh's
-    /// brushstroke spirals rendered in deep blues and indigos.
+    /// Animated flowing sky background with two gentle vortices that traverse the screen.
+    /// Each cell traces backwards through the velocity field to create the sensation of
+    /// particles/air flowing between the vortices. Vortices wrap around horizontally.
     /// </summary>
     public static CellCompute FluidSkyBackground(double elapsedSeconds, int surfaceWidth, int surfaceHeight)
     {
         var t = elapsedSeconds;
 
+        // Two vortices that move horizontally across the screen, wrapping around
+        var v1X = Wrap(t * 0.06 + 0.2);   // slow rightward drift
+        var v1Y = 0.4 + Math.Sin(t * 0.3) * 0.08;
+        var v2X = Wrap(-t * 0.05 + 0.8);  // slow leftward drift
+        var v2Y = 0.6 + Math.Cos(t * 0.25) * 0.08;
+
         return ctx =>
         {
-            var x = ctx.X;
-            var y = ctx.Y;
+            // Normalize to 0..1
+            var px = (double)ctx.X / Math.Max(surfaceWidth - 1, 1);
+            var py = (double)ctx.Y / Math.Max(surfaceHeight - 1, 1);
 
-            // Normalize coordinates to 0..1 range
-            var nx = (double)x / Math.Max(surfaceWidth - 1, 1);
-            var ny = (double)y / Math.Max(surfaceHeight - 1, 1);
+            // Trace this cell backward through the flow field (advection)
+            // Multiple small steps for smooth particle trails
+            const int steps = 6;
+            const double dt = -0.15;  // backward in time
+            var ax = px;
+            var ay = py;
 
-            // === Flow field: warp coordinates through swirling vortices ===
+            for (var i = 0; i < steps; i++)
+            {
+                // Velocity from both vortices (tangential flow)
+                var (vx, vy) = GetFlowVelocity(ax, ay, v1X, v1Y, v2X, v2Y);
+                ax += vx * dt;
+                ay += vy * dt;
+            }
 
-            // Several swirl centers that drift visibly
-            var swirl1X = 0.3 + Math.Sin(t * 0.4) * 0.15;
-            var swirl1Y = 0.4 + Math.Cos(t * 0.5) * 0.15;
-            var swirl2X = 0.7 + Math.Cos(t * 0.35) * 0.18;
-            var swirl2Y = 0.3 + Math.Sin(t * 0.45) * 0.12;
-            var swirl3X = 0.5 + Math.Sin(t * 0.3 + 1.0) * 0.2;
-            var swirl3Y = 0.7 + Math.Cos(t * 0.4 + 2.0) * 0.15;
+            // Add a slow global drift so everything feels like it's moving
+            ax += t * 0.03;
+            ay += t * 0.01;
 
-            // Accumulate angular displacement from each vortex
-            var warpX = nx;
-            var warpY = ny;
+            // Layered noise on the advected position — this creates flowing streaks
+            var n1 = Math.Sin(ax * 8.0 + ay * 5.0);
+            var n2 = Math.Sin(ax * 14.0 - ay * 10.0) * 0.5;
+            var n3 = Math.Sin(ax * 22.0 + ay * 18.0) * Math.Cos(ax * 12.0 - ay * 16.0) * 0.25;
+            var noise = (n1 + n2 + n3) / 1.75;
 
-            ApplySwirl(ref warpX, ref warpY, swirl1X, swirl1Y, 0.35, t * 2.0, 1.0);
-            ApplySwirl(ref warpX, ref warpY, swirl2X, swirl2Y, 0.30, t * -1.8, 0.8);
-            ApplySwirl(ref warpX, ref warpY, swirl3X, swirl3Y, 0.40, t * 1.5, 0.6);
+            // Base gradient: deep navy
+            var baseR = 15 + py * 10;
+            var baseG = 20 + py * 25;
+            var baseB = 70 + py * 50;
 
-            // === Layered noise on warped coordinates for brushstroke texture ===
-
-            // Large swirling bands
-            var n1 = Math.Sin(warpX * 12.0 + warpY * 8.0 + t * 0.8);
-
-            // Medium detail — cross-hatched swirls
-            var n2 = Math.Sin(warpX * 20.0 - warpY * 14.0 + t * 0.6) * 0.5;
-
-            // Fine brushstroke grain
-            var n3 = Math.Sin(warpX * 35.0 + warpY * 25.0 - t * 1.2)
-                   * Math.Cos(warpX * 18.0 - warpY * 30.0 + t * 0.9) * 0.3;
-
-            var noise = (n1 + n2 + n3) / 1.8;  // -1..1 range
-
-            // === Color mapping: tightly clamped blues/indigos ===
-            // Base: deep navy to indigo gradient
-            var baseR = 15 + ny * 10;   // 15-25
-            var baseG = 20 + ny * 25;   // 20-45
-            var baseB = 70 + ny * 50;   // 70-120
-
-            // Noise modulates within a narrow band of blues
             var r = (byte)Math.Clamp(baseR + noise * 12, 8, 40);
             var g = (byte)Math.Clamp(baseG + noise * 20, 15, 65);
             var b = (byte)Math.Clamp(baseB + noise * 40, 55, 160);
@@ -79,30 +73,55 @@ internal static class CloudEffects
     }
 
     /// <summary>
-    /// Applies a swirl distortion centered at (cx, cy) with the given radius and rotation.
-    /// Points closer to the center rotate more, creating a vortex-like warp.
+    /// Computes the flow velocity at a point from two vortices. Returns tangential
+    /// velocity (perpendicular to the radial direction) with smooth falloff.
+    /// Handles horizontal wrapping so vortices that exit one side appear on the other.
     /// </summary>
-    private static void ApplySwirl(
-        ref double x, ref double y,
-        double cx, double cy,
-        double radius, double angle, double strength)
+    private static (double vx, double vy) GetFlowVelocity(
+        double px, double py,
+        double v1X, double v1Y,
+        double v2X, double v2Y)
     {
-        var dx = x - cx;
-        var dy = y - cy;
+        var (vx1, vy1) = VortexVelocity(px, py, v1X, v1Y, 0.4, 1.0);
+        var (vx2, vy2) = VortexVelocity(px, py, v2X, v2Y, 0.35, -0.8);
+        return (vx1 + vx2, vy1 + vy2);
+    }
+
+    /// <summary>
+    /// Tangential velocity from a single vortex. Points near the vortex center rotate
+    /// around it; the velocity falls off smoothly with distance.
+    /// </summary>
+    private static (double vx, double vy) VortexVelocity(
+        double px, double py,
+        double cx, double cy,
+        double radius, double strength)
+    {
+        // Handle horizontal wrapping — pick the closest instance
+        var dx = px - cx;
+        if (dx > 0.5) dx -= 1.0;
+        if (dx < -0.5) dx += 1.0;
+        var dy = py - cy;
+
         var dist = Math.Sqrt(dx * dx + dy * dy);
+        if (dist < 0.001 || dist > radius)
+            return (0, 0);
 
-        if (dist < radius && dist > 0.001)
-        {
-            // Falloff: strongest at center, zero at edge
-            var falloff = 1.0 - (dist / radius);
-            falloff = falloff * falloff; // quadratic falloff for tighter spirals
-            var theta = falloff * angle * strength;
+        // Smooth falloff: peaks at ~40% of radius, zero at center and edge
+        var normalized = dist / radius;
+        var falloff = normalized * Math.Pow(1.0 - normalized, 2) * 4.0;
 
-            var cosT = Math.Cos(theta);
-            var sinT = Math.Sin(theta);
-            x = cx + dx * cosT - dy * sinT;
-            y = cy + dx * sinT + dy * cosT;
-        }
+        // Tangential direction (perpendicular to radial)
+        var tx = -dy / dist;
+        var ty = dx / dist;
+
+        return (tx * falloff * strength, ty * falloff * strength);
+    }
+
+    /// <summary>Wraps a value to the 0..1 range.</summary>
+    private static double Wrap(double v)
+    {
+        v %= 1.0;
+        return v < 0 ? v + 1.0 : v;
     }
 
     /// <summary>
