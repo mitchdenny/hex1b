@@ -1,107 +1,171 @@
-using System.Diagnostics;
 using Hex1b.Surfaces;
 using Hex1b.Theming;
 
 namespace CloudTermDemo;
 
 /// <summary>
-/// Surface cell-compute effects for the splash screen — swirling blue gradient
-/// background and cloud logo fade-in.
+/// Surface cell-compute effects for the splash screen — fluid blue sky background,
+/// half-block cloud rendering, and text overlays.
 /// </summary>
 internal static class CloudEffects
 {
+    // Complementary color to sky blue — warm amber/gold for text backgrounds
+    private static readonly Hex1bColor TextBgColor = Hex1bColor.FromRgb(180, 140, 60);
+    private static readonly Hex1bColor TextFgColor = Hex1bColor.FromRgb(255, 255, 255);
+
     /// <summary>
-    /// Animated swirling blue gradient background. Uses time-based sine/cosine waves
-    /// to create a gentle, flowing effect across shades of blue and cyan.
+    /// Subtle fluid blue sky background. Uses layered noise-like functions to create
+    /// gentle movement that reads as "sky" — mostly calm blues with slight variation.
     /// </summary>
-    public static CellCompute SwirlingBlueBackground(double elapsedSeconds)
+    public static CellCompute FluidSkyBackground(double elapsedSeconds, int surfaceHeight)
     {
+        var t = elapsedSeconds;
+
         return ctx =>
         {
-            var t = elapsedSeconds * 0.8;
+            var x = ctx.X;
+            var y = ctx.Y;
 
-            // Multi-frequency sine waves for organic movement
-            var wave1 = Math.Sin(ctx.X * 0.15 + ctx.Y * 0.1 + t * 1.2);
-            var wave2 = Math.Cos(ctx.X * 0.08 - ctx.Y * 0.12 + t * 0.9);
-            var wave3 = Math.Sin((ctx.X + ctx.Y) * 0.06 + t * 1.5);
-            var combined = (wave1 + wave2 + wave3) / 3.0;
+            // Base sky gradient: darker at top, lighter toward bottom
+            var verticalGradient = (double)y / Math.Max(surfaceHeight - 1, 1);
+            var baseR = 20 + verticalGradient * 30;
+            var baseG = 50 + verticalGradient * 60;
+            var baseB = 140 + verticalGradient * 80;
 
-            // Map to blue/cyan color range
-            var intensity = (combined + 1.0) / 2.0; // normalize 0..1
-            var r = (byte)(10 + intensity * 30);
-            var g = (byte)(20 + intensity * 80);
-            var b = (byte)(80 + intensity * 175);
+            // Layer 1: slow, large-scale drift
+            var n1 = Math.Sin(x * 0.04 + t * 0.15) * Math.Cos(y * 0.06 + t * 0.12);
 
-            // Pick a character that adds subtle texture
-            var charIndex = (int)((Math.Sin(ctx.X * 0.3 + t) + 1) * 2) % 4;
-            var ch = charIndex switch
-            {
-                0 => "░",
-                1 => "▒",
-                2 => "░",
-                _ => " ",
-            };
+            // Layer 2: medium ripple
+            var n2 = Math.Sin(x * 0.09 - y * 0.07 + t * 0.25) * 0.6;
 
-            var bg = Hex1bColor.FromRgb(r, g, b);
-            var fg = Hex1bColor.FromRgb(
-                (byte)Math.Min(255, r + 30),
-                (byte)Math.Min(255, g + 30),
-                (byte)Math.Min(255, b + 30));
+            // Layer 3: fine detail — very subtle
+            var n3 = Math.Sin(x * 0.18 + y * 0.14 + t * 0.4)
+                    * Math.Cos(x * 0.12 - y * 0.09 + t * 0.35) * 0.3;
 
-            return new SurfaceCell(ch, fg, bg);
+            var noise = (n1 + n2 + n3) * 0.33;
+
+            // Apply noise as subtle color variation
+            var r = (byte)Math.Clamp(baseR + noise * 15, 0, 255);
+            var g = (byte)Math.Clamp(baseG + noise * 25, 0, 255);
+            var b = (byte)Math.Clamp(baseB + noise * 35, 0, 255);
+
+            return new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, b));
         };
     }
 
     /// <summary>
-    /// Cloud ASCII art rendered as computed cells that fade in over time.
-    /// The cloud is centered on the surface and its opacity ramps from 0 to 1.
+    /// Renders a fluffy cloud using half-block characters (▀▄█) from a greyscale bitmap.
+    /// The cloud is centered on the surface and fades in with the given opacity.
     /// </summary>
-    public static CellCompute CloudFadeIn(double opacity, int surfaceWidth, int surfaceHeight)
+    public static CellCompute HalfBlockCloud(double opacity, int surfaceWidth, int surfaceHeight)
     {
-        var cloudLines = new[]
-        {
-            @"           .::::::.           ",
-            @"        .::        ::.        ",
-            @"      .:              :.      ",
-            @"    .:                  :.    ",
-            @"   ::    C L O U D       ::   ",
-            @"   ::   T E R M I N A L  ::   ",
-            @"   ::                    ::   ",
-            @"    '::                ::'    ",
-            @"      ':::::::::::::::'      ",
-        };
+        var bitmap = CloudBitmap.Pixels;
+        var bitmapWidth = CloudBitmap.Width;
+        var bitmapHeight = CloudBitmap.Height;
 
-        var cloudWidth = cloudLines.Max(l => l.Length);
-        var cloudHeight = cloudLines.Length;
-        var offsetX = (surfaceWidth - cloudWidth) / 2;
-        var offsetY = (surfaceHeight - cloudHeight) / 2;
+        // Half-blocks: each terminal row renders 2 bitmap rows
+        var charHeight = (bitmapHeight + 1) / 2;
+        var charWidth = bitmapWidth;
+
+        var offsetX = (surfaceWidth - charWidth) / 2;
+        var offsetY = (surfaceHeight - charHeight) / 2;
 
         return ctx =>
         {
             var localX = ctx.X - offsetX;
             var localY = ctx.Y - offsetY;
 
-            if (localY >= 0 && localY < cloudHeight && localX >= 0 && localX < cloudLines[localY].Length)
-            {
-                var ch = cloudLines[localY][localX];
-                if (ch != ' ')
-                {
-                    var below = ctx.GetBelow();
-                    var white = Hex1bColor.FromRgb(
-                        (byte)(255 * opacity),
-                        (byte)(255 * opacity),
-                        (byte)(255 * opacity));
+            if (localX < 0 || localX >= charWidth || localY < 0 || localY >= charHeight)
+                return ctx.GetBelow();
 
-                    // Blend cloud foreground over the background
-                    var blendedBg = BlendColor(below.Background, white, opacity * 0.3);
-                    return new SurfaceCell(
-                        ch.ToString(),
-                        white,
-                        blendedBg);
-                }
+            // Two bitmap rows per terminal row
+            var topRow = localY * 2;
+            var botRow = topRow + 1;
+
+            var topAlpha = topRow < bitmapHeight ? bitmap[topRow, localX] / 255.0 * opacity : 0.0;
+            var botAlpha = botRow < bitmapHeight ? bitmap[botRow, localX] / 255.0 * opacity : 0.0;
+
+            // Skip fully transparent cells
+            if (topAlpha < 0.01 && botAlpha < 0.01)
+                return ctx.GetBelow();
+
+            var below = ctx.GetBelow();
+            var belowBg = below.Background ?? Hex1bColor.FromRgb(0, 0, 0);
+
+            // Cloud is white — blend with background
+            var topColor = BlendToWhite(belowBg, topAlpha);
+            var botColor = BlendToWhite(belowBg, botAlpha);
+
+            if (topAlpha > 0.01 && botAlpha > 0.01)
+            {
+                // Both halves visible: use ▀ with top=fg, bottom=bg
+                return new SurfaceCell("▀", topColor, botColor);
+            }
+            else if (topAlpha > 0.01)
+            {
+                // Only top half
+                return new SurfaceCell("▀", topColor, belowBg);
+            }
+            else
+            {
+                // Only bottom half
+                return new SurfaceCell("▄", botColor, belowBg);
+            }
+        };
+    }
+
+    /// <summary>
+    /// Renders "CLOUD TERM DEMO" text centered horizontally below the cloud,
+    /// and version text in the bottom-right corner.
+    /// </summary>
+    public static CellCompute TextOverlay(
+        double opacity,
+        int surfaceWidth,
+        int surfaceHeight,
+        string version)
+    {
+        const string title = " CLOUD TERM DEMO ";
+        var titleX = (surfaceWidth - title.Length) / 2;
+
+        // Position title below the cloud (cloud center + half cloud char height + gap)
+        var cloudCharHeight = (CloudBitmap.Height + 1) / 2;
+        var cloudCenterY = surfaceHeight / 2;
+        var titleY = cloudCenterY + cloudCharHeight / 2 + 2;
+
+        var versionText = $" v{version} ";
+        var versionX = surfaceWidth - versionText.Length - 1;
+        var versionY = surfaceHeight - 1;
+
+        var fgAlpha = Math.Clamp(opacity, 0, 1);
+
+        return ctx =>
+        {
+            // Title text
+            if (ctx.Y == titleY && ctx.X >= titleX && ctx.X < titleX + title.Length)
+            {
+                var ch = title[ctx.X - titleX];
+                var below = ctx.GetBelow();
+                var bg = BlendColor(below.Background ?? Hex1bColor.Black, TextBgColor, fgAlpha * 0.85);
+                var fg = Hex1bColor.FromRgb(
+                    (byte)(TextFgColor.R * fgAlpha),
+                    (byte)(TextFgColor.G * fgAlpha),
+                    (byte)(TextFgColor.B * fgAlpha));
+                return new SurfaceCell(ch.ToString(), fg, bg);
             }
 
-            // Transparent — pass through the layer below
+            // Version text
+            if (ctx.Y == versionY && ctx.X >= versionX && ctx.X < versionX + versionText.Length)
+            {
+                var ch = versionText[ctx.X - versionX];
+                var below = ctx.GetBelow();
+                var bg = BlendColor(below.Background ?? Hex1bColor.Black, TextBgColor, fgAlpha * 0.6);
+                var fg = Hex1bColor.FromRgb(
+                    (byte)(TextFgColor.R * fgAlpha),
+                    (byte)(TextFgColor.G * fgAlpha),
+                    (byte)(TextFgColor.B * fgAlpha));
+                return new SurfaceCell(ch.ToString(), fg, bg);
+            }
+
             return ctx.GetBelow();
         };
     }
@@ -121,16 +185,20 @@ internal static class CloudEffects
         };
     }
 
-    private static Hex1bColor? BlendColor(Hex1bColor? baseColor, Hex1bColor overlay, double amount)
+    private static Hex1bColor BlendToWhite(Hex1bColor baseColor, double alpha)
     {
-        if (baseColor is null || baseColor.Value.IsDefault)
-            return baseColor;
-
-        var c = baseColor.Value;
         return Hex1bColor.FromRgb(
-            (byte)(c.R * (1 - amount) + overlay.R * amount),
-            (byte)(c.G * (1 - amount) + overlay.G * amount),
-            (byte)(c.B * (1 - amount) + overlay.B * amount));
+            (byte)(baseColor.R + (255 - baseColor.R) * alpha),
+            (byte)(baseColor.G + (255 - baseColor.G) * alpha),
+            (byte)(baseColor.B + (255 - baseColor.B) * alpha));
+    }
+
+    private static Hex1bColor BlendColor(Hex1bColor baseColor, Hex1bColor overlay, double amount)
+    {
+        return Hex1bColor.FromRgb(
+            (byte)(baseColor.R * (1 - amount) + overlay.R * amount),
+            (byte)(baseColor.G * (1 - amount) + overlay.G * amount),
+            (byte)(baseColor.B * (1 - amount) + overlay.B * amount));
     }
 
     private static Hex1bColor? DimColor(Hex1bColor? color, double factor)
