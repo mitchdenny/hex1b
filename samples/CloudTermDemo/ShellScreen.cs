@@ -71,9 +71,15 @@ public sealed class ShellScreen
         _terminalHost.Start();
         _panelManager.SetApp(app);
 
-        // Register the cloud shell as panel 0 if not already
+        // Register cloud shell (panel 0) and tutorial (last panel)
         if (_terminalHost.Handle != null)
             _panelManager.SetCloudShellPanel(_terminalHost.Handle);
+        _panelManager.SetTutorialPanel();
+
+        // Update tutorial panel title with step count
+        var tutorialPanel = _panelManager.Panels.FirstOrDefault(p => p.Tag == "tutorial");
+        if (tutorialPanel != null)
+            tutorialPanel.Title = $"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})";
 
         return ctx.ZStack(z =>
         [
@@ -85,19 +91,19 @@ public sealed class ShellScreen
                 {
                     var panels = new List<Hex1bWidget>();
 
-                    // Terminal panels (cloud shell + dynamic)
                     for (var i = 0; i < _panelManager.PanelCount; i++)
                     {
                         var panel = _panelManager.Panels[i];
                         var isFocused = i == _panelManager.FocusedIndex;
-                        var panelWidget = BuildPanel(h, panel.Title, panel.Handle, isFocused);
+
+                        Hex1bWidget panelWidget;
+                        if (panel.Tag == "tutorial")
+                            panelWidget = BuildTutorialPanel(h, isFocused);
+                        else
+                            panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
+
                         panels.Add(panelWidget.FillWidth(panel.Weight));
                     }
-
-                    // Tutorial panel (always rightmost, not in PanelManager)
-                    panels.Add(
-                        BuildTutorialPanel(h).FillWidth(1)
-                    );
 
                     return panels.ToArray();
                 }).Fill(),
@@ -116,6 +122,10 @@ public sealed class ShellScreen
                     s.Section("Ctrl+Z PgUp/Dn"),
                     s.Separator(" "),
                     s.Section("Focus"),
+                    s.Separator("  "),
+                    s.Section("Ctrl+Z Q"),
+                    s.Separator(" "),
+                    s.Section("Close"),
                     s.Spacer(),
                     s.Section(_appState.StatusMessage),
                 ]),
@@ -146,29 +156,29 @@ public sealed class ShellScreen
                     app.Invalidate();
                 }, "Toggle help");
 
-            // Ctrl+Z then → to expand focused panel
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.RightArrow)
                 .OverridesCapture()
                 .Action(_ => _panelManager.ExpandFocused(), "Expand panel");
 
-            // Ctrl+Z then ← to shrink focused panel
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.LeftArrow)
                 .OverridesCapture()
                 .Action(_ => _panelManager.ShrinkFocused(), "Shrink panel");
 
-            // Ctrl+Z then PgDown to focus next panel
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.PageDown)
                 .OverridesCapture()
                 .Action(_ => _panelManager.FocusNext(), "Focus next panel");
 
-            // Ctrl+Z then PgUp to focus previous panel
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.PageUp)
                 .OverridesCapture()
                 .Action(_ => _panelManager.FocusPrevious(), "Focus previous panel");
+
+            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.Q)
+                .OverridesCapture()
+                .Action(async _ => await _panelManager.CloseCurrentPanelAsync(), "Close panel");
         });
     }
 
-    private Hex1bWidget BuildPanel<TParent>(
+    private Hex1bWidget BuildTerminalPanel<TParent>(
         WidgetContext<TParent> ctx,
         string title,
         TerminalWidgetHandle handle,
@@ -188,15 +198,22 @@ public sealed class ShellScreen
         );
     }
 
-    private Hex1bWidget BuildTutorialPanel<TParent>(WidgetContext<TParent> ctx)
+    private Hex1bWidget BuildTutorialPanel<TParent>(WidgetContext<TParent> ctx, bool isFocused)
         where TParent : Hex1bWidget
     {
-        return ctx.Border(b =>
-        [
-            b.VScrollPanel(sp =>
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
             [
-                sp.Markdown(_tutorial.GetCurrentMarkdown()),
-            ]).Fill(),
-        ]).Title($"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})").Fill();
+                b.VScrollPanel(sp =>
+                [
+                    sp.Markdown(_tutorial.GetCurrentMarkdown()),
+                ]).Fill(),
+            ]).Title($"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})").Fill()
+        );
     }
 }
