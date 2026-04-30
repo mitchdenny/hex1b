@@ -11,6 +11,16 @@ builder.Services.AddSingleton<FirstRunExperience>();
 builder.Services.AddSingleton<MainScreen>();
 builder.Services.AddSingleton<TutorialService>();
 builder.Services.AddSingleton(_ => new CloudShellState(CloudModel.BuildHierarchy()));
+builder.Services.AddSingleton<PanelManager>();
+
+// Node command providers — one per resource type
+builder.Services.AddSingleton<INodeCommandProvider, PodCommandProvider>();
+builder.Services.AddSingleton<INodeCommandProvider, NamespaceCommandProvider>();
+builder.Services.AddSingleton<INodeCommandProvider, AksClusterCommandProvider>();
+builder.Services.AddSingleton<INodeCommandProvider, AppServiceCommandProvider>();
+builder.Services.AddSingleton<INodeCommandProvider, SqlServerCommandProvider>();
+builder.Services.AddSingleton<NodeCommandRegistry>();
+
 builder.Services.AddSingleton<CloudTerminalHost>();
 builder.Services.AddSingleton<ShellScreen>();
 

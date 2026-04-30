@@ -17,6 +17,8 @@ public sealed class ShellScreen
     private readonly CloudTerminalHost _terminalHost;
     private readonly TutorialService _tutorial;
 
+    private readonly PanelManager _panelManager;
+
     private bool _showHelp;
 
     private static readonly string HelpMarkdown = """
@@ -55,19 +57,60 @@ public sealed class ShellScreen
         Press **Escape** to close this help panel.
         """;
 
-    public ShellScreen(AppState appState, CloudTerminalHost terminalHost, TutorialService tutorial)
+    public ShellScreen(AppState appState, CloudTerminalHost terminalHost, TutorialService tutorial, PanelManager panelManager)
     {
         _appState = appState;
         _terminalHost = terminalHost;
         _tutorial = tutorial;
+        _panelManager = panelManager;
     }
 
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
         _terminalHost.Start();
+        _panelManager.SetApp(app);
 
         var handle = _terminalHost.Handle;
+
+        // Build the left content: cloud shell + any dynamic terminal panels
+        Hex1bWidget leftContent;
+        if (_panelManager.Panels.Count == 0)
+        {
+            leftContent = CloudShellPanel.Build(ctx, "Cloud Shell", b =>
+            [
+                handle != null
+                    ? b.Terminal(handle).Fill()
+                    : b.Text("Starting terminal...").Fill(),
+            ]);
+        }
+        else
+        {
+            // Stack the cloud shell and dynamic panels horizontally
+            var cloudShell = CloudShellPanel.Build(ctx, "Cloud Shell", b =>
+            [
+                handle != null
+                    ? b.Terminal(handle).Fill()
+                    : b.Text("Starting terminal...").Fill(),
+            ]);
+
+            // Chain HSplitters for each additional panel
+            leftContent = cloudShell;
+            foreach (var panel in _panelManager.Panels)
+            {
+                var panelHandle = panel.Handle;
+                var panelTitle = panel.Title;
+                leftContent = ctx.HSplitter(
+                    leftContent,
+                    CloudShellPanel.Build(ctx, panelTitle, b =>
+                    [
+                        b.Terminal(panelHandle).Fill(),
+                    ]),
+                    leftWidth: 50
+                );
+            }
+            leftContent = leftContent.Fill();
+        }
 
         return ctx.ZStack(z =>
         [
@@ -75,12 +118,7 @@ public sealed class ShellScreen
             z.VStack(v =>
             [
                 v.HSplitter(
-                    CloudShellPanel.Build(v, "Cloud Shell", b =>
-                    [
-                        handle != null
-                            ? b.Terminal(handle).Fill()
-                            : b.Text("Starting terminal...").Fill(),
-                    ]),
+                    leftContent,
                     CloudShellPanel.Build(v, $"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})", b =>
                     [
                         b.VScrollPanel(sp =>
