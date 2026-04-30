@@ -58,12 +58,12 @@ public sealed class PanelManager
 
     public void SetApp(Hex1bApp app) => _app = app;
 
-    /// <summary>Registers the cloud shell as panel 0.</summary>
-    public void SetCloudShellPanel(TerminalWidgetHandle handle)
+    /// <summary>Registers the cloud shell as panel 0 (content panel, not terminal).</summary>
+    public void SetCloudShellPanel()
     {
-        if (_panels.Count == 0 || _panels[0].Tag != "cloud-shell")
+        if (!_panels.Any(p => p.Tag == "cloud-shell"))
         {
-            _panels.Insert(0, new ShellPanel("Cloud Shell", handle, null, null) { Tag = "cloud-shell" });
+            _panels.Insert(0, ShellPanel.Content("Cloud Shell", tag: "cloud-shell"));
         }
     }
 

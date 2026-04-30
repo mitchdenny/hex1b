@@ -21,7 +21,7 @@ builder.Services.AddSingleton<INodeCommandProvider, AppServiceCommandProvider>()
 builder.Services.AddSingleton<INodeCommandProvider, SqlServerCommandProvider>();
 builder.Services.AddSingleton<NodeCommandRegistry>();
 
-builder.Services.AddSingleton<CloudTerminalHost>();
+builder.Services.AddSingleton<CloudShellWidget>();
 builder.Services.AddSingleton<ShellScreen>();
 
 var host = builder.Build();

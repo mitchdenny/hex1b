@@ -14,9 +14,8 @@ namespace CloudTermDemo;
 public sealed class ShellScreen
 {
     private readonly AppState _appState;
-    private readonly CloudTerminalHost _terminalHost;
+    private readonly CloudShellWidget _cloudShell;
     private readonly TutorialService _tutorial;
-
     private readonly PanelManager _panelManager;
 
     private bool _showHelp;
@@ -57,10 +56,10 @@ public sealed class ShellScreen
         Press **Escape** to close this help panel.
         """;
 
-    public ShellScreen(AppState appState, CloudTerminalHost terminalHost, TutorialService tutorial, PanelManager panelManager)
+    public ShellScreen(AppState appState, CloudShellWidget cloudShell, TutorialService tutorial, PanelManager panelManager)
     {
         _appState = appState;
-        _terminalHost = terminalHost;
+        _cloudShell = cloudShell;
         _tutorial = tutorial;
         _panelManager = panelManager;
     }
@@ -68,12 +67,10 @@ public sealed class ShellScreen
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
-        _terminalHost.Start();
         _panelManager.SetApp(app);
 
-        // Register cloud shell (panel 0) and tutorial (last panel)
-        if (_terminalHost.Handle != null)
-            _panelManager.SetCloudShellPanel(_terminalHost.Handle);
+        // Register cloud shell and tutorial panels
+        _panelManager.SetCloudShellPanel();
         _panelManager.SetTutorialPanel();
 
         // Update tutorial panel title with step count
@@ -97,10 +94,14 @@ public sealed class ShellScreen
                         var isFocused = i == _panelManager.FocusedIndex;
 
                         Hex1bWidget panelWidget;
-                        if (panel.Tag == "tutorial")
+                        if (panel.Tag == "cloud-shell")
+                            panelWidget = BuildCloudShellPanel(h, panel.Title, isFocused, app);
+                        else if (panel.Tag == "tutorial")
                             panelWidget = BuildTutorialPanel(h, isFocused);
-                        else
+                        else if (panel.IsTerminal)
                             panelWidget = BuildTerminalPanel(h, panel.Title, panel.Handle!, isFocused);
+                        else
+                            panelWidget = BuildEmptyPanel(h, panel.Title, isFocused);
 
                         panels.Add(panelWidget.FillWidth(panel.Weight));
                     }
@@ -214,6 +215,40 @@ public sealed class ShellScreen
                     sp.Markdown(_tutorial.GetCurrentMarkdown()),
                 ]).Fill(),
             ]).Title($"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})").Fill()
+        );
+    }
+
+    private Hex1bWidget BuildCloudShellPanel<TParent>(
+        WidgetContext<TParent> ctx, string title, bool isFocused, Hex1bApp app)
+        where TParent : Hex1bWidget
+    {
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
+            [
+                _cloudShell.Build(b, app).Fill(),
+            ]).Title(title).Fill()
+        );
+    }
+
+    private static Hex1bWidget BuildEmptyPanel<TParent>(
+        WidgetContext<TParent> ctx, string title, bool isFocused)
+        where TParent : Hex1bWidget
+    {
+        var borderColor = isFocused
+            ? Hex1bColor.FromRgb(60, 130, 255)
+            : Hex1bColor.Gray;
+
+        return ctx.ThemePanel(
+            t => t.Set(BorderTheme.BorderColor, borderColor),
+            ctx.Border(b =>
+            [
+                b.Text("").Fill(),
+            ]).Title(title).Fill()
         );
     }
 }

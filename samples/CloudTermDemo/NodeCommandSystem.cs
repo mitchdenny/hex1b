@@ -13,10 +13,31 @@ public sealed class CommandExecutionContext
     public required PanelManager PanelManager { get; init; }
     public required TutorialService Tutorial { get; init; }
 
-    /// <summary>Lines of output produced by the command.</summary>
-    public List<string> OutputLines { get; } = [];
+    /// <summary>The typed result produced by the command.</summary>
+    public CommandResult? Result { get; set; }
 
-    public void WriteLine(string line = "") => OutputLines.Add(line);
+    /// <summary>Shortcut: set result to a TextResult with the given lines.</summary>
+    public void SetTextResult(params string[] lines)
+    {
+        var r = new TextResult();
+        r.Lines.AddRange(lines);
+        Result = r;
+    }
+
+    /// <summary>Shortcut: append a line to an existing TextResult or create one.</summary>
+    public void WriteLine(string line = "")
+    {
+        if (Result is TextResult tr)
+        {
+            tr.Lines.Add(line);
+        }
+        else
+        {
+            var r = new TextResult();
+            r.Lines.Add(line);
+            Result = r;
+        }
+    }
 }
 
 /// <summary>
@@ -48,23 +69,21 @@ public sealed class NodeCommandRegistry
 
     /// <summary>
     /// Parses and executes a command line in the context of the given node kind.
-    /// Returns output lines.
+    /// The result is stored in context.Result.
     /// </summary>
-    public async Task<List<string>> ExecuteAsync(string commandLine, CommandExecutionContext context)
+    public async Task ExecuteAsync(string commandLine, CommandExecutionContext context)
     {
         var root = new RootCommand("Cloud Term Shell");
         var contextAccessor = () => context;
 
-        // Add base commands (ls, cd, pwd, info)
         _baseProvider.AddCommands(root, contextAccessor);
 
-        // Add type-specific commands
         if (_providers.TryGetValue(context.ShellState.CurrentNode.Kind, out var provider))
         {
             provider.AddCommands(root, contextAccessor);
         }
 
-        // Redirect System.CommandLine output to our context
+        // Redirect System.CommandLine output (help/errors) to capture
         var originalOut = Console.Out;
         var originalErr = Console.Error;
         using var capturedOut = new StringWriter();
@@ -82,18 +101,15 @@ public sealed class NodeCommandRegistry
             Console.SetError(originalErr);
         }
 
-        // Capture any System.CommandLine output (help text, errors)
+        // If System.CommandLine produced output (help text, errors) and no result was set
         var sclOutput = capturedOut.ToString();
-        if (!string.IsNullOrWhiteSpace(sclOutput))
+        if (!string.IsNullOrWhiteSpace(sclOutput) && context.Result == null)
         {
-            foreach (var line in sclOutput.Split('\n', StringSplitOptions.None))
-            {
-                var trimmed = line.TrimEnd('\r');
-                if (!string.IsNullOrEmpty(trimmed))
-                    context.OutputLines.Add(trimmed);
-            }
+            var lines = sclOutput.Split('\n', StringSplitOptions.None)
+                .Select(l => l.TrimEnd('\r'))
+                .Where(l => !string.IsNullOrEmpty(l))
+                .ToArray();
+            context.SetTextResult(lines);
         }
-
-        return context.OutputLines;
     }
 }

@@ -9,7 +9,7 @@ internal sealed class BaseCommandProvider
 {
     public void AddCommands(RootCommand root, Func<CommandExecutionContext> getContext)
     {
-        // ls
+        // ls — produces a ResourceListResult for table rendering
         var lsCommand = new Command("ls", "List child resources");
         lsCommand.SetAction(async (parseResult, ct) =>
         {
@@ -17,21 +17,21 @@ internal sealed class BaseCommandProvider
             var node = ctx.ShellState.CurrentNode;
             if (node.Children.Count == 0)
             {
-                ctx.WriteLine("  (no child resources)");
+                ctx.SetTextResult("  (no child resources)");
                 return;
             }
+
+            var result = new ResourceListResult();
             foreach (var child in node.Children)
-            {
-                var desc = child.Description != null ? $"  ({child.Description})" : "";
-                ctx.WriteLine($"  {child.TypeLabel,-18} {child.Name}{desc}");
-            }
+                result.Rows.Add(new(child.TypeLabel, child.Name, child.Description));
+            ctx.Result = result;
 
             if (ctx.Tutorial.CurrentStep == 0)
                 ctx.Tutorial.Advance();
         });
         root.Subcommands.Add(lsCommand);
 
-        // cd
+        // cd — produces a NavigationResult
         var cdArg = new Argument<string>("target") { Description = "Resource name, '..' for parent, '/' for root", Arity = ArgumentArity.ZeroOrOne };
         var cdCommand = new Command("cd", "Navigate to a resource");
         cdCommand.Arguments.Add(cdArg);
@@ -42,32 +42,35 @@ internal sealed class BaseCommandProvider
             if (string.IsNullOrEmpty(target) || target == "/")
             {
                 ctx.ShellState.NavigateToRoot();
-                ctx.WriteLine($"  → {ctx.ShellState.GetPath()}");
+                ctx.Result = new NavigationResult { Path = ctx.ShellState.GetPath() };
                 return;
             }
             if (target == "..")
             {
                 if (!ctx.ShellState.NavigateUp())
-                    ctx.WriteLine("  Already at root.");
+                    ctx.Result = new NavigationResult { Error = "Already at root." };
                 else
-                    ctx.WriteLine($"  → {ctx.ShellState.GetPath()}");
+                    ctx.Result = new NavigationResult { Path = ctx.ShellState.GetPath() };
                 return;
             }
             if (ctx.ShellState.NavigateTo(target))
             {
-                ctx.WriteLine($"  → {ctx.ShellState.GetPath()}");
+                ctx.Result = new NavigationResult { Path = ctx.ShellState.GetPath() };
                 if (ctx.Tutorial.CurrentStep == 1)
                     ctx.Tutorial.Advance();
             }
             else
             {
-                ctx.WriteLine($"  Not found: {target}");
                 var suggestions = ctx.ShellState.CurrentNode.Children
                     .Where(c => c.Name.Contains(target, StringComparison.OrdinalIgnoreCase))
                     .Select(c => c.Name)
-                    .Take(3);
-                if (suggestions.Any())
-                    ctx.WriteLine($"  Did you mean: {string.Join(", ", suggestions)}?");
+                    .Take(3)
+                    .ToList();
+                ctx.Result = new NavigationResult
+                {
+                    Error = $"Not found: {target}",
+                    Suggestions = suggestions.Count > 0 ? suggestions : null,
+                };
             }
         });
         root.Subcommands.Add(cdCommand);
@@ -77,22 +80,24 @@ internal sealed class BaseCommandProvider
         pwdCommand.SetAction(async (parseResult, ct) =>
         {
             var ctx = getContext();
-            ctx.WriteLine(ctx.ShellState.GetPath());
+            ctx.SetTextResult(ctx.ShellState.GetPath());
         });
         root.Subcommands.Add(pwdCommand);
 
-        // info
+        // info — produces a DetailResult
         var infoCommand = new Command("info", "Show details about the current resource");
         infoCommand.SetAction(async (parseResult, ct) =>
         {
             var ctx = getContext();
             var node = ctx.ShellState.CurrentNode;
-            ctx.WriteLine($"  Name:     {node.Name}");
-            ctx.WriteLine($"  Type:     {node.TypeLabel}");
+            var detail = new DetailResult();
+            detail.Fields.Add(("Name:", node.Name));
+            detail.Fields.Add(("Type:", node.TypeLabel));
             if (node.Description != null)
-                ctx.WriteLine($"  Details:  {node.Description}");
-            ctx.WriteLine($"  Path:     {ctx.ShellState.GetPath()}");
-            ctx.WriteLine($"  Children: {node.Children.Count}");
+                detail.Fields.Add(("Details:", node.Description));
+            detail.Fields.Add(("Path:", ctx.ShellState.GetPath()));
+            detail.Fields.Add(("Children:", node.Children.Count.ToString()));
+            ctx.Result = detail;
         });
         root.Subcommands.Add(infoCommand);
     }
