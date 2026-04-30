@@ -32,7 +32,7 @@ public sealed class FirstRunExperience
                 // QR code with URL and device code underneath, centered
                 h.Padding(0, 3, 0, 0,
                     h.VStack(qr => [
-                        qr.QrCode(DeviceLoginUrl).WithQuietZone(0),
+                        qr.QrCode(DeviceLoginUrl).WithQuietZone(1),
                         qr.Padding(0, 0, 1, 0,
                             qr.Align(Alignment.HCenter,
                                 qr.VStack(info => [

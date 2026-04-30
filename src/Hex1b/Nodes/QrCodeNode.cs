@@ -163,32 +163,38 @@ public sealed class QrCodeNode : Hex1bNode
         {
             var topModuleRow = row * 2;
             var botModuleRow = topModuleRow + 1;
+            var botExists = botModuleRow < totalModules;
 
             var line = "";
 
             for (var x = 0; x < totalModules; x++)
             {
                 var topFilled = IsModuleFilled(x, topModuleRow, totalModules);
-                var botFilled = botModuleRow < totalModules && IsModuleFilled(x, botModuleRow, totalModules);
+                var botFilled = botExists && IsModuleFilled(x, botModuleRow, totalModules);
 
-                if (topFilled && botFilled)
+                if (!botExists)
                 {
-                    // Both dark: full block with dark fg (bg doesn't matter)
+                    // Last row with odd module count — bottom half doesn't exist,
+                    // use default bg so it blends with the terminal background
+                    if (topFilled)
+                        line += $"{fgBlack}{reset}▀";
+                    else
+                        line += $"\x1b[97m{reset}▀"; // white top half, default bg
+                }
+                else if (topFilled && botFilled)
+                {
                     line += $"{fgBlack}{bgBlack}█";
                 }
                 else if (!topFilled && !botFilled)
                 {
-                    // Both light: space with white bg
                     line += $"{bgWhite} ";
                 }
                 else if (topFilled)
                 {
-                    // Top dark, bottom light: ▀ with black fg, white bg
                     line += $"{fgBlack}{bgWhite}▀";
                 }
                 else
                 {
-                    // Top light, bottom dark: ▄ with black fg, white bg
                     line += $"{fgBlack}{bgWhite}▄";
                 }
             }
