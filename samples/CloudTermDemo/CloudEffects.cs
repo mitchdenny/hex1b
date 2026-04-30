@@ -14,10 +14,11 @@ internal static class CloudEffects
     private static readonly Hex1bColor TextFgColor = Hex1bColor.FromRgb(255, 255, 255);
 
     /// <summary>
-    /// Subtle fluid blue sky background. Uses layered noise-like functions to create
-    /// gentle movement that reads as "sky" — mostly calm blues with slight variation.
+    /// Starry Night-inspired swirling blue background. Creates visible swirl patterns
+    /// using flow-field distortion with tightly clamped blue tones, evoking Van Gogh's
+    /// brushstroke spirals rendered in deep blues and indigos.
     /// </summary>
-    public static CellCompute FluidSkyBackground(double elapsedSeconds, int surfaceHeight)
+    public static CellCompute FluidSkyBackground(double elapsedSeconds, int surfaceWidth, int surfaceHeight)
     {
         var t = elapsedSeconds;
 
@@ -26,31 +27,82 @@ internal static class CloudEffects
             var x = ctx.X;
             var y = ctx.Y;
 
-            // Base sky gradient: darker at top, lighter toward bottom
-            var verticalGradient = (double)y / Math.Max(surfaceHeight - 1, 1);
-            var baseR = 20 + verticalGradient * 30;
-            var baseG = 50 + verticalGradient * 60;
-            var baseB = 140 + verticalGradient * 80;
+            // Normalize coordinates to 0..1 range
+            var nx = (double)x / Math.Max(surfaceWidth - 1, 1);
+            var ny = (double)y / Math.Max(surfaceHeight - 1, 1);
 
-            // Layer 1: slow, large-scale drift
-            var n1 = Math.Sin(x * 0.04 + t * 0.15) * Math.Cos(y * 0.06 + t * 0.12);
+            // === Flow field: warp coordinates through swirling vortices ===
 
-            // Layer 2: medium ripple
-            var n2 = Math.Sin(x * 0.09 - y * 0.07 + t * 0.25) * 0.6;
+            // Several swirl centers that drift slowly
+            var swirl1X = 0.3 + Math.Sin(t * 0.07) * 0.1;
+            var swirl1Y = 0.4 + Math.Cos(t * 0.09) * 0.1;
+            var swirl2X = 0.7 + Math.Cos(t * 0.06) * 0.12;
+            var swirl2Y = 0.3 + Math.Sin(t * 0.08) * 0.08;
+            var swirl3X = 0.5 + Math.Sin(t * 0.05 + 1.0) * 0.15;
+            var swirl3Y = 0.7 + Math.Cos(t * 0.07 + 2.0) * 0.1;
 
-            // Layer 3: fine detail — very subtle
-            var n3 = Math.Sin(x * 0.18 + y * 0.14 + t * 0.4)
-                    * Math.Cos(x * 0.12 - y * 0.09 + t * 0.35) * 0.3;
+            // Accumulate angular displacement from each vortex
+            var warpX = nx;
+            var warpY = ny;
 
-            var noise = (n1 + n2 + n3) * 0.33;
+            ApplySwirl(ref warpX, ref warpY, swirl1X, swirl1Y, 0.25, t * 0.4, 1.0);
+            ApplySwirl(ref warpX, ref warpY, swirl2X, swirl2Y, 0.20, t * -0.35, 0.8);
+            ApplySwirl(ref warpX, ref warpY, swirl3X, swirl3Y, 0.30, t * 0.3, 0.6);
 
-            // Apply noise as subtle color variation
-            var r = (byte)Math.Clamp(baseR + noise * 15, 0, 255);
-            var g = (byte)Math.Clamp(baseG + noise * 25, 0, 255);
-            var b = (byte)Math.Clamp(baseB + noise * 35, 0, 255);
+            // === Layered noise on warped coordinates for brushstroke texture ===
+
+            // Large swirling bands
+            var n1 = Math.Sin(warpX * 12.0 + warpY * 8.0 + t * 0.2);
+
+            // Medium detail — cross-hatched swirls
+            var n2 = Math.Sin(warpX * 20.0 - warpY * 14.0 + t * 0.15) * 0.5;
+
+            // Fine brushstroke grain
+            var n3 = Math.Sin(warpX * 35.0 + warpY * 25.0 - t * 0.3)
+                   * Math.Cos(warpX * 18.0 - warpY * 30.0 + t * 0.25) * 0.3;
+
+            var noise = (n1 + n2 + n3) / 1.8;  // -1..1 range
+
+            // === Color mapping: tightly clamped blues/indigos ===
+            // Base: deep navy to indigo gradient
+            var baseR = 15 + ny * 10;   // 15-25
+            var baseG = 20 + ny * 25;   // 20-45
+            var baseB = 70 + ny * 50;   // 70-120
+
+            // Noise modulates within a narrow band of blues
+            var r = (byte)Math.Clamp(baseR + noise * 12, 8, 40);
+            var g = (byte)Math.Clamp(baseG + noise * 20, 15, 65);
+            var b = (byte)Math.Clamp(baseB + noise * 40, 55, 160);
 
             return new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, b));
         };
+    }
+
+    /// <summary>
+    /// Applies a swirl distortion centered at (cx, cy) with the given radius and rotation.
+    /// Points closer to the center rotate more, creating a vortex-like warp.
+    /// </summary>
+    private static void ApplySwirl(
+        ref double x, ref double y,
+        double cx, double cy,
+        double radius, double angle, double strength)
+    {
+        var dx = x - cx;
+        var dy = y - cy;
+        var dist = Math.Sqrt(dx * dx + dy * dy);
+
+        if (dist < radius && dist > 0.001)
+        {
+            // Falloff: strongest at center, zero at edge
+            var falloff = 1.0 - (dist / radius);
+            falloff = falloff * falloff; // quadratic falloff for tighter spirals
+            var theta = falloff * angle * strength;
+
+            var cosT = Math.Cos(theta);
+            var sinT = Math.Sin(theta);
+            x = cx + dx * cosT - dy * sinT;
+            y = cy + dx * sinT + dy * cosT;
+        }
     }
 
     /// <summary>

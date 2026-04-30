@@ -54,7 +54,7 @@ public sealed class SplashScreen
         {
             var layers = new List<Hex1b.Widgets.SurfaceLayer>
             {
-                s.Layer(CloudEffects.FluidSkyBackground(elapsedSeconds, s.Height)),
+                s.Layer(CloudEffects.FluidSkyBackground(elapsedSeconds, s.Width, s.Height)),
                 s.Layer(CloudEffects.HalfBlockCloud(cloudOpacity, s.Width, s.Height)),
                 s.Layer(CloudEffects.TextOverlay(cloudOpacity, s.Width, s.Height, Hex1bVersion)),
             };
