@@ -24,36 +24,34 @@ public sealed class FirstRunExperience
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
-        return ctx.HStack(h => [
+        return ctx.Center(
+            ctx.HStack(h => [
 
-            // Left panel — QR code centered
-            h.VStack(left => [
-                left.Text(""),
-                left.Center(
-                    left.QrCode(DeviceLoginUrl).WithQuietZone(1)
-                ).Fill(),
-            ]).Fill(),
+                // QR code
+                h.Padding(0, 3, 0, 0,
+                    h.QrCode(DeviceLoginUrl).WithQuietZone(0)
+                ),
 
-            h.VSeparator(),
+                // Instructions — vertically centered alongside the QR code
+                h.Align(Alignment.VCenter,
+                    h.VStack(text => [
+                        text.Text("Welcome to Cloud Term"),
+                        text.Text(""),
+                        text.Text("It looks like this is your first time"),
+                        text.Text("running Cloud Term. To get started you"),
+                        text.Text("need to sign in to the cloud."),
+                        text.Text(""),
+                        text.Text("Scan the QR code with your phone, or"),
+                        text.Text($"visit {DeviceLoginUrl}"),
+                        text.Text("and enter the code:"),
+                        text.Text(""),
+                        text.Text(DeviceCode),
+                        text.Text(""),
+                        text.Text("Waiting for authentication..."),
+                    ])
+                ),
 
-            // Right panel — instructions
-            h.VStack(right => [
-                right.Text(""),
-                right.Text("  Welcome to Cloud Term"),
-                right.Text(""),
-                right.Text("  It looks like this is your first time"),
-                right.Text("  running Cloud Term. To get started you"),
-                right.Text("  need to sign in to the cloud."),
-                right.Text(""),
-                right.Text("  Scan the QR code with your phone, or"),
-                right.Text($"  visit {DeviceLoginUrl}"),
-                right.Text("  and enter the code:"),
-                right.Text(""),
-                right.Text($"  {DeviceCode}").Wrap(),
-                right.Text(""),
-                right.Text("  Waiting for authentication..."),
-            ]).Fill(),
-
-        ]);
+            ])
+        ).Fill();
     }
 }
