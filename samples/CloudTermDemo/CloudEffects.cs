@@ -59,14 +59,15 @@ internal static class CloudEffects
             var n3 = Math.Sin(ax * 22.0 + ay * 18.0) * Math.Cos(ax * 12.0 - ay * 16.0) * 0.25;
             var noise = (n1 + n2 + n3) / 1.75;
 
-            // Base gradient: deep navy
-            var baseR = 15 + py * 10;
-            var baseG = 20 + py * 25;
-            var baseB = 70 + py * 50;
+            // Base gradient: brighter blue
+            var baseR = 25 + py * 8;
+            var baseG = 50 + py * 20;
+            var baseB = 130 + py * 30;
 
-            var r = (byte)Math.Clamp(baseR + noise * 12, 8, 40);
-            var g = (byte)Math.Clamp(baseG + noise * 20, 15, 65);
-            var b = (byte)Math.Clamp(baseB + noise * 40, 55, 160);
+            // Tight clamp — narrow band of medium-bright blues
+            var r = (byte)Math.Clamp(baseR + noise * 8, 20, 45);
+            var g = (byte)Math.Clamp(baseG + noise * 12, 40, 80);
+            var b = (byte)Math.Clamp(baseB + noise * 25, 115, 185);
 
             return new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, b));
         };
