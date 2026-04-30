@@ -83,15 +83,14 @@ public sealed class ShellScreen
             // Base content
             z.VStack(v =>
             [
-                // Panel area — HStack with weighted fills
+                // Panel area — HStack showing only viewport-visible panels
                 v.HStack(h =>
                 {
                     var panels = new List<Hex1bWidget>();
 
-                    for (var i = 0; i < _panelManager.PanelCount; i++)
+                    foreach (var (panel, idx) in _panelManager.VisiblePanels)
                     {
-                        var panel = _panelManager.Panels[i];
-                        var isFocused = i == _panelManager.FocusedIndex;
+                        var isFocused = idx == _panelManager.FocusedIndex;
 
                         Hex1bWidget panelWidget;
                         if (panel.Tag == "cloud-shell")
@@ -105,7 +104,7 @@ public sealed class ShellScreen
                         else
                             panelWidget = BuildEmptyPanel(h, panel.Title, isFocused);
 
-                        panels.Add(panelWidget.FillWidth(panel.Weight));
+                        panels.Add(panelWidget.FillWidth(1));
                     }
 
                     return panels.ToArray();
@@ -120,7 +119,7 @@ public sealed class ShellScreen
                     s.Separator("  "),
                     s.Section("Ctrl+Z ←/→"),
                     s.Separator(" "),
-                    s.Section("Resize"),
+                    s.Section("Zoom"),
                     s.Separator("  "),
                     s.Section("Ctrl+Z PgUp/Dn"),
                     s.Separator(" "),
@@ -130,7 +129,7 @@ public sealed class ShellScreen
                     s.Separator(" "),
                     s.Section("Close"),
                     s.Spacer(),
-                    s.Section(_appState.StatusMessage),
+                    s.Section($"[{_panelManager.FocusedIndex + 1}/{_panelManager.PanelCount}] Zoom:{_panelManager.Zoom}"),
                 ]),
             ]),
 
@@ -159,13 +158,15 @@ public sealed class ShellScreen
                     app.Invalidate();
                 }, "Toggle help");
 
+            // Ctrl+Z then → to zoom out (show more panels)
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.RightArrow)
                 .OverridesCapture()
-                .Action(_ => _panelManager.ExpandFocused(), "Expand panel");
+                .Action(_ => _panelManager.ZoomOut(), "Zoom out");
 
+            // Ctrl+Z then ← to zoom in (show fewer panels)
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.LeftArrow)
                 .OverridesCapture()
-                .Action(_ => _panelManager.ShrinkFocused(), "Shrink panel");
+                .Action(_ => _panelManager.ZoomIn(), "Zoom in");
 
             bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.PageDown)
                 .OverridesCapture()

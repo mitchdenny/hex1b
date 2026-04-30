@@ -3,19 +3,14 @@ using Hex1b;
 namespace CloudTermDemo;
 
 /// <summary>
-/// A panel in the shell layout. Can be a terminal or a content panel (like tutorial).
+/// A panel in the shell layout. Can be a terminal or a content panel.
 /// </summary>
 public sealed class ShellPanel : IAsyncDisposable
 {
     public string Title { get; set; }
     public TerminalWidgetHandle? Handle { get; }
     public Hex1bTerminal? Terminal { get; }
-    public int Weight { get; set; } = 1;
-
-    /// <summary>True if this is a terminal panel, false for content panels (tutorial etc.).</summary>
     public bool IsTerminal => Handle != null;
-
-    /// <summary>Tag for identifying special panels (e.g. "tutorial", "cloud-shell").</summary>
     public string? Tag { get; init; }
 
     private readonly Task _runTask;
@@ -28,7 +23,6 @@ public sealed class ShellPanel : IAsyncDisposable
         _runTask = runTask ?? Task.CompletedTask;
     }
 
-    /// <summary>Creates a non-terminal content panel.</summary>
     public static ShellPanel Content(string title, string? tag = null)
         => new(title, null, null, null) { Tag = tag };
 
@@ -41,42 +35,53 @@ public sealed class ShellPanel : IAsyncDisposable
 }
 
 /// <summary>
-/// Manages all panels (terminal + content) and focus/resize state.
-/// Panel 0 is always the cloud shell. The tutorial panel is the last content panel.
+/// Manages all panels with a sliding viewport window.
+/// Zoom controls how many panels are visible at once.
+/// Focus navigation slides the viewport when reaching the edges.
 /// </summary>
 public sealed class PanelManager
 {
     private readonly List<ShellPanel> _panels = [];
     private Hex1bApp? _app;
 
-    /// <summary>Index of the currently focused panel.</summary>
+    /// <summary>Index of the currently focused panel (within all panels).</summary>
     public int FocusedIndex { get; private set; }
 
+    /// <summary>How many panels are visible at once.</summary>
+    public int Zoom { get; private set; } = 2;
+
+    /// <summary>Index of the first visible panel in the viewport.</summary>
+    public int ViewportStart { get; private set; }
+
     public IReadOnlyList<ShellPanel> Panels => _panels;
+
+    /// <summary>The panels currently visible in the viewport.</summary>
+    public IEnumerable<(ShellPanel Panel, int Index)> VisiblePanels
+    {
+        get
+        {
+            var end = Math.Min(ViewportStart + Zoom, _panels.Count);
+            for (var i = ViewportStart; i < end; i++)
+                yield return (_panels[i], i);
+        }
+    }
 
     public int PanelCount => _panels.Count;
 
     public void SetApp(Hex1bApp app) => _app = app;
 
-    /// <summary>Registers the cloud shell as panel 0 (content panel, not terminal).</summary>
     public void SetCloudShellPanel()
     {
         if (!_panels.Any(p => p.Tag == "cloud-shell"))
-        {
             _panels.Insert(0, ShellPanel.Content("Cloud Shell", tag: "cloud-shell"));
-        }
     }
 
-    /// <summary>Registers the tutorial as the last panel (if not already present).</summary>
     public void SetTutorialPanel()
     {
         if (!_panels.Any(p => p.Tag == "tutorial"))
-        {
             _panels.Add(ShellPanel.Content("Tutorial", tag: "tutorial"));
-        }
     }
 
-    /// <summary>Opens a new terminal panel running docker.</summary>
     public void OpenTerminalPanel(string title)
     {
         var terminal = Hex1bTerminal.CreateBuilder()
@@ -98,39 +103,36 @@ public sealed class PanelManager
             catch (OperationCanceledException) { }
             finally
             {
-                // Auto-remove when terminal exits
                 if (panelRef != null)
                 {
                     var idx = _panels.IndexOf(panelRef);
                     if (idx >= 0)
                     {
                         _panels.RemoveAt(idx);
-                        if (FocusedIndex >= _panels.Count)
-                            FocusedIndex = Math.Max(0, _panels.Count - 1);
+                        ClampState();
                         _app?.Invalidate();
                     }
                 }
             }
         });
 
-        // Insert before tutorial (which is always last)
         var tutorialIndex = _panels.FindIndex(p => p.Tag == "tutorial");
         var insertAt = tutorialIndex >= 0 ? tutorialIndex : _panels.Count;
         var panel = new ShellPanel(title, handle, terminal, runTask);
         panelRef = panel;
         _panels.Insert(insertAt, panel);
         FocusedIndex = insertAt;
+        EnsureFocusedVisible();
         _app?.Invalidate();
     }
 
-    /// <summary>Opens a content panel (non-terminal) with the given tag.</summary>
     public void OpenContentPanel(string title, string tag)
     {
-        // Don't open duplicates of the same tag
         var existing = _panels.FindIndex(p => p.Tag == tag);
         if (existing >= 0)
         {
             FocusedIndex = existing;
+            EnsureFocusedVisible();
             _app?.Invalidate();
             return;
         }
@@ -139,93 +141,94 @@ public sealed class PanelManager
         var insertAt = tutorialIndex >= 0 ? tutorialIndex : _panels.Count;
         _panels.Insert(insertAt, ShellPanel.Content(title, tag: tag));
         FocusedIndex = insertAt;
+        EnsureFocusedVisible();
         _app?.Invalidate();
     }
 
+    /// <summary>Move focus to next panel, sliding viewport if at the edge.</summary>
     public void FocusNext()
     {
-        if (_panels.Count > 0)
-        {
-            FocusedIndex = (FocusedIndex + 1) % _panels.Count;
-            RequestFocusOnCurrentPanel();
-            _app?.Invalidate();
-        }
+        if (_panels.Count == 0) return;
+        FocusedIndex = (FocusedIndex + 1) % _panels.Count;
+        EnsureFocusedVisible();
+        RequestFocusOnCurrentPanel();
+        _app?.Invalidate();
     }
 
+    /// <summary>Move focus to previous panel, sliding viewport if at the edge.</summary>
     public void FocusPrevious()
     {
-        if (_panels.Count > 0)
-        {
-            FocusedIndex = (FocusedIndex - 1 + _panels.Count) % _panels.Count;
-            RequestFocusOnCurrentPanel();
-            _app?.Invalidate();
-        }
+        if (_panels.Count == 0) return;
+        FocusedIndex = (FocusedIndex - 1 + _panels.Count) % _panels.Count;
+        EnsureFocusedVisible();
+        RequestFocusOnCurrentPanel();
+        _app?.Invalidate();
+    }
+
+    /// <summary>Zoom in: show fewer panels (minimum 1).</summary>
+    public void ZoomIn()
+    {
+        Zoom = Math.Max(1, Zoom - 1);
+        EnsureFocusedVisible();
+        _app?.Invalidate();
+    }
+
+    /// <summary>Zoom out: show more panels (up to total count).</summary>
+    public void ZoomOut()
+    {
+        Zoom = Math.Min(_panels.Count, Zoom + 1);
+        EnsureFocusedVisible();
+        _app?.Invalidate();
+    }
+
+    /// <summary>Closes the currently focused panel (can't close cloud shell).</summary>
+    public async Task CloseCurrentPanelAsync()
+    {
+        if (FocusedIndex < 0 || FocusedIndex >= _panels.Count) return;
+        var panel = _panels[FocusedIndex];
+        if (panel.Tag is "cloud-shell") return;
+
+        _panels.RemoveAt(FocusedIndex);
+        await panel.DisposeAsync();
+        ClampState();
+        _app?.Invalidate();
+    }
+
+    /// <summary>Slide viewport so the focused panel is visible.</summary>
+    private void EnsureFocusedVisible()
+    {
+        if (FocusedIndex < ViewportStart)
+            ViewportStart = FocusedIndex;
+        else if (FocusedIndex >= ViewportStart + Zoom)
+            ViewportStart = FocusedIndex - Zoom + 1;
+        ClampViewport();
+    }
+
+    private void ClampState()
+    {
+        if (FocusedIndex >= _panels.Count)
+            FocusedIndex = Math.Max(0, _panels.Count - 1);
+        ClampViewport();
+    }
+
+    private void ClampViewport()
+    {
+        if (Zoom > _panels.Count) Zoom = Math.Max(1, _panels.Count);
+        if (ViewportStart + Zoom > _panels.Count)
+            ViewportStart = Math.Max(0, _panels.Count - Zoom);
+        if (ViewportStart < 0) ViewportStart = 0;
     }
 
     private void RequestFocusOnCurrentPanel()
     {
         if (FocusedIndex < 0 || FocusedIndex >= _panels.Count || _app == null)
             return;
-
         var panel = _panels[FocusedIndex];
         if (panel.Handle != null)
         {
             var handle = panel.Handle;
             _app.RequestFocus(node =>
                 node is Hex1b.Nodes.TerminalNode tn && tn.Handle == handle);
-        }
-    }
-
-    public void ExpandFocused()
-    {
-        if (FocusedIndex >= 0 && FocusedIndex < _panels.Count)
-        {
-            _panels[FocusedIndex].Weight = Math.Min(_panels[FocusedIndex].Weight + 1, 5);
-            _app?.Invalidate();
-        }
-    }
-
-    public void ShrinkFocused()
-    {
-        if (FocusedIndex >= 0 && FocusedIndex < _panels.Count)
-        {
-            _panels[FocusedIndex].Weight = Math.Max(_panels[FocusedIndex].Weight - 1, 1);
-            _app?.Invalidate();
-        }
-    }
-
-    /// <summary>Closes the currently focused panel (can't close cloud shell).</summary>
-    public async Task CloseCurrentPanelAsync()
-    {
-        if (FocusedIndex >= 0 && FocusedIndex < _panels.Count)
-        {
-            var panel = _panels[FocusedIndex];
-            // Don't close cloud shell
-            if (panel.Tag is "cloud-shell")
-                return;
-
-            _panels.RemoveAt(FocusedIndex);
-            if (FocusedIndex >= _panels.Count)
-                FocusedIndex = _panels.Count - 1;
-            await panel.DisposeAsync();
-            _app?.Invalidate();
-        }
-    }
-
-    /// <summary>Closes and removes a panel by index.</summary>
-    public async Task ClosePanelAsync(int index)
-    {
-        if (index >= 0 && index < _panels.Count)
-        {
-            var panel = _panels[index];
-            if (panel.Tag is "cloud-shell")
-                return;
-
-            _panels.RemoveAt(index);
-            if (FocusedIndex >= _panels.Count)
-                FocusedIndex = _panels.Count - 1;
-            await panel.DisposeAsync();
-            _app?.Invalidate();
         }
     }
 }
