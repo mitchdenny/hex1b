@@ -1,4 +1,5 @@
 using Hex1b;
+using Hex1b.Animation;
 using Hex1b.Layout;
 using Hex1b.Theming;
 using Hex1b.Widgets;
@@ -37,14 +38,48 @@ public sealed class FirstRunExperience
                                 qr.VStack(info => [
                                     info.Hyperlink(DeviceLoginUrl, DeviceLoginUrl),
                                     info.Text(""),
-                                    info.ThemePanel(
-                                        t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(100, 180, 255)),
-                                        info.HStack(code => [
-                                            code.Text(DeviceCode),
-                                            code.Text(" "),
-                                            code.Icon("📋").OnClick(_ => app.CopyToClipboard(DeviceCode)),
-                                        ])
-                                    ),
+                                    // StatePanel for copy-flash animation
+                                    info.StatePanel(this, sp =>
+                                    {
+                                        var anims = sp.GetAnimations();
+                                        var flash = anims.Get<NumericAnimator<double>>("copyFlash", a =>
+                                        {
+                                            a.From = 0.0;
+                                            a.To = 0.0;
+                                            a.Duration = TimeSpan.FromMilliseconds(500);
+                                            a.EasingFunction = Easing.EaseOutCubic;
+                                        }, autoStart: false);
+
+                                        var flashValue = flash.Value;
+
+                                        // Blend from light blue to inverted (white bg)
+                                        var bgR = (byte)(flashValue * 255);
+                                        var bgG = (byte)(flashValue * 255);
+                                        var bgB = (byte)(flashValue * 255);
+                                        var fgR = (byte)(100 + (1 - flashValue) * 0);
+                                        var fgG = (byte)(180 - flashValue * 150);
+                                        var fgB = (byte)(255 - flashValue * 200);
+
+                                        return sp.ThemePanel(
+                                            t => t
+                                                .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(fgR, fgG, fgB))
+                                                .Set(GlobalTheme.BackgroundColor, flashValue > 0.01
+                                                    ? Hex1bColor.FromRgb(bgR, bgG, bgB)
+                                                    : Hex1bColor.Default),
+                                            sp.Align(Alignment.HCenter,
+                                                sp.HStack(code => [
+                                                    code.Text($" {DeviceCode} "),
+                                                    code.Icon("📋").OnClick(_ =>
+                                                    {
+                                                        app.CopyToClipboard(DeviceCode);
+                                                        flash.From = 1.0;
+                                                        flash.To = 0.0;
+                                                        flash.Start();
+                                                    }),
+                                                ])
+                                            )
+                                        );
+                                    }),
                                 ])
                             )
                         ),
