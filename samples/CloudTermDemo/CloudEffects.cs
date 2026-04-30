@@ -11,6 +11,7 @@ internal static class CloudEffects
 {
     // Complementary color to sky blue — warm amber/gold for text backgrounds
     private static readonly Hex1bColor TextBgColor = Hex1bColor.FromRgb(180, 140, 60);
+    private static readonly Hex1bColor PreviewBgColor = Hex1bColor.FromRgb(200, 40, 40);
     private static readonly Hex1bColor TextFgColor = Hex1bColor.FromRgb(255, 255, 255);
 
     /// <summary>
@@ -187,7 +188,7 @@ internal static class CloudEffects
     }
 
     /// <summary>
-    /// Renders "CLOUD TERM DEMO" text centered horizontally below the cloud,
+    /// Renders "CLOUD TERM DEMO" with a "PREVIEW" badge centered horizontally below the cloud,
     /// and version text in the bottom-right corner.
     /// </summary>
     public static CellCompute TextOverlay(
@@ -197,7 +198,10 @@ internal static class CloudEffects
         string version)
     {
         const string title = " CLOUD TERM DEMO ";
-        var titleX = (surfaceWidth - title.Length) / 2;
+        const string preview = " PREVIEW ";
+        var combinedLength = title.Length + preview.Length;
+        var combinedX = (surfaceWidth - combinedLength) / 2;
+        var previewX = combinedX + title.Length;
 
         // Position title below the cloud (cloud center + half cloud char height + gap)
         var cloudCharHeight = (CloudBitmap.Height + 1) / 2;
@@ -212,12 +216,25 @@ internal static class CloudEffects
 
         return ctx =>
         {
-            // Title text
-            if (ctx.Y == titleY && ctx.X >= titleX && ctx.X < titleX + title.Length)
+            // Title text — amber background
+            if (ctx.Y == titleY && ctx.X >= combinedX && ctx.X < combinedX + title.Length)
             {
-                var ch = title[ctx.X - titleX];
+                var ch = title[ctx.X - combinedX];
                 var below = ctx.GetBelow();
                 var bg = BlendColor(below.Background ?? Hex1bColor.Black, TextBgColor, fgAlpha * 0.85);
+                var fg = Hex1bColor.FromRgb(
+                    (byte)(TextFgColor.R * fgAlpha),
+                    (byte)(TextFgColor.G * fgAlpha),
+                    (byte)(TextFgColor.B * fgAlpha));
+                return new SurfaceCell(ch.ToString(), fg, bg);
+            }
+
+            // PREVIEW badge — red background, white foreground
+            if (ctx.Y == titleY && ctx.X >= previewX && ctx.X < previewX + preview.Length)
+            {
+                var ch = preview[ctx.X - previewX];
+                var below = ctx.GetBelow();
+                var bg = BlendColor(below.Background ?? Hex1bColor.Black, PreviewBgColor, fgAlpha * 0.9);
                 var fg = Hex1bColor.FromRgb(
                     (byte)(TextFgColor.R * fgAlpha),
                     (byte)(TextFgColor.G * fgAlpha),
