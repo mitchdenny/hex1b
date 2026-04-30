@@ -70,6 +70,21 @@ internal static class CloudEffects
             var g = (byte)Math.Clamp(baseG + noise * 12, 40, 80);
             var b = (byte)Math.Clamp(baseB + noise * 25, 115, 185);
 
+            // Ramp from black: lighter blues appear first, darker blues fade in slower.
+            // Each channel ramps at a rate proportional to its brightness.
+            if (t < 3.0)
+            {
+                // Base ramp: 0→1 over ~2.5 seconds
+                var ramp = Math.Clamp(t / 2.5, 0, 1);
+                // Lighter values get a head start — their ramp is accelerated
+                var rampR = Math.Pow(ramp, 2.5 - (r / 255.0) * 1.5);
+                var rampG = Math.Pow(ramp, 2.5 - (g / 255.0) * 1.5);
+                var rampB = Math.Pow(ramp, 2.5 - (b / 255.0) * 1.5);
+                r = (byte)(r * rampR);
+                g = (byte)(g * rampG);
+                b = (byte)(b * rampB);
+            }
+
             return new SurfaceCell(" ", null, Hex1bColor.FromRgb(r, g, b));
         };
     }
