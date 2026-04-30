@@ -136,15 +136,15 @@ public sealed class ShellScreen
                         sections.Add(s.Separator("  "));
                     }
 
-                    sections.Add(s.Section("Ctrl+Z ←/→"));
+                    sections.Add(s.Section("Ctrl+P ←/→"));
                     sections.Add(s.Separator(" "));
                     sections.Add(s.Section("Zoom"));
                     sections.Add(s.Separator("  "));
-                    sections.Add(s.Section("Ctrl+Z PgUp/Dn"));
+                    sections.Add(s.Section("Ctrl+P PgUp/Dn"));
                     sections.Add(s.Separator(" "));
                     sections.Add(s.Section("Focus"));
                     sections.Add(s.Separator("  "));
-                    sections.Add(s.Section("Ctrl+Z Q"));
+                    sections.Add(s.Section("Ctrl+P Q"));
                     sections.Add(s.Separator(" "));
                     sections.Add(s.Section("Close"));
                     sections.Add(s.Spacer());
@@ -179,30 +179,30 @@ public sealed class ShellScreen
                     app.Invalidate();
                 }, "Toggle help");
 
-            // Ctrl+Z then → to zoom out (show more panels)
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.RightArrow)
+            // Ctrl+P then → to zoom out (show more panels)
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.RightArrow)
                 .OverridesCapture()
                 .Action(_ => _panelManager.ZoomOut(), "Zoom out");
 
-            // Ctrl+Z then ← to zoom in (show fewer panels)
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.LeftArrow)
+            // Ctrl+P then ← to zoom in (show fewer panels)
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.LeftArrow)
                 .OverridesCapture()
                 .Action(_ => _panelManager.ZoomIn(), "Zoom in");
 
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.PageDown)
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.PageDown)
                 .OverridesCapture()
                 .Action(_ => _panelManager.FocusNext(), "Focus next panel");
 
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.PageUp)
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.PageUp)
                 .OverridesCapture()
                 .Action(_ => _panelManager.FocusPrevious(), "Focus previous panel");
 
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.Q)
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.Q)
                 .OverridesCapture()
                 .Action(async _ => await _panelManager.CloseCurrentPanelAsync(), "Close panel");
 
-            // Ctrl+Z then O to open data browser to the right with last ls result
-            bindings.Ctrl().Key(Hex1bKey.Z).Then().Key(Hex1bKey.O)
+            // Ctrl+P then O to open data browser to the right with last ls result
+            bindings.Ctrl().Key(Hex1bKey.P).Then().Key(Hex1bKey.O)
                 .OverridesCapture()
                 .Action(_ =>
                 {
