@@ -71,7 +71,13 @@ internal static class CloudBitmap
                     }
                 }
 
-                pixels[y, x] = (byte)(Math.Clamp(maxAlpha, 0, 1) * 255);
+                // Flatten: boost mid-values toward white so the cloud reads as solid
+                // with soft edges only at the perimeter
+                var flattened = maxAlpha > 0.15
+                    ? Math.Clamp((maxAlpha - 0.15) / 0.55, 0, 1)  // remap 0.15–0.70 → 0–1
+                    : 0.0;
+                flattened = flattened * flattened * (3.0 - 2.0 * flattened); // extra smoothstep
+                pixels[y, x] = (byte)(Math.Clamp(flattened, 0, 1) * 255);
             }
         }
 

@@ -12,9 +12,9 @@ namespace CloudTermDemo;
 /// </summary>
 public sealed class SplashScreen
 {
-    private static readonly TimeSpan SplashDuration = TimeSpan.FromSeconds(2.5);
+    private static readonly TimeSpan SplashDuration = TimeSpan.FromSeconds(10.0);
     private static readonly TimeSpan FadeInDuration = TimeSpan.FromSeconds(1.5);
-    private static readonly TimeSpan FadeOutStart = TimeSpan.FromSeconds(2.0);
+    private static readonly TimeSpan FadeOutStart = TimeSpan.FromSeconds(9.0);
 
     private static readonly string Hex1bVersion = GetHex1bVersion();
 
