@@ -34,8 +34,8 @@ public sealed class SplashScreen
         // Auto-transition to main screen
         if (elapsed >= SplashDuration)
         {
-            _appState.CurrentScreen = AppScreen.Main;
-            _appState.StatusMessage = "Ready";
+            _appState.CurrentScreen = AppScreen.FirstRun;
+            _appState.StatusMessage = "First run setup";
             app.Invalidate();
         }
 

@@ -8,6 +8,7 @@ namespace CloudTermDemo;
 public enum AppScreen
 {
     Splash,
+    FirstRun,
     Main,
 }
 
