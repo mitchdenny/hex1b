@@ -29,61 +29,63 @@ public sealed class FirstRunExperience
         return ctx.Center(
             ctx.HStack(h => [
 
-                // QR code with URL and device code underneath, centered
-                h.Padding(0, 3, 0, 0,
-                    h.VStack(qr => [
-                        qr.QrCode(DeviceLoginUrl).WithQuietZone(1),
-                        qr.Padding(0, 0, 1, 0,
-                            qr.Align(Alignment.HCenter,
-                                qr.VStack(info => [
-                                    info.Hyperlink(DeviceLoginUrl, DeviceLoginUrl),
-                                    info.Text(""),
-                                    // StatePanel for copy-flash animation
-                                    info.StatePanel(this, sp =>
-                                    {
-                                        var anims = sp.GetAnimations();
-                                        var flash = anims.Get<NumericAnimator<double>>("copyFlash", a =>
+                // QR code with URL and device code underneath, vertically centered
+                h.Align(Alignment.VCenter,
+                    h.Padding(0, 3, 0, 0,
+                        h.VStack(qr => [
+                            qr.QrCode(DeviceLoginUrl).WithQuietZone(1),
+                            qr.Padding(0, 0, 1, 0,
+                                qr.Align(Alignment.HCenter,
+                                    qr.VStack(info => [
+                                        info.Hyperlink(DeviceLoginUrl, DeviceLoginUrl),
+                                        info.Text(""),
+                                        // StatePanel for copy-flash animation
+                                        info.StatePanel(this, sp =>
                                         {
-                                            a.From = 0.0;
-                                            a.To = 0.0;
-                                            a.Duration = TimeSpan.FromMilliseconds(500);
-                                            a.EasingFunction = Easing.EaseOutCubic;
-                                        }, autoStart: false);
+                                            var anims = sp.GetAnimations();
+                                            var flash = anims.Get<NumericAnimator<double>>("copyFlash", a =>
+                                            {
+                                                a.From = 0.0;
+                                                a.To = 0.0;
+                                                a.Duration = TimeSpan.FromMilliseconds(500);
+                                                a.EasingFunction = Easing.EaseOutCubic;
+                                            }, autoStart: false);
 
-                                        var flashValue = flash.Value;
+                                            var flashValue = flash.Value;
 
-                                        // Blend from light blue to inverted (white bg)
-                                        var bgR = (byte)(flashValue * 255);
-                                        var bgG = (byte)(flashValue * 255);
-                                        var bgB = (byte)(flashValue * 255);
-                                        var fgR = (byte)(100 + (1 - flashValue) * 0);
-                                        var fgG = (byte)(180 - flashValue * 150);
-                                        var fgB = (byte)(255 - flashValue * 200);
+                                            // Blend from light blue to inverted (white bg)
+                                            var bgR = (byte)(flashValue * 255);
+                                            var bgG = (byte)(flashValue * 255);
+                                            var bgB = (byte)(flashValue * 255);
+                                            var fgR = (byte)(100 + (1 - flashValue) * 0);
+                                            var fgG = (byte)(180 - flashValue * 150);
+                                            var fgB = (byte)(255 - flashValue * 200);
 
-                                        return sp.ThemePanel(
-                                            t => t
-                                                .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(fgR, fgG, fgB))
-                                                .Set(GlobalTheme.BackgroundColor, flashValue > 0.01
-                                                    ? Hex1bColor.FromRgb(bgR, bgG, bgB)
-                                                    : Hex1bColor.Default),
-                                            sp.Align(Alignment.HCenter,
-                                                sp.HStack(code => [
-                                                    code.Text($" {DeviceCode} "),
-                                                    code.Icon("📋").OnClick(_ =>
-                                                    {
-                                                        app.CopyToClipboard(DeviceCode);
-                                                        flash.From = 1.0;
-                                                        flash.To = 0.0;
-                                                        flash.Start();
-                                                    }),
-                                                ])
-                                            )
-                                        );
-                                    }),
-                                ])
-                            )
-                        ),
-                    ])
+                                            return sp.ThemePanel(
+                                                t => t
+                                                    .Set(GlobalTheme.ForegroundColor, Hex1bColor.FromRgb(fgR, fgG, fgB))
+                                                    .Set(GlobalTheme.BackgroundColor, flashValue > 0.01
+                                                        ? Hex1bColor.FromRgb(bgR, bgG, bgB)
+                                                        : Hex1bColor.Default),
+                                                sp.Align(Alignment.HCenter,
+                                                    sp.HStack(code => [
+                                                        code.Text($" {DeviceCode} "),
+                                                        code.Icon("📋").OnClick(_ =>
+                                                        {
+                                                            app.CopyToClipboard(DeviceCode);
+                                                            flash.From = 1.0;
+                                                            flash.To = 0.0;
+                                                            flash.Start();
+                                                        }),
+                                                    ])
+                                                )
+                                            );
+                                        }),
+                                    ])
+                                )
+                            ),
+                        ])
+                    )
                 ),
 
                 h.VSeparator(),
@@ -109,7 +111,7 @@ public sealed class FirstRunExperience
                     ])
                 ),
 
-            ])
+            ]).Height(SizeHint.Content)
         ).Fill();
     }
 }
