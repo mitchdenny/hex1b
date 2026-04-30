@@ -1,5 +1,7 @@
 using Hex1b;
 using Hex1b.Input;
+using Hex1b.Layout;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace CloudTermDemo;
@@ -7,12 +9,51 @@ namespace CloudTermDemo;
 /// <summary>
 /// Main shell screen with a cloud terminal panel and a tutorial panel
 /// arranged side by side, plus an InfoBar at the bottom.
+/// F1 toggles a help overlay.
 /// </summary>
 public sealed class ShellScreen
 {
     private readonly AppState _appState;
     private readonly CloudTerminalHost _terminalHost;
     private readonly TutorialService _tutorial;
+
+    private bool _showHelp;
+
+    private static readonly string HelpMarkdown = """
+        # Cloud Term Help
+
+        ## Navigation Commands
+
+        | Command | Description |
+        |---------|-------------|
+        | `ls` | List resources at the current level |
+        | `cd <name>` | Navigate into a resource |
+        | `cd ..` | Go up one level |
+        | `cd /` | Go to root |
+        | `pwd` | Show current path |
+        | `help` | Show command help |
+
+        ## Keyboard Shortcuts
+
+        | Key | Action |
+        |-----|--------|
+        | **F1** | Toggle this help panel |
+        | **Tab** | Switch focus between panels |
+        | **Escape** | Close help / dismiss overlay |
+
+        ## Resource Hierarchy
+
+        Your cloud environment is organized as:
+
+        **User** → **Tenant** → **Subscription** → **Resource Group** → **Resource**
+
+        Some resources (like AKS clusters) have sub-resources you can
+        drill into.
+
+        ---
+
+        Press **Escape** to close this help panel.
+        """;
 
     public ShellScreen(AppState appState, CloudTerminalHost terminalHost, TutorialService tutorial)
     {
@@ -24,53 +65,66 @@ public sealed class ShellScreen
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
-        // Ensure the cloud terminal is running
         _terminalHost.Start();
 
         var handle = _terminalHost.Handle;
 
-        return ctx.VStack(v =>
+        return ctx.ZStack(z =>
         [
-            // Main content: cloud terminal (left) + tutorial (right)
-            v.HSplitter(
-                // Left panel: cloud terminal
-                CloudShellPanel.Build(v, "Cloud Shell", b =>
-                [
-                    handle != null
-                        ? b.Terminal(handle).Fill()
-                        : b.Text("Starting terminal...").Fill(),
-                ]),
-                // Right panel: tutorial (markdown)
-                CloudShellPanel.Build(v, $"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})", b =>
-                [
-                    b.VScrollPanel(sp =>
-                    [
-                        sp.Markdown(_tutorial.GetCurrentMarkdown()),
-                    ]).Fill(),
-                ]),
-                leftWidth: 60
-            ).Fill(),
-
-            // Info bar
-            v.InfoBar(s =>
+            // Base content
+            z.VStack(v =>
             [
-                s.Section("F1"),
-                s.Separator(" "),
-                s.Section("Help"),
-                s.Separator("  "),
-                s.Section("Tab"),
-                s.Separator(" "),
-                s.Section("Switch Panel"),
-                s.Spacer(),
-                s.Section(_appState.StatusMessage),
+                v.HSplitter(
+                    CloudShellPanel.Build(v, "Cloud Shell", b =>
+                    [
+                        handle != null
+                            ? b.Terminal(handle).Fill()
+                            : b.Text("Starting terminal...").Fill(),
+                    ]),
+                    CloudShellPanel.Build(v, $"Tutorial ({_tutorial.CurrentStep + 1}/{_tutorial.TotalSteps})", b =>
+                    [
+                        b.VScrollPanel(sp =>
+                        [
+                            sp.Markdown(_tutorial.GetCurrentMarkdown()),
+                        ]).Fill(),
+                    ]),
+                    leftWidth: 60
+                ).Fill(),
+
+                v.InfoBar(s =>
+                [
+                    s.Section("F1"),
+                    s.Separator(" "),
+                    s.Section("Help"),
+                    s.Separator("  "),
+                    s.Section("Tab"),
+                    s.Separator(" "),
+                    s.Section("Switch Panel"),
+                    s.Spacer(),
+                    s.Section(_appState.StatusMessage),
+                ]),
             ]),
+
+            // Help overlay
+            _showHelp
+                ? z.Backdrop(
+                    z.Padding(4, 4, 2, 2,
+                        z.Border(b =>
+                        [
+                            b.VScrollPanel(sp =>
+                            [
+                                sp.Markdown(HelpMarkdown),
+                            ]).Fill(),
+                        ]).Title("Help (Esc to close)").Fill()
+                    )
+                  )
+                  .OnClickAway(() => { _showHelp = false; app.Invalidate(); })
+                : null,
         ]).WithInputBindings(bindings =>
         {
             bindings.Key(Hex1bKey.F1).Global().Action(_ =>
             {
-                _appState.StatusMessage = _appState.StatusMessage == "Help: F1"
-                    ? "Ready"
-                    : "Help: F1";
+                _showHelp = !_showHelp;
                 app.Invalidate();
             }, "Toggle help");
         });
