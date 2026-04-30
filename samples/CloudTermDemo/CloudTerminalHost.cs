@@ -79,11 +79,11 @@ public sealed class NavigationResult : CommandResult
                 widgets.Add(ctx.Text($"  Did you mean: {string.Join(", ", Suggestions)}?"));
             return ctx.VStack(v => widgets.ToArray());
         }
-        return ctx.Text($"  → {Path}");
+        return ctx.Text($"  -> {Path}");
     }
 }
 
-/// <summary>An action result (something happened — panel opened, restart triggered, etc.).</summary>
+/// <summary>An action result (something happened).</summary>
 public sealed class ActionResult : CommandResult
 {
     public List<string> Messages { get; } = [];
@@ -95,7 +95,7 @@ public sealed class ActionResult : CommandResult
 }
 
 /// <summary>
-/// A single entry in the cloud shell history — the prompt line and typed result.
+/// A single entry in the cloud shell history.
 /// </summary>
 public sealed class ShellHistoryEntry
 {
@@ -110,17 +110,25 @@ public sealed class ShellHistoryEntry
 }
 
 /// <summary>
-/// Builds the cloud shell widget tree: a scrollable history of typed command results
-/// with a prompt TextBox at the bottom.
+/// Cloud shell widget: blue header breadcrumb, scrollable history of typed results,
+/// and a styled prompt/spinner at the bottom. Commands execute asynchronously with
+/// a spinner showing status updates.
 /// </summary>
 public sealed class CloudShellWidget
 {
+    private static readonly Hex1bColor HeaderBg = Hex1bColor.FromRgb(30, 80, 180);
+    private static readonly Hex1bColor HeaderFg = Hex1bColor.White;
+    private static readonly Hex1bColor PromptBg = Hex1bColor.FromRgb(35, 35, 45);
+
     private readonly CloudShellState _shellState;
     private readonly TutorialService _tutorial;
     private readonly NodeCommandRegistry _commandRegistry;
     private readonly PanelManager _panelManager;
     private readonly List<ShellHistoryEntry> _history = [];
     private string _currentInput = "";
+    private bool _isExecuting;
+    private string _spinnerMessage = "Running...";
+    private Hex1bApp? _app;
 
     public CloudShellWidget(
         CloudShellState shellState,
@@ -133,10 +141,9 @@ public sealed class CloudShellWidget
         _commandRegistry = commandRegistry;
         _panelManager = panelManager;
 
-        // Welcome message
         var welcome = new TextResult();
         welcome.Lines.AddRange([
-            "☁ Cloud Term Shell",
+            "Cloud Term Shell",
             "Type 'ls' to list resources, 'cd <name>' to navigate, 'help' for more.",
             "",
         ]);
@@ -146,41 +153,39 @@ public sealed class CloudShellWidget
     public Hex1bWidget Build<TParent>(WidgetContext<TParent> ctx, Hex1bApp app)
         where TParent : Hex1bWidget
     {
+        _app = app;
         var currentNode = _shellState.CurrentNode;
-        var prompt = $"{currentNode.Name} > ";
+        var prompt = $" {currentNode.Name} > ";
 
         return ctx.VStack(outer =>
         [
-            // Context breadcrumb (up to 4 lines)
-            outer.VStack(bc =>
-            {
-                var chain = _shellState.GetAncestorChain();
-                var lines = new List<Hex1bWidget>();
-
-                if (chain.Count <= 4)
+            // Blue inverted header with context breadcrumb
+            outer.ThemePanel(
+                t => t
+                    .Set(GlobalTheme.ForegroundColor, HeaderFg)
+                    .Set(GlobalTheme.BackgroundColor, HeaderBg),
+                outer.VStack(bc =>
                 {
-                    // Show all nodes
-                    foreach (var node in chain)
-                        lines.Add(bc.Text($"  {Indent(chain, node)}{node.TypeLabel}: {node.Name}"));
-                }
-                else
-                {
-                    // First two
-                    lines.Add(bc.Text($"  {chain[0].TypeLabel}: {chain[0].Name}"));
-                    lines.Add(bc.Text($"    {chain[1].TypeLabel}: {chain[1].Name}"));
-                    // Ellipsis
-                    lines.Add(bc.Text($"      ..."));
-                    // Last two
-                    var second = chain[^2];
-                    var last = chain[^1];
-                    lines.Add(bc.Text($"    {second.TypeLabel}: {second.Name}"));
-                    lines.Add(bc.Text($"      {last.TypeLabel}: {last.Name}"));
-                }
+                    var chain = _shellState.GetAncestorChain();
+                    var lines = new List<Hex1bWidget>();
 
-                return lines.ToArray();
-            }).Height(SizeHint.Content),
+                    if (chain.Count <= 4)
+                    {
+                        foreach (var node in chain)
+                            lines.Add(bc.Text($" {Indent(chain, node)}{node.TypeLabel}: {node.Name}"));
+                    }
+                    else
+                    {
+                        lines.Add(bc.Text($" {chain[0].TypeLabel}: {chain[0].Name}"));
+                        lines.Add(bc.Text($"   {chain[1].TypeLabel}: {chain[1].Name}"));
+                        lines.Add(bc.Text($"     ..."));
+                        lines.Add(bc.Text($"   {chain[^2].TypeLabel}: {chain[^2].Name}"));
+                        lines.Add(bc.Text($"     {chain[^1].TypeLabel}: {chain[^1].Name}"));
+                    }
 
-            outer.Separator(),
+                    return lines.ToArray();
+                }).Height(SizeHint.Content)
+            ),
 
             // Scrollable history
             (outer.VScrollPanel(sp =>
@@ -190,51 +195,86 @@ public sealed class CloudShellWidget
                 foreach (var entry in _history)
                 {
                     if (entry.PromptLine != null)
-                    {
                         widgets.Add(sp.Text(entry.PromptLine));
-                    }
 
                     widgets.Add(entry.Result.Render(sp));
-                    widgets.Add(sp.Text("")); // spacer between entries
+                    widgets.Add(sp.Text(""));
                 }
 
                 return widgets.ToArray();
             }) with { IsFollowing = true }).Fill(),
 
-            // Prompt line at bottom
-            outer.HStack(h =>
-            [
-                h.Text(prompt),
-                h.TextBox(_currentInput)
-                    .OnTextChanged(e => _currentInput = e.NewText)
-                    .OnSubmit(e =>
-                    {
-                        var input = e.Text.Trim();
-                        _currentInput = "";
-
-                        if (!string.IsNullOrEmpty(input))
-                        {
-                            var execContext = new CommandExecutionContext
+            // Bottom: prompt or spinner
+            _isExecuting
+                ? outer.HStack(h =>
+                [
+                    h.Spinner(SpinnerStyle.Dots),
+                    h.Text($" {_spinnerMessage}"),
+                ]).Height(SizeHint.Content)
+                : outer.ThemePanel(
+                    t => t
+                        .Set(TextBoxTheme.UseFillMode, true)
+                        .Set(TextBoxTheme.FillBackgroundColor, PromptBg)
+                        .Set(TextBoxTheme.FocusedFillBackgroundColor, PromptBg)
+                        .Set(TextBoxTheme.LeftBracket, "")
+                        .Set(TextBoxTheme.RightBracket, ""),
+                    outer.HStack(h =>
+                    [
+                        h.Text(prompt),
+                        h.TextBox(_currentInput)
+                            .OnTextChanged(e => _currentInput = e.NewText)
+                            .OnSubmit(e =>
                             {
-                                ShellState = _shellState,
-                                PanelManager = _panelManager,
-                                Tutorial = _tutorial,
-                            };
+                                var input = e.Text.Trim();
+                                _currentInput = "";
 
-                            _commandRegistry.ExecuteAsync(input, execContext).GetAwaiter().GetResult();
+                                if (!string.IsNullOrEmpty(input))
+                                    _ = ExecuteCommandAsync(input, prompt);
 
-                            _history.Add(new ShellHistoryEntry(
-                                $"{prompt}{input}",
-                                execContext.Result ?? new TextResult()
-                            ));
-                        }
-
-                        app.Invalidate();
-                        app.RequestFocus(n => n is TextBoxNode);
-                    })
-                    .FillWidth(),
-            ]).Height(SizeHint.Content),
+                                app.Invalidate();
+                            })
+                            .FillWidth(),
+                    ]).Height(SizeHint.Content)
+                ),
         ]);
+    }
+
+    private async Task ExecuteCommandAsync(string input, string prompt)
+    {
+        _isExecuting = true;
+        _spinnerMessage = "Running...";
+        _app?.Invalidate();
+
+        var execContext = new CommandExecutionContext
+        {
+            ShellState = _shellState,
+            PanelManager = _panelManager,
+            Tutorial = _tutorial,
+            OnStatusUpdate = msg =>
+            {
+                _spinnerMessage = msg;
+                _app?.Invalidate();
+            },
+            OnIntermediateOutput = result =>
+            {
+                _history.Add(new ShellHistoryEntry(null, result));
+                _app?.Invalidate();
+            },
+        };
+
+        // Simulate network latency
+        await Task.Delay(Random.Shared.Next(200, 800));
+
+        await _commandRegistry.ExecuteAsync(input, execContext);
+
+        _history.Add(new ShellHistoryEntry(
+            $"{prompt}{input}",
+            execContext.Result ?? new TextResult()
+        ));
+
+        _isExecuting = false;
+        _app?.Invalidate();
+        _app?.RequestFocus(n => n is TextBoxNode);
     }
 
     private static string Indent(List<CloudNode> chain, CloudNode node)

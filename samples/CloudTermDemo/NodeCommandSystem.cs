@@ -16,6 +16,18 @@ public sealed class CommandExecutionContext
     /// <summary>The typed result produced by the command.</summary>
     public CommandResult? Result { get; set; }
 
+    /// <summary>Callback to update the spinner status message during execution.</summary>
+    public Action<string>? OnStatusUpdate { get; init; }
+
+    /// <summary>Callback to add intermediate output to the shell history during execution.</summary>
+    public Action<CommandResult>? OnIntermediateOutput { get; init; }
+
+    /// <summary>Update the spinner message (shown while command is executing).</summary>
+    public void UpdateStatus(string message) => OnStatusUpdate?.Invoke(message);
+
+    /// <summary>Add intermediate output that appears in the history immediately.</summary>
+    public void AddIntermediateOutput(CommandResult result) => OnIntermediateOutput?.Invoke(result);
+
     /// <summary>Shortcut: set result to a TextResult with the given lines.</summary>
     public void SetTextResult(params string[] lines)
     {
