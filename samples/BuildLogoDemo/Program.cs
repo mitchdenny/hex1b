@@ -8,6 +8,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             c.Surface(s => BuildLogoDemo.BuildLogo.BuildLayers(s))
                 .Width(SizeHint.Fixed(BuildLogoDemo.BuildLogo.WidthCells))
                 .Height(SizeHint.Fixed(BuildLogoDemo.BuildLogo.HeightCells))
+                .RedrawAfter(50)
         );
     })
     .Build();

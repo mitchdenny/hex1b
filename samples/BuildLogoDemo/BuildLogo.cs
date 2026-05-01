@@ -9,6 +9,15 @@ internal static class BuildLogo
     private const char UpperHalf = '▀';
     private const int Cols = 51;
     private const int Rows = 17;
+
+    public const int WidthCells = Cols;
+    public const int HeightCells = (Rows + 1) / 2; // 9 rows
+
+    private static readonly Random _random = new();
+    private static readonly System.Diagnostics.Stopwatch _clock = System.Diagnostics.Stopwatch.StartNew();
+    private static double _shimmerStartTime = -10;
+    private static double _nextShimmerDelay = 2; // first shimmer after 2s
+
     private static readonly (byte R, byte G, byte B)?[,] Pixels = new (byte, byte, byte)?[17, 51]
     {
         { (46,152,198), (46,152,198), (46,152,198), (71,138,177), (95,122,152), (119,109,130), (144,94,107), (167,79,84), (191,64,61), null, null, null, (46,152,198), (46,152,198), (46,152,198), (46,152,198), null, null, null, (235,37,20), (235,37,20), (235,37,20), null, null, (240,181,42), (240,181,42), (240,181,42), null, null, (46,152,198), (46,152,198), (16,85,110), null, null, null, null, null, null, null, (235,37,20), (235,37,20), (235,37,20), (219,56,23), (203,74,24), (188,93,29), (172,112,32), (156,130,34), (141,184,44), (122,183,44), null, null },
@@ -30,11 +39,9 @@ internal static class BuildLogo
         { (241,169,39), (235,37,20), (191,64,61), (167,79,84), (144,94,107), (121,108,130), (80,132,172), (48,151,198), (46,152,198), null, null, null, null, null, (116,109,134), (139,96,111), (163,80,88), (187,67,64), (211,51,41), (235,37,20), (46,152,198), null, null, null, (235,37,20), (235,37,20), (109,184,45), (46,152,198), null, (241,147,38), (242,128,34), (235,92,24), (236,76,23), (235,57,21), (235,37,20), (235,37,20), (235,37,20), null, null, (216,49,37), (191,64,61), (167,79,84), (144,94,107), (119,109,130), (95,122,152), (71,138,177), (46,152,198), (46,152,198), (240,181,42), null, null }
     };
 
-    public const int WidthCells = Cols;
-    public const int HeightCells = (Rows + 1) / 2; // 9 rows
-
     public static IEnumerable<SurfaceLayer> BuildLayers(SurfaceLayerContext ctx)
     {
+        // Base layer: draw the BUILD logo with half-block chars
         yield return ctx.Layer(surface =>
         {
             for (int cellRow = 0; cellRow < HeightCells && cellRow < surface.Height; cellRow++)
@@ -48,9 +55,7 @@ internal static class BuildLogo
                     var botColor = botPixelRow < Rows ? Pixels[botPixelRow, col] : null;
 
                     if (topColor is null && botColor is null)
-                    {
                         continue;
-                    }
 
                     var fg = topColor.HasValue
                         ? Hex1bColor.FromRgb(topColor.Value.R, topColor.Value.G, topColor.Value.B)
@@ -75,5 +80,70 @@ internal static class BuildLogo
                 }
             }
         });
+
+        // Shimmer layer: diagonal wave that boosts intensity of filled cells
+        double now = _clock.Elapsed.TotalSeconds;
+        double elapsed = now - _shimmerStartTime;
+
+        // Check if it's time to start a new shimmer
+        if (elapsed > _nextShimmerDelay + 1.5) // 1.5s for wave to fully pass
+        {
+            _shimmerStartTime = now;
+            _nextShimmerDelay = 5 + _random.NextDouble() * 5; // 5-10s until next
+            elapsed = 0;
+        }
+
+        // Wave duration: ~1.0s to sweep across the diagonal
+        const double waveDuration = 1.0;
+        double waveProgress = elapsed / waveDuration;
+
+        if (waveProgress >= 0 && waveProgress < 1.5) // active shimmer window
+        {
+            double capturedProgress = waveProgress;
+            yield return ctx.Layer(computeCtx =>
+            {
+                var below = computeCtx.GetBelow();
+
+                // Skip transparent/empty cells
+                if (below.Foreground is null && below.Background is null)
+                    return below;
+                if (below.Character == " " && below.Background is null)
+                    return below;
+
+                // Diagonal position normalized 0-1 across the surface
+                double diag = ((double)computeCtx.X / Cols + (double)computeCtx.Y / HeightCells) / 2.0;
+
+                // Wave front position moves from 0 to 1 over the duration
+                double waveFront = capturedProgress;
+                double dist = Math.Abs(diag - waveFront);
+
+                // Shimmer width (how wide the bright band is)
+                const double waveWidth = 0.15;
+
+                if (dist > waveWidth)
+                    return below;
+
+                // Intensity boost: peaks at wave center, falls off to edges
+                double intensity = 1.0 - (dist / waveWidth);
+                intensity = intensity * intensity; // ease-in curve
+                double boost = 1.0 + intensity * 0.6; // up to 60% brighter
+
+                var newFg = BoostColor(below.Foreground, boost);
+                var newBg = BoostColor(below.Background, boost);
+
+                return below with { Foreground = newFg, Background = newBg };
+            });
+        }
+    }
+
+    private static Hex1bColor? BoostColor(Hex1bColor? color, double boost)
+    {
+        if (color is null) return null;
+
+        var c = color.Value;
+        return Hex1bColor.FromRgb(
+            (byte)Math.Min(255, (int)(c.R * boost)),
+            (byte)Math.Min(255, (int)(c.G * boost)),
+            (byte)Math.Min(255, (int)(c.B * boost)));
     }
 }
