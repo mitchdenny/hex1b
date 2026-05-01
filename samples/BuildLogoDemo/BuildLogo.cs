@@ -99,26 +99,44 @@ internal static class BuildLogo
             }
         });
 
-        // --- Layer 2: Dim noise toward black near the logo ---
-        int capLogoX = logoX, capLogoY = logoY;
+        // --- Layer 2: Dim noise toward black near filled logo pixels ---
+        // Precompute filled cell offsets (relative to logo origin)
+        var filledCells = new List<(int x, int y)>();
+        for (int lr = 0; lr < LogoHeightCells; lr++)
+        {
+            for (int lc = 0; lc < LogoCols; lc++)
+            {
+                int topPix = lr * 2;
+                int botPix = topPix + 1;
+                var top = topPix < LogoRows ? Pixels[topPix, lc] : null;
+                var bot = botPix < LogoRows ? Pixels[botPix, lc] : null;
+                if (top is not null || bot is not null)
+                    filledCells.Add((logoX + lc, logoY + lr));
+            }
+        }
+        var filled = filledCells.ToArray();
+
         yield return ctx.Layer(computeCtx =>
         {
             var below = computeCtx.GetBelow();
             if (below.Background is null) return below;
 
-            // Distance from cell to logo bounding box (in cells)
-            double dx = 0, dy = 0;
-            if (computeCtx.X < capLogoX) dx = capLogoX - computeCtx.X;
-            else if (computeCtx.X >= capLogoX + LogoCols) dx = computeCtx.X - (capLogoX + LogoCols - 1);
-            if (computeCtx.Y < capLogoY) dy = capLogoY - computeCtx.Y;
-            else if (computeCtx.Y >= capLogoY + LogoHeightCells) dy = computeCtx.Y - (capLogoY + LogoHeightCells - 1);
+            // Min squared distance to any filled logo cell
+            double minD2 = double.MaxValue;
+            int cx = computeCtx.X, cy = computeCtx.Y;
+            for (int i = 0; i < filled.Length; i++)
+            {
+                double dx = cx - filled[i].x;
+                double dy = cy - filled[i].y;
+                double d2 = dx * dx + dy * dy;
+                if (d2 < minD2) minD2 = d2;
+            }
 
-            double dist = Math.Sqrt(dx * dx + dy * dy);
+            double dist = Math.Sqrt(minD2);
 
-            // Inside or very close to logo: dim to near-black
-            // Far from logo: full noise brightness
+            // Very tight fade: black within 1 cell of text, full brightness at 4+ cells
             const double innerRadius = 1.0;
-            const double outerRadius = 12.0;
+            const double outerRadius = 4.0;
 
             double brightness;
             if (dist <= innerRadius)
@@ -285,7 +303,7 @@ internal static class BuildLogo
         double in2 = PerlinNoise(x2 * intensityScale + 100, y2 * intensityScale + 100, _perm2) * 0.7
                    + PerlinNoise(x2 * intensityScale * 2 + 100, y2 * intensityScale * 2 + 100, _perm2) * 0.3;
         double intensity = (in1 * (1.0 - fadePhase) + in2 * fadePhase + 1.0) * 0.5; // 0-1
-        intensity = Math.Clamp(intensity * 0.5 + 0.1, 0.05, 0.55); // keep it subtle
+        intensity = Math.Clamp(intensity * 0.8 + 0.15, 0.1, 0.9); // vivid colors
 
         byte r = (byte)(baseColor.R * intensity);
         byte g = (byte)(baseColor.G * intensity);
