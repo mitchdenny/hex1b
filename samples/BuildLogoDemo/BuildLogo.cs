@@ -115,11 +115,10 @@ internal static class BuildLogo
 
             double dist = Math.Sqrt(dx * dx + dy * dy);
 
-            // Inside or very close to logo: fully black
+            // Inside or very close to logo: dim to near-black
             // Far from logo: full noise brightness
-            // Fade zone: ~3 cells (black) to ~20 cells (full brightness)
-            const double innerRadius = 3.0;
-            const double outerRadius = 20.0;
+            const double innerRadius = 1.0;
+            const double outerRadius = 12.0;
 
             double brightness;
             if (dist <= innerRadius)
@@ -239,6 +238,20 @@ internal static class BuildLogo
 
     // --- Perlin noise helpers ---
 
+    // Palette extracted from the logo's distinct colors
+    private static readonly (byte R, byte G, byte B)[] _palette;
+
+    static BuildLogo()
+    {
+        // Collect unique non-null colors from the logo
+        var colors = new HashSet<(byte, byte, byte)>();
+        for (int r = 0; r < LogoRows; r++)
+            for (int c = 0; c < LogoCols; c++)
+                if (Pixels[r, c] is { } px)
+                    colors.Add(px);
+        _palette = colors.ToArray();
+    }
+
     private static (byte r, byte g, byte b) SampleNoiseColor(
         int cellX, int pixY, double centerX, double centerY,
         double cos1, double sin1, double cos2, double sin2,
@@ -256,24 +269,27 @@ internal static class BuildLogo
         double x2 = rx * cos2 - ry * sin2;
         double y2 = rx * sin2 + ry * cos2;
 
-        // Scale for noise sampling
-        const double scale = 0.08;
-        double n1 = PerlinNoise(x1 * scale, y1 * scale, _perm1) * 0.7
-                   + PerlinNoise(x1 * scale * 2, y1 * scale * 2, _perm1) * 0.3;
-        double n2 = PerlinNoise(x2 * scale, y2 * scale, _perm2) * 0.7
-                   + PerlinNoise(x2 * scale * 2, y2 * scale * 2, _perm2) * 0.3;
+        // Noise for color selection (large scale → smooth color regions)
+        const double colorScale = 0.04;
+        double cn1 = PerlinNoise(x1 * colorScale, y1 * colorScale, _perm1);
+        double cn2 = PerlinNoise(x2 * colorScale, y2 * colorScale, _perm2);
+        double cn = cn1 * (1.0 - fadePhase) + cn2 * fadePhase;
+        double colorIdx = (cn + 1.0) * 0.5; // 0-1
+        int palIdx = (int)(Math.Clamp(colorIdx, 0, 0.999) * _palette.Length);
+        var baseColor = _palette[palIdx];
 
-        // Cross-fade
-        double n = n1 * (1.0 - fadePhase) + n2 * fadePhase;
+        // Noise for intensity modulation (finer scale → variation in brightness)
+        const double intensityScale = 0.1;
+        double in1 = PerlinNoise(x1 * intensityScale + 100, y1 * intensityScale + 100, _perm1) * 0.7
+                   + PerlinNoise(x1 * intensityScale * 2 + 100, y1 * intensityScale * 2 + 100, _perm1) * 0.3;
+        double in2 = PerlinNoise(x2 * intensityScale + 100, y2 * intensityScale + 100, _perm2) * 0.7
+                   + PerlinNoise(x2 * intensityScale * 2 + 100, y2 * intensityScale * 2 + 100, _perm2) * 0.3;
+        double intensity = (in1 * (1.0 - fadePhase) + in2 * fadePhase + 1.0) * 0.5; // 0-1
+        intensity = Math.Clamp(intensity * 0.5 + 0.1, 0.05, 0.55); // keep it subtle
 
-        // Map noise (-1..1) to a subtle colored value
-        double v = (n + 1.0) * 0.5; // 0-1
-        v = Math.Clamp(v, 0, 1);
-
-        // Subtle coloring: dark blues/purples/teals
-        byte r = (byte)(v * 30);
-        byte g = (byte)(v * 20 + 5);
-        byte b = (byte)(v * 45 + 10);
+        byte r = (byte)(baseColor.R * intensity);
+        byte g = (byte)(baseColor.G * intensity);
+        byte b = (byte)(baseColor.B * intensity);
 
         return (r, g, b);
     }
