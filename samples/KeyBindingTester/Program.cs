@@ -1,25 +1,26 @@
 // KeyBindingTester
 //
-// A manual portability harness: a checklist of expected key/mouse combinations
-// that ticks off as the user presses each one. Run this on every terminal you
-// target — Windows Terminal, ConPTY, iTerm2, GNOME Terminal, xterm, ssh sessions
-// from PuTTY/MobaXterm, etc. — to see which combos are actually deliverable on
-// each platform. Useful for documenting platform support and for choosing default
-// bindings that will work everywhere.
+// One-test-at-a-time portability checklist. The current expected combo is shown
+// prominently; pressing it advances to the next. Press S to skip a combo your
+// terminal can't deliver. At the end, click "Copy report" (or press C) to get a
+// markdown report on your clipboard that you can paste into a GitHub issue.
 //
-// Letter-key caveat: most terminals cannot distinguish Ctrl+Shift+letter from
-// Ctrl+letter (Ctrl strips ASCII bit 6 of a letter; Shift gets dropped). Special
-// keys (arrows, function keys, Home/End/PgUp/PgDn) and mouse buttons carry an
-// explicit modifier code in their CSI sequences and deliver Ctrl+Shift reliably.
-// Letter rows in the checklist are flagged with † as a reminder.
+// Why: Hex1b's unit tests prove the *internal* dispatch path is correct, but
+// they can't prove that any *given terminal emulator* actually delivers the
+// bytes the wiring expects. Some terminals (e.g. Windows Terminal) intercept
+// combos like Ctrl+Shift+Up/Down/Home for their own scroll bindings; the OS
+// or window manager may swallow others (Alt+Shift+arrow, etc.). The tester
+// exists to gather portability data per-platform.
 //
 // Run with: dotnet run --project samples/KeyBindingTester
 
+using System.Runtime.InteropServices;
+using System.Text;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
-// ── Test binding registry ─────────────────────────────────────────────────────
+// ── Test binding helpers (record + helpers below; types live at file end) ────
 
 static TestBinding Key(string category, string label, Hex1bKey key, params Hex1bModifiers[] modifierFlags)
     => new(category, label, (b, fire) =>
@@ -40,11 +41,11 @@ static TestBinding Mouse(string category, string label, MouseButton button, para
         var step = b.Mouse(button);
         if (modifierFlags.Contains(Hex1bModifiers.Control)) step = step.Ctrl();
         if (modifierFlags.Contains(Hex1bModifiers.Shift)) step = step.Shift();
-        // MouseStepBuilder does not currently support Alt — Alt+click on most terminals is consumed by the OS or terminal emulator.
+        // MouseStepBuilder does not support Alt — most terminals consume Alt+click.
         step.Action(_ => { fire(); return Task.CompletedTask; }, label);
     });
 
-var bindingsList = new List<TestBinding>
+var bindings = new List<TestBinding>
 {
     // Arrow + modifier matrix (the case driving issue #293)
     Key("Arrows", "←",                  Hex1bKey.LeftArrow),
@@ -56,8 +57,8 @@ var bindingsList = new List<TestBinding>
     Key("Arrows", "Alt+Ctrl+←",         Hex1bKey.LeftArrow,  Hex1bModifiers.Alt, Hex1bModifiers.Control),
     Key("Arrows", "Alt+Ctrl+Shift+←",   Hex1bKey.LeftArrow,  Hex1bModifiers.Alt, Hex1bModifiers.Control, Hex1bModifiers.Shift),
     Key("Arrows", "→",                  Hex1bKey.RightArrow),
-    Key("Arrows", "Ctrl+→",             Hex1bKey.RightArrow, Hex1bModifiers.Control),
     Key("Arrows", "Shift+→",            Hex1bKey.RightArrow, Hex1bModifiers.Shift),
+    Key("Arrows", "Ctrl+→",             Hex1bKey.RightArrow, Hex1bModifiers.Control),
     Key("Arrows", "Ctrl+Shift+→",       Hex1bKey.RightArrow, Hex1bModifiers.Control, Hex1bModifiers.Shift),
     Key("Arrows", "↑",                  Hex1bKey.UpArrow),
     Key("Arrows", "Shift+↑",            Hex1bKey.UpArrow,    Hex1bModifiers.Shift),
@@ -97,14 +98,12 @@ var bindingsList = new List<TestBinding>
     Key("Editing", "Ctrl+Backspace",    Hex1bKey.Backspace,  Hex1bModifiers.Control),
     Key("Editing", "Delete",            Hex1bKey.Delete),
     Key("Editing", "Ctrl+Delete",       Hex1bKey.Delete,     Hex1bModifiers.Control),
-    Key("Editing", "Tab",               Hex1bKey.Tab),
-    Key("Editing", "Shift+Tab",         Hex1bKey.Tab,        Hex1bModifiers.Shift),
 
-    // Letter keys (caveat row — most terminals collapse Ctrl+Shift+letter into Ctrl+letter)
-    LetterKey("Letters †", "Ctrl+A",          Hex1bKey.A,    Hex1bModifiers.Control),
-    LetterKey("Letters †", "Ctrl+Shift+A",    Hex1bKey.A,    Hex1bModifiers.Control, Hex1bModifiers.Shift),
-    LetterKey("Letters †", "Ctrl+Z",          Hex1bKey.Z,    Hex1bModifiers.Control),
-    LetterKey("Letters †", "Ctrl+Shift+Z",    Hex1bKey.Z,    Hex1bModifiers.Control, Hex1bModifiers.Shift),
+    // Letter keys (caveat: most terminals collapse Ctrl+Shift+letter into Ctrl+letter)
+    LetterKey("Letters",  "Ctrl+A",          Hex1bKey.A,    Hex1bModifiers.Control),
+    LetterKey("Letters",  "Ctrl+Shift+A",    Hex1bKey.A,    Hex1bModifiers.Control, Hex1bModifiers.Shift),
+    LetterKey("Letters",  "Ctrl+Z",          Hex1bKey.Z,    Hex1bModifiers.Control),
+    LetterKey("Letters",  "Ctrl+Shift+Z",    Hex1bKey.Z,    Hex1bModifiers.Control, Hex1bModifiers.Shift),
 
     // Mouse + modifier matrix
     Mouse("Mouse", "Click",                MouseButton.Left),
@@ -116,18 +115,79 @@ var bindingsList = new List<TestBinding>
     Mouse("Mouse", "Scroll Down",          MouseButton.ScrollDown),
 };
 
-string? lastFired = null;
+// ── State ─────────────────────────────────────────────────────────────────────
 
-// ── Reset action ──────────────────────────────────────────────────────────────
+const string PASS = "pass";
+const string SKIP = "skip";
+const string PENDING = "";
+
+var status = new string[bindings.Count];
+Array.Fill(status, PENDING);
+
+int currentIndex = 0;
+string? lastWrongPress = null;
+string? clipboardStatus = null;
 
 void Reset()
 {
-    foreach (var b in bindingsList)
+    Array.Fill(status, PENDING);
+    currentIndex = 0;
+    lastWrongPress = null;
+    clipboardStatus = null;
+}
+
+void Skip()
+{
+    if (currentIndex < bindings.Count)
     {
-        b.FireCount = 0;
-        b.LastFired = null;
+        status[currentIndex] = SKIP;
+        currentIndex++;
+        lastWrongPress = null;
     }
-    lastFired = "(reset)";
+}
+
+string BuildReport()
+{
+    var sb = new StringBuilder();
+    sb.AppendLine("## KeyBindingTester results");
+    sb.AppendLine();
+    sb.AppendLine($"- **OS:** {RuntimeInformation.OSDescription}");
+    sb.AppendLine($"- **Architecture:** {RuntimeInformation.OSArchitecture}");
+    sb.AppendLine($"- **Date (UTC):** {DateTime.UtcNow:yyyy-MM-dd HH:mm}");
+    sb.AppendLine("- **Terminal:** _(fill in: Windows Terminal, ConPTY, iTerm2, GNOME Terminal, xterm, ssh from PuTTY/MobaXterm, etc.)_");
+    sb.AppendLine("- **Hex1b version:** _(fill in if known)_");
+    sb.AppendLine();
+
+    var totalPass = status.Count(s => s == PASS);
+    var totalSkip = status.Count(s => s == SKIP);
+    var totalPending = status.Count(s => s == PENDING);
+    sb.AppendLine($"**Result:** {totalPass} passed · {totalSkip} skipped · {totalPending} not reached · {bindings.Count} total");
+    sb.AppendLine();
+
+    string? lastCat = null;
+    for (int i = 0; i < bindings.Count; i++)
+    {
+        if (bindings[i].Category != lastCat)
+        {
+            sb.AppendLine();
+            sb.AppendLine($"### {bindings[i].Category}");
+            lastCat = bindings[i].Category;
+        }
+
+        var box = status[i] == PASS ? "[x]" : "[ ]";
+        var note = status[i] switch
+        {
+            SKIP => " — _skipped (terminal/OS likely intercepts this combo)_",
+            PENDING => " — _not reached_",
+            _ => ""
+        };
+        var caveat = bindings[i].LetterCaveat ? " †" : "";
+        sb.AppendLine($"- {box} `{bindings[i].Label}`{caveat}{note}");
+    }
+
+    sb.AppendLine();
+    sb.AppendLine("† = letter-key caveat: most terminals collapse `Ctrl+Shift+letter` into `Ctrl+letter` (Ctrl strips ASCII bit 6, Shift gets dropped). Failures here are usually a terminal limitation, not a Hex1b bug.");
+    return sb.ToString();
 }
 
 // ── Main UI ───────────────────────────────────────────────────────────────────
@@ -137,71 +197,100 @@ try
     await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithHex1bApp((app, options) => ctx =>
         {
-            var receivedCount = bindingsList.Count(b => b.FireCount > 0);
-            var totalCount = bindingsList.Count;
+            bool isDone = currentIndex >= bindings.Count;
+            int totalPass = status.Count(s => s == PASS);
+            int totalSkip = status.Count(s => s == SKIP);
 
             return ctx.VStack(root => [
                 root.Border(
-                    root.VStack(body =>
-                    {
-                        var rows = new List<Hex1bWidget>
-                        {
-                            body.Text($"Key Binding Tester — {receivedCount}/{totalCount} received"),
-                            body.Text("Press each combination below to tick it off. R resets, Esc/Ctrl+C exits."),
-                            body.Text("† = letter-key caveat: most terminals collapse Ctrl+Shift+letter into Ctrl+letter."),
+                    isDone
+                        ? root.VStack(body => [
                             body.Text(""),
-                        };
-
-                        string? lastCategory = null;
-                        foreach (var b in bindingsList)
+                            body.Text("    All tests complete!"),
+                            body.Text(""),
+                            body.Text($"    Passed:  {totalPass}"),
+                            body.Text($"    Skipped: {totalSkip}"),
+                            body.Text($"    Total:   {bindings.Count}"),
+                            body.Text(""),
+                            body.HStack(buttons => [
+                                buttons.Text("    "),
+                                buttons.Button(" Copy report to clipboard ").OnClick(e =>
+                                {
+                                    e.Context.CopyToClipboard(BuildReport());
+                                    clipboardStatus = $"Copied {DateTime.Now:HH:mm:ss}.";
+                                }),
+                                buttons.Text("  "),
+                                buttons.Button(" Restart ").OnClick(_ => Reset()),
+                            ]),
+                            body.Text(""),
+                            body.Text($"    {clipboardStatus ?? "Click \"Copy report\" or press C. The report is also printed to stdout on exit."}"),
+                          ])
+                        : root.VStack(body =>
                         {
-                            if (b.Category != lastCategory)
-                            {
-                                if (lastCategory is not null) rows.Add(body.Text(""));
-                                rows.Add(body.Text($"── {b.Category} ──"));
-                                lastCategory = b.Category;
-                            }
-
-                            var tick = b.FireCount > 0 ? "[✓]" : "[ ]";
-                            var detail = b.FireCount > 0
-                                ? $"  (received {b.FireCount}× last {(DateTime.UtcNow - b.LastFired!.Value).TotalSeconds:F1}s ago)"
+                            var current = bindings[currentIndex];
+                            var caveat = current.LetterCaveat
+                                ? "  †  (terminal may collapse this — press S to skip)"
                                 : "";
-                            rows.Add(body.Text($"{tick} {b.Label}{detail}"));
-                        }
 
-                        rows.Add(body.Text(""));
-                        rows.Add(body.Text($"Last fired: {lastFired ?? "(none yet — press a key)"}"));
-
-                        return rows.ToArray();
-                    })
+                            return new Hex1bWidget[]
+                            {
+                                body.Text(""),
+                                body.Text($"    Test {currentIndex + 1} of {bindings.Count}    ·    Category: {current.Category}"),
+                                body.Text(""),
+                                body.Text($"    Press:    {current.Label}{caveat}"),
+                                body.Text(""),
+                                body.Text($"    Progress: {totalPass} passed   {totalSkip} skipped   {bindings.Count - currentIndex} remaining"),
+                                body.Text(""),
+                                body.Text(lastWrongPress is null
+                                    ? "    "
+                                    : $"    (You pressed {lastWrongPress} — still waiting for {current.Label}.)"),
+                                body.Text(""),
+                                body.Text("    Press S to skip if your terminal/OS intercepts this combo."),
+                            };
+                        })
                 ).Title("KeyBindingTester").Fill(),
 
                 root.InfoBar([
-                    "Press combos", "tick off",
+                    "S", "skip",
                     "R", "reset",
+                    "C", "copy report",
                     "Esc/Ctrl+C", "exit",
                 ]),
             ]).WithInputBindings(b =>
             {
-                // Each test binding registers its key combo + handler that ticks itself off.
-                foreach (var entry in bindingsList)
+                // Each test binding registers its key combo + handler that ticks
+                // off the matching test. Pressing the wrong combo (out of order)
+                // updates the "last wrong press" indicator so the user can see
+                // that input is being received.
+                for (int i = 0; i < bindings.Count; i++)
                 {
-                    var captured = entry; // for closure
-                    captured.Register(b, () =>
+                    var idx = i;
+                    bindings[i].Register(b, () =>
                     {
-                        captured.FireCount++;
-                        captured.LastFired = DateTime.UtcNow;
-                        lastFired = captured.Label;
+                        if (currentIndex == idx)
+                        {
+                            status[idx] = PASS;
+                            currentIndex++;
+                            lastWrongPress = null;
+                        }
+                        else
+                        {
+                            lastWrongPress = bindings[idx].Label;
+                        }
                     });
                 }
 
-                // Reset: R (no modifiers).
-                b.Key(Hex1bKey.R).Action(_ => { Reset(); return Task.CompletedTask; }, "Reset checklist");
-
-                // Exit: Escape (Ctrl+C is handled by EnableDefaultCtrlCExit).
-                b.Key(Hex1bKey.Escape).Action(ctx =>
+                b.Key(Hex1bKey.S).Action(_ => { Skip(); return Task.CompletedTask; }, "Skip current");
+                b.Key(Hex1bKey.R).Action(_ => { Reset(); return Task.CompletedTask; }, "Reset");
+                b.Key(Hex1bKey.C).Action(c =>
                 {
-                    ctx.RequestStop();
+                    c.CopyToClipboard(BuildReport());
+                    clipboardStatus = $"Copied {DateTime.Now:HH:mm:ss}.";
+                    return Task.CompletedTask;
+                }, "Copy report");
+                b.Key(Hex1bKey.Escape).Action(c =>
+                {
+                    c.RequestStop();
                     return Task.CompletedTask;
                 }, "Exit");
             });
@@ -217,10 +306,17 @@ catch (Exception ex)
     Console.WriteLine(ex.StackTrace);
 }
 
-Console.WriteLine("KeyBindingTester exited.");
+// Always print the report on exit so the user has a fallback if clipboard
+// access (OSC 52) is disabled in their terminal.
+Console.WriteLine();
+Console.WriteLine("──────────────────────────────────────────────────────────────");
+Console.WriteLine(" KeyBindingTester report (paste into a GitHub issue)");
+Console.WriteLine("──────────────────────────────────────────────────────────────");
+Console.WriteLine();
+Console.WriteLine(BuildReport());
 
-sealed record TestBinding(string Category, string Label, Action<InputBindingsBuilder, Action> Register, bool LetterCaveat = false)
-{
-    public int FireCount { get; set; }
-    public DateTime? LastFired { get; set; }
-}
+sealed record TestBinding(
+    string Category,
+    string Label,
+    Action<InputBindingsBuilder, Action> Register,
+    bool LetterCaveat = false);
