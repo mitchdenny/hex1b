@@ -904,35 +904,36 @@ public class KgpOcclusionIntegrationTests
 
         await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
 
-        var deleteOutput = await workload.ReadOutputAsync(TestContext.Current.CancellationToken);
-        var clearOutput = await workload.ReadOutputAsync(TestContext.Current.CancellationToken);
-        var postResizeOutput = await ReadNextNonEmptyOutputAsync(workload, TestContext.Current.CancellationToken);
+        // The render frame is now wrapped in DEC mode 2026 (Synchronized Update Mode),
+        // so the first chunks after resize are sync-update / cursor-visibility
+        // sequences. Skip past those and find the chunks that contain the KGP
+        // delete and the text-cell clear. The ordering invariant the test cares
+        // about — KGP delete BEFORE text clear BEFORE post-resize content — is
+        // still preserved within the synchronized region.
+        var deleteOutput = await ReadNextOutputContainingAsync(
+            workload, "\x1b_Ga=d,d=a,q=2\x1b\\", TestContext.Current.CancellationToken);
+        var clearOutput = await ReadNextOutputContainingAsync(
+            workload, "\x1b[0m\x1b[2J", TestContext.Current.CancellationToken);
 
         var deleteText = System.Text.Encoding.UTF8.GetString(deleteOutput.Span);
         var clearText = System.Text.Encoding.UTF8.GetString(clearOutput.Span);
-        var postResizeText = System.Text.Encoding.UTF8.GetString(postResizeOutput.Span);
 
-        string retransmitText;
-        if (postResizeText.Contains("\x1b_Ga=t,", StringComparison.Ordinal))
-        {
-            retransmitText = postResizeText;
-        }
-        else
-        {
-            Assert.DoesNotContain("\x1b_Ga=t,", postResizeText);
-            Assert.DoesNotContain("\x1b_Ga=p,", postResizeText);
-
-            var retransmitOutput = await ReadNextNonEmptyOutputAsync(workload, TestContext.Current.CancellationToken);
-            retransmitText = System.Text.Encoding.UTF8.GetString(retransmitOutput.Span);
-        }
+        // Accumulate everything emitted after the clear until the follow-up
+        // retransmit frame has produced all three KGP markers (transmit, place,
+        // delete-by-id). Sync-update boundaries fragment the output so neither
+        // a single chunk nor a fixed chunk count is reliable here.
+        var afterClearText = await ReadAccumulatedOutputUntilAllPresentAsync(
+            workload,
+            new[] { "\x1b_Ga=t,", "\x1b_Ga=p,", $"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\" },
+            TestContext.Current.CancellationToken);
 
         Assert.Equal("\x1b_Ga=d,d=a,q=2\x1b\\", deleteText);
         Assert.Equal("\x1b[0m\x1b[2J", clearText);
-        Assert.DoesNotContain("\x1b_Ga=d,d=i,", postResizeText);
-        Assert.Contains("\x1b_Ga=t,", retransmitText);
-        Assert.Contains("\x1b_Ga=p,", retransmitText);
-        Assert.Contains($"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\", retransmitText);
-        Assert.NotEqual(initialImageId, ExtractFirstTransmitImageId(retransmitText));
+        Assert.DoesNotContain("\x1b_Ga=d,d=i,", afterClearText);
+        Assert.Contains("\x1b_Ga=t,", afterClearText);
+        Assert.Contains("\x1b_Ga=p,", afterClearText);
+        Assert.Contains($"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\", afterClearText);
+        Assert.NotEqual(initialImageId, ExtractFirstTransmitImageId(afterClearText));
 
         app.RequestStop();
         await runTask;
@@ -961,6 +962,40 @@ public class KgpOcclusionIntegrationTests
             var text = System.Text.Encoding.UTF8.GetString(output.Span);
             if (text.Contains(expectedText, StringComparison.Ordinal))
                 return output;
+        }
+    }
+
+    /// <summary>
+    /// Reads workload output, accumulating chunks into a single string, until
+    /// every text in <paramref name="expectedTexts"/> has been observed in the
+    /// accumulated stream. Use this when an interesting sequence may be split
+    /// across multiple writes (e.g. when a render frame is wrapped in
+    /// synchronized-update sequences that produce extra chunk boundaries).
+    /// </summary>
+    private static async Task<string> ReadAccumulatedOutputUntilAllPresentAsync(
+        Hex1bAppWorkloadAdapter workload,
+        string[] expectedTexts,
+        CancellationToken cancellationToken)
+    {
+        var sb = new System.Text.StringBuilder();
+        while (true)
+        {
+            var output = await workload.ReadOutputAsync(cancellationToken);
+            if (output.IsEmpty) continue;
+
+            sb.Append(System.Text.Encoding.UTF8.GetString(output.Span));
+            var current = sb.ToString();
+            var allPresent = true;
+            for (var i = 0; i < expectedTexts.Length; i++)
+            {
+                if (!current.Contains(expectedTexts[i], StringComparison.Ordinal))
+                {
+                    allPresent = false;
+                    break;
+                }
+            }
+            if (allPresent)
+                return current;
         }
     }
 

@@ -67,6 +67,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private CursorShape _lastRenderedCursorShape = CursorShape.Default;
     private bool _lastRenderedCursorVisible = false;
     private Hex1bNode? _lastRenderedCursorNode;
+
+    // DEC private mode 2026 (Synchronized Update Mode) sequences. Tells supporting
+    // terminals (Windows Terminal, iTerm2, kitty, etc.) to buffer output until the
+    // matching end sequence and then paint atomically. Used to wrap each render
+    // frame so the user never sees the intermediate hide-cursor / cell-write /
+    // show-cursor states that would otherwise produce visible flicker — most
+    // notably the mouse pointer blinking at high redraw rates (e.g. animated
+    // EffectPanel.RedrawAfter(50)). Terminals that don't recognize mode 2026
+    // simply ignore these sequences.
+    private const string SyncUpdateBegin = "\x1b[?2026h";
+    private const string SyncUpdateEnd = "\x1b[?2026l";
     
     // Click tracking for double/triple click detection
     private DateTime _lastClickTime;
@@ -856,66 +867,91 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         long renderTicks = 0;
         
         // Step 6.5-9: Only do render output if something actually changed
+        //
+        // The entire frame's terminal output (hide cursor → cell writes → cursor restore
+        // via RenderCursor) is wrapped in DEC private mode 2026 (Synchronized Update Mode).
+        // Compatible terminals buffer everything between begin/end and paint atomically,
+        // so the user never sees the intermediate "cursor hidden" or "cursor at last cell
+        // write" states. This is what prevents the mouse pointer from blinking at the
+        // redraw rate during animated content (e.g. EffectPanel.RedrawAfter(50)).
+        // Terminals that don't support mode 2026 ignore the sequences.
         if (needsRender)
         {
-            // Hide cursor during rendering to prevent flicker.
-            // When a TextBoxNode's native cursor is active, skip hiding — the hardware
-            // bar cursor doesn't interfere with cell content rendering, and the
-            // hide/show cycle on every frame causes visible flicker during mouse movement.
-            var skipCursorHide = _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode;
-            if (!skipCursorHide && (_mouseEnabled || _lastRenderedCursorVisible))
+            _context.Write(SyncUpdateBegin);
+        }
+        try
+        {
+            if (needsRender)
             {
-                _context.Write("\x1b[?25l"); // Hide cursor
-                // Reset so RenderCursor() knows it must re-show the cursor
-                _lastRenderedCursorVisible = false;
-            }
+                // Hide cursor during rendering to prevent flicker.
+                // When a TextBoxNode's native cursor is active, skip hiding — the hardware
+                // bar cursor doesn't interfere with cell content rendering, and the
+                // hide/show cycle on every frame causes visible flicker during mouse movement.
+                var skipCursorHide = _lastRenderedCursorVisible && _lastRenderedCursorNode is TextBoxNode;
+                if (!skipCursorHide && (_mouseEnabled || _lastRenderedCursorVisible))
+                {
+                    _context.Write("\x1b[?25l"); // Hide cursor
+                    // Reset so RenderCursor() knows it must re-show the cursor
+                    _lastRenderedCursorVisible = false;
+                }
 
-            // Render using Surface-based path
-            bool wroteOutput;
-            {
-                long renderFrameStart = Stopwatch.GetTimestamp();
+                // Render using Surface-based path
+                bool wroteOutput;
+                {
+                    long renderFrameStart = Stopwatch.GetTimestamp();
+                    
+                    wroteOutput = RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
+                    
+                    renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
+                    if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
+                }
                 
-                wroteOutput = RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
-                
-                renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
-                if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
+                // Clear dirty flags on all nodes (they've been rendered)
+                // Nodes with async content (like TerminalNode) may override ClearDirty()
+                // to keep themselves dirty if new content arrived during the render frame.
+                if (_rootNode != null)
+                {
+                    ClearDirtyFlags(_rootNode);
+                }
+
+                // Issue #297: When the cursor was intentionally left visible during
+                // render (skipCursorHide for a focused TextBox's native bar cursor),
+                // any cell tokens emitted by RenderFrameWithSurface have moved the
+                // hardware cursor to the last cell write. Invalidate the cached
+                // cursor position so RenderCursor() re-emits a SetCursorPosition for
+                // the focused TextBox even when its desired coordinates are unchanged.
+                if (wroteOutput && skipCursorHide)
+                {
+                    _lastRenderedCursorX = -1;
+                    _lastRenderedCursorY = -1;
+                }
             }
             
-            // Clear dirty flags on all nodes (they've been rendered)
-            // Nodes with async content (like TerminalNode) may override ClearDirty()
-            // to keep themselves dirty if new content arrived during the render frame.
-            if (_rootNode != null)
+            // Record metrics for this frame
+            var freq = (double)Stopwatch.Frequency;
+            _metrics.FrameBuildDuration.Record(buildTicks * 1000.0 / freq);
+            _metrics.FrameReconcileDuration.Record(reconcileTicks * 1000.0 / freq);
+            if (needsRender)
             {
-                ClearDirtyFlags(_rootNode);
+                _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
             }
-
-            // Issue #297: When the cursor was intentionally left visible during
-            // render (skipCursorHide for a focused TextBox's native bar cursor),
-            // any cell tokens emitted by RenderFrameWithSurface have moved the
-            // hardware cursor to the last cell write. Invalidate the cached
-            // cursor position so RenderCursor() re-emits a SetCursorPosition for
-            // the focused TextBox even when its desired coordinates are unchanged.
-            if (wroteOutput && skipCursorHide)
-            {
-                _lastRenderedCursorX = -1;
-                _lastRenderedCursorY = -1;
-            }
+            _metrics.FrameDuration.Record((Stopwatch.GetTimestamp() - frameStart) * 1000.0 / freq);
+            _metrics.FrameCount.Add(1);
+            
+            // Render hardware cursor - for focused TerminalNode uses child's cursor,
+            // otherwise uses mouse position if mouse cursor is enabled. When inside
+            // a synchronized update (needsRender), the cursor restore is part of the
+            // atomic frame, so the user never sees the cursor at the last cell-write
+            // position.
+            RenderCursor();
         }
-        
-        // Record metrics for this frame
-        var freq = (double)Stopwatch.Frequency;
-        _metrics.FrameBuildDuration.Record(buildTicks * 1000.0 / freq);
-        _metrics.FrameReconcileDuration.Record(reconcileTicks * 1000.0 / freq);
-        if (needsRender)
+        finally
         {
-            _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
+            if (needsRender)
+            {
+                _context.Write(SyncUpdateEnd);
+            }
         }
-        _metrics.FrameDuration.Record((Stopwatch.GetTimestamp() - frameStart) * 1000.0 / freq);
-        _metrics.FrameCount.Add(1);
-        
-        // Render hardware cursor - for focused TerminalNode uses child's cursor,
-        // otherwise uses mouse position if mouse cursor is enabled
-        RenderCursor();
     }
     
     /// <summary>
