@@ -59,6 +59,11 @@
     <None Include="../../THIRD-PARTY-NOTICES.txt" Pack="true" PackagePath="/" />
   </ItemGroup>
 
+  <ItemGroup>
+    <!-- Bundled FIGlet fonts. LogicalName matches FigletFont.OpenBundledResource(...) lookup. -->
+    <EmbeddedResource Include="Widgets/FigletFonts/*.flf" LogicalName="Hex1b.Widgets.FigletFonts.%(Filename).flf" />
+  </ItemGroup>
+
   <PropertyGroup Condition="$([MSBuild]::IsOSPlatform('Windows'))">
     <!-- Local Windows builds default to a debuggable helper; pack flips this to AOT automatically. -->
     <Hex1bPtyHostEnabled>true</Hex1bPtyHostEnabled>
