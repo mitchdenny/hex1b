@@ -109,6 +109,39 @@ public class FigletTextNodeTests
         Assert.Equal(2, size.Height);
     }
 
+    [Fact]
+    public void Render_Wrap_RewrapsToActualArrangedWidthWhenMeasuredUnbounded()
+    {
+        // Regression: when a parent measures children with int.MaxValue (e.g. HStack/VStack/Border
+        // discovering natural widths) the wrap cache is populated unwrapped. Render must re-wrap
+        // against the actual arranged Bounds.Width, otherwise wrapped layouts spill past their
+        // container.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(20, 8).Build();
+        var context = new Hex1bRenderContext(workload);
+
+        var node = new FigletTextNode
+        {
+            Text = "AB CD EF GH",
+            Font = new TinyFont(height: 1),
+            HorizontalOverflow = FigletHorizontalOverflow.Wrap,
+        };
+
+        // Simulate a parent measuring with int.MaxValue (natural-size pass).
+        node.Measure(Constraints.Unbounded);
+
+        // Then arrange to a 5-col-wide rect (the actual allocated space).
+        node.Arrange(new Rect(0, 0, 5, 8));
+        node.Render(context);
+
+        // Verify the cache now reflects the arranged width: each rendered row must be ≤5 cols.
+        var field = typeof(FigletTextNode).GetField("_cachedLines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var lines = (IReadOnlyList<string>)field.GetValue(node)!;
+        Assert.NotEmpty(lines);
+        Assert.All(lines, line => Assert.True(line.Length <= 5, $"Line '{line}' exceeds wrap width 5"));
+    }
+
     // ----- Cache invalidation -----------------------------------------------------------
 
     [Fact]

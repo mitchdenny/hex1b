@@ -171,6 +171,16 @@ public sealed class FigletTextNode : Hex1bNode
     /// <summary>Renders the cached FIGlet lines into <paramref name="context"/>.</summary>
     public override void Render(Hex1bRenderContext context)
     {
+        // When wrapping is enabled, the cache may have been populated during measurement with a
+        // larger (or unconstrained) max-width than the actual arranged bounds — for example when a
+        // parent container measures children with int.MaxValue to discover their natural size
+        // before allocating space. Re-render against the actual arranged width so wrapping always
+        // matches the visible bounds.
+        if (_horizontalOverflow == FigletHorizontalOverflow.Wrap && Bounds.Width > 0)
+        {
+            EnsureRendered(Bounds.Width);
+        }
+
         var lines = _cachedLines;
         if (lines is null || lines.Count == 0)
         {
