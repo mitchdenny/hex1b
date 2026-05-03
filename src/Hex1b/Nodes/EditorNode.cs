@@ -231,11 +231,11 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         bindings.Shift().Key(Hex1bKey.PageUp).Triggers(EditorWidget.SelectPageUp, SelectPageUp, "Select page up");
         bindings.Shift().Key(Hex1bKey.PageDown).Triggers(EditorWidget.SelectPageDown, SelectPageDown, "Select page down");
 
-        // Ctrl+Shift bindings (requires direct InputBinding construction)
-        AddCtrlShiftBinding(bindings, Hex1bKey.Home, EditorWidget.SelectToDocumentStart, SelectToDocumentStart, "Select to document start");
-        AddCtrlShiftBinding(bindings, Hex1bKey.End, EditorWidget.SelectToDocumentEnd, SelectToDocumentEnd, "Select to document end");
-        AddCtrlShiftBinding(bindings, Hex1bKey.LeftArrow, EditorWidget.SelectWordLeft, SelectWordLeft, "Select to previous word");
-        AddCtrlShiftBinding(bindings, Hex1bKey.RightArrow, EditorWidget.SelectWordRight, SelectWordRight, "Select to next word");
+        // Ctrl+Shift bindings
+        bindings.Ctrl().Shift().Key(Hex1bKey.Home).Triggers(EditorWidget.SelectToDocumentStart, SelectToDocumentStart, "Select to document start");
+        bindings.Ctrl().Shift().Key(Hex1bKey.End).Triggers(EditorWidget.SelectToDocumentEnd, SelectToDocumentEnd, "Select to document end");
+        bindings.Ctrl().Shift().Key(Hex1bKey.LeftArrow).Triggers(EditorWidget.SelectWordLeft, SelectWordLeft, "Select to previous word");
+        bindings.Ctrl().Shift().Key(Hex1bKey.RightArrow).Triggers(EditorWidget.SelectWordRight, SelectWordRight, "Select to next word");
 
         // ── Selection (Ctrl+A) ──────────────────────────────────
         bindings.Ctrl().Key(Hex1bKey.A).Triggers(EditorWidget.SelectAll, SelectAll, "Select all");
@@ -267,7 +267,7 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         bindings.Key(Hex1bKey.Delete).Triggers(EditorWidget.DeleteForward, DeleteForwardAsync, "Delete forward");
         bindings.Ctrl().Key(Hex1bKey.Backspace).Triggers(EditorWidget.DeleteWordBackward, DeleteWordBackwardAsync, "Delete previous word");
         bindings.Ctrl().Key(Hex1bKey.Delete).Triggers(EditorWidget.DeleteWordForward, DeleteWordForwardAsync, "Delete next word");
-        AddCtrlShiftBinding(bindings, Hex1bKey.K, EditorWidget.DeleteLine, DeleteLineAsync, "Delete line");
+        bindings.Ctrl().Shift().Key(Hex1bKey.K).Triggers(EditorWidget.DeleteLine, DeleteLineAsync, "Delete line");
         bindings.Key(Hex1bKey.Enter).Triggers(EditorWidget.InsertNewline, InsertNewlineAsync, "Insert newline");
         bindings.Key(Hex1bKey.Tab).Triggers(EditorWidget.InsertTab, InsertTabAsync, "Insert tab");
 
@@ -286,24 +286,6 @@ public sealed class EditorNode : Hex1bNode, IEditorSession
         bindings.Mouse(MouseButton.ScrollDown).Triggers(EditorWidget.ScrollDown, ScrollDown, "Scroll down");
         bindings.Mouse(MouseButton.ScrollUp).Shift().Triggers(EditorWidget.ScrollLeft, ScrollLeft, "Scroll left");
         bindings.Mouse(MouseButton.ScrollDown).Shift().Triggers(EditorWidget.ScrollRight, ScrollRight, "Scroll right");
-    }
-
-    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId, Action handler, string description)
-    {
-        bindings.RegisterAction(actionId, _ => { handler(); return Task.CompletedTask; }, description);
-        var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
-        var binding = new InputBinding([step], handler, description);
-        binding.ActionId = actionId;
-        bindings.AddBinding(binding);
-    }
-
-    private static void AddCtrlShiftBinding(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId, Func<InputBindingActionContext, Task> handler, string description)
-    {
-        bindings.RegisterAction(actionId, handler, description);
-        var step = new KeyStep(key, Hex1bModifiers.Control | Hex1bModifiers.Shift);
-        var binding = new InputBinding([step], handler, description);
-        binding.ActionId = actionId;
-        bindings.AddBinding(binding);
     }
 
     protected override Size MeasureCore(Constraints constraints)

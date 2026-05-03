@@ -53,6 +53,18 @@ b.Key(Hex1bKey.S).Ctrl().Shift().Action(() => SaveAs(), "Save as"); // Ctrl+Shif
 b.Key(Hex1bKey.F1).Alt().Action(() => ShowHelp(), "Help");         // Alt+F1
 ```
 
+> **Terminal reachability caveat (`Ctrl+Shift+letter`).** Most terminals
+> cannot distinguish `Ctrl+Shift+A` from `Ctrl+A`: the `Ctrl` modifier
+> strips ASCII bit 6 of a letter and `Shift` is dropped. Bindings on
+> letter keys with the `Ctrl+Shift` combination will therefore not fire
+> on most platforms unless the terminal opts into a richer key reporting
+> mode (e.g. xterm's `modifyOtherKeys`). **Special keys** — arrows,
+> function keys, `Home`/`End`/`PageUp`/`PageDown`, `Tab`, `Insert`,
+> `Delete` — and **mouse buttons** carry an explicit modifier code in
+> their CSI sequences and deliver `Ctrl+Shift` reliably across terminals.
+> Run `samples/KeyBindingTester` to see which combinations your target
+> terminal supports.
+
 ### Available Keys
 
 ```csharp
@@ -385,6 +397,8 @@ Every built-in widget's named actions, their `ActionId` values, and default key 
 | `TextBoxWidget.MoveWordRight` | `"TextBoxWidget.MoveWordRight"` | Ctrl+→ |
 | `TextBoxWidget.SelectLeft` | `"TextBoxWidget.SelectLeft"` | Shift+← |
 | `TextBoxWidget.SelectRight` | `"TextBoxWidget.SelectRight"` | Shift+→ |
+| `TextBoxWidget.SelectWordLeft` | `"TextBoxWidget.SelectWordLeft"` | Ctrl+Shift+← |
+| `TextBoxWidget.SelectWordRight` | `"TextBoxWidget.SelectWordRight"` | Ctrl+Shift+→ |
 | `TextBoxWidget.SelectToStart` | `"TextBoxWidget.SelectToStart"` | Shift+Home |
 | `TextBoxWidget.SelectToEnd` | `"TextBoxWidget.SelectToEnd"` | Shift+End |
 | `TextBoxWidget.SelectAll` | `"TextBoxWidget.SelectAll"` | Ctrl+A, Mouse DoubleClick |

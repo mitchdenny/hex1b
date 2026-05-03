@@ -123,9 +123,10 @@ widget.WithInputBindings(bindings =>
     // Simple key
     bindings.Key(Hex1bKey.Delete).Action(() => DeleteItem());
     
-    // Modifier keys (Ctrl or Shift, but not both)
+    // Modifier keys (any combination)
     bindings.Ctrl().Key(Hex1bKey.S).Action(() => Save(), "Save");
     bindings.Shift().Key(Hex1bKey.Tab).Action(() => FocusPrevious(), "Previous");
+    bindings.Ctrl().Shift().Key(Hex1bKey.S).Action(() => SaveAs(), "Save as");
     
     // Multi-step chords
     bindings.Ctrl().Key(Hex1bKey.K)
