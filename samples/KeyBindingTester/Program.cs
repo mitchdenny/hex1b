@@ -118,6 +118,7 @@ var bindings = new List<TestBinding>
 // ── State ─────────────────────────────────────────────────────────────────────
 
 const string PASS = "pass";
+const string FAIL = "fail";
 const string SKIP = "skip";
 const string PENDING = "";
 
@@ -136,11 +137,11 @@ void Reset()
     clipboardStatus = null;
 }
 
-void Skip()
+void MarkAndAdvance(string state)
 {
     if (currentIndex < bindings.Count)
     {
-        status[currentIndex] = SKIP;
+        status[currentIndex] = state;
         currentIndex++;
         lastWrongPress = null;
     }
@@ -159,9 +160,10 @@ string BuildReport()
     sb.AppendLine();
 
     var totalPass = status.Count(s => s == PASS);
+    var totalFail = status.Count(s => s == FAIL);
     var totalSkip = status.Count(s => s == SKIP);
     var totalPending = status.Count(s => s == PENDING);
-    sb.AppendLine($"**Result:** {totalPass} passed · {totalSkip} skipped · {totalPending} not reached · {bindings.Count} total");
+    sb.AppendLine($"**Result:** {totalPass} passed · {totalFail} failed · {totalSkip} skipped · {totalPending} not reached · {bindings.Count} total");
     sb.AppendLine();
 
     string? lastCat = null;
@@ -177,7 +179,8 @@ string BuildReport()
         var box = status[i] == PASS ? "[x]" : "[ ]";
         var note = status[i] switch
         {
-            SKIP => " — _skipped (terminal/OS likely intercepts this combo)_",
+            FAIL => " — ❌ **failed** (terminal/OS does not deliver this combo)",
+            SKIP => " — ⏭️ skipped",
             PENDING => " — _not reached_",
             _ => ""
         };
@@ -199,6 +202,7 @@ try
         {
             bool isDone = currentIndex >= bindings.Count;
             int totalPass = status.Count(s => s == PASS);
+            int totalFail = status.Count(s => s == FAIL);
             int totalSkip = status.Count(s => s == SKIP);
 
             return ctx.VStack(root => [
@@ -209,6 +213,7 @@ try
                             body.Text("    All tests complete!"),
                             body.Text(""),
                             body.Text($"    Passed:  {totalPass}"),
+                            body.Text($"    Failed:  {totalFail}"),
                             body.Text($"    Skipped: {totalSkip}"),
                             body.Text($"    Total:   {bindings.Count}"),
                             body.Text(""),
@@ -229,7 +234,7 @@ try
                         {
                             var current = bindings[currentIndex];
                             var caveat = current.LetterCaveat
-                                ? "  †  (terminal may collapse this — press S to skip)"
+                                ? "  †  (terminal may collapse this — press F to fail or S to skip)"
                                 : "";
 
                             return new Hex1bWidget[]
@@ -239,18 +244,19 @@ try
                                 body.Text(""),
                                 body.Text($"    Press:    {current.Label}{caveat}"),
                                 body.Text(""),
-                                body.Text($"    Progress: {totalPass} passed   {totalSkip} skipped   {bindings.Count - currentIndex} remaining"),
+                                body.Text($"    Progress: {totalPass} passed   {totalFail} failed   {totalSkip} skipped   {bindings.Count - currentIndex} remaining"),
                                 body.Text(""),
                                 body.Text(lastWrongPress is null
                                     ? "    "
                                     : $"    (You pressed {lastWrongPress} — still waiting for {current.Label}.)"),
                                 body.Text(""),
-                                body.Text("    Press S to skip if your terminal/OS intercepts this combo."),
+                                body.Text("    Press F if this combo doesn't fire on your terminal, S to skip without testing."),
                             };
                         })
                 ).Title("KeyBindingTester").Fill(),
 
                 root.InfoBar([
+                    "F", "fail",
                     "S", "skip",
                     "R", "reset",
                     "C", "copy report",
@@ -269,9 +275,7 @@ try
                     {
                         if (currentIndex == idx)
                         {
-                            status[idx] = PASS;
-                            currentIndex++;
-                            lastWrongPress = null;
+                            MarkAndAdvance(PASS);
                         }
                         else
                         {
@@ -280,7 +284,8 @@ try
                     });
                 }
 
-                b.Key(Hex1bKey.S).Action(_ => { Skip(); return Task.CompletedTask; }, "Skip current");
+                b.Key(Hex1bKey.F).Action(_ => { MarkAndAdvance(FAIL); return Task.CompletedTask; }, "Mark current as failed");
+                b.Key(Hex1bKey.S).Action(_ => { MarkAndAdvance(SKIP); return Task.CompletedTask; }, "Skip current");
                 b.Key(Hex1bKey.R).Action(_ => { Reset(); return Task.CompletedTask; }, "Reset");
                 b.Key(Hex1bKey.C).Action(c =>
                 {

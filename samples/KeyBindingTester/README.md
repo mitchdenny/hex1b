@@ -26,13 +26,19 @@ dotnet run --project samples/KeyBindingTester
 The sample shows **one expected combo at a time** with a progress counter.
 Press the combo to advance to the next test. Hot-keys:
 
-| Key          | Action                                             |
-|--------------|----------------------------------------------------|
-| (the combo)  | Advance to the next test                           |
-| `S`          | Skip the current combo (terminal can't deliver it) |
-| `R`          | Reset the checklist                                |
-| `C`          | Copy the markdown report to the clipboard          |
-| `Esc`/`Ctrl+C` | Exit                                             |
+| Key            | Action                                                     |
+|----------------|------------------------------------------------------------|
+| (the combo)    | Pass — advance to the next test                            |
+| `F`            | **Fail** — this combo doesn't fire on this terminal        |
+| `S`            | Skip — advance without testing (no judgement recorded)     |
+| `R`            | Reset the checklist                                        |
+| `C`            | Copy the markdown report to the clipboard                  |
+| `Esc`/`Ctrl+C` | Exit                                                       |
+
+`F` and `S` are different on purpose: `F` records "I tried this and the
+terminal/OS does not deliver the bytes" — that's the data the harness exists
+to gather. `S` records "I haven't tested this" — useful when you want to
+focus on a specific category. The report distinguishes them.
 
 When all tests are complete, you'll see a results screen with a
 **Copy report to clipboard** button and a **Restart** button. The report
@@ -89,5 +95,7 @@ to free those combos for the app — but if you ship Hex1b widgets that rely
 on combos in the table above, document the interception risk in your app's
 help text.
 
-Press **`S`** to skip an intercepted combo and move on; the report will
-mark it as `_skipped (terminal/OS likely intercepts this combo)_`.
+Press **`F`** to record that the combo doesn't fire on this terminal — the
+report will mark it as `❌ failed (terminal/OS does not deliver this combo)`.
+Use **`S`** instead if you simply want to skip without recording a judgement
+(e.g. you're focusing on a specific category).
