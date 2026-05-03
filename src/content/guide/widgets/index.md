@@ -43,6 +43,7 @@ Widgets that respond to user input.
 Widgets for presenting information.
 
 - **[Charts](/guide/widgets/charts)** — Column, bar, breakdown, time series, and scatter charts
+- **[FigletText](/guide/widgets/figlet)** — Large ASCII-art text rendered from FIGfonts
 - **[Icon](/guide/widgets/icon)** — Single character or emoji display with optional click
 - **[InfoBar](/guide/widgets/infobar)** — Status bars for contextual information
 - **[Markdown](/guide/widgets/markdown)** — Rich markdown content with headings, code blocks, tables, and links

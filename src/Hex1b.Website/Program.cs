@@ -226,6 +226,11 @@ builder.Services.AddSingleton<IGalleryExample, TilePanelBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, MarkdownBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, MarkdownLinksExample>();
 
+// Register FigletText widget documentation examples
+builder.Services.AddSingleton<IGalleryExample, FigletBasicExample>();
+builder.Services.AddSingleton<IGalleryExample, FigletFontsExample>();
+builder.Services.AddSingleton<IGalleryExample, FigletColorExample>();
+
 var app = builder.Build();
 
 // Enable WebSockets
