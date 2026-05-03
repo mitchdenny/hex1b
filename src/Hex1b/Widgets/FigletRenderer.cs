@@ -36,30 +36,41 @@ internal static class FigletRenderer
         var vMode = ResolveVertical(vertical, font);
 
         // Split on explicit newlines first; each \n-segment is rendered separately and then
-        // stacked vertically.
+        // stacked vertically. We also track which paragraph blocks came from wrap-induced breaks
+        // (vs. explicit \n) so we can use FullWidth vertical stacking between them — vertical
+        // smushing across wrapped paragraphs causes adjacent paragraphs to bleed into each other,
+        // which is almost never what the user wants.
         var paragraphs = text.Split('\n');
 
         var paragraphBlocks = new List<List<string>>(paragraphs.Length);
+        var blockFromWrap = new List<bool>(paragraphs.Length);
         foreach (var paragraph in paragraphs)
         {
             if (horizontalOverflow == FigletHorizontalOverflow.Wrap && wrapWidth > 0 && wrapWidth != int.MaxValue)
             {
+                var first = true;
                 foreach (var wrappedLine in WrapParagraph(paragraph, font, hMode, wrapWidth))
                 {
                     paragraphBlocks.Add(RenderHorizontalBlock(wrappedLine, font, hMode));
+                    blockFromWrap.Add(!first);
+                    first = false;
                 }
             }
             else
             {
                 paragraphBlocks.Add(RenderHorizontalBlock(paragraph, font, hMode));
+                blockFromWrap.Add(false);
             }
         }
 
-        // Stack paragraph blocks vertically.
+        // Stack paragraph blocks vertically. Wrap-induced paragraph breaks always stack with
+        // FullWidth so wrapped lines remain visually distinct; explicit \n breaks use the
+        // resolved vMode so callers can opt into vertical smushing/fitting where they want it.
         var combined = paragraphBlocks[0];
         for (var i = 1; i < paragraphBlocks.Count; i++)
         {
-            combined = StackVertical(combined, paragraphBlocks[i], font, vMode);
+            var stackMode = blockFromWrap[i] ? FigletLayoutMode.FullWidth : vMode;
+            combined = StackVertical(combined, paragraphBlocks[i], font, stackMode);
         }
 
         // Replace hardblanks with spaces for display. We also strip trailing spaces from each
@@ -581,20 +592,28 @@ internal static class FigletRenderer
         }
 
         var current = string.Empty;
-        foreach (var token in tokens)
+        foreach (var rawToken in tokens)
         {
-            var candidate = current.Length == 0 ? token : current + ' ' + token;
-            var rendered = RenderHorizontalBlock(candidate, font, hMode);
-            var width = MaxRenderedWidth(rendered, font.Hardblank);
+            // If a single token is wider than wrapWidth on its own, fall back to character-level
+            // breaking so we never emit a row that exceeds the wrap target.
+            var tokenChunks = MeasureRendered(rawToken, font, hMode) <= wrapWidth
+                ? new[] { rawToken }
+                : BreakTokenAtCharacters(rawToken, font, hMode, wrapWidth);
 
-            if (current.Length == 0 || width <= wrapWidth)
+            foreach (var token in tokenChunks)
             {
-                current = candidate;
-            }
-            else
-            {
-                yield return current;
-                current = token;
+                var candidate = current.Length == 0 ? token : current + ' ' + token;
+                var width = MeasureRendered(candidate, font, hMode);
+
+                if (current.Length == 0 || width <= wrapWidth)
+                {
+                    current = candidate;
+                }
+                else
+                {
+                    yield return current;
+                    current = token;
+                }
             }
         }
 
@@ -602,6 +621,40 @@ internal static class FigletRenderer
         {
             yield return current;
         }
+    }
+
+    /// <summary>
+    /// Breaks a single overlong token into the largest character-prefix chunks that each fit
+    /// within <paramref name="wrapWidth"/>. Used as a fallback when a single word is wider
+    /// than the wrap target — e.g. very long URLs or German compound words.
+    /// </summary>
+    private static IEnumerable<string> BreakTokenAtCharacters(string token, FigletFont font, FigletLayoutMode hMode, int wrapWidth)
+    {
+        var start = 0;
+        while (start < token.Length)
+        {
+            // Find the largest prefix length that fits. Always include at least one character so
+            // we make progress even if a single FIGcharacter exceeds wrapWidth.
+            var length = 1;
+            while (start + length < token.Length)
+            {
+                var candidate = token.Substring(start, length + 1);
+                if (MeasureRendered(candidate, font, hMode) > wrapWidth)
+                {
+                    break;
+                }
+                length++;
+            }
+
+            yield return token.Substring(start, length);
+            start += length;
+        }
+    }
+
+    private static int MeasureRendered(string text, FigletFont font, FigletLayoutMode hMode)
+    {
+        var rendered = RenderHorizontalBlock(text, font, hMode);
+        return MaxRenderedWidth(rendered, font.Hardblank);
     }
 
     private static int MaxRenderedWidth(List<string> rendered, char hardblank)

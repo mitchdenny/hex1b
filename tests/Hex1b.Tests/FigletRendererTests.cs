@@ -302,15 +302,16 @@ public class FigletRendererTests
     }
 
     [Fact]
-    public void Render_Wrap_LongWordEmittedAtNaturalWidth()
+    public void Render_Wrap_LongWord_BreaksAtCharacters()
     {
         var font = new StampFont(0, false, false, letterPattern: "X");
         var lines = FigletRenderer.Render("ABCDE", font, FigletLayoutMode.FullWidth, FigletLayoutMode.FullWidth,
             FigletHorizontalOverflow.Wrap, wrapWidth: 3);
 
-        // Single word longer than wrapWidth → emitted as-is, not broken mid-word.
-        Assert.Single(lines);
-        Assert.Equal("ABCDE", lines[0]);
+        // Single word longer than wrapWidth → broken at char boundaries: "ABC" (3 wide) + "DE" (2 wide).
+        Assert.Equal(2, lines.Count);
+        Assert.Equal("ABC", lines[0]);
+        Assert.Equal("DE", lines[1]);
     }
 
     [Fact]
@@ -322,6 +323,26 @@ public class FigletRendererTests
 
         Assert.Single(lines);
         Assert.Equal("AB CD", lines[0]);
+    }
+
+    [Fact]
+    public void Render_Wrap_StacksParagraphsWithoutVerticalSmushing()
+    {
+        // Stripe font: two-row glyph "X"/"X" with smushable rows. If wrap-induced paragraph
+        // breaks were vertically smushed, we'd see fewer rows than (paragraphs * fontHeight).
+        // The renderer must always FullWidth-stack wrap-produced paragraphs even when the font
+        // (or the caller) prefers vertical Smushed/Fitted, so wrapped output remains visually
+        // distinct.
+        var font = new StripeFont(height: 2, vRules: 0, vSmush: true);
+        var lines = FigletRenderer.Render("AB CD", font, FigletLayoutMode.FullWidth, FigletLayoutMode.Smushed,
+            FigletHorizontalOverflow.Wrap, wrapWidth: 3);
+
+        // 2 paragraphs × 2 rows each = 4 rows, no smushing collapse.
+        Assert.Equal(4, lines.Count);
+        Assert.Equal("AB", lines[0]);
+        Assert.Equal("AB", lines[1]);
+        Assert.Equal("CD", lines[2]);
+        Assert.Equal("CD", lines[3]);
     }
 
     // ----- Vertical layout --------------------------------------------------------------
