@@ -871,10 +871,11 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             }
 
             // Render using Surface-based path
+            bool wroteOutput;
             {
                 long renderFrameStart = Stopwatch.GetTimestamp();
                 
-                RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
+                wroteOutput = RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
                 
                 renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
                 if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
@@ -886,6 +887,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             if (_rootNode != null)
             {
                 ClearDirtyFlags(_rootNode);
+            }
+
+            // Issue #297: When the cursor was intentionally left visible during
+            // render (skipCursorHide for a focused TextBox's native bar cursor),
+            // any cell tokens emitted by RenderFrameWithSurface have moved the
+            // hardware cursor to the last cell write. Invalidate the cached
+            // cursor position so RenderCursor() re-emits a SetCursorPosition for
+            // the focused TextBox even when its desired coordinates are unchanged.
+            if (wroteOutput && skipCursorHide)
+            {
+                _lastRenderedCursorX = -1;
+                _lastRenderedCursorY = -1;
             }
         }
         
@@ -908,7 +921,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// <summary>
     /// Renders the frame using Surface-based rendering with efficient diffing.
     /// </summary>
-    private void RenderFrameWithSurface(int width, int height, TerminalCapabilities caps)
+    /// <returns>
+    /// <see langword="true"/> if any output tokens were written to the terminal
+    /// (cell-content diff or KGP placement changes); otherwise <see langword="false"/>.
+    /// Callers use this to know whether the hardware cursor may have been moved by
+    /// the emitted tokens.
+    /// </returns>
+    private bool RenderFrameWithSurface(int width, int height, TerminalCapabilities caps)
     {
         _surfacePool?.NextFrame();
         
@@ -1051,8 +1070,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 $"trackerImages={_kgpTracker.ActivePlacementCount} trackerFragments={_kgpTracker.ActiveFragmentCount}");
         }
         var hasKgpChanges = kgpBefore.Count > 0 || kgpAfter.Count > 0;
+        var wroteOutput = !diff.IsEmpty || hasKgpChanges;
         
-        if (!diff.IsEmpty || hasKgpChanges)
+        if (wroteOutput)
         {
             // Generate text/sixel tokens (KGP emission skipped — handled by tracker above)
             var tokensStart = Stopwatch.GetTimestamp();
@@ -1093,6 +1113,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         }
         
         _isFirstFrame = false;
+        return wroteOutput;
     }
     
     /// <summary>
