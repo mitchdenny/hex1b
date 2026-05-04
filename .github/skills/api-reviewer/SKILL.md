@@ -363,10 +363,17 @@ When reviewing APIs, check:
 - [ ] Types over magic strings?
 
 ### Patterns
-- [ ] Builders use `With...()` pattern?
+- [ ] Builders use `With...()` pattern? (and ONLY builders — flagged by HEX1B0001 if a widget extension or instance method starts with `With`)
 - [ ] Widgets use minimal constructors + fluent extensions?
 - [ ] Callbacks have sync + async overloads?
 - [ ] ValueTask preferred over Task?
+
+### Naming & Type Shape (enforced by analyzer)
+- [ ] Widget types end with `Widget` and are declared as `record` (HEX1B0002 / HEX1B0004)
+- [ ] Node types end with `Node` and are declared as `class` (HEX1B0003 / HEX1B0005)
+- [ ] No `With*` methods on widgets — use bare verb-noun names like `Title("...")`, `MaxFloating(3)`, `Disabled(true)` (HEX1B0001)
+
+These rules are enforced at build time by the `Hex1b.Analyzers` Roslyn analyzer wired into every project via the root `Directory.Build.props`. See `AGENTS.md` § "Code Analysis Rules" for the full table. If a flagged case is intentional and cannot follow the rule, suppress with `#pragma warning disable HEX1B000x` rather than disabling the analyzer wholesale.
 
 ### Documentation
 - [ ] Summary is concise and accurate?

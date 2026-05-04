@@ -72,10 +72,27 @@ Build widgets → Reconcile → Measure → Arrange → Render → Wait for inpu
 
 ## 📝 Code Conventions
 
+### Code Analysis Rules
+
+This repo ships a Roslyn analyzer (`src/Hex1b.Analyzers/`) that runs against every project in the solution (lib, samples, tests, benchmarks) but is **not** packaged into the public `Hex1b` NuGet package. It enforces:
+
+| ID         | Rule                                                | Notes |
+|------------|-----------------------------------------------------|-------|
+| HEX1B0001  | Widget extension/instance methods must not start with `With` | `With*` is reserved for `Hex1bTerminalBuilder`. Widgets use `On*` for handlers and bare verb-noun names (`Title("...")`, `MaxFloating(3)`) for configuration. |
+| HEX1B0002  | Types deriving from `Hex1bWidget` must end with `Widget` | |
+| HEX1B0003  | Types deriving from `Hex1bNode` must end with `Node` | |
+| HEX1B0004  | Types deriving from `Hex1bWidget` must be declared as `record` | |
+| HEX1B0005  | Types deriving from `Hex1bNode` must be declared as `class` | |
+
+All five rules default to `Warning` severity. `src/Hex1b/GlobalSuppressions.cs` baselines the existing widget `With*` methods (e.g. `KgpImageExtensions.WithWidth`, `FormTextFieldWidget.WithMaxFloating`, `InputBindingExtensions.WithInputBindings<TWidget>`) with per-method `[SuppressMessage]` attributes so the lib still builds under `TreatWarningsAsErrors=true`. Crucially this means **new** `With*` methods on widgets WILL break the build — the only way to suppress one is to add an explicit doc-id to that file. Each suppression is a tracked rename obligation.
+
+Tests for the analyzers live in `tests/Hex1b.Analyzers.Tests/`. New rules should follow the existing pattern: implement in `src/Hex1b.Analyzers/`, declare the ID in `Hex1bDiagnosticIds.cs` and `AnalyzerReleases.Unshipped.md`, and add positive + negative tests.
+
 ### Naming
-- Widgets: `*Widget` (e.g., `TextBlockWidget`, `ButtonWidget`)
-- Nodes: `*Node` (e.g., `TextBlockNode`, `ButtonNode`)
+- Widgets: `*Widget` (e.g., `TextBlockWidget`, `ButtonWidget`) — enforced by HEX1B0002/HEX1B0004.
+- Nodes: `*Node` (e.g., `TextBlockNode`, `ButtonNode`) — enforced by HEX1B0003/HEX1B0005.
 - State objects: `*State` (e.g., `TextBoxState`) - for widgets requiring user-owned mutable state
+- Widget configuration methods: never `With*` — that prefix is reserved for `Hex1bTerminalBuilder`. Use `On*` for event handlers and verb-noun for properties (e.g., `Title`, `MaxFloating`, `Disabled`). Enforced by HEX1B0001.
 
 ### Widget Definition Pattern
 ```csharp
