@@ -62,6 +62,15 @@ being received.
   `Ctrl+Shift+Z` — most terminals can't deliver `Ctrl+Shift+letter`
 - **Mouse** — `Left`/`Right` click and `Scroll Up`/`Down` × modifiers
 
+> Note on `Ctrl+Backspace`: at the byte level the standard ANSI/xterm
+> protocol cannot distinguish `Ctrl+Backspace` from `Ctrl+H` — both are
+> `0x08`. Most terminals send `0x08` for `Ctrl+Backspace` and `0x7F` for
+> plain `Backspace`. A Hex1b binding on `Hex1bKey.Backspace + Control`
+> therefore won't fire on a standard terminal. The kitty keyboard
+> protocol disambiguates this; supporting it is a separate piece of
+> work. The `Ctrl+Backspace` row is included in this harness so you can
+> see the failure on your terminal explicitly.
+
 ## Letter-key caveat (the † rows)
 
 Most terminals cannot distinguish `Ctrl+Shift+letter` from `Ctrl+letter`:

@@ -1117,9 +1117,24 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
             Hex1bKey.F4 => 'S',
             _ => '\0'
         };
-        if (ss3Char != '\0' && evt.Modifiers == Hex1bModifiers.None)
+        if (ss3Char != '\0')
         {
-            return new Ss3Token(ss3Char);
+            // Plain F1-F4 use SS3 (ESC O <P/Q/R/S>); modified F1-F4 use CSI 1;{mod}<P/Q/R/S>
+            // (xterm convention). The corresponding F-key codes for SpecialKeyToken are
+            // 11=F1, 12=F2, 13=F3, 14=F4.
+            if (evt.Modifiers == Hex1bModifiers.None)
+            {
+                return new Ss3Token(ss3Char);
+            }
+            var fKeyCode = evt.Key switch
+            {
+                Hex1bKey.F1 => 11,
+                Hex1bKey.F2 => 12,
+                Hex1bKey.F3 => 13,
+                Hex1bKey.F4 => 14,
+                _ => 0
+            };
+            return new SpecialKeyToken(fKeyCode, EncodeModifiers(evt.Modifiers));
         }
         
         // Check for special keys that use CSI ~ sequences

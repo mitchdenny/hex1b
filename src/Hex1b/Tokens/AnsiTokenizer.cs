@@ -449,8 +449,15 @@ public static class AnsiTokenizer
                 break;
                 
             case 'S':
-                // Scroll Up (SU) - scroll content up n lines
-                tokens.Add(new ScrollUpToken(ParseMoveCount(parameters)));
+                // CSI 1;m S = F4 with modifiers (xterm); otherwise CSI Ps S = Scroll Up (SU)
+                if (TryParseFunctionKeyWithModifier(parameters, out var sMod))
+                {
+                    tokens.Add(new SpecialKeyToken(14, sMod));
+                }
+                else
+                {
+                    tokens.Add(new ScrollUpToken(ParseMoveCount(parameters)));
+                }
                 break;
                 
             case 'T':
@@ -469,9 +476,44 @@ public static class AnsiTokenizer
                 break;
                 
             case 'P':
-                // Delete Character (DCH) - delete n characters at cursor
-                // Preserve 0 so downstream can decide if DCH(0) is no-op
-                tokens.Add(new DeleteCharacterToken(ParseMoveCountAllowZero(parameters)));
+                // CSI 1;m P = F1 with modifiers (xterm); otherwise CSI Ps P = Delete Character (DCH)
+                if (TryParseFunctionKeyWithModifier(parameters, out var pMod))
+                {
+                    tokens.Add(new SpecialKeyToken(11, pMod));
+                }
+                else
+                {
+                    // Preserve 0 so downstream can decide if DCH(0) is no-op
+                    tokens.Add(new DeleteCharacterToken(ParseMoveCountAllowZero(parameters)));
+                }
+                break;
+                
+            case 'Q':
+                // CSI 1;m Q = F2 with modifiers (xterm); otherwise unrecognized
+                if (TryParseFunctionKeyWithModifier(parameters, out var qMod))
+                {
+                    tokens.Add(new SpecialKeyToken(12, qMod));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
+                break;
+                
+            case 'R':
+                // CSI 1;m R = F3 with modifiers (xterm). Note: plain CSI {row};{col} R is the
+                // Cursor Position Report response (DSR). The narrow "1;mod" with mod in 2..16
+                // pattern only collides with CPR for row=1, col=2..16, which is highly unlikely
+                // to coincide with a modifier-key press (CPR is only emitted in response to a
+                // DSR query).
+                if (TryParseFunctionKeyWithModifier(parameters, out var rMod))
+                {
+                    tokens.Add(new SpecialKeyToken(13, rMod));
+                }
+                else
+                {
+                    tokens.Add(new UnrecognizedSequenceToken(text[start..(end + 1)]));
+                }
                 break;
                 
             case '@':
@@ -583,6 +625,25 @@ public static class AnsiTokenizer
         return yEnd + 1;
     }
     
+    /// <summary>
+    /// Detects the xterm-style "modified F1-F4" CSI parameter pattern: <c>1;mod</c> where
+    /// <c>mod</c> is a valid xterm modifier code (2..16). When matched, the caller emits a
+    /// <see cref="SpecialKeyToken"/> with the appropriate F-key code (11=F1, 12=F2, 13=F3, 14=F4).
+    /// </summary>
+    private static bool TryParseFunctionKeyWithModifier(string parameters, out int modifier)
+    {
+        modifier = 0;
+        var parts = parameters.Split(';');
+        if (parts.Length == 2
+            && int.TryParse(parts[0], out var first) && first == 1
+            && int.TryParse(parts[1], out var mod) && mod >= 2 && mod <= 16)
+        {
+            modifier = mod;
+            return true;
+        }
+        return false;
+    }
+
     private static void ParseSpecialKey(string parameters, List<AnsiToken> tokens)
     {
         // Format: n or n;m where n is key code and m is modifier

@@ -1,9 +1,10 @@
 // KeyBindingTester
 //
 // One-test-at-a-time portability checklist. The current expected combo is shown
-// prominently; pressing it advances to the next. Press S to skip a combo your
-// terminal can't deliver. At the end, click "Copy report" (or press C) to get a
-// markdown report on your clipboard that you can paste into a GitHub issue.
+// prominently; pressing it advances to the next. Press F to mark it as failed
+// (terminal/OS doesn't deliver this combo). Press S to skip without judgement.
+// At the end, click "Copy report" (or press C) to get a markdown report on your
+// clipboard that you can paste into a GitHub issue.
 //
 // Why: Hex1b's unit tests prove the *internal* dispatch path is correct, but
 // they can't prove that any *given terminal emulator* actually delivers the
@@ -11,6 +12,14 @@
 // combos like Ctrl+Shift+Up/Down/Home for their own scroll bindings; the OS
 // or window manager may swallow others (Alt+Shift+arrow, etc.). The tester
 // exists to gather portability data per-platform.
+//
+// Implementation note: mouse events in Hex1b are routed via hit-testing
+// against focusable widgets, NOT through the global input-binding chain.
+// To make the mouse test rows actually receive click/scroll events, the
+// active test surface is wrapped in an InteractableWidget — this is the
+// focusable, hit-testable target that owns the per-test bindings (both
+// keyboard and mouse). Meta keys (F/S/R/C/Esc) live on the root VStack
+// because keyboard events DO bubble up through the focus chain.
 //
 // Run with: dotnet run --project samples/KeyBindingTester
 
@@ -190,7 +199,32 @@ string BuildReport()
 
     sb.AppendLine();
     sb.AppendLine("† = letter-key caveat: most terminals collapse `Ctrl+Shift+letter` into `Ctrl+letter` (Ctrl strips ASCII bit 6, Shift gets dropped). Failures here are usually a terminal limitation, not a Hex1b bug.");
+    sb.AppendLine();
+    sb.AppendLine("Note: Ctrl+Backspace is indistinguishable from Ctrl+H at the byte level (both are 0x08); this is a fundamental ANSI protocol limitation, not a Hex1b bug.");
     return sb.ToString();
+}
+
+// ── Per-test binding registration ────────────────────────────────────────────
+// Registers every test binding's key/mouse handler on the Interactable. When
+// a binding fires, it advances the harness if it's the current test, or
+// records it as a "wrong press" otherwise.
+void RegisterTestBindings(InputBindingsBuilder b)
+{
+    for (int i = 0; i < bindings.Count; i++)
+    {
+        var idx = i;
+        bindings[i].Register(b, () =>
+        {
+            if (currentIndex == idx)
+            {
+                MarkAndAdvance(PASS);
+            }
+            else
+            {
+                lastWrongPress = bindings[idx].Label;
+            }
+        });
+    }
 }
 
 // ── Main UI ───────────────────────────────────────────────────────────────────
@@ -208,6 +242,7 @@ try
             return ctx.VStack(root => [
                 root.Border(
                     isDone
+                        // Done state: regular focusable Buttons take focus and own clicks.
                         ? root.VStack(body => [
                             body.Text(""),
                             body.Text("    All tests complete!"),
@@ -230,12 +265,22 @@ try
                             body.Text(""),
                             body.Text($"    {clipboardStatus ?? "Click \"Copy report\" or press C. The report is also printed to stdout on exit."}"),
                           ])
-                        : root.VStack(body =>
+                        // Test phase: wrap the prompt in an Interactable. The Interactable
+                        // is the focusable hit-test target — both keyboard test bindings
+                        // (e.g. Ctrl+Shift+←) and mouse test bindings (e.g. Ctrl+Click,
+                        // Scroll Up) are registered on it. Mouse events are NEVER routed
+                        // to non-focusable container bindings, so without this wrapper the
+                        // mouse rows in the tester would never tick off.
+                        : ctx.Interactable(ic => ic.VStack(body =>
                         {
                             var current = bindings[currentIndex];
                             var caveat = current.LetterCaveat
                                 ? "  †  (terminal may collapse this — press F to fail or S to skip)"
                                 : "";
+                            var isMouseTest = current.Category == "Mouse";
+                            var hint = isMouseTest
+                                ? "    Click anywhere in this panel to send a mouse event."
+                                : "    Press F if this combo doesn't fire on your terminal, S to skip without testing.";
 
                             return new Hex1bWidget[]
                             {
@@ -250,9 +295,9 @@ try
                                     ? "    "
                                     : $"    (You pressed {lastWrongPress} — still waiting for {current.Label}.)"),
                                 body.Text(""),
-                                body.Text("    Press F if this combo doesn't fire on your terminal, S to skip without testing."),
+                                body.Text(hint),
                             };
-                        })
+                        })).WithInputBindings(RegisterTestBindings)
                 ).Title("KeyBindingTester").Fill(),
 
                 root.InfoBar([
@@ -262,28 +307,11 @@ try
                     "C", "copy report",
                     "Esc/Ctrl+C", "exit",
                 ]),
+            // Meta keys (F/S/R/C/Esc) live on the root VStack so they fire regardless
+            // of which child currently owns focus. Keyboard events bubble UP through
+            // the focus chain, so these are checked after the focused child's bindings.
             ]).WithInputBindings(b =>
             {
-                // Each test binding registers its key combo + handler that ticks
-                // off the matching test. Pressing the wrong combo (out of order)
-                // updates the "last wrong press" indicator so the user can see
-                // that input is being received.
-                for (int i = 0; i < bindings.Count; i++)
-                {
-                    var idx = i;
-                    bindings[i].Register(b, () =>
-                    {
-                        if (currentIndex == idx)
-                        {
-                            MarkAndAdvance(PASS);
-                        }
-                        else
-                        {
-                            lastWrongPress = bindings[idx].Label;
-                        }
-                    });
-                }
-
                 b.Key(Hex1bKey.F).Action(_ => { MarkAndAdvance(FAIL); return Task.CompletedTask; }, "Mark current as failed");
                 b.Key(Hex1bKey.S).Action(_ => { MarkAndAdvance(SKIP); return Task.CompletedTask; }, "Skip current");
                 b.Key(Hex1bKey.R).Action(_ => { Reset(); return Task.CompletedTask; }, "Reset");
