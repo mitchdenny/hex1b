@@ -95,6 +95,17 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
                 leftWidth: 60
             ).Fill(),
+
+            // Bottom info bar — hints + transcript counter.
+            v.InfoBar(s =>
+            [
+                s.Section("AgenticPromptDemo"),
+                s.Section("Enter: Send"),
+                s.Section("Tab/Shift+Tab: Focus"),
+                s.Section("Ctrl+Q: Quit"),
+                s.Spacer(),
+                s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),
+            ]),
         ])
         .WithInputBindings(b =>
         {
