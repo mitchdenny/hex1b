@@ -1,15 +1,17 @@
 # Input Handling
 
-Hex1b provides a comprehensive input system with focus management, keyboard routing, and declarative input bindings. Every built-in widget exposes named actions that you can remap, extend, or disable — making it straightforward to implement custom keybinding schemes like Vim or Emacs without forking widget code.
+Hex1b provides a comprehensive input system with focus management, keyboard routing, and declarative input bindings. Every built-in widget exposes named actions that you can remap, extend, or disable — making it straightforward to implement custom keybinding schemes like Vim or Emacs without forking widget code. **If a binding you registered never fires on a particular terminal, jump to [Keybinding Portability](./keybinding-portability) first** — many popular combos are intercepted by the terminal or the OS before Hex1b ever sees them, and that page lists the known offenders per terminal.
 
-::: tip Picking portable bindings
-Different terminals intercept different combos before they reach Hex1b
+::: warning Binding not firing? It might be the terminal, not your code.
+Different terminals intercept different combos *before* they reach Hex1b
 (Windows Terminal eats `Ctrl+Shift+↑/↓` for scroll, GNOME Terminal eats
 `Ctrl+Shift+T/N/W` for tab/window management, kitty owns the entire
 `Ctrl+Shift+*` keyspace by default, and so on). See
 **[Keybinding Portability](./keybinding-portability)** for the per-terminal
 interception matrix and recommendations on choosing combos that work
-across the terminals you target.
+across the terminals you target. The
+[`KeyBindingTester`](https://github.com/mitchdenny/hex1b/tree/main/samples/KeyBindingTester)
+sample lets you confirm what fires on any specific terminal in under a minute.
 :::
 
 ## Focus System
