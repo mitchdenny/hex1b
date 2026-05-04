@@ -7,13 +7,16 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Pass-through behaviour tests for the minimal SelectionPanelNode.
-/// At this stage SelectionPanel has no behaviour of its own beyond an
-/// optional snapshot callback — it must simply forward measure, arrange,
-/// focus, and render to its child.
+/// Tests for SelectionPanelNode covering pass-through behaviour outside
+/// copy mode, cursor / anchor state inside copy mode, and the rendered
+/// inversion overlay.
 /// </summary>
 public class SelectionPanelNodeTests
 {
+    // ------------------------------------------------------------------
+    // Pass-through tests (outside copy mode)
+    // ------------------------------------------------------------------
+
     [Fact]
     public void Measure_ReturnsChildSize()
     {
@@ -62,8 +65,6 @@ public class SelectionPanelNodeTests
     [Fact]
     public void GetFocusableNodes_ReturnsChildFocusables()
     {
-        // A focusable child (TextBoxNode) should be enumerated by the panel,
-        // proving the panel is fully transparent for focus traversal.
         var child = new TextBoxNode { Text = "x" };
         var node = new SelectionPanelNode { Child = child };
 
@@ -96,69 +97,210 @@ public class SelectionPanelNodeTests
         Assert.True(child.IsFocused);
     }
 
+    // ------------------------------------------------------------------
+    // SnapshotText (selection-driven)
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void SnapshotText_NoSelection_ReturnsEmpty()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "Hello" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 5, 1));
+
+        // No anchor set → empty.
+        Assert.Equal(string.Empty, node.SnapshotText());
+    }
+
     [Fact]
     public void SnapshotText_NoChild_ReturnsEmpty()
     {
         var node = new SelectionPanelNode { Child = null };
-
         Assert.Equal(string.Empty, node.SnapshotText());
     }
 
     [Fact]
-    public void SnapshotText_ChildWithoutBounds_ReturnsEmpty()
+    public void SnapshotText_CharacterSelection_OnSingleRow_ReturnsRangeText()
     {
-        // SnapshotText reads cells from a Surface sized to the child's
-        // arranged bounds. A child that has not been arranged (Bounds is
-        // zero-sized) cannot be snapshotted.
-        var child = new TextBlockNode { Text = "Hello" };
-        var node = new SelectionPanelNode { Child = child };
-
-        Assert.Equal(string.Empty, node.SnapshotText());
-    }
-
-    [Fact]
-    public void SnapshotText_ArrangedTextBlock_ReturnsRenderedText()
-    {
-        var child = new TextBlockNode { Text = "Hello" };
-        var node = new SelectionPanelNode { Child = child };
-
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 5, 1));
+        node.Arrange(new Rect(0, 0, 12, 8));
 
-        Assert.Equal("Hello", node.SnapshotText());
+        // Place cursor at row 2 col 8, anchor at row 2 col 3 → "CCCCCC" (cols 3..8).
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Character);
+        node.SetCursor(2, 8);
+
+        Assert.Equal("CCCCCC", node.SnapshotText());
     }
 
     [Fact]
-    public void SnapshotText_ArrangedBorderWithText_IncludesBoxDrawing()
+    public void SnapshotText_LineSelection_ReturnsFullRows()
     {
-        // Mirrors AgenticPromptDemo: every transcript entry is rendered as
-        // Border(Title(...))(content). The snapshot must include the actual
-        // box-drawing characters rather than a paraphrased representation,
-        // because that is what the user sees on screen.
-        var inner = new TextBlockNode { Text = "hi" };
-        var border = new BorderNode { Title = "You", Child = inner };
-        var panel = new SelectionPanelNode { Child = border };
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
 
-        // Wide enough for "│ hi │" plus title room: title in a 6-wide border
-        // would produce something like "┌ You ┐", "│ hi  │", "└─────┘".
-        panel.Measure(Constraints.Unbounded);
-        panel.Arrange(new Rect(0, 0, 8, 3));
+        node.EnterCopyMode();
+        node.SetCursor(2, 5);
+        node.StartOrToggleSelection(SelectionMode.Line);
+        node.SetCursor(5, 0);
 
-        var snapshot = panel.SnapshotText();
-
-        // The snapshot must contain box-drawing border chars (corners and
-        // horizontals) — proving we are reading rendered cells, not just
-        // walking the node tree.
-        Assert.Contains("┌", snapshot);
-        Assert.Contains("┐", snapshot);
-        Assert.Contains("└", snapshot);
-        Assert.Contains("┘", snapshot);
-        Assert.Contains("─", snapshot);
-
-        // The title and the inner text both appear.
-        Assert.Contains("You", snapshot);
-        Assert.Contains("hi", snapshot);
+        Assert.Equal(
+            "CCCCCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFFFFF",
+            node.SnapshotText().Replace("\r\n", "\n"));
     }
+
+    [Fact]
+    public void SnapshotText_BlockSelection_ReturnsRectangle()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Block);
+        node.SetCursor(5, 8);
+
+        Assert.Equal(
+            "CCCCCC\nDDDDDD\nEEEEEE\nFFFFFF",
+            node.SnapshotText().Replace("\r\n", "\n"));
+    }
+
+    [Fact]
+    public void SnapshotText_CharacterSelection_OverManyRows_StreamsLikeTerminal()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+
+        // Anchor at (2, 3), cursor at (5, 8).
+        // Top row: cols 3..end (9 chars 'C')
+        // Middle rows: full width (12 chars each)
+        // Bottom row: cols 0..8 (9 chars 'F')
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Character);
+        node.SetCursor(5, 8);
+
+        Assert.Equal(
+            "CCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFF",
+            node.SnapshotText().Replace("\r\n", "\n"));
+    }
+
+    // ------------------------------------------------------------------
+    // EnterCopyMode / ExitCopyMode / cursor + anchor state
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void EnterCopyMode_StartsAtBottomLeft_AndClearsAnchor()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+
+        node.EnterCopyMode();
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(7, node.CursorRow);
+        Assert.Equal(0, node.CursorCol);
+        Assert.False(node.HasSelection);
+        Assert.Equal(SelectionMode.Character, node.CursorSelectionMode);
+    }
+
+    [Fact]
+    public void ExitCopyMode_ClearsAllState()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+        node.EnterCopyMode();
+        node.StartOrToggleSelection(SelectionMode.Block);
+
+        node.ExitCopyMode();
+
+        Assert.False(node.IsInCopyMode);
+        Assert.False(node.HasSelection);
+    }
+
+    [Fact]
+    public void MoveCursor_ClampsToBounds()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+
+        node.EnterCopyMode();
+        node.SetCursor(0, 0);
+
+        node.MoveCursor(-100, -100);
+        Assert.Equal(0, node.CursorRow);
+        Assert.Equal(0, node.CursorCol);
+
+        node.MoveCursor(100, 100);
+        Assert.Equal(4, node.CursorRow);
+        Assert.Equal(9, node.CursorCol);
+    }
+
+    [Fact]
+    public void StartOrToggleSelection_FirstCall_SetsAnchorAtCursor()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+
+        node.StartOrToggleSelection(SelectionMode.Character);
+
+        Assert.True(node.HasSelection);
+        Assert.Equal(2, node.AnchorRow);
+        Assert.Equal(3, node.AnchorCol);
+        Assert.Equal(SelectionMode.Character, node.CursorSelectionMode);
+    }
+
+    [Fact]
+    public void StartOrToggleSelection_SameMode_ClearsSelection()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Character);
+
+        node.StartOrToggleSelection(SelectionMode.Character);
+
+        Assert.False(node.HasSelection);
+    }
+
+    [Fact]
+    public void StartOrToggleSelection_DifferentMode_KeepsAnchorChangesMode()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Character);
+
+        node.StartOrToggleSelection(SelectionMode.Block);
+
+        Assert.True(node.HasSelection);
+        Assert.Equal(2, node.AnchorRow);
+        Assert.Equal(3, node.AnchorCol);
+        Assert.Equal(SelectionMode.Block, node.CursorSelectionMode);
+    }
+
+    // ------------------------------------------------------------------
+    // ConfigureDefaultBindings
+    // ------------------------------------------------------------------
 
     [Fact]
     public void ConfigureDefaultBindings_NoHandler_RegistersNoBinding()
@@ -172,7 +314,7 @@ public class SelectionPanelNodeTests
     }
 
     [Fact]
-    public void ConfigureDefaultBindings_WithHandler_RegistersAllFourBindings()
+    public void ConfigureDefaultBindings_WithHandler_RegistersGlobalEntry_AndCaptureOverrideActions()
     {
         var node = new SelectionPanelNode
         {
@@ -180,194 +322,170 @@ public class SelectionPanelNodeTests
             CopyHandler = _ => Task.CompletedTask,
         };
         var bindings = new InputBindingsBuilder();
+
         node.ConfigureDefaultBindings(bindings);
 
-        // Expect F7 (cells preview), F8 (block preview), F9 (lines preview), F12 (copy).
-        Assert.Equal(4, bindings.Bindings.Count);
+        // Exactly one global binding — the F12 entry.
+        var globals = bindings.Bindings.Where(b => b.IsGlobal).ToList();
+        Assert.Single(globals);
+        var entry = globals[0];
+        Assert.Equal(SelectionPanelWidget.EnterCopyMode, entry.ActionId);
+        Assert.Equal(Hex1bKey.F12, entry.Steps[0].Key);
 
-        var byKey = bindings.Bindings.ToDictionary(b =>
-        {
-            Assert.True(b.IsGlobal, $"Binding {b.ActionId} should be global.");
-            Assert.Single(b.Steps);
-            var step = b.Steps[0];
-            Assert.Equal(Hex1bModifiers.None, step.Modifiers);
-            return step.Key;
-        });
+        // Every other binding is a capture-override.
+        var captureOverrides = bindings.Bindings.Where(b => !b.IsGlobal).ToList();
+        Assert.NotEmpty(captureOverrides);
+        Assert.All(captureOverrides, b => Assert.True(b.OverridesCapture,
+            $"Non-global binding {b.ActionId} should be a capture-override binding."));
 
-        Assert.Equal(SelectionPanelWidget.SelectCells, byKey[Hex1bKey.F7].ActionId);
-        Assert.Equal(SelectionPanelWidget.SelectBlock, byKey[Hex1bKey.F8].ActionId);
-        Assert.Equal(SelectionPanelWidget.SelectLines, byKey[Hex1bKey.F9].ActionId);
-        Assert.Equal(SelectionPanelWidget.Copy, byKey[Hex1bKey.F12].ActionId);
+        // Spot-check key bindings exist.
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.UpArrow && b.ActionId == SelectionPanelWidget.CopyModeUp);
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.DownArrow && b.ActionId == SelectionPanelWidget.CopyModeDown);
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.Y && b.ActionId == SelectionPanelWidget.CopyModeCopy);
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.Enter && b.ActionId == SelectionPanelWidget.CopyModeCopy);
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.Escape && b.ActionId == SelectionPanelWidget.CopyModeCancel);
+        Assert.Contains(captureOverrides, b => b.Steps[0].Key == Hex1bKey.V && b.Steps[0].Modifiers == Hex1bModifiers.None && b.ActionId == SelectionPanelWidget.CopyModeStartSelection);
     }
 
     [Fact]
-    public async Task ConfigureDefaultBindings_F12_NoSelection_FiresFullCopy()
+    public async Task EnterCopyMode_BindingHandler_SetsCopyMode_AndCapturesInput()
+    {
+        var node = new SelectionPanelNode
+        {
+            Child = new TextBlockNode { Text = "x" },
+            CopyHandler = _ => Task.CompletedTask,
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 10, 5));
+
+        var bindings = new InputBindingsBuilder();
+        node.ConfigureDefaultBindings(bindings);
+        var entry = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.EnterCopyMode);
+
+        var focusRing = new FocusRing();
+        await entry.ExecuteAsync(new InputBindingActionContext(focusRing));
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Same(node, focusRing.CapturedNode);
+    }
+
+    [Fact]
+    public async Task CopyAction_WithSelection_InvokesHandler_ExitsCopyMode_ReleasesCapture()
     {
         string? captured = null;
         var node = new SelectionPanelNode
         {
-            Child = new TextBlockNode { Text = "Snapshot me" },
+            Child = new TextBlockNode { Text = "Hello" },
             CopyHandler = text => { captured = text; return Task.CompletedTask; },
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 11, 1));
+        node.Arrange(new Rect(0, 0, 5, 1));
+
+        node.EnterCopyMode();
+        node.SetCursor(0, 0);
+        node.StartOrToggleSelection(SelectionMode.Character);
+        node.SetCursor(0, 4);
 
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
+        var copy = bindings.Bindings.First(b => b.ActionId == SelectionPanelWidget.CopyModeCopy);
 
-        var copyBinding = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.Copy);
-        await copyBinding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
+        var focusRing = new FocusRing();
+        focusRing.CaptureInput(node);
+        await copy.ExecuteAsync(new InputBindingActionContext(focusRing));
 
-        Assert.Equal("Snapshot me", captured);
-        Assert.Null(node.SelectionMode);
+        Assert.Equal("Hello", captured);
+        Assert.False(node.IsInCopyMode);
+        Assert.Null(focusRing.CapturedNode);
     }
 
-    [Theory]
-    [InlineData(nameof(Hex1bKey.F7), nameof(SelectionPanelSnapshotMode.Cells))]
-    [InlineData(nameof(Hex1bKey.F8), nameof(SelectionPanelSnapshotMode.Block))]
-    [InlineData(nameof(Hex1bKey.F9), nameof(SelectionPanelSnapshotMode.Lines))]
-    public async Task ConfigureDefaultBindings_SelectKey_SetsSelectionMode_DoesNotInvokeHandler(
-        string keyName, string expectedModeName)
+    [Fact]
+    public async Task CopyAction_WithoutSelection_DoesNothing()
     {
         bool handlerCalled = false;
         var node = new SelectionPanelNode
         {
-            Child = new TextBlockNode { Text = "x" },
+            Child = new TextBlockNode { Text = "Hello" },
             CopyHandler = _ => { handlerCalled = true; return Task.CompletedTask; },
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 1, 1));
+        node.Arrange(new Rect(0, 0, 5, 1));
+        node.EnterCopyMode();
 
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
+        var copy = bindings.Bindings.First(b => b.ActionId == SelectionPanelWidget.CopyModeCopy);
 
-        var key = Enum.Parse<Hex1bKey>(keyName);
-        var binding = bindings.Bindings.Single(b => b.Steps[0].Key == key);
-        await binding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
+        var focusRing = new FocusRing();
+        focusRing.CaptureInput(node);
+        await copy.ExecuteAsync(new InputBindingActionContext(focusRing));
 
         Assert.False(handlerCalled);
-        Assert.Equal(Enum.Parse<SelectionPanelSnapshotMode>(expectedModeName), node.SelectionMode);
+        // Still in copy mode (Y/Enter without selection is a no-op).
+        Assert.True(node.IsInCopyMode);
+        Assert.Same(node, focusRing.CapturedNode);
     }
 
     [Fact]
-    public async Task ConfigureDefaultBindings_SelectThenCopy_FiresHandlerAndClearsSelection()
+    public async Task CancelAction_ExitsCopyMode_WithoutInvokingHandler()
     {
-        string? captured = null;
+        bool handlerCalled = false;
         var node = new SelectionPanelNode
         {
-            Child = new TextBlockNode { Text = "Selection me" },
-            CopyHandler = text => { captured = text; return Task.CompletedTask; },
+            Child = new TextBlockNode { Text = "Hello" },
+            CopyHandler = _ => { handlerCalled = true; return Task.CompletedTask; },
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 12, 1));
+        node.Arrange(new Rect(0, 0, 5, 1));
+        node.EnterCopyMode();
+        node.StartOrToggleSelection(SelectionMode.Character);
 
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
+        var cancel = bindings.Bindings.First(b => b.ActionId == SelectionPanelWidget.CopyModeCancel);
 
-        var selectLines = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.SelectLines);
-        var copy = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.Copy);
+        var focusRing = new FocusRing();
+        focusRing.CaptureInput(node);
+        await cancel.ExecuteAsync(new InputBindingActionContext(focusRing));
 
-        await selectLines.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
-        Assert.Equal(SelectionPanelSnapshotMode.Lines, node.SelectionMode);
-        Assert.Null(captured);
-
-        await copy.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
-
-        // F12 picks the active selection mode (Lines), not Full.
-        Assert.NotNull(captured);
-        // Selection cleared after copy.
-        Assert.Null(node.SelectionMode);
-    }
-
-    [Theory]
-    [InlineData(nameof(SelectionPanelSnapshotMode.Full),
-                "AAAAAAAAAAAA\nBBBBBBBBBBBB\nCCCCCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFFFFF\nGGGGGGGGGGGG\nHHHHHHHHHHHH")]
-    // Lines: rows 2..5 inclusive, every column → middle 4 lines, full width.
-    [InlineData(nameof(SelectionPanelSnapshotMode.Lines),
-                "CCCCCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFFFFF")]
-    // Block: rows 2..5 × cols 3..8 → rectangular slice, 6 chars wide.
-    [InlineData(nameof(SelectionPanelSnapshotMode.Block),
-                "CCCCCC\nDDDDDD\nEEEEEE\nFFFFFF")]
-    // Cells (terminal-style stream): from (row=2, col=3) to (row=5, col=8).
-    // Top row from col 3 → end (9 chars), middle rows full width (12 chars),
-    // bottom row col 0 → col 8 (9 chars).
-    [InlineData(nameof(SelectionPanelSnapshotMode.Cells),
-                "CCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFF")]
-    public void SnapshotText_PerMode_PicksExpectedCells(string modeName, string expected)
-    {
-        // Surface is 12 wide × 8 tall. Each row y is painted with the
-        // character ('A' + y), so the snapshot output makes it trivial to see
-        // which cells each mode picked.
-        var painter = new PaintingTestNode();
-        var panel = new SelectionPanelNode { Child = painter };
-
-        panel.Measure(Constraints.Unbounded);
-        panel.Arrange(new Rect(0, 0, 12, 8));
-
-        var mode = Enum.Parse<SelectionPanelSnapshotMode>(modeName);
-        var snapshot = panel.SnapshotText(mode);
-
-        Assert.Equal(expected.Replace("\r\n", "\n"), snapshot.Replace("\r\n", "\n"));
+        Assert.False(handlerCalled);
+        Assert.False(node.IsInCopyMode);
+        Assert.Null(focusRing.CapturedNode);
     }
 
     [Fact]
-    public async Task Render_WithBlockSelection_InvertsCellsInsideSelectionOnly()
+    public async Task EnterCopyMode_WhileAlreadyInCopyMode_IsNoOp()
     {
-        // 12×8 painted child: row y painted with 'A'+y. Block selection
-        // covers rows 2..5 × cols 3..8 (inclusive) — see ComputeMidGeometry.
-        var painter = new PaintingTestNode();
         var node = new SelectionPanelNode
         {
-            Child = painter,
+            Child = new TextBlockNode { Text = "x" },
             CopyHandler = _ => Task.CompletedTask,
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 12, 8));
+        node.Arrange(new Rect(0, 0, 10, 5));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Block);
 
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
-        var selectBlock = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.SelectBlock);
-        await selectBlock.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
-        Assert.Equal(SelectionPanelSnapshotMode.Block, node.SelectionMode);
+        var entry = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.EnterCopyMode);
 
-        var surface = new Surface(12, 8);
-        var ctx = new SurfaceRenderContext(surface);
-        node.Render(ctx);
+        await entry.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
 
-        // Inside the block region: every cell has Reverse.
-        for (int y = 2; y <= 5; y++)
-        {
-            for (int x = 3; x <= 8; x++)
-            {
-                Assert.True(surface.TryGetCell(x, y, out var cell), $"({x},{y}) should exist");
-                Assert.True(
-                    cell.Attributes.HasFlag(CellAttributes.Reverse),
-                    $"Cell ({x},{y}) inside block selection should be inverted but had attributes {cell.Attributes}.");
-                Assert.Equal(((char)('A' + y)).ToString(), cell.Character);
-            }
-        }
-
-        // Outside the block region: no cell has Reverse (sample a few corners).
-        AssertNotInverted(surface, 0, 0);
-        AssertNotInverted(surface, 11, 0);
-        AssertNotInverted(surface, 0, 7);
-        AssertNotInverted(surface, 11, 7);
-        AssertNotInverted(surface, 2, 4); // just outside left edge of block
-        AssertNotInverted(surface, 9, 4); // just outside right edge of block
-        AssertNotInverted(surface, 5, 1); // just above
-        AssertNotInverted(surface, 5, 6); // just below
-
-        static void AssertNotInverted(Surface s, int x, int y)
-        {
-            Assert.True(s.TryGetCell(x, y, out var cell), $"({x},{y}) should exist");
-            Assert.False(
-                cell.Attributes.HasFlag(CellAttributes.Reverse),
-                $"Cell ({x},{y}) outside block selection should NOT be inverted.");
-        }
+        // Re-entry guarded — selection state preserved.
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(2, node.CursorRow);
+        Assert.Equal(3, node.CursorCol);
+        Assert.True(node.HasSelection);
     }
 
+    // ------------------------------------------------------------------
+    // Render: cursor + selection inversion overlay
+    // ------------------------------------------------------------------
+
     [Fact]
-    public void Render_WithoutSelection_PassesThroughChildOutput_WithoutInversion()
+    public void Render_NotInCopyMode_PassesThroughChild_NoInversion()
     {
         var painter = new PaintingTestNode();
         var node = new SelectionPanelNode { Child = painter };
@@ -378,16 +496,126 @@ public class SelectionPanelNodeTests
         var ctx = new SurfaceRenderContext(surface);
         node.Render(ctx);
 
-        // Pass-through: child paints normally, no Reverse attribute anywhere.
         for (int y = 0; y < 8; y++)
         {
             for (int x = 0; x < 12; x++)
             {
                 Assert.True(surface.TryGetCell(x, y, out var cell));
                 Assert.Equal(((char)('A' + y)).ToString(), cell.Character);
-                Assert.False(
-                    cell.Attributes.HasFlag(CellAttributes.Reverse),
-                    $"Cell ({x},{y}) should not be inverted when no selection is active.");
+                Assert.False(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                    $"Cell ({x},{y}) should not be inverted outside copy mode.");
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_InCopyMode_NoSelection_InvertsCursorCellOnly()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+        node.EnterCopyMode();
+        node.SetCursor(3, 5);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface);
+        node.Render(ctx);
+
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                bool expectInverted = (x == 5 && y == 3);
+                Assert.Equal(expectInverted, cell.Attributes.HasFlag(CellAttributes.Reverse));
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_BlockSelection_InvertsRectangleRegion()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Block);
+        node.SetCursor(5, 8);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface);
+        node.Render(ctx);
+
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                bool inside = y >= 2 && y <= 5 && x >= 3 && x <= 8;
+                Assert.Equal(inside, cell.Attributes.HasFlag(CellAttributes.Reverse));
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_LineSelection_InvertsFullRows()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+        node.EnterCopyMode();
+        node.SetCursor(2, 5);
+        node.StartOrToggleSelection(SelectionMode.Line);
+        node.SetCursor(4, 0);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface);
+        node.Render(ctx);
+
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                bool inside = y >= 2 && y <= 4;
+                Assert.Equal(inside, cell.Attributes.HasFlag(CellAttributes.Reverse));
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_CharacterSelection_InvertsStreamRegion()
+    {
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 8));
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Character);
+        node.SetCursor(5, 8);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface);
+        node.Render(ctx);
+
+        // Top row (y=2): cols 3..end
+        // Middle rows (y=3,4): full width
+        // Bottom row (y=5): cols 0..8
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                bool inside =
+                    (y == 2 && x >= 3) ||
+                    (y > 2 && y < 5) ||
+                    (y == 5 && x <= 8);
+                Assert.Equal(inside, cell.Attributes.HasFlag(CellAttributes.Reverse));
             }
         }
     }

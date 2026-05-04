@@ -7,44 +7,81 @@ using Hex1b.Widgets;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// Render node for <see cref="SelectionPanelWidget"/>.
+/// Render node for <see cref="SelectionPanelWidget"/>. Implements a
+/// terminal-style copy mode over the wrapped child.
 /// </summary>
 /// <remarks>
-/// Layout, focus, and input remain delegated to the wrapped child. When a
-/// <see cref="CopyHandler"/> is supplied, the node also registers global
-/// bindings for the two-stage copy flow (default <c>F7</c> cells, <c>F8</c>
-/// block, <c>F9</c> lines, <c>F12</c> commit). Pressing one of the selection
-/// keys sets <see cref="SelectionMode"/> and triggers a re-render that
-/// inverts the previewed cells in place; pressing the copy key invokes the
-/// handler with <see cref="SnapshotText(SelectionPanelSnapshotMode)"/> for
-/// the active mode (or the full content if no mode is active) and clears
-/// the preview.
+/// <para>
+/// Outside copy mode the node is a pure pass-through: layout, focus, and
+/// input flow to the child unchanged. While
+/// <see cref="IsInCopyMode"/> is <c>true</c>, the node:
+/// </para>
+/// <list type="bullet">
+/// <item>Holds focus capture (set up by the
+///       <see cref="SelectionPanelWidget.EnterCopyMode"/> binding handler
+///       via <see cref="InputBindingActionContext.CaptureInput"/>) so that
+///       all subsequent input goes to its capture-override bindings
+///       rather than to whatever widget had keyboard focus.</item>
+/// <item>Renders an inverted-cell cursor (and, if a selection is active,
+///       an inverted selection region) over the child output by capturing
+///       the child to a temporary surface, applying
+///       <see cref="CellAttributes.Reverse"/> to the relevant cells, and
+///       compositing the modified surface back. This mirrors
+///       <see cref="EffectPanelNode"/>'s capture-modify-composite
+///       pattern.</item>
+/// </list>
+/// <para>
+/// Cursor coordinates are surface-local: <see cref="CursorRow"/> is in
+/// <c>0..Bounds.Height-1</c> and <see cref="CursorCol"/> is in
+/// <c>0..Bounds.Width-1</c>. <see cref="EnterCopyMode"/> initialises the
+/// cursor at the bottom-left of the surface to feel natural in
+/// chat-style auto-scrolling viewports (where the most recent content is
+/// at the bottom).
+/// </para>
 /// </remarks>
 public sealed class SelectionPanelNode : Hex1bNode
 {
-    /// <summary>
-    /// The child node wrapped by this panel.
-    /// </summary>
+    /// <summary>The child node wrapped by this panel.</summary>
     public Hex1bNode? Child { get; set; }
 
     /// <summary>
-    /// Optional handler invoked with the plain text of the current selection
-    /// (or the entire content if <see cref="SelectionMode"/> is <c>null</c>)
-    /// when the copy action fires. When this is <c>null</c>, no bindings are
-    /// registered.
+    /// Optional handler invoked with the plain text of the current
+    /// selection when the user commits via
+    /// <see cref="SelectionPanelWidget.CopyModeCopy"/>. When this is
+    /// <c>null</c>, copy mode bindings are not registered (the panel
+    /// behaves as a pure pass-through).
     /// </summary>
     public Func<string, Task>? CopyHandler { get; set; }
 
+    /// <summary><c>true</c> while the user is in interactive copy mode.</summary>
+    public bool IsInCopyMode { get; private set; }
+
+    /// <summary>Cursor row in surface-local coordinates.</summary>
+    public int CursorRow { get; private set; }
+
+    /// <summary>Cursor column in surface-local coordinates.</summary>
+    public int CursorCol { get; private set; }
+
     /// <summary>
-    /// The currently previewed selection mode, or <c>null</c> when no
-    /// selection preview is active. Setting this via the corresponding
-    /// binding (<see cref="SelectionPanelWidget.SelectCells"/>,
-    /// <see cref="SelectionPanelWidget.SelectBlock"/>,
-    /// <see cref="SelectionPanelWidget.SelectLines"/>) inverts the matching
-    /// cells in the rendered output until the copy action commits or
-    /// switches modes.
+    /// Anchor row of the active selection, or <c>null</c> when no
+    /// selection is active (only the cursor is shown).
     /// </summary>
-    public SelectionPanelSnapshotMode? SelectionMode { get; private set; }
+    public int? AnchorRow { get; private set; }
+
+    /// <summary>
+    /// Anchor column of the active selection, or <c>null</c> when no
+    /// selection is active (only the cursor is shown).
+    /// </summary>
+    public int? AnchorCol { get; private set; }
+
+    /// <summary>
+    /// Geometry of the active selection. Has no effect when
+    /// <see cref="AnchorRow"/>/<see cref="AnchorCol"/> are <c>null</c>.
+    /// </summary>
+    public SelectionMode CursorSelectionMode { get; private set; } = SelectionMode.Character;
+
+    /// <summary><c>true</c> when both an anchor and cursor are set.</summary>
+    public bool HasSelection => AnchorRow.HasValue && AnchorCol.HasValue;
 
     public override bool IsFocusable => false;
 
@@ -65,31 +102,24 @@ public sealed class SelectionPanelNode : Hex1bNode
     {
         base.ArrangeCore(rect);
         Child?.Arrange(rect);
+
+        // Bounds may shrink between frames (window resize, transcript
+        // pruning); keep cursor + anchor inside the new surface.
+        ClampCursorAndAnchor();
     }
 
     public override void Render(Hex1bRenderContext context)
     {
         if (Child is null) return;
 
-        // No active selection preview, or we don't have a surface context to
-        // capture into: render the child straight through.
-        if (SelectionMode is null || context is not SurfaceRenderContext surfaceCtx)
+        if (!IsInCopyMode || context is not SurfaceRenderContext surfaceCtx
+            || Bounds.Width <= 0 || Bounds.Height <= 0)
         {
             context.RenderChild(Child);
             return;
         }
 
-        if (Bounds.Width <= 0 || Bounds.Height <= 0)
-        {
-            return;
-        }
-
-        // Selection preview is active. Capture the child's output to a
-        // temporary surface, invert the cells in the previewed region, then
-        // composite the modified surface back. This mirrors EffectPanelNode
-        // — using its own internal EffectPanel composition rather than
-        // wrapping the child via the widget tree, because preview state
-        // lives on the node and isn't visible to widget-builder code.
+        // Capture-modify-composite (mirrors EffectPanelNode).
         var pool = surfaceCtx.SurfacePool;
         var tempSurface = pool != null
             ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
@@ -110,7 +140,7 @@ public sealed class SelectionPanelNode : Hex1bNode
             tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
             tempContext.RenderChild(Child);
 
-            InvertSelection(tempSurface, SelectionMode.Value);
+            ApplyCursorOverlay(tempSurface);
 
             Rect? clipRect = null;
             if (surfaceCtx.CurrentLayoutProvider != null)
@@ -150,168 +180,104 @@ public sealed class SelectionPanelNode : Hex1bNode
         }
     }
 
-    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    // ------------------------------------------------------------------
+    // Programmatic copy-mode controls (also exercised by tests).
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Enters copy mode. The cursor is initialised at the bottom-left of
+    /// the rendered surface (the natural starting point for
+    /// chat-style content where the latest output sits at the bottom of
+    /// an auto-scrolled viewport). Any existing selection is cleared.
+    /// Note: this does <em>not</em> install input capture; the binding
+    /// handler that calls <c>EnterCopyMode</c> also calls
+    /// <see cref="InputBindingActionContext.CaptureInput"/>.
+    /// </summary>
+    public void EnterCopyMode()
     {
-        if (CopyHandler is null)
-        {
-            return;
-        }
-
-        // Globals because the SelectionPanel itself isn't focusable and the
-        // user's focus typically lives outside its subtree (e.g. a TextBox
-        // pinned below the scroll panel). Keeping these on the node — rather
-        // than free-floating app bindings — means they only exist when there
-        // is actually a panel registered to receive copies.
-        //
-        // Function keys are used (rather than Ctrl+Letter chords) because
-        // Windows console and most xterm-style terminals encode Ctrl+Letter
-        // as a raw ASCII control byte, dropping the Shift modifier entirely
-        // — there is no portable way to distinguish Ctrl+Shift+S from Ctrl+S.
-        // F-keys carry full modifier reporting via CSI sequences and are the
-        // reliable choice for default global chords.
-        //
-        // The defaults dodge two well-known F-key conflicts: F6 is the
-        // TerminalWidget copy-mode default, and F11 toggles full screen in
-        // Windows Terminal (intercepted before the app sees it). F7-F9 plus
-        // F12 are reliably free across Windows Terminal, conhost, and the
-        // common xterm-derived emulators.
-        RegisterSelectionBinding(bindings, Hex1bKey.F7, SelectionPanelWidget.SelectCells, SelectionPanelSnapshotMode.Cells, "Preview cell-stream selection");
-        RegisterSelectionBinding(bindings, Hex1bKey.F8, SelectionPanelWidget.SelectBlock, SelectionPanelSnapshotMode.Block, "Preview block selection");
-        RegisterSelectionBinding(bindings, Hex1bKey.F9, SelectionPanelWidget.SelectLines, SelectionPanelSnapshotMode.Lines, "Preview line selection");
-
-        bindings.Key(Hex1bKey.F12).Global().Triggers(
-            SelectionPanelWidget.Copy,
-            async ctx =>
-            {
-                var handler = CopyHandler;
-                if (handler is null)
-                {
-                    return;
-                }
-
-                // Snapshot the active selection (or full content if no preview).
-                var text = SnapshotText(SelectionMode ?? SelectionPanelSnapshotMode.Full);
-
-                // Clear the preview before invoking the handler so that, if
-                // the handler itself triggers another render (e.g. by
-                // updating an editor document), the selection no longer
-                // shows up inverted.
-                SelectionMode = null;
-                MarkDirty();
-                ctx.Invalidate();
-
-                await handler(text);
-            },
-            "Copy current selection (or full content)");
-    }
-
-    private void RegisterSelectionBinding(
-        InputBindingsBuilder bindings,
-        Hex1bKey key,
-        ActionId actionId,
-        SelectionPanelSnapshotMode mode,
-        string description)
-    {
-        bindings.Key(key).Global().Triggers(
-            actionId,
-            ctx =>
-            {
-                SelectionMode = mode;
-                MarkDirty();
-                ctx.Invalidate();
-                return Task.CompletedTask;
-            },
-            description);
+        IsInCopyMode = true;
+        AnchorRow = null;
+        AnchorCol = null;
+        CursorSelectionMode = SelectionMode.Character;
+        CursorRow = Math.Max(0, Bounds.Height - 1);
+        CursorCol = 0;
+        ClampCursorAndAnchor();
+        MarkDirty();
     }
 
     /// <summary>
-    /// Inverts the cells of <paramref name="surface"/> that fall inside the
-    /// region for <paramref name="mode"/>'s selection geometry by adding the
-    /// <see cref="CellAttributes.Reverse"/> attribute. Mirrors the geometry
-    /// used by <see cref="SnapshotText(SelectionPanelSnapshotMode)"/> so the
-    /// previewed region matches exactly what would be copied.
+    /// Exits copy mode and clears the cursor / selection state. Pair with
+    /// <see cref="InputBindingActionContext.ReleaseCapture"/> at the
+    /// caller.
     /// </summary>
-    private static void InvertSelection(Surface surface, SelectionPanelSnapshotMode mode)
+    public void ExitCopyMode()
     {
-        int w = surface.Width;
-        int h = surface.Height;
-        var (topRow, bottomRow, leftCol, rightCol) = ComputeMidGeometry(surface);
-
-        switch (mode)
-        {
-            case SelectionPanelSnapshotMode.Full:
-                for (int y = 0; y < h; y++)
-                    InvertRow(surface, y, 0, w - 1);
-                break;
-
-            case SelectionPanelSnapshotMode.Lines:
-                for (int y = topRow; y <= bottomRow; y++)
-                    InvertRow(surface, y, 0, w - 1);
-                break;
-
-            case SelectionPanelSnapshotMode.Block:
-                for (int y = topRow; y <= bottomRow; y++)
-                    InvertRow(surface, y, leftCol, rightCol);
-                break;
-
-            case SelectionPanelSnapshotMode.Cells:
-                if (topRow == bottomRow)
-                {
-                    InvertRow(surface, topRow, leftCol, rightCol);
-                }
-                else
-                {
-                    InvertRow(surface, topRow, leftCol, w - 1);
-                    for (int y = topRow + 1; y < bottomRow; y++)
-                        InvertRow(surface, y, 0, w - 1);
-                    InvertRow(surface, bottomRow, 0, rightCol);
-                }
-                break;
-        }
-    }
-
-    private static void InvertRow(Surface surface, int y, int fromCol, int toColInclusive)
-    {
-        for (int x = fromCol; x <= toColInclusive; x++)
-        {
-            if (surface.TryGetCell(x, y, out var cell))
-            {
-                surface.TrySetCell(x, y, cell.WithAddedAttributes(CellAttributes.Reverse));
-            }
-        }
+        IsInCopyMode = false;
+        AnchorRow = null;
+        AnchorCol = null;
+        CursorSelectionMode = SelectionMode.Character;
+        MarkDirty();
     }
 
     /// <summary>
-    /// Renders the wrapped subtree into a fresh <see cref="Surface"/> sized to
-    /// the child's arranged bounds and reads back the cells row-by-row as
-    /// plain text. The returned string therefore reproduces what the user
-    /// sees on screen — including box-drawing border characters — for the
-    /// full content of the panel (not just the portion currently visible
-    /// inside any enclosing scroll viewport).
+    /// Moves the cursor by <paramref name="rowDelta"/> rows and
+    /// <paramref name="colDelta"/> columns. Clamps to surface bounds.
     /// </summary>
-    /// <remarks>
-    /// Equivalent to calling <see cref="SnapshotText(SelectionPanelSnapshotMode)"/>
-    /// with <see cref="SelectionPanelSnapshotMode.Full"/>.
-    /// </remarks>
-    public string SnapshotText() => SnapshotText(SelectionPanelSnapshotMode.Full);
+    public void MoveCursor(int rowDelta, int colDelta)
+    {
+        SetCursor(CursorRow + rowDelta, CursorCol + colDelta);
+    }
 
     /// <summary>
-    /// Renders the wrapped subtree into a fresh <see cref="Surface"/> and reads
-    /// back the cells corresponding to <paramref name="mode"/>'s selection
-    /// geometry as plain text.
+    /// Sets the cursor to the specified surface-local coordinates,
+    /// clamped to <c>0..Width-1</c> and <c>0..Height-1</c>.
     /// </summary>
-    /// <remarks>
-    /// Until the interactive copy mode is built out, the geometry for non-Full
-    /// modes is hard-coded to the middle ~50% of the rendered surface so each
-    /// mode produces a visibly distinct slice. Trailing whitespace on each
-    /// emitted line is trimmed; wide-character continuation cells
-    /// (<see cref="SurfaceCell.IsContinuation"/>) are skipped so wide
-    /// characters appear once. If the panel has not been arranged yet (or has
-    /// zero-sized bounds), an empty string is returned.
-    /// </remarks>
-    public string SnapshotText(SelectionPanelSnapshotMode mode)
+    public void SetCursor(int row, int col)
     {
-        if (Child is null)
+        int w = Math.Max(1, Bounds.Width);
+        int h = Math.Max(1, Bounds.Height);
+        CursorRow = Math.Clamp(row, 0, h - 1);
+        CursorCol = Math.Clamp(col, 0, w - 1);
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Starts a selection in <paramref name="mode"/> if no selection is
+    /// active, switches the mode (preserving the anchor) if a selection
+    /// is active in a different mode, or clears the selection if the
+    /// same mode is requested again. Mirrors <see cref="TerminalWidget"/>'s
+    /// vi-style toggle semantics.
+    /// </summary>
+    public void StartOrToggleSelection(SelectionMode mode)
+    {
+        if (!HasSelection)
+        {
+            AnchorRow = CursorRow;
+            AnchorCol = CursorCol;
+            CursorSelectionMode = mode;
+        }
+        else if (CursorSelectionMode == mode)
+        {
+            // Same mode → clear selection (anchor stays unset until next start).
+            AnchorRow = null;
+            AnchorCol = null;
+            CursorSelectionMode = SelectionMode.Character;
+        }
+        else
+        {
+            // Different mode → keep anchor, change geometry.
+            CursorSelectionMode = mode;
+        }
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Reads back the plain text of the current selection. Returns an
+    /// empty string when no selection is active or when bounds are zero.
+    /// </summary>
+    public string SnapshotText()
+    {
+        if (Child is null || !HasSelection)
         {
             return string.Empty;
         }
@@ -322,97 +288,337 @@ public sealed class SelectionPanelNode : Hex1bNode
             return string.Empty;
         }
 
-        // Render the child into a private surface sized to its full arranged
-        // bounds. The offset constructor translates absolute coordinates
-        // (bounds.X, bounds.Y) into surface-local (0, 0). When the child sits
-        // inside a ScrollPanel, its arranged Bounds spans the entire content,
-        // so the snapshot includes everything — even rows scrolled out of
-        // view in the live UI.
+        var surface = RenderChildToSurface(bounds);
+        return ReadSelectionText(surface);
+    }
+
+    // ------------------------------------------------------------------
+    // Input binding wiring.
+    // ------------------------------------------------------------------
+
+    public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
+    {
+        if (CopyHandler is null)
+        {
+            return;
+        }
+
+        // Entry — single global binding so the user can enter copy mode
+        // regardless of which widget currently has keyboard focus.
+        bindings.Key(Hex1bKey.F12).Global().Triggers(
+            SelectionPanelWidget.EnterCopyMode,
+            ctx =>
+            {
+                if (IsInCopyMode) return Task.CompletedTask; // re-entry guard
+                EnterCopyMode();
+                ctx.CaptureInput(this);
+                ctx.Invalidate();
+                return Task.CompletedTask;
+            },
+            "Enter SelectionPanel copy mode");
+
+        // In-copy-mode actions are registered as capture-override bindings.
+        // The router only checks these when SOMETHING has captured input,
+        // and our IsInCopyMode guard ensures they no-op if capture belongs
+        // to another widget. This keeps the bindings rebindable via
+        // ActionId without polluting the global namespace.
+
+        // Movement
+        RegisterMove(bindings, Hex1bKey.UpArrow,    SelectionPanelWidget.CopyModeUp,    -1,  0, "Move cursor up");
+        RegisterMove(bindings, Hex1bKey.K,          SelectionPanelWidget.CopyModeUp,    -1,  0, "Move cursor up (vi)");
+        RegisterMove(bindings, Hex1bKey.DownArrow,  SelectionPanelWidget.CopyModeDown,   1,  0, "Move cursor down");
+        RegisterMove(bindings, Hex1bKey.J,          SelectionPanelWidget.CopyModeDown,   1,  0, "Move cursor down (vi)");
+        RegisterMove(bindings, Hex1bKey.LeftArrow,  SelectionPanelWidget.CopyModeLeft,   0, -1, "Move cursor left");
+        RegisterMove(bindings, Hex1bKey.H,          SelectionPanelWidget.CopyModeLeft,   0, -1, "Move cursor left (vi)");
+        RegisterMove(bindings, Hex1bKey.RightArrow, SelectionPanelWidget.CopyModeRight,  0,  1, "Move cursor right");
+        RegisterMove(bindings, Hex1bKey.L,          SelectionPanelWidget.CopyModeRight,  0,  1, "Move cursor right (vi)");
+        RegisterMove(bindings, Hex1bKey.PageUp,     SelectionPanelWidget.CopyModePageUp, -PageRows, 0, "Move cursor one page up");
+        RegisterMove(bindings, Hex1bKey.PageDown,   SelectionPanelWidget.CopyModePageDown, PageRows, 0, "Move cursor one page down");
+
+        // Word movement (whole-row scan against the rendered surface).
+        RegisterCaptureOverride(bindings, Hex1bKey.W, SelectionPanelWidget.CopyModeWordForward,
+            ctx => { if (IsInCopyMode) MoveWordForward(); }, "Move forward one word");
+        RegisterCaptureOverride(bindings, Hex1bKey.B, SelectionPanelWidget.CopyModeWordBackward,
+            ctx => { if (IsInCopyMode) MoveWordBackward(); }, "Move backward one word");
+
+        // Line / buffer extremes
+        RegisterCaptureOverride(bindings, Hex1bKey.Home, SelectionPanelWidget.CopyModeLineStart,
+            ctx => { if (IsInCopyMode) SetCursor(CursorRow, 0); }, "Move to line start");
+        RegisterCaptureOverride(bindings, Hex1bKey.D0, SelectionPanelWidget.CopyModeLineStart,
+            ctx => { if (IsInCopyMode) SetCursor(CursorRow, 0); }, "Move to line start (vi)");
+        RegisterCaptureOverride(bindings, Hex1bKey.End, SelectionPanelWidget.CopyModeLineEnd,
+            ctx => { if (IsInCopyMode) SetCursor(CursorRow, int.MaxValue); }, "Move to line end");
+        RegisterCaptureOverride(bindings, Hex1bKey.G, SelectionPanelWidget.CopyModeBufferTop,
+            ctx => { if (IsInCopyMode) SetCursor(0, CursorCol); }, "Move to buffer top");
+        bindings.Key(Hex1bKey.G).Shift().OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeBufferBottom,
+            ctx => { if (IsInCopyMode) SetCursor(int.MaxValue, CursorCol); return Task.CompletedTask; },
+            "Move to buffer bottom");
+
+        // Selection mode
+        RegisterCaptureOverride(bindings, Hex1bKey.V, SelectionPanelWidget.CopyModeStartSelection,
+            ctx => { if (IsInCopyMode) StartOrToggleSelection(SelectionMode.Character); }, "Toggle character selection");
+        RegisterCaptureOverride(bindings, Hex1bKey.Spacebar, SelectionPanelWidget.CopyModeStartSelection,
+            ctx => { if (IsInCopyMode) StartOrToggleSelection(SelectionMode.Character); }, "Toggle character selection");
+        bindings.Key(Hex1bKey.V).Shift().OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeToggleLineMode,
+            ctx => { if (IsInCopyMode) StartOrToggleSelection(SelectionMode.Line); return Task.CompletedTask; },
+            "Toggle line selection");
+        bindings.Key(Hex1bKey.V).Alt().OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeToggleBlockMode,
+            ctx => { if (IsInCopyMode) StartOrToggleSelection(SelectionMode.Block); return Task.CompletedTask; },
+            "Toggle block selection");
+
+        // Commit / cancel
+        RegisterCopy(bindings, Hex1bKey.Y);
+        RegisterCopy(bindings, Hex1bKey.Enter);
+        RegisterCancel(bindings, Hex1bKey.Escape);
+        RegisterCancel(bindings, Hex1bKey.Q);
+    }
+
+    private const int PageRows = 20;
+
+    private void RegisterMove(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId,
+        int rowDelta, int colDelta, string description)
+    {
+        bindings.Key(key).OverridesCapture().Triggers(
+            actionId,
+            ctx =>
+            {
+                if (IsInCopyMode)
+                {
+                    MoveCursor(rowDelta, colDelta);
+                    ctx.Invalidate();
+                }
+                return Task.CompletedTask;
+            },
+            description);
+    }
+
+    private void RegisterCaptureOverride(InputBindingsBuilder bindings, Hex1bKey key, ActionId actionId,
+        Action<InputBindingActionContext> handler, string description)
+    {
+        bindings.Key(key).OverridesCapture().Triggers(
+            actionId,
+            ctx =>
+            {
+                if (IsInCopyMode)
+                {
+                    handler(ctx);
+                    ctx.Invalidate();
+                }
+                return Task.CompletedTask;
+            },
+            description);
+    }
+
+    private void RegisterCopy(InputBindingsBuilder bindings, Hex1bKey key)
+    {
+        bindings.Key(key).OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeCopy,
+            async ctx =>
+            {
+                if (!IsInCopyMode) return;
+
+                // Y/Enter is a no-op without a selection — matches
+                // TerminalWidgetHandle.CopySelection() which returns
+                // empty when no selection is set.
+                if (!HasSelection)
+                {
+                    return;
+                }
+
+                var handler = CopyHandler;
+                var text = SnapshotText();
+                ExitCopyMode();
+                ctx.ReleaseCapture();
+                ctx.Invalidate();
+                if (handler is not null)
+                {
+                    await handler(text);
+                }
+            },
+            "Copy selection and exit copy mode");
+    }
+
+    private void RegisterCancel(InputBindingsBuilder bindings, Hex1bKey key)
+    {
+        bindings.Key(key).OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeCancel,
+            ctx =>
+            {
+                if (!IsInCopyMode) return Task.CompletedTask;
+                ExitCopyMode();
+                ctx.ReleaseCapture();
+                ctx.Invalidate();
+                return Task.CompletedTask;
+            },
+            "Cancel copy mode without copying");
+    }
+
+    // ------------------------------------------------------------------
+    // Surface readback + selection geometry.
+    // ------------------------------------------------------------------
+
+    private void ClampCursorAndAnchor()
+    {
+        int w = Math.Max(1, Bounds.Width);
+        int h = Math.Max(1, Bounds.Height);
+        if (CursorRow < 0) CursorRow = 0;
+        if (CursorCol < 0) CursorCol = 0;
+        if (CursorRow > h - 1) CursorRow = h - 1;
+        if (CursorCol > w - 1) CursorCol = w - 1;
+
+        if (AnchorRow.HasValue && AnchorCol.HasValue)
+        {
+            int ar = AnchorRow.Value;
+            int ac = AnchorCol.Value;
+            if (ar < 0) ar = 0;
+            if (ac < 0) ac = 0;
+            if (ar > h - 1) ar = h - 1;
+            if (ac > w - 1) ac = w - 1;
+            AnchorRow = ar;
+            AnchorCol = ac;
+        }
+    }
+
+    private Surface RenderChildToSurface(Rect bounds)
+    {
         var surface = new Surface(bounds.Width, bounds.Height);
         var context = new SurfaceRenderContext(surface, bounds.X, bounds.Y);
-        Child.Render(context);
-
-        return mode switch
-        {
-            SelectionPanelSnapshotMode.Full => ReadFull(surface),
-            SelectionPanelSnapshotMode.Cells => ReadCellStream(surface),
-            SelectionPanelSnapshotMode.Block => ReadBlock(surface),
-            SelectionPanelSnapshotMode.Lines => ReadLines(surface),
-            _ => ReadFull(surface),
-        };
+        Child!.Render(context);
+        return surface;
     }
 
-    private static string ReadFull(Surface surface)
+    private void ApplyCursorOverlay(Surface surface)
     {
-        var sb = new StringBuilder(surface.Width * surface.Height);
-        for (int y = 0; y < surface.Height; y++)
+        if (HasSelection)
         {
-            AppendLine(surface, sb, y, fromCol: 0, toColInclusive: surface.Width - 1);
-        }
-        return TrimTrailingNewlines(sb);
-    }
-
-    private static string ReadLines(Surface surface)
-    {
-        var (topRow, bottomRow, _, _) = ComputeMidGeometry(surface);
-        var sb = new StringBuilder();
-        for (int y = topRow; y <= bottomRow; y++)
-        {
-            AppendLine(surface, sb, y, fromCol: 0, toColInclusive: surface.Width - 1);
-        }
-        return TrimTrailingNewlines(sb);
-    }
-
-    private static string ReadBlock(Surface surface)
-    {
-        var (topRow, bottomRow, leftCol, rightCol) = ComputeMidGeometry(surface);
-        var sb = new StringBuilder();
-        for (int y = topRow; y <= bottomRow; y++)
-        {
-            AppendLine(surface, sb, y, fromCol: leftCol, toColInclusive: rightCol);
-        }
-        return TrimTrailingNewlines(sb);
-    }
-
-    private static string ReadCellStream(Surface surface)
-    {
-        // Mirrors how a terminal mouse drag selects: from a start position
-        // (topRow, leftCol) to an end position (bottomRow, rightCol). The
-        // start row is taken from the start column to the end of the row,
-        // every fully-spanned row is taken in full, and the end row is
-        // taken from column zero up to the end column.
-        var (topRow, bottomRow, leftCol, rightCol) = ComputeMidGeometry(surface);
-        var sb = new StringBuilder();
-
-        if (topRow == bottomRow)
-        {
-            AppendLine(surface, sb, topRow, fromCol: leftCol, toColInclusive: rightCol);
+            ApplySelectionInversion(surface);
         }
         else
         {
-            AppendLine(surface, sb, topRow, fromCol: leftCol, toColInclusive: surface.Width - 1);
-            for (int y = topRow + 1; y < bottomRow; y++)
-            {
-                AppendLine(surface, sb, y, fromCol: 0, toColInclusive: surface.Width - 1);
-            }
-            AppendLine(surface, sb, bottomRow, fromCol: 0, toColInclusive: rightCol);
+            // Just the cursor cell.
+            InvertCell(surface, CursorCol, CursorRow);
         }
-
-        return TrimTrailingNewlines(sb);
     }
 
-    private static (int topRow, int bottomRow, int leftCol, int rightCol) ComputeMidGeometry(Surface surface)
+    private void ApplySelectionInversion(Surface surface)
     {
-        // Middle ~50% of the surface, clamped so the range is never inverted
-        // and always contains at least one row/column even on tiny surfaces.
         int w = surface.Width;
         int h = surface.Height;
 
-        int topRow = Math.Max(0, h / 4);
-        int bottomRow = Math.Max(topRow, Math.Min(h - 1, (h * 3) / 4 - 1));
-        int leftCol = Math.Max(0, w / 4);
-        int rightCol = Math.Max(leftCol, Math.Min(w - 1, (w * 3) / 4 - 1));
-        return (topRow, bottomRow, leftCol, rightCol);
+        switch (CursorSelectionMode)
+        {
+            case SelectionMode.Line:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                for (int y = top; y <= bottom; y++)
+                    InvertRow(surface, y, 0, w - 1);
+                break;
+            }
+            case SelectionMode.Block:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                int left = Math.Min(AnchorCol!.Value, CursorCol);
+                int right = Math.Max(AnchorCol!.Value, CursorCol);
+                for (int y = top; y <= bottom; y++)
+                    InvertRow(surface, y, left, right);
+                break;
+            }
+            case SelectionMode.Character:
+            default:
+            {
+                var (sRow, sCol, eRow, eCol) = NormalizeStream();
+                if (sRow == eRow)
+                {
+                    InvertRow(surface, sRow, sCol, eCol);
+                }
+                else
+                {
+                    InvertRow(surface, sRow, sCol, w - 1);
+                    for (int y = sRow + 1; y < eRow; y++)
+                        InvertRow(surface, y, 0, w - 1);
+                    InvertRow(surface, eRow, 0, eCol);
+                }
+                break;
+            }
+        }
+    }
+
+    private (int startRow, int startCol, int endRow, int endCol) NormalizeStream()
+    {
+        int ar = AnchorRow!.Value, ac = AnchorCol!.Value;
+        int cr = CursorRow, cc = CursorCol;
+        if (ar < cr || (ar == cr && ac <= cc))
+        {
+            return (ar, ac, cr, cc);
+        }
+        return (cr, cc, ar, ac);
+    }
+
+    private static void InvertRow(Surface surface, int y, int fromCol, int toColInclusive)
+    {
+        for (int x = fromCol; x <= toColInclusive; x++)
+        {
+            InvertCell(surface, x, y);
+        }
+    }
+
+    private static void InvertCell(Surface surface, int x, int y)
+    {
+        if (surface.TryGetCell(x, y, out var cell))
+        {
+            surface.TrySetCell(x, y, cell.WithAddedAttributes(CellAttributes.Reverse));
+        }
+    }
+
+    // Reads the active selection from the rendered surface as plain text,
+    // mirroring the inversion geometry used by ApplySelectionInversion.
+    private string ReadSelectionText(Surface surface)
+    {
+        var sb = new StringBuilder();
+        switch (CursorSelectionMode)
+        {
+            case SelectionMode.Line:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                for (int y = top; y <= bottom; y++)
+                    AppendLine(surface, sb, y, 0, surface.Width - 1);
+                break;
+            }
+            case SelectionMode.Block:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                int left = Math.Min(AnchorCol!.Value, CursorCol);
+                int right = Math.Max(AnchorCol!.Value, CursorCol);
+                for (int y = top; y <= bottom; y++)
+                    AppendLine(surface, sb, y, left, right);
+                break;
+            }
+            case SelectionMode.Character:
+            default:
+            {
+                var (sRow, sCol, eRow, eCol) = NormalizeStream();
+                if (sRow == eRow)
+                {
+                    AppendLine(surface, sb, sRow, sCol, eCol);
+                }
+                else
+                {
+                    AppendLine(surface, sb, sRow, sCol, surface.Width - 1);
+                    for (int y = sRow + 1; y < eRow; y++)
+                        AppendLine(surface, sb, y, 0, surface.Width - 1);
+                    AppendLine(surface, sb, eRow, 0, eCol);
+                }
+                break;
+            }
+        }
+        return sb.ToString().TrimEnd('\r', '\n');
     }
 
     private static void AppendLine(Surface surface, StringBuilder sb, int y, int fromCol, int toColInclusive)
@@ -430,8 +636,6 @@ public sealed class SelectionPanelNode : Hex1bNode
 
             if (cell.IsContinuation)
             {
-                // The wide character in a previous cell has already
-                // contributed its grapheme; skip the placeholder.
                 continue;
             }
 
@@ -450,24 +654,62 @@ public sealed class SelectionPanelNode : Hex1bNode
             }
         }
 
-        // Trim trailing whitespace on this line so unfilled cells don't
-        // bloat the output with thousands of spaces.
         sb.Length = lineStart + trimmedLength;
         sb.AppendLine();
     }
-
-    private static string TrimTrailingNewlines(StringBuilder sb)
-        => sb.ToString().TrimEnd('\r', '\n');
 
     private static bool IsAllWhitespace(string s)
     {
         for (int i = 0; i < s.Length; i++)
         {
-            if (!char.IsWhiteSpace(s[i]))
-            {
-                return false;
-            }
+            if (!char.IsWhiteSpace(s[i])) return false;
         }
         return true;
+    }
+
+    // Word movement: scan the cursor's row in the rendered surface for
+    // the next/previous whitespace boundary. Re-renders the child each
+    // call (acceptable for first pass; cache could be added if profiling
+    // shows it as a hotspot).
+    private void MoveWordForward()
+    {
+        if (Child is null) return;
+        var bounds = Child.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        var surface = RenderChildToSurface(bounds);
+        int w = surface.Width;
+        int row = CursorRow;
+        int x = CursorCol;
+
+        // Skip current word, then skip whitespace, land on next non-whitespace.
+        while (x < w - 1 && !IsCellWhitespace(surface, x, row)) x++;
+        while (x < w - 1 && IsCellWhitespace(surface, x, row)) x++;
+        SetCursor(row, x);
+    }
+
+    private void MoveWordBackward()
+    {
+        if (Child is null) return;
+        var bounds = Child.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0) return;
+
+        var surface = RenderChildToSurface(bounds);
+        int row = CursorRow;
+        int x = CursorCol;
+
+        // Step back one (so we don't get stuck), then skip whitespace,
+        // then skip back to the start of the previous word.
+        if (x > 0) x--;
+        while (x > 0 && IsCellWhitespace(surface, x, row)) x--;
+        while (x > 0 && !IsCellWhitespace(surface, x - 1, row)) x--;
+        SetCursor(row, x);
+    }
+
+    private static bool IsCellWhitespace(Surface surface, int x, int y)
+    {
+        if (!surface.TryGetCell(x, y, out var cell)) return true;
+        var ch = cell.Character;
+        return string.IsNullOrEmpty(ch) || IsAllWhitespace(ch);
     }
 }

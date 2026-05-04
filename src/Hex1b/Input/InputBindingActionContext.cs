@@ -88,6 +88,30 @@ public sealed class InputBindingActionContext
     public void Invalidate() => _invalidate?.Invoke();
 
     /// <summary>
+    /// Captures all subsequent input to the specified node.
+    /// </summary>
+    /// <param name="node">The node that should receive all input until <see cref="ReleaseCapture"/> is called.</param>
+    /// <remarks>
+    /// While input is captured, normal focused-node binding lookup is bypassed:
+    /// the captured node receives input directly via <see cref="Hex1bNode.HandleInput(Hex1bEvent)"/>,
+    /// and only bindings marked with <see cref="InputBinding.OverridesCapture"/>
+    /// (or registered via <see cref="KeyStepBuilder.OverridesCapture"/>) on any
+    /// node in the tree continue to fire. Global bindings still fire as
+    /// normal.
+    /// 
+    /// Call this from a binding handler (typically the one that enters a
+    /// modal interaction such as copy mode or a drag operation) and pair
+    /// with <see cref="ReleaseCapture"/> when the interaction ends.
+    /// </remarks>
+    public void CaptureInput(Hex1bNode node) => _focusRing.CaptureInput(node);
+
+    /// <summary>
+    /// Releases input capture set via <see cref="CaptureInput(Hex1bNode)"/>,
+    /// returning input routing to the normal focused-node behaviour.
+    /// </summary>
+    public void ReleaseCapture() => _focusRing.ReleaseCapture();
+
+    /// <summary>
     /// Moves focus to the next focusable widget in the ring.
     /// This is the standard way to implement Tab navigation.
     /// </summary>

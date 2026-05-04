@@ -10,10 +10,12 @@
 //   │ TextBox  (pinned bottom)     │                  │
 //   └──────────────────────────────┴──────────────────┘
 //
-// The whole transcript content is wrapped in a single SelectionPanel. As a
-// proof-of-concept of the eventual copy-mode flow, pressing Ctrl+Shift+S
-// snapshots the text inside the panel and replaces the right-pane editor's
-// document with it. Everything else is plain pass-through so far.
+// The whole transcript content is wrapped in a single SelectionPanel.
+// Press F12 to enter copy mode — a cursor appears (inverted cell). Move
+// it with arrows / hjkl / PageUp/Down / Home/End / G / Shift+G; press V
+// (character), Shift+V (line) or Alt+V (block) to start a selection;
+// Y or Enter copies the highlighted text into the editor on the right;
+// Esc or Q cancels.
 //
 // Run with: dotnet run --project samples/AgenticPromptDemo
 
@@ -24,12 +26,12 @@ using Hex1b.Widgets;
 
 var transcript = new List<TranscriptEntry>
 {
-    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Press F7/F8/F9 to preview a selection (cells / block / lines) — selected cells highlight in place — then F12 to copy the highlighted text into the editor on the right. F12 with no preview copies the full content. Ctrl+Q quits."),
+    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Press F12 to enter copy mode: arrows or hjkl move the cursor, V/Shift+V/Alt+V starts a character/line/block selection, Y or Enter copies into the editor on the right, Esc cancels. Ctrl+Q quits."),
 };
 
 // Read-only editor on the right shows the most recent SelectionPanel copy.
 var clipboardDoc = new Hex1bDocument(
-    "(Press F7 / F8 / F9 to preview a selection, then F12 to copy it into this editor. F12 alone copies the whole panel.)");
+    "(Press F12 to enter copy mode, then V/Shift+V/Alt+V to select and Y to copy. The text appears here.)");
 var clipboardEditorState = new EditorState(clipboardDoc) { IsReadOnly = true };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -93,8 +95,10 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("AgenticPromptDemo"),
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
-                s.Section("F7/F8/F9: Preview (cells/block/lines)"),
-                s.Section("F12: Copy"),
+                s.Section("F12: Copy mode"),
+                s.Section("V/⇧V/⌥V: Select"),
+                s.Section("Y: Copy"),
+                s.Section("Esc: Cancel"),
                 s.Section("Ctrl+Q: Quit"),
                 s.Spacer(),
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),
