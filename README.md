@@ -88,6 +88,14 @@ var widget = new SplitterWidget(left, right, 25) with
 };
 ```
 
+> **Picking portable bindings.** Different terminals intercept different
+> combos before they reach Hex1b (e.g. Windows Terminal eats `Ctrl+Shift+↑/↓`
+> for scroll, GNOME Terminal eats `Ctrl+Shift+T/N/W` for tab/window
+> management). See [`docs/keybinding-portability.md`](./docs/keybinding-portability.md)
+> for the per-terminal interception matrix and recommendations, and use the
+> [`KeyBindingTester`](./samples/KeyBindingTester/README.md) sample to confirm
+> what actually fires on your target terminals.
+
 ## 🎨 Theming
 
 Apply built-in themes or create your own:

@@ -89,15 +89,18 @@ buttons in SGR mode also include explicit modifier bytes.
 ## Combos commonly intercepted by terminals/OSes
 
 If a tested combo never fires, the terminal or OS is likely intercepting it
-before the app sees the bytes. Common offenders:
+before the app sees the bytes. See **[`docs/keybinding-portability.md`](../../docs/keybinding-portability.md)**
+for the authoritative per-terminal interception matrix (verified against
+each terminal's defaults). A short summary:
 
 | Terminal / OS                | Intercepted combos                                  |
-|------------------------------|-----------------------------------------------------|
-| Windows Terminal (default)   | `Ctrl+Shift+↑`/`↓` (scroll), `Ctrl+Shift+Home`/`End` (select to top/bottom), `Ctrl+Shift+PgUp`/`PgDn`, `Ctrl+Shift+C/V` (copy/paste) |
-| Windows OS                   | `Alt+Shift` alone (keyboard-layout switch)          |
-| iTerm2                       | `Cmd`-modified combos (Hex1b doesn't see `Cmd`)     |
-| GNOME Terminal               | `Ctrl+Shift+letter` (built-in shortcuts)            |
-| tmux                         | All combos sent through prefix key                  |
+| ---------------------------- | --------------------------------------------------- |
+| Windows Terminal (default)   | `Alt+Shift+arrow` (resize pane), `Ctrl+Shift+↑/↓` (scroll), `Ctrl+Shift+Home/End` (scroll-to), `Ctrl+Shift+T/N/W/D/F/P/M/A/C/V/K` (UI), `Shift+Click` / `Ctrl+Shift+Click` (extend selection — non-configurable) |
+| Windows OS                   | `Alt+Space` (system menu), `Alt+F4` (close), `Win+<key>` (OS-reserved) |
+| iTerm2                       | All `Cmd+*` (Hex1b never sees `Cmd`; macOS swallows it) |
+| GNOME Terminal               | `Ctrl+Shift+T/N/W/F/C/V`, `Ctrl+PgUp/PgDn` (tab switch) |
+| GNOME shell                  | `Ctrl+Alt+arrow` (workspace switch on some distros)  |
+| tmux                         | All combos sent through the prefix key (default `Ctrl+B`) |
 
 You can usually disable terminal-side bindings in the terminal's settings
 to free those combos for the app — but if you ship Hex1b widgets that rely
