@@ -91,10 +91,10 @@ var widget = new SplitterWidget(left, right, 25) with
 > **Picking portable bindings.** Different terminals intercept different
 > combos before they reach Hex1b (e.g. Windows Terminal eats `Ctrl+Shift+↑/↓`
 > for scroll, GNOME Terminal eats `Ctrl+Shift+T/N/W` for tab/window
-> management). See [`docs/keybinding-portability.md`](./docs/keybinding-portability.md)
-> for the per-terminal interception matrix and recommendations, and use the
-> [`KeyBindingTester`](./samples/KeyBindingTester/README.md) sample to confirm
-> what actually fires on your target terminals.
+> management). See [Keybinding Portability](https://hex1b.dev/guide/keybinding-portability)
+> on hex1b.dev for the per-terminal interception matrix and recommendations,
+> and use the [`KeyBindingTester`](./samples/KeyBindingTester/README.md)
+> sample to confirm what actually fires on your target terminals.
 
 ## 🎨 Theming
 
@@ -172,10 +172,36 @@ hex1b/
 │       ├── Theming/        # Theme system and built-in themes
 │       └── Input/          # Keyboard input and bindings
 ├── samples/                # Example applications
+├── docs/                   # Architecture & reference documentation
 ├── tests/
 │   └── Hex1b.Tests/        # Unit tests
 └── apphost.cs              # Aspire app host for running samples
 ```
+
+## 📚 Documentation
+
+Full documentation lives at **[hex1b.dev](https://hex1b.dev)**. Highlights:
+
+- [Input Handling](https://hex1b.dev/guide/input) — focus, routing, declarative
+  bindings, and Vim/Emacs-style remap walkthrough.
+- [Keybinding Portability](https://hex1b.dev/guide/keybinding-portability) —
+  per-terminal interception matrix (Windows Terminal, ConPTY, macOS
+  Terminal.app, iTerm2, Ghostty, kitty, GNOME Terminal, Ptyxis, xterm,
+  tmux, ssh) plus cross-cutting ANSI protocol limits.
+- [Terminal Emulator](https://hex1b.dev/guide/terminal-emulator) — using the
+  embedded terminal widget.
+- [API Reference](https://hex1b.dev/reference/) — generated namespace docs.
+
+In-repo design / architecture notes (not on the website):
+
+- [`docs/terminal.md`](./docs/terminal.md) — Presentation/workload adapter
+  architecture.
+- [`docs/child-process-arch.md`](./docs/child-process-arch.md) — Child
+  process / PTY architecture.
+- [`docs/muxer-protocol.md`](./docs/muxer-protocol.md) — Muxer wire protocol.
+
+For the manual portability harness used to generate the per-terminal data,
+see [`samples/KeyBindingTester`](./samples/KeyBindingTester/README.md).
 
 ## 🤝 Contributing
 

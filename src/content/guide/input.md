@@ -2,6 +2,16 @@
 
 Hex1b provides a comprehensive input system with focus management, keyboard routing, and declarative input bindings. Every built-in widget exposes named actions that you can remap, extend, or disable — making it straightforward to implement custom keybinding schemes like Vim or Emacs without forking widget code.
 
+::: tip Picking portable bindings
+Different terminals intercept different combos before they reach Hex1b
+(Windows Terminal eats `Ctrl+Shift+↑/↓` for scroll, GNOME Terminal eats
+`Ctrl+Shift+T/N/W` for tab/window management, kitty owns the entire
+`Ctrl+Shift+*` keyspace by default, and so on). See
+**[Keybinding Portability](./keybinding-portability)** for the per-terminal
+interception matrix and recommendations on choosing combos that work
+across the terminals you target.
+:::
+
 ## Focus System
 
 Only focusable widgets — such as `TextBox`, `Button`, `List`, `Table`, `Editor`, `Tree`, `Checkbox`, `Slider`, and `ToggleSwitch` — can receive keyboard input. Hex1b manages focus order automatically through a **focus ring** that tracks all focusable widgets in the tree.

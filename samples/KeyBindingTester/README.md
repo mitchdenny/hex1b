@@ -89,11 +89,11 @@ buttons in SGR mode also include explicit modifier bytes.
 ## Combos commonly intercepted by terminals/OSes
 
 If a tested combo never fires, the terminal or OS is likely intercepting it
-before the app sees the bytes. See **[`docs/keybinding-portability.md`](../../docs/keybinding-portability.md)**
-for the authoritative per-terminal interception matrix (Windows Terminal,
-ConPTY, macOS Terminal.app, iTerm2, Ghostty, kitty, GNOME Terminal, Ptyxis,
-xterm, tmux, ssh — verified against each terminal's defaults). A short
-summary:
+before the app sees the bytes. See **[Keybinding Portability](https://hex1b.dev/guide/keybinding-portability)**
+on hex1b.dev for the authoritative per-terminal interception matrix
+(Windows Terminal, ConPTY, macOS Terminal.app, iTerm2, Ghostty, kitty,
+GNOME Terminal, Ptyxis, xterm, tmux, ssh — verified against each terminal's
+defaults). A short summary:
 
 | Terminal / OS                | Intercepted combos                                  |
 | ---------------------------- | --------------------------------------------------- |
