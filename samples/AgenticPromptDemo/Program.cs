@@ -24,12 +24,12 @@ using Hex1b.Widgets;
 
 var transcript = new List<TranscriptEntry>
 {
-    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. F12 snapshots the panel content into the editor on the right. Ctrl+Q quits."),
+    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. F9/F10/F11/F12 snapshot the panel content into the editor on the right (cells / block / lines / full). Ctrl+Q quits."),
 };
 
 // Read-only editor on the right shows the most recent SelectionPanel snapshot.
 var clipboardDoc = new Hex1bDocument(
-    "(Press F12 to snapshot the panel on the left into this editor.)");
+    "(Press F9 / F10 / F11 / F12 to snapshot the panel on the left into this editor.)");
 var clipboardEditorState = new EditorState(clipboardDoc) { IsReadOnly = true };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -93,7 +93,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("AgenticPromptDemo"),
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
-                s.Section("F12: Snapshot"),
+                s.Section("F9/F10/F11/F12: Snapshot (cells/block/lines/full)"),
                 s.Section("Ctrl+Q: Quit"),
                 s.Spacer(),
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),

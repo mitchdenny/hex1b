@@ -171,13 +171,41 @@ public class SelectionPanelNodeTests
     }
 
     [Fact]
-    public async Task ConfigureDefaultBindings_WithHandler_RegistersGlobalSnapshotBinding()
+    public void ConfigureDefaultBindings_WithHandler_RegistersAllFourSnapshotBindings()
     {
-        string? captured = null;
-        var child = new TextBlockNode { Text = "Snapshot me" };
         var node = new SelectionPanelNode
         {
-            Child = child,
+            Child = new TextBlockNode { Text = "x" },
+            SnapshotHandler = _ => Task.CompletedTask,
+        };
+        var bindings = new InputBindingsBuilder();
+        node.ConfigureDefaultBindings(bindings);
+
+        // Expect F9 (cells), F10 (block), F11 (lines), F12 (full).
+        Assert.Equal(4, bindings.Bindings.Count);
+
+        var byKey = bindings.Bindings.ToDictionary(b =>
+        {
+            Assert.True(b.IsGlobal, $"Binding {b.ActionId} should be global.");
+            Assert.Single(b.Steps);
+            var step = b.Steps[0];
+            Assert.Equal(Hex1bModifiers.None, step.Modifiers);
+            return step.Key;
+        });
+
+        Assert.Equal(SelectionPanelWidget.SnapshotCells, byKey[Hex1bKey.F9].ActionId);
+        Assert.Equal(SelectionPanelWidget.SnapshotBlock, byKey[Hex1bKey.F10].ActionId);
+        Assert.Equal(SelectionPanelWidget.SnapshotLines, byKey[Hex1bKey.F11].ActionId);
+        Assert.Equal(SelectionPanelWidget.Snapshot, byKey[Hex1bKey.F12].ActionId);
+    }
+
+    [Fact]
+    public async Task ConfigureDefaultBindings_F12_FiresFullSnapshot()
+    {
+        string? captured = null;
+        var node = new SelectionPanelNode
+        {
+            Child = new TextBlockNode { Text = "Snapshot me" },
             SnapshotHandler = text => { captured = text; return Task.CompletedTask; },
         };
         node.Measure(Constraints.Unbounded);
@@ -186,20 +214,63 @@ public class SelectionPanelNodeTests
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
 
-        Assert.Single(bindings.Bindings);
+        var fullBinding = bindings.Bindings.Single(b => b.ActionId == SelectionPanelWidget.Snapshot);
+        await fullBinding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
 
-        var binding = bindings.Bindings[0];
-        Assert.True(binding.IsGlobal);
-        Assert.Equal(SelectionPanelWidget.Snapshot, binding.ActionId);
-
-        // Single-step F12, no modifiers.
-        Assert.Single(binding.Steps);
-        var step = binding.Steps[0];
-        Assert.Equal(Hex1bKey.F12, step.Key);
-        Assert.Equal(Hex1bModifiers.None, step.Modifiers);
-
-        // Firing the handler invokes the registered callback with the snapshot text.
-        await binding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
         Assert.Equal("Snapshot me", captured);
+    }
+
+    [Theory]
+    [InlineData(nameof(SelectionPanelSnapshotMode.Full),
+                "AAAAAAAAAAAA\nBBBBBBBBBBBB\nCCCCCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFFFFF\nGGGGGGGGGGGG\nHHHHHHHHHHHH")]
+    // Lines: rows 2..5 inclusive, every column → middle 4 lines, full width.
+    [InlineData(nameof(SelectionPanelSnapshotMode.Lines),
+                "CCCCCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFFFFF")]
+    // Block: rows 2..5 × cols 3..8 → rectangular slice, 6 chars wide.
+    [InlineData(nameof(SelectionPanelSnapshotMode.Block),
+                "CCCCCC\nDDDDDD\nEEEEEE\nFFFFFF")]
+    // Cells (terminal-style stream): from (row=2, col=3) to (row=5, col=8).
+    // Top row from col 3 → end (9 chars), middle rows full width (12 chars),
+    // bottom row col 0 → col 8 (9 chars).
+    [InlineData(nameof(SelectionPanelSnapshotMode.Cells),
+                "CCCCCCCCC\nDDDDDDDDDDDD\nEEEEEEEEEEEE\nFFFFFFFFF")]
+    public void SnapshotText_PerMode_PicksExpectedCells(string modeName, string expected)
+    {
+        // Surface is 12 wide × 8 tall. Each row y is painted with the
+        // character ('A' + y), so the snapshot output makes it trivial to see
+        // which cells each mode picked.
+        var painter = new PaintingTestNode();
+        var panel = new SelectionPanelNode { Child = painter };
+
+        panel.Measure(Constraints.Unbounded);
+        panel.Arrange(new Rect(0, 0, 12, 8));
+
+        var mode = Enum.Parse<SelectionPanelSnapshotMode>(modeName);
+        var snapshot = panel.SnapshotText(mode);
+
+        Assert.Equal(expected.Replace("\r\n", "\n"), snapshot.Replace("\r\n", "\n"));
+    }
+
+    /// <summary>
+    /// Test render node that paints every cell in its arranged bounds with a
+    /// per-row deterministic character so cell-extraction tests can assert
+    /// exactly which cells were picked.
+    /// </summary>
+    private sealed class PaintingTestNode : Hex1bNode
+    {
+        protected override Size MeasureCore(Constraints constraints)
+            => constraints.Constrain(new Size(constraints.MaxWidth, constraints.MaxHeight));
+
+        public override void Render(Hex1bRenderContext context)
+        {
+            var bounds = Bounds;
+            for (int y = 0; y < bounds.Height; y++)
+            {
+                var ch = (char)('A' + (y % 26));
+                var line = new string(ch, bounds.Width);
+                context.SetCursorPosition(bounds.X, bounds.Y + y);
+                context.Write(line);
+            }
+        }
     }
 }
