@@ -104,38 +104,59 @@ public class SelectionPanelNodeTests
     }
 
     [Fact]
-    public void SnapshotText_TextBlockChild_ReturnsItsText()
+    public void SnapshotText_ChildWithoutBounds_ReturnsEmpty()
+    {
+        // SnapshotText reads cells from a Surface sized to the child's
+        // arranged bounds. A child that has not been arranged (Bounds is
+        // zero-sized) cannot be snapshotted.
+        var child = new TextBlockNode { Text = "Hello" };
+        var node = new SelectionPanelNode { Child = child };
+
+        Assert.Equal(string.Empty, node.SnapshotText());
+    }
+
+    [Fact]
+    public void SnapshotText_ArrangedTextBlock_ReturnsRenderedText()
     {
         var child = new TextBlockNode { Text = "Hello" };
         var node = new SelectionPanelNode { Child = child };
+
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 5, 1));
 
         Assert.Equal("Hello", node.SnapshotText());
     }
 
     [Fact]
-    public void SnapshotText_MarkdownChild_ReturnsSourceMarkdown()
+    public void SnapshotText_ArrangedBorderWithText_IncludesBoxDrawing()
     {
-        var md = new MarkdownNode { Source = "# Title\n\nBody **bold**." };
-        var node = new SelectionPanelNode { Child = md };
-
-        Assert.Equal("# Title\n\nBody **bold**.", node.SnapshotText());
-    }
-
-    [Fact]
-    public void SnapshotText_BorderWithTitleAndChild_IncludesBoth()
-    {
-        // Mirrors AgenticPromptDemo's per-entry layout: Border(title).Markdown(text)
-        var inner = new MarkdownNode { Source = "hello" };
+        // Mirrors AgenticPromptDemo: every transcript entry is rendered as
+        // Border(Title(...))(content). The snapshot must include the actual
+        // box-drawing characters rather than a paraphrased representation,
+        // because that is what the user sees on screen.
+        var inner = new TextBlockNode { Text = "hi" };
         var border = new BorderNode { Title = "You", Child = inner };
         var panel = new SelectionPanelNode { Child = border };
 
+        // Wide enough for "│ hi │" plus title room: title in a 6-wide border
+        // would produce something like "┌ You ┐", "│ hi  │", "└─────┘".
+        panel.Measure(Constraints.Unbounded);
+        panel.Arrange(new Rect(0, 0, 8, 3));
+
         var snapshot = panel.SnapshotText();
 
-        Assert.Contains("--- You ---", snapshot);
-        Assert.Contains("hello", snapshot);
-        // Title must appear before its body content.
-        Assert.True(snapshot.IndexOf("You", StringComparison.Ordinal) <
-                    snapshot.IndexOf("hello", StringComparison.Ordinal));
+        // The snapshot must contain box-drawing border chars (corners and
+        // horizontals) — proving we are reading rendered cells, not just
+        // walking the node tree.
+        Assert.Contains("┌", snapshot);
+        Assert.Contains("┐", snapshot);
+        Assert.Contains("└", snapshot);
+        Assert.Contains("┘", snapshot);
+        Assert.Contains("─", snapshot);
+
+        // The title and the inner text both appear.
+        Assert.Contains("You", snapshot);
+        Assert.Contains("hi", snapshot);
     }
 
     [Fact]
@@ -153,11 +174,15 @@ public class SelectionPanelNodeTests
     public async Task ConfigureDefaultBindings_WithHandler_RegistersGlobalSnapshotBinding()
     {
         string? captured = null;
+        var child = new TextBlockNode { Text = "Snapshot me" };
         var node = new SelectionPanelNode
         {
-            Child = new TextBlockNode { Text = "Snapshot me" },
+            Child = child,
             SnapshotHandler = text => { captured = text; return Task.CompletedTask; },
         };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 11, 1));
+
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
 

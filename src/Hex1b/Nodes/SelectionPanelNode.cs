@@ -1,6 +1,7 @@
 using System.Text;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Surfaces;
 using Hex1b.Widgets;
 
 namespace Hex1b.Nodes;
@@ -104,44 +105,95 @@ public sealed class SelectionPanelNode : Hex1bNode
     }
 
     /// <summary>
-    /// Walks the wrapped subtree and returns a plain-text snapshot of the
-    /// content found inside. This is a proof-of-concept extractor: it harvests
-    /// text from the most common text-bearing node types and joins them with
-    /// newlines. A future copy-mode implementation will replace this with a
-    /// cell-level read of the rendered surface.
+    /// Renders the wrapped subtree into a fresh <see cref="Surface"/> sized to
+    /// the child's arranged bounds and reads back the cells row-by-row as
+    /// plain text. The returned string therefore reproduces what the user
+    /// sees on screen — including box-drawing border characters — for the
+    /// full content of the panel (not just the portion currently visible
+    /// inside any enclosing scroll viewport).
     /// </summary>
+    /// <remarks>
+    /// Trailing whitespace on each line is trimmed. Wide-character
+    /// continuation cells (<see cref="SurfaceCell.IsContinuation"/>) are
+    /// skipped so wide characters appear once. If the panel hasn't been
+    /// arranged yet (or has zero-sized bounds), an empty string is returned.
+    /// </remarks>
     public string SnapshotText()
     {
-        var sb = new StringBuilder();
-        if (Child is not null)
+        if (Child is null)
         {
-            CollectText(Child, sb);
+            return string.Empty;
         }
+
+        var bounds = Child.Bounds;
+        if (bounds.Width <= 0 || bounds.Height <= 0)
+        {
+            return string.Empty;
+        }
+
+        // Render the child into a private surface sized to its full arranged
+        // bounds. The offset constructor translates absolute coordinates
+        // (bounds.X, bounds.Y) into surface-local (0, 0). When the child sits
+        // inside a ScrollPanel, its arranged Bounds spans the entire content,
+        // so the snapshot includes everything — even rows scrolled out of
+        // view in the live UI.
+        var surface = new Surface(bounds.Width, bounds.Height);
+        var context = new SurfaceRenderContext(surface, bounds.X, bounds.Y);
+        Child.Render(context);
+
+        var sb = new StringBuilder(bounds.Width * bounds.Height);
+        for (int y = 0; y < bounds.Height; y++)
+        {
+            int trimmedLineLength = 0;
+            int lineStart = sb.Length;
+            for (int x = 0; x < bounds.Width; x++)
+            {
+                if (!surface.TryGetCell(x, y, out var cell))
+                {
+                    sb.Append(' ');
+                    continue;
+                }
+
+                if (cell.IsContinuation)
+                {
+                    // The wide character in a previous cell has already
+                    // contributed its grapheme; skip the placeholder.
+                    continue;
+                }
+
+                var character = cell.Character;
+                if (string.IsNullOrEmpty(character))
+                {
+                    sb.Append(' ');
+                }
+                else
+                {
+                    sb.Append(character);
+                    if (!IsAllWhitespace(character))
+                    {
+                        trimmedLineLength = sb.Length - lineStart;
+                    }
+                }
+            }
+
+            // Trim trailing whitespace on this line so unfilled cells don't
+            // bloat the output with thousands of spaces.
+            sb.Length = lineStart + trimmedLineLength;
+            sb.AppendLine();
+        }
+
         return sb.ToString().TrimEnd('\r', '\n');
     }
 
-    private static void CollectText(Hex1bNode node, StringBuilder sb)
+    private static bool IsAllWhitespace(string s)
     {
-        switch (node)
+        for (int i = 0; i < s.Length; i++)
         {
-            case MarkdownNode md when !string.IsNullOrEmpty(md.Source):
-                sb.AppendLine(md.Source);
-                // Don't recurse — the markdown source already represents
-                // every inline text block the renderer would produce.
-                return;
-
-            case TextBlockNode tb when !string.IsNullOrEmpty(tb.Text):
-                sb.AppendLine(tb.Text);
-                return;
-
-            case BorderNode b when !string.IsNullOrEmpty(b.Title):
-                sb.Append("--- ").Append(b.Title).AppendLine(" ---");
-                break;
+            if (!char.IsWhiteSpace(s[i]))
+            {
+                return false;
+            }
         }
-
-        foreach (var child in node.GetChildren())
-        {
-            CollectText(child, sb);
-        }
+        return true;
     }
 }
