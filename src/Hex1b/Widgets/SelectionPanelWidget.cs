@@ -13,9 +13,13 @@ namespace Hex1b.Widgets;
 /// <remarks>
 /// Layout, focus, and input handling are otherwise delegated to the child
 /// unchanged. When a snapshot handler is registered, the panel installs a
-/// global binding (default: <c>Ctrl+Shift+S</c>, action id
-/// <see cref="Snapshot"/>) that walks the wrapped subtree, joins the text it
-/// finds, and invokes the handler with the result.
+/// global binding (default: <c>F12</c>, action id <see cref="Snapshot"/>) that
+/// walks the wrapped subtree, joins the text it finds, and invokes the
+/// handler with the result. A function key is used by default because
+/// terminals reliably surface F-key events (with optional modifiers) — letter
+/// keys with <c>Ctrl+Shift</c> are folded to an ASCII control byte by Windows
+/// console and most xterm-style terminals, so a chord like <c>Ctrl+Shift+S</c>
+/// is not distinguishable from <c>Ctrl+S</c>.
 /// </remarks>
 /// <param name="Child">The child widget to wrap.</param>
 public sealed record SelectionPanelWidget(Hex1bWidget Child) : Hex1bWidget
@@ -28,7 +32,7 @@ public sealed record SelectionPanelWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// Sets a synchronous snapshot handler. Invoked with the joined plain-text
     /// content of the wrapped subtree when the user triggers
-    /// <see cref="Snapshot"/> (default <c>Ctrl+Shift+S</c>).
+    /// <see cref="Snapshot"/> (default <c>F12</c>).
     /// </summary>
     public SelectionPanelWidget OnSnapshot(Action<string> handler)
         => this with { SnapshotHandler = text => { handler(text); return Task.CompletedTask; } };
@@ -36,7 +40,7 @@ public sealed record SelectionPanelWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// Sets an asynchronous snapshot handler. Invoked with the joined plain-text
     /// content of the wrapped subtree when the user triggers
-    /// <see cref="Snapshot"/> (default <c>Ctrl+Shift+S</c>).
+    /// <see cref="Snapshot"/> (default <c>F12</c>).
     /// </summary>
     public SelectionPanelWidget OnSnapshot(Func<string, Task> handler)
         => this with { SnapshotHandler = handler };

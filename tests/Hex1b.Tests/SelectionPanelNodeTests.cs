@@ -167,12 +167,11 @@ public class SelectionPanelNodeTests
         Assert.True(binding.IsGlobal);
         Assert.Equal(SelectionPanelWidget.Snapshot, binding.ActionId);
 
-        // Single-step Ctrl+Shift+S.
+        // Single-step F12, no modifiers.
         Assert.Single(binding.Steps);
         var step = binding.Steps[0];
-        Assert.Equal(Hex1bKey.S, step.Key);
-        Assert.True((step.Modifiers & Hex1bModifiers.Control) != 0);
-        Assert.True((step.Modifiers & Hex1bModifiers.Shift) != 0);
+        Assert.Equal(Hex1bKey.F12, step.Key);
+        Assert.Equal(Hex1bModifiers.None, step.Modifiers);
 
         // Firing the handler invokes the registered callback with the snapshot text.
         await binding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));

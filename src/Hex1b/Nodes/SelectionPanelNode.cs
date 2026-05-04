@@ -11,7 +11,7 @@ namespace Hex1b.Nodes;
 /// <remarks>
 /// Layout, focus, and input remain delegated to the wrapped child. When a
 /// <see cref="SnapshotHandler"/> is supplied, the node also registers a global
-/// binding (default <c>Ctrl+Shift+S</c>, action id
+/// binding (default <c>F12</c>, action id
 /// <see cref="SelectionPanelWidget.Snapshot"/>) that calls
 /// <see cref="SnapshotText"/> and invokes the handler with the result.
 /// </remarks>
@@ -83,7 +83,14 @@ public sealed class SelectionPanelNode : Hex1bNode
         // pinned below the scroll panel). Keeping this on the node — rather
         // than a free-floating app binding — means the binding only exists
         // when there is actually a panel registered to receive the snapshot.
-        bindings.Ctrl().Shift().Key(Hex1bKey.S).Global().Triggers(
+        //
+        // F12 is used (rather than a Ctrl+Letter chord) because Windows
+        // console and most xterm-style terminals encode Ctrl+Letter as a raw
+        // ASCII control byte, dropping the Shift modifier entirely — there
+        // is no portable way to distinguish Ctrl+Shift+S from Ctrl+S. Function
+        // keys carry full modifier reporting via CSI sequences, so they are
+        // the reliable choice for a default key.
+        bindings.Key(Hex1bKey.F12).Global().Triggers(
             SelectionPanelWidget.Snapshot,
             async _ =>
             {
