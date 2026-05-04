@@ -117,6 +117,125 @@ reads from the Win32 console API and sees explicit modifier bits, so it
 synthesises CSI sequences that include the modifiers. Bindings like
 `Ctrl+Shift+↑` *do* work end-to-end on legacy `conhost`.
 
+## macOS Terminal.app (Apple's built-in)
+
+The shipped-with-macOS terminal handles most modifier combos cleanly, but
+because **macOS itself never forwards `Cmd` to terminal apps**, every
+`Cmd+<key>` is consumed by Terminal.app or the OS:
+
+| Combo                          | Terminal.app action                                |
+| ------------------------------ | -------------------------------------------------- |
+| `Cmd+N`                        | New window                                         |
+| `Cmd+T`                        | New tab                                            |
+| `Cmd+W`                        | Close tab                                          |
+| `Cmd+Shift+W`                  | Close window                                       |
+| `Cmd+Shift+]` / `Ctrl+Tab`     | Next tab                                           |
+| `Cmd+Shift+[` / `Ctrl+Shift+Tab` | Previous tab                                     |
+| `Cmd+1..9`                     | Switch to tab N                                    |
+| `Cmd+D`                        | Split window vertically                            |
+| `Cmd+Shift+D`                  | Split window horizontally                          |
+| `Cmd+K`                        | Clear screen (keeps scrollback)                    |
+| `Cmd+F`                        | Find                                               |
+| `Cmd+C` / `Cmd+V` / `Cmd+A`    | Copy / paste / select-all                          |
+| `Cmd+,`                        | Open Preferences                                   |
+| `Cmd++` / `Cmd+-` / `Cmd+0`    | Font size (in/out/reset)                           |
+| `Cmd+↑/↓` / `Cmd+PgUp/PgDn`    | Scroll one line / page                             |
+| `Cmd+Q`                        | Quit Terminal.app                                  |
+
+Plus OS-level interceptions that affect every terminal on macOS:
+
+| Combo                          | OS action                                          |
+| ------------------------------ | -------------------------------------------------- |
+| `Cmd+Tab` / `Cmd+~`            | App / window switcher                              |
+| `Cmd+Space`                    | Spotlight (configurable)                           |
+| `Ctrl+Cmd+Q`                   | Lock screen                                        |
+| `Ctrl+↑/↓`                     | Mission Control / show desktop (if enabled)        |
+| `Ctrl+←/→`                     | Move between Spaces (if enabled)                   |
+
+Notable Terminal.app quirk: `Option` is **not** sent as a modifier by
+default — instead `Option+<key>` produces a Mac-specific glyph (e.g.
+`Option+E` types `é`'s combining accent). To get xterm-style `Alt+<key>`
+delivery, enable **Settings → Profiles → Keyboard → Use Option as Meta key**.
+Without that toggle, none of Hex1b's `Alt+<arrow>` / `Alt+<letter>` bindings
+will fire on Terminal.app.
+
+## Ghostty (cross-platform)
+
+[Ghostty](https://ghostty.org/) ships with a fairly large default keybinding
+set, **and the macOS bindings differ from the Linux/Windows bindings** because
+macOS Ghostty uses `Cmd+<key>` while Linux/Windows Ghostty uses
+`Ctrl+Shift+<key>`. Both sets are intercepted before they reach the running
+app. The complete list lives in `ghostty +list-keybinds --default`; the most
+common offenders:
+
+| Action                  | Linux / Windows         | macOS                |
+| ----------------------- | ----------------------- | -------------------- |
+| New window              | `Ctrl+Shift+N`          | `Cmd+N`              |
+| New tab                 | `Ctrl+Shift+T`          | `Cmd+T`              |
+| Close tab / surface     | `Ctrl+Shift+W`          | `Cmd+W`              |
+| Previous / next tab     | `Ctrl+Shift+Tab` / `Ctrl+Tab` | `Cmd+Shift+[` / `Cmd+Shift+]` |
+| Tab 1..9                | `Alt+1..9`              | `Cmd+1..9`           |
+| New split (right/down)  | `Ctrl+Shift+O` / `Ctrl+Shift+E` | `Cmd+D` / `Cmd+Shift+D` |
+| Focus split             | `Ctrl+Alt+arrows`       | `Cmd+Option+arrows`  |
+| Resize split            | `Ctrl+Super+Shift+arrows` | `Cmd+Ctrl+arrows`  |
+| Toggle fullscreen       | `Ctrl+Enter` / `F11`    | `Cmd+Enter`          |
+| Copy / paste            | `Ctrl+Shift+C/V`        | `Cmd+C/V`            |
+| Find                    | `Ctrl+Shift+F`          | `Cmd+F`              |
+| Open / reload config    | `Ctrl+,` / `Ctrl+Shift+,` | `Cmd+,` / `Cmd+Shift+,` |
+| Inspector               | `Ctrl+Shift+I`          | `Cmd+Option+I`       |
+| Quit                    | `Ctrl+Shift+Q`          | `Cmd+Q`              |
+| Scroll to top / bottom  | `Shift+Home` / `Shift+End` | `Cmd+Home` / `Cmd+End` |
+
+Note that Ghostty's Linux defaults overlap heavily with GNOME Terminal /
+Ptyxis (`Ctrl+Shift+T/N/W/F/C/V`) — so an app that targets "Linux terminals"
+should treat that whole row as off-limits regardless of which terminal the
+user runs.
+
+Ghostty supports the **kitty keyboard protocol** (opt-in via
+`keybind = ...:disambiguate-escape-codes` and friends), which makes the
+cross-cutting ANSI ambiguities below resolvable on this terminal — but
+Hex1b doesn't yet negotiate it.
+
+## kitty (cross-platform)
+
+[kitty](https://sw.kovidgoyal.net/kitty/) gates almost every binding behind
+a single configurable modifier called `kitty_mod`. The default value is
+`Ctrl+Shift`, which means **the entire `Ctrl+Shift+<letter/key>` keyspace is
+owned by kitty itself** out of the box. Users who want apps to receive these
+combos need to either change `kitty_mod` (commonly to `Super` or `Cmd`) or
+unbind the specific combos they want.
+
+Default `kitty_mod` (= `Ctrl+Shift`) bindings:
+
+| Combo                   | kitty action                              |
+| ----------------------- | ----------------------------------------- |
+| `Ctrl+Shift+C/V`        | Copy / paste                              |
+| `Ctrl+Shift+Enter`      | New OS window                             |
+| `Ctrl+Shift+T`          | New tab                                   |
+| `Ctrl+Shift+W`          | Close window                              |
+| `Ctrl+Shift+]` / `[`    | Next / previous tab                       |
+| `Ctrl+Shift+1..9`       | Go to tab N                               |
+| `Ctrl+Shift+L`          | Next layout                               |
+| `Ctrl+Shift+F`          | Toggle fullscreen                         |
+| `Ctrl+Shift+,` / `.`    | Move tab left / right                     |
+| `Ctrl+Shift+arrows`     | Move window focus between splits          |
+| `Ctrl+Shift+S`          | Selection mode                            |
+| `Ctrl+Shift+Q`          | Show all key bindings                     |
+| `Ctrl+Shift+Backspace`  | Clear scrollback                          |
+| `Ctrl+Shift+R`          | Interactive Unicode input                 |
+| `Ctrl+Shift+E`          | Edit current command line in `$EDITOR`    |
+| `Ctrl+Shift++` / `-`    | Font bigger / smaller                     |
+| `Ctrl+Shift+/`          | Search                                    |
+
+kitty's saving grace: it implements (and pioneered) the
+[kitty keyboard protocol](https://sw.kovidgoyal.net/kitty/keyboard-protocol/),
+which sends explicit modifier bitmasks for *every* key. When an app
+negotiates the protocol via `CSI > 1 u`, every cross-cutting limit at the
+bottom of this page goes away — `Ctrl+Backspace`, `Ctrl+Shift+<letter>`,
+`Ctrl+I` vs `Tab`, etc. all become unambiguous. Hex1b doesn't negotiate the
+protocol today, so kitty currently behaves like any other terminal as far as
+those limits go.
+
 ## iTerm2 (macOS)
 
 | Combo                          | iTerm2 action                                      | Workaround                |
@@ -151,6 +270,36 @@ GNOME Terminal also overlaps with the GNOME shell:
 | `Ctrl+Alt+<arrow>`   | Switch workspace (some distros)                  |
 | `Ctrl+Alt+T`         | Open new terminal (some distros)                 |
 | `Alt+F2`             | Run dialog                                       |
+
+## Ptyxis (Ubuntu 25.10+ / 26.04 LTS default)
+
+Starting with [Ubuntu 25.10](https://itsfoss.com/news/ubuntu-25-10-default-terminal-image-viewer/),
+the default terminal is no longer GNOME Terminal — it's **[Ptyxis](https://gitlab.gnome.org/chergert/ptyxis)**
+(a GTK4/Libadwaita terminal built around Podman/Toolbox containers, also the
+default on Fedora). For binding-interception purposes Ptyxis behaves
+near-identically to GNOME Terminal: the same `Ctrl+Shift+<letter>` family is
+owned by the terminal UI.
+
+| Combo                | Ptyxis action                                    |
+| -------------------- | ------------------------------------------------ |
+| `Ctrl+Shift+T`       | New tab                                          |
+| `Ctrl+Shift+N`       | New window                                       |
+| `Ctrl+Shift+W`       | Close tab                                        |
+| `Ctrl+Shift+C` / `V` | Copy / paste                                     |
+| `Ctrl+Shift+F`       | Find                                             |
+| `Ctrl+Shift+,`       | Open Preferences (Settings)                      |
+| `Ctrl+PgUp` / `PgDn` | Switch tabs                                      |
+| `Ctrl+Tab`           | Next tab                                         |
+| `F11`                | Toggle fullscreen                                |
+
+GNOME shell-level interceptions (workspace switching, etc.) listed under
+[GNOME Terminal](#gnome-terminal) apply equally to Ptyxis, since they're
+owned by the desktop environment, not the terminal.
+
+If your app targets Ubuntu and you previously planned around GNOME
+Terminal's defaults, **the binding picture is essentially unchanged on
+Ubuntu 26.04 LTS** — but the *application* the user runs is now Ptyxis by
+default, so error messages and screenshots in your docs should reflect that.
 
 ## xterm
 

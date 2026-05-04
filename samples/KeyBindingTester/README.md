@@ -90,15 +90,19 @@ buttons in SGR mode also include explicit modifier bytes.
 
 If a tested combo never fires, the terminal or OS is likely intercepting it
 before the app sees the bytes. See **[`docs/keybinding-portability.md`](../../docs/keybinding-portability.md)**
-for the authoritative per-terminal interception matrix (verified against
-each terminal's defaults). A short summary:
+for the authoritative per-terminal interception matrix (Windows Terminal,
+ConPTY, macOS Terminal.app, iTerm2, Ghostty, kitty, GNOME Terminal, Ptyxis,
+xterm, tmux, ssh — verified against each terminal's defaults). A short
+summary:
 
 | Terminal / OS                | Intercepted combos                                  |
 | ---------------------------- | --------------------------------------------------- |
 | Windows Terminal (default)   | `Alt+Shift+arrow` (resize pane), `Ctrl+Shift+↑/↓` (scroll), `Ctrl+Shift+Home/End` (scroll-to), `Ctrl+Shift+T/N/W/D/F/P/M/A/C/V/K` (UI), `Shift+Click` / `Ctrl+Shift+Click` (extend selection — non-configurable) |
 | Windows OS                   | `Alt+Space` (system menu), `Alt+F4` (close), `Win+<key>` (OS-reserved) |
-| iTerm2                       | All `Cmd+*` (Hex1b never sees `Cmd`; macOS swallows it) |
-| GNOME Terminal               | `Ctrl+Shift+T/N/W/F/C/V`, `Ctrl+PgUp/PgDn` (tab switch) |
+| macOS Terminal.app / iTerm2  | All `Cmd+*` (Hex1b never sees `Cmd`); `Option+<key>` produces glyphs unless "Use Option as Meta" is enabled |
+| Ghostty (Linux/Windows)      | `Ctrl+Shift+T/N/W/F/C/V/Q/I/O/E/Enter`, `Alt+1..9` |
+| kitty                        | All `Ctrl+Shift+*` (the default `kitty_mod`) — change `kitty_mod` to free them |
+| GNOME Terminal / Ptyxis      | `Ctrl+Shift+T/N/W/F/C/V`, `Ctrl+PgUp/PgDn` (tab switch) |
 | GNOME shell                  | `Ctrl+Alt+arrow` (workspace switch on some distros)  |
 | tmux                         | All combos sent through the prefix key (default `Ctrl+B`) |
 
