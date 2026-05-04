@@ -105,7 +105,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("Ctrl+Q: Quit"),
                 s.Spacer(),
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),
-            ]),
+            ]).Divider(" | "),
         ])
         .WithInputBindings(b =>
         {
