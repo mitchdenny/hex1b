@@ -5,19 +5,15 @@
 //   ┌──────────────────────────────┬──────────────────┐
 //   │ VScrollPanel                 │ Editor           │
 //   │   └─ SelectionPanel          │ (read-only;      │
-//   │       └─ VStack of entries   │  shows copied    │
-//   ├──────────────────────────────┤  selections)     │
+//   │       └─ VStack of entries   │  shows snapshot  │
+//   ├──────────────────────────────┤  / copied text)  │
 //   │ TextBox  (pinned bottom)     │                  │
 //   └──────────────────────────────┴──────────────────┘
 //
-// The whole transcript content is wrapped in a single SelectionPanel so that
-// future iterations can give the user a copy/select mode that snapshots all
-// rendered cells inside the scroll viewport. Today the SelectionPanel is a
-// pure pass-through wrapper — it has no behaviour of its own.
-//
-// The right-hand pane is a read-only Editor that will eventually show the
-// text the user copies out of the SelectionPanel. Until copy mode is
-// implemented it just displays a placeholder message.
+// The whole transcript content is wrapped in a single SelectionPanel. As a
+// proof-of-concept of the eventual copy-mode flow, pressing Ctrl+Shift+S
+// snapshots the text inside the panel and replaces the right-pane editor's
+// document with it. Everything else is plain pass-through so far.
 //
 // Run with: dotnet run --project samples/AgenticPromptDemo
 
@@ -28,26 +24,12 @@ using Hex1b.Widgets;
 
 var transcript = new List<TranscriptEntry>
 {
-    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Ctrl+Q quits."),
+    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Ctrl+Shift+S snapshots the panel content into the editor on the right. Ctrl+Q quits."),
 };
 
-// Read-only editor on the right shows whatever the user copies from the
-// SelectionPanel. No copy plumbing exists yet — when SelectionPanel grows a
-// TextCopied event (or similar), wire it into this document like
-// TerminalSelectionDemo does:
-//
-//     panel.TextCopied += text =>
-//     {
-//         var range = new DocumentRange(new DocumentOffset(0),
-//                                       new DocumentOffset(clipboardDoc.Length));
-//         clipboardDoc.Apply(new ReplaceOperation(range, text));
-//         clipboardEditorState.ClampAllCursors();
-//         app?.Invalidate();
-//     };
-//
-// TODO: wire SelectionPanel.TextCopied here
+// Read-only editor on the right shows the most recent SelectionPanel snapshot.
 var clipboardDoc = new Hex1bDocument(
-    "(Copied selections will appear here once SelectionPanel copy mode is implemented.)");
+    "(Press Ctrl+Shift+S to snapshot the panel on the left into this editor.)");
 var clipboardEditorState = new EditorState(clipboardDoc) { IsReadOnly = true };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -65,6 +47,15 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         sv.SelectionPanel(
                             sv.VStack(inner =>
                                 transcript.Select(entry => RenderEntry(inner, entry)).ToArray()))
+                            .OnSnapshot(text =>
+                            {
+                                var range = new DocumentRange(
+                                    new DocumentOffset(0),
+                                    new DocumentOffset(clipboardDoc.Length));
+                                clipboardDoc.Apply(new ReplaceOperation(range, text));
+                                clipboardEditorState.ClampAllCursors();
+                                app.Invalidate();
+                            })
                     ], showScrollbar: true)
                     .Follow()
                     .Fill(),
@@ -88,7 +79,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         }),
                 ]),
 
-                // RIGHT — read-only editor for inspecting copied text.
+                // RIGHT — read-only editor for inspecting copied / snapshotted text.
                 v.Border(
                     v.Editor(clipboardEditorState).Fill()
                 ).Title("Copied text"),
@@ -102,6 +93,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("AgenticPromptDemo"),
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
+                s.Section("Ctrl+Shift+S: Snapshot"),
                 s.Section("Ctrl+Q: Quit"),
                 s.Spacer(),
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),

@@ -1,3 +1,4 @@
+using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
@@ -6,8 +7,9 @@ namespace Hex1b.Tests;
 
 /// <summary>
 /// Pass-through behaviour tests for the minimal SelectionPanelNode.
-/// At this stage SelectionPanel has no behaviour of its own — it must
-/// simply forward measure, arrange, focus, and render to its child.
+/// At this stage SelectionPanel has no behaviour of its own beyond an
+/// optional snapshot callback — it must simply forward measure, arrange,
+/// focus, and render to its child.
 /// </summary>
 public class SelectionPanelNodeTests
 {
@@ -91,5 +93,89 @@ public class SelectionPanelNodeTests
         node.IsFocused = true;
 
         Assert.True(child.IsFocused);
+    }
+
+    [Fact]
+    public void SnapshotText_NoChild_ReturnsEmpty()
+    {
+        var node = new SelectionPanelNode { Child = null };
+
+        Assert.Equal(string.Empty, node.SnapshotText());
+    }
+
+    [Fact]
+    public void SnapshotText_TextBlockChild_ReturnsItsText()
+    {
+        var child = new TextBlockNode { Text = "Hello" };
+        var node = new SelectionPanelNode { Child = child };
+
+        Assert.Equal("Hello", node.SnapshotText());
+    }
+
+    [Fact]
+    public void SnapshotText_MarkdownChild_ReturnsSourceMarkdown()
+    {
+        var md = new MarkdownNode { Source = "# Title\n\nBody **bold**." };
+        var node = new SelectionPanelNode { Child = md };
+
+        Assert.Equal("# Title\n\nBody **bold**.", node.SnapshotText());
+    }
+
+    [Fact]
+    public void SnapshotText_BorderWithTitleAndChild_IncludesBoth()
+    {
+        // Mirrors AgenticPromptDemo's per-entry layout: Border(title).Markdown(text)
+        var inner = new MarkdownNode { Source = "hello" };
+        var border = new BorderNode { Title = "You", Child = inner };
+        var panel = new SelectionPanelNode { Child = border };
+
+        var snapshot = panel.SnapshotText();
+
+        Assert.Contains("--- You ---", snapshot);
+        Assert.Contains("hello", snapshot);
+        // Title must appear before its body content.
+        Assert.True(snapshot.IndexOf("You", StringComparison.Ordinal) <
+                    snapshot.IndexOf("hello", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void ConfigureDefaultBindings_NoHandler_RegistersNoBinding()
+    {
+        var node = new SelectionPanelNode { Child = new TextBlockNode { Text = "x" } };
+        var bindings = new InputBindingsBuilder();
+
+        node.ConfigureDefaultBindings(bindings);
+
+        Assert.Empty(bindings.Bindings);
+    }
+
+    [Fact]
+    public async Task ConfigureDefaultBindings_WithHandler_RegistersGlobalSnapshotBinding()
+    {
+        string? captured = null;
+        var node = new SelectionPanelNode
+        {
+            Child = new TextBlockNode { Text = "Snapshot me" },
+            SnapshotHandler = text => { captured = text; return Task.CompletedTask; },
+        };
+        var bindings = new InputBindingsBuilder();
+        node.ConfigureDefaultBindings(bindings);
+
+        Assert.Single(bindings.Bindings);
+
+        var binding = bindings.Bindings[0];
+        Assert.True(binding.IsGlobal);
+        Assert.Equal(SelectionPanelWidget.Snapshot, binding.ActionId);
+
+        // Single-step Ctrl+Shift+S.
+        Assert.Single(binding.Steps);
+        var step = binding.Steps[0];
+        Assert.Equal(Hex1bKey.S, step.Key);
+        Assert.True((step.Modifiers & Hex1bModifiers.Control) != 0);
+        Assert.True((step.Modifiers & Hex1bModifiers.Shift) != 0);
+
+        // Firing the handler invokes the registered callback with the snapshot text.
+        await binding.ExecuteAsync(new InputBindingActionContext(new FocusRing()));
+        Assert.Equal("Snapshot me", captured);
     }
 }
