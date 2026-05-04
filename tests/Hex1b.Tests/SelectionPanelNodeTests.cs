@@ -181,7 +181,7 @@ public class SelectionPanelNodeTests
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
 
-        // Expect F9 (cells), F10 (block), F11 (lines), F12 (full).
+        // Expect F7 (cells), F8 (block), F9 (lines), F12 (full).
         Assert.Equal(4, bindings.Bindings.Count);
 
         var byKey = bindings.Bindings.ToDictionary(b =>
@@ -193,9 +193,9 @@ public class SelectionPanelNodeTests
             return step.Key;
         });
 
-        Assert.Equal(SelectionPanelWidget.SnapshotCells, byKey[Hex1bKey.F9].ActionId);
-        Assert.Equal(SelectionPanelWidget.SnapshotBlock, byKey[Hex1bKey.F10].ActionId);
-        Assert.Equal(SelectionPanelWidget.SnapshotLines, byKey[Hex1bKey.F11].ActionId);
+        Assert.Equal(SelectionPanelWidget.SnapshotCells, byKey[Hex1bKey.F7].ActionId);
+        Assert.Equal(SelectionPanelWidget.SnapshotBlock, byKey[Hex1bKey.F8].ActionId);
+        Assert.Equal(SelectionPanelWidget.SnapshotLines, byKey[Hex1bKey.F9].ActionId);
         Assert.Equal(SelectionPanelWidget.Snapshot, byKey[Hex1bKey.F12].ActionId);
     }
 

@@ -12,7 +12,7 @@ namespace Hex1b.Nodes;
 /// <remarks>
 /// Layout, focus, and input remain delegated to the wrapped child. When a
 /// <see cref="SnapshotHandler"/> is supplied, the node also registers global
-/// bindings (default <c>F9</c> cells, <c>F10</c> block, <c>F11</c> lines,
+/// bindings (default <c>F7</c> cells, <c>F8</c> block, <c>F9</c> lines,
 /// <c>F12</c> full) that call <see cref="SnapshotText(SelectionPanelSnapshotMode)"/>
 /// and invoke the handler with the result.
 /// </remarks>
@@ -92,9 +92,15 @@ public sealed class SelectionPanelNode : Hex1bNode
         // — there is no portable way to distinguish Ctrl+Shift+S from Ctrl+S.
         // F-keys carry full modifier reporting via CSI sequences and are the
         // reliable choice for default global chords.
-        RegisterSnapshotBinding(bindings, Hex1bKey.F9, SelectionPanelWidget.SnapshotCells, SelectionPanelSnapshotMode.Cells, "Snapshot SelectionPanel content (cell stream)");
-        RegisterSnapshotBinding(bindings, Hex1bKey.F10, SelectionPanelWidget.SnapshotBlock, SelectionPanelSnapshotMode.Block, "Snapshot SelectionPanel content (block)");
-        RegisterSnapshotBinding(bindings, Hex1bKey.F11, SelectionPanelWidget.SnapshotLines, SelectionPanelSnapshotMode.Lines, "Snapshot SelectionPanel content (lines)");
+        //
+        // The defaults dodge two well-known F-key conflicts: F6 is the
+        // TerminalWidget copy-mode default, and F11 toggles full screen in
+        // Windows Terminal (intercepted before the app sees it). F7-F9 plus
+        // F12 are reliably free across Windows Terminal, conhost, and the
+        // common xterm-derived emulators.
+        RegisterSnapshotBinding(bindings, Hex1bKey.F7, SelectionPanelWidget.SnapshotCells, SelectionPanelSnapshotMode.Cells, "Snapshot SelectionPanel content (cell stream)");
+        RegisterSnapshotBinding(bindings, Hex1bKey.F8, SelectionPanelWidget.SnapshotBlock, SelectionPanelSnapshotMode.Block, "Snapshot SelectionPanel content (block)");
+        RegisterSnapshotBinding(bindings, Hex1bKey.F9, SelectionPanelWidget.SnapshotLines, SelectionPanelSnapshotMode.Lines, "Snapshot SelectionPanel content (lines)");
         RegisterSnapshotBinding(bindings, Hex1bKey.F12, SelectionPanelWidget.Snapshot, SelectionPanelSnapshotMode.Full, "Snapshot SelectionPanel content (full)");
     }
 
