@@ -374,6 +374,55 @@ public sealed class SelectionPanelNode : Hex1bNode
         RegisterCopy(bindings, Hex1bKey.Enter);
         RegisterCancel(bindings, Hex1bKey.Escape);
         RegisterCancel(bindings, Hex1bKey.Q);
+
+        // Mouse drag-to-select. The framework defers activation until the
+        // user actually moves the mouse (Hex1bApp's pending-bubble-drag
+        // mechanism) so plain clicks on inner widgets aren't intercepted.
+        // Modifier-aware: Shift drag = Line, Alt drag = Block.
+        RegisterDrag(bindings, Hex1bModifiers.None, SelectionMode.Character, "Drag-select characters");
+        RegisterDrag(bindings, Hex1bModifiers.Shift, SelectionMode.Line, "Drag-select lines");
+        RegisterDrag(bindings, Hex1bModifiers.Alt, SelectionMode.Block, "Drag-select block");
+    }
+
+    private void RegisterDrag(InputBindingsBuilder bindings, Hex1bModifiers modifiers, SelectionMode mode, string description)
+    {
+        var step = bindings.Drag(MouseButton.Left);
+        if (modifiers.HasFlag(Hex1bModifiers.Shift)) step = step.Shift();
+        if (modifiers.HasFlag(Hex1bModifiers.Alt)) step = step.Alt();
+        if (modifiers.HasFlag(Hex1bModifiers.Control)) step = step.Ctrl();
+
+        step.Action((startX, startY) =>
+        {
+            // The drag binding fires on the first move event (deferred
+            // activation in Hex1bApp). Coordinates are local to this node's
+            // Bounds; for SelectionPanel that equals surface-local since the
+            // panel is pass-through and its surface spans Bounds exactly.
+            // Inside a ScrollPanel, Bounds.Y can be negative when scrolled,
+            // so localY is still a valid surface row.
+            int anchorRow = Math.Max(0, startY);
+            int anchorCol = Math.Max(0, startX);
+
+            EnterCopyMode();
+            SetCursor(anchorRow, anchorCol);
+            StartOrToggleSelection(mode);
+
+            return new DragHandler(
+                onMove: (ctx, dx, dy) =>
+                {
+                    if (!IsInCopyMode) return;
+                    SetCursor(anchorRow + dy, anchorCol + dx);
+                    ctx.Invalidate();
+                },
+                onEnd: ctx =>
+                {
+                    if (!IsInCopyMode) return;
+                    // Stay in copy mode — install keyboard capture so the
+                    // user can refine the selection with arrows or commit
+                    // with Y / Enter / cancel with Esc.
+                    ctx.CaptureInput(this);
+                    ctx.Invalidate();
+                });
+        }, description);
     }
 
     private const int PageRows = 20;

@@ -101,6 +101,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private Hex1bNode? _activeDragNode;
     private int _dragStartX;
     private int _dragStartY;
+
+    // Pending "bubble drag": drag binding on a node OTHER than the focus-ring
+    // hit (typically a non-focusable container ancestor or descendant). The
+    // binding is held back until the user actually moves the mouse, so plain
+    // clicks on inner widgets keep working. Cleared on the first Drag event
+    // (which activates it) or on mouse Up (which discards it).
+    private PendingBubbleDrag? _pendingBubbleDrag;
+
+    private readonly record struct PendingBubbleDrag(
+        Hex1bNode Node,
+        DragBinding Binding,
+        int DownX,
+        int DownY);
     
     // Drag-and-drop state for semantic drag operations (Draggable/Droppable widgets)
     private readonly DragDropManager _dragDropManager = new();
@@ -714,6 +727,27 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     }
                     // While dragging, skip normal event handling
                     break;
+                }
+
+                // No active drag, but a pending "bubble" drag may be waiting
+                // for the first move event before activating (so plain clicks
+                // on inner widgets aren't hijacked). Try to activate now; if a
+                // mouse Up arrives first, discard the pending state.
+                if (_pendingBubbleDrag is { } pending)
+                {
+                    if (mouseEvent.Action == MouseAction.Drag || mouseEvent.Action == MouseAction.Move)
+                    {
+                        var dragContext = new InputBindingActionContext(
+                            _focusRing, RequestStop, cancellationToken,
+                            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                        ActivatePendingBubbleDrag(pending, mouseEvent, dragContext);
+                        break;
+                    }
+                    if (mouseEvent.Action == MouseAction.Up)
+                    {
+                        _pendingBubbleDrag = null;
+                        // Fall through to normal handling for the Up event.
+                    }
                 }
                 
                 // Handle click events (button down) - may start a drag
@@ -1591,14 +1625,25 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     private async Task HandleMouseClickAsync(Hex1bMouseEvent mouseEvent, CancellationToken cancellationToken)
     {
+        // Defensively clear any stale pending bubble drag from a prior cycle
+        // (e.g., if the previous mouse Up was missed because the cursor left
+        // the terminal). We only ever want one pending bubble drag at a time.
+        _pendingBubbleDrag = null;
+
         // Compute click count for double/triple click detection
         var clickCount = ComputeClickCount(mouseEvent);
         var eventWithClickCount = mouseEvent.WithClickCount(clickCount);
         
         // Find the focusable node at the click position
         var hitNode = _focusRing.HitTest(mouseEvent.X, mouseEvent.Y);
-        
-        if (hitNode == null) return;
+
+        if (hitNode == null)
+        {
+            // Even when no focusable was hit, a non-focusable container in
+            // the tree (e.g., SelectionPanel) may want to react on drag.
+            TryArmBubbleDrag(eventWithClickCount, hitNode: null);
+            return;
+        }
         
         // Always focus the clicked node through the focus ring
         // This ensures proper state sync (clears old focus, sets new focus)
@@ -1681,6 +1726,103 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         // No binding matched - call the node's HandleMouseClick with local coordinates
         hitNode.HandleMouseClick(localX, localY, eventWithClickCount);
+
+        // Last resort: arm a "bubble" drag binding on a node OTHER than the
+        // hit focusable (typically a non-focusable container that wraps the
+        // click target). Only fires once the user actually moves the mouse,
+        // so plain clicks on the hit focusable above were not affected.
+        TryArmBubbleDrag(eventWithClickCount, hitNode);
+    }
+
+    /// <summary>
+    /// Walks the full node tree to find drag bindings owned by nodes other
+    /// than <paramref name="hitNode"/> whose <see cref="Hex1bNode.HitTestBounds"/>
+    /// contains the click point. Stores the deepest match in
+    /// <see cref="_pendingBubbleDrag"/> so it can be activated on the first
+    /// subsequent drag event. Restricted to single clicks.
+    /// </summary>
+    private void TryArmBubbleDrag(Hex1bMouseEvent mouseEvent, Hex1bNode? hitNode)
+    {
+        _pendingBubbleDrag = null;
+
+        if (_rootNode is null || mouseEvent.ClickCount > 1)
+        {
+            return;
+        }
+
+        var path = new List<Hex1bNode>();
+        CollectMouseHitPath(_rootNode, mouseEvent.X, mouseEvent.Y, path);
+
+        // Walk deepest-first so an inner non-focusable container wins over an
+        // outer one (consistent with z-order).
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            var candidate = path[i];
+            if (ReferenceEquals(candidate, hitNode))
+            {
+                continue;
+            }
+
+            var dragBindings = candidate.BuildBindings().DragBindings;
+            for (int j = 0; j < dragBindings.Count; j++)
+            {
+                var binding = dragBindings[j];
+                if (binding.Matches(mouseEvent))
+                {
+                    _pendingBubbleDrag = new PendingBubbleDrag(candidate, binding, mouseEvent.X, mouseEvent.Y);
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pre-order walk that appends every node whose
+    /// <see cref="Hex1bNode.HitTestBounds"/> contains <c>(x, y)</c>. Result is
+    /// ordered root-to-deepest along the visited path; callers iterate in
+    /// reverse for z-order.
+    /// </summary>
+    private static void CollectMouseHitPath(Hex1bNode node, int x, int y, List<Hex1bNode> path)
+    {
+        var bounds = node.HitTestBounds;
+        if (x < bounds.X || x >= bounds.Right || y < bounds.Y || y >= bounds.Bottom)
+        {
+            return;
+        }
+
+        path.Add(node);
+        foreach (var child in node.GetChildren())
+        {
+            CollectMouseHitPath(child, x, y, path);
+        }
+    }
+
+    /// <summary>
+    /// Activates the pending bubble drag using the original mouse-Down
+    /// position as the anchor and the current event as the first drag move.
+    /// </summary>
+    private void ActivatePendingBubbleDrag(PendingBubbleDrag pending, Hex1bMouseEvent currentEvent, InputBindingActionContext dragContext)
+    {
+        _pendingBubbleDrag = null;
+
+        var node = pending.Node;
+        var localStartX = pending.DownX - node.Bounds.X;
+        var localStartY = pending.DownY - node.Bounds.Y;
+        var handler = pending.Binding.StartDrag(localStartX, localStartY);
+
+        if (handler.IsEmpty)
+        {
+            return;
+        }
+
+        _activeDragHandler = handler;
+        _activeDragNode = node;
+        _dragStartX = pending.DownX;
+        _dragStartY = pending.DownY;
+
+        var deltaX = currentEvent.X - _dragStartX;
+        var deltaY = currentEvent.Y - _dragStartY;
+        handler.OnMove?.Invoke(dragContext, deltaX, deltaY);
     }
     
     /// <summary>

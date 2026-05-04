@@ -34,6 +34,15 @@ public sealed class DragStepBuilder
     }
 
     /// <summary>
+    /// Requires Alt modifier.
+    /// </summary>
+    public DragStepBuilder Alt()
+    {
+        _modifiers |= Hex1bModifiers.Alt;
+        return this;
+    }
+
+    /// <summary>
     /// Binds the drag factory. The factory receives (startX, startY) local coordinates
     /// and returns a DragHandler that will receive move and end events.
     /// </summary>

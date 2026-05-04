@@ -642,4 +642,161 @@ public class SelectionPanelNodeTests
             }
         }
     }
+
+    [Fact]
+    public void ConfigureDefaultBindings_WithHandler_RegistersThreeDragBindings()
+    {
+        var node = new SelectionPanelNode
+        {
+            Child = new TextBlockNode { Text = "x" },
+            CopyHandler = _ => Task.CompletedTask,
+        };
+        var bindings = new InputBindingsBuilder();
+
+        node.ConfigureDefaultBindings(bindings);
+
+        Assert.Equal(3, bindings.DragBindings.Count);
+        Assert.All(bindings.DragBindings, b => Assert.Equal(MouseButton.Left, b.Button));
+
+        var modifierSets = bindings.DragBindings.Select(b => b.Modifiers).ToHashSet();
+        Assert.Contains(Hex1bModifiers.None, modifierSets);
+        Assert.Contains(Hex1bModifiers.Shift, modifierSets);
+        Assert.Contains(Hex1bModifiers.Alt, modifierSets);
+    }
+
+    [Fact]
+    public void ConfigureDefaultBindings_WithoutHandler_RegistersNoDragBindings()
+    {
+        var node = new SelectionPanelNode
+        {
+            Child = new TextBlockNode { Text = "x" },
+        };
+        var bindings = new InputBindingsBuilder();
+
+        node.ConfigureDefaultBindings(bindings);
+
+        Assert.Empty(bindings.DragBindings);
+    }
+
+    [Fact]
+    public void DragBinding_StartDrag_EntersCopyMode_AnchorsCursor_StartsCharacterSelection()
+    {
+        var node = SetupArrangedNode(width: 20, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+
+        // Drag begins at local (4, 2) within the node's surface.
+        var handler = dragBinding.StartDrag(4, 2);
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(2, node.CursorRow);
+        Assert.Equal(4, node.CursorCol);
+        Assert.True(node.HasSelection);
+        Assert.Equal(2, node.AnchorRow);
+        Assert.Equal(4, node.AnchorCol);
+        Assert.Equal(SelectionMode.Character, node.CursorSelectionMode);
+        Assert.False(handler.IsEmpty);
+    }
+
+    [Fact]
+    public void DragBinding_OnMove_UpdatesCursorRelativeToAnchor()
+    {
+        var node = SetupArrangedNode(width: 20, height: 10);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+
+        var handler = dragBinding.StartDrag(3, 1);
+        var ctx = new InputBindingActionContext(new FocusRing());
+
+        handler.OnMove?.Invoke(ctx, 5, 2);
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(1, node.AnchorRow);
+        Assert.Equal(3, node.AnchorCol);
+        Assert.Equal(3, node.CursorRow);
+        Assert.Equal(8, node.CursorCol);
+    }
+
+    [Fact]
+    public void DragBinding_OnMove_ClampsToNodeBounds()
+    {
+        var node = SetupArrangedNode(width: 10, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+
+        var handler = dragBinding.StartDrag(5, 2);
+        var ctx = new InputBindingActionContext(new FocusRing());
+
+        handler.OnMove?.Invoke(ctx, 100, 100);
+
+        Assert.Equal(4, node.CursorRow);
+        Assert.Equal(9, node.CursorCol);
+    }
+
+    [Fact]
+    public void DragBinding_OnEnd_InstallsKeyboardCapture()
+    {
+        var node = SetupArrangedNode(width: 20, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+        var focusRing = new FocusRing();
+
+        var handler = dragBinding.StartDrag(2, 1);
+        handler.OnEnd?.Invoke(new InputBindingActionContext(focusRing));
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Same(node, focusRing.CapturedNode);
+    }
+
+    [Fact]
+    public void ShiftDrag_StartsLineSelection()
+    {
+        var node = SetupArrangedNode(width: 20, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.Shift);
+
+        dragBinding.StartDrag(4, 2);
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(SelectionMode.Line, node.CursorSelectionMode);
+        Assert.True(node.HasSelection);
+    }
+
+    [Fact]
+    public void AltDrag_StartsBlockSelection()
+    {
+        var node = SetupArrangedNode(width: 20, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.Alt);
+
+        dragBinding.StartDrag(4, 2);
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(SelectionMode.Block, node.CursorSelectionMode);
+        Assert.True(node.HasSelection);
+    }
+
+    [Fact]
+    public void DragBinding_NegativeLocalCoordinates_ClampToZero()
+    {
+        // When SelectionPanel is inside a scrolled ScrollPanel, Bounds.Y can be
+        // negative. The drag binding must not anchor at a negative position.
+        var node = SetupArrangedNode(width: 20, height: 5);
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+
+        dragBinding.StartDrag(-3, -2);
+
+        Assert.True(node.IsInCopyMode);
+        Assert.Equal(0, node.CursorRow);
+        Assert.Equal(0, node.CursorCol);
+        Assert.Equal(0, node.AnchorRow);
+        Assert.Equal(0, node.AnchorCol);
+    }
+
+    private static SelectionPanelNode SetupArrangedNode(int width, int height)
+    {
+        var child = new TextBlockNode { Text = string.Empty };
+        var node = new SelectionPanelNode
+        {
+            Child = child,
+            CopyHandler = _ => Task.CompletedTask,
+        };
+        node.Measure(new Constraints(0, width, 0, height));
+        node.Arrange(new Rect(0, 0, width, height));
+        return node;
+    }
 }

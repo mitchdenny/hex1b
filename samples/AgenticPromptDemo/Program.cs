@@ -17,6 +17,10 @@
 // Y or Enter copies the highlighted text into the editor on the right;
 // Esc or Q cancels.
 //
+// Mouse: left-drag inside the transcript to select. Hold Shift for line,
+// Alt for block. Releasing keeps copy mode active so you can refine with
+// the keyboard then press Y / Enter to commit.
+//
 // Run with: dotnet run --project samples/AgenticPromptDemo
 
 using Hex1b;
@@ -95,7 +99,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("AgenticPromptDemo"),
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
-                s.Section("F12: Copy mode"),
+                s.Section("F12 / Drag: Copy mode"),
                 s.Section("V/⇧V/⌥V: Select"),
                 s.Section("Y: Copy"),
                 s.Section("Esc: Cancel"),
