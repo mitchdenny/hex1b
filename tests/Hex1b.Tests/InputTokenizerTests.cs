@@ -135,6 +135,73 @@ public class InputTokenizerTests
         Assert.IsType<CursorMoveToken>(token);
     }
 
+    // === Modified F1-F4 (xterm "PC keyboard" format: CSI 1;m P/Q/R/S) ===
+    //
+    // Plain F1-F4 use SS3 (ESC O P/Q/R/S). When held with a modifier, xterm and modern
+    // terminals (Windows Terminal via WindowsConsoleDriver, iTerm2, GNOME Terminal, etc.)
+    // emit the CSI form ESC [ 1 ; {mod} <P/Q/R/S>. The corresponding F-key codes for
+    // SpecialKeyToken are 11=F1, 12=F2, 13=F3, 14=F4 (matching the CSI ~ form).
+
+    [Theory]
+    [InlineData('P', 11)] // F1
+    [InlineData('Q', 12)] // F2
+    [InlineData('R', 13)] // F3
+    [InlineData('S', 14)] // F4
+    public void ModifiedFunctionKey_F1ThroughF4_XtermFormat_ParsesAsSpecialKey(char terminator, int expectedCode)
+    {
+        // CSI 1;5{P/Q/R/S} = F1-F4 with Ctrl
+        var input = $"\x1b[1;5{terminator}";
+        var tokens = AnsiTokenizer.Tokenize(input);
+
+        var token = Assert.Single(tokens);
+        var special = Assert.IsType<SpecialKeyToken>(token);
+        Assert.Equal(expectedCode, special.KeyCode);
+        Assert.Equal(5, special.Modifiers); // 5 = Ctrl
+    }
+
+    [Theory]
+    [InlineData(2)]  // Shift
+    [InlineData(3)]  // Alt
+    [InlineData(4)]  // Alt+Shift
+    [InlineData(5)]  // Ctrl
+    [InlineData(6)]  // Ctrl+Shift
+    [InlineData(7)]  // Alt+Ctrl
+    [InlineData(8)]  // Alt+Ctrl+Shift
+    public void ModifiedFunctionKey_F1_AllXtermModifiers_Parse(int modCode)
+    {
+        var input = $"\x1b[1;{modCode}P";
+        var tokens = AnsiTokenizer.Tokenize(input);
+
+        var token = Assert.Single(tokens);
+        var special = Assert.IsType<SpecialKeyToken>(token);
+        Assert.Equal(11, special.KeyCode); // F1
+        Assert.Equal(modCode, special.Modifiers);
+    }
+
+    [Fact]
+    public void PlainCsiP_StillParsesAsDeleteCharacter()
+    {
+        // CSI P (no params or single param) = DCH; must NOT be misinterpreted as F1
+        var tokens = AnsiTokenizer.Tokenize("\x1b[P");
+        Assert.IsType<DeleteCharacterToken>(Assert.Single(tokens));
+
+        var tokens2 = AnsiTokenizer.Tokenize("\x1b[3P");
+        var dch = Assert.IsType<DeleteCharacterToken>(Assert.Single(tokens2));
+        Assert.Equal(3, dch.Count);
+    }
+
+    [Fact]
+    public void PlainCsiS_StillParsesAsScrollUp()
+    {
+        // CSI S (no params or single param) = SU; must NOT be misinterpreted as F4
+        var tokens = AnsiTokenizer.Tokenize("\x1b[S");
+        Assert.IsType<ScrollUpToken>(Assert.Single(tokens));
+
+        var tokens2 = AnsiTokenizer.Tokenize("\x1b[2S");
+        var su = Assert.IsType<ScrollUpToken>(Assert.Single(tokens2));
+        Assert.Equal(2, su.Count);
+    }
+
     // === SGR Mouse Sequences (ESC [ < Cb ; Cx ; Cy M/m) ===
     
     [Fact]

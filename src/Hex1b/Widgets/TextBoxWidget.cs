@@ -18,6 +18,10 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public static readonly ActionId MoveWordLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordLeft)}");
     /// <summary>Rebindable action: Move cursor to next word.</summary>
     public static readonly ActionId MoveWordRight = new($"{nameof(TextBoxWidget)}.{nameof(MoveWordRight)}");
+    /// <summary>Rebindable action: Extend selection to previous word.</summary>
+    public static readonly ActionId SelectWordLeft = new($"{nameof(TextBoxWidget)}.{nameof(SelectWordLeft)}");
+    /// <summary>Rebindable action: Extend selection to next word.</summary>
+    public static readonly ActionId SelectWordRight = new($"{nameof(TextBoxWidget)}.{nameof(SelectWordRight)}");
     /// <summary>Rebindable action: Extend selection left.</summary>
     public static readonly ActionId SelectLeft = new($"{nameof(TextBoxWidget)}.{nameof(SelectLeft)}");
     /// <summary>Rebindable action: Extend selection right.</summary>

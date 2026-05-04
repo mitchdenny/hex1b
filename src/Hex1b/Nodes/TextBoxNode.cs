@@ -162,6 +162,10 @@ public sealed class TextBoxNode : Hex1bNode
         bindings.Shift().Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.SelectRight, SelectRight, "Extend selection right");
         bindings.Shift().Key(Hex1bKey.Home).Triggers(TextBoxWidget.SelectToStart, SelectToStart, "Select to start");
         bindings.Shift().Key(Hex1bKey.End).Triggers(TextBoxWidget.SelectToEnd, SelectToEnd, "Select to end");
+
+        // Word selection (Ctrl+Shift+Arrow)
+        bindings.Ctrl().Shift().Key(Hex1bKey.LeftArrow).Triggers(TextBoxWidget.SelectWordLeft, SelectWordLeft, "Select to previous word");
+        bindings.Ctrl().Shift().Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.SelectWordRight, SelectWordRight, "Select to next word");
         
         // Editing - use async handlers to fire callbacks
         bindings.Key(Hex1bKey.Backspace).Triggers(TextBoxWidget.DeleteBackward, DeleteBackwardAsync, "Delete backward");

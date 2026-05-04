@@ -166,9 +166,8 @@ public sealed class TerminalNode : Hex1bNode
     /// <inheritdoc />
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        // Keyboard scrollback navigation
-        // Note: Ctrl+Shift combinations are not supported by the input binding system,
-        // so we use Shift+Arrow/PageUp/PageDown/Home/End which matches GNOME Terminal conventions
+        // Keyboard scrollback navigation.
+        // We use Shift+Arrow/PageUp/PageDown/Home/End to match GNOME Terminal conventions.
         bindings.Shift().Key(Hex1bKey.UpArrow).Triggers(TerminalWidget.ScrollUpLine, ScrollUpLineHandler, "Scroll up one line");
         bindings.Shift().Key(Hex1bKey.DownArrow).Triggers(TerminalWidget.ScrollDownLine, ScrollDownLineHandler, "Scroll down one line");
         bindings.Shift().Key(Hex1bKey.PageUp).Triggers(TerminalWidget.ScrollUpPage, ScrollUpPageHandler, "Scroll up one page");

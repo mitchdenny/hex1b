@@ -513,6 +513,86 @@ public class TextBoxNodeTests
     }
 
     [Fact]
+    public async Task HandleInput_CtrlShiftLeftArrow_SelectsToPreviousWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 11; // End of "world"
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+
+        Assert.True(node.State.HasSelection);
+        Assert.Equal(11, node.State.SelectionAnchor);
+        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlShiftRightArrow_SelectsToNextWord()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 0; // Start of "hello"
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+
+        Assert.True(node.State.HasSelection);
+        Assert.Equal(0, node.State.SelectionAnchor);
+        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlShiftLeftArrow_ExtendsExistingSelection()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        // Existing selection: anchor at 11, cursor at 10 (one char selected via Shift+Left)
+        node.State.SelectionAnchor = 11;
+        node.State.CursorPosition = 10;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+
+        Assert.True(node.State.HasSelection);
+        Assert.Equal(11, node.State.SelectionAnchor); // anchor unchanged
+        Assert.Equal(6, node.State.CursorPosition);   // jumped to previous word boundary
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlShiftLeftArrow_AtStart_StaysAtStart()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 0;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(0, node.State.CursorPosition);
+        // Anchor was set on entry (at position 0); selection range is empty.
+        Assert.False(node.State.HasSelection);
+    }
+
+    [Fact]
+    public async Task HandleInput_CtrlShiftRightArrow_AtEnd_StaysAtEnd()
+    {
+        var node = new TextBoxNode { Text = "hello world", IsFocused = true };
+        node.State.CursorPosition = 11;
+
+        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
+
+        Assert.Equal(11, node.State.CursorPosition);
+        Assert.False(node.State.HasSelection);
+    }
+
+    [Fact]
+    public void ConfigureDefaultBindings_RegistersSelectWordActions()
+    {
+        // The rebinding contract requires that SelectWordLeft/SelectWordRight
+        // are registered in the InputBindingsBuilder so apps can later call
+        // bindings.Remove(actionId) + bindings.Key(...).Triggers(actionId).
+        var node = new TextBoxNode { Text = "hello world" };
+        var bindings = new InputBindingsBuilder();
+        node.ConfigureDefaultBindings(bindings);
+
+        Assert.NotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordLeft));
+        Assert.NotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordRight));
+    }
+
+    [Fact]
     public async Task HandleInput_CtrlBackspace_DeletesPreviousWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };

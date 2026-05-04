@@ -1,6 +1,18 @@
 # Input Handling
 
-Hex1b provides a comprehensive input system with focus management, keyboard routing, and declarative input bindings. Every built-in widget exposes named actions that you can remap, extend, or disable — making it straightforward to implement custom keybinding schemes like Vim or Emacs without forking widget code.
+Hex1b provides a comprehensive input system with focus management, keyboard routing, and declarative input bindings. Every built-in widget exposes named actions that you can remap, extend, or disable — making it straightforward to implement custom keybinding schemes like Vim or Emacs without forking widget code. **If a binding you registered never fires on a particular terminal, jump to [Keybinding Portability](./keybinding-portability) first** — many popular combos are intercepted by the terminal or the OS before Hex1b ever sees them, and that page lists the known offenders per terminal.
+
+::: warning Binding not firing? It might be the terminal, not your code.
+Different terminals intercept different combos *before* they reach Hex1b
+(Windows Terminal eats `Ctrl+Shift+↑/↓` for scroll, GNOME Terminal eats
+`Ctrl+Shift+T/N/W` for tab/window management, kitty owns the entire
+`Ctrl+Shift+*` keyspace by default, and so on). See
+**[Keybinding Portability](./keybinding-portability)** for the per-terminal
+interception matrix and recommendations on choosing combos that work
+across the terminals you target. The
+[`KeyBindingTester`](https://github.com/mitchdenny/hex1b/tree/main/samples/KeyBindingTester)
+sample lets you confirm what fires on any specific terminal in under a minute.
+:::
 
 ## Focus System
 
@@ -52,6 +64,18 @@ b.Key(Hex1bKey.S).Ctrl().Action(() => Save(), "Save");            // Ctrl+S
 b.Key(Hex1bKey.S).Ctrl().Shift().Action(() => SaveAs(), "Save as"); // Ctrl+Shift+S
 b.Key(Hex1bKey.F1).Alt().Action(() => ShowHelp(), "Help");         // Alt+F1
 ```
+
+> **Terminal reachability caveat (`Ctrl+Shift+letter`).** Most terminals
+> cannot distinguish `Ctrl+Shift+A` from `Ctrl+A`: the `Ctrl` modifier
+> strips ASCII bit 6 of a letter and `Shift` is dropped. Bindings on
+> letter keys with the `Ctrl+Shift` combination will therefore not fire
+> on most platforms unless the terminal opts into a richer key reporting
+> mode (e.g. xterm's `modifyOtherKeys`). **Special keys** — arrows,
+> function keys, `Home`/`End`/`PageUp`/`PageDown`, `Tab`, `Insert`,
+> `Delete` — and **mouse buttons** carry an explicit modifier code in
+> their CSI sequences and deliver `Ctrl+Shift` reliably across terminals.
+> Run `samples/KeyBindingTester` to see which combinations your target
+> terminal supports.
 
 ### Available Keys
 
@@ -385,6 +409,8 @@ Every built-in widget's named actions, their `ActionId` values, and default key 
 | `TextBoxWidget.MoveWordRight` | `"TextBoxWidget.MoveWordRight"` | Ctrl+→ |
 | `TextBoxWidget.SelectLeft` | `"TextBoxWidget.SelectLeft"` | Shift+← |
 | `TextBoxWidget.SelectRight` | `"TextBoxWidget.SelectRight"` | Shift+→ |
+| `TextBoxWidget.SelectWordLeft` | `"TextBoxWidget.SelectWordLeft"` | Ctrl+Shift+← |
+| `TextBoxWidget.SelectWordRight` | `"TextBoxWidget.SelectWordRight"` | Ctrl+Shift+→ |
 | `TextBoxWidget.SelectToStart` | `"TextBoxWidget.SelectToStart"` | Shift+Home |
 | `TextBoxWidget.SelectToEnd` | `"TextBoxWidget.SelectToEnd"` | Shift+End |
 | `TextBoxWidget.SelectAll` | `"TextBoxWidget.SelectAll"` | Ctrl+A, Mouse DoubleClick |
