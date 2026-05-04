@@ -278,13 +278,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             // ─────────────────────────────────────────────────────────────────
             outer.InfoBar(s => [
                 s.Section(currentView).FixedWidth(12),
-                s.Separator(" │ "),
+                s.Divider(" │ "),
                 s.Section(statusMessage).FillWidth(),
-                s.Separator(" │ "),
+                s.Divider(" │ "),
                 s.Section("Alt+Letter: Menu"),
-                s.Separator(" │ "),
+                s.Divider(" │ "),
                 s.Section("Tab: Navigate"),
-                s.Separator(" │ "),
+                s.Divider(" │ "),
                 s.Section("Ctrl+C: Exit")
             ])
         ]) // Close VStack

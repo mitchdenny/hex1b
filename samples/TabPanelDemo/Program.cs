@@ -496,7 +496,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             s.Section(editorState.OpenDocuments.Count > 0 
                 ? $"Tab {editorState.SelectedTabIndex + 1}/{editorState.OpenDocuments.Count}" 
                 : ""),
-            s.Separator(" | "),
+            s.Divider(" | "),
             s.Section("Alt+←/→: Switch tabs")
         ])
     ]))

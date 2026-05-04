@@ -6,7 +6,7 @@
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
-import separatorSnippet from './snippets/infobar-separator.cs?raw'
+import dividerSnippet from './snippets/infobar-divider.cs?raw'
 import widthSnippet from './snippets/infobar-width.cs?raw'
 import themingSnippet from './snippets/infobar-theming.cs?raw'
 
@@ -23,7 +23,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             s.Section("NORMAL"),
             s.Section("main.cs"),
             s.Section("Ln 42, Col 8")
-        ]).WithDefaultSeparator(" │ ")
+        ]).Divider(" │ ")
     ]))
     .Build();
 
@@ -40,7 +40,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             s.Section("Mode: INSERT"),
             s.Spacer(),
             s.Section("100%"),
-            s.Separator(" │ "),
+            s.Divider(" │ "),
             s.Section("UTF-8")
         ])
     ]))
@@ -77,7 +77,7 @@ A horizontal status bar widget for displaying contextual information at the edge
 
 ## Basic Usage
 
-Create an InfoBar with sections separated by a default separator:
+Create an InfoBar with sections joined by an automatic divider:
 
 <CodeBlock lang="csharp" :code="basicCode" command="dotnet run" example="infobar-basic" exampleTitle="InfoBar - Basic Usage" />
 
@@ -87,26 +87,26 @@ Use `Spacer()` to push sections apart. The spacer expands to fill available spac
 
 <CodeBlock lang="csharp" :code="spacerCode" command="dotnet run" example="infobar-spacer" exampleTitle="InfoBar - Spacer" />
 
-## Separators
+## Dividers
 
-Control how sections are visually separated:
+Control how sections are visually divided. A *divider* is a literal character (or string) drawn between two adjacent sections — distinct from a *spacer*, which is the flexible gap above.
 
-### Default Separator
+### Default Divider
 
-Use `.WithDefaultSeparator()` to automatically insert separators between consecutive sections:
+Use `.Divider()` on the `InfoBarWidget` to automatically insert a divider between consecutive sections:
 
-<StaticTerminalPreview svgPath="/svg/infobar-separator.svg" :code="separatorSnippet" />
+<StaticTerminalPreview svgPath="/svg/infobar-divider.svg" :code="dividerSnippet" />
 
-### Explicit Separators
+### Explicit Dividers
 
-Add separators manually for fine-grained control:
+Add dividers manually for fine-grained control:
 
 ```csharp
 ctx.InfoBar(s => [
     s.Section("Mode"),
-    s.Separator(" │ "),  // Explicit separator
+    s.Divider(" │ "),  // Explicit divider
     s.Section("File"),
-    // No separator here
+    // No divider here
     s.Spacer(),
     s.Section("Ready")
 ])

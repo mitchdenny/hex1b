@@ -38,7 +38,7 @@ public class InfoBarBasicExample(ILogger<InfoBarBasicExample> logger) : Hex1bExa
                     s.Section("NORMAL"),
                     s.Section("main.cs"),
                     s.Section("Ln 42, Col 8")
-                ]).WithDefaultSeparator(" │ ")
+                ]).Divider(" │ ")
             ]);
         };
     }

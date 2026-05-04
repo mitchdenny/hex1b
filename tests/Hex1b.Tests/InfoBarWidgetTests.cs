@@ -41,9 +41,9 @@ public class InfoBarWidgetTests
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
                 s.Section("Mode: Insert"),
-                s.Separator(" | "),
+                s.Divider(" | "),
                 s.Section("UTF-8"),
-                s.Separator(" | "),
+                s.Divider(" | "),
                 s.Section("Ln 42")
             ]))
             .WithHeadless()
@@ -69,14 +69,14 @@ public class InfoBarWidgetTests
     }
 
     [Fact]
-    public async Task InfoBar_WithDefaultSeparator_InsertsSeparatorsBetweenSections()
+    public async Task InfoBar_Divider_InsertsDividersBetweenSections()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
                 s.Section("A"),
                 s.Section("B"),
                 s.Section("C")
-            ]).WithDefaultSeparator(" | "))
+            ]).Divider(" | "))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -85,8 +85,8 @@ public class InfoBarWidgetTests
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("A") && s.ContainsText("B") && s.ContainsText("C"),
-                TimeSpan.FromSeconds(2), "all sections with separators to render")
-            .Capture("default-separator")
+                TimeSpan.FromSeconds(2), "all sections with dividers to render")
+            .Capture("default-divider")
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -94,7 +94,7 @@ public class InfoBarWidgetTests
         await runTask;
 
         var text = snapshot.GetScreenText();
-        // Should have separators between sections
+        // Should have dividers between sections
         Assert.Contains("A | B | C", text);
     }
 
