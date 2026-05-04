@@ -90,34 +90,66 @@ public sealed class InputBindingsBuilder
         => text.Length > 0 && (text.Length > 1 || !char.IsControl(text[0]));
 
     /// <summary>
-    /// Adds a pre-built binding directly.
+    /// Adds a pre-built key binding directly.
+    /// Use this when constructing an <see cref="InputBinding"/> outside the fluent builder
+    /// (for example, when bindings are loaded from configuration or shared across widgets).
     /// </summary>
-    internal void AddBinding(InputBinding binding)
+    /// <param name="binding">The binding to add. Must not be <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="binding"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// Each binding instance should be treated as single-use: <see cref="InputBinding.OwnerNode"/>
+    /// is mutated post-construction by the input router, so reusing the same instance across
+    /// multiple widgets produces ambiguous owner metadata.
+    /// </remarks>
+    public void Add(InputBinding binding)
     {
+        ArgumentNullException.ThrowIfNull(binding);
         _bindings.Add(binding);
     }
 
     /// <summary>
     /// Adds a pre-built character binding directly.
     /// </summary>
-    internal void AddCharacterBinding(CharacterBinding binding)
+    /// <param name="binding">The binding to add. Must not be <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="binding"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// Character bindings are checked only on the focused node — there is no global-style fallback.
+    /// </remarks>
+    public void Add(CharacterBinding binding)
     {
+        ArgumentNullException.ThrowIfNull(binding);
         _characterBindings.Add(binding);
     }
 
     /// <summary>
     /// Adds a pre-built mouse binding directly.
     /// </summary>
-    internal void AddMouseBinding(MouseBinding binding)
+    /// <param name="binding">The binding to add. Must not be <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="binding"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// Mouse Down events route via focus hit-testing, which only considers focusable nodes.
+    /// Mouse bindings on non-focusable container nodes will never fire — wrap such nodes in
+    /// <c>InteractableWidget</c> to make them mouse-routable.
+    /// </remarks>
+    public void Add(MouseBinding binding)
     {
+        ArgumentNullException.ThrowIfNull(binding);
         _mouseBindings.Add(binding);
     }
 
     /// <summary>
     /// Adds a pre-built drag binding directly.
     /// </summary>
-    internal void AddDragBinding(DragBinding binding)
+    /// <param name="binding">The binding to add. Must not be <see langword="null"/>.</param>
+    /// <exception cref="ArgumentNullException"><paramref name="binding"/> is <see langword="null"/>.</exception>
+    /// <remarks>
+    /// Drag initiation routes via focus hit-testing, which only considers focusable nodes.
+    /// Drag bindings on non-focusable container nodes will never fire — wrap such nodes in
+    /// <c>InteractableWidget</c> to make them mouse-routable.
+    /// </remarks>
+    public void Add(DragBinding binding)
     {
+        ArgumentNullException.ThrowIfNull(binding);
         _dragBindings.Add(binding);
     }
 

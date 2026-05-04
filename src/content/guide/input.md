@@ -168,6 +168,34 @@ protected override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
 
 This separation — actions declared on widgets, defaults wired in nodes — is what makes the rebinding system work. You reference `ListWidget.MoveUp` to remap it; you never need to know what key it was originally bound to.
 
+## Registering Prebuilt Bindings
+
+Most app code uses the fluent API (`b.Ctrl().Key(Hex1bKey.S).Action(...)`), but you can also construct an `InputBinding`, `MouseBinding`, `CharacterBinding`, or `DragBinding` directly and register it via `InputBindingsBuilder.Add(...)`. This is useful when bindings are loaded from configuration, generated dynamically, or shared across multiple widgets.
+
+```csharp
+// Build the binding outside the WithInputBindings callback.
+var selectWordLeft = new InputBinding(
+    [new KeyStep(Hex1bKey.LeftArrow, Hex1bModifiers.Control | Hex1bModifiers.Shift)],
+    handler: ctx => SelectPreviousWord(ctx),
+    description: "Select previous word",
+    isGlobal: false,
+    actionId: new ActionId("MyApp.SelectWordLeft"),
+    overridesCapture: false);
+
+widget.WithInputBindings(b => b.Add(selectWordLeft));
+```
+
+The same pattern works for `Add(MouseBinding)`, `Add(CharacterBinding)`, and `Add(DragBinding)`. Each overload throws `ArgumentNullException` when given `null`.
+
+### Caveats
+
+A few constraints are worth knowing about before relying on prebuilt bindings:
+
+- **Treat each binding instance as single-use.** The router stamps `OwnerNode` on the binding during input collection, so reusing the same `InputBinding` instance across multiple widgets produces ambiguous owner metadata. Construct a fresh instance per registration.
+- **Mouse and drag bindings on non-focusable nodes never fire.** Mouse routing hit-tests focusable nodes only — bindings on a plain container (e.g., `VStack`, `Border`) won't receive mouse events. Wrap the container in `InteractableWidget` to make it mouse-routable.
+- **Character bindings are checked only on the focused node.** They have no global-style fallback; `Add(CharacterBinding)` on a non-focusable widget will compile and store the binding but it won't ever match.
+- **Constructor-supplied `ActionId` does NOT enable `Triggers(actionId)` rebinding.** It supports `Remove(ActionId)` and `GetBindings(ActionId)` only. If you need apps to re-bind your action by id, register through the fluent `Triggers(actionId, handler, description)` path instead — that path also seeds the rebinding registry.
+
 ## Customizing Keybindings
 
 The `WithInputBindings` API combined with `ActionId` gives you four patterns for customizing widget behavior.

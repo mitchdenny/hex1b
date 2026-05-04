@@ -36,7 +36,7 @@ public sealed class InputBinding
     /// When true, this binding is checked even when another node has captured all input.
     /// Use this for menu accelerators and other app-level shortcuts that should always work.
     /// </summary>
-    public bool OverridesCapture { get; internal set; }
+    public bool OverridesCapture { get; }
 
     /// <summary>
     /// The node that owns this binding (for conflict detection and debugging).
@@ -48,13 +48,22 @@ public sealed class InputBinding
     /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
     /// Convention: "WidgetName.ActionName" (e.g., "List.MoveUp").
     /// </summary>
-    public ActionId? ActionId { get; internal set; }
+    /// <remarks>
+    /// When supplied via the constructor (e.g., for a binding registered through
+    /// <see cref="InputBindingsBuilder.Add(InputBinding)"/>), this id supports
+    /// <see cref="InputBindingsBuilder.Remove(ActionId)"/> and
+    /// <see cref="InputBindingsBuilder.GetBindings(ActionId)"/> only — it is NOT registered
+    /// in the rebinding registry. Use the fluent
+    /// <see cref="KeyStepBuilder.Triggers(ActionId, Action{InputBindingActionContext}, string?)"/>
+    /// path if you also need <see cref="KeyStepBuilder.Triggers(ActionId)"/> rebinding support.
+    /// </remarks>
+    public ActionId? ActionId { get; }
 
     /// <summary>
     /// Creates an input binding with a simple action handler (no context).
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Action action, string? description = null, bool isGlobal = false)
-        : this(steps, _ => { action(); return Task.CompletedTask; }, description, isGlobal)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action action, string? description = null, bool isGlobal = false, ActionId? actionId = null, bool overridesCapture = false)
+        : this(steps, _ => { action(); return Task.CompletedTask; }, description, isGlobal, actionId, overridesCapture)
     {
         ArgumentNullException.ThrowIfNull(action);
     }
@@ -62,8 +71,8 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with a synchronous context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Action<InputBindingActionContext> action, string? description = null, bool isGlobal = false)
-        : this(steps, ctx => { action(ctx); return Task.CompletedTask; }, description, isGlobal)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Action<InputBindingActionContext> action, string? description = null, bool isGlobal = false, ActionId? actionId = null, bool overridesCapture = false)
+        : this(steps, ctx => { action(ctx); return Task.CompletedTask; }, description, isGlobal, actionId, overridesCapture)
     {
         ArgumentNullException.ThrowIfNull(action);
     }
@@ -71,15 +80,19 @@ public sealed class InputBinding
     /// <summary>
     /// Creates an input binding with an async context-aware action handler.
     /// </summary>
-    public InputBinding(IReadOnlyList<KeyStep> steps, Func<InputBindingActionContext, Task> handler, string? description = null, bool isGlobal = false)
+    public InputBinding(IReadOnlyList<KeyStep> steps, Func<InputBindingActionContext, Task> handler, string? description = null, bool isGlobal = false, ActionId? actionId = null, bool overridesCapture = false)
     {
+        ArgumentNullException.ThrowIfNull(steps);
         if (steps.Count == 0)
             throw new ArgumentException("At least one key step is required.", nameof(steps));
-        
-        Steps = steps;
+
+        // Defensive copy so external mutation of the source list cannot change runtime behavior.
+        Steps = [.. steps];
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
         IsGlobal = isGlobal;
+        ActionId = actionId;
+        OverridesCapture = overridesCapture;
     }
 
     /// <summary>

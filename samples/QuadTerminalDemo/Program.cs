@@ -22,12 +22,8 @@ app.UseStaticFiles();
 
 var terminalConfigs = GetTerminalConfigs();
 
-app.MapGet("/terminal-config", () => terminalConfigs.Select(config => new
-{
-    endpoint = config.Endpoint,
-    label = config.Label,
-    windowsPty = config.WindowsPty
-}));
+app.MapGet("/terminal-config", () => terminalConfigs.Select(config =>
+    new TerminalConfigResponse(config.Endpoint, config.Label, config.WindowsPty)));
 
 // Helper to create WebSocket terminal endpoint
 async Task HandleTerminal(HttpContext context, TerminalConfig config)
@@ -176,5 +172,10 @@ internal sealed record TerminalConfig(
     string Label,
     string[] Command,
     WindowsPtyConfig? WindowsPty = null);
+
+internal sealed record TerminalConfigResponse(
+    string Endpoint,
+    string Label,
+    WindowsPtyConfig? WindowsPty);
 
 internal sealed record WindowsPtyConfig(string Backend, int BuildNumber);

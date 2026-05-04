@@ -32,26 +32,34 @@ public sealed class CharacterBinding
     /// A stable identifier for the action this binding performs.
     /// Used for programmatic rebinding via <see cref="InputBindingsBuilder.Remove(ActionId)"/>.
     /// </summary>
-    public ActionId? ActionId { get; internal set; }
+    /// <remarks>
+    /// When supplied via the constructor (e.g., for a binding registered through
+    /// <see cref="InputBindingsBuilder.Add(CharacterBinding)"/>), this id supports
+    /// <see cref="InputBindingsBuilder.Remove(ActionId)"/> only — it is NOT registered
+    /// in the rebinding registry.
+    /// </remarks>
+    public ActionId? ActionId { get; }
 
     /// <summary>
     /// Creates a text binding with the given predicate and synchronous handler.
     /// </summary>
-    public CharacterBinding(Func<string, bool> predicate, Action<string> handler, string? description = null)
+    public CharacterBinding(Func<string, bool> predicate, Action<string> handler, string? description = null, ActionId? actionId = null)
     {
         Predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
         Handler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
+        ActionId = actionId;
     }
 
     /// <summary>
     /// Creates a text binding with the given predicate and async handler.
     /// </summary>
-    public CharacterBinding(Func<string, bool> predicate, Func<string, InputBindingActionContext, Task> handler, string? description = null)
+    public CharacterBinding(Func<string, bool> predicate, Func<string, InputBindingActionContext, Task> handler, string? description = null, ActionId? actionId = null)
     {
         Predicate = predicate ?? throw new ArgumentNullException(nameof(predicate));
         AsyncHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
+        ActionId = actionId;
     }
 
     /// <summary>

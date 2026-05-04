@@ -19,7 +19,7 @@ public sealed class CharacterStepBuilder
     /// </summary>
     public void Action(Action<string> handler, string? description = null)
     {
-        _parent.AddCharacterBinding(new CharacterBinding(_predicate, handler, description));
+        _parent.Add(new CharacterBinding(_predicate, handler, description));
     }
 
     /// <summary>
@@ -27,6 +27,6 @@ public sealed class CharacterStepBuilder
     /// </summary>
     public void Action(Func<string, InputBindingActionContext, Task> handler, string? description = null)
     {
-        _parent.AddCharacterBinding(new CharacterBinding(_predicate, handler, description));
+        _parent.Add(new CharacterBinding(_predicate, handler, description));
     }
 }

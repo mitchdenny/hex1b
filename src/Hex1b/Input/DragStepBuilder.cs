@@ -40,7 +40,7 @@ public sealed class DragStepBuilder
     public InputBindingsBuilder Action(Func<int, int, DragHandler> factory, string? description = null)
     {
         var binding = new DragBinding(_button, _modifiers, factory, description);
-        _parent.AddDragBinding(binding);
+        _parent.Add(binding);
         return _parent;
     }
 }

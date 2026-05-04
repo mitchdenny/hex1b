@@ -96,10 +96,8 @@ public sealed class KeyStepBuilder
     public void Action(Action handler, string? description = null)
     {
         CommitCurrentStep();
-        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
-        binding.OverridesCapture = _overridesCapture;
-        binding.ActionId = _actionId;
-        _parent.AddBinding(binding);
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal, _actionId, _overridesCapture);
+        _parent.Add(binding);
     }
 
     /// <summary>
@@ -109,10 +107,8 @@ public sealed class KeyStepBuilder
     public void Action(Action<InputBindingActionContext> handler, string? description = null)
     {
         CommitCurrentStep();
-        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
-        binding.OverridesCapture = _overridesCapture;
-        binding.ActionId = _actionId;
-        _parent.AddBinding(binding);
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal, _actionId, _overridesCapture);
+        _parent.Add(binding);
     }
 
     /// <summary>
@@ -121,10 +117,8 @@ public sealed class KeyStepBuilder
     public void Action(Func<InputBindingActionContext, Task> handler, string? description = null)
     {
         CommitCurrentStep();
-        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal);
-        binding.OverridesCapture = _overridesCapture;
-        binding.ActionId = _actionId;
-        _parent.AddBinding(binding);
+        var binding = new InputBinding([.. _completedSteps], handler, description, _isGlobal, _actionId, _overridesCapture);
+        _parent.Add(binding);
     }
 
     /// <summary>
