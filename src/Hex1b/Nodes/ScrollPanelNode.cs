@@ -35,12 +35,26 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// </summary>
     public ScrollPanelWidget? SourceWidget { get; set; }
     
+    private int _offset;
+
     /// <summary>
     /// The current scroll offset (in characters).
     /// For vertical scrolling, this is the row offset.
     /// For horizontal scrolling, this is the column offset.
     /// </summary>
-    public int Offset { get; private set; }
+    /// <remarks>
+    /// Setting this property clamps the value to <c>[0, <see cref="MaxOffset"/>]</c>,
+    /// invalidates layout, and updates follow-mode tracking. Programmatic mutation
+    /// does <b>not</b> fire the <c>OnScroll</c> event because there is no input
+    /// binding context to attach to the event arguments. To observe programmatic
+    /// scroll changes, mirror the value yourself or wrap mutations in your own
+    /// notification.
+    /// </remarks>
+    public int Offset
+    {
+        get => _offset;
+        set => SetOffsetCore(value, context: null);
+    }
     
     /// <summary>
     /// The size of the content being scrolled (in characters).
@@ -67,7 +81,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// <summary>
     /// When set, <see cref="EnsureFocusedVisible"/> is suppressed as long as
     /// this node remains the focused descendant. This allows child nodes
-    /// (e.g. markdown headings) to scroll the panel via <see cref="SetOffset"/>
+    /// (e.g. markdown headings) to scroll the panel via <see cref="Offset"/>
     /// without the layout phase immediately scrolling back. Cleared
     /// automatically when focus moves to a different node.
     /// </summary>
@@ -78,12 +92,6 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// Set during reconciliation from the ScrollPanelWidget's ScrollHandler.
     /// </summary>
     internal Func<InputBindingActionContext, int, int, int, int, Task>? ScrollAction { get; set; }
-    
-    /// <summary>
-    /// Context for firing scroll events when not triggered by user input.
-    /// </summary>
-    private InputBindingActionContext? _pendingEventContext;
-    
     /// <summary>
     /// Whether follow mode is enabled via the widget configuration.
     /// </summary>
@@ -372,32 +380,36 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     
     /// <summary>
     /// Sets the offset directly and fires the scroll event if changed.
+    /// Internal entry point used by binding-driven scrolling that has an
+    /// <see cref="InputBindingActionContext"/> available for the event payload.
+    /// Public callers should use the <see cref="Offset"/> setter, <see cref="ScrollBy"/>,
+    /// <see cref="ScrollByPage"/>, <see cref="ScrollToTop"/>, or <see cref="ScrollToBottom"/>.
     /// </summary>
     internal void SetOffset(int newOffset, InputBindingActionContext? context = null)
+        => SetOffsetCore(newOffset, context);
+
+    private void SetOffsetCore(int newOffset, InputBindingActionContext? context)
     {
         var clampedOffset = Math.Clamp(newOffset, 0, MaxOffset);
-        if (clampedOffset == Offset) return;
-        
-        var previousOffset = Offset;
-        Offset = clampedOffset;
+        if (clampedOffset == _offset) return;
+
+        var previousOffset = _offset;
+        _offset = clampedOffset;
         MarkDirty();
-        
+
         // Update follow state based on user scroll position
         if (FollowEnabled)
         {
-            IsFollowing = Offset >= MaxOffset;
+            IsFollowing = _offset >= MaxOffset;
         }
-        
-        // Fire scroll event
+
+        // Fire scroll event when there's an input context. Programmatic mutations
+        // (Offset setter, ScrollByPage, ScrollBy, ScrollToTop, ScrollToBottom) pass
+        // a null context and intentionally skip OnScroll, mirroring ListNode.SelectedIndex.
         if (ScrollAction != null && context != null)
         {
             // Fire async event - we don't await it here as it's fire-and-forget in input handling
-            _ = ScrollAction(context, Offset, previousOffset, ContentSize, ViewportSize);
-        }
-        else if (ScrollAction != null)
-        {
-            // Store context for deferred event firing
-            _pendingEventContext = context;
+            _ = ScrollAction(context, _offset, previousOffset, ContentSize, ViewportSize);
         }
     }
     
@@ -405,9 +417,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// Scrolls by the specified amount (positive = down/right, negative = up/left).
     /// </summary>
     private void ScrollByAmount(int amount, InputBindingActionContext? context = null)
-    {
-        SetOffset(Offset + amount, context);
-    }
+        => SetOffsetCore(_offset + amount, context);
 
     /// <summary>
     /// Adjusts Offset so the focused descendant's bounds are within the viewport.
@@ -484,70 +494,106 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         }
 
         newOffset = Math.Clamp(newOffset, 0, MaxOffset);
-        if (newOffset == Offset) return false;
+        if (newOffset == _offset) return false;
 
-        Offset = newOffset;
+        _offset = newOffset;
         MarkDirty();
         return true;
     }
     
     /// <summary>
-    /// Scrolls by a full page (viewport size minus 1).
+    /// Scrolls by a full page in the given direction.
     /// </summary>
-    private void ScrollByPage(int direction, InputBindingActionContext? context = null)
+    /// <param name="direction">
+    /// Use <c>+1</c> to scroll forward (down/right) by one viewport, <c>-1</c> to
+    /// scroll backward (up/left) by one viewport. Larger magnitudes multiply the
+    /// step (e.g. <c>2</c> scrolls two pages forward).
+    /// </param>
+    /// <remarks>
+    /// One page is <c>max(1, ViewportSize - 1)</c> — the viewport size minus one
+    /// row/column of overlap so the user keeps a line of context when paging.
+    /// Programmatic mutation does not fire the <c>OnScroll</c> event.
+    /// </remarks>
+    public void ScrollByPage(int direction)
     {
         var pageSize = Math.Max(1, ViewportSize - 1);
-        ScrollByAmount(direction * pageSize, context);
+        SetOffsetCore(_offset + direction * pageSize, context: null);
     }
-    
+
+    /// <summary>
+    /// Scrolls by the specified number of characters relative to the current offset.
+    /// Positive values scroll forward (down/right); negative values scroll backward (up/left).
+    /// The result is clamped to <c>[0, <see cref="MaxOffset"/>]</c>.
+    /// Programmatic mutation does not fire the <c>OnScroll</c> event.
+    /// </summary>
+    public void ScrollBy(int amount)
+    {
+        // Widen to long to avoid overflow when amount is large (e.g., int.MaxValue).
+        long target = (long)_offset + amount;
+        if (target < 0) target = 0;
+        if (target > MaxOffset) target = MaxOffset;
+        SetOffsetCore((int)target, context: null);
+    }
+
+    /// <summary>
+    /// Scrolls to the start of the content (offset <c>0</c>).
+    /// Programmatic mutation does not fire the <c>OnScroll</c> event.
+    /// </summary>
+    public void ScrollToTop() => SetOffsetCore(0, context: null);
+
+    /// <summary>
+    /// Scrolls to the end of the content (offset = <see cref="MaxOffset"/>).
+    /// When follow mode is enabled, this also re-engages following.
+    /// Programmatic mutation does not fire the <c>OnScroll</c> event.
+    /// </summary>
+    public void ScrollToBottom() => SetOffsetCore(MaxOffset, context: null);
+
     #endregion
 
     private void ScrollUp(InputBindingActionContext ctx)
     {
-        if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
+        if (Orientation != ScrollOrientation.Vertical) return;
         ScrollByAmount(-1, ctx);
     }
 
     private void ScrollDown(InputBindingActionContext ctx)
     {
-        if (!IsFocused || Orientation != ScrollOrientation.Vertical) return;
+        if (Orientation != ScrollOrientation.Vertical) return;
         ScrollByAmount(1, ctx);
     }
 
     private void ScrollLeft(InputBindingActionContext ctx)
     {
-        if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
+        if (Orientation != ScrollOrientation.Horizontal) return;
         ScrollByAmount(-1, ctx);
     }
 
     private void ScrollRight(InputBindingActionContext ctx)
     {
-        if (!IsFocused || Orientation != ScrollOrientation.Horizontal) return;
+        if (Orientation != ScrollOrientation.Horizontal) return;
         ScrollByAmount(1, ctx);
     }
 
     private void PageUp(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
-        ScrollByPage(-1, ctx);
+        var pageSize = Math.Max(1, ViewportSize - 1);
+        SetOffsetCore(_offset - pageSize, ctx);
     }
 
     private void PageDown(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
-        ScrollByPage(1, ctx);
+        var pageSize = Math.Max(1, ViewportSize - 1);
+        SetOffsetCore(_offset + pageSize, ctx);
     }
 
     private void ScrollToStart(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
-        SetOffset(0, ctx);
+        SetOffsetCore(0, ctx);
     }
 
     private void ScrollToEnd(InputBindingActionContext ctx)
     {
-        if (!IsFocused) return;
-        SetOffset(MaxOffset, ctx);
+        SetOffsetCore(MaxOffset, ctx);
     }
 
     private void FocusFirst()
@@ -597,7 +643,7 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         // Follow mode: snap to end when content grows
         if (FollowEnabled && IsFollowing && ContentSize > _previousContentSize)
         {
-            Offset = MaxOffset;
+            _offset = MaxOffset;
         }
         _previousContentSize = ContentSize;
         
@@ -644,13 +690,13 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
         }
         
         // Clamp offset to valid range
-        if (Offset > MaxOffset)
+        if (_offset > MaxOffset)
         {
-            Offset = MaxOffset;
+            _offset = MaxOffset;
         }
-        if (Offset < 0)
+        if (_offset < 0)
         {
-            Offset = 0;
+            _offset = 0;
         }
         
         // Set up viewport rect for clipping
