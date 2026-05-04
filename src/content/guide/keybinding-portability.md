@@ -7,7 +7,8 @@
 > can pick bindings that work everywhere your app ships.
 >
 > Want to confirm what your terminal does? Run the
-> [`KeyBindingTester`](../samples/KeyBindingTester/README.md) sample.
+> [`KeyBindingTester`](https://github.com/mitchdenny/hex1b/tree/main/samples/KeyBindingTester)
+> sample.
 
 ## Why combos go missing
 
@@ -371,13 +372,13 @@ forwards them.
    their `settings.json`.
 4. **Treat `Ctrl+Backspace` as unsupported on standard ANSI terminals** until
    Hex1b adds the kitty keyboard protocol.
-5. **Run [`KeyBindingTester`](../samples/KeyBindingTester/README.md) on every
+5. **Run [`KeyBindingTester`](https://github.com/mitchdenny/hex1b/tree/main/samples/KeyBindingTester) on every
    terminal you target** and ship the resulting markdown report alongside your
    app's release notes.
 
 ## See also
 
-- [`samples/KeyBindingTester/README.md`](../samples/KeyBindingTester/README.md)
+- [`samples/KeyBindingTester/README.md`](https://github.com/mitchdenny/hex1b/tree/main/samples/KeyBindingTester)
   — the manual portability harness that produced the data behind this page.
 - microsoft/terminal `defaults.json` — authoritative source for the Windows
   Terminal column above.
