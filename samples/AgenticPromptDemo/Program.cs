@@ -24,12 +24,12 @@ using Hex1b.Widgets;
 
 var transcript = new List<TranscriptEntry>
 {
-    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. F7/F8/F9/F12 snapshot the panel content into the editor on the right (cells / block / lines / full). Ctrl+Q quits."),
+    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Press F7/F8/F9 to preview a selection (cells / block / lines) — selected cells highlight in place — then F12 to copy the highlighted text into the editor on the right. F12 with no preview copies the full content. Ctrl+Q quits."),
 };
 
-// Read-only editor on the right shows the most recent SelectionPanel snapshot.
+// Read-only editor on the right shows the most recent SelectionPanel copy.
 var clipboardDoc = new Hex1bDocument(
-    "(Press F7 / F8 / F9 / F12 to snapshot the panel on the left into this editor.)");
+    "(Press F7 / F8 / F9 to preview a selection, then F12 to copy it into this editor. F12 alone copies the whole panel.)");
 var clipboardEditorState = new EditorState(clipboardDoc) { IsReadOnly = true };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -47,7 +47,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         sv.SelectionPanel(
                             sv.VStack(inner =>
                                 transcript.Select(entry => RenderEntry(inner, entry)).ToArray()))
-                            .OnSnapshot(text =>
+                            .OnCopy(text =>
                             {
                                 var range = new DocumentRange(
                                     new DocumentOffset(0),
@@ -79,7 +79,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         }),
                 ]),
 
-                // RIGHT — read-only editor for inspecting copied / snapshotted text.
+                // RIGHT — read-only editor for inspecting copied text.
                 v.Border(
                     v.Editor(clipboardEditorState).Fill()
                 ).Title("Copied text"),
@@ -93,7 +93,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("AgenticPromptDemo"),
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
-                s.Section("F7/F8/F9/F12: Snapshot (cells/block/lines/full)"),
+                s.Section("F7/F8/F9: Preview (cells/block/lines)"),
+                s.Section("F12: Copy"),
                 s.Section("Ctrl+Q: Quit"),
                 s.Spacer(),
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),

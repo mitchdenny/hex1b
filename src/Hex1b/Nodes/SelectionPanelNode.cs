@@ -11,10 +11,14 @@ namespace Hex1b.Nodes;
 /// </summary>
 /// <remarks>
 /// Layout, focus, and input remain delegated to the wrapped child. When a
-/// <see cref="SnapshotHandler"/> is supplied, the node also registers global
-/// bindings (default <c>F7</c> cells, <c>F8</c> block, <c>F9</c> lines,
-/// <c>F12</c> full) that call <see cref="SnapshotText(SelectionPanelSnapshotMode)"/>
-/// and invoke the handler with the result.
+/// <see cref="CopyHandler"/> is supplied, the node also registers global
+/// bindings for the two-stage copy flow (default <c>F7</c> cells, <c>F8</c>
+/// block, <c>F9</c> lines, <c>F12</c> commit). Pressing one of the selection
+/// keys sets <see cref="SelectionMode"/> and triggers a re-render that
+/// inverts the previewed cells in place; pressing the copy key invokes the
+/// handler with <see cref="SnapshotText(SelectionPanelSnapshotMode)"/> for
+/// the active mode (or the full content if no mode is active) and clears
+/// the preview.
 /// </remarks>
 public sealed class SelectionPanelNode : Hex1bNode
 {
@@ -24,11 +28,23 @@ public sealed class SelectionPanelNode : Hex1bNode
     public Hex1bNode? Child { get; set; }
 
     /// <summary>
-    /// Optional handler invoked with the result of
-    /// <see cref="SnapshotText(SelectionPanelSnapshotMode)"/> when any snapshot
-    /// action fires. When <c>null</c>, no binding is registered.
+    /// Optional handler invoked with the plain text of the current selection
+    /// (or the entire content if <see cref="SelectionMode"/> is <c>null</c>)
+    /// when the copy action fires. When this is <c>null</c>, no bindings are
+    /// registered.
     /// </summary>
-    public Func<string, Task>? SnapshotHandler { get; set; }
+    public Func<string, Task>? CopyHandler { get; set; }
+
+    /// <summary>
+    /// The currently previewed selection mode, or <c>null</c> when no
+    /// selection preview is active. Setting this via the corresponding
+    /// binding (<see cref="SelectionPanelWidget.SelectCells"/>,
+    /// <see cref="SelectionPanelWidget.SelectBlock"/>,
+    /// <see cref="SelectionPanelWidget.SelectLines"/>) inverts the matching
+    /// cells in the rendered output until the copy action commits or
+    /// switches modes.
+    /// </summary>
+    public SelectionPanelSnapshotMode? SelectionMode { get; private set; }
 
     public override bool IsFocusable => false;
 
@@ -53,9 +69,70 @@ public sealed class SelectionPanelNode : Hex1bNode
 
     public override void Render(Hex1bRenderContext context)
     {
-        if (Child != null)
+        if (Child is null) return;
+
+        // No active selection preview, or we don't have a surface context to
+        // capture into: render the child straight through.
+        if (SelectionMode is null || context is not SurfaceRenderContext surfaceCtx)
         {
             context.RenderChild(Child);
+            return;
+        }
+
+        if (Bounds.Width <= 0 || Bounds.Height <= 0)
+        {
+            return;
+        }
+
+        // Selection preview is active. Capture the child's output to a
+        // temporary surface, invert the cells in the previewed region, then
+        // composite the modified surface back. This mirrors EffectPanelNode
+        // — using its own internal EffectPanel composition rather than
+        // wrapping the child via the widget tree, because preview state
+        // lives on the node and isn't visible to widget-builder code.
+        var pool = surfaceCtx.SurfacePool;
+        var tempSurface = pool != null
+            ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
+            : new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
+
+        try
+        {
+            var tempContext = new SurfaceRenderContext(
+                tempSurface, Bounds.X, Bounds.Y, context.Theme, surfaceCtx.TrackedObjectStore)
+            {
+                CachingEnabled = surfaceCtx.CachingEnabled,
+                MouseX = surfaceCtx.MouseX,
+                MouseY = surfaceCtx.MouseY,
+                CellMetrics = surfaceCtx.CellMetrics,
+                SurfacePool = pool,
+            };
+
+            tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
+            tempContext.RenderChild(Child);
+
+            InvertSelection(tempSurface, SelectionMode.Value);
+
+            Rect? clipRect = null;
+            if (surfaceCtx.CurrentLayoutProvider != null)
+            {
+                var providerClip = surfaceCtx.CurrentLayoutProvider.ClipRect;
+                clipRect = new Rect(
+                    providerClip.X - surfaceCtx.OffsetX,
+                    providerClip.Y - surfaceCtx.OffsetY,
+                    providerClip.Width,
+                    providerClip.Height);
+            }
+
+            surfaceCtx.Surface.Composite(
+                tempSurface,
+                Bounds.X - surfaceCtx.OffsetX,
+                Bounds.Y - surfaceCtx.OffsetY,
+                clipRect);
+        }
+        finally
+        {
+            if (pool != null)
+                pool.Return(tempSurface);
         }
     }
 
@@ -75,7 +152,7 @@ public sealed class SelectionPanelNode : Hex1bNode
 
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
-        if (SnapshotHandler is null)
+        if (CopyHandler is null)
         {
             return;
         }
@@ -84,7 +161,7 @@ public sealed class SelectionPanelNode : Hex1bNode
         // user's focus typically lives outside its subtree (e.g. a TextBox
         // pinned below the scroll panel). Keeping these on the node — rather
         // than free-floating app bindings — means they only exist when there
-        // is actually a panel registered to receive snapshots.
+        // is actually a panel registered to receive copies.
         //
         // Function keys are used (rather than Ctrl+Letter chords) because
         // Windows console and most xterm-style terminals encode Ctrl+Letter
@@ -98,13 +175,37 @@ public sealed class SelectionPanelNode : Hex1bNode
         // Windows Terminal (intercepted before the app sees it). F7-F9 plus
         // F12 are reliably free across Windows Terminal, conhost, and the
         // common xterm-derived emulators.
-        RegisterSnapshotBinding(bindings, Hex1bKey.F7, SelectionPanelWidget.SnapshotCells, SelectionPanelSnapshotMode.Cells, "Snapshot SelectionPanel content (cell stream)");
-        RegisterSnapshotBinding(bindings, Hex1bKey.F8, SelectionPanelWidget.SnapshotBlock, SelectionPanelSnapshotMode.Block, "Snapshot SelectionPanel content (block)");
-        RegisterSnapshotBinding(bindings, Hex1bKey.F9, SelectionPanelWidget.SnapshotLines, SelectionPanelSnapshotMode.Lines, "Snapshot SelectionPanel content (lines)");
-        RegisterSnapshotBinding(bindings, Hex1bKey.F12, SelectionPanelWidget.Snapshot, SelectionPanelSnapshotMode.Full, "Snapshot SelectionPanel content (full)");
+        RegisterSelectionBinding(bindings, Hex1bKey.F7, SelectionPanelWidget.SelectCells, SelectionPanelSnapshotMode.Cells, "Preview cell-stream selection");
+        RegisterSelectionBinding(bindings, Hex1bKey.F8, SelectionPanelWidget.SelectBlock, SelectionPanelSnapshotMode.Block, "Preview block selection");
+        RegisterSelectionBinding(bindings, Hex1bKey.F9, SelectionPanelWidget.SelectLines, SelectionPanelSnapshotMode.Lines, "Preview line selection");
+
+        bindings.Key(Hex1bKey.F12).Global().Triggers(
+            SelectionPanelWidget.Copy,
+            async ctx =>
+            {
+                var handler = CopyHandler;
+                if (handler is null)
+                {
+                    return;
+                }
+
+                // Snapshot the active selection (or full content if no preview).
+                var text = SnapshotText(SelectionMode ?? SelectionPanelSnapshotMode.Full);
+
+                // Clear the preview before invoking the handler so that, if
+                // the handler itself triggers another render (e.g. by
+                // updating an editor document), the selection no longer
+                // shows up inverted.
+                SelectionMode = null;
+                MarkDirty();
+                ctx.Invalidate();
+
+                await handler(text);
+            },
+            "Copy current selection (or full content)");
     }
 
-    private void RegisterSnapshotBinding(
+    private void RegisterSelectionBinding(
         InputBindingsBuilder bindings,
         Hex1bKey key,
         ActionId actionId,
@@ -113,15 +214,71 @@ public sealed class SelectionPanelNode : Hex1bNode
     {
         bindings.Key(key).Global().Triggers(
             actionId,
-            async _ =>
+            ctx =>
             {
-                var handler = SnapshotHandler;
-                if (handler is not null)
-                {
-                    await handler(SnapshotText(mode));
-                }
+                SelectionMode = mode;
+                MarkDirty();
+                ctx.Invalidate();
+                return Task.CompletedTask;
             },
             description);
+    }
+
+    /// <summary>
+    /// Inverts the cells of <paramref name="surface"/> that fall inside the
+    /// region for <paramref name="mode"/>'s selection geometry by adding the
+    /// <see cref="CellAttributes.Reverse"/> attribute. Mirrors the geometry
+    /// used by <see cref="SnapshotText(SelectionPanelSnapshotMode)"/> so the
+    /// previewed region matches exactly what would be copied.
+    /// </summary>
+    private static void InvertSelection(Surface surface, SelectionPanelSnapshotMode mode)
+    {
+        int w = surface.Width;
+        int h = surface.Height;
+        var (topRow, bottomRow, leftCol, rightCol) = ComputeMidGeometry(surface);
+
+        switch (mode)
+        {
+            case SelectionPanelSnapshotMode.Full:
+                for (int y = 0; y < h; y++)
+                    InvertRow(surface, y, 0, w - 1);
+                break;
+
+            case SelectionPanelSnapshotMode.Lines:
+                for (int y = topRow; y <= bottomRow; y++)
+                    InvertRow(surface, y, 0, w - 1);
+                break;
+
+            case SelectionPanelSnapshotMode.Block:
+                for (int y = topRow; y <= bottomRow; y++)
+                    InvertRow(surface, y, leftCol, rightCol);
+                break;
+
+            case SelectionPanelSnapshotMode.Cells:
+                if (topRow == bottomRow)
+                {
+                    InvertRow(surface, topRow, leftCol, rightCol);
+                }
+                else
+                {
+                    InvertRow(surface, topRow, leftCol, w - 1);
+                    for (int y = topRow + 1; y < bottomRow; y++)
+                        InvertRow(surface, y, 0, w - 1);
+                    InvertRow(surface, bottomRow, 0, rightCol);
+                }
+                break;
+        }
+    }
+
+    private static void InvertRow(Surface surface, int y, int fromCol, int toColInclusive)
+    {
+        for (int x = fromCol; x <= toColInclusive; x++)
+        {
+            if (surface.TryGetCell(x, y, out var cell))
+            {
+                surface.TrySetCell(x, y, cell.WithAddedAttributes(CellAttributes.Reverse));
+            }
+        }
     }
 
     /// <summary>
