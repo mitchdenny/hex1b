@@ -92,12 +92,6 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
     /// Set during reconciliation from the ScrollPanelWidget's ScrollHandler.
     /// </summary>
     internal Func<InputBindingActionContext, int, int, int, int, Task>? ScrollAction { get; set; }
-    
-    /// <summary>
-    /// Context for firing scroll events when not triggered by user input.
-    /// </summary>
-    private InputBindingActionContext? _pendingEventContext;
-    
     /// <summary>
     /// Whether follow mode is enabled via the widget configuration.
     /// </summary>
@@ -409,16 +403,13 @@ public sealed class ScrollPanelNode : Hex1bNode, ILayoutProvider
             IsFollowing = _offset >= MaxOffset;
         }
 
-        // Fire scroll event
+        // Fire scroll event when there's an input context. Programmatic mutations
+        // (Offset setter, ScrollByPage, ScrollBy, ScrollToTop, ScrollToBottom) pass
+        // a null context and intentionally skip OnScroll, mirroring ListNode.SelectedIndex.
         if (ScrollAction != null && context != null)
         {
             // Fire async event - we don't await it here as it's fire-and-forget in input handling
             _ = ScrollAction(context, _offset, previousOffset, ContentSize, ViewportSize);
-        }
-        else if (ScrollAction != null)
-        {
-            // Store context for deferred event firing
-            _pendingEventContext = context;
         }
     }
     
