@@ -760,8 +760,12 @@ public class ScrollPanelNodeTests
     }
 
     [Fact]
-    public async Task HandleInput_NotFocused_DoesNotScroll()
+    public async Task HandleInput_DownArrow_ScrollsRegardlessOfPanelFocus()
     {
+        // The ScrollPanelNode no longer guards its scroll handlers with an IsFocused check.
+        // Real routing already restricts which nodes receive bindings (the focus path), so the
+        // guard was redundant in normal flows and harmful for global / bubble-up scenarios.
+        // This test documents the new behavior: invoking the binding directly scrolls the panel.
         var node = new ScrollPanelNode
         {
             Child = CreateTallContent(20),
@@ -771,9 +775,10 @@ public class ScrollPanelNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
+        var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, node.Offset);
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(1, node.Offset);
     }
 
     #endregion
@@ -1268,5 +1273,322 @@ public class ScrollPanelNodeTests
         Assert.DoesNotContain("<<<END>>>", text);
     }
     
+    #endregion
+
+    #region Issue #296 — Global page actions and public scroll API
+
+    /// <summary>
+    /// Minimal sibling-focusable node used to simulate "focus is on a TextBox in another subtree"
+    /// without dragging in the full TextBox machinery.
+    /// </summary>
+    private sealed class StubFocusableNode : Hex1bNode
+    {
+        public override bool IsFocusable => true;
+        private bool _isFocused;
+        public override bool IsFocused { get => _isFocused; set => _isFocused = value; }
+
+        protected override Size MeasureCore(Constraints constraints) => new(10, 1);
+        public override void Render(Hex1bRenderContext context) { }
+    }
+
+    /// <summary>
+    /// Container that aggregates focusable descendants for FocusRing rebuilding.
+    /// </summary>
+    private sealed class StubContainerNode : Hex1bNode
+    {
+        public List<Hex1bNode> Children { get; } = new();
+
+        protected override Size MeasureCore(Constraints constraints) => new(80, 24);
+        public override void Render(Hex1bRenderContext context) { }
+        public override IEnumerable<Hex1bNode> GetChildren() => Children;
+
+        public override IEnumerable<Hex1bNode> GetFocusableNodes()
+        {
+            foreach (var child in Children)
+            {
+                foreach (var f in child.GetFocusableNodes())
+                {
+                    yield return f;
+                }
+            }
+        }
+    }
+
+    [Fact]
+    public async Task GlobalPageDown_ScrollsPanel_WhenFocusIsOnSibling()
+    {
+        // Arrange: ScrollPanel with a global PageDown binding, plus a sibling focusable that owns focus.
+        var scrollPanel = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical,
+            // Simulate the user's WithInputBindings: register a global PageDown that triggers PageDownAction.
+            BindingsConfigurator = b => b.Key(Hex1bKey.PageDown).Global().Triggers(ScrollPanelWidget.PageDownAction)
+        };
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+
+        var sibling = new StubFocusableNode { IsFocused = true };
+
+        var root = new StubContainerNode();
+        root.Children.Add(scrollPanel);
+        root.Children.Add(sibling);
+        scrollPanel.Parent = root;
+        sibling.Parent = root;
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(root);
+        focusRing.Focus(sibling);
+
+        // Sanity: focus is on the sibling, not the panel.
+        Assert.False(scrollPanel.IsFocused);
+        Assert.True(sibling.IsFocused);
+
+        var state = new InputRouterState();
+
+        // Act
+        var result = await InputRouter.RouteInputAsync(
+            root,
+            new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None),
+            focusRing,
+            state,
+            null,
+            TestContext.Current.CancellationToken);
+
+        // Assert: global binding fired, panel scrolled by ViewportSize - 1.
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(9, scrollPanel.Offset);
+    }
+
+    [Fact]
+    public async Task GlobalPageUp_ScrollsPanel_WhenFocusIsOnSibling()
+    {
+        var scrollPanel = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical,
+            BindingsConfigurator = b => b.Key(Hex1bKey.PageUp).Global().Triggers(ScrollPanelWidget.PageUpAction)
+        };
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+        scrollPanel.Offset = 30; // start in the middle so PageUp has room to scroll
+
+        var sibling = new StubFocusableNode { IsFocused = true };
+
+        var root = new StubContainerNode();
+        root.Children.Add(scrollPanel);
+        root.Children.Add(sibling);
+        scrollPanel.Parent = root;
+        sibling.Parent = root;
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(root);
+        focusRing.Focus(sibling);
+
+        var state = new InputRouterState();
+
+        var result = await InputRouter.RouteInputAsync(
+            root,
+            new Hex1bKeyEvent(Hex1bKey.PageUp, '\0', Hex1bModifiers.None),
+            focusRing,
+            state,
+            null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(21, scrollPanel.Offset); // 30 - (10 - 1)
+    }
+
+    [Fact]
+    public async Task PageDown_BubblesUp_FromFocusableDescendant_ToScrollPanelAncestor()
+    {
+        // Regression for the second symptom of issue #296: when a focusable descendant of a
+        // ScrollPanel has focus and presses PageDown, the binding should bubble up to the panel
+        // and scroll. Before the fix, the IsFocused guard silently swallowed the key.
+        var inner = new StubFocusableNode { IsFocused = true };
+        var scrollPanel = new ScrollPanelNode
+        {
+            Child = inner,
+            Orientation = ScrollOrientation.Vertical
+        };
+        inner.Parent = scrollPanel;
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+
+        // Add some scrollable content size by faking content via a tall sibling structure: instead,
+        // just give the panel a tall child and re-measure.
+        scrollPanel.Child = CreateTallContent(50);
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+
+        // Re-attach focus to a real focusable inside the panel for routing.
+        // CreateTallContent returns a VStackNode of TextBlockNodes — none focusable. Add one.
+        var focusableChild = new StubFocusableNode { IsFocused = true };
+        scrollPanel.Child = focusableChild;
+        focusableChild.Parent = scrollPanel;
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+
+        // The panel needs ContentSize > ViewportSize to have a non-zero MaxOffset. Force it.
+        // Easiest path: build a vertical stack with a focusable header and many text blocks.
+        var children = new List<Hex1bNode> { focusableChild };
+        for (int i = 0; i < 50; i++) children.Add(new TextBlockNode { Text = $"line {i}" });
+        scrollPanel.Child = new VStackNode { Children = children };
+        focusableChild.Parent = scrollPanel.Child;
+        ((VStackNode)scrollPanel.Child).Parent = scrollPanel;
+        scrollPanel.Measure(Constraints.Unbounded);
+        scrollPanel.Arrange(new Rect(0, 0, 40, 10));
+
+        var focusRing = new FocusRing();
+        focusRing.Rebuild(scrollPanel);
+        focusRing.Focus(focusableChild);
+
+        Assert.False(scrollPanel.IsFocused, "Panel should not own focus directly when descendant is focused");
+        Assert.True(focusableChild.IsFocused);
+        Assert.True(scrollPanel.MaxOffset > 0, "Panel must be scrollable for this test to be meaningful");
+
+        var state = new InputRouterState();
+
+        var result = await InputRouter.RouteInputAsync(
+            scrollPanel,
+            new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None),
+            focusRing,
+            state,
+            null,
+            TestContext.Current.CancellationToken);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.True(scrollPanel.Offset > 0, $"Expected panel to scroll via bubble-up, but Offset is {scrollPanel.Offset}");
+    }
+
+    [Fact]
+    public void OffsetSetter_ClampsToValidRange()
+    {
+        var node = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        node.Offset = -100;
+        Assert.Equal(0, node.Offset);
+
+        node.Offset = 9999;
+        Assert.Equal(node.MaxOffset, node.Offset);
+
+        node.Offset = 5;
+        Assert.Equal(5, node.Offset);
+    }
+
+    [Fact]
+    public void ScrollByPage_AdvancesByViewportMinusOne()
+    {
+        var node = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        node.ScrollByPage(1);
+        Assert.Equal(9, node.Offset);  // ViewportSize (10) - 1
+
+        node.ScrollByPage(1);
+        Assert.Equal(18, node.Offset);
+
+        node.ScrollByPage(-1);
+        Assert.Equal(9, node.Offset);
+
+        node.ScrollByPage(2);
+        Assert.Equal(27, node.Offset); // direction can be larger magnitudes
+    }
+
+    [Fact]
+    public void ScrollBy_AppliesRelativeOffset()
+    {
+        var node = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        node.ScrollBy(5);
+        Assert.Equal(5, node.Offset);
+
+        node.ScrollBy(-2);
+        Assert.Equal(3, node.Offset);
+
+        // Large positive scroll clamps to MaxOffset; the public API is overflow-safe.
+        node.ScrollBy(int.MaxValue);
+        Assert.Equal(node.MaxOffset, node.Offset);
+
+        node.ScrollBy(int.MinValue);
+        Assert.Equal(0, node.Offset);
+    }
+
+    [Fact]
+    public void ScrollToTop_SetsOffsetToZero()
+    {
+        var node = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        node.Offset = 25;
+
+        node.ScrollToTop();
+
+        Assert.Equal(0, node.Offset);
+    }
+
+    [Fact]
+    public void ScrollToBottom_SetsOffsetToMaxOffset()
+    {
+        var node = new ScrollPanelNode
+        {
+            Child = CreateTallContent(50),
+            Orientation = ScrollOrientation.Vertical
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+        node.Offset = 5;
+
+        node.ScrollToBottom();
+
+        Assert.Equal(node.MaxOffset, node.Offset);
+        Assert.Equal(40, node.Offset); // 50 content - 10 viewport
+    }
+
+    [Fact]
+    public async Task ProgrammaticScroll_DoesNotFire_OnScrollEvent()
+    {
+        // Public scroll API has no InputBindingActionContext to attach to the event args.
+        // Documented behavior: programmatic mutations do not fire OnScroll.
+        ScrollChangedEventArgs? received = null;
+        var widget = new ScrollPanelWidget(new VStackWidget([new TextBlockWidget("Line 1")]))
+            .OnScroll(e => received = e);
+
+        var context = ReconcileContext.CreateRoot();
+        var node = (ScrollPanelNode)await widget.ReconcileAsync(null, context);
+        node.Child = CreateTallContent(50);
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 40, 10));
+
+        node.Offset = 5;
+        node.ScrollBy(3);
+        node.ScrollByPage(1);
+        node.ScrollToTop();
+        node.ScrollToBottom();
+
+        Assert.Null(received);
+    }
+
     #endregion
 }
