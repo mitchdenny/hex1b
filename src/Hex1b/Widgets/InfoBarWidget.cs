@@ -5,20 +5,20 @@ namespace Hex1b.Widgets;
 
 /// <summary>
 /// A horizontal info bar widget, typically placed at the bottom of the screen.
-/// Supports sections, separators, and spacers with flexible layout options.
+/// Supports sections, dividers, and spacers with flexible layout options.
 /// </summary>
-/// <param name="Children">The info bar children (sections, separators, spacers).</param>
+/// <param name="Children">The info bar children (sections, dividers, spacers).</param>
 /// <param name="InvertColors">Whether to invert foreground/background colors (default: true).</param>
 /// <example>
 /// <code>
-/// // Basic info bar with default separators
+/// // Basic info bar with an automatic divider between consecutive sections
 /// ctx.InfoBar(s => [
 ///     s.Section("NORMAL"),
 ///     s.Section("file.cs"),
 ///     s.Section("Ln 42")
-/// ]).WithDefaultSeparator(" | ")
+/// ]).Divider(" | ")
 /// 
-/// // Info bar with spacer to push content right
+/// // Info bar with a spacer to push content right
 /// ctx.InfoBar(s => [
 ///     s.Section("Mode"),
 ///     s.Spacer(),
@@ -31,32 +31,32 @@ public sealed record InfoBarWidget(
     bool InvertColors = true) : Hex1bWidget
 {
     /// <summary>
-    /// The default separator to insert between consecutive sections.
-    /// When null, no automatic separators are inserted.
+    /// The default divider to insert between consecutive sections.
+    /// When null, no automatic dividers are inserted.
     /// </summary>
-    public InfoBarSeparatorWidget? DefaultSeparator { get; init; }
+    public InfoBarDividerWidget? DefaultDivider { get; init; }
 
     /// <summary>
-    /// Sets the default separator to insert between consecutive sections.
+    /// Sets the default divider that is automatically inserted between consecutive sections.
     /// </summary>
-    /// <param name="character">The separator character(s). Defaults to " | ".</param>
+    /// <param name="character">The divider character(s). Defaults to " | ".</param>
     /// <param name="foreground">Optional foreground color.</param>
     /// <param name="background">Optional background color.</param>
-    /// <returns>A new InfoBarWidget with the default separator configured.</returns>
-    public InfoBarWidget WithDefaultSeparator(
+    /// <returns>A new <see cref="InfoBarWidget"/> with the default divider configured.</returns>
+    public InfoBarWidget Divider(
         string character = " | ",
         Hex1bColor? foreground = null,
         Hex1bColor? background = null)
     {
-        return this with { DefaultSeparator = new InfoBarSeparatorWidget(character, foreground, background) };
+        return this with { DefaultDivider = new InfoBarDividerWidget(character, foreground, background) };
     }
 
     /// <summary>
-    /// Gets the effective children with default separators inserted between consecutive sections.
+    /// Gets the effective children with default dividers inserted between consecutive sections.
     /// </summary>
     internal IReadOnlyList<IInfoBarChild> GetEffectiveChildren()
     {
-        if (DefaultSeparator is null || Children.Count == 0)
+        if (DefaultDivider is null || Children.Count == 0)
         {
             return Children;
         }
@@ -66,11 +66,11 @@ public sealed record InfoBarWidget(
 
         foreach (var child in Children)
         {
-            // Insert default separator between consecutive sections
-            // (but not before spacers, after spacers, or when explicit separator is present)
+            // Insert default divider between consecutive sections
+            // (but not before spacers, after spacers, or when an explicit divider is present)
             if (previousChild is InfoBarSectionWidget && child is InfoBarSectionWidget)
             {
-                result.Add(DefaultSeparator);
+                result.Add(DefaultDivider);
             }
 
             result.Add(child);
@@ -95,7 +95,7 @@ public sealed record InfoBarWidget(
             var widget = child switch
             {
                 InfoBarSectionWidget section => section.Build(),
-                InfoBarSeparatorWidget separator => separator.Build(),
+                InfoBarDividerWidget divider => divider.Build(),
                 InfoBarSpacerWidget spacer => spacer.Build(),
                 _ => throw new InvalidOperationException($"Unknown info bar child type: {child.GetType().Name}")
             };

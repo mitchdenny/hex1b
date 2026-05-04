@@ -4,7 +4,7 @@ namespace Hex1b.Widgets;
 
 /// <summary>
 /// Provides a fluent API context for building info bar structures.
-/// This context exposes only info bar-related methods (Section, Separator, Spacer)
+/// This context exposes only info bar-related methods (Section, Divider, Spacer)
 /// to guide developers toward the correct API usage.
 /// </summary>
 public readonly struct InfoBarContext
@@ -42,26 +42,27 @@ public readonly struct InfoBarContext
     }
 
     /// <summary>
-    /// Creates an explicit separator between sections.
-    /// When placed between sections, this overrides any default separator.
+    /// Creates an explicit divider between sections.
+    /// When placed between sections, this overrides any default divider configured
+    /// on the parent <see cref="InfoBarWidget"/> via <see cref="InfoBarWidget.Divider(string, Hex1bColor?, Hex1bColor?)"/>.
     /// </summary>
-    /// <param name="character">The separator character(s). Defaults to "|" if not specified.</param>
+    /// <param name="character">The divider character(s). Defaults to "|" if not specified.</param>
     /// <param name="foreground">Optional foreground color override.</param>
     /// <param name="background">Optional background color override.</param>
-    /// <returns>An InfoBarSeparatorWidget.</returns>
-    public InfoBarSeparatorWidget Separator(
+    /// <returns>An <see cref="InfoBarDividerWidget"/>.</returns>
+    public InfoBarDividerWidget Divider(
         string? character = null,
         Hex1bColor? foreground = null,
         Hex1bColor? background = null)
     {
-        return new InfoBarSeparatorWidget(character ?? "|", foreground, background);
+        return new InfoBarDividerWidget(character ?? "|", foreground, background);
     }
 
     /// <summary>
     /// Creates a flexible spacer that pushes adjacent sections apart.
     /// The spacer expands to fill available horizontal space.
     /// </summary>
-    /// <returns>An InfoBarSpacerWidget.</returns>
+    /// <returns>An <see cref="InfoBarSpacerWidget"/>.</returns>
     public InfoBarSpacerWidget Spacer()
     {
         return new InfoBarSpacerWidget();

@@ -14,7 +14,7 @@ var columnNumber = 15;
 // Pattern names for navigation
 var patterns = new[]
 {
-    "1. Default Separator",
+    "1. Default Divider",
     "2. Spacer (Push Right)",
     "3. Width Control",
     "4. Spinner Integration",
@@ -68,7 +68,7 @@ await terminal.RunAsync();
 // Returns description text for each pattern
 static string GetPatternDescription(int pattern) => pattern switch
 {
-    0 => "Auto-inserted separators with .WithDefaultSeparator()",
+    0 => "Auto-inserted dividers with .Divider()",
     1 => "Spacer() pushes content to right edge",
     2 => "Width control with FixedWidth() and FillWidth()",
     3 => "Widget sections with Spinner integration",
@@ -89,7 +89,7 @@ static Hex1bWidget RenderInfoBarPattern(
 {
     return pattern switch
     {
-        0 => Pattern_DefaultSeparator(v, mode, fileName, line, col),
+        0 => Pattern_DefaultDivider(v, mode, fileName, line, col),
         1 => Pattern_Spacer(v, mode, fileName, line, col),
         2 => Pattern_WidthControl(v, mode, fileName, encoding, line, col),
         3 => Pattern_SpinnerIntegration(v, mode, fileName),
@@ -99,20 +99,20 @@ static Hex1bWidget RenderInfoBarPattern(
     };
 }
 
-// Pattern 1: Default separator auto-insertion
-static InfoBarWidget Pattern_DefaultSeparator(
+// Pattern 1: Default divider auto-insertion
+static InfoBarWidget Pattern_DefaultDivider(
     WidgetContext<VStackWidget> v,
     string mode,
     string fileName,
     int line,
     int col)
 {
-    // Separators are auto-inserted between sections
+    // Dividers are auto-inserted between sections
     return v.InfoBar(s => [
         s.Section(mode),
         s.Section(fileName),
         s.Section($"Ln {line}, Col {col}")
-    ]).WithDefaultSeparator(" | ");
+    ]).Divider(" | ");
 }
 
 // Pattern 2: Spacer pushes content to the right
@@ -126,7 +126,7 @@ static InfoBarWidget Pattern_Spacer(
     // Spacer() expands to fill available space
     return v.InfoBar(s => [
         s.Section(mode),
-        s.Separator(" | "),
+        s.Divider(" | "),
         s.Section(fileName),
         s.Spacer(),
         s.Section($"Ln {line}, Col {col}")
@@ -147,7 +147,7 @@ static InfoBarWidget Pattern_WidthControl(
         s.Section(fileName).FillWidth(),
         s.Section(encoding),
         s.Section($"Ln {line}, Col {col}")
-    ]).WithDefaultSeparator(" │ ");
+    ]).Divider(" │ ");
 }
 
 // Pattern 4: Spinner integration via widget sections
@@ -165,7 +165,7 @@ static InfoBarWidget Pattern_SpinnerIntegration(
             h.Spinner(SpinnerStyle.Dots),
             h.Text(" Building...")
         ]))
-    ]).WithDefaultSeparator(" | ");
+    ]).Divider(" | ");
 }
 
 // Pattern 5: Powerline style with colored segments
@@ -182,13 +182,13 @@ static InfoBarWidget Pattern_Powerline(
         s.Section($" {mode} ").Theme(t => t
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.Black)
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Blue)),
-        s.Separator(Sep).Theme(t => t
+        s.Divider(Sep).Theme(t => t
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.Blue)
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Gray)),
         s.Section($" {fileName} ").Theme(t => t
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.White)
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Gray)),
-        s.Separator(Sep).Theme(t => t
+        s.Divider(Sep).Theme(t => t
             .Set(GlobalTheme.ForegroundColor, Hex1bColor.Gray)
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.DarkGray)),
         s.Section($" Ln {line}, Col {col} ").Theme(t => t
@@ -217,7 +217,7 @@ static InfoBarWidget Pattern_SectionTheming(
         s.Section(fileName),
         s.Spacer(),
         s.Section($"Ln {line}").Theme(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan)),
-        s.Separator(":"),
+        s.Divider(":"),
         s.Section($"Col {col}").Theme(t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Yellow))
-    ]).WithDefaultSeparator(" | ");
+    ]).Divider(" | ");
 }

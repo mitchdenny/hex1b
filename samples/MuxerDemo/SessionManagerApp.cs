@@ -92,7 +92,7 @@ internal sealed class SessionManagerApp
                 s.Spacer(),
                 s.Section("Ctrl+B D"),
                 s.Section("Quit")
-            ]).WithDefaultSeparator(" ")
+            ]).Divider(" ")
         ]);
     }
 
@@ -119,7 +119,7 @@ internal sealed class SessionManagerApp
                 s.Spacer(),
                 s.Section(_sessions.ConnectedSessionName ?? ""),
                 s.Section(dims)
-            ]).WithDefaultSeparator(" ")
+            ]).Divider(" ")
         ]);
     }
 }

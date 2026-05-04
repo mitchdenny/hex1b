@@ -22,7 +22,7 @@ public static class InfoBarExtensions
     ///     s.Section("NORMAL"),
     ///     s.Section("file.cs"),
     ///     s.Section("Ln 42, Col 15")
-    /// ]).WithDefaultSeparator(" | ")
+    /// ]).Divider(" | ")
     /// </code>
     /// </example>
     public static InfoBarWidget InfoBar<TParent>(

@@ -302,7 +302,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             {
                 var items = new List<IInfoBarChild>();
                 items.Add(ib.Section("hex1b editor"));
-                items.Add(ib.Separator());
+                items.Add(ib.Divider());
 
                 if (activeTab >= 0 && activeTab < openTabs.Count)
                 {
@@ -315,9 +315,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         var cursorOffset = Math.Min(entry.textState.Cursor.Position.Value, entry.doc.Length);
                         var pos = entry.doc.OffsetToPosition(new DocumentOffset(cursorOffset));
                         items.Add(ib.Section($"Ln {pos.Line}, Col {pos.Column}"));
-                        items.Add(ib.Separator());
+                        items.Add(ib.Divider());
                         items.Add(ib.Section($"{entry.doc.Length} chars"));
-                        items.Add(ib.Separator());
+                        items.Add(ib.Divider());
                         items.Add(ib.Section("UTF-8"));
                     }
                 }

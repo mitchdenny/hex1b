@@ -1100,7 +1100,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 var tab = ideState.ActiveDocument;
                 var pos = tab.Document.OffsetToPosition(tab.EditorState.Cursor.Position);
                 items.Add(s.Section($"Ln {pos.Line}, Col {pos.Column}"));
-                items.Add(s.Separator(" | "));
+                items.Add(s.Divider(" | "));
 
                 var lang = tab.Extension switch
                 {
@@ -1112,13 +1112,13 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     _ => "Plain Text",
                 };
                 items.Add(s.Section(lang));
-                items.Add(s.Separator(" | "));
+                items.Add(s.Divider(" | "));
                 items.Add(s.Section(tab.Document.IsDirty ? "Modified" : "Saved"));
             }
 
             if (ideState.OpenTabs.Count > 0)
             {
-                items.Add(s.Separator(" | "));
+                items.Add(s.Divider(" | "));
                 items.Add(s.Section($"Tab {ideState.SelectedTabIndex + 1}/{ideState.OpenTabs.Count}"));
             }
 
@@ -1126,7 +1126,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             var (errors, warnings, _) = workspace.GetDiagnosticSummary();
             if (errors + warnings > 0)
             {
-                items.Add(s.Separator(" | "));
+                items.Add(s.Divider(" | "));
                 if (errors > 0) items.Add(s.Section($"🔴 {errors}"));
                 if (warnings > 0) items.Add(s.Section($"🟡 {warnings}"));
             }

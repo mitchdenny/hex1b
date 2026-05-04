@@ -36,7 +36,7 @@ public class InfoBarSpacerExample(ILogger<InfoBarSpacerExample> logger) : Hex1bE
                     s.Section("Mode: INSERT"),
                     s.Spacer(),
                     s.Section("100%"),
-                    s.Separator(" │ "),
+                    s.Divider(" │ "),
                     s.Section("UTF-8")
                 ])
             ]);

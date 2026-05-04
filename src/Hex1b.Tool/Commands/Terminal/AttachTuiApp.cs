@@ -255,7 +255,7 @@ internal sealed class AttachTuiApp : IAsyncDisposable
             [
                 s.Spacer(),
                 s.Section(dims),
-                s.Separator(" | "),
+                s.Divider(" | "),
                 s.Section(leaderStatus)
             ])
         ]);

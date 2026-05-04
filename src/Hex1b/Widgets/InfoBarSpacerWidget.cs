@@ -4,7 +4,8 @@ namespace Hex1b.Widgets;
 
 /// <summary>
 /// A flexible spacer that expands to fill available horizontal space.
-/// Use spacers to push sections apart within an info bar.
+/// Use spacers to push sections apart within an info bar (distinct from
+/// <see cref="InfoBarDividerWidget"/>, which renders a literal character between sections).
 /// </summary>
 /// <example>
 /// <code>
