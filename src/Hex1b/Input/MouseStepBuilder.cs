@@ -68,7 +68,7 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Action(Action action, string? description = null)
     {
         var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        _parent.AddMouseBinding(binding);
+        _parent.Add(binding);
         return _parent;
     }
 
@@ -78,7 +78,7 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Action(Action<InputBindingActionContext> action, string? description = null)
     {
         var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        _parent.AddMouseBinding(binding);
+        _parent.Add(binding);
         return _parent;
     }
 
@@ -88,7 +88,7 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Action(Func<InputBindingActionContext, Task> action, string? description = null)
     {
         var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        _parent.AddMouseBinding(binding);
+        _parent.Add(binding);
         return _parent;
     }
 
@@ -99,9 +99,8 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Triggers(ActionId actionId, Action action, string? description = null)
     {
         _parent.RegisterAction(actionId, _ => { action(); return Task.CompletedTask; }, description);
-        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        binding.ActionId = actionId;
-        _parent.AddMouseBinding(binding);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description, actionId);
+        _parent.Add(binding);
         return _parent;
     }
 
@@ -112,9 +111,8 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Triggers(ActionId actionId, Action<InputBindingActionContext> action, string? description = null)
     {
         _parent.RegisterAction(actionId, ctx => { action(ctx); return Task.CompletedTask; }, description);
-        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        binding.ActionId = actionId;
-        _parent.AddMouseBinding(binding);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description, actionId);
+        _parent.Add(binding);
         return _parent;
     }
 
@@ -124,9 +122,8 @@ public sealed class MouseStepBuilder
     public InputBindingsBuilder Triggers(ActionId actionId, Func<InputBindingActionContext, Task> action, string? description = null)
     {
         _parent.RegisterAction(actionId, action, description);
-        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description);
-        binding.ActionId = actionId;
-        _parent.AddMouseBinding(binding);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, action, description, actionId);
+        _parent.Add(binding);
         return _parent;
     }
 }
