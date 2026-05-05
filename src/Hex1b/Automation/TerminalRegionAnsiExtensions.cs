@@ -97,8 +97,11 @@ public static class TerminalRegionAnsiExtensions
                 if (string.IsNullOrEmpty(ch))
                     continue;
 
-                // Skip null characters unless we want to render them as spaces
-                if (ch == "\0")
+                // Skip null characters and unwritten-cell marker unless we
+                // want to render them as spaces. The unwritten marker
+                // (U+E000, private use) is what Surface emits for cells
+                // that were never painted.
+                if (ch == "\0" || ch == "\uE000")
                 {
                     if (!options.RenderNullAsSpace)
                         continue;

@@ -101,6 +101,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private Hex1bNode? _activeDragNode;
     private int _dragStartX;
     private int _dragStartY;
+
+    // Pending "bubble drag": drag binding on a node OTHER than the focus-ring
+    // hit (typically a non-focusable container ancestor or descendant). The
+    // binding is held back until the user actually moves the mouse, so plain
+    // clicks on inner widgets keep working. Cleared on the first Drag event
+    // (which activates it) or on mouse Up (which discards it).
+    private PendingBubbleDrag? _pendingBubbleDrag;
+
+    private readonly record struct PendingBubbleDrag(
+        Hex1bNode Node,
+        DragBinding Binding,
+        int DownX,
+        int DownY);
     
     // Drag-and-drop state for semantic drag operations (Draggable/Droppable widgets)
     private readonly DragDropManager _dragDropManager = new();
@@ -329,6 +342,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// Gets the node that has captured all input, or null if no capture is active.
     /// </summary>
     public Hex1bNode? CapturedNode => _focusRing.CapturedNode;
+
+    /// <summary>
+    /// Gets the root of the reconciled node tree, or null before the first
+    /// reconcile completes. Internal — for tests.
+    /// </summary>
+    internal Hex1bNode? RootNode => _rootNode;
 
     /// <summary>
     /// Gets the currently focused node, or null if no node has focus.
@@ -678,8 +697,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 // Update hover state on any mouse event
                 UpdateHoverState(mouseEvent.X, mouseEvent.Y);
                 
-                // If a drag is active, route all events to the drag handler
-                if (_activeDragHandler != null && _activeDragNode != null)
+                // If a drag is active, route all events to the drag handler.
+                // EXCEPTION: scroll-wheel events fall through to ancestor
+                // mouse bindings so users can scroll the enclosing container
+                // mid-drag and extend the selection onto content that was
+                // off-screen at drag-start. After the wheel is dispatched a
+                // synthetic OnMove fires so the selection cursor follows the
+                // cell that scroll has just brought under the (stationary)
+                // mouse pointer.
+                bool isWheelDuringDrag = _activeDragHandler != null
+                    && mouseEvent.Action == MouseAction.Down
+                    && (mouseEvent.Button == MouseButton.ScrollUp
+                        || mouseEvent.Button == MouseButton.ScrollDown);
+
+                if (_activeDragHandler != null && _activeDragNode != null && !isWheelDuringDrag)
                 {
                     // Create context for drag events
                     var dragContext = new InputBindingActionContext(
@@ -714,6 +745,33 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     }
                     // While dragging, skip normal event handling
                     break;
+                }
+
+                if (isWheelDuringDrag)
+                {
+                    await DispatchWheelDuringDragAsync(mouseEvent, cancellationToken);
+                    break;
+                }
+
+                // No active drag, but a pending "bubble" drag may be waiting
+                // for the first move event before activating (so plain clicks
+                // on inner widgets aren't hijacked). Try to activate now; if a
+                // mouse Up arrives first, discard the pending state.
+                if (_pendingBubbleDrag is { } pending)
+                {
+                    if (mouseEvent.Action == MouseAction.Drag || mouseEvent.Action == MouseAction.Move)
+                    {
+                        var dragContext = new InputBindingActionContext(
+                            _focusRing, RequestStop, cancellationToken,
+                            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+                        ActivatePendingBubbleDrag(pending, mouseEvent, dragContext);
+                        break;
+                    }
+                    if (mouseEvent.Action == MouseAction.Up)
+                    {
+                        _pendingBubbleDrag = null;
+                        // Fall through to normal handling for the Up event.
+                    }
                 }
                 
                 // Handle click events (button down) - may start a drag
@@ -1591,14 +1649,62 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// </summary>
     private async Task HandleMouseClickAsync(Hex1bMouseEvent mouseEvent, CancellationToken cancellationToken)
     {
+        // Defensively clear any stale pending bubble drag from a prior cycle
+        // (e.g., if the previous mouse Up was missed because the cursor left
+        // the terminal). We only ever want one pending bubble drag at a time.
+        _pendingBubbleDrag = null;
+
         // Compute click count for double/triple click detection
         var clickCount = ComputeClickCount(mouseEvent);
         var eventWithClickCount = mouseEvent.WithClickCount(clickCount);
-        
+
+        // Capture-override mouse bindings: if a node has captured input,
+        // give it first crack at any mouse binding marked OverridesCapture
+        // whose coordinates fall within the captured node's hit-test bounds.
+        // Mirrors the keyboard capture-override path in InputRouter and lets
+        // a capturing widget claim mouse buttons app-wide while in a modal
+        // state (e.g., right-click commits a SelectionPanel copy mode).
+        // NOTE: this currently only fires for press events (Down) because
+        // HandleMouseClickAsync is only invoked on Down — Up/Move events
+        // route through different paths and do not consult OverridesCapture.
+        var capturedNode = _focusRing.CapturedNode;
+        if (capturedNode != null && capturedNode.HitTestBounds.Contains(mouseEvent.X, mouseEvent.Y))
+        {
+            var capturedBuilder = capturedNode.BuildBindings();
+            // Match higher-click-count bindings first so a registered
+            // double-click override is not shadowed by a single-click one
+            // (MouseBinding.Matches() uses >= ClickCount).
+            MouseBinding? matched = null;
+            foreach (var mb in capturedBuilder.MouseBindings)
+            {
+                if (!mb.OverridesCapture) continue;
+                if (!mb.Matches(eventWithClickCount)) continue;
+                if (matched == null || mb.ClickCount > matched.ClickCount)
+                {
+                    matched = mb;
+                }
+            }
+            if (matched != null)
+            {
+                var capturedActionContext = new InputBindingActionContext(
+                    _focusRing, RequestStop, cancellationToken,
+                    mouseEvent.X, mouseEvent.Y,
+                    CopyToClipboard, Invalidate, _windowManagerRegistry);
+                await matched.ExecuteAsync(capturedActionContext);
+                return;
+            }
+        }
+
         // Find the focusable node at the click position
         var hitNode = _focusRing.HitTest(mouseEvent.X, mouseEvent.Y);
-        
-        if (hitNode == null) return;
+
+        if (hitNode == null)
+        {
+            // Even when no focusable was hit, a non-focusable container in
+            // the tree (e.g., SelectionPanel) may want to react on drag.
+            TryArmBubbleDrag(eventWithClickCount, hitNode: null);
+            return;
+        }
         
         // Always focus the clicked node through the focus ring
         // This ensures proper state sync (clears old focus, sets new focus)
@@ -1681,8 +1787,223 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         // No binding matched - call the node's HandleMouseClick with local coordinates
         hitNode.HandleMouseClick(localX, localY, eventWithClickCount);
+
+        // Last resort: arm a "bubble" drag binding on a node OTHER than the
+        // hit focusable (typically a non-focusable container that wraps the
+        // click target). Only fires once the user actually moves the mouse,
+        // so plain clicks on the hit focusable above were not affected.
+        TryArmBubbleDrag(eventWithClickCount, hitNode);
     }
-    
+
+    /// <summary>
+    /// Walks the full node tree to find drag bindings owned by nodes other
+    /// than <paramref name="hitNode"/> whose <see cref="Hex1bNode.HitTestBounds"/>
+    /// contains the click point. Stores the deepest match in
+    /// <see cref="_pendingBubbleDrag"/> so it can be activated on the first
+    /// subsequent drag event. Restricted to single clicks.
+    /// </summary>
+    private void TryArmBubbleDrag(Hex1bMouseEvent mouseEvent, Hex1bNode? hitNode)
+    {
+        _pendingBubbleDrag = null;
+
+        if (_rootNode is null || mouseEvent.ClickCount > 1)
+        {
+            return;
+        }
+
+        var path = new List<Hex1bNode>();
+        CollectMouseHitPath(_rootNode, mouseEvent.X, mouseEvent.Y, path);
+
+        // Walk deepest-first so an inner non-focusable container wins over an
+        // outer one (consistent with z-order).
+        for (int i = path.Count - 1; i >= 0; i--)
+        {
+            var candidate = path[i];
+            if (ReferenceEquals(candidate, hitNode))
+            {
+                continue;
+            }
+
+            var dragBindings = candidate.BuildBindings().DragBindings;
+            for (int j = 0; j < dragBindings.Count; j++)
+            {
+                var binding = dragBindings[j];
+                if (binding.Matches(mouseEvent))
+                {
+                    _pendingBubbleDrag = new PendingBubbleDrag(candidate, binding, mouseEvent.X, mouseEvent.Y);
+                    return;
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// Pre-order walk that appends every node whose
+    /// <see cref="Hex1bNode.HitTestBounds"/> contains <c>(x, y)</c>. Descent
+    /// is gated on <see cref="Hex1bNode.Bounds"/> rather than HitTestBounds
+    /// so containers like <c>SplitterNode</c> (whose HitTestBounds is just
+    /// the divider strip) still allow us to reach descendants in their
+    /// panes. Result is ordered root-to-deepest along the visited path;
+    /// callers iterate in reverse for z-order.
+    /// </summary>
+    private static void CollectMouseHitPath(Hex1bNode node, int x, int y, List<Hex1bNode> path)
+    {
+        var bounds = node.Bounds;
+        if (x < bounds.X || x >= bounds.Right || y < bounds.Y || y >= bounds.Bottom)
+        {
+            return;
+        }
+
+        var hitBounds = node.HitTestBounds;
+        bool hitTestable = x >= hitBounds.X && x < hitBounds.Right
+            && y >= hitBounds.Y && y < hitBounds.Bottom;
+        if (hitTestable)
+        {
+            path.Add(node);
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            CollectMouseHitPath(child, x, y, path);
+        }
+    }
+
+    /// <summary>
+    /// Activates the pending bubble drag using the original mouse-Down
+    /// position as the anchor and the current event as the first drag move.
+    /// </summary>
+    private void ActivatePendingBubbleDrag(PendingBubbleDrag pending, Hex1bMouseEvent currentEvent, InputBindingActionContext dragContext)
+    {
+        _pendingBubbleDrag = null;
+
+        var node = pending.Node;
+        // Defensive: a render frame between the Down (which armed the
+        // pending drag) and this Move/Drag (which activates it) may have
+        // reconciled the candidate node out of the tree. Activating a
+        // drag handler on a detached node would operate on stale Bounds
+        // and never receive a clean drag-end.
+        if (_rootNode is null || !ContainsNode(_rootNode, node))
+        {
+            return;
+        }
+
+        var localStartX = pending.DownX - node.Bounds.X;
+        var localStartY = pending.DownY - node.Bounds.Y;
+        var handler = pending.Binding.StartDrag(localStartX, localStartY);
+
+        if (handler.IsEmpty)
+        {
+            return;
+        }
+
+        _activeDragHandler = handler;
+        _activeDragNode = node;
+        _dragStartX = pending.DownX;
+        _dragStartY = pending.DownY;
+
+        var deltaX = currentEvent.X - _dragStartX;
+        var deltaY = currentEvent.Y - _dragStartY;
+        handler.OnMove?.Invoke(dragContext, deltaX, deltaY);
+    }
+
+    /// <summary>
+    /// Routes a scroll-wheel event that arrived during an active drag to the
+    /// first ancestor of the drag-owning node that has a matching mouse
+    /// binding (typically an enclosing <c>ScrollPanelNode</c>'s
+    /// <c>MouseScrollUp</c>/<c>MouseScrollDown</c>). After dispatch, fires a
+    /// synthetic <c>OnMove</c> on the active drag handler at the current
+    /// mouse coordinates so the selection cursor follows the cell that
+    /// scroll has just brought under the (stationary) mouse pointer.
+    /// </summary>
+    /// <remarks>
+    /// Walking up from <see cref="_activeDragNode"/> rather than hit-testing
+    /// the cursor position guarantees the wheel reaches the scroll container
+    /// even when the mouse is over an inner focusable child (e.g., a button)
+    /// that has no wheel binding.
+    ///
+    /// A synchronous Measure + Arrange runs after the wheel binding executes
+    /// so child <c>Bounds</c> reflect the post-scroll layout before the
+    /// synthetic OnMove. The next render does this again, but the drag
+    /// handler relies on up-to-date bounds RIGHT NOW to compute the new
+    /// cursor row from the mouse's current terminal coordinates.
+    /// </remarks>
+    private async Task DispatchWheelDuringDragAsync(Hex1bMouseEvent mouseEvent, CancellationToken cancellationToken)
+    {
+        var dragNode = _activeDragNode;
+        var dragHandler = _activeDragHandler;
+        if (dragNode is null || dragHandler is null)
+        {
+            return;
+        }
+
+        // Defensive: if the drag-owning node has been reconciled out of the
+        // current tree (e.g. the user's content rebuild dropped it between
+        // events), the Parent chain may still reach a detached subtree. Bail
+        // and clear stale drag state so we don't dispatch into orphaned nodes.
+        if (_rootNode is null || !ContainsNode(_rootNode, dragNode))
+        {
+            _activeDragHandler = null;
+            _activeDragNode = null;
+            return;
+        }
+
+        var dragContext = new InputBindingActionContext(
+            _focusRing, RequestStop, cancellationToken,
+            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+
+        var matched = false;
+        for (var n = dragNode; n != null; n = n.Parent)
+        {
+            var bindings = n.BuildBindings().MouseBindings
+                .OrderByDescending(b => b.ClickCount);
+            foreach (var binding in bindings)
+            {
+                if (binding.Matches(mouseEvent))
+                {
+                    await binding.ExecuteAsync(dragContext);
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) break;
+        }
+
+        // If no wheel binding fired, no scroll happened, so there's nothing
+        // to follow with a synthetic OnMove.
+        if (!matched) return;
+
+        // Force a synchronous layout pass so child Bounds reflect the
+        // post-scroll state before the synthetic OnMove sees them. Without
+        // this, the SelectionPanel's drag handler would compute its cursor
+        // against stale Bounds.Y and the highlight would lag the scroll by
+        // one wheel-tick.
+        if (_rootNode != null)
+        {
+            var size = new Size(_adapter.Width, _adapter.Height);
+            _rootNode.Measure(Constraints.Tight(size));
+            _rootNode.Arrange(Rect.FromSize(size));
+        }
+
+        // Fire a synthetic drag-move so the selection cursor follows whatever
+        // cell scroll has just brought under the (stationary) mouse pointer.
+        // SelectionPanelNode's drag handler computes the cursor from absolute
+        // mouse coordinates relative to the panel's CURRENT bounds, so it
+        // automatically picks up the post-scroll position.
+        var deltaX = mouseEvent.X - _dragStartX;
+        var deltaY = mouseEvent.Y - _dragStartY;
+        dragHandler.OnMove?.Invoke(dragContext, deltaX, deltaY);
+    }
+
+    private static bool ContainsNode(Hex1bNode root, Hex1bNode target)
+    {
+        if (ReferenceEquals(root, target)) return true;
+        foreach (var child in root.GetChildren())
+        {
+            if (ContainsNode(child, target)) return true;
+        }
+        return false;
+    }
+
     /// <summary>
     /// Computes the click count for a mouse down event based on timing and position.
     /// </summary>

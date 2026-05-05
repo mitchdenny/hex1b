@@ -871,6 +871,12 @@ public static class TerminalRegionHtmlExtensions
                 var cell = region.GetCell(x, y);
                 var ch = cell.Character ?? "";
                 
+                // Normalize unwritten-cell marker (U+E000, private use,
+                // emitted by Surface for never-painted cells) to empty so it
+                // doesn't surface in the JSON cell-data dump.
+                if (ch == "\uE000")
+                    ch = "";
+
                 // Escape special JSON characters in the grapheme string
                 var escapedChar = EscapeJsonString(ch);
 

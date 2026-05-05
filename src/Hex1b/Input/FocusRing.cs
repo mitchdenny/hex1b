@@ -104,6 +104,27 @@ public sealed class FocusRing
                 lastFocusedIdx = i;
             }
         }
+        
+        // Stale-capture cleanup: if the captured node has been removed from the
+        // tree (e.g. reconciliation replaced it, or a panel containing it was
+        // unmounted) input would otherwise be permanently routed to a node that
+        // is no longer being measured/arranged/rendered. The captured node can
+        // be a non-focusable container (e.g. SelectionPanelNode in copy mode),
+        // so a focus-ring lookup is not enough — walk the whole tree.
+        if (_capturedNode != null && (root == null || !ContainsNode(root, _capturedNode)))
+        {
+            _capturedNode = null;
+        }
+    }
+
+    private static bool ContainsNode(Hex1bNode root, Hex1bNode target)
+    {
+        if (ReferenceEquals(root, target)) return true;
+        foreach (var child in root.GetChildren())
+        {
+            if (ContainsNode(child, target)) return true;
+        }
+        return false;
     }
 
     /// <summary>

@@ -424,4 +424,63 @@ public class HoverStateTests
         textBlock.IsHovered = true;
         Assert.False(textBlock.IsHovered);
     }
+
+    [Fact]
+    public async Task MouseStepBuilder_TriggersActionId_AliasesPreviouslyRegisteredHandler()
+    {
+        // Mirror of the AgenticPromptDemo Ctrl+wheel scenario: a widget's
+        // ConfigureDefaultBindings registers a handler against an ActionId
+        // (plain ScrollUp). A user-supplied WithInputBindings configurator
+        // then aliases the same ActionId to a different mouse trigger
+        // (Ctrl+ScrollUp). Both bindings must coexist and route to the
+        // same handler.
+        var bindings = new InputBindingsBuilder();
+        var actionId = new ActionId("Test.Scroll");
+        var invocations = 0;
+
+        // Widget default registers the action.
+        bindings.Mouse(MouseButton.ScrollUp).Triggers(
+            actionId,
+            ctx => { invocations++; },
+            "Scroll up");
+
+        // User aliases it to Ctrl+ScrollUp without re-supplying the handler.
+        bindings.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(actionId);
+
+        Assert.Equal(2, bindings.MouseBindings.Count);
+
+        var plainBinding = bindings.MouseBindings[0];
+        var ctrlBinding = bindings.MouseBindings[1];
+
+        Assert.Equal(actionId, plainBinding.ActionId);
+        Assert.Equal(actionId, ctrlBinding.ActionId);
+        Assert.Equal(Hex1bModifiers.None, plainBinding.Modifiers);
+        Assert.Equal(Hex1bModifiers.Control, ctrlBinding.Modifiers);
+        Assert.Equal("Scroll up", ctrlBinding.Description);
+
+        var ctx = new InputBindingActionContext(new FocusRing());
+        var plainEvent = new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, 0, 0, Hex1bModifiers.None);
+        var ctrlEvent = new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, 0, 0, Hex1bModifiers.Control);
+
+        Assert.True(plainBinding.Matches(plainEvent));
+        Assert.False(plainBinding.Matches(ctrlEvent));
+        Assert.True(ctrlBinding.Matches(ctrlEvent));
+        Assert.False(ctrlBinding.Matches(plainEvent));
+
+        await plainBinding.ExecuteAsync(ctx);
+        await ctrlBinding.ExecuteAsync(ctx);
+
+        Assert.Equal(2, invocations);
+    }
+
+    [Fact]
+    public void MouseStepBuilder_TriggersActionId_ThrowsWhenActionUnregistered()
+    {
+        var bindings = new InputBindingsBuilder();
+        var unregistered = new ActionId("Test.NotRegistered");
+
+        var ex = Assert.Throws<InvalidOperationException>(
+            () => bindings.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(unregistered));
+        Assert.Contains(unregistered.Value, ex.Message);
+    }
 }

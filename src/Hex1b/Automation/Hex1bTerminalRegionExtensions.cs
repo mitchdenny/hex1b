@@ -456,8 +456,11 @@ public static class Hex1bTerminalRegionExtensions
             // Skip empty continuation cells (used for wide characters)
             if (string.IsNullOrEmpty(ch))
                 continue;
-            // Replace null character with space for display
-            if (ch == "\0")
+            // Replace null character or unwritten-cell marker with space.
+            // The unwritten marker (U+E000, private use) is what surfaces
+            // emit for cells that were never painted; without this guard
+            // it would surface as a literal char in extracted text.
+            if (ch == "\0" || ch == "\uE000")
                 sb.Append(' ');
             else
                 sb.Append(ch);
@@ -631,8 +634,8 @@ public static class Hex1bTerminalRegionExtensions
                 // Skip empty continuation cells (used for wide characters)
                 if (string.IsNullOrEmpty(ch))
                     continue;
-                // Replace null character with space for display
-                if (ch == "\0")
+                // Replace null character or unwritten-cell marker with space.
+                if (ch == "\0" || ch == "\uE000")
                     sb.Append(' ');
                 else
                     sb.Append(ch);

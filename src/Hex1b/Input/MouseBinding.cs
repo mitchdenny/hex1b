@@ -51,10 +51,21 @@ public sealed class MouseBinding
     public ActionId? ActionId { get; }
 
     /// <summary>
+    /// Whether this binding overrides input capture.
+    /// When <c>true</c> and the owning node has captured input, the binding
+    /// is checked even if the click would not normally route to the node
+    /// (the click only needs to fall within the captured node's bounds).
+    /// Mirrors <see cref="InputBinding.OverridesCapture"/> for keyboard
+    /// bindings — useful for "while in this mode, my widget owns this
+    /// mouse button" patterns (e.g., right-click commit during copy mode).
+    /// </summary>
+    public bool OverridesCapture { get; }
+
+    /// <summary>
     /// Creates a mouse binding with a simple action handler (no context).
     /// </summary>
-    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, Action handler, string? description, ActionId? actionId = null)
-        : this(button, action, modifiers, 1, _ => { handler(); return Task.CompletedTask; }, description, actionId)
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, Action handler, string? description, ActionId? actionId = null, bool overridesCapture = false)
+        : this(button, action, modifiers, 1, _ => { handler(); return Task.CompletedTask; }, description, actionId, overridesCapture)
     {
         ArgumentNullException.ThrowIfNull(handler);
     }
@@ -62,8 +73,8 @@ public sealed class MouseBinding
     /// <summary>
     /// Creates a mouse binding with a simple action handler and click count (no context).
     /// </summary>
-    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action handler, string? description, ActionId? actionId = null)
-        : this(button, action, modifiers, clickCount, _ => { handler(); return Task.CompletedTask; }, description, actionId)
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action handler, string? description, ActionId? actionId = null, bool overridesCapture = false)
+        : this(button, action, modifiers, clickCount, _ => { handler(); return Task.CompletedTask; }, description, actionId, overridesCapture)
     {
         ArgumentNullException.ThrowIfNull(handler);
     }
@@ -71,8 +82,8 @@ public sealed class MouseBinding
     /// <summary>
     /// Creates a mouse binding with a synchronous context-aware handler.
     /// </summary>
-    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action<InputBindingActionContext> handler, string? description, ActionId? actionId = null)
-        : this(button, action, modifiers, clickCount, ctx => { handler(ctx); return Task.CompletedTask; }, description, actionId)
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Action<InputBindingActionContext> handler, string? description, ActionId? actionId = null, bool overridesCapture = false)
+        : this(button, action, modifiers, clickCount, ctx => { handler(ctx); return Task.CompletedTask; }, description, actionId, overridesCapture)
     {
         ArgumentNullException.ThrowIfNull(handler);
     }
@@ -80,7 +91,7 @@ public sealed class MouseBinding
     /// <summary>
     /// Creates a mouse binding with an async context-aware handler.
     /// </summary>
-    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Func<InputBindingActionContext, Task> handler, string? description, ActionId? actionId = null)
+    public MouseBinding(MouseButton button, MouseAction action, Hex1bModifiers modifiers, int clickCount, Func<InputBindingActionContext, Task> handler, string? description, ActionId? actionId = null, bool overridesCapture = false)
     {
         Button = button;
         Action = action;
@@ -89,6 +100,7 @@ public sealed class MouseBinding
         AsyncHandler = handler ?? throw new ArgumentNullException(nameof(handler));
         Description = description;
         ActionId = actionId;
+        OverridesCapture = overridesCapture;
     }
 
     /// <summary>
