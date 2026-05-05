@@ -1269,4 +1269,276 @@ public class SelectionPanelNodeTests
 
         Assert.Same(args, received);
     }
+
+    // ------------------------------------------------------------------
+    // Render with a parent clip narrower than Bounds (the ScrollPanel
+    // perf path). Verifies that:
+    //   1. Cells outside visibleTerm are NEITHER painted NOR inverted.
+    //   2. Selection cells inside visibleTerm ARE inverted.
+    //   3. Negative Bounds.Y / partially-visible panels work.
+    //   4. Block / Character selections clip correctly at viewport edges.
+    // ------------------------------------------------------------------
+
+    [Fact]
+    public void Render_WithParentClipNarrowerThanBounds_OnlyClipRegionPainted()
+    {
+        // Panel is 12 wide × 20 rows tall (PaintingTestNode paints rows
+        // 'A'..'T'). Parent clip: the middle 6 rows starting at row 5
+        // (terminal rows 5..10 inclusive). Anything outside MUST be
+        // untouched in the parent surface.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 20));
+
+        // Enter copy mode so the new viewport-bounded path runs (the
+        // pass-through path doesn't allocate a temp surface at all).
+        node.EnterCopyMode();
+
+        var surface = new Surface(12, 20);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 5, 12, 6))
+        };
+        node.Render(ctx);
+
+        // Rows inside parent clip [5..10] should have the painted
+        // characters from the painter (rows 'F'..'K').
+        for (int y = 5; y <= 10; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.Equal(((char)('A' + y)).ToString(), cell.Character);
+            }
+        }
+
+        // Rows outside parent clip should be untouched (still in their
+        // initial SurfaceCells.Empty state).
+        for (int y = 0; y < 5; y++)
+            AssertRowUntouched(surface, y, "above parent clip");
+        for (int y = 11; y < 20; y++)
+            AssertRowUntouched(surface, y, "below parent clip");
+    }
+
+    [Fact]
+    public void Render_LineSelection_SpanningOffscreenAndOnscreen_OnlyVisibleRowsInverted()
+    {
+        // 20-row panel; parent clip exposes terminal rows 5..10. Line
+        // selection covers panel-local rows 2..15 — the visible
+        // intersection is rows 5..10 (all inverted), while panel-local
+        // rows 2..4 and 11..15 are off-clip.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 20));
+
+        node.EnterCopyMode();
+        node.SetCursor(2, 0);
+        node.StartOrToggleSelection(SelectionMode.Line);
+        node.SetCursor(15, 11);
+
+        var surface = new Surface(12, 20);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 5, 12, 6))
+        };
+        node.Render(ctx);
+
+        // All cells in the visible band (rows 5..10) must be inverted —
+        // Line selection covers the whole row width.
+        for (int y = 5; y <= 10; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.True(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                    $"Cell ({x},{y}) inside visible selection should be inverted.");
+            }
+        }
+
+        // Cells outside the parent clip must be untouched (no paint,
+        // no inversion) — even though they're inside the selection
+        // geometry, they're not visible.
+        for (int y = 0; y < 5; y++)
+            AssertRowUntouched(surface, y, "above parent clip");
+        for (int y = 11; y < 20; y++)
+            AssertRowUntouched(surface, y, "below parent clip");
+    }
+
+    [Fact]
+    public void Render_NoSelection_CursorOffscreen_NoInversion()
+    {
+        // Cursor at panel-local (0, 0), but parent clip exposes only
+        // terminal rows 5..10 — so the cursor cell is off-clip and
+        // must NOT be inverted.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 12, 20));
+
+        node.EnterCopyMode();
+        node.SetCursor(0, 0);
+
+        var surface = new Surface(12, 20);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 5, 12, 6))
+        };
+        node.Render(ctx);
+
+        // No inverted cells anywhere on the parent surface.
+        for (int y = 0; y < 20; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.False(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                    $"Cell ({x},{y}) should not be inverted (cursor is off-clip).");
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_BlockSelection_ClippedAtRightViewportEdge()
+    {
+        // Panel 20 cols × 8 rows. Parent clip exposes only the LEFT
+        // 12 columns. Block selection from (col 3, row 1) to (col 17,
+        // row 4) — the right edge (cols 12..17) should be off-clip
+        // and not inverted; the visible portion (cols 3..11) IS
+        // inverted.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 20, 8));
+
+        node.EnterCopyMode();
+        node.SetCursor(1, 3);
+        node.StartOrToggleSelection(SelectionMode.Block);
+        node.SetCursor(4, 17);
+
+        var surface = new Surface(20, 8);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 0, 12, 8))
+        };
+        node.Render(ctx);
+
+        // Inside the visible portion of the block: cols 3..11, rows 1..4 → inverted.
+        for (int y = 1; y <= 4; y++)
+        {
+            for (int x = 3; x <= 11; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.True(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                    $"Cell ({x},{y}) inside visible block selection should be inverted.");
+            }
+        }
+
+        // Cols 12..19 are outside parent clip — untouched (still Empty).
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 12; x < 20; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.Equal(SurfaceCells.Empty, cell);
+            }
+        }
+
+        // Cells inside parent clip but outside the block selection must
+        // be painted (visible) yet NOT inverted.
+        for (int x = 0; x <= 2; x++)
+        {
+            Assert.True(surface.TryGetCell(x, 1, out var cell));
+            Assert.False(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                $"Cell ({x},1) left of block selection should not be inverted.");
+        }
+    }
+
+    [Fact]
+    public void Render_NegativeBoundsY_RendersAndInvertsOnlyBottomSlice()
+    {
+        // Panel scrolled so that Bounds.Y = -5: panel-local row 0 sits
+        // at terminal row -5; the visible portion is panel-local rows
+        // 5..12 (terminal rows 0..7).
+        // PaintingTestNode paints panel-local row y with char ('A'+y),
+        // so terminal row 0 should show 'F', row 7 should show 'M'.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, -5, 12, 15));
+
+        // Line selection spanning panel-local rows 6..11 (visible
+        // portion) — should show inverted in terminal rows 1..6.
+        node.EnterCopyMode();
+        node.SetCursor(6, 0);
+        node.StartOrToggleSelection(SelectionMode.Line);
+        node.SetCursor(11, 0);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 0, 12, 8))
+        };
+        node.Render(ctx);
+
+        // Painted characters must be 'F'..'M' (panel-local rows 5..12)
+        // mapped to terminal rows 0..7.
+        for (int y = 0; y < 8; y++)
+        {
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.Equal(((char)('A' + 5 + y)).ToString(), cell.Character);
+            }
+        }
+
+        // Inverted cells: panel-local rows 6..11 → terminal rows 1..6.
+        for (int y = 0; y < 8; y++)
+        {
+            bool inSelection = y >= 1 && y <= 6;
+            for (int x = 0; x < 12; x++)
+            {
+                Assert.True(surface.TryGetCell(x, y, out var cell));
+                Assert.Equal(inSelection, cell.Attributes.HasFlag(CellAttributes.Reverse));
+            }
+        }
+    }
+
+    [Fact]
+    public void Render_PanelEntirelyOffscreen_LeavesParentSurfaceUntouched()
+    {
+        // Panel sits entirely above the parent clip — TryIntersectRect
+        // returns false and Render bails before allocating a temp.
+        var painter = new PaintingTestNode();
+        var node = new SelectionPanelNode { Child = painter };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, -20, 12, 8));
+
+        node.EnterCopyMode();
+        node.SetCursor(2, 3);
+        node.StartOrToggleSelection(SelectionMode.Line);
+        node.SetCursor(5, 8);
+
+        var surface = new Surface(12, 8);
+        var ctx = new SurfaceRenderContext(surface)
+        {
+            CurrentLayoutProvider = new RectLayoutProvider(new Rect(0, 0, 12, 8))
+        };
+        node.Render(ctx);
+
+        for (int y = 0; y < 8; y++)
+            AssertRowUntouched(surface, y, "panel entirely offscreen");
+    }
+
+    private static void AssertRowUntouched(Surface surface, int y, string reason)
+    {
+        for (int x = 0; x < surface.Width; x++)
+        {
+            Assert.True(surface.TryGetCell(x, y, out var cell));
+            Assert.Equal(SurfaceCells.Empty, cell);
+            Assert.False(cell.Attributes.HasFlag(CellAttributes.Reverse),
+                $"Cell ({x},{y}) should not be inverted ({reason}).");
+        }
+    }
 }

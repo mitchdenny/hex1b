@@ -23,12 +23,14 @@ namespace Hex1b.Nodes;
 ///       all subsequent input goes to its capture-override bindings
 ///       rather than to whatever widget had keyboard focus.</item>
 /// <item>Renders an inverted-cell cursor (and, if a selection is active,
-///       an inverted selection region) over the child output by capturing
-///       the child to a temporary surface, applying
-///       <see cref="CellAttributes.Reverse"/> to the relevant cells, and
-///       compositing the modified surface back. This mirrors
-///       <see cref="EffectPanelNode"/>'s capture-modify-composite
-///       pattern.</item>
+///       an inverted selection region) over the child output by
+///       rendering the child to a viewport-sized temporary surface (the
+///       intersection of the panel <c>Bounds</c> with the parent's
+///       effective clip rect — so cost stays bounded by the visible
+///       region even when the panel sits inside a long-scrolling
+///       container), applying <see cref="CellAttributes.Reverse"/> to
+///       the relevant cells, and compositing the modified surface
+///       back.</item>
 /// </list>
 /// <para>
 /// Cursor coordinates are surface-local: <see cref="CursorRow"/> is in
@@ -120,16 +122,49 @@ public sealed class SelectionPanelNode : Hex1bNode
             return;
         }
 
-        // Capture-modify-composite (mirrors EffectPanelNode).
+        // Snapshot parent state BEFORE descending. Many descendant nodes
+        // temporarily mutate CurrentLayoutProvider on the shared context
+        // and restore it on exit (ZStack, ScrollPanel, DragBarPanel,
+        // etc.). Reading these props after Child.Render has run is
+        // unsafe — capture them up front.
+        int parentOffsetX = surfaceCtx.OffsetX;
+        int parentOffsetY = surfaceCtx.OffsetY;
+        var parentProvider = surfaceCtx.CurrentLayoutProvider;
+        Rect parentClip = parentProvider != null
+            ? LayoutProviderHelper.GetEffectiveClipRect(parentProvider)
+            : new Rect(parentOffsetX, parentOffsetY,
+                       surfaceCtx.Surface.Width, surfaceCtx.Surface.Height);
+
+        // visibleTerm is the portion of this panel that the parent's
+        // clip will actually let through to the screen. Bounds may
+        // extend far above/below the viewport when the panel sits
+        // inside a scrolled ScrollPanel; the intersection is what
+        // matters for both rendering and selection inversion.
+        if (!TryIntersectRect(Bounds, parentClip, out var visibleTerm))
+        {
+            // Panel entirely off-screen — nothing to draw.
+            return;
+        }
+
+        // Render to a temp surface SIZED TO THE VISIBLE PORTION ONLY,
+        // not the full panel bounds. This is the key perf win versus
+        // the previous capture-modify-composite (which sized the temp
+        // to the full transcript height) and versus a naive
+        // context.RenderChild (which would cause SurfaceRenderContext
+        // to rent a child.Bounds-sized surface internally because a
+        // layout provider is active).
         var pool = surfaceCtx.SurfacePool;
         var tempSurface = pool != null
-            ? pool.Rent(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics)
-            : new Surface(Bounds.Width, Bounds.Height, surfaceCtx.CellMetrics);
+            ? pool.Rent(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics)
+            : new Surface(visibleTerm.Width, visibleTerm.Height, surfaceCtx.CellMetrics);
 
         try
         {
+            // Buffer (0,0) of tempSurface corresponds to terminal
+            // (visibleTerm.X, visibleTerm.Y).
             var tempContext = new SurfaceRenderContext(
-                tempSurface, Bounds.X, Bounds.Y, context.Theme, surfaceCtx.TrackedObjectStore)
+                tempSurface, visibleTerm.X, visibleTerm.Y,
+                context.Theme, surfaceCtx.TrackedObjectStore)
             {
                 CachingEnabled = surfaceCtx.CachingEnabled,
                 MouseX = surfaceCtx.MouseX,
@@ -138,26 +173,42 @@ public sealed class SelectionPanelNode : Hex1bNode
                 SurfacePool = pool,
             };
 
-            tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
-            tempContext.RenderChild(Child);
-
-            ApplyCursorOverlay(tempSurface);
-
-            Rect? clipRect = null;
-            if (surfaceCtx.CurrentLayoutProvider != null)
+            // Push a layout provider clipping to visibleTerm so any
+            // child writes outside that rect are dropped at the cell
+            // level. Chain to the parent provider so its clip still
+            // applies further (e.g., grandparent panels).
+            tempContext.CurrentLayoutProvider = new RectLayoutProvider(visibleTerm)
             {
-                var providerClip = surfaceCtx.CurrentLayoutProvider.ClipRect;
+                ParentLayoutProvider = parentProvider
+            };
+            tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
+
+            // Render directly — DO NOT go through tempContext.RenderChild,
+            // which would re-allocate a Child.Bounds-sized surface and
+            // defeat the point of this whole refactor.
+            Child.Render(tempContext);
+
+            ApplyCursorOverlayToViewport(tempSurface, visibleTerm);
+
+            // Composite back into the parent surface. Honour the
+            // parent's clip on the composite step too — RectLayout
+            // already gates writes during render, but the parent may
+            // have additional clipping (ancestor scrolls, etc.) that
+            // we should respect on the final blit.
+            Rect? clipRect = null;
+            if (parentProvider != null)
+            {
+                var providerClip = parentProvider.ClipRect;
                 clipRect = new Rect(
-                    providerClip.X - surfaceCtx.OffsetX,
-                    providerClip.Y - surfaceCtx.OffsetY,
-                    providerClip.Width,
-                    providerClip.Height);
+                    providerClip.X - parentOffsetX,
+                    providerClip.Y - parentOffsetY,
+                    providerClip.Width, providerClip.Height);
             }
 
             surfaceCtx.Surface.Composite(
                 tempSurface,
-                Bounds.X - surfaceCtx.OffsetX,
-                Bounds.Y - surfaceCtx.OffsetY,
+                visibleTerm.X - parentOffsetX,
+                visibleTerm.Y - parentOffsetY,
                 clipRect);
         }
         finally
@@ -165,6 +216,26 @@ public sealed class SelectionPanelNode : Hex1bNode
             if (pool != null)
                 pool.Return(tempSurface);
         }
+    }
+
+    // Rect intersection. Hex1b.Layout.Rect doesn't expose Intersect,
+    // so inline the math here. Returns false (and out param is
+    // Rect.Zero) when the rects don't overlap.
+    private static bool TryIntersectRect(Rect a, Rect b, out Rect result)
+    {
+        int left = Math.Max(a.X, b.X);
+        int top = Math.Max(a.Y, b.Y);
+        int right = Math.Min(a.X + a.Width, b.X + b.Width);
+        int bottom = Math.Min(a.Y + a.Height, b.Y + b.Height);
+
+        if (right <= left || bottom <= top)
+        {
+            result = new Rect(left, top, 0, 0);
+            return false;
+        }
+
+        result = new Rect(left, top, right - left, bottom - top);
+        return true;
     }
 
     public override IEnumerable<Hex1bNode> GetChildren()
@@ -577,23 +648,29 @@ public sealed class SelectionPanelNode : Hex1bNode
         return surface;
     }
 
-    private void ApplyCursorOverlay(Surface surface)
+    // Apply the cursor / selection inversion overlay to a temp surface
+    // sized to the visible viewport. Geometry stays in panel-local
+    // coords (cursor + anchor never need to be translated for any
+    // logic outside Render); only the per-cell write maps panel-local
+    // (col, row) → terminal absolute (Bounds.X+col, Bounds.Y+row) →
+    // temp-buffer (-visibleTerm.X, -visibleTerm.Y) with a bounds
+    // check, so cells outside the viewport are silently skipped.
+    private void ApplyCursorOverlayToViewport(Surface tempSurface, Rect visibleTerm)
     {
         if (HasSelection)
         {
-            ApplySelectionInversion(surface);
+            ApplySelectionInversionToViewport(tempSurface, visibleTerm);
         }
         else
         {
             // Just the cursor cell.
-            InvertCell(surface, CursorCol, CursorRow);
+            InvertCellInViewport(tempSurface, visibleTerm, CursorCol, CursorRow);
         }
     }
 
-    private void ApplySelectionInversion(Surface surface)
+    private void ApplySelectionInversionToViewport(Surface tempSurface, Rect visibleTerm)
     {
-        int w = surface.Width;
-        int h = surface.Height;
+        int w = Math.Max(0, Bounds.Width);
 
         switch (CursorSelectionMode)
         {
@@ -602,7 +679,7 @@ public sealed class SelectionPanelNode : Hex1bNode
                 int top = Math.Min(AnchorRow!.Value, CursorRow);
                 int bottom = Math.Max(AnchorRow!.Value, CursorRow);
                 for (int y = top; y <= bottom; y++)
-                    InvertRow(surface, y, 0, w - 1);
+                    InvertRowInViewport(tempSurface, visibleTerm, y, 0, w - 1);
                 break;
             }
             case SelectionMode.Block:
@@ -612,7 +689,7 @@ public sealed class SelectionPanelNode : Hex1bNode
                 int left = Math.Min(AnchorCol!.Value, CursorCol);
                 int right = Math.Max(AnchorCol!.Value, CursorCol);
                 for (int y = top; y <= bottom; y++)
-                    InvertRow(surface, y, left, right);
+                    InvertRowInViewport(tempSurface, visibleTerm, y, left, right);
                 break;
             }
             case SelectionMode.Character:
@@ -621,14 +698,14 @@ public sealed class SelectionPanelNode : Hex1bNode
                 var (sRow, sCol, eRow, eCol) = NormalizeStream();
                 if (sRow == eRow)
                 {
-                    InvertRow(surface, sRow, sCol, eCol);
+                    InvertRowInViewport(tempSurface, visibleTerm, sRow, sCol, eCol);
                 }
                 else
                 {
-                    InvertRow(surface, sRow, sCol, w - 1);
+                    InvertRowInViewport(tempSurface, visibleTerm, sRow, sCol, w - 1);
                     for (int y = sRow + 1; y < eRow; y++)
-                        InvertRow(surface, y, 0, w - 1);
-                    InvertRow(surface, eRow, 0, eCol);
+                        InvertRowInViewport(tempSurface, visibleTerm, y, 0, w - 1);
+                    InvertRowInViewport(tempSurface, visibleTerm, eRow, 0, eCol);
                 }
                 break;
             }
@@ -646,19 +723,25 @@ public sealed class SelectionPanelNode : Hex1bNode
         return (cr, cc, ar, ac);
     }
 
-    private static void InvertRow(Surface surface, int y, int fromCol, int toColInclusive)
+    private void InvertRowInViewport(Surface tempSurface, Rect visibleTerm, int panelRow, int fromCol, int toColInclusive)
     {
         for (int x = fromCol; x <= toColInclusive; x++)
         {
-            InvertCell(surface, x, y);
+            InvertCellInViewport(tempSurface, visibleTerm, x, panelRow);
         }
     }
 
-    private static void InvertCell(Surface surface, int x, int y)
+    private void InvertCellInViewport(Surface tempSurface, Rect visibleTerm, int panelCol, int panelRow)
     {
-        if (surface.TryGetCell(x, y, out var cell))
+        // Translate panel-local cell coord → temp surface buffer coord.
+        int bufX = Bounds.X + panelCol - visibleTerm.X;
+        int bufY = Bounds.Y + panelRow - visibleTerm.Y;
+        if (bufX < 0 || bufX >= tempSurface.Width || bufY < 0 || bufY >= tempSurface.Height)
+            return;
+
+        if (tempSurface.TryGetCell(bufX, bufY, out var cell))
         {
-            surface.TrySetCell(x, y, cell.WithAddedAttributes(CellAttributes.Reverse));
+            tempSurface.TrySetCell(bufX, bufY, cell.WithAddedAttributes(CellAttributes.Reverse));
         }
     }
 
