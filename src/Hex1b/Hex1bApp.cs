@@ -344,6 +344,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     public Hex1bNode? CapturedNode => _focusRing.CapturedNode;
 
     /// <summary>
+    /// Gets the root of the reconciled node tree, or null before the first
+    /// reconcile completes. Internal — for tests.
+    /// </summary>
+    internal Hex1bNode? RootNode => _rootNode;
+
+    /// <summary>
     /// Gets the currently focused node, or null if no node has focus.
     /// Useful for testing and debugging focus state.
     /// </summary>
@@ -1778,19 +1784,29 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     /// <summary>
     /// Pre-order walk that appends every node whose
-    /// <see cref="Hex1bNode.HitTestBounds"/> contains <c>(x, y)</c>. Result is
-    /// ordered root-to-deepest along the visited path; callers iterate in
-    /// reverse for z-order.
+    /// <see cref="Hex1bNode.HitTestBounds"/> contains <c>(x, y)</c>. Descent
+    /// is gated on <see cref="Hex1bNode.Bounds"/> rather than HitTestBounds
+    /// so containers like <c>SplitterNode</c> (whose HitTestBounds is just
+    /// the divider strip) still allow us to reach descendants in their
+    /// panes. Result is ordered root-to-deepest along the visited path;
+    /// callers iterate in reverse for z-order.
     /// </summary>
     private static void CollectMouseHitPath(Hex1bNode node, int x, int y, List<Hex1bNode> path)
     {
-        var bounds = node.HitTestBounds;
+        var bounds = node.Bounds;
         if (x < bounds.X || x >= bounds.Right || y < bounds.Y || y >= bounds.Bottom)
         {
             return;
         }
 
-        path.Add(node);
+        var hitBounds = node.HitTestBounds;
+        bool hitTestable = x >= hitBounds.X && x < hitBounds.Right
+            && y >= hitBounds.Y && y < hitBounds.Bottom;
+        if (hitTestable)
+        {
+            path.Add(node);
+        }
+
         foreach (var child in node.GetChildren())
         {
             CollectMouseHitPath(child, x, y, path);
