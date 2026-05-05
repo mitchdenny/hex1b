@@ -429,7 +429,17 @@ public sealed class SelectionPanelNode : Hex1bNode
                 onMove: (ctx, dx, dy) =>
                 {
                     if (!IsInCopyMode) return;
-                    SetCursor(anchorRow + dy, anchorCol + dx);
+                    // Compute the cursor from the absolute mouse coordinates
+                    // relative to the panel's CURRENT bounds rather than from
+                    // anchor + delta. The delta-based model breaks if Bounds
+                    // shifts between drag-start and drag-move (which happens
+                    // when an enclosing ScrollPanel scrolls mid-drag in
+                    // response to a wheel event). Using ctx.MouseX/Y - Bounds
+                    // makes the cursor track whatever cell is under the mouse
+                    // regardless of intervening scroll.
+                    int row = ctx.MouseY - Bounds.Y;
+                    int col = ctx.MouseX - Bounds.X;
+                    SetCursor(row, col);
                     ctx.Invalidate();
                 },
                 onEnd: ctx =>

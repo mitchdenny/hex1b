@@ -705,7 +705,10 @@ public class SelectionPanelNodeTests
         var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
 
         var handler = dragBinding.StartDrag(3, 1);
-        var ctx = new InputBindingActionContext(new FocusRing());
+        // Cursor is computed from absolute mouse coords minus current Bounds,
+        // so the test must construct a context with explicit mouse coords.
+        // Node is arranged at (0, 0) → mouse (8, 3) ≡ panel-local (8, 3).
+        var ctx = new InputBindingActionContext(new FocusRing(), mouseX: 8, mouseY: 3);
 
         handler.OnMove?.Invoke(ctx, 5, 2);
 
@@ -723,7 +726,8 @@ public class SelectionPanelNodeTests
         var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
 
         var handler = dragBinding.StartDrag(5, 2);
-        var ctx = new InputBindingActionContext(new FocusRing());
+        // Mouse far outside panel bounds → cursor clamps to last valid cell.
+        var ctx = new InputBindingActionContext(new FocusRing(), mouseX: 100, mouseY: 100);
 
         handler.OnMove?.Invoke(ctx, 100, 100);
 
@@ -786,6 +790,43 @@ public class SelectionPanelNodeTests
         Assert.Equal(0, node.CursorCol);
         Assert.Equal(0, node.AnchorRow);
         Assert.Equal(0, node.AnchorCol);
+    }
+
+    [Fact]
+    public void DragBinding_OnMove_TracksMouseAfterBoundsShift()
+    {
+        // When an enclosing ScrollPanel scrolls mid-drag, this node's Bounds.Y
+        // changes (the panel slides in terminal coords). The drag handler must
+        // compute the cursor from absolute mouse coords against CURRENT Bounds
+        // — not from the original anchor + a delta — so the highlight tracks
+        // whatever cell is now under the (stationary) mouse pointer.
+        var child = new TextBlockNode { Text = string.Empty };
+        var node = new SelectionPanelNode
+        {
+            Child = child,
+            CopyHandler = _ => Task.CompletedTask,
+        };
+        node.Measure(new Constraints(0, 20, 0, 50));
+        node.Arrange(new Rect(0, 0, 20, 50));
+
+        var dragBinding = node.BuildBindings().DragBindings.Single(b => b.Modifiers == Hex1bModifiers.None);
+        var handler = dragBinding.StartDrag(5, 10);
+
+        // Initial drag-move at terminal (5, 10): cursor at panel-local (5, 10).
+        var ctxBefore = new InputBindingActionContext(new FocusRing(), mouseX: 5, mouseY: 10);
+        handler.OnMove?.Invoke(ctxBefore, 0, 0);
+        Assert.Equal(10, node.CursorRow);
+        Assert.Equal(5, node.CursorCol);
+
+        // Simulate scroll: panel slides up by 3 rows (Bounds.Y goes from 0 to -3).
+        node.Arrange(new Rect(0, -3, 20, 50));
+
+        // Mouse stationary at terminal (5, 10) — but with shifted bounds, the
+        // cell under the mouse is now panel-local row 13 (10 - (-3)).
+        var ctxAfter = new InputBindingActionContext(new FocusRing(), mouseX: 5, mouseY: 10);
+        handler.OnMove?.Invoke(ctxAfter, 0, 0);
+        Assert.Equal(13, node.CursorRow);
+        Assert.Equal(5, node.CursorCol);
     }
 
     private static SelectionPanelNode SetupArrangedNode(int width, int height)

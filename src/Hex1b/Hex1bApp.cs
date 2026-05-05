@@ -697,8 +697,20 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 // Update hover state on any mouse event
                 UpdateHoverState(mouseEvent.X, mouseEvent.Y);
                 
-                // If a drag is active, route all events to the drag handler
-                if (_activeDragHandler != null && _activeDragNode != null)
+                // If a drag is active, route all events to the drag handler.
+                // EXCEPTION: scroll-wheel events fall through to ancestor
+                // mouse bindings so users can scroll the enclosing container
+                // mid-drag and extend the selection onto content that was
+                // off-screen at drag-start. After the wheel is dispatched a
+                // synthetic OnMove fires so the selection cursor follows the
+                // cell that scroll has just brought under the (stationary)
+                // mouse pointer.
+                bool isWheelDuringDrag = _activeDragHandler != null
+                    && mouseEvent.Action == MouseAction.Down
+                    && (mouseEvent.Button == MouseButton.ScrollUp
+                        || mouseEvent.Button == MouseButton.ScrollDown);
+
+                if (_activeDragHandler != null && _activeDragNode != null && !isWheelDuringDrag)
                 {
                     // Create context for drag events
                     var dragContext = new InputBindingActionContext(
@@ -732,6 +744,12 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                         _activeDragNode = null;
                     }
                     // While dragging, skip normal event handling
+                    break;
+                }
+
+                if (isWheelDuringDrag)
+                {
+                    await DispatchWheelDuringDragAsync(mouseEvent, cancellationToken);
                     break;
                 }
 
@@ -1877,7 +1895,105 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         var deltaY = currentEvent.Y - _dragStartY;
         handler.OnMove?.Invoke(dragContext, deltaX, deltaY);
     }
-    
+
+    /// <summary>
+    /// Routes a scroll-wheel event that arrived during an active drag to the
+    /// first ancestor of the drag-owning node that has a matching mouse
+    /// binding (typically an enclosing <c>ScrollPanelNode</c>'s
+    /// <c>MouseScrollUp</c>/<c>MouseScrollDown</c>). After dispatch, fires a
+    /// synthetic <c>OnMove</c> on the active drag handler at the current
+    /// mouse coordinates so the selection cursor follows the cell that
+    /// scroll has just brought under the (stationary) mouse pointer.
+    /// </summary>
+    /// <remarks>
+    /// Walking up from <see cref="_activeDragNode"/> rather than hit-testing
+    /// the cursor position guarantees the wheel reaches the scroll container
+    /// even when the mouse is over an inner focusable child (e.g., a button)
+    /// that has no wheel binding.
+    ///
+    /// A synchronous Measure + Arrange runs after the wheel binding executes
+    /// so child <c>Bounds</c> reflect the post-scroll layout before the
+    /// synthetic OnMove. The next render does this again, but the drag
+    /// handler relies on up-to-date bounds RIGHT NOW to compute the new
+    /// cursor row from the mouse's current terminal coordinates.
+    /// </remarks>
+    private async Task DispatchWheelDuringDragAsync(Hex1bMouseEvent mouseEvent, CancellationToken cancellationToken)
+    {
+        var dragNode = _activeDragNode;
+        var dragHandler = _activeDragHandler;
+        if (dragNode is null || dragHandler is null)
+        {
+            return;
+        }
+
+        // Defensive: if the drag-owning node has been reconciled out of the
+        // current tree (e.g. the user's content rebuild dropped it between
+        // events), the Parent chain may still reach a detached subtree. Bail
+        // and clear stale drag state so we don't dispatch into orphaned nodes.
+        if (_rootNode is null || !ContainsNode(_rootNode, dragNode))
+        {
+            _activeDragHandler = null;
+            _activeDragNode = null;
+            return;
+        }
+
+        var dragContext = new InputBindingActionContext(
+            _focusRing, RequestStop, cancellationToken,
+            mouseEvent.X, mouseEvent.Y, CopyToClipboard, Invalidate, _windowManagerRegistry);
+
+        var matched = false;
+        for (var n = dragNode; n != null; n = n.Parent)
+        {
+            var bindings = n.BuildBindings().MouseBindings
+                .OrderByDescending(b => b.ClickCount);
+            foreach (var binding in bindings)
+            {
+                if (binding.Matches(mouseEvent))
+                {
+                    await binding.ExecuteAsync(dragContext);
+                    matched = true;
+                    break;
+                }
+            }
+            if (matched) break;
+        }
+
+        // If no wheel binding fired, no scroll happened, so there's nothing
+        // to follow with a synthetic OnMove.
+        if (!matched) return;
+
+        // Force a synchronous layout pass so child Bounds reflect the
+        // post-scroll state before the synthetic OnMove sees them. Without
+        // this, the SelectionPanel's drag handler would compute its cursor
+        // against stale Bounds.Y and the highlight would lag the scroll by
+        // one wheel-tick.
+        if (_rootNode != null)
+        {
+            var size = new Size(_adapter.Width, _adapter.Height);
+            _rootNode.Measure(Constraints.Tight(size));
+            _rootNode.Arrange(Rect.FromSize(size));
+        }
+
+        // Fire a synthetic drag-move so the selection cursor follows whatever
+        // cell scroll has just brought under the (stationary) mouse pointer.
+        // SelectionPanelNode's drag handler computes the cursor from absolute
+        // mouse coordinates relative to the panel's CURRENT bounds, so it
+        // automatically picks up the post-scroll position.
+        var deltaX = mouseEvent.X - _dragStartX;
+        var deltaY = mouseEvent.Y - _dragStartY;
+        dragHandler.OnMove?.Invoke(dragContext, deltaX, deltaY);
+    }
+
+    private static bool ContainsNode(Hex1bNode root, Hex1bNode target)
+    {
+        if (ReferenceEquals(root, target)) return true;
+        foreach (var child in root.GetChildren())
+        {
+            if (ContainsNode(child, target)) return true;
+        }
+        return false;
+    }
+
     /// <summary>
     /// Computes the click count for a mouse down event based on timing and position.
     /// </summary>

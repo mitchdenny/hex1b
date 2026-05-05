@@ -353,4 +353,120 @@ public class SelectionPanelMouseDragIntegrationTests
         Assert.False(panel.IsInCopyMode);
         Assert.False(panel.HasSelection);
     }
+
+    /// <summary>
+    /// End-to-end scroll-wheel-while-dragging: the user drags from a visible
+    /// row inside a SelectionPanel that is taller than its enclosing
+    /// ScrollPanel viewport. While the left button is still held, scrolling
+    /// the wheel must (a) actually scroll the ScrollPanel — even though a
+    /// drag is active and would normally swallow all mouse input — and
+    /// (b) extend the selection's cursor onto whatever cell scroll has
+    /// brought under the (stationary) mouse pointer. Together this lets a
+    /// user start a selection on visible content and drag it onto content
+    /// that was off-screen at drag-start.
+    /// </summary>
+    [Fact]
+    public async Task WheelDuringDrag_ScrollsContainer_AndExtendsSelectionToNewlyVisibleContent()
+    {
+        var workload = new Hex1bAppWorkloadAdapter();
+        var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        using var _w = workload; using var _t = terminal;
+
+        // 30 lines of content inside a 10-row terminal so the ScrollPanel has
+        // plenty of off-screen content to bring into view via wheel scroll.
+        var lines = new string[30];
+        for (int i = 0; i < lines.Length; i++) lines[i] = $"Row {i:00} payload here";
+        var content = string.Join('\n', lines);
+
+        var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.VScrollPanel(sv =>
+                [
+                    sv.SelectionPanel(sv.Text(content)).OnCopy((string _) => { })
+                ], showScrollbar: false)),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+        using var _a = app;
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5),
+                "scroll+selection panel ready")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var panel = FindPanel(app);
+        Assert.NotNull(panel);
+        var scroll = FindScrollPanel(app);
+        Assert.NotNull(scroll);
+        Assert.Equal(0, scroll!.Offset);
+
+        // Press at terminal row 1 (panel-local row 1, since not scrolled yet)
+        // and drag to row 3 to enter copy mode with an active drag.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .MouseMoveTo(5, 1)
+            .MouseDown()
+            .Wait(TimeSpan.FromMilliseconds(20))
+            .MouseMoveTo(5, 3)
+            .WaitUntil(_ => panel!.IsInCopyMode,
+                TimeSpan.FromSeconds(2), "panel enters copy mode")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(panel!.IsInCopyMode);
+        Assert.Equal(1, panel.AnchorRow);
+        Assert.Equal(3, panel.CursorRow);
+
+        // Mouse stays at terminal row 3. Scroll the wheel to bring later
+        // content into view — the SelectionPanel slides up, and the cell
+        // now under terminal row 3 is panel-local row > 3.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ScrollDown(5)
+            .WaitUntil(_ => scroll!.Offset > 0 && panel.CursorRow > 3,
+                TimeSpan.FromSeconds(2), "scroll occurred and cursor extended")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(scroll!.Offset > 0,
+            $"ScrollPanel.Offset expected > 0 after wheel-down, got {scroll.Offset}");
+        Assert.True(panel.CursorRow > 3,
+            $"panel.CursorRow expected > 3 (anchor row + extension into newly-visible content), got {panel.CursorRow}");
+        // Anchor unchanged — selection EXTENDS, not moves.
+        Assert.Equal(1, panel.AnchorRow);
+        // Cursor must extend at least as far as the original mouseY (3) plus
+        // some scroll-driven offset, proving that scroll-during-drag actually
+        // brought new content under the mouse and the synthetic drag-move
+        // followed it. Exact value depends on input batching / coalescing
+        // ordering between scroll ticks and is not part of the contract.
+        Assert.True(panel.CursorRow >= 3 + 3,
+            $"panel.CursorRow expected >= 6 (mouseY + at least one scroll tick), got {panel.CursorRow}");
+
+        // Releasing the mouse leaves copy mode active for keyboard refinement.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .MouseUp()
+            .Wait(TimeSpan.FromMilliseconds(20))
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(panel.IsInCopyMode);
+        Assert.True(panel.HasSelection);
+    }
+
+    private static ScrollPanelNode? FindScrollPanel(Hex1bApp app)
+    {
+        var root = app.RootNode;
+        return root is null ? null : Walk(root);
+
+        static ScrollPanelNode? Walk(Hex1bNode node)
+        {
+            if (node is ScrollPanelNode sp) return sp;
+            foreach (var child in node.GetChildren())
+            {
+                var found = Walk(child);
+                if (found is not null) return found;
+            }
+            return null;
+        }
+    }
 }
