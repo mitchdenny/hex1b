@@ -170,6 +170,31 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     // Default is true — Hex1b always clusters graphemes like modern terminals.
     // Applications can disable with CSI ? 2027 l for per-codepoint handling.
     private bool _graphemeClusterMode = true;
+
+    // Replayable terminal modes that affect input/rendering.
+    //
+    // These are tracked here (in addition to the widget-level handle that some
+    // higher-level Hex1b APIs use) so that presentation adapters consuming the
+    // terminal directly — most notably <see cref="Hmp1PresentationAdapter"/> —
+    // can reproduce the modes for a viewer that connects after the workload
+    // has already configured them. Without this tracking, a TUI app that sets
+    // mouse tracking, hides the cursor, switches to the alt screen, etc.
+    // would lose those settings on every reconnect because the cell-content
+    // replay (ToAnsi) only carries visible state.
+    private bool _cursorVisible = true;            // DECTCEM (mode 25), default on
+    private bool _bracketedPasteMode = false;      // mode 2004
+    private bool _appCursorKeysMode = false;       // DECCKM (mode 1)
+    private bool _appKeypadMode = false;           // DECKPAM (ESC =) / DECKPNM (ESC >)
+    private bool _focusEventReporting = false;     // mode 1004
+    private bool _mouseProtocolX10 = false;        // mode 9
+    private bool _mouseProtocolNormal = false;     // mode 1000
+    private bool _mouseProtocolHighlight = false;  // mode 1001
+    private bool _mouseProtocolButton = false;     // mode 1002 (button-event tracking)
+    private bool _mouseProtocolAny = false;        // mode 1003 (any-event / motion tracking)
+    private bool _mouseEncodingUtf8 = false;       // mode 1005
+    private bool _mouseEncodingSgr = false;        // mode 1006
+    private bool _mouseEncodingUrxvt = false;      // mode 1015
+    private int _cursorShape = 0;                  // 0=default; 1..6 per DECSCUSR
     
     // Last printed character for CSI b (REP - repeat) command
     private TerminalCell _lastPrintedCell = TerminalCell.Empty;
@@ -1732,6 +1757,25 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
     /// <summary>Gets whether the terminal has a pending wrap (for testing).</summary>
     internal bool PendingWrap => _pendingWrap;
 
+    // Replayable terminal mode accessors. See the field declarations near the
+    // top of the file for the rationale. These are exposed as internal so that
+    // Hex1b.Automation.Hex1bTerminalSnapshot (same assembly) can capture them
+    // for presentation-adapter replay.
+    internal bool CursorVisible => _cursorVisible;
+    internal bool BracketedPasteEnabled => _bracketedPasteMode;
+    internal bool ApplicationCursorKeysEnabled => _appCursorKeysMode;
+    internal bool ApplicationKeypadEnabled => _appKeypadMode;
+    internal bool FocusEventsEnabled => _focusEventReporting;
+    internal bool MouseProtocolX10Enabled => _mouseProtocolX10;
+    internal bool MouseProtocolNormalEnabled => _mouseProtocolNormal;
+    internal bool MouseProtocolHighlightEnabled => _mouseProtocolHighlight;
+    internal bool MouseProtocolButtonEnabled => _mouseProtocolButton;
+    internal bool MouseProtocolAnyEnabled => _mouseProtocolAny;
+    internal bool MouseEncodingUtf8Enabled => _mouseEncodingUtf8;
+    internal bool MouseEncodingSgrEnabled => _mouseEncodingSgr;
+    internal bool MouseEncodingUrxvtEnabled => _mouseEncodingUrxvt;
+    internal int CursorShape => _cursorShape;
+
     /// <summary>
     /// The scrollback buffer, if one was configured via <see cref="Hex1bTerminalOptions.ScrollbackCapacity"/>.
     /// </summary>
@@ -2564,6 +2608,66 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                     // When disabled, each codepoint is treated individually.
                     _graphemeClusterMode = privateModeToken.Enable;
                 }
+                else if (privateModeToken.Mode == 1)
+                {
+                    // DECCKM - Application Cursor Keys Mode
+                    _appCursorKeysMode = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 9)
+                {
+                    // X10 mouse compatibility tracking
+                    _mouseProtocolX10 = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 25)
+                {
+                    // DECTCEM - Cursor visibility
+                    _cursorVisible = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1000)
+                {
+                    // X11 normal mouse tracking (button press/release)
+                    _mouseProtocolNormal = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1001)
+                {
+                    // X11 hilite mouse tracking
+                    _mouseProtocolHighlight = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1002)
+                {
+                    // Button-event mouse tracking (press/release/drag)
+                    _mouseProtocolButton = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1003)
+                {
+                    // Any-event mouse tracking (also reports motion without buttons)
+                    _mouseProtocolAny = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1004)
+                {
+                    // Focus-in/focus-out reporting
+                    _focusEventReporting = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1005)
+                {
+                    // UTF-8 mouse encoding
+                    _mouseEncodingUtf8 = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1006)
+                {
+                    // SGR mouse encoding
+                    _mouseEncodingSgr = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 1015)
+                {
+                    // urxvt mouse encoding
+                    _mouseEncodingUrxvt = privateModeToken.Enable;
+                }
+                else if (privateModeToken.Mode == 2004)
+                {
+                    // Bracketed paste mode
+                    _bracketedPasteMode = privateModeToken.Enable;
+                }
                 break;
             
             case StandardModeToken stdModeToken:
@@ -2661,8 +2765,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
                 
-            case CursorShapeToken:
-                // Cursor shape is presentation-only, no buffer state to update
+            case CursorShapeToken cursorShapeToken:
+                // DECSCUSR — purely presentational, but tracked so a viewer
+                // attaching after the workload set a non-default shape sees
+                // the same cursor.
+                _cursorShape = cursorShapeToken.Shape;
                 break;
                 
             case CursorMoveToken moveToken:
@@ -2855,8 +2962,11 @@ public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
                 }
                 break;
             
-            case KeypadModeToken:
-                // Keypad mode - presentation-only, no buffer state
+            case KeypadModeToken kpToken:
+                // ESC = / ESC > — DECKPAM/DECKPNM. Tracked so that a viewer
+                // attaching after the workload entered application-keypad
+                // mode sees the same numeric/application-keypad behaviour.
+                _appKeypadMode = kpToken.Application;
                 break;
                 
             case UnrecognizedSequenceToken:

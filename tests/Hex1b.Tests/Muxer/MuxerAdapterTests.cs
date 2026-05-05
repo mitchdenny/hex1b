@@ -1,6 +1,7 @@
 using System.IO.Pipelines;
 using System.Text;
 using Hex1b;
+using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Muxer;
 
@@ -188,6 +189,139 @@ public class MuxerAdapterTests
     }
 
     [Fact]
+    public async Task StateReplay_EmitsTrackedPrivateModesOnReconnect()
+    {
+        // The presentation adapter rebuilds the screen state for a new viewer
+        // by sending a StateSync frame derived from a Hex1bTerminal snapshot.
+        // ToAnsi only encodes cells + cursor; this test pins down that
+        // private terminal modes (mouse tracking, focus events, bracketed
+        // paste, etc.) are also emitted so that a viewer reconnecting
+        // mid-session sees the same xterm modes as the original viewer did.
+        await using var adapter = new Hmp1PresentationAdapter(80, 24);
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = new NoOpWorkloadAdapter(),
+            PresentationAdapter = adapter
+        });
+
+        // Drive the terminal through a representative TUI startup sequence.
+        // Pick at least one mode in each replay-suffix family so a regression
+        // in any single emit branch surfaces here.
+        terminal.ApplyTokens([
+            new PrivateModeToken(1002, true),  // SET_BTN_EVENT_MOUSE
+            new PrivateModeToken(1006, true),  // SET_SGR_EXT_MODE_MOUSE
+            new PrivateModeToken(1004, true),  // SET_FOCUS_EVENT_MOUSE
+            new PrivateModeToken(2004, true),  // SET_BRACKETED_PASTE
+            new PrivateModeToken(25, false),   // RESET_DECTCEM (hide cursor)
+            new PrivateModeToken(1, true),     // SET_DECCKM (app cursor keys)
+            new KeypadModeToken(true),         // DECKPAM
+            new CursorShapeToken(2),           // DECSCUSR steady block
+        ]);
+
+        var (stream1, stream2) = CreateFullDuplexPair();
+        var handle = await adapter.AddClient(stream1);
+
+        var client = new Hmp1WorkloadAdapter(stream2);
+        await client.ConnectAsync(CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
+        var stateSync = Encoding.UTF8.GetString(stateSyncBytes.Span);
+
+        Assert.Contains("\x1b[?1002h", stateSync);
+        Assert.Contains("\x1b[?1006h", stateSync);
+        Assert.Contains("\x1b[?1004h", stateSync);
+        Assert.Contains("\x1b[?2004h", stateSync);
+        Assert.Contains("\x1b[?25l", stateSync);
+        Assert.Contains("\x1b[?1h", stateSync);
+        Assert.Contains("\x1b=", stateSync);
+        Assert.Contains("\x1b[2 q", stateSync);
+
+        await handle.DisposeAsync();
+        await client.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task StateReplay_OmitsDefaultModes()
+    {
+        // A pristine terminal should produce a StateSync without DECSETs
+        // for any replay-tracked mode, since the viewer's terminal already
+        // starts at those defaults. Otherwise we'd be sending sequences for
+        // every reconnect that have no semantic effect but make the wire
+        // payload larger and the replay slower.
+        await using var adapter = new Hmp1PresentationAdapter(80, 24);
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = new NoOpWorkloadAdapter(),
+            PresentationAdapter = adapter
+        });
+
+        var (stream1, stream2) = CreateFullDuplexPair();
+        var handle = await adapter.AddClient(stream1);
+
+        var client = new Hmp1WorkloadAdapter(stream2);
+        await client.ConnectAsync(CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
+        var stateSync = Encoding.UTF8.GetString(stateSyncBytes.Span);
+
+        // None of the DECSETs covered by BuildStateReplaySuffix should fire.
+        Assert.DoesNotContain("\x1b[?1002h", stateSync);
+        Assert.DoesNotContain("\x1b[?1006h", stateSync);
+        Assert.DoesNotContain("\x1b[?1004h", stateSync);
+        Assert.DoesNotContain("\x1b[?2004h", stateSync);
+        Assert.DoesNotContain("\x1b[?25l", stateSync);
+        Assert.DoesNotContain("\x1b[?1h", stateSync);
+        Assert.DoesNotContain("\x1b=", stateSync);
+
+        await handle.DisposeAsync();
+        await client.DisposeAsync();
+    }
+
+    [Fact]
+    public async Task StateReplay_AlternateScreenIsEnteredBeforeCellRepaint()
+    {
+        // When a workload has switched to the alternate screen (TUI like
+        // htop, vim, less), the viewer reconnecting must enter the alt
+        // screen *before* the painter's clear+home, otherwise the snapshot
+        // will paint into the primary buffer and clobber it.
+        await using var adapter = new Hmp1PresentationAdapter(80, 24);
+        using var terminal = new Hex1bTerminal(new Hex1bTerminalOptions
+        {
+            Width = 80,
+            Height = 24,
+            WorkloadAdapter = new NoOpWorkloadAdapter(),
+            PresentationAdapter = adapter
+        });
+
+        terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
+
+        var (stream1, stream2) = CreateFullDuplexPair();
+        var handle = await adapter.AddClient(stream1);
+
+        var client = new Hmp1WorkloadAdapter(stream2);
+        await client.ConnectAsync(CancellationToken.None);
+
+        using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
+        var stateSync = Encoding.UTF8.GetString(stateSyncBytes.Span);
+
+        var altIndex = stateSync.IndexOf("\x1b[?1049h", StringComparison.Ordinal);
+        var clearIndex = stateSync.IndexOf("\x1b[2J", StringComparison.Ordinal);
+
+        Assert.True(altIndex >= 0, "Alt-screen DECSET 1049h must be emitted when the workload is on the alt screen.");
+        Assert.True(clearIndex > altIndex, "Alt-screen DECSET must come before the clear-screen sequence.");
+
+        await handle.DisposeAsync();
+        await client.DisposeAsync();
+    }
+
+    [Fact]
     public async Task Hmp1WorkloadAdapter_Disconnected_FiredOnStreamClose()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -294,5 +428,31 @@ public class MuxerAdapterTests
             await writeStream.DisposeAsync();
             await base.DisposeAsync();
         }
+    }
+
+    /// <summary>
+    /// A workload adapter that does nothing. Lets us construct a Hex1bTerminal
+    /// for unit tests where we drive state directly via ApplyTokens rather
+    /// than feeding bytes through a pump.
+    /// </summary>
+    private sealed class NoOpWorkloadAdapter : IHex1bTerminalWorkloadAdapter
+    {
+        public event Action? Disconnected
+        {
+            add { }
+            remove { }
+        }
+
+        public ValueTask<ReadOnlyMemory<byte>> ReadOutputAsync(CancellationToken ct = default)
+            => ValueTask.FromResult(ReadOnlyMemory<byte>.Empty);
+
+        public ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
+            => ValueTask.CompletedTask;
+
+        public ValueTask DisposeAsync()
+            => ValueTask.CompletedTask;
     }
 }
