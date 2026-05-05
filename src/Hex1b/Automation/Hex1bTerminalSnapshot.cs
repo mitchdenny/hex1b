@@ -29,6 +29,20 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
         CursorX = terminal.CursorX;
         CursorY = terminal.CursorY;
         InAlternateScreen = terminal.InAlternateScreen;
+        CursorVisible = terminal.CursorVisible;
+        BracketedPasteEnabled = terminal.BracketedPasteEnabled;
+        ApplicationCursorKeysEnabled = terminal.ApplicationCursorKeysEnabled;
+        ApplicationKeypadEnabled = terminal.ApplicationKeypadEnabled;
+        FocusEventsEnabled = terminal.FocusEventsEnabled;
+        MouseProtocolX10Enabled = terminal.MouseProtocolX10Enabled;
+        MouseProtocolNormalEnabled = terminal.MouseProtocolNormalEnabled;
+        MouseProtocolHighlightEnabled = terminal.MouseProtocolHighlightEnabled;
+        MouseProtocolButtonEnabled = terminal.MouseProtocolButtonEnabled;
+        MouseProtocolAnyEnabled = terminal.MouseProtocolAnyEnabled;
+        MouseEncodingUtf8Enabled = terminal.MouseEncodingUtf8Enabled;
+        MouseEncodingSgrEnabled = terminal.MouseEncodingSgrEnabled;
+        MouseEncodingUrxvtEnabled = terminal.MouseEncodingUrxvtEnabled;
+        CursorShape = terminal.CursorShape;
         Timestamp = DateTimeOffset.UtcNow;
         CellPixelWidth = terminal.Capabilities.CellPixelWidth;
         CellPixelHeight = terminal.Capabilities.CellPixelHeight;
@@ -152,6 +166,77 @@ public sealed class Hex1bTerminalSnapshot : IHex1bTerminalRegion, IDisposable
     /// Whether the terminal was in alternate screen mode at snapshot time.
     /// </summary>
     public bool InAlternateScreen { get; }
+
+    /// <summary>
+    /// Whether the cursor was visible (DECTCEM, DEC mode 25) at snapshot time.
+    /// </summary>
+    public bool CursorVisible { get; }
+
+    /// <summary>
+    /// Whether bracketed-paste mode (DEC mode 2004) was enabled at snapshot time.
+    /// </summary>
+    public bool BracketedPasteEnabled { get; }
+
+    /// <summary>
+    /// Whether application-cursor-keys mode (DECCKM, DEC mode 1) was enabled at snapshot time.
+    /// </summary>
+    public bool ApplicationCursorKeysEnabled { get; }
+
+    /// <summary>
+    /// Whether application-keypad mode (DECKPAM, ESC =) was enabled at snapshot time.
+    /// </summary>
+    public bool ApplicationKeypadEnabled { get; }
+
+    /// <summary>
+    /// Whether focus-in/focus-out reporting (DEC mode 1004) was enabled at snapshot time.
+    /// </summary>
+    public bool FocusEventsEnabled { get; }
+
+    /// <summary>
+    /// Whether X10-compatibility mouse tracking (DEC mode 9) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseProtocolX10Enabled { get; }
+
+    /// <summary>
+    /// Whether X11 normal mouse tracking (DEC mode 1000) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseProtocolNormalEnabled { get; }
+
+    /// <summary>
+    /// Whether highlight mouse tracking (DEC mode 1001) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseProtocolHighlightEnabled { get; }
+
+    /// <summary>
+    /// Whether button-event mouse tracking (DEC mode 1002) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseProtocolButtonEnabled { get; }
+
+    /// <summary>
+    /// Whether any-event mouse tracking (DEC mode 1003) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseProtocolAnyEnabled { get; }
+
+    /// <summary>
+    /// Whether UTF-8 mouse encoding (DEC mode 1005) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseEncodingUtf8Enabled { get; }
+
+    /// <summary>
+    /// Whether SGR mouse encoding (DEC mode 1006) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseEncodingSgrEnabled { get; }
+
+    /// <summary>
+    /// Whether urxvt mouse encoding (DEC mode 1015) was enabled at snapshot time.
+    /// </summary>
+    public bool MouseEncodingUrxvtEnabled { get; }
+
+    /// <summary>
+    /// DECSCUSR cursor shape value at snapshot time. <c>0</c> means "default";
+    /// values 1–6 follow the standard <c>CSI Ps SP q</c> mapping.
+    /// </summary>
+    public int CursorShape { get; }
     
     /// <summary>
     /// Width of a terminal character cell in pixels.

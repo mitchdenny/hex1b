@@ -139,12 +139,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             if (_terminal != null)
             {
                 using var snapshot = _terminal.CreateSnapshot();
+                var prefix = BuildStateReplayPrefix(snapshot);
                 var ansi = snapshot.ToAnsi(new TerminalAnsiOptions
                 {
                     IncludeClearScreen = true,
                     IncludeTrailingNewline = true
                 });
-                syncBytes = Encoding.UTF8.GetBytes(ansi);
+                var suffix = BuildStateReplaySuffix(snapshot);
+                syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
             }
             else
             {
@@ -163,6 +165,83 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         session.ReadTask = Task.Run(() => ReadClientPumpAsync(session), sessionCts.Token);
 
         return new Hmp1ClientHandle(session, this);
+    }
+
+    /// <summary>
+    /// Builds the leading portion of a StateSync replay. Anything that has to
+    /// happen <em>before</em> the cell content is painted (like switching to
+    /// the alternate screen so the painter's clear+home target the right
+    /// buffer) is emitted here.
+    /// </summary>
+    private static string BuildStateReplayPrefix(Hex1bTerminalSnapshot snapshot)
+    {
+        var sb = new StringBuilder();
+
+        // ToAnsi paints onto whichever buffer the viewer is currently on and
+        // does its own \x1b[2J + \x1b[H. If the workload had switched to the
+        // alternate screen, we have to enter alt screen first so the
+        // subsequent clear+home target the alt buffer. DECSET 1049 also saves
+        // and restores the cursor as a side-effect, which lines up with how a
+        // viewer would have observed the original entry.
+        if (snapshot.InAlternateScreen)
+        {
+            sb.Append("\x1b[?1049h");
+        }
+
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// Builds the trailing portion of a StateSync replay. Modes are emitted
+    /// here so that any ANSI in the cell-content payload (which conceptually
+    /// targets a freshly-cleared screen) cannot accidentally clobber them.
+    /// Only non-default modes are emitted; the viewer's terminal starts with
+    /// the standard defaults already applied.
+    /// </summary>
+    private static string BuildStateReplaySuffix(Hex1bTerminalSnapshot snapshot)
+    {
+        var sb = new StringBuilder();
+
+        // Mouse-tracking protocols. These flags are independent in xterm — a
+        // workload may legitimately enable more than one — so we mirror that
+        // model on replay rather than picking a single "winning" mode.
+        if (snapshot.MouseProtocolX10Enabled)        { sb.Append("\x1b[?9h"); }
+        if (snapshot.MouseProtocolNormalEnabled)     { sb.Append("\x1b[?1000h"); }
+        if (snapshot.MouseProtocolHighlightEnabled)  { sb.Append("\x1b[?1001h"); }
+        if (snapshot.MouseProtocolButtonEnabled)     { sb.Append("\x1b[?1002h"); }
+        if (snapshot.MouseProtocolAnyEnabled)        { sb.Append("\x1b[?1003h"); }
+
+        // Mouse-encoding modes. Same independence applies.
+        if (snapshot.MouseEncodingUtf8Enabled)       { sb.Append("\x1b[?1005h"); }
+        if (snapshot.MouseEncodingSgrEnabled)        { sb.Append("\x1b[?1006h"); }
+        if (snapshot.MouseEncodingUrxvtEnabled)      { sb.Append("\x1b[?1015h"); }
+
+        // Focus events.
+        if (snapshot.FocusEventsEnabled)             { sb.Append("\x1b[?1004h"); }
+
+        // Bracketed paste.
+        if (snapshot.BracketedPasteEnabled)          { sb.Append("\x1b[?2004h"); }
+
+        // Application cursor keys (DECCKM).
+        if (snapshot.ApplicationCursorKeysEnabled)   { sb.Append("\x1b[?1h"); }
+
+        // Application keypad mode (DECKPAM).
+        if (snapshot.ApplicationKeypadEnabled)       { sb.Append("\x1b="); }
+
+        // Cursor visibility — default is visible, so only emit when hidden.
+        if (!snapshot.CursorVisible)                 { sb.Append("\x1b[?25l"); }
+
+        // Cursor shape (DECSCUSR). 0 means "default"; only emit when
+        // non-default. The space-q trailer is part of the sequence, not a
+        // separator.
+        if (snapshot.CursorShape > 0)
+        {
+            sb.Append("\x1b[");
+            sb.Append(snapshot.CursorShape);
+            sb.Append(" q");
+        }
+
+        return sb.ToString();
     }
 
     /// <inheritdoc />
