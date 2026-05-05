@@ -36,7 +36,7 @@ public class SelectionPanelMouseDragIntegrationTests
                         "Line 2 content here\n" +
                         "Line 3 content here\n" +
                         "Line 4 content here"))
-                .OnCopy(_ => { })),
+                .OnCopy((string _) => { })),
             new Hex1bAppOptions { WorkloadAdapter = workload });
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -189,7 +189,7 @@ public class SelectionPanelMouseDragIntegrationTests
                             "Golf hotel india\n" +
                             "Juliet kilo lima\n" +
                             "Mike november oscar"))
-                    .OnCopy(_ => { })
+                    .OnCopy((string _) => { })
                 ])),
             new Hex1bAppOptions { WorkloadAdapter = workload });
         using var _a = app;
@@ -252,7 +252,7 @@ public class SelectionPanelMouseDragIntegrationTests
                                         inner.Text("Line three of transcript here"),
                                         inner.Text("Line four of transcript here"),
                                     ]))
-                                .OnCopy(_ => { })
+                                .OnCopy((string _) => { })
                             ], showScrollbar: true)
                             .Fill(),
                             left.TextBox(),
@@ -287,5 +287,70 @@ public class SelectionPanelMouseDragIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         Assert.True(panel!.IsInCopyMode);
+    }
+
+    /// <summary>
+    /// End-to-end: drag to select, then right-click commits via the
+    /// <see cref="SelectionPanelWidget.CopyModeMouseCommit"/> binding —
+    /// which only fires because Hex1bApp's capture-aware mouse routing
+    /// honours <see cref="MouseBinding.OverridesCapture"/>. Without that
+    /// path the right-click would route through normal hit-testing and
+    /// miss the non-focusable SelectionPanel.
+    /// </summary>
+    [Fact]
+    public async Task RightClick_AfterDragSelection_CommitsCopy_AndExitsCopyMode()
+    {
+        var workload = new Hex1bAppWorkloadAdapter();
+        var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+        using var _w = workload; using var _t = terminal;
+
+        SelectionPanelCopyEventArgs? captured = null;
+
+        var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(
+                ctx.SelectionPanel(
+                    ctx.Text(
+                        "Alpha bravo charlie\n" +
+                        "Delta echo foxtrot\n" +
+                        "Golf hotel india"))
+                .OnCopy((SelectionPanelCopyEventArgs args) => { captured = args; })),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+        using var _a = app;
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5),
+                "panel ready")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        var panel = FindPanel(app);
+        Assert.NotNull(panel);
+
+        // Drag to enter copy mode and create a selection.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Drag(fromX: 2, fromY: 0, toX: 8, toY: 1)
+            .WaitUntil(_ => panel!.IsInCopyMode && panel.HasSelection,
+                TimeSpan.FromSeconds(2), "panel has selection")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(panel!.IsInCopyMode);
+        Assert.True(panel.HasSelection);
+
+        // Right-click anywhere within the panel commits the copy.
+        await new Hex1bTerminalInputSequenceBuilder()
+            .ClickAt(5, 1, MouseButton.Right)
+            .WaitUntil(_ => captured is not null,
+                TimeSpan.FromSeconds(2), "copy handler fired")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.NotNull(captured);
+        Assert.False(string.IsNullOrEmpty(captured!.Text));
+        Assert.False(panel.IsInCopyMode);
+        Assert.False(panel.HasSelection);
     }
 }

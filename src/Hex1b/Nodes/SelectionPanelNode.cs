@@ -45,13 +45,14 @@ public sealed class SelectionPanelNode : Hex1bNode
     public Hex1bNode? Child { get; set; }
 
     /// <summary>
-    /// Optional handler invoked with the plain text of the current
-    /// selection when the user commits via
-    /// <see cref="SelectionPanelWidget.CopyModeCopy"/>. When this is
-    /// <c>null</c>, copy mode bindings are not registered (the panel
-    /// behaves as a pure pass-through).
+    /// Optional handler invoked with a <see cref="SelectionPanelCopyEventArgs"/>
+    /// describing the current selection when the user commits via
+    /// <see cref="SelectionPanelWidget.CopyModeCopy"/> (Y/Enter) or
+    /// <see cref="SelectionPanelWidget.CopyModeMouseCommit"/> (right-click
+    /// by default). When this is <c>null</c>, copy mode bindings are not
+    /// registered (the panel behaves as a pure pass-through).
     /// </summary>
-    public Func<string, Task>? CopyHandler { get; set; }
+    public Func<SelectionPanelCopyEventArgs, Task>? CopyHandler { get; set; }
 
     /// <summary><c>true</c> while the user is in interactive copy mode.</summary>
     public bool IsInCopyMode { get; private set; }
@@ -375,6 +376,18 @@ public sealed class SelectionPanelNode : Hex1bNode
         RegisterCancel(bindings, Hex1bKey.Escape);
         RegisterCancel(bindings, Hex1bKey.Q);
 
+        // Right-click commit. OverridesCapture means the binding fires
+        // even though SelectionPanel is non-focusable: when the panel has
+        // captured input (i.e., is in copy mode) and the click falls
+        // within the panel's bounds, Hex1bApp routes the click to this
+        // binding before normal hit-test routing. Outside copy mode the
+        // panel doesn't hold capture so this binding never fires and
+        // right-click reaches whatever focusable is underneath.
+        bindings.Mouse(MouseButton.Right).OverridesCapture().Triggers(
+            SelectionPanelWidget.CopyModeMouseCommit,
+            CommitCopyAsync,
+            "Copy selection (right-click) and exit copy mode");
+
         // Mouse drag-to-select. The framework defers activation until the
         // user actually moves the mouse (Hex1bApp's pending-bubble-drag
         // mechanism) so plain clicks on inner widgets aren't intercepted.
@@ -471,29 +484,38 @@ public sealed class SelectionPanelNode : Hex1bNode
     {
         bindings.Key(key).OverridesCapture().Triggers(
             SelectionPanelWidget.CopyModeCopy,
-            async ctx =>
-            {
-                if (!IsInCopyMode) return;
-
-                // Y/Enter is a no-op without a selection — matches
-                // TerminalWidgetHandle.CopySelection() which returns
-                // empty when no selection is set.
-                if (!HasSelection)
-                {
-                    return;
-                }
-
-                var handler = CopyHandler;
-                var text = SnapshotText();
-                ExitCopyMode();
-                ctx.ReleaseCapture();
-                ctx.Invalidate();
-                if (handler is not null)
-                {
-                    await handler(text);
-                }
-            },
+            CommitCopyAsync,
             "Copy selection and exit copy mode");
+    }
+
+    /// <summary>
+    /// Shared commit path used by the keyboard <see cref="SelectionPanelWidget.CopyModeCopy"/>
+    /// (Y/Enter) bindings and the mouse <see cref="SelectionPanelWidget.CopyModeMouseCommit"/>
+    /// (right-click) binding. Snapshots the selection, exits copy mode,
+    /// releases capture, and dispatches the handler.
+    /// </summary>
+    private async Task CommitCopyAsync(InputBindingActionContext ctx)
+    {
+        if (!IsInCopyMode) return;
+
+        // Commit-without-selection is a no-op — matches
+        // TerminalWidgetHandle.CopySelection() which returns empty when
+        // no selection is set. Stay in copy mode so a stray Y / Enter /
+        // right-click doesn't kick the user out of a navigation session.
+        if (!HasSelection)
+        {
+            return;
+        }
+
+        var handler = CopyHandler;
+        var args = BuildCopyEventArgs();
+        ExitCopyMode();
+        ctx.ReleaseCapture();
+        ctx.Invalidate();
+        if (handler is not null)
+        {
+            await handler(args);
+        }
     }
 
     private void RegisterCancel(InputBindingsBuilder bindings, Hex1bKey key)
@@ -766,5 +788,247 @@ public sealed class SelectionPanelNode : Hex1bNode
         if (!surface.TryGetCell(x, y, out var cell)) return true;
         var ch = cell.Character;
         return string.IsNullOrEmpty(ch) || IsAllWhitespace(ch);
+    }
+
+    // ------------------------------------------------------------------
+    // Rich event args (text + geometry + per-node breakdown).
+    // ------------------------------------------------------------------
+
+    /// <summary>
+    /// Builds the <see cref="SelectionPanelCopyEventArgs"/> for the
+    /// current selection: snapshots the text, computes the bounding box
+    /// in panel-local and terminal-absolute coordinates, and walks the
+    /// child node tree to produce per-node intersection records.
+    /// Returns args with an empty text and empty node list when no
+    /// selection is active (callers gate on
+    /// <see cref="HasSelection"/> before invoking).
+    /// </summary>
+    public SelectionPanelCopyEventArgs BuildCopyEventArgs()
+    {
+        if (!HasSelection)
+        {
+            return new SelectionPanelCopyEventArgs(
+                string.Empty,
+                CursorSelectionMode,
+                Rect.Zero,
+                Rect.Zero,
+                Array.Empty<SelectionPanelSelectedNode>());
+        }
+
+        var text = SnapshotText();
+        var panelBounds = ComputePanelLocalSelectionBounds();
+        var terminalBounds = TranslateToTerminal(panelBounds);
+
+        var nodes = new List<SelectionPanelSelectedNode>();
+        if (Child is not null)
+        {
+            CollectSelectedNodes(Child, terminalBounds, nodes);
+        }
+
+        return new SelectionPanelCopyEventArgs(
+            text,
+            CursorSelectionMode,
+            panelBounds,
+            terminalBounds,
+            nodes);
+    }
+
+    private Rect ComputePanelLocalSelectionBounds()
+    {
+        int w = Math.Max(1, Bounds.Width);
+        int h = Math.Max(1, Bounds.Height);
+        switch (CursorSelectionMode)
+        {
+            case SelectionMode.Line:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                return new Rect(0, top, w, bottom - top + 1);
+            }
+            case SelectionMode.Block:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                int left = Math.Min(AnchorCol!.Value, CursorCol);
+                int right = Math.Max(AnchorCol!.Value, CursorCol);
+                return new Rect(left, top, right - left + 1, bottom - top + 1);
+            }
+            case SelectionMode.Character:
+            default:
+            {
+                var (sRow, sCol, eRow, eCol) = NormalizeStream();
+                if (sRow == eRow)
+                {
+                    int left = Math.Min(sCol, eCol);
+                    int right = Math.Max(sCol, eCol);
+                    return new Rect(left, sRow, right - left + 1, 1);
+                }
+                // Multi-row stream: bounding box spans full width because
+                // the start row reaches end-of-row and the end row starts
+                // at column 0.
+                return new Rect(0, sRow, w, eRow - sRow + 1);
+            }
+        }
+    }
+
+    private Rect TranslateToTerminal(Rect panelLocal)
+        => new(panelLocal.X + Bounds.X, panelLocal.Y + Bounds.Y, panelLocal.Width, panelLocal.Height);
+
+    private void CollectSelectedNodes(Hex1bNode node, Rect selectionTerminalBounds, List<SelectionPanelSelectedNode> sink)
+    {
+        var nodeTerminal = node.Bounds;
+        if (nodeTerminal.Width > 0 && nodeTerminal.Height > 0)
+        {
+            // Cheap reject: if the node's bounds don't intersect the
+            // selection's bbox at all, no per-row check can change that.
+            var bboxIntersection = IntersectRects(nodeTerminal, selectionTerminalBounds);
+            if (bboxIntersection.Width > 0 && bboxIntersection.Height > 0)
+            {
+                // Walk the node's rows and accumulate the bbox of cells
+                // ACTUALLY in the selection. This is critical for
+                // multi-row Character (stream) selections, where the
+                // start row excludes cells before sCol and the end row
+                // excludes cells after eCol — naive bbox intersection
+                // would include nodes that touch the bbox but contain
+                // zero selected cells.
+                int nodeTopPanel = nodeTerminal.Y - Bounds.Y;
+                int nodeLeftPanel = nodeTerminal.X - Bounds.X;
+                int nodeBottomPanel = nodeTopPanel + nodeTerminal.Height; // exclusive
+                int nodeRightPanel = nodeLeftPanel + nodeTerminal.Width;  // exclusive
+
+                int minRow = int.MaxValue, maxRow = int.MinValue;
+                int minCol = int.MaxValue, maxCol = int.MinValue;
+                int fullyCoveredRows = 0;
+                int rowsConsidered = 0;
+                int nodeWidth = nodeRightPanel - nodeLeftPanel;
+
+                for (int r = nodeTopPanel; r < nodeBottomPanel; r++)
+                {
+                    rowsConsidered++;
+                    if (!TryGetPanelRowSelectedColRange(r, out int rowLo, out int rowHiExclusive))
+                    {
+                        continue;
+                    }
+                    int overlapLo = Math.Max(nodeLeftPanel, rowLo);
+                    int overlapHi = Math.Min(nodeRightPanel, rowHiExclusive);
+                    if (overlapLo >= overlapHi) continue;
+
+                    if (r < minRow) minRow = r;
+                    if (r > maxRow) maxRow = r;
+                    if (overlapLo < minCol) minCol = overlapLo;
+                    if (overlapHi - 1 > maxCol) maxCol = overlapHi - 1;
+
+                    // A row is "fully covered" relative to this node when
+                    // every cell in the node's horizontal extent on that
+                    // row is selected.
+                    if (overlapLo == nodeLeftPanel && overlapHi == nodeRightPanel)
+                    {
+                        fullyCoveredRows++;
+                    }
+                }
+
+                if (minRow != int.MaxValue)
+                {
+                    var intersectionPanel = new Rect(
+                        minCol,
+                        minRow,
+                        maxCol - minCol + 1,
+                        maxRow - minRow + 1);
+                    var intersectionTerminal = TranslateToTerminal(intersectionPanel);
+                    var intersectionInNode = new Rect(
+                        intersectionPanel.X - nodeLeftPanel,
+                        intersectionPanel.Y - nodeTopPanel,
+                        intersectionPanel.Width,
+                        intersectionPanel.Height);
+                    bool fullySelected = nodeWidth > 0 && fullyCoveredRows == rowsConsidered;
+                    sink.Add(new SelectionPanelSelectedNode(node, fullySelected, intersectionInNode, intersectionTerminal));
+                }
+            }
+        }
+
+        foreach (var child in node.GetChildren())
+        {
+            CollectSelectedNodes(child, selectionTerminalBounds, sink);
+        }
+    }
+
+    /// <summary>
+    /// Returns the half-open <c>[lo, hiExclusive)</c> column range that is
+    /// selected on the given panel-local row, or <c>false</c> if no cells
+    /// on that row are selected. Columns are panel-local. Used to compute
+    /// per-node actual-selection bounds without scanning every cell.
+    /// </summary>
+    private bool TryGetPanelRowSelectedColRange(int row, out int lo, out int hiExclusive)
+    {
+        lo = 0;
+        hiExclusive = 0;
+        if (!HasSelection) return false;
+
+        int panelWidth = Math.Max(1, Bounds.Width);
+        switch (CursorSelectionMode)
+        {
+            case SelectionMode.Line:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                if (row < top || row > bottom) return false;
+                lo = 0;
+                hiExclusive = panelWidth;
+                return true;
+            }
+            case SelectionMode.Block:
+            {
+                int top = Math.Min(AnchorRow!.Value, CursorRow);
+                int bottom = Math.Max(AnchorRow!.Value, CursorRow);
+                if (row < top || row > bottom) return false;
+                int left = Math.Min(AnchorCol!.Value, CursorCol);
+                int right = Math.Max(AnchorCol!.Value, CursorCol);
+                lo = left;
+                hiExclusive = right + 1;
+                return true;
+            }
+            case SelectionMode.Character:
+            default:
+            {
+                var (sRow, sCol, eRow, eCol) = NormalizeStream();
+                if (row < sRow || row > eRow) return false;
+                if (sRow == eRow)
+                {
+                    int left = Math.Min(sCol, eCol);
+                    int right = Math.Max(sCol, eCol);
+                    lo = left;
+                    hiExclusive = right + 1;
+                    return true;
+                }
+                if (row == sRow)
+                {
+                    lo = sCol;
+                    hiExclusive = panelWidth;
+                    return true;
+                }
+                if (row == eRow)
+                {
+                    lo = 0;
+                    hiExclusive = eCol + 1;
+                    return true;
+                }
+                lo = 0;
+                hiExclusive = panelWidth;
+                return true;
+            }
+        }
+    }
+
+    private static Rect IntersectRects(Rect a, Rect b)
+    {
+        int x = Math.Max(a.X, b.X);
+        int y = Math.Max(a.Y, b.Y);
+        int right = Math.Min(a.Right, b.Right);
+        int bottom = Math.Min(a.Bottom, b.Bottom);
+        if (right <= x || bottom <= y)
+        {
+            return Rect.Zero;
+        }
+        return new Rect(x, y, right - x, bottom - y);
     }
 }

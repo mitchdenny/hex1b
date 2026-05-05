@@ -24,7 +24,11 @@ namespace Hex1b.Widgets;
 ///       toggles (<c>v</c> character, <c>V</c> line, <c>Alt+v</c>
 ///       block).</item>
 /// <item>Copies the selection on <c>y</c>/<c>Enter</c> via
-///       <see cref="OnCopy(System.Action{string})"/> and exits.</item>
+///       <see cref="OnCopy(System.Action{string})"/> and exits.
+///       Right-click also commits (matching
+///       <see cref="TerminalWidget"/>'s
+///       <see cref="CopyModeBindingsOptions.MouseCopyButton"/>
+///       default).</item>
 /// <item>Cancels with <c>Esc</c> or <c>q</c> without copying.</item>
 /// </list>
 /// <para>
@@ -62,6 +66,19 @@ namespace Hex1b.Widgets;
 /// a fallback for line mode but most terminals (Windows Terminal, GNOME
 /// Terminal, iTerm2) consume <c>Shift</c>+mouse for OS-level native
 /// selection, so prefer <c>Ctrl</c>+drag for cross-platform consistency.
+/// </para>
+/// <para>
+/// <see cref="OnCopy(System.Action{string})"/> is overloaded to accept
+/// either a <c>string</c> or a <see cref="SelectionPanelCopyEventArgs"/>
+/// payload (sync and async variants of each). Because both
+/// <c>Action&lt;string&gt;</c> and <c>Action&lt;SelectionPanelCopyEventArgs&gt;</c>
+/// are valid targets, untyped lambda parameters such as
+/// <c>OnCopy(_ =&gt; { })</c> are ambiguous to the C# overload resolver:
+/// type the parameter explicitly (<c>OnCopy((string s) =&gt; { })</c> or
+/// <c>OnCopy((SelectionPanelCopyEventArgs args) =&gt; { })</c>). Method
+/// group conversions (<c>OnCopy(MyHandlerMethod)</c>) work without
+/// disambiguation because the method's parameter type fixes the
+/// overload.
 /// </para>
 /// </remarks>
 /// <param name="Child">The child widget to wrap.</param>
@@ -114,22 +131,64 @@ public sealed record SelectionPanelWidget(Hex1bWidget Child) : Hex1bWidget
     public static readonly ActionId CopyModeCopy = new($"{nameof(SelectionPanelWidget)}.{nameof(CopyModeCopy)}");
     /// <summary>Rebindable action: cancel copy mode without copying. Default: <c>Escape</c>, <c>Q</c>.</summary>
     public static readonly ActionId CopyModeCancel = new($"{nameof(SelectionPanelWidget)}.{nameof(CopyModeCancel)}");
+    /// <summary>Rebindable action: commit the current selection via mouse and exit copy mode. Default: right-click.</summary>
+    public static readonly ActionId CopyModeMouseCommit = new($"{nameof(SelectionPanelWidget)}.{nameof(CopyModeMouseCommit)}");
 
-    internal Func<string, Task>? CopyHandler { get; init; }
+    internal Func<SelectionPanelCopyEventArgs, Task>? CopyHandler { get; init; }
 
     /// <summary>
-    /// Sets a synchronous copy handler. Invoked with the plain text of the
-    /// current selection when the user commits via <see cref="CopyModeCopy"/>.
+    /// Sets a synchronous copy handler that receives only the copied
+    /// text. Invoked when the user commits via <see cref="CopyModeCopy"/>
+    /// or <see cref="CopyModeMouseCommit"/> (right-click by default).
+    /// Equivalent to <see cref="OnCopy(Action{SelectionPanelCopyEventArgs})"/>
+    /// using <see cref="SelectionPanelCopyEventArgs.Text"/>.
     /// </summary>
     public SelectionPanelWidget OnCopy(Action<string> handler)
-        => this with { CopyHandler = text => { handler(text); return Task.CompletedTask; } };
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return this with { CopyHandler = args => { handler(args.Text); return Task.CompletedTask; } };
+    }
 
     /// <summary>
-    /// Sets an asynchronous copy handler. Invoked with the plain text of
-    /// the current selection when the user commits via <see cref="CopyModeCopy"/>.
+    /// Sets an asynchronous copy handler that receives only the copied
+    /// text. Invoked when the user commits via <see cref="CopyModeCopy"/>
+    /// or <see cref="CopyModeMouseCommit"/> (right-click by default).
+    /// Equivalent to <see cref="OnCopy(Func{SelectionPanelCopyEventArgs, Task})"/>
+    /// using <see cref="SelectionPanelCopyEventArgs.Text"/>.
     /// </summary>
     public SelectionPanelWidget OnCopy(Func<string, Task> handler)
-        => this with { CopyHandler = handler };
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return this with { CopyHandler = args => handler(args.Text) };
+    }
+
+    /// <summary>
+    /// Sets a synchronous copy handler that receives the full
+    /// <see cref="SelectionPanelCopyEventArgs"/> — text plus geometry
+    /// (panel-local and terminal-absolute bounds) and the per-node
+    /// breakdown (<see cref="SelectionPanelCopyEventArgs.Nodes"/>).
+    /// Invoked when the user commits via <see cref="CopyModeCopy"/> or
+    /// <see cref="CopyModeMouseCommit"/> (right-click by default).
+    /// </summary>
+    public SelectionPanelWidget OnCopy(Action<SelectionPanelCopyEventArgs> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return this with { CopyHandler = args => { handler(args); return Task.CompletedTask; } };
+    }
+
+    /// <summary>
+    /// Sets an asynchronous copy handler that receives the full
+    /// <see cref="SelectionPanelCopyEventArgs"/> — text plus geometry
+    /// (panel-local and terminal-absolute bounds) and the per-node
+    /// breakdown (<see cref="SelectionPanelCopyEventArgs.Nodes"/>).
+    /// Invoked when the user commits via <see cref="CopyModeCopy"/> or
+    /// <see cref="CopyModeMouseCommit"/> (right-click by default).
+    /// </summary>
+    public SelectionPanelWidget OnCopy(Func<SelectionPanelCopyEventArgs, Task> handler)
+    {
+        ArgumentNullException.ThrowIfNull(handler);
+        return this with { CopyHandler = handler };
+    }
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {

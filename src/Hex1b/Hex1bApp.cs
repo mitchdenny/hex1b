@@ -1639,7 +1639,44 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Compute click count for double/triple click detection
         var clickCount = ComputeClickCount(mouseEvent);
         var eventWithClickCount = mouseEvent.WithClickCount(clickCount);
-        
+
+        // Capture-override mouse bindings: if a node has captured input,
+        // give it first crack at any mouse binding marked OverridesCapture
+        // whose coordinates fall within the captured node's hit-test bounds.
+        // Mirrors the keyboard capture-override path in InputRouter and lets
+        // a capturing widget claim mouse buttons app-wide while in a modal
+        // state (e.g., right-click commits a SelectionPanel copy mode).
+        // NOTE: this currently only fires for press events (Down) because
+        // HandleMouseClickAsync is only invoked on Down — Up/Move events
+        // route through different paths and do not consult OverridesCapture.
+        var capturedNode = _focusRing.CapturedNode;
+        if (capturedNode != null && capturedNode.HitTestBounds.Contains(mouseEvent.X, mouseEvent.Y))
+        {
+            var capturedBuilder = capturedNode.BuildBindings();
+            // Match higher-click-count bindings first so a registered
+            // double-click override is not shadowed by a single-click one
+            // (MouseBinding.Matches() uses >= ClickCount).
+            MouseBinding? matched = null;
+            foreach (var mb in capturedBuilder.MouseBindings)
+            {
+                if (!mb.OverridesCapture) continue;
+                if (!mb.Matches(eventWithClickCount)) continue;
+                if (matched == null || mb.ClickCount > matched.ClickCount)
+                {
+                    matched = mb;
+                }
+            }
+            if (matched != null)
+            {
+                var capturedActionContext = new InputBindingActionContext(
+                    _focusRing, RequestStop, cancellationToken,
+                    mouseEvent.X, mouseEvent.Y,
+                    CopyToClipboard, Invalidate, _windowManagerRegistry);
+                await matched.ExecuteAsync(capturedActionContext);
+                return;
+            }
+        }
+
         // Find the focusable node at the click position
         var hitNode = _focusRing.HitTest(mouseEvent.X, mouseEvent.Y);
 
