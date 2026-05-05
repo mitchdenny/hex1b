@@ -148,4 +148,27 @@ public sealed class MouseStepBuilder
         _parent.Add(binding);
         return _parent;
     }
+
+    /// <summary>
+    /// Completes the binding by aliasing a previously registered action to this mouse trigger.
+    /// The handler is auto-resolved from the action registry.
+    /// </summary>
+    /// <param name="actionId">The action to alias. Must have been previously registered via
+    /// <see cref="Triggers(ActionId, Action{InputBindingActionContext}, string?)"/> (typically
+    /// by the widget's default <c>ConfigureDefaultBindings</c>).</param>
+    /// <returns>The parent <see cref="InputBindingsBuilder"/> for chaining.</returns>
+    /// <exception cref="InvalidOperationException">Thrown if the action has not been registered.</exception>
+    /// <remarks>
+    /// Use this to add an additional mouse trigger for an existing action — for example, to make
+    /// <c>Ctrl+ScrollWheel</c> behave the same as plain <c>ScrollWheel</c> on a <c>ScrollPanel</c>.
+    /// The original binding is preserved; this adds a second binding that points at the same action.
+    /// Mirrors <see cref="KeyStepBuilder.Triggers(ActionId)"/> for keyboard rebinding.
+    /// </remarks>
+    public InputBindingsBuilder Triggers(ActionId actionId)
+    {
+        var (handler, description) = _parent.GetRegisteredAction(actionId);
+        var binding = new MouseBinding(_button, _action, _modifiers, _clickCount, handler, description, actionId, overridesCapture: _overridesCapture);
+        _parent.Add(binding);
+        return _parent;
+    }
 }

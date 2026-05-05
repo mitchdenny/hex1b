@@ -95,6 +95,19 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 app.Invalidate();
                             })
                     ], showScrollbar: true)
+                    .WithInputBindings(b =>
+                    {
+                        // Treat Ctrl+wheel the same as plain wheel so the
+                        // transcript keeps scrolling when the user happens to
+                        // be holding Ctrl (e.g. just after a Ctrl-shortcut, or
+                        // on terminals that route Ctrl-wheel to the app instead
+                        // of using it for font-size zoom). Mouse(...).Triggers(
+                        // ActionId) aliases the existing default binding by
+                        // looking up its handler from the action registry —
+                        // see MouseStepBuilder.Triggers(ActionId).
+                        b.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(ScrollPanelWidget.MouseScrollUpAction);
+                        b.Mouse(MouseButton.ScrollDown).Ctrl().Triggers(ScrollPanelWidget.MouseScrollDownAction);
+                    })
                     .Follow()
                     .Fill(),
 
