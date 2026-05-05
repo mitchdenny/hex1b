@@ -11,4 +11,19 @@
     <!-- Set informational version for assemblies that need it -->
     <InformationalVersion>$(Hex1bVersion)</InformationalVersion>
   </PropertyGroup>
+
+  <!--
+    Wire the repository-local Hex1b.Analyzers analyzer into every project. PrivateAssets="all"
+    keeps the analyzer out of the Hex1b NuGet package so it is enforced only inside this repo.
+    The Condition excludes the analyzer project itself and its test project from referencing it,
+    plus Hex1b.PtyHost which is a small native PTY shim that gets AOT-published during Hex1b's
+    pack — propagating the analyzer's netstandard2.0 reference into an AOT publish breaks NETSDK1207.
+  -->
+  <ItemGroup Condition="'$(MSBuildProjectName)' != 'Hex1b.Analyzers' and '$(MSBuildProjectName)' != 'Hex1b.Analyzers.Tests' and '$(MSBuildProjectName)' != 'Hex1b.PtyHost'">
+    <ProjectReference Include="$(MSBuildThisFileDirectory)src\Hex1b.Analyzers\Hex1b.Analyzers.csproj"
+                      OutputItemType="Analyzer"
+                      ReferenceOutputAssembly="false"
+                      PrivateAssets="all" />
+  </ItemGroup>
 </Project>
+

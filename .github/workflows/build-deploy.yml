@@ -41,6 +41,7 @@ jobs:
       - name: Restore dependencies
         run: |
           dotnet restore tests/Hex1b.Tests/Hex1b.Tests.csproj
+          dotnet restore tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj
           dotnet restore tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj
           dotnet restore tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj
           dotnet restore src/Hex1b.Tool/Hex1b.Tool.csproj
@@ -48,6 +49,7 @@ jobs:
       - name: Build
         run: |
           dotnet build tests/Hex1b.Tests/Hex1b.Tests.csproj --no-restore
+          dotnet build tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj --no-restore
           dotnet build tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj --no-restore
           dotnet build tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj --no-restore
           dotnet build src/Hex1b.Tool/Hex1b.Tool.csproj --no-restore
@@ -58,6 +60,10 @@ jobs:
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
             --logger "trx;LogFileName=test-results.trx" \
+            --results-directory ./TestResults
+          dotnet test tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj \
+            --no-build \
+            --logger "trx;LogFileName=analyzer-test-results.trx" \
             --results-directory ./TestResults
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
@@ -320,6 +326,16 @@ jobs:
             echo "$unexpected_windows_assets"
             exit 1
           fi
+          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
+          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
+          # carrying the analyzer name leaks into the package.
+          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
+          if [ -n "$analyzer_leak" ]; then
+            echo ""
+            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
+            echo "$analyzer_leak"
+            exit 1
+          fi
           echo ""
           echo "Hex1b.McpServer package contents:"
           unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
@@ -456,6 +472,16 @@ jobs:
             echo ""
             echo "Unexpected Windows PTY payload detected:"
             echo "$unexpected_windows_assets"
+            exit 1
+          fi
+          # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
+          # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
+          # carrying the analyzer name leaks into the package.
+          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
+          if [ -n "$analyzer_leak" ]; then
+            echo ""
+            echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
+            echo "$analyzer_leak"
             exit 1
           fi
           echo ""
