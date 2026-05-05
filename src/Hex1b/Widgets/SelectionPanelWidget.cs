@@ -54,6 +54,15 @@ namespace Hex1b.Widgets;
 /// default in apps that contain both widgets, and to dodge Windows
 /// Terminal's <c>F11</c> full-screen toggle.
 /// </para>
+/// <para>
+/// Mouse drag also enters copy mode and starts a selection. Plain drag
+/// is character mode, <c>Ctrl</c>+drag is line mode (matching
+/// <see cref="CopyModeBindingsOptions.MouseLineModifier"/>'s default),
+/// <c>Alt</c>+drag is block mode. <c>Shift</c>+drag is also accepted as
+/// a fallback for line mode but most terminals (Windows Terminal, GNOME
+/// Terminal, iTerm2) consume <c>Shift</c>+mouse for OS-level native
+/// selection, so prefer <c>Ctrl</c>+drag for cross-platform consistency.
+/// </para>
 /// </remarks>
 /// <param name="Child">The child widget to wrap.</param>
 public sealed record SelectionPanelWidget(Hex1bWidget Child) : Hex1bWidget

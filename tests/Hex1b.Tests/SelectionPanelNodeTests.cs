@@ -644,7 +644,7 @@ public class SelectionPanelNodeTests
     }
 
     [Fact]
-    public void ConfigureDefaultBindings_WithHandler_RegistersThreeDragBindings()
+    public void ConfigureDefaultBindings_WithHandler_RegistersFourDragBindings()
     {
         var node = new SelectionPanelNode
         {
@@ -655,11 +655,12 @@ public class SelectionPanelNodeTests
 
         node.ConfigureDefaultBindings(bindings);
 
-        Assert.Equal(3, bindings.DragBindings.Count);
+        Assert.Equal(4, bindings.DragBindings.Count);
         Assert.All(bindings.DragBindings, b => Assert.Equal(MouseButton.Left, b.Button));
 
         var modifierSets = bindings.DragBindings.Select(b => b.Modifiers).ToHashSet();
         Assert.Contains(Hex1bModifiers.None, modifierSets);
+        Assert.Contains(Hex1bModifiers.Control, modifierSets);
         Assert.Contains(Hex1bModifiers.Shift, modifierSets);
         Assert.Contains(Hex1bModifiers.Alt, modifierSets);
     }

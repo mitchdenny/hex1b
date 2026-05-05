@@ -17,9 +17,18 @@
 // Y or Enter copies the highlighted text into the editor on the right;
 // Esc or Q cancels.
 //
-// Mouse: left-drag inside the transcript to select. Hold Shift for line,
-// Alt for block. Releasing keeps copy mode active so you can refine with
+// Mouse: left-drag inside the transcript to select. Hold Ctrl for line
+// (Shift also works in terminals that pass Shift through — Windows
+// Terminal, GNOME Terminal etc. consume Shift+drag for OS-level native
+// selection so Ctrl is the cross-platform reliable modifier). Hold Alt
+// for block. Releasing keeps copy mode active so you can refine with
 // the keyboard then press Y / Enter to commit.
+//
+// Each assistant reply also gets thumbs-up / thumbs-down / copy buttons
+// so you can verify mouse-click routing through SelectionPanel +
+// ScrollPanel + HSplitter still works for normal interactables. Type
+// "/picker" for a reply with a row of action buttons that append
+// follow-up entries when clicked.
 //
 // Run with: dotnet run --project samples/AgenticPromptDemo
 
@@ -30,10 +39,16 @@ using Hex1b.Widgets;
 
 var transcript = new List<TranscriptEntry>
 {
-    new(EntryRole.System, "Type a message below and press Enter to add it to the transcript. Press F12 to enter copy mode: arrows or hjkl move the cursor, V/Shift+V/Alt+V starts a character/line/block selection, Y or Enter copies into the editor on the right, Esc cancels. Ctrl+Q quits."),
+    new(EntryRole.System,
+        "Type a message below and press Enter to add it to the transcript. " +
+        "Try \"/picker\" for a reply with action buttons. " +
+        "Press F12 to enter copy mode: arrows or hjkl move the cursor, V/Shift+V/Alt+V " +
+        "starts a character/line/block selection, Y or Enter copies into the editor on the " +
+        "right, Esc cancels. Ctrl+Q quits."),
 };
 
-// Read-only editor on the right shows the most recent SelectionPanel copy.
+// Read-only editor on the right shows the most recent SelectionPanel copy
+// (or the text from a per-entry Copy button).
 var clipboardDoc = new Hex1bDocument(
     "(Press F12 to enter copy mode, then V/Shift+V/Alt+V to select and Y to copy. The text appears here.)");
 var clipboardEditorState = new EditorState(clipboardDoc) { IsReadOnly = true };
@@ -52,16 +67,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         // ScrollPanel -> SelectionPanel -> Content
                         sv.SelectionPanel(
                             sv.VStack(inner =>
-                                transcript.Select(entry => RenderEntry(inner, entry)).ToArray()))
-                            .OnCopy(text =>
-                            {
-                                var range = new DocumentRange(
-                                    new DocumentOffset(0),
-                                    new DocumentOffset(clipboardDoc.Length));
-                                clipboardDoc.Apply(new ReplaceOperation(range, text));
-                                clipboardEditorState.ClampAllCursors();
-                                app.Invalidate();
-                            })
+                                transcript.Select(entry => RenderEntry(inner, entry, app, CopyToClipboard)).ToArray()))
+                            .OnCopy(CopyToClipboard)
                     ], showScrollbar: true)
                     .Follow()
                     .Fill(),
@@ -77,10 +84,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 return;
                             }
 
-                            transcript.Add(new TranscriptEntry(EntryRole.User, text));
-                            transcript.Add(new TranscriptEntry(
-                                EntryRole.Assistant,
-                                $"(echo) You said: {text}"));
+                            HandleSubmittedText(text, transcript);
                             e.Node.Text = "";
                         }),
                 ]),
@@ -100,6 +104,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section("Enter: Send"),
                 s.Section("Tab/Shift+Tab: Focus"),
                 s.Section("F12 / Drag: Copy mode"),
+                s.Section("Ctrl+Drag: Line"),
+                s.Section("Alt+Drag: Block"),
                 s.Section("V/⇧V/⌥V: Select"),
                 s.Section("Y: Copy"),
                 s.Section("Esc: Cancel"),
@@ -118,7 +124,50 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();
 
-static Hex1bWidget RenderEntry(WidgetContext<VStackWidget> ctx, TranscriptEntry entry)
+// Append clipped text to the read-only editor on the right.
+void CopyToClipboard(string text)
+{
+    var range = new DocumentRange(
+        new DocumentOffset(0),
+        new DocumentOffset(clipboardDoc.Length));
+    clipboardDoc.Apply(new ReplaceOperation(range, text));
+    clipboardEditorState.ClampAllCursors();
+}
+
+// Slash-commands let us inject richer assistant replies that exercise
+// interactable widgets nested inside SelectionPanel + ScrollPanel +
+// HSplitter — useful for verifying mouse routing isn't broken.
+static void HandleSubmittedText(string text, List<TranscriptEntry> transcript)
+{
+    transcript.Add(new TranscriptEntry(EntryRole.User, text));
+
+    if (text.Equals("/picker", StringComparison.OrdinalIgnoreCase))
+    {
+        transcript.Add(new TranscriptEntry(
+            EntryRole.Assistant,
+            "Pick a follow-up — clicking a button appends a new user entry:",
+            actions:
+            [
+                new ActionButton("Tell me more",
+                    () => transcript.Add(new TranscriptEntry(EntryRole.User, "Tell me more about that."))),
+                new ActionButton("Summarize",
+                    () => transcript.Add(new TranscriptEntry(EntryRole.User, "Summarize that for me."))),
+                new ActionButton("Cite sources",
+                    () => transcript.Add(new TranscriptEntry(EntryRole.User, "Can you cite sources?"))),
+            ]));
+        return;
+    }
+
+    transcript.Add(new TranscriptEntry(
+        EntryRole.Assistant,
+        $"(echo) You said: {text}"));
+}
+
+static Hex1bWidget RenderEntry(
+    WidgetContext<VStackWidget> ctx,
+    TranscriptEntry entry,
+    Hex1bApp app,
+    Action<string> copyToClipboard)
 {
     var title = entry.Role switch
     {
@@ -129,7 +178,53 @@ static Hex1bWidget RenderEntry(WidgetContext<VStackWidget> ctx, TranscriptEntry 
     };
 
     return ctx.Border(
-        ctx.Markdown(entry.Text).FillWidth()
+        ctx.VStack(stack =>
+        {
+            var rows = new List<Hex1bWidget>
+            {
+                stack.Markdown(entry.Text).FillWidth(),
+            };
+
+            // Action buttons declared by the entry (e.g. /picker reply).
+            if (entry.Actions.Count > 0)
+            {
+                rows.Add(stack.HStack(actions =>
+                    entry.Actions.Select(action =>
+                        (Hex1bWidget)actions.Button(action.Label).OnClick(_ =>
+                        {
+                            action.OnClick();
+                            app.Invalidate();
+                        })).ToArray()));
+            }
+
+            // Per-assistant interactable footer: thumbs-up / thumbs-down /
+            // copy-this-entry. These exist so we can verify a normal
+            // mouse click on a button nested inside SelectionPanel +
+            // ScrollPanel + HSplitter still routes correctly.
+            if (entry.Role == EntryRole.Assistant)
+            {
+                rows.Add(stack.HStack(footer =>
+                [
+                    footer.Button($"👍 {entry.Likes}").OnClick(_ =>
+                    {
+                        entry.Likes++;
+                        app.Invalidate();
+                    }),
+                    footer.Button($"👎 {entry.Dislikes}").OnClick(_ =>
+                    {
+                        entry.Dislikes++;
+                        app.Invalidate();
+                    }),
+                    footer.Button("Copy text").OnClick(_ =>
+                    {
+                        copyToClipboard(entry.Text);
+                        app.Invalidate();
+                    }),
+                ]));
+            }
+
+            return rows.ToArray();
+        }).FillWidth()
     ).Title(title);
 }
 
@@ -140,4 +235,20 @@ internal enum EntryRole
     System,
 }
 
-internal sealed record TranscriptEntry(EntryRole Role, string Text);
+internal sealed class TranscriptEntry
+{
+    public EntryRole Role { get; }
+    public string Text { get; }
+    public IReadOnlyList<ActionButton> Actions { get; }
+    public int Likes { get; set; }
+    public int Dislikes { get; set; }
+
+    public TranscriptEntry(EntryRole role, string text, IReadOnlyList<ActionButton>? actions = null)
+    {
+        Role = role;
+        Text = text;
+        Actions = actions ?? Array.Empty<ActionButton>();
+    }
+}
+
+internal sealed record ActionButton(string Label, Action OnClick);

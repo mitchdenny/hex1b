@@ -378,9 +378,15 @@ public sealed class SelectionPanelNode : Hex1bNode
         // Mouse drag-to-select. The framework defers activation until the
         // user actually moves the mouse (Hex1bApp's pending-bubble-drag
         // mechanism) so plain clicks on inner widgets aren't intercepted.
-        // Modifier-aware: Shift drag = Line, Alt drag = Block.
+        // Modifier-aware: Ctrl drag = Line (matches TerminalWidget's
+        // CopyModeBindingsOptions.MouseLineModifier default), Alt drag =
+        // Block, Shift drag = Line as a fallback for terminals that pass
+        // Shift through (Windows Terminal, GNOME Terminal, etc. consume
+        // Shift+drag for OS-level native selection so Ctrl is the reliable
+        // primary modifier).
         RegisterDrag(bindings, Hex1bModifiers.None, SelectionMode.Character, "Drag-select characters");
-        RegisterDrag(bindings, Hex1bModifiers.Shift, SelectionMode.Line, "Drag-select lines");
+        RegisterDrag(bindings, Hex1bModifiers.Control, SelectionMode.Line, "Drag-select lines");
+        RegisterDrag(bindings, Hex1bModifiers.Shift, SelectionMode.Line, "Drag-select lines (alt)");
         RegisterDrag(bindings, Hex1bModifiers.Alt, SelectionMode.Block, "Drag-select block");
     }
 

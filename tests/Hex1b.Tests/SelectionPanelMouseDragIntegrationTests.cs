@@ -137,6 +137,33 @@ public class SelectionPanelMouseDragIntegrationTests
     }
 
     /// <summary>
+    /// Ctrl+drag starts a line selection. This is the primary mouse-line
+    /// modifier, matching <c>CopyModeBindingsOptions.MouseLineModifier</c>'s
+    /// default in <see cref="TerminalWidget"/>. Most terminals (Windows
+    /// Terminal, GNOME Terminal, iTerm2) consume Shift+mouse for native
+    /// OS-level selection, so Ctrl+drag is the cross-platform reliable
+    /// modifier.
+    /// </summary>
+    [Fact]
+    public async Task CtrlDrag_StartsLineSelection()
+    {
+        var (workload, terminal, app, panel, _) = Setup();
+        using var _w = workload; using var _t = terminal; using var _a = app;
+
+        Assert.NotNull(panel);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Drag(fromX: 3, fromY: 1, toX: 6, toY: 2)
+            .WaitUntil(_ => panel.IsInCopyMode,
+                TimeSpan.FromSeconds(2), "panel enters copy mode after ctrl+drag")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        Assert.True(panel.IsInCopyMode);
+        Assert.Equal(SelectionMode.Line, panel.CursorSelectionMode);
+    }
+
+    /// <summary>
     /// Reproduces the AgenticPromptDemo layout shape: ScrollPanel (focusable,
     /// has its own Drag binding for the scrollbar) wraps a SelectionPanel.
     /// The drag binding on ScrollPanel must return an empty handler when the
