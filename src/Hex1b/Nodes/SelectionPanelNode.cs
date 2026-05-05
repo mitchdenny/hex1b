@@ -644,6 +644,12 @@ public sealed class SelectionPanelNode : Hex1bNode
     {
         var surface = new Surface(bounds.Width, bounds.Height);
         var context = new SurfaceRenderContext(surface, bounds.X, bounds.Y);
+        // Match the framework's RenderChild contract: position the
+        // virtual cursor at the child's bounds origin before rendering
+        // so that nodes which write their first line at "current cursor"
+        // (TextBlockNode in the no-layout-provider branch) land at the
+        // expected absolute coordinates instead of (0, 0).
+        context.SetCursorPosition(bounds.X, bounds.Y);
         Child!.Render(context);
         return surface;
     }
@@ -810,7 +816,11 @@ public sealed class SelectionPanelNode : Hex1bNode
             }
 
             var character = cell.Character;
-            if (string.IsNullOrEmpty(character))
+            // Treat unwritten cells (UnwrittenMarker, "\uE000") and empty
+            // strings as if they were a space — selecting past the end of
+            // a row's painted content shouldn't surface the private-use
+            // marker char in the copied text.
+            if (string.IsNullOrEmpty(character) || character == SurfaceCells.UnwrittenMarker)
             {
                 sb.Append(' ');
             }
@@ -880,7 +890,11 @@ public sealed class SelectionPanelNode : Hex1bNode
     {
         if (!surface.TryGetCell(x, y, out var cell)) return true;
         var ch = cell.Character;
-        return string.IsNullOrEmpty(ch) || IsAllWhitespace(ch);
+        // Treat unwritten cells as whitespace so word movement crosses
+        // the end of painted content the same way it crosses spaces.
+        return string.IsNullOrEmpty(ch)
+            || ch == SurfaceCells.UnwrittenMarker
+            || IsAllWhitespace(ch);
     }
 
     // ------------------------------------------------------------------
