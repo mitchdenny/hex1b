@@ -469,4 +469,126 @@ public class SelectionPanelMouseDragIntegrationTests
             return null;
         }
     }
+
+    /// <summary>
+    /// Regression test: a render frame between the mouse Down (which arms
+    /// the pending bubble drag) and the first Move (which activates it)
+    /// may unmount the candidate node. <c>ActivatePendingBubbleDrag</c>
+    /// must detect that the node is no longer in the tree and bail out
+    /// rather than activating a drag handler on stale Bounds. Without
+    /// the guard, the detached SelectionPanel would enter copy mode and
+    /// start mutating selection state on a node nothing is rendering.
+    /// </summary>
+    [Fact]
+    public async Task PendingBubbleDrag_NodeUnmountedBeforeFirstMove_DoesNotActivateStaleDrag()
+    {
+        var workload = new Hex1bAppWorkloadAdapter();
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
+
+        // Captured tree-shape flag: when true we render the SelectionPanel,
+        // when false we render a plain text-only tree (panel removed).
+        var includePanel = true;
+
+        var app = new Hex1bApp(
+            ctx =>
+            {
+                if (includePanel)
+                {
+                    return Task.FromResult<Hex1bWidget>(
+                        ctx.SelectionPanel(
+                            ctx.Text(
+                                "Line 0 content here\n" +
+                                "Line 1 content here\n" +
+                                "Line 2 content here\n" +
+                                "Line 3 content here\n" +
+                                "Line 4 content here"))
+                        .OnCopy((string _) => { }));
+                }
+
+                return Task.FromResult<Hex1bWidget>(ctx.Text("PANEL REMOVED"));
+            },
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+
+        try
+        {
+            // Wait for first reconcile, capture the original panel reference.
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5),
+                    "panel ready")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            var originalPanel = FindPanel(app);
+            Assert.NotNull(originalPanel);
+            Assert.False(originalPanel!.IsInCopyMode, "panel must start outside copy mode");
+
+            // Step 1: mouse Down arms the pending bubble drag for the
+            // SelectionPanel (the click hits the non-focusable container).
+            await new Hex1bTerminalInputSequenceBuilder()
+                .MouseMoveTo(5, 2)
+                .MouseDown()
+                .Wait(TimeSpan.FromMilliseconds(20))
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            // Pending bubble drag is armed but NOT activated yet (no Move
+            // has arrived). Panel still not in copy mode.
+            Assert.False(originalPanel.IsInCopyMode,
+                "Down alone must not enter copy mode (bubble drag activates on Move)");
+
+            // Step 2: rebuild the tree without the SelectionPanel. Wait
+            // for the panel to actually leave the live node tree before
+            // sending the Move that would otherwise activate the stale
+            // pending drag against the detached node.
+            includePanel = false;
+            app.Invalidate();
+
+            await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(_ => FindPanel(app) is null, TimeSpan.FromSeconds(2),
+                    "panel removed from tree")
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            // Step 3: send the Move that would normally activate the
+            // pending drag. With the guard in place this is a no-op;
+            // without it, ActivatePendingBubbleDrag fires StartDrag on
+            // the detached panel and the (now-orphaned) node enters
+            // copy mode against a stale Bounds rectangle.
+            await new Hex1bTerminalInputSequenceBuilder()
+                .MouseMoveTo(8, 2)
+                .Wait(TimeSpan.FromMilliseconds(50))
+                .MouseUp()
+                .Wait(TimeSpan.FromMilliseconds(20))
+                .Build()
+                .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+            // The decisive assertion: the detached panel must NOT have
+            // been pushed into copy mode behind our backs. Pre-fix this
+            // would be true (handler.OnMove invoked → EnterCopyMode +
+            // anchor + cursor mutation on a node nobody renders).
+            Assert.False(originalPanel.IsInCopyMode,
+                "Stale pending drag must not enter copy mode on a detached panel");
+            Assert.False(originalPanel.HasSelection,
+                "Stale pending drag must not start a selection on a detached panel");
+
+            // Sanity: app is still alive and accepting input after the
+            // sequence (no crash from operating on stale state).
+            var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+                .WaitUntil(s => s.ContainsText("PANEL REMOVED"), TimeSpan.FromSeconds(2),
+                    "new tree rendered")
+                .Build()
+                .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+            Assert.True(snapshot.ContainsText("PANEL REMOVED"));
+        }
+        finally
+        {
+            app.Dispose();
+            try { await runTask; } catch { /* run loop cancelled */ }
+            workload.Dispose();
+        }
+    }
 }

@@ -103,8 +103,8 @@ public static class TerminalRegionSvgExtensions
                 var cell = region.GetCell(x, y);
                 var ch = cell.Character;
                 
-                // Skip empty/continuation cells
-                if (string.IsNullOrEmpty(ch) || ch == "\0")
+                // Skip empty/continuation/unwritten cells
+                if (string.IsNullOrEmpty(ch) || ch == "\0" || ch == "\uE000")
                     continue;
                 
                 // Calculate expected display width
@@ -201,7 +201,7 @@ public static class TerminalRegionSvgExtensions
                 }
 
                 // For wide characters, render a background that spans all owned cells
-                var bgCharWidth = string.IsNullOrEmpty(ch) || ch == "\0" ? 1 : DisplayWidth.GetGraphemeWidth(ch);
+                var bgCharWidth = string.IsNullOrEmpty(ch) || ch == "\0" || ch == "\uE000" ? 1 : DisplayWidth.GetGraphemeWidth(ch);
                 var bgWidth = cellWidth;
 
                 if (bgCharWidth > 1)
@@ -314,8 +314,10 @@ public static class TerminalRegionSvgExtensions
             {
                 var displayCh = ch;
 
-                // Normalize null character to space
-                if (displayCh == "\0")
+                // Normalize null character or unwritten-cell marker to space.
+                // The unwritten marker (U+E000, private use) is what Surface
+                // emits for cells that were never painted.
+                if (displayCh == "\0" || displayCh == "\uE000")
                     displayCh = " ";
 
                 // Hidden attribute: don't render the character at all

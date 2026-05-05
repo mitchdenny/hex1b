@@ -1877,6 +1877,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _pendingBubbleDrag = null;
 
         var node = pending.Node;
+        // Defensive: a render frame between the Down (which armed the
+        // pending drag) and this Move/Drag (which activates it) may have
+        // reconciled the candidate node out of the tree. Activating a
+        // drag handler on a detached node would operate on stale Bounds
+        // and never receive a clean drag-end.
+        if (_rootNode is null || !ContainsNode(_rootNode, node))
+        {
+            return;
+        }
+
         var localStartX = pending.DownX - node.Bounds.X;
         var localStartY = pending.DownY - node.Bounds.Y;
         var handler = pending.Binding.StartDrag(localStartX, localStartY);
