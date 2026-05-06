@@ -13,6 +13,7 @@ const terminalContainer = document.getElementById("terminal");
 
 let term = null;
 let fitAddon = null;
+let resizeObserver = null;
 let client = null;
 
 async function loadSessions() {
@@ -104,17 +105,44 @@ function ensureTerminal() {
   fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(terminalContainer);
-  fitAddon.fit();
+  // Defer the initial fit a frame so the container has its laid-out size.
+  requestAnimationFrame(() => safeFit());
 
   term.onData((s) => client?.sendInput(s));
-  term.onResize(({ cols, rows }) => client?.sendResize(cols, rows));
-
-  window.addEventListener("resize", () => {
-    try { fitAddon.fit(); } catch { /* ignore */ }
+  // Note: term.onResize fires whenever fitAddon.fit() (or any other resize)
+  // changes the xterm grid size. We forward to the producer via sendResize,
+  // but Hmp1Client.sendResize() silently no-ops when we're not primary, so
+  // viewers can resize their canvas freely without disturbing the producer.
+  // We also re-render the status line so the "dims mismatch" banner
+  // re-evaluates against the new local grid.
+  term.onResize(({ cols, rows }) => {
+    client?.sendResize(cols, rows);
+    renderStatus();
   });
+
+  // Re-fit on any container size change (window resize, sidebar collapse,
+  // banner showing/hiding, devtools opening/closing, …). This is what
+  // keeps the xterm canvas filling the available space — including for
+  // viewers, where the producer's dims don't match the local grid.
+  if (typeof ResizeObserver !== "undefined") {
+    resizeObserver = new ResizeObserver(() => safeFit());
+    resizeObserver.observe(terminalContainer);
+  } else {
+    window.addEventListener("resize", safeFit);
+  }
+}
+
+function safeFit() {
+  try { fitAddon?.fit(); } catch { /* ignore — happens during teardown */ }
 }
 
 function disposeTerminal() {
+  if (resizeObserver) {
+    try { resizeObserver.disconnect(); } catch { /* ignore */ }
+    resizeObserver = null;
+  } else {
+    window.removeEventListener("resize", safeFit);
+  }
   if (term) {
     try { term.dispose(); } catch { /* ignore */ }
     term = null;
