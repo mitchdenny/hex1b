@@ -60,10 +60,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
         _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
         _displayName = displayName;
         _defaultRole = defaultRole;
+        // Wait (not DropOldest) so producer back-pressures over the wire when the
+        // consumer is slow, instead of silently losing terminal output. Restored
+        // from Hex1b PR #308 (Phase 9c) after the Phase 10 rewrite.
         _outputChannel = Channel.CreateBounded<ReadOnlyMemory<byte>>(
             new BoundedChannelOptions(1000)
             {
-                FullMode = BoundedChannelFullMode.DropOldest,
+                FullMode = BoundedChannelFullMode.Wait,
                 SingleReader = true,
                 SingleWriter = true
             });
@@ -239,11 +242,35 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
     {
         try
         {
-            if (await _outputChannel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+            if (!await _outputChannel.Reader.WaitToReadAsync(ct).ConfigureAwait(false))
+                return ReadOnlyMemory<byte>.Empty;
+
+            if (!_outputChannel.Reader.TryRead(out var first))
+                return ReadOnlyMemory<byte>.Empty;
+
+            // Coalesce any other frames that are immediately available into a single
+            // returned buffer. Reduces per-frame overhead in the consumer pump (xterm.js,
+            // headless emulator, etc.) under high producer throughput. Restored from
+            // Hex1b PR #308 (Phase 9c).
+            if (!_outputChannel.Reader.TryPeek(out _))
+                return first;
+
+            var pending = new List<ReadOnlyMemory<byte>> { first };
+            var total = first.Length;
+            while (_outputChannel.Reader.TryRead(out var more))
             {
-                if (_outputChannel.Reader.TryRead(out var data))
-                    return data;
+                pending.Add(more);
+                total += more.Length;
             }
+
+            var combined = new byte[total];
+            var pos = 0;
+            foreach (var chunk in pending)
+            {
+                chunk.Span.CopyTo(combined.AsSpan(pos));
+                pos += chunk.Length;
+            }
+            return combined;
         }
         catch (OperationCanceledException) { }
         catch (ChannelClosedException) { }
@@ -251,18 +278,26 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
         return ReadOnlyMemory<byte>.Empty;
     }
 
+    private readonly SemaphoreSlim _writeLock = new(1, 1);
+
     /// <inheritdoc />
     public async ValueTask WriteInputAsync(ReadOnlyMemory<byte> data, CancellationToken ct = default)
     {
         if (_disposed || _stream is null) return;
 
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (_disposed || _stream is null) return;
             await Hmp1Protocol.WriteFrameAsync(_stream, Hmp1FrameType.Input, data, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
             // Stream closed
+        }
+        finally
+        {
+            _writeLock.Release();
         }
     }
 
@@ -280,13 +315,19 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
             return;
         }
 
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
         try
         {
+            if (_disposed || _stream is null) return;
             await Hmp1Protocol.WriteResizeAsync(_stream, width, height, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is IOException or ObjectDisposedException)
         {
             // Stream closed
+        }
+        finally
+        {
+            _writeLock.Release();
         }
     }
 
@@ -300,7 +341,17 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
         if (_disposed || _stream is null)
             throw new InvalidOperationException("Adapter is not connected.");
 
-        await Hmp1Protocol.WriteRequestPrimaryAsync(_stream, cols, rows, ct).ConfigureAwait(false);
+        await _writeLock.WaitAsync(ct).ConfigureAwait(false);
+        try
+        {
+            if (_disposed || _stream is null)
+                throw new InvalidOperationException("Adapter is not connected.");
+            await Hmp1Protocol.WriteRequestPrimaryAsync(_stream, cols, rows, ct).ConfigureAwait(false);
+        }
+        finally
+        {
+            _writeLock.Release();
+        }
     }
 
     /// <summary>
@@ -358,7 +409,10 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 {
                     case Hmp1FrameType.Output:
                     case Hmp1FrameType.StateSync:
-                        _outputChannel.Writer.TryWrite(frame.Payload);
+                        // WriteAsync (not TryWrite) so the bounded channel back-pressures
+                        // the network when the consumer is slow, instead of silently
+                        // losing frames. Restored from Hex1b PR #308 (Phase 9c).
+                        await _outputChannel.Writer.WriteAsync(frame.Payload, ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.Resize:

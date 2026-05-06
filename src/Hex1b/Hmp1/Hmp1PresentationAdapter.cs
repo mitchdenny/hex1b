@@ -520,12 +520,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             _height = height;
             acceptedAsPrimary = true;
 
-            // Broadcast Resize to other peers so their CurrentWidth/Height
-            // tracks the producer's authoritative state. Enqueue inside the
-            // lock so concurrent HandleResize / HandleRequestPrimary calls
-            // observe the same broadcast order as state-mutation order on the
-            // per-client channel.
-            otherPeers = _sessions.Where(s => s.PeerId != session.PeerId).ToArray();
+            // Broadcast Resize to ALL peers (including the sender) so every
+            // adapter's CurrentWidth/Height tracks the producer's authoritative
+            // state, not its local optimistic write. Enqueue inside the lock
+            // so concurrent HandleResize / HandleRequestPrimary calls observe
+            // the same broadcast order as state-mutation order on the per-client
+            // channel. Echoing back to the sender costs one extra small frame
+            // per resize but eliminates the local/server divergence class of
+            // bugs.
+            otherPeers = [.. _sessions];
             foreach (var p in otherPeers)
             {
                 var w = width;
