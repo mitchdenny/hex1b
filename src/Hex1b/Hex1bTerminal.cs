@@ -50,7 +50,7 @@ namespace Hex1b;
 /// Assert.True(terminal.ContainsText("Hello"));
 /// </code>
 /// </example>
-public sealed class Hex1bTerminal : IDisposable, IAsyncDisposable
+public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
 {
     private readonly IHex1bTerminalPresentationAdapter _presentation;
     private readonly IHex1bTerminalWorkloadAdapter _workload;

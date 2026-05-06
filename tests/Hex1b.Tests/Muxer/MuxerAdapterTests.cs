@@ -10,47 +10,33 @@ public class MuxerAdapterTests
     [Fact]
     public async Task ClientServer_HelloAndStateSync_ReceivedByClient()
     {
-        var (serverToClient, clientToServer) = CreateDuplexStreamPair();
+        var (stream1, stream2) = CreateFullDuplexPair();
 
-        var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(serverToClient.ReadStream);
+        await using var server = new Hmp1PresentationAdapter(80, 24);
+        var client = new Hmp1WorkloadAdapter(stream2);
 
-        // Server adds the client
-        var handle = await server.AddClient(serverToClient.WriteStream);
-
-        // Client connects and reads Hello + StateSync
-        // We need to simulate the client reading from the server's output
-        // In a real scenario, the client reads from the same stream the server writes to
-        // For this test, use connected streams
+        var (handle, _) = await ConnectPairAsync(server, stream1, client);
         Assert.True(handle.IsConnected);
 
         await handle.DisposeAsync();
-        await server.DisposeAsync();
+        await client.DisposeAsync();
     }
 
     [Fact]
     public async Task IntegrationTest_ServerSendsOutput_ClientReceivesIt()
     {
-        // Create a full duplex pair
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-
-        // Add client (sends Hello + StateSync)
-        var handle = await server.AddClient(stream1);
-
-        // Create client workload adapter connected to the other end
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         Assert.Equal(80, client.RemoteWidth);
         Assert.Equal(24, client.RemoteHeight);
 
-        // Server sends output
         var outputData = "Hello from server!"u8.ToArray();
         await server.WriteOutputAsync(outputData);
 
-        // Client should receive it
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await client.ReadOutputAsync(cts.Token);
 
@@ -66,16 +52,12 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var handle = await server.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
-        // Client sends input
         var inputData = "keyboard input"u8.ToArray();
         await client.WriteInputAsync(inputData);
 
-        // Server should receive it
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await server.ReadInputAsync(cts.Token);
 
@@ -91,16 +73,14 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var handle = await server.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         var resizeTcs = new TaskCompletionSource<(int Width, int Height)>();
         server.Resized += (w, h) => resizeTcs.TrySetResult((w, h));
 
-        // Client sends resize
-        await client.ResizeAsync(120, 40);
+        // Multi-head: only the primary peer can resize. Take primary first.
+        await client.RequestPrimaryAsync(120, 40);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var (newWidth, newHeight) = await resizeTcs.Task.WaitAsync(cts.Token);
@@ -122,17 +102,13 @@ public class MuxerAdapterTests
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
 
-        var handle1 = await server.AddClient(stream1a);
-        var handle2 = await server.AddClient(stream2a);
-
         var client1 = new Hmp1WorkloadAdapter(stream1b);
         var client2 = new Hmp1WorkloadAdapter(stream2b);
-        await client1.ConnectAsync(CancellationToken.None);
-        await client2.ConnectAsync(CancellationToken.None);
+        var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
+        var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
         Assert.Equal(2, server.ClientCount);
 
-        // Server sends output
         var outputData = "broadcast!"u8.ToArray();
         await server.WriteOutputAsync(outputData);
 
@@ -158,24 +134,18 @@ public class MuxerAdapterTests
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
 
-        var handle1 = await server.AddClient(stream1a);
-        var handle2 = await server.AddClient(stream2a);
-
         var client1 = new Hmp1WorkloadAdapter(stream1b);
         var client2 = new Hmp1WorkloadAdapter(stream2b);
-        await client1.ConnectAsync(CancellationToken.None);
-        await client2.ConnectAsync(CancellationToken.None);
+        var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
+        var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
         Assert.Equal(2, server.ClientCount);
 
-        // Disconnect client 1
         await handle1.DisposeAsync();
         await client1.DisposeAsync();
 
-        // Wait for cleanup
         await Task.Delay(100);
 
-        // Client 2 should still work
         var outputData = "still here"u8.ToArray();
         await server.WriteOutputAsync(outputData);
 
@@ -221,10 +191,8 @@ public class MuxerAdapterTests
         ]);
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var handle = await adapter.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
@@ -261,10 +229,8 @@ public class MuxerAdapterTests
         });
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var handle = await adapter.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
@@ -302,10 +268,8 @@ public class MuxerAdapterTests
         terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var handle = await adapter.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var stateSyncBytes = await client.ReadOutputAsync(cts.Token);
@@ -327,21 +291,70 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var handle = await server.AddClient(stream1);
-
         var client = new Hmp1WorkloadAdapter(stream2);
-        await client.ConnectAsync(CancellationToken.None);
+        var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         var disconnectedTcs = new TaskCompletionSource();
         client.Disconnected += () => disconnectedTcs.TrySetResult();
 
-        // Close server side
         await handle.DisposeAsync();
 
-        // Client should detect disconnect
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         await disconnectedTcs.Task.WaitAsync(cts.Token);
 
+        await client.DisposeAsync();
+    }
+
+    /// <summary>
+    /// Drives the new ClientHello-first handshake. The producer's <c>AddClient</c>
+    /// blocks reading <see cref="Hmp1FrameType.ClientHello"/> from the client
+    /// stream, and the workload adapter's <c>ConnectAsync</c> writes ClientHello
+    /// then reads Hello + StateSync. They must therefore run concurrently.
+    /// </summary>
+    private static async Task<(Hmp1ClientHandle Handle, Hmp1WorkloadAdapter Client)> ConnectPairAsync(
+        Hmp1PresentationAdapter server,
+        Stream serverSideStream,
+        Hmp1WorkloadAdapter client,
+        CancellationToken ct = default)
+    {
+        var addTask = server.AddClient(serverSideStream, ct);
+        var connectTask = client.ConnectAsync(ct);
+        var handle = await addTask.ConfigureAwait(false);
+        await connectTask.ConfigureAwait(false);
+        return (handle, client);
+    }
+
+    [Fact]
+    public async Task ConnectAsync_ReadPumpSurvivesHandshakeCtTimeout()
+    {
+        // Regression sentinel for the "handshake CT cascades into read-pump" foot-gun
+        // that produced WS-flicker every 5 seconds in the dashboard. The CT supplied
+        // to ConnectAsync must NOT cancel the long-lived read pump after the
+        // handshake completes; only DisposeAsync owns that lifetime.
+        var (stream1, stream2) = CreateFullDuplexPair();
+        await using var server = new Hmp1PresentationAdapter(80, 24);
+        var client = new Hmp1WorkloadAdapter(stream2);
+
+        using var handshakeCts = new CancellationTokenSource();
+        handshakeCts.CancelAfter(TimeSpan.FromMilliseconds(50));
+
+        var addTask = server.AddClient(stream1, CancellationToken.None);
+        var connectTask = client.ConnectAsync(handshakeCts.Token);
+        var handle = await addTask;
+        await connectTask;
+
+        // Wait long enough for the CT to fire post-handshake.
+        await Task.Delay(200);
+
+        // Pump must still be alive: send some output and verify it arrives.
+        var data = "post-handshake-payload"u8.ToArray();
+        await server.WriteOutputAsync(data);
+
+        using var readCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var received = await client.ReadOutputAsync(readCts.Token);
+        Assert.Equal(data, received.ToArray());
+
+        await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 

@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text;
 using System.Threading.Channels;
 using Hex1b.Automation;
@@ -15,9 +16,18 @@ namespace Hex1b;
 /// streams. Use <see cref="AddClient"/> to add new client connections.
 /// </para>
 /// <para>
-/// Each client receives a <see cref="Hmp1FrameType.Hello"/> frame with the protocol
-/// version and current dimensions, followed by a <see cref="Hmp1FrameType.StateSync"/>
-/// frame with a full screen snapshot so the client immediately sees the current state.
+/// Each client first sends a <see cref="Hmp1FrameType.ClientHello"/> frame; the
+/// server then assigns a peer ID and replies with <see cref="Hmp1FrameType.Hello"/>
+/// (carrying the assigned peer ID, current primary, and roster) followed by a
+/// <see cref="Hmp1FrameType.StateSync"/> frame with a full screen snapshot.
+/// </para>
+/// <para>
+/// One peer may be the <em>primary</em> at any time. The primary's
+/// <see cref="Hmp1FrameType.Resize"/> frames are applied to the underlying PTY;
+/// secondaries' Resize frames are silently dropped. Any peer can send a
+/// <see cref="Hmp1FrameType.RequestPrimary"/> to take over (always granted in
+/// this iteration); the resulting <see cref="Hmp1FrameType.RoleChange"/> and any
+/// fresh <see cref="Hmp1FrameType.StateSync"/> are broadcast to all peers.
 /// </para>
 /// </remarks>
 public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentationAdapter
@@ -28,12 +38,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     private Hex1bTerminal? _terminal;
     private int _width;
     private int _height;
+    private string? _primaryPeerId;
     private bool _disposed;
 
     /// <summary>
     /// Creates a new muxer presentation adapter with the specified initial dimensions.
     /// </summary>
-    /// <param name="width">Initial terminal width in columns.</param>
+    /// <param name="width">Initial terminal width in columns. The PTY runs at this size
+    /// from <c>t0</c> until a peer takes primary and requests a resize.</param>
     /// <param name="height">Initial terminal height in rows.</param>
     public Hmp1PresentationAdapter(int width = 80, int height = 24)
     {
@@ -54,6 +66,22 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// <inheritdoc />
     public int Height => _height;
 
+    /// <summary>
+    /// Gets the peer ID of the current primary, or <see langword="null"/> when
+    /// no peer is primary (initial state, or after the previous primary
+    /// disconnected with no replacement).
+    /// </summary>
+    public string? PrimaryPeerId
+    {
+        get
+        {
+            lock (_sessionsLock)
+            {
+                return _primaryPeerId;
+            }
+        }
+    }
+
     /// <inheritdoc />
     public TerminalCapabilities Capabilities => new()
     {
@@ -68,6 +96,12 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
     /// <inheritdoc />
     public event Action? Disconnected;
+
+    /// <summary>
+    /// Raised when the primary peer changes (including transitions to no primary).
+    /// Argument is the new <see cref="PrimaryPeerId"/>.
+    /// </summary>
+    public event Action<string?>? PrimaryChanged;
 
     /// <summary>
     /// Gets the number of currently connected clients.
@@ -115,8 +149,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     }
 
     /// <summary>
-    /// Adds a new client connection. The client will receive a Hello frame with the
-    /// current dimensions and a StateSync frame with the current screen content.
+    /// Adds a new client connection. The client must first send a
+    /// <see cref="Hmp1FrameType.ClientHello"/> frame; the server then writes
+    /// the assigned peer ID, current primary, and roster in
+    /// <see cref="Hmp1FrameType.Hello"/>, followed by a
+    /// <see cref="Hmp1FrameType.StateSync"/> frame.
     /// </summary>
     /// <param name="stream">A bidirectional stream connected to the client.</param>
     /// <param name="ct">Cancellation token.</param>
@@ -125,27 +162,49 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         ArgumentNullException.ThrowIfNull(stream);
 
-        // Send Hello frame
-        await Hmp1Protocol.WriteHelloAsync(stream, _width, _height, ct).ConfigureAwait(false);
+        // Read the client's hello first. Apply a generous timeout so a stuck
+        // peer cannot hold this slot open forever.
+        ClientHelloPayload clientHello;
+        using (var helloCts = CancellationTokenSource.CreateLinkedTokenSource(ct))
+        {
+            helloCts.CancelAfter(ClientHelloTimeout);
+            var maybe = await Hmp1Protocol.ReadFrameAsync(stream, helloCts.Token).ConfigureAwait(false)
+                ?? throw new InvalidOperationException("Client closed connection before sending ClientHello frame.");
+            if (maybe.Type != Hmp1FrameType.ClientHello)
+                throw new InvalidOperationException(
+                    $"Expected ClientHello frame, got {maybe.Type}. The peer may be using an older HMP1 wire format.");
+            clientHello = Hmp1Protocol.ParseClientHello(maybe.Payload);
+        }
 
-        // Atomically: capture snapshot + register client, so no output is lost
-        // between snapshot creation and client registration.
+        var peerId = GeneratePeerId();
+        var displayName = clientHello.DisplayName;
+        var defaultRole = clientHello.DefaultRole;
+
+        // Atomically: capture snapshot, register session, publish PeerJoin to existing
+        // peers — so no output is lost between snapshot creation and registration, and
+        // peers see consistent join ordering.
         var sessionCts = CancellationTokenSource.CreateLinkedTokenSource(ct);
-        var session = new Hmp1ClientSession(stream, sessionCts);
+        var session = new Hmp1ClientSession(stream, sessionCts, peerId, displayName, defaultRole);
 
+        Hmp1ClientSession[] existingPeers;
         byte[] syncBytes;
+        string? primarySnapshot;
+        int widthSnapshot;
+        int heightSnapshot;
         lock (_sessionsLock)
         {
+            existingPeers = [.. _sessions];
+
             if (_terminal != null)
             {
-                using var snapshot = _terminal.CreateSnapshot();
-                var prefix = BuildStateReplayPrefix(snapshot);
-                var ansi = snapshot.ToAnsi(new TerminalAnsiOptions
+                using var snap = _terminal.CreateSnapshot();
+                var prefix = BuildStateReplayPrefix(snap);
+                var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
                     IncludeClearScreen = true,
                     IncludeTrailingNewline = true
                 });
-                var suffix = BuildStateReplaySuffix(snapshot);
+                var suffix = BuildStateReplaySuffix(snap);
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
             }
             else
@@ -153,11 +212,37 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 syncBytes = [];
             }
 
+            primarySnapshot = _primaryPeerId;
+            widthSnapshot = _width;
+            heightSnapshot = _height;
+
             _sessions.Add(session);
+
+            // Enqueue PeerJoin notifications to existing peers atomically with the
+            // session being added. Two concurrent AddClient calls must produce the
+            // same per-existing-peer ordering as the producer's _sessions list, so
+            // a roster replay matches authoritative state.
+            var newPeerId = peerId;
+            var newDisplayName = displayName;
+            foreach (var p in existingPeers)
+            {
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WritePeerJoinAsync(s, newPeerId, newDisplayName, CancellationToken.None).ConfigureAwait(false));
+            }
         }
 
-        // Send StateSync frame (outside lock, but client is already registered
-        // so any concurrent output will also be queued)
+        // Build roster (existing peers, excluding the new one).
+        var roster = new List<HelloPeerInfo>(existingPeers.Length);
+        foreach (var p in existingPeers)
+        {
+            roster.Add(new HelloPeerInfo { PeerId = p.PeerId, DisplayName = p.DisplayName });
+        }
+
+        // Send Hello + StateSync to the new peer over the raw stream (the per-client
+        // pump hasn't started yet). Failures here are propagated because the caller
+        // hasn't yet received a handle.
+        await Hmp1Protocol.WriteHelloAsync(
+            stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct).ConfigureAwait(false);
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
 
         // Start per-client write pump and read pump
@@ -249,6 +334,9 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         if (_disposed || data.IsEmpty) return ValueTask.CompletedTask;
 
+        // Copy once; each session's pump consumes the same buffer view.
+        var copy = data.ToArray();
+
         // Enqueue to each client's write channel (non-blocking).
         // Clients that can't keep up will be disconnected.
         lock (_sessionsLock)
@@ -256,7 +344,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             for (var i = _sessions.Count - 1; i >= 0; i--)
             {
                 var session = _sessions[i];
-                if (!session.OutputChannel.Writer.TryWrite(data.ToArray()))
+                if (!session.OutputChannel.Writer.TryWrite(new Hmp1OutboundWork(copy, null)))
                 {
                     // Client can't keep up — disconnect it
                     _sessions.RemoveAt(i);
@@ -325,16 +413,26 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// <summary>
     /// Background pump that writes queued output frames to a client's stream.
     /// Each client has its own write pump to prevent slow clients from blocking others.
+    /// Output frames and out-of-band control writers (RoleChange, PeerJoin,
+    /// PeerLeave) are interleaved through this pump so per-client ordering is
+    /// preserved and no separate write race exists.
     /// </summary>
     private async Task WriteClientPumpAsync(Hmp1ClientSession session)
     {
         try
         {
-            await foreach (var data in session.OutputChannel.Reader.ReadAllAsync(session.Cts.Token)
+            await foreach (var work in session.OutputChannel.Reader.ReadAllAsync(session.Cts.Token)
                 .ConfigureAwait(false))
             {
-                await Hmp1Protocol.WriteFrameAsync(
-                    session.Stream, Hmp1FrameType.Output, data, session.Cts.Token).ConfigureAwait(false);
+                if (work.ControlWriter is { } writer)
+                {
+                    await writer(session.Stream).ConfigureAwait(false);
+                }
+                else if (!work.Output.IsEmpty)
+                {
+                    await Hmp1Protocol.WriteFrameAsync(
+                        session.Stream, Hmp1FrameType.Output, work.Output, session.Cts.Token).ConfigureAwait(false);
+                }
                 // Flush periodically (after draining available items)
                 if (session.OutputChannel.Reader.Count == 0)
                 {
@@ -354,7 +452,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     }
 
     /// <summary>
-    /// Background pump that reads frames from a client and routes input/resize.
+    /// Background pump that reads frames from a client and routes input/resize/role
+    /// requests through the central state machine.
     /// </summary>
     private async Task ReadClientPumpAsync(Hmp1ClientSession session)
     {
@@ -375,13 +474,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         break;
 
                     case Hmp1FrameType.Resize:
-                        var (width, height) = Hmp1Protocol.ParseResize(frame.Payload);
-                        session.RemoteWidth = width;
-                        session.RemoteHeight = height;
-                        _width = width;
-                        _height = height;
-                        Resized?.Invoke(width, height);
+                        HandleResize(session, frame.Payload);
                         break;
+
+                    case Hmp1FrameType.RequestPrimary:
+                        HandleRequestPrimary(session, frame.Payload);
+                        break;
+
+                    // Unknown frame types are intentionally silently ignored to
+                    // allow forward additions without breaking older readers.
                 }
             }
         }
@@ -396,14 +497,175 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
     }
 
-    internal void RemoveSession(Hmp1ClientSession session)
+    private void HandleResize(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
+        var (width, height) = Hmp1Protocol.ParseResize(payload);
+
+        bool acceptedAsPrimary;
+        Hmp1ClientSession[] otherPeers;
         lock (_sessionsLock)
         {
-            _sessions.Remove(session);
+            // Always remember the peer's *requested* dimensions so a later
+            // RequestPrimary without explicit dims has something sensible to
+            // fall back on (and so tests can observe per-peer last-resize).
+            session.RemoteWidth = width;
+            session.RemoteHeight = height;
+
+            // Drop silently when sender is not primary. This is the central
+            // multi-head guarantee.
+            if (session.PeerId != _primaryPeerId)
+                return;
+
+            _width = width;
+            _height = height;
+            acceptedAsPrimary = true;
+
+            // Broadcast Resize to ALL peers (including the sender) so every
+            // adapter's CurrentWidth/Height tracks the producer's authoritative
+            // state, not its local optimistic write. Enqueue inside the lock
+            // so concurrent HandleResize / HandleRequestPrimary calls observe
+            // the same broadcast order as state-mutation order on the per-client
+            // channel. Echoing back to the sender costs one extra small frame
+            // per resize but eliminates the local/server divergence class of
+            // bugs.
+            otherPeers = [.. _sessions];
+            foreach (var p in otherPeers)
+            {
+                var w = width;
+                var h = height;
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WriteResizeAsync(s, w, h, CancellationToken.None).ConfigureAwait(false));
+            }
+        }
+
+        if (acceptedAsPrimary)
+        {
+            Resized?.Invoke(width, height);
+        }
+    }
+
+    private void HandleRequestPrimary(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
+    {
+        var req = Hmp1Protocol.ParseRequestPrimary(payload);
+
+        Hmp1ClientSession[] peers;
+        bool sizeChanged;
+        int cols;
+        int rows;
+        lock (_sessionsLock)
+        {
+            cols = req.Cols > 0 ? req.Cols : session.RemoteWidth;
+            rows = req.Rows > 0 ? req.Rows : session.RemoteHeight;
+            if (cols <= 0) cols = _width;
+            if (rows <= 0) rows = _height;
+
+            // Always grant in this iteration (per the design). Even if the
+            // requesting peer is already primary, broadcasting the role change
+            // is safe — peers will see a no-op transition with the latest
+            // dimensions.
+            _primaryPeerId = session.PeerId;
+            sizeChanged = (_width != cols) || (_height != rows);
+            _width = cols;
+            _height = rows;
+
+            // Snapshot peers AND enqueue RoleChange to each peer's per-client
+            // channel WITHIN the lock. This is the critical correctness point
+            // for concurrent take-over: state mutation and broadcast enqueueing
+            // must happen atomically so two concurrent RequestPrimary calls
+            // produce a consistent global order — peers see RoleChange(A)
+            // followed by RoleChange(B) iff the producer also processed
+            // A then B. If the foreach were outside the lock, a second
+            // call could enqueue before the first, leaving clients converged
+            // to a different primary than the producer's authoritative state.
+            peers = [.. _sessions];
+            var primaryId = session.PeerId;
+            var w = cols;
+            var h = rows;
+            foreach (var p in peers)
+            {
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WriteRoleChangeAsync(s, primaryId, w, h, "RequestPrimary", CancellationToken.None).ConfigureAwait(false));
+            }
+        }
+
+        // If size actually changed, fire Resized so the underlying PTY follows.
+        if (sizeChanged)
+        {
+            Resized?.Invoke(cols, rows);
+        }
+
+        PrimaryChanged?.Invoke(session.PeerId);
+    }
+
+    internal void RemoveSession(Hmp1ClientSession session)
+    {
+        bool wasPrimary;
+        bool actuallyRemoved;
+        Hmp1ClientSession[] remainingPeers;
+        int widthSnapshot;
+        int heightSnapshot;
+        lock (_sessionsLock)
+        {
+            if (!_sessions.Remove(session))
+            {
+                // Already removed (e.g. WriteClientPumpAsync and ReadClientPumpAsync
+                // both finishing). Don't double-broadcast.
+                actuallyRemoved = false;
+                wasPrimary = false;
+                remainingPeers = [];
+                widthSnapshot = _width;
+                heightSnapshot = _height;
+            }
+            else
+            {
+                actuallyRemoved = true;
+                wasPrimary = session.PeerId == _primaryPeerId;
+                if (wasPrimary)
+                {
+                    _primaryPeerId = null;
+                }
+                remainingPeers = [.. _sessions];
+                widthSnapshot = _width;
+                heightSnapshot = _height;
+
+                // Enqueue PeerLeave (and, if the leaver was primary, RoleChange-to-null)
+                // INSIDE the lock so two concurrent removals or a removal racing with
+                // HandleRequestPrimary produce a consistent global ordering. See
+                // comments in HandleRequestPrimary for the same invariant.
+                var leavingId = session.PeerId;
+                foreach (var p in remainingPeers)
+                {
+                    EnqueueControlFrameAsync(p, async s =>
+                        await Hmp1Protocol.WritePeerLeaveAsync(s, leavingId, CancellationToken.None).ConfigureAwait(false));
+                }
+
+                if (wasPrimary)
+                {
+                    var w = widthSnapshot;
+                    var h = heightSnapshot;
+                    foreach (var p in remainingPeers)
+                    {
+                        EnqueueControlFrameAsync(p, async s =>
+                            await Hmp1Protocol.WriteRoleChangeAsync(s, null, w, h, "PrimaryDisconnected", CancellationToken.None).ConfigureAwait(false));
+                    }
+                }
+            }
+        }
+
+        if (actuallyRemoved && wasPrimary)
+        {
+            PrimaryChanged?.Invoke(null);
         }
 
         _ = DisposeSessionAsync(session);
+    }
+
+    private static void EnqueueControlFrameAsync(Hmp1ClientSession session, Func<Stream, Task> writer)
+    {
+        // Enqueue the control writer onto the per-client write pump so it's
+        // serialised with normal output. If the channel is closed (peer is
+        // gone), the write is dropped silently.
+        session.OutputChannel.Writer.TryWrite(new Hmp1OutboundWork(default, writer));
     }
 
     private static async Task DisposeSessionAsync(Hmp1ClientSession session)
@@ -436,13 +698,53 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         catch { }
     }
 
+    private static readonly TimeSpan ClientHelloTimeout = TimeSpan.FromSeconds(5);
+
+    private static string GeneratePeerId()
+    {
+        // 4 bytes → 8 lowercase hex chars. Cheap, locally-unique enough; a
+        // collision would only confuse the roster UX, not corrupt routing.
+        Span<byte> bytes = stackalloc byte[4];
+        RandomNumberGenerator.Fill(bytes);
+        return "p" + Convert.ToHexString(bytes).ToLowerInvariant();
+    }
+
+    /// <summary>
+    /// Per-client outbound work item: either a control frame writer (for
+    /// PeerJoin / PeerLeave / RoleChange) or a raw output payload.
+    /// </summary>
+    internal readonly record struct Hmp1OutboundWork(ReadOnlyMemory<byte> Output, Func<Stream, Task>? ControlWriter);
+
     /// <summary>
     /// Internal session tracking for a connected client.
     /// </summary>
-    internal sealed class Hmp1ClientSession(Stream stream, CancellationTokenSource cts)
+    internal sealed class Hmp1ClientSession
     {
-        public Stream Stream { get; } = stream;
-        public CancellationTokenSource Cts { get; } = cts;
+        public Hmp1ClientSession(
+            Stream stream,
+            CancellationTokenSource cts,
+            string peerId,
+            string? displayName,
+            string? defaultRole)
+        {
+            Stream = stream;
+            Cts = cts;
+            PeerId = peerId;
+            DisplayName = displayName;
+            DefaultRole = defaultRole;
+            OutputChannel = Channel.CreateBounded<Hmp1OutboundWork>(new BoundedChannelOptions(1000)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                SingleWriter = false
+            });
+        }
+
+        public Stream Stream { get; }
+        public CancellationTokenSource Cts { get; }
+        public string PeerId { get; }
+        public string? DisplayName { get; }
+        public string? DefaultRole { get; }
         public Task? ReadTask { get; set; }
         public Task? WriteTask { get; set; }
         public int RemoteWidth { get; set; }
@@ -451,13 +753,14 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         /// <summary>
         /// Per-client outbound queue. When full, the client is disconnected rather than
         /// blocking other clients or dropping frames (which would desync incremental ANSI state).
+        /// Carries either Output payloads or out-of-band control writers (RoleChange,
+        /// PeerJoin, PeerLeave) so per-client ordering is preserved end-to-end.
         /// </summary>
-        public Channel<ReadOnlyMemory<byte>> OutputChannel { get; } =
-            Channel.CreateBounded<ReadOnlyMemory<byte>>(new BoundedChannelOptions(1000)
-            {
-                FullMode = BoundedChannelFullMode.Wait,
-                SingleReader = true,
-                SingleWriter = false
-            });
+        public Channel<Hmp1OutboundWork> OutputChannel { get; }
+
+        // Compatibility shim for the existing WriteOutputAsync path which used
+        // a ReadOnlyMemory<byte>-typed channel. The new payload type wraps both.
+        // (kept here so future call sites that still want to enqueue raw output
+        // can do so without re-implementing the wrap.)
     }
 }

@@ -23,6 +23,22 @@ public sealed class Hmp1ClientHandle : IAsyncDisposable
     public bool IsConnected => !_disposed && _session.ReadTask is { IsCompleted: false };
 
     /// <summary>
+    /// Gets the peer ID assigned by the server when this client connected.
+    /// </summary>
+    public string PeerId => _session.PeerId;
+
+    /// <summary>
+    /// Gets the optional human-readable label this client provided in its
+    /// <see cref="Hmp1FrameType.ClientHello"/>.
+    /// </summary>
+    public string? DisplayName => _session.DisplayName;
+
+    /// <summary>
+    /// Gets whether this client is currently the primary peer.
+    /// </summary>
+    public bool IsPrimary => _adapter.PrimaryPeerId == _session.PeerId;
+
+    /// <summary>
     /// Gets the remote client's terminal width (from the last Resize frame received).
     /// </summary>
     public int RemoteWidth => _session.RemoteWidth;

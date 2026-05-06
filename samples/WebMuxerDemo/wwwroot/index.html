@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Hex1b WebMuxerDemo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/css/xterm.css" />
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header>
+    <h1>Hex1b WebMuxerDemo</h1>
+    <p class="subtitle">
+      HMP1 over WebSocket. Open this page in two tabs against the same session
+      to exercise the multi-head primary/secondary protocol.
+    </p>
+  </header>
+
+  <section class="controls">
+    <label for="session-picker">Session:</label>
+    <select id="session-picker"></select>
+    <button id="connect">Connect</button>
+    <button id="disconnect" disabled>Disconnect</button>
+    <button id="take-primary" disabled title="Resize the producer's PTY to my terminal's current dimensions">Take Control</button>
+    <span class="spacer"></span>
+    <span class="status-line">
+      <span id="status-badge" class="badge offline">offline</span>
+      <span class="muted">producer:</span> <span id="dims">—</span>
+      <span class="muted">peerId:</span> <code id="my-id">—</code>
+    </span>
+  </section>
+
+  <div id="banner" class="banner" style="display:none"></div>
+
+  <main>
+    <aside>
+      <h2>Peers</h2>
+      <ul id="peers"></ul>
+      <p class="hint">
+        Each browser tab gets its own peer ID from the producer. Only the
+        primary peer can drive the PTY's dimensions; secondaries just
+        observe.
+      </p>
+    </aside>
+    <section class="terminal-pane">
+      <div id="terminal"></div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/xterm@5.5.0/lib/xterm.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@xterm/addon-fit@0.10.0/lib/addon-fit.js"></script>
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

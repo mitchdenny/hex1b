@@ -157,10 +157,25 @@ public static class Hmp1BuilderExtensions
     public static Hex1bTerminalBuilder WithHmp1Client(
         this Hex1bTerminalBuilder builder,
         Func<CancellationToken, Task<Stream>> streamFactory)
+        => WithHmp1Client(builder, streamFactory, displayName: null, defaultRole: null);
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client with optional ClientHello hints.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="streamFactory">A factory that creates a bidirectional stream to the server.</param>
+    /// <param name="displayName">Optional human-readable label sent in the ClientHello frame.</param>
+    /// <param name="defaultRole">Optional default-role hint (typically <c>"viewer"</c>
+    /// or <c>"interactive"</c>).</param>
+    public static Hex1bTerminalBuilder WithHmp1Client(
+        this Hex1bTerminalBuilder builder,
+        Func<CancellationToken, Task<Stream>> streamFactory,
+        string? displayName,
+        string? defaultRole)
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
 
-        var adapter = new Hmp1WorkloadAdapter(streamFactory);
+        var adapter = new Hmp1WorkloadAdapter(streamFactory, displayName, defaultRole);
 
         builder.SetWorkloadFactory(_ =>
         {
@@ -180,6 +195,26 @@ public static class Hmp1BuilderExtensions
         });
 
         return builder;
+    }
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client over an already-connected
+    /// bidirectional stream (e.g. an in-memory pipe pair, a WebSocket-backed
+    /// stream, or a test fixture). Useful in test harnesses where the underlying
+    /// transport is created out-of-band.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="stream">The already-connected bidirectional stream.</param>
+    /// <param name="displayName">Optional human-readable label.</param>
+    /// <param name="defaultRole">Optional default-role hint.</param>
+    public static Hex1bTerminalBuilder WithHmp1Stream(
+        this Hex1bTerminalBuilder builder,
+        Stream stream,
+        string? displayName = null,
+        string? defaultRole = null)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return WithHmp1Client(builder, _ => Task.FromResult(stream), displayName, defaultRole);
     }
 
     /// <summary>
