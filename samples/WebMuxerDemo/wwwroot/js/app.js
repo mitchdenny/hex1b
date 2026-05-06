@@ -143,6 +143,12 @@ function safeFit() {
 //    Letterbox horizontally or vertically as needed (preserves aspect).
 //    The transform doesn't change the xterm grid size — input still works
 //    and there's no layout reflow on the producer side.
+//
+// Measurements use the inner .xterm-screen element, which xterm.js's
+// renderer explicitly sizes to cols×cellWidth × rows×cellHeight pixels.
+// The .terminal/.xterm wrapper itself often takes the parent's flex
+// size (which is what we want to scale INTO), so measuring it gives the
+// wrong answer — it'd report container-size and yield scale ≈ 1.
 function applyRoleAwareLayout() {
   if (!term || !fitAddon) return;
 
@@ -155,25 +161,47 @@ function applyRoleAwareLayout() {
   if (!isSecondary) {
     // Primary, no-primary, or pre-handshake: clear any previous scaling
     // and fill the container at native font size.
-    if (root.style.transform) root.style.transform = "";
+    if (root.style.transform) {
+      root.style.transform = "";
+      root.style.width = "";
+      root.style.height = "";
+    }
     safeFit();
     return;
   }
 
-  // 1. Lock our grid to the producer's dims. After this, term.element's
-  //    natural size (offsetWidth/Height — unaffected by CSS transforms)
-  //    is whatever cols×cellWidth × rows×cellHeight pixels work out to.
-  if (term.cols !== client.width || term.rows !== client.height) {
+  // 1. Lock our grid to the producer's dims so xterm draws exactly what
+  //    the primary sees. Important: do this BEFORE measuring, otherwise
+  //    we'd scale based on stale dims.
+  const needsResize = term.cols !== client.width || term.rows !== client.height;
+  if (needsResize) {
     try { term.resize(client.width, client.height); } catch { /* ignore */ }
   }
 
-  // 2. Measure the natural laid-out xterm root size and compute the scale
-  //    needed to fit it into the container while preserving aspect.
-  //    offsetWidth/Height return the layout box without transforms applied,
-  //    so we can leave the previous scale in place during measurement and
-  //    avoid a one-frame visual flash from resetting it.
-  const naturalWidth = root.offsetWidth;
-  const naturalHeight = root.offsetHeight;
+  // 2. If we just resized, the renderer may not have written the new
+  //    .xterm-screen dimensions yet. Defer the measure-and-scale step to
+  //    the next animation frame so we read the post-resize layout.
+  if (needsResize) {
+    requestAnimationFrame(() => measureAndScale());
+  } else {
+    measureAndScale();
+  }
+}
+
+function measureAndScale() {
+  if (!term || !client) return;
+  const root = term.element;
+  if (!root) return;
+
+  // Measure the .xterm-screen which xterm sizes to natural grid pixels.
+  // Fall back to the .xterm-text-layer canvas if .xterm-screen isn't
+  // present (e.g., transitional state during teardown).
+  const screenEl =
+    root.querySelector(".xterm-screen") ||
+    root.querySelector("canvas.xterm-text-layer") ||
+    root;
+  const naturalWidth = screenEl.offsetWidth;
+  const naturalHeight = screenEl.offsetHeight;
   const containerWidth = terminalContainer.clientWidth;
   const containerHeight = terminalContainer.clientHeight;
 
@@ -188,12 +216,20 @@ function applyRoleAwareLayout() {
 
   if (scale <= 0) return;
 
-  // Skip when current transform is essentially the same to avoid layout
-  // thrashing on every ResizeObserver tick.
-  const target = `scale(${scale})`;
-  if (root.style.transform !== target) {
+  // Pin the .xterm wrapper's width/height to the natural grid pixels so
+  // it stops growing to fill its flex parent — otherwise the wrapper
+  // reports parent-size offsetWidth and the visual scaling clips weirdly
+  // because the transform-origin is in the wrong relative position.
+  const targetTransform = `scale(${scale})`;
+  const targetWidth = `${naturalWidth}px`;
+  const targetHeight = `${naturalHeight}px`;
+  if (root.style.transform !== targetTransform ||
+      root.style.width !== targetWidth ||
+      root.style.height !== targetHeight) {
     root.style.transformOrigin = "top left";
-    root.style.transform = target;
+    root.style.transform = targetTransform;
+    root.style.width = targetWidth;
+    root.style.height = targetHeight;
   }
 }
 
