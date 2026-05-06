@@ -217,6 +217,18 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             heightSnapshot = _height;
 
             _sessions.Add(session);
+
+            // Enqueue PeerJoin notifications to existing peers atomically with the
+            // session being added. Two concurrent AddClient calls must produce the
+            // same per-existing-peer ordering as the producer's _sessions list, so
+            // a roster replay matches authoritative state.
+            var newPeerId = peerId;
+            var newDisplayName = displayName;
+            foreach (var p in existingPeers)
+            {
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WritePeerJoinAsync(s, newPeerId, newDisplayName, CancellationToken.None).ConfigureAwait(false));
+            }
         }
 
         // Build roster (existing peers, excluding the new one).
@@ -226,19 +238,12 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             roster.Add(new HelloPeerInfo { PeerId = p.PeerId, DisplayName = p.DisplayName });
         }
 
-        // Send Hello + StateSync to the new peer. Failures here are propagated
-        // because the caller hasn't yet received a handle.
+        // Send Hello + StateSync to the new peer over the raw stream (the per-client
+        // pump hasn't started yet). Failures here are propagated because the caller
+        // hasn't yet received a handle.
         await Hmp1Protocol.WriteHelloAsync(
             stream, widthSnapshot, heightSnapshot, peerId, primarySnapshot, roster, ct).ConfigureAwait(false);
         await Hmp1Protocol.WriteFrameAsync(stream, Hmp1FrameType.StateSync, syncBytes, ct).ConfigureAwait(false);
-
-        // Notify existing peers that a new peer has joined. Best-effort —
-        // a slow peer's broken pipe won't take down a successful join.
-        foreach (var p in existingPeers)
-        {
-            EnqueueControlFrameAsync(p, async s =>
-                await Hmp1Protocol.WritePeerJoinAsync(s, peerId, displayName, CancellationToken.None).ConfigureAwait(false));
-        }
 
         // Start per-client write pump and read pump
         session.WriteTask = Task.Run(() => WriteClientPumpAsync(session), sessionCts.Token);
@@ -496,6 +501,8 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     {
         var (width, height) = Hmp1Protocol.ParseResize(payload);
 
+        bool acceptedAsPrimary;
+        Hmp1ClientSession[] otherPeers;
         lock (_sessionsLock)
         {
             // Always remember the peer's *requested* dimensions so a later
@@ -511,23 +518,44 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
             _width = width;
             _height = height;
+            acceptedAsPrimary = true;
+
+            // Broadcast Resize to other peers so their CurrentWidth/Height
+            // tracks the producer's authoritative state. Enqueue inside the
+            // lock so concurrent HandleResize / HandleRequestPrimary calls
+            // observe the same broadcast order as state-mutation order on the
+            // per-client channel.
+            otherPeers = _sessions.Where(s => s.PeerId != session.PeerId).ToArray();
+            foreach (var p in otherPeers)
+            {
+                var w = width;
+                var h = height;
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WriteResizeAsync(s, w, h, CancellationToken.None).ConfigureAwait(false));
+            }
         }
 
-        Resized?.Invoke(width, height);
+        if (acceptedAsPrimary)
+        {
+            Resized?.Invoke(width, height);
+        }
     }
 
     private void HandleRequestPrimary(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
         var req = Hmp1Protocol.ParseRequestPrimary(payload);
-        var cols = req.Cols > 0 ? req.Cols : session.RemoteWidth;
-        var rows = req.Rows > 0 ? req.Rows : session.RemoteHeight;
-        if (cols <= 0) cols = _width;
-        if (rows <= 0) rows = _height;
 
         Hmp1ClientSession[] peers;
         bool sizeChanged;
+        int cols;
+        int rows;
         lock (_sessionsLock)
         {
+            cols = req.Cols > 0 ? req.Cols : session.RemoteWidth;
+            rows = req.Rows > 0 ? req.Rows : session.RemoteHeight;
+            if (cols <= 0) cols = _width;
+            if (rows <= 0) rows = _height;
+
             // Always grant in this iteration (per the design). Even if the
             // requesting peer is already primary, broadcasting the role change
             // is safe — peers will see a no-op transition with the latest
@@ -537,7 +565,24 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             _width = cols;
             _height = rows;
 
+            // Snapshot peers AND enqueue RoleChange to each peer's per-client
+            // channel WITHIN the lock. This is the critical correctness point
+            // for concurrent take-over: state mutation and broadcast enqueueing
+            // must happen atomically so two concurrent RequestPrimary calls
+            // produce a consistent global order — peers see RoleChange(A)
+            // followed by RoleChange(B) iff the producer also processed
+            // A then B. If the foreach were outside the lock, a second
+            // call could enqueue before the first, leaving clients converged
+            // to a different primary than the producer's authoritative state.
             peers = [.. _sessions];
+            var primaryId = session.PeerId;
+            var w = cols;
+            var h = rows;
+            foreach (var p in peers)
+            {
+                EnqueueControlFrameAsync(p, async s =>
+                    await Hmp1Protocol.WriteRoleChangeAsync(s, primaryId, w, h, "RequestPrimary", CancellationToken.None).ConfigureAwait(false));
+            }
         }
 
         // If size actually changed, fire Resized so the underlying PTY follows.
@@ -546,20 +591,13 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             Resized?.Invoke(cols, rows);
         }
 
-        // Notify all peers (including the requester — confirms their new role).
-        foreach (var p in peers)
-        {
-            var primaryId = session.PeerId;
-            EnqueueControlFrameAsync(p, async s =>
-                await Hmp1Protocol.WriteRoleChangeAsync(s, primaryId, cols, rows, "RequestPrimary", CancellationToken.None).ConfigureAwait(false));
-        }
-
         PrimaryChanged?.Invoke(session.PeerId);
     }
 
     internal void RemoveSession(Hmp1ClientSession session)
     {
         bool wasPrimary;
+        bool actuallyRemoved;
         Hmp1ClientSession[] remainingPeers;
         int widthSnapshot;
         int heightSnapshot;
@@ -569,37 +607,50 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             {
                 // Already removed (e.g. WriteClientPumpAsync and ReadClientPumpAsync
                 // both finishing). Don't double-broadcast.
-                _ = DisposeSessionAsync(session);
-                return;
+                actuallyRemoved = false;
+                wasPrimary = false;
+                remainingPeers = [];
+                widthSnapshot = _width;
+                heightSnapshot = _height;
             }
-
-            wasPrimary = session.PeerId == _primaryPeerId;
-            if (wasPrimary)
+            else
             {
-                _primaryPeerId = null;
+                actuallyRemoved = true;
+                wasPrimary = session.PeerId == _primaryPeerId;
+                if (wasPrimary)
+                {
+                    _primaryPeerId = null;
+                }
+                remainingPeers = [.. _sessions];
+                widthSnapshot = _width;
+                heightSnapshot = _height;
+
+                // Enqueue PeerLeave (and, if the leaver was primary, RoleChange-to-null)
+                // INSIDE the lock so two concurrent removals or a removal racing with
+                // HandleRequestPrimary produce a consistent global ordering. See
+                // comments in HandleRequestPrimary for the same invariant.
+                var leavingId = session.PeerId;
+                foreach (var p in remainingPeers)
+                {
+                    EnqueueControlFrameAsync(p, async s =>
+                        await Hmp1Protocol.WritePeerLeaveAsync(s, leavingId, CancellationToken.None).ConfigureAwait(false));
+                }
+
+                if (wasPrimary)
+                {
+                    var w = widthSnapshot;
+                    var h = heightSnapshot;
+                    foreach (var p in remainingPeers)
+                    {
+                        EnqueueControlFrameAsync(p, async s =>
+                            await Hmp1Protocol.WriteRoleChangeAsync(s, null, w, h, "PrimaryDisconnected", CancellationToken.None).ConfigureAwait(false));
+                    }
+                }
             }
-            remainingPeers = [.. _sessions];
-            widthSnapshot = _width;
-            heightSnapshot = _height;
         }
 
-        // Notify remaining peers that this peer left.
-        foreach (var p in remainingPeers)
+        if (actuallyRemoved && wasPrimary)
         {
-            var leavingId = session.PeerId;
-            EnqueueControlFrameAsync(p, async s =>
-                await Hmp1Protocol.WritePeerLeaveAsync(s, leavingId, CancellationToken.None).ConfigureAwait(false));
-        }
-
-        // If the leaving peer was primary, broadcast a RoleChange to null so
-        // remaining peers stop deferring to a ghost primary.
-        if (wasPrimary)
-        {
-            foreach (var p in remainingPeers)
-            {
-                EnqueueControlFrameAsync(p, async s =>
-                    await Hmp1Protocol.WriteRoleChangeAsync(s, null, widthSnapshot, heightSnapshot, "PrimaryDisconnected", CancellationToken.None).ConfigureAwait(false));
-            }
             PrimaryChanged?.Invoke(null);
         }
 
