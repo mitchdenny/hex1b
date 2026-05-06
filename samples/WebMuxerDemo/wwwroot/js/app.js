@@ -78,14 +78,11 @@ function renderStatus() {
 
   dimsLabel.textContent = `${client.width}×${client.height}`;
 
-  if (term && !client.isPrimary
-      && (client.width !== term.cols || client.height !== term.rows)) {
-    banner.textContent =
-      `⚠ producer is ${client.width}×${client.height}, your terminal is ${term.cols}×${term.rows} — click "Take Control" to drive resizing`;
-    banner.style.display = "block";
-  } else {
-    banner.style.display = "none";
-  }
+  // The "dims mismatch" warning made sense when viewers were stuck at
+  // the producer's grid; now viewers scale-to-fit so the only thing the
+  // user might want to know is that they're observing a remotely-driven
+  // grid. Hide the banner outright — the badge already conveys role.
+  banner.style.display = "none";
 }
 
 function ensureTerminal() {
@@ -105,30 +102,27 @@ function ensureTerminal() {
   fitAddon = new window.FitAddon.FitAddon();
   term.loadAddon(fitAddon);
   term.open(terminalContainer);
-  // Defer the initial fit a frame so the container has its laid-out size.
-  requestAnimationFrame(() => safeFit());
+  // Defer the initial layout a frame so the container has its laid-out size.
+  requestAnimationFrame(() => applyRoleAwareLayout());
 
   term.onData((s) => client?.sendInput(s));
-  // Note: term.onResize fires whenever fitAddon.fit() (or any other resize)
-  // changes the xterm grid size. We forward to the producer via sendResize,
-  // but Hmp1Client.sendResize() silently no-ops when we're not primary, so
-  // viewers can resize their canvas freely without disturbing the producer.
-  // We also re-render the status line so the "dims mismatch" banner
-  // re-evaluates against the new local grid.
+  // Note: term.onResize fires whenever fitAddon.fit() OR a manual term.resize()
+  // changes the xterm grid. We forward to the producer via sendResize, but
+  // Hmp1Client.sendResize() silently no-ops when we're not primary, so
+  // viewers' fit() calls don't disturb the producer. We also re-render the
+  // status line so the "dims mismatch" banner re-evaluates.
   term.onResize(({ cols, rows }) => {
     client?.sendResize(cols, rows);
     renderStatus();
   });
 
-  // Re-fit on any container size change (window resize, sidebar collapse,
-  // banner showing/hiding, devtools opening/closing, …). This is what
-  // keeps the xterm canvas filling the available space — including for
-  // viewers, where the producer's dims don't match the local grid.
+  // Re-layout on any container size change (window resize, sidebar collapse,
+  // banner showing/hiding, devtools opening/closing, …).
   if (typeof ResizeObserver !== "undefined") {
-    resizeObserver = new ResizeObserver(() => safeFit());
+    resizeObserver = new ResizeObserver(() => applyRoleAwareLayout());
     resizeObserver.observe(terminalContainer);
   } else {
-    window.addEventListener("resize", safeFit);
+    window.addEventListener("resize", applyRoleAwareLayout);
   }
 }
 
@@ -136,12 +130,79 @@ function safeFit() {
   try { fitAddon?.fit(); } catch { /* ignore — happens during teardown */ }
 }
 
+// Sizes the xterm display based on the current role:
+//
+//  - Primary or no-primary: fitAddon.fit() — grid grows/shrinks to fill
+//    the available container, font stays at its native 13px. The producer
+//    will get a Resize from term.onResize → client.sendResize.
+//
+//  - Secondary (someone else is primary): lock the xterm grid to the
+//    producer's cols×rows so we render exactly what the primary sees,
+//    then apply a CSS transform: scale() to the xterm root element so
+//    the rendered grid fills the available container without distortion.
+//    Letterbox horizontally or vertically as needed (preserves aspect).
+//    The transform doesn't change the xterm grid size — input still works
+//    and there's no layout reflow on the producer side.
+function applyRoleAwareLayout() {
+  if (!term || !fitAddon) return;
+
+  const root = term.element;
+  if (!root) return;
+
+  const haveProducerDims = !!client && client.width > 0 && client.height > 0;
+  const isSecondary = !!client && !client.isPrimary && haveProducerDims;
+
+  if (!isSecondary) {
+    // Primary, no-primary, or pre-handshake: clear any previous scaling
+    // and fill the container at native font size.
+    if (root.style.transform) root.style.transform = "";
+    safeFit();
+    return;
+  }
+
+  // 1. Lock our grid to the producer's dims. After this, term.element's
+  //    natural size (offsetWidth/Height — unaffected by CSS transforms)
+  //    is whatever cols×cellWidth × rows×cellHeight pixels work out to.
+  if (term.cols !== client.width || term.rows !== client.height) {
+    try { term.resize(client.width, client.height); } catch { /* ignore */ }
+  }
+
+  // 2. Measure the natural laid-out xterm root size and compute the scale
+  //    needed to fit it into the container while preserving aspect.
+  //    offsetWidth/Height return the layout box without transforms applied,
+  //    so we can leave the previous scale in place during measurement and
+  //    avoid a one-frame visual flash from resetting it.
+  const naturalWidth = root.offsetWidth;
+  const naturalHeight = root.offsetHeight;
+  const containerWidth = terminalContainer.clientWidth;
+  const containerHeight = terminalContainer.clientHeight;
+
+  if (naturalWidth <= 0 || naturalHeight <= 0 ||
+      containerWidth <= 0 || containerHeight <= 0) {
+    return;
+  }
+
+  const scale = Math.min(
+    containerWidth / naturalWidth,
+    containerHeight / naturalHeight);
+
+  if (scale <= 0) return;
+
+  // Skip when current transform is essentially the same to avoid layout
+  // thrashing on every ResizeObserver tick.
+  const target = `scale(${scale})`;
+  if (root.style.transform !== target) {
+    root.style.transformOrigin = "top left";
+    root.style.transform = target;
+  }
+}
+
 function disposeTerminal() {
   if (resizeObserver) {
     try { resizeObserver.disconnect(); } catch { /* ignore */ }
     resizeObserver = null;
   } else {
-    window.removeEventListener("resize", safeFit);
+    window.removeEventListener("resize", applyRoleAwareLayout);
   }
   if (term) {
     try { term.dispose(); } catch { /* ignore */ }
@@ -181,15 +242,21 @@ function connect() {
   client.onHello = () => {
     renderStatus();
     renderRoster();
+    applyRoleAwareLayout();
   };
 
   client.onRoleChange = () => {
     if (client.isPrimary && term) {
       // We are now primary. Push our local dims so the producer matches us.
+      // applyRoleAwareLayout below will fitAddon.fit() into the container,
+      // which fires term.onResize → client.sendResize so the producer
+      // catches up. We also send explicitly here in case our local grid
+      // hadn't changed.
       client.sendResize(term.cols, term.rows);
     }
     renderStatus();
     renderRoster();
+    applyRoleAwareLayout();
   };
 
   client.onPeerJoin = () => renderRoster();
@@ -197,6 +264,9 @@ function connect() {
 
   client.onResize = (cols, rows) => {
     renderStatus();
+    // Producer's grid changed (only happens via primary's Resize). For
+    // secondaries this is the trigger to re-lock-and-scale to the new dims.
+    applyRoleAwareLayout();
   };
 
   client.onExit = (code) => {
@@ -221,7 +291,17 @@ function disconnect() {
 }
 
 function takePrimary() {
-  if (!client || !term) return;
+  if (!client || !term || !fitAddon) return;
+
+  // We want the producer to switch to *our* available space, not the
+  // currently-locked producer dims. Temporarily clear the scale and
+  // fit-to-container so term.cols/rows reflect what we'd want as primary,
+  // then send RequestPrimary with those dims. The server will accept and
+  // broadcast a Resize back, after which applyRoleAwareLayout (called
+  // from onRoleChange) will leave us at native scale because we're now
+  // primary.
+  if (term.element) term.element.style.transform = "";
+  safeFit();
   client.requestPrimary(term.cols, term.rows);
 }
 
