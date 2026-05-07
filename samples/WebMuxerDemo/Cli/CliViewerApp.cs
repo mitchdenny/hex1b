@@ -198,10 +198,20 @@ internal sealed class CliViewerApp
     {
         if (_handle is null)
         {
-            return ctx.Text("(initialising terminal)").Fill();
+            return ctx.Align(Alignment.Center, ctx.Text("(initialising terminal)")).Fill();
         }
 
-        return ctx.Terminal(_handle).Fill();
+        // Pin the Terminal to the producer's grid dims so AlignNode can
+        // actually centre it. Without FixedWidth/Height, TerminalNode happily
+        // claims the full bounded constraint (see TerminalNode.MeasureCore)
+        // and the Align centring becomes a no-op — the grid just paints at
+        // top-left with blank padding around it.
+        return ctx.Align(
+            Alignment.Center,
+            ctx.Terminal(_handle)
+                .FixedWidth(Math.Max(1, _innerWidth))
+                .FixedHeight(Math.Max(1, _innerHeight))
+        ).Fill();
     }
 
     private Hex1bWidget BuildDoesntFitView<TParent>(
@@ -210,6 +220,9 @@ internal sealed class CliViewerApp
         int availW, int availH)
         where TParent : Hex1bWidget
     {
+        // .Fill() on the Center makes VStack hand it all the remaining body
+        // space so the panel can centre vertically and the InfoBar is pushed
+        // to the actual bottom of the screen.
         return ctx.Center(
             ctx.Border(b =>
             [
@@ -225,7 +238,7 @@ internal sealed class CliViewerApp
                     v.Text("  Press  Ctrl+B  D  to detach  "),
                     v.Text(""),
                 ])
-            ]).Title(" doesn't fit "));
+            ]).Title(" doesn't fit ")).Fill();
     }
 
     private Hex1bWidget BuildInfoBar<TParent>(
