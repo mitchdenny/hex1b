@@ -203,30 +203,54 @@ code {
 }
 
 /*
- * Visual treatment for the xterm.js root so the terminal feels like a
- * "card" lifted off the gradient stage:
- *   - 1px neutral outline drawn via box-shadow so it doesn't take part
- *     in layout (a real CSS border would shift xterm's internal cell math
- *     unless we also added box-sizing tweaks).
- *   - Soft blue glow + subtle dark drop shadow for depth.
- *   - flex-shrink: 0 so when the .xterm is acting as a flex item inside
- *     #terminal it keeps the pinned natural size we set in JS for
- *     secondary mode (otherwise flex would happily shrink it under
- *     pressure and our scale math would be off).
- *   - Suppress the focus ring so we don't double up with our own outline.
+ * Terminal "card" — a non-transformed wrapper around the xterm so the
+ * border and drop shadow stay at fixed CSS pixel sizes regardless of
+ * any CSS scale transform applied to the .xterm in secondary mode.
  *
- * Both transforms (the scale used in secondary mode) and box-shadow
- * scale together by the CSS transform, so the shadow visually grows and
- * shrinks with the terminal — exactly what we want.
+ * Layout: column flex of titlebar (fixed height) + body. The body's
+ * width/height is pinned in JS — to the available stage space in
+ * primary mode, or to the scaled grid bounds in secondary mode — so
+ * the frame shrink-wraps both axes and the border hugs the visible
+ * terminal content exactly.
  */
-.xterm {
+#terminal-frame {
+  display: flex;
+  flex-direction: column;
   flex-shrink: 0;
-  border-radius: 3px;
   background: #0d1117;
+  border: 2px solid #3a4250;
+  border-radius: 6px;
+  overflow: hidden;
   box-shadow:
-    0 0 0 1px var(--border),
-    0 0 24px rgba(88, 166, 255, 0.35),
-    0 8px 32px rgba(0, 0, 0, 0.5);
+    0 0 32px rgba(88, 166, 255, 0.4),
+    0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+#terminal-titlebar {
+  flex: 0 0 auto;
+  height: 30px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, #1a2029 0%, #161b22 100%);
+  border-bottom: 1px solid #30363d;
+  color: var(--fg-muted);
+  font: 12px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  display: flex;
+  align-items: center;
+  user-select: none;
+}
+
+#terminal-title {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  letter-spacing: 0.2px;
+}
+
+#terminal-body {
+  flex: 0 0 auto;
+  position: relative;
+  overflow: hidden;
+  background: #0d1117;
 }
 
 .xterm:focus,
@@ -267,7 +291,11 @@ code {
 }
 
 /* On hover (or while the user is actively scrolling), reveal a thin
-   translucent scrollbar that floats over the content. */
+   translucent scrollbar that floats over the content. Hovering anywhere
+   on the terminal card (#terminal-frame) reveals it too — the .xterm
+   may be transformed/scaled in secondary mode, which makes its hover
+   target shrink. */
+#terminal-frame:hover .xterm-viewport,
 .xterm:hover .xterm-viewport,
 .xterm-viewport:hover,
 .xterm-viewport:focus-within {
@@ -275,12 +303,14 @@ code {
   scrollbar-color: rgba(139, 148, 158, 0.55) transparent;
 }
 
+#terminal-frame:hover .xterm-viewport::-webkit-scrollbar,
 .xterm:hover .xterm-viewport::-webkit-scrollbar,
 .xterm-viewport:hover::-webkit-scrollbar,
 .xterm-viewport:focus-within::-webkit-scrollbar {
   width: 10px;
 }
 
+#terminal-frame:hover .xterm-viewport::-webkit-scrollbar-thumb,
 .xterm:hover .xterm-viewport::-webkit-scrollbar-thumb,
 .xterm-viewport:hover::-webkit-scrollbar-thumb,
 .xterm-viewport:focus-within::-webkit-scrollbar-thumb {
