@@ -28,7 +28,7 @@ internal sealed record MarkdownCodeBlockWidget(string Content) : Hex1bWidget
         var editorWidget = new EditorWidget(node.CachedState!)
             .LineNumbers()
             .FixedHeight(node.LineCount)
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 // Remove scroll bindings so scroll events pass through to the
                 // parent ScrollPanel. These editors are sized exactly to their

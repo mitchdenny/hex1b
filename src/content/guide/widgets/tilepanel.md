@@ -87,7 +87,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text($"Camera: ({state.CameraX:F1}, {state.CameraY:F1})"),
         v.TilePanel(dataSource, state.CameraX, state.CameraY, state.ZoomLevel)
-            .WithPointsOfInterest(pois)
+            .PointsOfInterest(pois)
             .OnPan(e =>
             {
                 state.CameraX += e.DeltaX;
@@ -230,7 +230,7 @@ var pois = new List<TilePointOfInterest>
 };
 
 ctx.TilePanel(dataSource, cameraX, cameraY, zoom)
-    .WithPointsOfInterest(pois)
+    .PointsOfInterest(pois)
     .OnPoiClicked(e =>
     {
         // Navigate to the clicked POI
@@ -251,7 +251,7 @@ POIs outside the visible viewport are automatically excluded from rendering. The
 
 ## Input Bindings
 
-TilePanel registers these default keybindings, all rebindable via `WithInputBindings`:
+TilePanel registers these default keybindings, all rebindable via `InputBindings`:
 
 | Input | Action | ActionId |
 |-------|--------|----------|
@@ -272,7 +272,7 @@ using Hex1b.Widgets;
 ctx.TilePanel(dataSource, cameraX, cameraY, zoom)
     .OnPan(e => { /* ... */ })
     .OnZoom(e => { /* ... */ })
-    .WithInputBindings(b =>
+    .InputBindings(b =>
     {
         // Use WASD instead of arrow keys
         b.Remove(TilePanelWidget.PanUp);

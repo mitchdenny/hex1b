@@ -100,7 +100,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             })
             .RedrawAfter(33)
         )
-        .WithInputBindings(bindings =>
+        .InputBindings(bindings =>
         {
             bindings.Key(Hex1bKey.RightArrow).Action(_ =>
             {

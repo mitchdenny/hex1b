@@ -277,7 +277,7 @@ You can add additional bindings using the standard input binding API:
 ```csharp
 v.Button("Save")
     .OnClick(_ => Save())
-    .WithInputBindings(bindings => bindings
+    .InputBindings(bindings => bindings
         .Ctrl().Key(Hex1bKey.S).Action(() => Save()))
 ```
 

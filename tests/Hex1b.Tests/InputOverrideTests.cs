@@ -180,13 +180,13 @@ public class InputOverrideTests
     }
 
     [Fact]
-    public async Task Override_RunsAfterWidgetWithInputBindings()
+    public async Task Override_RunsAfterWidgetInputBindings()
     {
-        // Per-instance WithInputBindings should run BEFORE the override.
+        // Per-instance InputBindings should run BEFORE the override.
         var callOrder = new List<string>();
 
         var listWidget = new ListWidget(["A", "B"])
-            .WithInputBindings(b => callOrder.Add("per-instance"));
+            .InputBindings(b => callOrder.Add("per-instance"));
 
         var overrideWidget = new InputOverrideWidget(listWidget)
             .Override<ListWidget>(b => callOrder.Add("override"));

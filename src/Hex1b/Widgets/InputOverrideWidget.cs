@@ -40,7 +40,7 @@ public sealed record InputOverrideWidget(Hex1bWidget Content) : Hex1bWidget
     /// Adds or replaces a binding override for all descendant widgets of type
     /// <typeparamref name="TWidget"/>. The <paramref name="configure"/> callback
     /// runs after the widget's default bindings and any per-instance
-    /// <c>WithInputBindings</c> configurator.
+    /// <c>InputBindings</c> configurator.
     /// </summary>
     /// <typeparam name="TWidget">The widget type to override bindings for.</typeparam>
     /// <param name="configure">

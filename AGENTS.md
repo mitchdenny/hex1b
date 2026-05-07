@@ -84,7 +84,7 @@ This repo ships a Roslyn analyzer (`src/Hex1b.Analyzers/`) that runs against eve
 | HEX1B0004  | Types deriving from `Hex1bWidget` must be declared as `record` | |
 | HEX1B0005  | Types deriving from `Hex1bNode` must be declared as `class` | |
 
-All five rules default to `Warning` severity. `src/Hex1b/GlobalSuppressions.cs` baselines the existing widget `With*` methods (e.g. `KgpImageExtensions.WithWidth`, `FormTextFieldWidget.WithMaxFloating`, `InputBindingExtensions.WithInputBindings<TWidget>`) with per-method `[SuppressMessage]` attributes so the lib still builds under `TreatWarningsAsErrors=true`. Crucially this means **new** `With*` methods on widgets WILL break the build — the only way to suppress one is to add an explicit doc-id to that file. Each suppression is a tracked rename obligation.
+All five rules default to `Warning` severity. `src/Hex1b/GlobalSuppressions.cs` baselines the existing widget `With*` methods (e.g. `KgpImageExtensions.WithWidth`, `FormTextFieldWidget.WithMaxFloating`, `InputBindingExtensions.InputBindings<TWidget>`) with per-method `[SuppressMessage]` attributes so the lib still builds under `TreatWarningsAsErrors=true`. Crucially this means **new** `With*` methods on widgets WILL break the build — the only way to suppress one is to add an explicit doc-id to that file. Each suppression is a tracked rename obligation.
 
 Tests for the analyzers live in `tests/Hex1b.Analyzers.Tests/`. New rules should follow the existing pattern: implement in `src/Hex1b.Analyzers/`, declare the ID in `Hex1bDiagnosticIds.cs` and `AnalyzerReleases.Unshipped.md`, and add positive + negative tests.
 
@@ -139,9 +139,9 @@ public static readonly ActionId MyAction = new($"{nameof(MyWidget)}.{nameof(MyAc
 bindings.Key(Hex1bKey.Enter).Triggers(MyWidget.MyAction, handler, "Description");
 ```
 
-Users can then remap/alias/disable actions via `WithInputBindings`:
+Users can then remap/alias/disable actions via `InputBindings`:
 ```csharp
-widget.WithInputBindings(b =>
+widget.InputBindings(b =>
 {
     b.Remove(MyWidget.MyAction);  // remove default key
     b.Key(Hex1bKey.X).Triggers(MyWidget.MyAction);  // rebind to X

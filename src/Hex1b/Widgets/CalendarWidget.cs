@@ -203,7 +203,7 @@ public sealed record CalendarWidget(DateOnly Month) : Hex1bWidget
 
                 return Task.CompletedTask;
             })
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.LeftArrow).Action(ctx => NavigateCalendarGrid(ctx, -1, daysInMonth), "Left");
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateCalendarGrid(ctx, 1, daysInMonth), "Right");

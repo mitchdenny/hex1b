@@ -49,7 +49,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     v.Separator(),
                     v.Text($" {items.Count} items"),
                 ])
-            ).WithInputBindings(bindings =>
+            ).InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.S).Global().Action(_ =>
                 {

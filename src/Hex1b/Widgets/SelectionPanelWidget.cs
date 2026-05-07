@@ -48,7 +48,7 @@ namespace Hex1b.Widgets;
 ///       anchor and cursor positions.</item>
 /// </list>
 /// <para>
-/// All key bindings are rebindable via <c>WithInputBindings</c>
+/// All key bindings are rebindable via <c>InputBindings</c>
 /// using the published <c>ActionId</c> constants on this widget. The
 /// default keys mirror <see cref="TerminalWidget"/>'s
 /// <see cref="CopyModeBindingsOptions"/> defaults so users familiar with

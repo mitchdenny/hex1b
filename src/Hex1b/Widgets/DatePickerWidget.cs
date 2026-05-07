@@ -89,7 +89,7 @@ public sealed record DatePickerWidget : Hex1bWidget
                 node.ResetStep();
                 e.PushAnchored(AnchorPosition.Below, () => BuildPopupContent(node));
             })
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx =>
                 {
@@ -158,7 +158,7 @@ public sealed record DatePickerWidget : Hex1bWidget
                 node.SelectYear(capturedYear);
                 return Task.CompletedTask;
             })
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 var col = cellIndex % 4;
                 bindings.Key(Hex1bKey.LeftArrow).Action(ctx =>
@@ -255,7 +255,7 @@ public sealed record DatePickerWidget : Hex1bWidget
 
         return new BorderWidget(layout)
             .Title($"{node.YearPageStart}–{node.YearPageStart + 11}")
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
                 bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");
@@ -307,7 +307,7 @@ public sealed record DatePickerWidget : Hex1bWidget
                 node.SelectMonth(capturedMonth);
                 return Task.CompletedTask;
             })
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.LeftArrow).Action(ctx => NavigateGrid(ctx, -1, 12), "Left");
                 bindings.Key(Hex1bKey.RightArrow).Action(ctx => NavigateGrid(ctx, 1, 12), "Right");
@@ -350,7 +350,7 @@ public sealed record DatePickerWidget : Hex1bWidget
         var content = new VStackWidget([yearLabel, grid]);
 
         return new BorderWidget(content).Title("Month")
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
                 bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");
@@ -426,7 +426,7 @@ public sealed record DatePickerWidget : Hex1bWidget
         var content = new VStackWidget([headerLabel, calendar]);
 
         return new BorderWidget(content).Title("Day")
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(DismissPopup, "Close picker");
                 bindings.Key(Hex1bKey.Backspace).Action(DismissPopup, "Close picker");

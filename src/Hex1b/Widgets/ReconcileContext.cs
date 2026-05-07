@@ -278,7 +278,7 @@ public sealed class ReconcileContext
         
         // Apply input binding overrides from ancestor InputOverrideWidget instances.
         // The override wraps the widget's own BindingsConfigurator (if any) so that
-        // the override runs AFTER per-instance WithInputBindings configuration.
+        // the override runs AFTER per-instance InputBindings configuration.
         var widgetConfigurator = widget.BindingsConfigurator;
         if (_inputOverrides is not null && _inputOverrides.TryGetValue(widget.GetType(), out var overrideConfigurator))
         {

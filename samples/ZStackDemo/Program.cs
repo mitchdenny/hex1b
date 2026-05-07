@@ -71,7 +71,7 @@ try
                     "Ctrl+C", "Exit"
                 ]),
             ])
-        ).WithInputBindings(bindings =>
+        ).InputBindings(bindings =>
         {
             // Global search binding - Ctrl+S opens centered search popup
             bindings.Ctrl().Key(Hex1bKey.S).Action(actionCtx =>

@@ -204,7 +204,7 @@ Hex1bWidget BuildUI(RootContext ctx)
             "Q", "Quit"
         ])
     ]).Fill()  // End of right panel VStack
-]).WithInputBindings(bindings =>
+]).InputBindings(bindings =>
 {
     // Use Global() so these bindings work even when the terminal widget has focus
     bindings.Key(Hex1bKey.Spacebar).Global().Action(_ =>

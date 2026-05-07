@@ -130,7 +130,7 @@ internal static class CopilotCommand
                                 state.ShowCommands = false;
                                 HandleSubmit(text, ctx.Step, state);
                             })
-                            .WithInputBindings(bindings =>
+                            .InputBindings(bindings =>
                             {
                                 bindings.Shift().Key(Hex1bKey.Tab).Action(actionCtx =>
                                 {

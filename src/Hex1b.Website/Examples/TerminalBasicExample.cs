@@ -249,7 +249,7 @@ public class TerminalBasicExample(ILogger<TerminalBasicExample> logger) : Reacti
                     "Ctrl+Q", "Quit",
                     "", statusMessage
                 ])
-            ]).WithInputBindings(bindings =>
+            ]).InputBindings(bindings =>
             {
                 bindings.Ctrl().Key(Hex1bKey.N).Action(_ => AddTerminal(), "New terminal");
                 bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => displayApp?.RequestStop(), "Quit");

@@ -297,7 +297,7 @@ try
                                 body.Text(""),
                                 body.Text(hint),
                             };
-                        })).WithInputBindings(RegisterTestBindings)
+                        })).InputBindings(RegisterTestBindings)
                 ).Title("KeyBindingTester").Fill(),
 
                 root.InfoBar([
@@ -310,7 +310,7 @@ try
             // Meta keys (F/S/R/C/Esc) live on the root VStack so they fire regardless
             // of which child currently owns focus. Keyboard events bubble UP through
             // the focus chain, so these are checked after the focused child's bindings.
-            ]).WithInputBindings(b =>
+            ]).InputBindings(b =>
             {
                 b.Key(Hex1bKey.F).Action(_ => { MarkAndAdvance(FAIL); return Task.CompletedTask; }, "Mark current as failed");
                 b.Key(Hex1bKey.S).Action(_ => { MarkAndAdvance(SKIP); return Task.CompletedTask; }, "Skip current");

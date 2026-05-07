@@ -434,7 +434,7 @@ public class Hex1bTestSequenceTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget([
                     new ButtonWidget("Test")
-                ]).WithInputBindings(b => 
+                ]).InputBindings(b => 
                 {
                     b.Ctrl().Key(Hex1bKey.X).Action(_ => ctrlCPressed = true);
                 })

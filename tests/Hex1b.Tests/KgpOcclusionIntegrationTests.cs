@@ -749,7 +749,7 @@ public class KgpOcclusionIntegrationTests
                 [
                     outer.Text(statusText),
                     outer.WindowPanel().Fill()
-                ]).WithInputBindings(bindings =>
+                ]).InputBindings(bindings =>
                 {
                     bindings.Ctrl().Key(Hex1bKey.O).Action(e =>
                     {

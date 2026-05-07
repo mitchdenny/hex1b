@@ -293,7 +293,7 @@ public abstract class Hex1bNode
 
     /// <summary>
     /// Optional callback to configure bindings for this node.
-    /// Set from the widget's WithInputBindings() call.
+    /// Set from the widget's InputBindings() call.
     /// </summary>
     internal Action<InputBindingsBuilder>? BindingsConfigurator { get; set; }
 

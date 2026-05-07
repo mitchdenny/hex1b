@@ -95,7 +95,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                 app.Invalidate();
                             })
                     ], showScrollbar: true)
-                    .WithInputBindings(b =>
+                    .InputBindings(b =>
                     {
                         // Treat Ctrl+wheel the same as plain wheel so the
                         // transcript keeps scrolling when the user happens to
@@ -162,7 +162,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 s.Section($"{transcript.Count} entr{(transcript.Count == 1 ? "y" : "ies")}"),
             ]).Divider(" | "),
         ])
-        .WithInputBindings(b =>
+        .InputBindings(b =>
         {
             b.Ctrl().Key(Hex1bKey.Q).Action(c => { c.RequestStop(); return Task.CompletedTask; }, "Quit");
         });

@@ -91,7 +91,7 @@ Hex1bWidget BuildUI(RootContext ctx)
         v.InfoBar([
             "", $"{scrollStatus}{altScreen}{mouseTracking}"
         ])
-    ]).WithInputBindings(bindings =>
+    ]).InputBindings(bindings =>
     {
         bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => displayApp?.RequestStop(), "Quit");
     });
