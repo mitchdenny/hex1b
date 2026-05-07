@@ -55,9 +55,9 @@ public static class QrCodeExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// v.QrCode("https://example.com").WithQuietZone(0)
+    /// v.QrCode("https://example.com").QuietZone(0)
     /// </code>
     /// </example>
-    public static QrCodeWidget WithQuietZone(this QrCodeWidget widget, int quietZone)
+    public static QrCodeWidget QuietZone(this QrCodeWidget widget, int quietZone)
         => widget with { QuietZone = quietZone };
 }

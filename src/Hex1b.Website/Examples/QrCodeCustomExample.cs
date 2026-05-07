@@ -47,7 +47,7 @@ public class QrCodeCustomExample(ILogger<QrCodeCustomExample> logger) : Hex1bExa
                 v.Text(""),
                 v.Text($"URL: {state.CurrentUrl}"),
                 v.Text(""),
-                v.QrCode(state.CurrentUrl).WithQuietZone(state.QuietZone),
+                v.QrCode(state.CurrentUrl).QuietZone(state.QuietZone),
                 v.Text(""),
                 v.Text("Select URL:"),
                 v.Picker(state.UrlOptions, state.SelectedUrlIndex)

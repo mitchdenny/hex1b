@@ -72,7 +72,7 @@ public static class TerminalExtensions
     /// <param name="widget">The TerminalWidget to configure.</param>
     /// <param name="rows">Number of rows per scroll tick. Defaults to 3.</param>
     /// <returns>The configured TerminalWidget.</returns>
-    public static TerminalWidget WithMouseWheelScrollAmount(
+    public static TerminalWidget MouseWheelScrollAmount(
         this TerminalWidget widget,
         int rows)
         => widget with { MouseWheelScrollAmount = rows };

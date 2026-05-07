@@ -33,7 +33,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         v.Text(""),
         v.Text($"URL: {state.CurrentUrl}"),
         v.Text(""),
-        v.QrCode(state.CurrentUrl).WithQuietZone(state.QuietZone),
+        v.QrCode(state.CurrentUrl).QuietZone(state.QuietZone),
         v.Text(""),
         v.Text("Select URL:"),
         v.Picker(state.UrlOptions, state.SelectedUrlIndex)
@@ -99,10 +99,10 @@ The quiet zone is the white border around the QR code. By default, QrCodeWidget 
 v.QrCode("https://hex1b.dev")
 
 // No quiet zone
-v.QrCode("https://hex1b.dev").WithQuietZone(0)
+v.QrCode("https://hex1b.dev").QuietZone(0)
 
 // Larger quiet zone (4 modules)
-v.QrCode("https://hex1b.dev").WithQuietZone(4)
+v.QrCode("https://hex1b.dev").QuietZone(4)
 ```
 
 ::: info QR Code Standards

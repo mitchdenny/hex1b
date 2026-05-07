@@ -68,7 +68,7 @@ public class KgpImageNodeTests
         var widget = new KgpImageWidget(
             CreateTestImage(), 4, 4,
             new TextBlockWidget("fallback"))
-            .WithWidth(20);
+            .Width(20);
 
         Assert.Equal(20, widget.Width);
     }
@@ -79,7 +79,7 @@ public class KgpImageNodeTests
         var widget = new KgpImageWidget(
             CreateTestImage(), 4, 4,
             new TextBlockWidget("fallback"))
-            .WithHeight(10);
+            .Height(10);
 
         Assert.Equal(10, widget.Height);
     }
@@ -416,7 +416,7 @@ public class KgpImageNodeTests
         var widget = new KgpImageWidget(
             CreateTestImage(), 4, 4,
             new TextBlockWidget("fallback"))
-            .WithStretch(KgpImageStretch.Fit);
+            .Stretch(KgpImageStretch.Fit);
 
         Assert.Equal(KgpImageStretch.Fit, widget.Stretch);
     }

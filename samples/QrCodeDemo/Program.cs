@@ -40,7 +40,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                     left.Text(""),
                     left.HStack(qr => [
                         qr.Text("    "), // Indent
-                        qr.QrCode(currentUrl).WithQuietZone(quietZone)
+                        qr.QrCode(currentUrl).QuietZone(quietZone)
                     ]).Fill(),
                     left.Text(""),
                     left.Text($"  Quiet Zone: {quietZone}"),
