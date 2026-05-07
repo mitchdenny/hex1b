@@ -165,6 +165,16 @@ aside li.primary {
 .terminal-pane {
   flex: 1;
   /*
+   * min-width: 0 overrides the flex default of min-width: auto. Without
+   * it, the flex item refuses to shrink below the intrinsic width of
+   * its contents — and our contents include #terminal-body which has a
+   * pinned inline width. That pin would otherwise prevent the pane from
+   * shrinking on horizontal window resize, so terminalContainer.clientWidth
+   * stays stale, ResizeObserver never sees the narrower viewport, and
+   * applyRoleAwareLayout never recomputes the scale.
+   */
+  min-width: 0;
+  /*
    * Stage for the terminal — provides the grey gradient backdrop and
    * the breathing room around the .xterm frame so the uniform blue
    * drop-shadow has space to extend on every side without being
@@ -191,6 +201,8 @@ aside li.primary {
    * need #terminal to clip anything.
    */
   flex: 1;
+  /* See .terminal-pane comment — same flex min-width: auto trap. */
+  min-width: 0;
   min-height: 0;
   display: flex;
   align-items: center;
@@ -239,6 +251,13 @@ code {
 
 #terminal-titlebar {
   flex: 0 0 auto;
+  /*
+   * min-width: 0 so a long terminal title doesn't push the titlebar
+   * (and therefore the frame's cross-axis width) wider than the body's
+   * pinned width. Without this, a long title can stretch the frame
+   * beyond the available stage even though the scaled body fits.
+   */
+  min-width: 0;
   height: 30px;
   padding: 0 14px;
   background: linear-gradient(180deg, #1a2029 0%, #161b22 100%);
@@ -251,6 +270,9 @@ code {
 }
 
 #terminal-title {
+  /* See #terminal-titlebar — let the title text shrink + ellipsis. */
+  min-width: 0;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;

@@ -294,10 +294,12 @@ function measureAndScale(availableW, availableH) {
   }
 
   // Pin the body to the scaled visible bounds so the frame card hugs
-  // the content. Round to integer pixels to avoid sub-pixel border
-  // wobble during continuous resize.
-  const bodyW = `${Math.round(naturalWidth * scale)}px`;
-  const bodyH = `${Math.round(naturalHeight * scale)}px`;
+  // the content. Math.floor (not round) + clamp to availableW/H so we
+  // can never produce a body 1px wider than the stage from sub-pixel
+  // accumulation — a 1px overflow re-triggers ResizeObserver in a tight
+  // loop and looks like the terminal is bouncing.
+  const bodyW = `${Math.min(availableW, Math.floor(naturalWidth * scale))}px`;
+  const bodyH = `${Math.min(availableH, Math.floor(naturalHeight * scale))}px`;
   if (body.style.width !== bodyW || body.style.height !== bodyH) {
     body.style.width = bodyW;
     body.style.height = bodyH;
