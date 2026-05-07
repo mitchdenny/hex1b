@@ -42,6 +42,55 @@ Maximum payload size: 16 MB.
 | PeerLeave | `0x0A` | Server → Client (broadcast) | An existing peer disconnected |
 | ClientHello | `0x0B` | Client → Server | Client identifies itself before the server's Hello (display name, default role) |
 
+## Peer IDs
+
+A **peer ID** is an opaque string assigned by the producer (server) to each
+attached client. Peer IDs appear in the `Hello`, `RoleChange`, `PeerJoin`,
+and `PeerLeave` frames as well as in the `peers[]` roster. They are the
+sole means by which the producer and clients refer to specific connected
+peers.
+
+**Lifetime and scope**
+
+- Assigned by the producer when it accepts a connection and emits its
+  `Hello`.
+- Stable for the lifetime of a single connection.
+- **Per-connection, not per-client identity.** A client that disconnects
+  and reconnects is a new peer with a new ID. The protocol does not
+  carry a notion of identity that survives reconnects.
+- Locally unique within the set of currently-connected peers of a single
+  producer. They are not globally unique and are not intended to be
+  cross-referenced across producers, sessions, or time.
+
+**Opacity contract**
+
+Peer IDs **must** be treated as opaque values by clients. Specifically,
+clients must not:
+
+- assume any particular length, character set, prefix, or encoding;
+- parse, decode, or extract structure from a peer ID;
+- generate or invent peer IDs (the only field a client supplies in
+  `ClientHello` is an optional human-readable `displayName`);
+- assume two equal peer IDs from different connections refer to the same
+  client.
+
+The only operations clients should perform on peer IDs are:
+
+- byte-wise / string equality comparison (e.g. `peerId == primaryPeerId`
+  to determine whether *this* client is currently the primary);
+- storing them in a roster keyed by peer ID;
+- copying them verbatim into outbound frames (none of the
+  client-emitted frames currently carry a peer ID, but future versions
+  may);
+- displaying them in diagnostic UI or logs.
+
+**Producer flexibility**
+
+The producer is free to change the format of peer IDs in any release —
+length, character set, prefix, encoding — without a protocol version
+bump, provided the new format is still a UTF-8 string that satisfies
+the equality contract above.
+
 ### ClientHello (0x0B)
 
 Sent **once** by the client immediately on connect, **before the server emits
@@ -93,8 +142,8 @@ Sent once by the server after it has received the client's `ClientHello`.
   `RequestPrimary` from the current primary, or the producer's configured
   defaults if there is no primary).
 - `peerId` — Server-assigned opaque identifier for this client, stable for the
-  lifetime of the connection. Format is unspecified (currently 8 hex chars
-  prefixed with `p`).
+  lifetime of the connection. See the [Peer IDs](#peer-ids) section for
+  the full opacity contract.
 - `primaryPeerId` — `peerId` of the current primary, or `null` if no peer
   currently holds the primary role.
 - `peers` — Roster of *other* peers currently attached (excluding self), each

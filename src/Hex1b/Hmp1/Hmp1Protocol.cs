@@ -370,8 +370,11 @@ internal sealed class HelloPayload
     public int Height { get; set; }
 
     /// <summary>
-    /// Peer ID assigned to the receiving client by the server. Stable for
-    /// the lifetime of the connection.
+    /// Opaque peer ID assigned to the receiving client by the producer.
+    /// Stable for the lifetime of the connection. Clients must treat the
+    /// string as opaque (no parsing, no format assumptions) — see the
+    /// "Peer IDs" section of <c>docs/muxer-protocol.md</c> for the full
+    /// opacity contract.
     /// </summary>
     public string? PeerId { get; set; }
 
