@@ -182,3 +182,64 @@ code {
   font-size: 11px;
   color: var(--accent);
 }
+
+/*
+ * xterm.js scrollbar: overlay-style, only visible on hover.
+ *
+ * .xterm-viewport is absolutely positioned over .xterm-screen with
+ * right: 0, so the scrollbar already doesn't push the canvas — it just
+ * visually overlaps the right edge. To keep the terminal content
+ * unobscured we render the scrollbar with 0 width by default (so nothing
+ * is visible) and reveal a thin overlay scrollbar only when the pointer
+ * is over the terminal area. Wheel scrolling still works at all times
+ * because the viewport itself remains the full size of .xterm.
+ */
+.xterm-viewport {
+  /* Firefox */
+  scrollbar-width: none;
+  /* Legacy Edge / IE */
+  -ms-overflow-style: none;
+}
+
+.xterm-viewport::-webkit-scrollbar {
+  width: 0;
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 5px;
+}
+
+/* On hover (or while the user is actively scrolling), reveal a thin
+   translucent scrollbar that floats over the content. */
+.xterm:hover .xterm-viewport,
+.xterm-viewport:hover,
+.xterm-viewport:focus-within {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(139, 148, 158, 0.55) transparent;
+}
+
+.xterm:hover .xterm-viewport::-webkit-scrollbar,
+.xterm-viewport:hover::-webkit-scrollbar,
+.xterm-viewport:focus-within::-webkit-scrollbar {
+  width: 10px;
+}
+
+.xterm:hover .xterm-viewport::-webkit-scrollbar-thumb,
+.xterm-viewport:hover::-webkit-scrollbar-thumb,
+.xterm-viewport:focus-within::-webkit-scrollbar-thumb {
+  background: rgba(139, 148, 158, 0.55);
+  border-radius: 5px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.xterm-viewport::-webkit-scrollbar-thumb:hover {
+  background: rgba(139, 148, 158, 0.85) !important;
+  background-clip: padding-box;
+}
