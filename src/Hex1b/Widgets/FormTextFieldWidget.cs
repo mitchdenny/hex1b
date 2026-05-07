@@ -235,7 +235,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
 
         // Resolve label placement from field override or form-level setting
         var formNode = context.FindAncestor<FormNode>();
-        node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? LabelPlacement.Above;
+        node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? Widgets.LabelPlacement.Above;
         node.LabelWidth = formNode?.LabelWidth ?? 15;
         node.HasExplicitWidth = MinWidthValue.HasValue;
 
@@ -267,7 +267,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
             {
                 node.CurrentValue = e.NewText;
 
-                if (node.ValidateOn == ValidateOn.Change)
+                if (node.ValidateOn == Widgets.ValidateOn.Change)
                 {
                     node.RunValidation();
                 }
@@ -277,7 +277,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
                 if (parentFormNode != null)
                 {
                     parentFormNode.SetFieldValue(FieldId, e.NewText);
-                    if (node.ValidateOn == ValidateOn.Change)
+                    if (node.ValidateOn == Widgets.ValidateOn.Change)
                     {
                         parentFormNode.SetValidationResult(FieldId, node.CurrentValidationResult);
                     }
