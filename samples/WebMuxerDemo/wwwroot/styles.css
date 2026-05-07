@@ -286,6 +286,106 @@ code {
   background: #0d1117;
 }
 
+/*
+ * Footer — primary-mode control surface for terminal sizing. Hidden in
+ * secondary mode (set via JS). Mirrors the titlebar's visual treatment
+ * for a consistent chrome.
+ *
+ * Two mutually-exclusive sizing modes:
+ *   - "Auto" (font-driven): +/- adjust font size, fit() re-picks cols×rows.
+ *   - Fixed preset (e.g. 80×24): cols×rows are locked, font is auto-
+ *     computed to fill the available space; +/- buttons disabled.
+ */
+#terminal-footer {
+  flex: 0 0 auto;
+  min-width: 0;
+  height: 30px;
+  padding: 0 14px;
+  background: linear-gradient(180deg, #1a2029 0%, #161b22 100%);
+  border-top: 1px solid #30363d;
+  color: var(--fg-muted);
+  font: 12px ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  user-select: none;
+}
+
+.footer-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.footer-label {
+  color: var(--fg-muted);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+#terminal-footer button {
+  background: #21262d;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 0;
+  width: 22px;
+  height: 22px;
+  font: 14px/1 ui-monospace, monospace;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+#terminal-footer button:hover:not(:disabled) {
+  background: #30363d;
+  border-color: #484f58;
+}
+
+#terminal-footer button:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+#font-display {
+  color: var(--fg);
+  min-width: 24px;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+#size-select {
+  background: #21262d;
+  color: var(--fg);
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  padding: 2px 6px;
+  font: inherit;
+  cursor: pointer;
+}
+
+#size-select:hover {
+  background: #30363d;
+  border-color: #484f58;
+}
+
+/*
+ * Live dims readout pinned to the right of the footer. tabular-nums
+ * keeps the column width stable as cols/rows change so the rest of the
+ * footer doesn't shift around.
+ */
+#footer-dims {
+  margin-left: auto;
+  color: var(--fg-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+#footer-dims .value {
+  color: var(--fg);
+}
+
 .xterm:focus,
 .xterm:focus-visible {
   outline: none;
