@@ -31,6 +31,6 @@ public readonly struct TabPanelContext
         string icon,
         Func<WidgetContext<VStackWidget>, IEnumerable<Hex1bWidget>> contentBuilder)
     {
-        return new TabItemWidget(title, contentBuilder) { Icon = icon };
+        return new TabItemWidget(title, contentBuilder) { IconValue = icon };
     }
 }
