@@ -225,13 +225,17 @@ function measureAndScale() {
   // it stops growing to fill its flex parent — otherwise the wrapper
   // reports parent-size offsetWidth and the visual scaling clips weirdly
   // because the transform-origin is in the wrong relative position.
+  // Use transform-origin: center so the scale pivots around the
+  // wrapper's geometric centre — combined with #terminal's flex
+  // align-items: center / justify-content: center, this keeps the
+  // scaled grid visually centred in the available space.
   const targetTransform = `scale(${scale})`;
   const targetWidth = `${naturalWidth}px`;
   const targetHeight = `${naturalHeight}px`;
   if (root.style.transform !== targetTransform ||
       root.style.width !== targetWidth ||
       root.style.height !== targetHeight) {
-    root.style.transformOrigin = "top left";
+    root.style.transformOrigin = "center";
     root.style.transform = targetTransform;
     root.style.width = targetWidth;
     root.style.height = targetHeight;

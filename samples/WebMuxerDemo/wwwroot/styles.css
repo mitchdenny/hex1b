@@ -164,14 +164,33 @@ aside li.primary {
 
 .terminal-pane {
   flex: 1;
-  padding: 8px;
+  /*
+   * Stage for the terminal — provides the grey gradient backdrop and
+   * the breathing room around the .xterm so the blue drop-shadow has
+   * somewhere to fall without being clipped.
+   */
+  padding: 24px;
   overflow: hidden;
   display: flex;
+  background: linear-gradient(180deg, #1c222a 0%, #161b22 100%);
 }
 
 #terminal {
+  /*
+   * Bare host for xterm.js. Fills the inner stage area (no padding of
+   * its own — FitAddon measures this element's computed width/height
+   * to decide how many cols/rows fit, so any padding here would
+   * confuse the math under our box-sizing: border-box rule). Centers
+   * its single .xterm child both axes so secondary peers (which lock
+   * the grid to producer dims and apply a CSS scale transform) get
+   * symmetric letterboxing on whichever axis has spare room.
+   */
   flex: 1;
   min-height: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
 }
 
 code {
@@ -181,6 +200,38 @@ code {
   border-radius: 3px;
   font-size: 11px;
   color: var(--accent);
+}
+
+/*
+ * Visual treatment for the xterm.js root so the terminal feels like a
+ * "card" lifted off the gradient stage:
+ *   - 1px neutral outline drawn via box-shadow so it doesn't take part
+ *     in layout (a real CSS border would shift xterm's internal cell math
+ *     unless we also added box-sizing tweaks).
+ *   - Soft blue glow + subtle dark drop shadow for depth.
+ *   - flex-shrink: 0 so when the .xterm is acting as a flex item inside
+ *     #terminal it keeps the pinned natural size we set in JS for
+ *     secondary mode (otherwise flex would happily shrink it under
+ *     pressure and our scale math would be off).
+ *   - Suppress the focus ring so we don't double up with our own outline.
+ *
+ * Both transforms (the scale used in secondary mode) and box-shadow
+ * scale together by the CSS transform, so the shadow visually grows and
+ * shrinks with the terminal — exactly what we want.
+ */
+.xterm {
+  flex-shrink: 0;
+  border-radius: 3px;
+  background: #0d1117;
+  box-shadow:
+    0 0 0 1px var(--border),
+    0 0 24px rgba(88, 166, 255, 0.35),
+    0 8px 32px rgba(0, 0, 0, 0.5);
+}
+
+.xterm:focus,
+.xterm:focus-visible {
+  outline: none;
 }
 
 /*
