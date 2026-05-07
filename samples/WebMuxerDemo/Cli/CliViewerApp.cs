@@ -1,5 +1,6 @@
 using Hex1b;
 using Hex1b.Input;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace WebMuxerDemo.Cli;
@@ -26,6 +27,20 @@ namespace WebMuxerDemo.Cli;
 /// </summary>
 internal sealed class CliViewerApp
 {
+    // Panel background colour matching the WebMuxerDemo browser UI's
+    // --panel CSS variable (#161b22). When the producer's grid is smaller
+    // than the host TTY, the surrounding framing area is filled with this
+    // colour so the terminal's edges are visible against a contrasting
+    // backdrop — same visual idiom as the web's terminal card.
+    private static readonly Hex1bColor PanelColor = Hex1bColor.FromRgb(0x16, 0x1b, 0x22);
+
+    // Terminal background, matching the browser's --bg CSS variable
+    // (#0d1117). This is applied to TerminalWidget so the embedded grid
+    // owns its surface; without it, default-bg cells inside the terminal
+    // are transparent and the surrounding PanelColor bleeds through every
+    // blank cell, making the terminal indistinguishable from its frame.
+    private static readonly Hex1bColor TerminalBackground = Hex1bColor.FromRgb(0x0d, 0x11, 0x17);
+
     private readonly Hmp1WorkloadAdapter _adapter;
     private readonly string _sessionName;
     private Hex1bApp? _app;
@@ -205,7 +220,12 @@ internal sealed class CliViewerApp
 
         var info = BuildInfoBar(ctx, isPrimary, producerW, producerH, availW, availH);
 
-        var content = ctx.VStack(v => [body, info]);
+        // Wrap the body+infobar in a BackgroundPanelWidget so the framing
+        // area around a smaller producer grid fills with the panel colour
+        // (mirrors the web UI's --panel card). The InfoBar paints its own
+        // background on top, so the visible grey appears only in the empty
+        // space around the centred terminal grid.
+        var content = new BackgroundPanelWidget(PanelColor, ctx.VStack(v => [body, info]));
 
         return content.WithInputBindings(bindings =>
         {
@@ -238,9 +258,12 @@ internal sealed class CliViewerApp
         // claims the full bounded constraint (see TerminalNode.MeasureCore)
         // and the Align centring becomes a no-op — the grid just paints at
         // top-left with blank padding around it.
+        // Apply an explicit terminal Background so cells with default-bg
+        // don't inherit the surrounding PanelColor — see TerminalExtensions.Background.
         return ctx.Align(
             Alignment.Center,
             ctx.Terminal(_handle)
+                .Background(TerminalBackground)
                 .FixedWidth(Math.Max(1, _innerWidth))
                 .FixedHeight(Math.Max(1, _innerHeight))
         ).Fill();

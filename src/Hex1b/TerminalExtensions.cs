@@ -1,3 +1,4 @@
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 namespace Hex1b;
@@ -75,6 +76,44 @@ public static class TerminalExtensions
         this TerminalWidget widget,
         int rows)
         => widget with { MouseWheelScrollAmount = rows };
+
+    /// <summary>
+    /// Sets the background colour for the terminal's framing area and for cells the
+    /// workload writes with the default background.
+    /// </summary>
+    /// <param name="widget">The TerminalWidget to configure.</param>
+    /// <param name="color">The background colour. Pass <see cref="Hex1bColor.Default"/> to
+    /// restore the transparent (inherits-from-parent) behaviour.</param>
+    /// <returns>The configured TerminalWidget.</returns>
+    /// <remarks>
+    /// <para>
+    /// Without this call, terminal cells with the default background are emitted as
+    /// transparent. When the terminal is embedded inside a coloured container (such as a
+    /// <see cref="Hex1b.Widgets.BackgroundPanelWidget"/>) the container's colour bleeds
+    /// through and the terminal cannot be visually distinguished from its surroundings.
+    /// Setting an explicit background gives the terminal its own opaque surface so the
+    /// surrounding container colour is visible only in the empty area around the terminal
+    /// — useful for "framed" embedded terminal experiences.
+    /// </para>
+    /// <para>
+    /// Cells with a non-default background written by the workload are unaffected and
+    /// continue to use the workload's colour.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// // Frame the terminal with a panel colour, terminal itself stays opaque black.
+    /// var content = new BackgroundPanelWidget(
+    ///     panelColor,
+    ///     ctx.Align(Alignment.Center,
+    ///         ctx.Terminal(handle).Background(Hex1bColor.FromRgb(0x0d, 0x11, 0x17))
+    ///             .FixedWidth(80).FixedHeight(24)).Fill());
+    /// </code>
+    /// </example>
+    public static TerminalWidget Background(
+        this TerminalWidget widget,
+        Hex1bColor color)
+        => widget with { BackgroundColor = color };
     
     /// <summary>
     /// Enables standard copy mode bindings with configurable key and mouse mappings.

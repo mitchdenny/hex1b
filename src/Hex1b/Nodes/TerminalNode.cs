@@ -54,6 +54,17 @@ public sealed class TerminalNode : Hex1bNode
     /// Number of rows to scroll per mouse wheel tick.
     /// </summary>
     internal int MouseWheelScrollAmount { get; set; } = 3;
+
+    /// <summary>
+    /// Background colour applied to default-background cells and the framing area.
+    /// When <see cref="Hex1b.Theming.Hex1bColor.IsDefault"/> is true (the default),
+    /// the terminal renders transparently and inherits its surroundings' colour during
+    /// surface composition.
+    /// </summary>
+    /// <remarks>
+    /// Set via <see cref="Hex1b.Widgets.TerminalWidget.BackgroundColor"/> on the source widget.
+    /// </remarks>
+    internal Hex1b.Theming.Hex1bColor BackgroundColor { get; set; } = Hex1b.Theming.Hex1bColor.Default;
     
     /// <summary>
     /// Gets or sets the terminal handle this node renders from.
@@ -597,7 +608,18 @@ public sealed class TerminalNode : Hex1bNode
         
         // Mark this version as rendered (we'll check if more output arrived after this)
         _lastRenderedVersion = currentVersion;
-        
+
+        // Apply the explicit background colour (if set) so the terminal owns its surface
+        // and isn't transparent. The Surface composition pipeline uses FillBackground to
+        // paint empty cells AND to coerce cells with a transparent background to this
+        // colour — see Surface.FillBackground. Without this any container painted
+        // beneath the terminal (e.g. BackgroundPanelWidget) bleeds through every cell
+        // the workload writes with the default background.
+        if (!BackgroundColor.IsDefault)
+        {
+            FillBackground = BackgroundColor;
+        }
+
         // Clear the entire terminal region before rendering rows.
         // This is necessary because empty terminal cells (TerminalCell.Empty) have null
         // foreground/background, which produces transparent SurfaceCells. Without clearing,

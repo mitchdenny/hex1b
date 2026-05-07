@@ -1,5 +1,6 @@
 using Hex1b.Input;
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -111,7 +112,22 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
     /// Set via <see cref="TerminalExtensions.CopyModeBindings"/>.
     /// </summary>
     internal CopyModeBindingsOptions? CopyModeOptions { get; init; }
-    
+
+    /// <summary>
+    /// Gets the background color used for the terminal's framing area and for cells the
+    /// workload writes with the default background. When unset (the default), the terminal
+    /// is transparent and inherits whatever colour is underneath it during surface
+    /// composition. Set via <see cref="TerminalExtensions.Background"/>.
+    /// </summary>
+    /// <remarks>
+    /// Without this, embedding a terminal inside a coloured container (for example a
+    /// <see cref="BackgroundPanelWidget"/>) causes the container's colour to bleed through
+    /// every default-background cell, making the terminal indistinguishable from its
+    /// surroundings. Setting an explicit background gives the terminal its own opaque
+    /// surface so the container's framing colour shows only in the empty space around it.
+    /// </remarks>
+    internal Hex1bColor BackgroundColor { get; init; } = Hex1bColor.Default;
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TerminalNode ?? new TerminalNode();
@@ -126,6 +142,7 @@ public sealed record TerminalWidget(TerminalWidgetHandle Handle) : Hex1bWidget
         node.SourceWidget = this;
         node.NotRunningBuilder = NotRunningBuilder;
         node.MouseWheelScrollAmount = MouseWheelScrollAmount;
+        node.BackgroundColor = BackgroundColor;
         
         // Set the invalidate callback so the node can trigger re-renders when output arrives
         if (context.InvalidateCallback != null)
