@@ -86,13 +86,13 @@ public sealed record RescueWidget(Hex1bWidget? Child) : Hex1bWidget
     /// <example>
     /// <code>
     /// ctx.Rescue(ctx.SomeWidget())
-    ///    .WithFallback(rescue => rescue.VStack(v => [
+    ///    .Fallback(rescue => rescue.VStack(v => [
     ///        v.Text($"Error: {rescue.Exception.Message}"),
     ///        v.Button("Retry").OnClick(_ => rescue.Reset())
     ///    ]))
     /// </code>
     /// </example>
-    public RescueWidget WithFallback(Func<RescueContext, Hex1bWidget> builder)
+    public RescueWidget Fallback(Func<RescueContext, Hex1bWidget> builder)
         => this with { FallbackBuilder = builder };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)

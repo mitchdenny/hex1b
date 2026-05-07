@@ -159,7 +159,7 @@ public sealed record TabBarWidget(IReadOnlyList<TabItemWidget> Tabs) : Hex1bWidg
         // Store tab info (include IsSelected for rendering)
         node.Tabs = Tabs.Select((t, i) => new TabBarNode.TabInfo(
             t.Title, 
-            t.Icon, 
+            t.IconValue, 
             t.IsDisabled,
             i == node.SelectedIndex,
             t.LeftActionIcons,

@@ -36,13 +36,13 @@ public sealed record FormWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidg
     /// The label placement mode for form fields.
     /// Defaults to <see cref="Widgets.LabelPlacement.Above"/>.
     /// </summary>
-    public LabelPlacement LabelPlacement { get; init; } = LabelPlacement.Above;
+    internal LabelPlacement LabelPlacementValue { get; init; } = Widgets.LabelPlacement.Above;
 
     /// <summary>
     /// The label width in columns when using <see cref="Widgets.LabelPlacement.Inline"/>.
     /// Defaults to 15.
     /// </summary>
-    public int LabelWidth { get; init; } = 15;
+    internal int LabelWidthValue { get; init; } = 15;
 
     /// <summary>
     /// The field registry tracking cross-field references for validation and enablement.
@@ -57,21 +57,21 @@ public sealed record FormWidget(IReadOnlyList<Hex1bWidget> Children) : Hex1bWidg
     /// <summary>
     /// Sets the label placement mode for all fields in the form.
     /// </summary>
-    public FormWidget WithLabelPlacement(LabelPlacement placement)
-        => this with { LabelPlacement = placement };
+    public FormWidget LabelPlacement(LabelPlacement placement)
+        => this with { LabelPlacementValue = placement };
 
     /// <summary>
     /// Sets the label width for inline label placement.
     /// </summary>
-    public FormWidget WithLabelWidth(int width)
-        => this with { LabelWidth = width };
+    public FormWidget LabelWidth(int width)
+        => this with { LabelWidthValue = width };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as FormNode ?? new FormNode();
 
-        node.LabelPlacement = LabelPlacement;
-        node.LabelWidth = LabelWidth;
+        node.LabelPlacement = LabelPlacementValue;
+        node.LabelWidth = LabelWidthValue;
         node.FieldRegistry = FieldRegistry;
 
         // Wire up the FormContext to the live FormNode for ValidationErrors access

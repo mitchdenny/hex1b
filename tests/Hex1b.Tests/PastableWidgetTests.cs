@@ -409,12 +409,12 @@ public class PastableWidgetTests
         var childWidget = new TextBlockWidget("test");
         var widget = new PastableWidget(childWidget)
             .OnPaste(async e => await e.Paste.ReadToEndAsync())
-            .WithMaxSize(1000)
-            .WithTimeout(TimeSpan.FromSeconds(30));
+            .MaxSize(1000)
+            .Timeout(TimeSpan.FromSeconds(30));
 
         Assert.NotNull(widget.PasteHandler);
-        Assert.Equal(1000, widget.MaxSize);
-        Assert.Equal(TimeSpan.FromSeconds(30), widget.Timeout);
+        Assert.Equal(1000, widget.MaxPasteSize);
+        Assert.Equal(TimeSpan.FromSeconds(30), widget.PasteTimeout);
     }
 
     [Fact]
@@ -426,10 +426,10 @@ public class PastableWidgetTests
         var withPaste = widget.OnPaste(e => { });
         Assert.NotNull(withPaste.PasteHandler);
 
-        var withMax = widget.WithMaxSize(500);
-        Assert.Equal(500, withMax.MaxSize);
+        var withMax = widget.MaxSize(500);
+        Assert.Equal(500, withMax.MaxPasteSize);
 
-        var withTimeout = widget.WithTimeout(TimeSpan.FromMinutes(1));
-        Assert.Equal(TimeSpan.FromMinutes(1), withTimeout.Timeout);
+        var withTimeout = widget.Timeout(TimeSpan.FromMinutes(1));
+        Assert.Equal(TimeSpan.FromMinutes(1), withTimeout.PasteTimeout);
     }
 }

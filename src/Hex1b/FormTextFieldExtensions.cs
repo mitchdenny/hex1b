@@ -14,7 +14,7 @@ public static class FormTextFieldExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// var name = form.TextField("Name").WithMinWidth(20).Validate(v => ...);
+    /// var name = form.TextField("Name").MinWidth(20).Validate(v => ...);
     /// </code>
     /// </example>
     public static FormTextFieldWidget TextField(this FormContext ctx, string label)

@@ -27,7 +27,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 h.Text("© OpenStreetMap contributors"),
             ]),
             v.TilePanel(dataSource, cx, cy, 0) // zoom=0: TilePanel doesn't scale, OSM zoom handles detail
-                .WithPointsOfInterest(pois)
+                .PointsOfInterest(pois)
                 .OnPan(e =>
                 {
                     camera.Pan(e.DeltaX, e.DeltaY);

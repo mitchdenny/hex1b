@@ -48,7 +48,7 @@ public class RescueCustomFallbackExample(ILogger<RescueCustomFallbackExample> lo
                     state.ShouldThrow = true;
                 })
             ])
-            .WithFallback(rescue => rescue.Border(b => [
+            .Fallback(rescue => rescue.Border(b => [
                 b.VStack(inner => [
                     inner.Text("🔥 Custom Error Handler 🔥"),
                     inner.Text(""),

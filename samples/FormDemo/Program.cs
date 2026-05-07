@@ -110,21 +110,21 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 formCol.Form(form =>
                 {
                     var firstNameField = form.TextField("First Name")
-                        .WithWidth(20)
+                        .Width(20)
                         .Validate(value => string.IsNullOrWhiteSpace(value)
                             ? ValidationResult.Error("First name is required")
                             : ValidationResult.Valid)
                         .OnTextChanged(e => firstName = e.NewText);
 
                     var lastNameField = form.TextField("Last Name")
-                        .WithWidth(20)
+                        .Width(20)
                         .Validate(value => string.IsNullOrWhiteSpace(value)
                             ? ValidationResult.Error("Last name is required")
                             : ValidationResult.Valid)
                         .OnTextChanged(e => lastName = e.NewText);
 
                     var emailField = form.TextField("Email")
-                        .WithWidth(20)
+                        .Width(20)
                         .Validate(value =>
                         {
                             if (string.IsNullOrWhiteSpace(value))
@@ -139,29 +139,29 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         .OnTextChanged(e => email = e.NewText);
 
                     var companyField = form.TextField("Company")
-                        .WithWidth(20)
+                        .Width(20)
                         .OnTextChanged(e => company = e.NewText);
 
                     var titleField = form.TextField("Job Title")
-                        .WithWidth(20)
+                        .Width(20)
                         .OnTextChanged(e => title = e.NewText);
 
                     var addressField = form.TextField("Address")
-                        .WithWidth(30)
+                        .Width(30)
                         .Multiline(2)
-                        .WithHeight(2)
+                        .Height(2)
                         .OnTextChanged(e => { address = e.NewText; TriggerGeocode(); });
 
                     var cityField = form.TextField("City")
-                        .WithWidth(20)
+                        .Width(20)
                         .OnTextChanged(e => { city = e.NewText; TriggerGeocode(); });
 
                     var stateField = form.TextField("State")
-                        .WithWidth(15)
+                        .Width(15)
                         .OnTextChanged(e => { state = e.NewText; TriggerGeocode(); });
 
                     var postcodeField = form.TextField("Postcode")
-                        .WithWidth(10)
+                        .Width(10)
                         .Validate(value =>
                         {
                             if (!string.IsNullOrEmpty(value) && !value.All(char.IsDigit))
@@ -189,8 +189,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         form.Button("Submit").OnClick(_ => lastAction = "Submitted!"),
                         form.Button("Cancel").OnClick(_ => lastAction = "Cancelled"),
                     ];
-                }).WithLabelPlacement(labelPlacement)
-                  .WithLabelWidth(15),
+                }).LabelPlacement(labelPlacement)
+                  .LabelWidth(15),
 
                 formCol.Text(""),
                 formCol.Separator(),
@@ -220,7 +220,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         header.Text($" ({camera.Latitude:F4}, {camera.Longitude:F4}) z{camera.ZoomLevel} ")),
                 ]).ContentHeight(),
                 mapCol.TilePanel(dataSource, cx, cy, 0)
-                    .WithPointsOfInterest(mapPois)
+                    .PointsOfInterest(mapPois)
                     .OnPan(e => camera.Pan(e.DeltaX, e.DeltaY))
                     .OnZoom(e =>
                     {

@@ -218,7 +218,7 @@ By default, TabPanel auto-detects position based on its location in a VStack:
 Add icons to tabs for visual identification:
 
 ```csharp
-tp.Tab("Settings", t => [...]).WithIcon("⚙️")
+tp.Tab("Settings", t => [...]).Icon("⚙️")
 ```
 
 ## Tab Actions

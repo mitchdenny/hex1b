@@ -46,7 +46,7 @@ public sealed record DrawerWidget : Hex1bWidget
     /// <summary>
     /// The current rendering mode for the expanded drawer.
     /// </summary>
-    public DrawerMode Mode { get; init; } = DrawerMode.Inline;
+    internal DrawerMode ModeValue { get; init; } = DrawerMode.Inline;
     
     /// <summary>
     /// Handler called when the drawer expands.
@@ -90,20 +90,20 @@ public sealed record DrawerWidget : Hex1bWidget
     /// Sets the rendering mode for the expanded drawer.
     /// </summary>
     /// <param name="mode">The rendering mode (Inline or Overlay).</param>
-    public DrawerWidget WithMode(DrawerMode mode)
-        => this with { Mode = mode };
+    public DrawerWidget Mode(DrawerMode mode)
+        => this with { ModeValue = mode };
     
     /// <summary>
     /// Sets the drawer to render as an overlay (floats above content).
     /// </summary>
     public DrawerWidget AsOverlay()
-        => this with { Mode = DrawerMode.Overlay };
+        => this with { ModeValue = DrawerMode.Overlay };
     
     /// <summary>
     /// Sets the drawer to render inline (pushes adjacent content).
     /// </summary>
     public DrawerWidget AsInline()
-        => this with { Mode = DrawerMode.Inline };
+        => this with { ModeValue = DrawerMode.Inline };
     
     /// <summary>
     /// Sets the handler to call when the drawer expands.
@@ -141,7 +141,7 @@ public sealed record DrawerWidget : Hex1bWidget
         }
         
         // Store mode and event handlers
-        node.Mode = Mode;
+        node.Mode = ModeValue;
         node.ExpandedAction = ExpandedHandler;
         node.CollapsedAction = CollapsedHandler;
         node.OverlayBackgroundColor = OverlayBg;
@@ -155,7 +155,7 @@ public sealed record DrawerWidget : Hex1bWidget
         // Build content based on current state and mode
         var widgetContext = new WidgetContext<DrawerWidget>();
         
-        if (node.IsExpanded && Mode == DrawerMode.Inline)
+        if (node.IsExpanded && ModeValue == DrawerMode.Inline)
         {
             // Inline mode: build expanded content directly
             if (ExpandedContentBuilder != null)
@@ -169,7 +169,7 @@ public sealed record DrawerWidget : Hex1bWidget
                 node.Content = null;
             }
         }
-        else if (node.IsExpanded && Mode == DrawerMode.Overlay)
+        else if (node.IsExpanded && ModeValue == DrawerMode.Overlay)
         {
             // Overlay mode expanded: ensure popup is active
             node.EnsurePopupOpen();

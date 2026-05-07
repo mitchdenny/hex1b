@@ -42,7 +42,7 @@ public class HexEditorSelectionTests
         var renderer = new HexEditorViewRenderer { HighlightMultiByteChars = true };
 
         var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(ctx.Editor(state).WithViewRenderer(renderer)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Editor(state).ViewRenderer(renderer)),
             new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme });
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
@@ -64,7 +64,7 @@ public class HexEditorSelectionTests
         var renderer = new HexEditorViewRenderer { HighlightMultiByteChars = true };
 
         var app = new Hex1bApp(
-            ctx => Task.FromResult<Hex1bWidget>(ctx.Editor(state).WithViewRenderer(renderer)),
+            ctx => Task.FromResult<Hex1bWidget>(ctx.Editor(state).ViewRenderer(renderer)),
             new Hex1bAppOptions { WorkloadAdapter = workload, Theme = theme });
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);

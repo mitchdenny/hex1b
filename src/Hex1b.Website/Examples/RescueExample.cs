@@ -182,7 +182,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                 ])
             ]).Title("Custom Fallback"),
         ])
-        .WithFallback(rescue => rescue.Border(b => [
+        .Fallback(rescue => rescue.Border(b => [
             b.VStack(inner => [
                 inner.Text("🔥 Custom Error Handler 🔥"),
                 inner.Text(""),

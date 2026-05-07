@@ -46,7 +46,7 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
     /// <summary>
     /// Optional layer identifier for popup stack management.
     /// </summary>
-    internal string? LayerId { get; init; }
+    internal string? LayerIdValue { get; init; }
 
     /// <summary>
     /// Simple callback invoked when the backdrop itself is clicked (not the child content).
@@ -80,7 +80,7 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
     /// </summary>
     /// <param name="color">The background color.</param>
     /// <returns>A new BackdropWidget with the background color set.</returns>
-    public BackdropWidget WithBackground(Hex1bColor color)
+    public BackdropWidget Background(Hex1bColor color)
         => this with { Style = BackdropStyle.Opaque, BackgroundColor = color };
     
     /// <summary>
@@ -89,8 +89,8 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
     /// </summary>
     /// <param name="id">The layer identifier.</param>
     /// <returns>A new BackdropWidget with the layer ID set.</returns>
-    public BackdropWidget WithLayerId(string id)
-        => this with { LayerId = id };
+    public BackdropWidget LayerId(string id)
+        => this with { LayerIdValue = id };
 
     /// <summary>
     /// Sets a simple callback to be invoked when clicking on the backdrop (outside child content).
@@ -137,7 +137,7 @@ public sealed record BackdropWidget(Hex1bWidget? Child = null) : Hex1bWidget
         }
         node.Style = Style;
         node.BackgroundColor = BackgroundColor;
-        node.LayerId = LayerId;
+        node.LayerId = LayerIdValue;
         node.SourceWidget = this;
         node.ClickAwayHandler = ClickAwayHandler;
         node.ClickAwayEventHandler = ClickAwayEventHandler;

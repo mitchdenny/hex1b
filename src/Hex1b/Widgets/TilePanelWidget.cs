@@ -30,7 +30,7 @@ namespace Hex1b.Widgets;
 /// var zoom = 0;
 ///
 /// ctx.TilePanel(myDataSource, cameraX, cameraY, zoom)
-///     .WithPointsOfInterest([new TilePointOfInterest(5, 3, "📍", "Spawn")])
+///     .PointsOfInterest([new TilePointOfInterest(5, 3, "📍", "Spawn")])
 ///     .OnPan(e => { cameraX += e.DeltaX; cameraY += e.DeltaY; })
 ///     .OnZoom(e => zoom = e.NewZoomLevel)
 /// </code>
@@ -94,7 +94,7 @@ public sealed record TilePanelWidget : Hex1bWidget
     /// <summary>
     /// Points of interest to display on the map.
     /// </summary>
-    public IReadOnlyList<TilePointOfInterest> PointsOfInterest { get; init; } = [];
+    public IReadOnlyList<TilePointOfInterest> PoiList { get; init; } = [];
 
     /// <summary>
     /// Pan event handler. Called with (deltaX, deltaY) when the user pans.
@@ -150,8 +150,8 @@ public sealed record TilePanelWidget : Hex1bWidget
     /// <summary>
     /// Sets the points of interest to display on the map.
     /// </summary>
-    public TilePanelWidget WithPointsOfInterest(IReadOnlyList<TilePointOfInterest> pois)
-        => this with { PointsOfInterest = pois };
+    public TilePanelWidget PointsOfInterest(IReadOnlyList<TilePointOfInterest> pois)
+        => this with { PoiList = pois };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
@@ -166,7 +166,7 @@ public sealed record TilePanelWidget : Hex1bWidget
         node.CameraY = CameraY;
         node.ZoomLevel = ZoomLevel;
         node.SetDataSource(DataSource);
-        node.PointsOfInterest = PointsOfInterest;
+        node.PointsOfInterest = PoiList;
 
         // Wire up event handler callbacks
         if (PanHandler != null)
