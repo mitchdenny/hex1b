@@ -166,10 +166,12 @@ aside li.primary {
   flex: 1;
   /*
    * Stage for the terminal — provides the grey gradient backdrop and
-   * the breathing room around the .xterm so the blue drop-shadow has
-   * somewhere to fall without being clipped.
+   * the breathing room around the .xterm frame so the uniform blue
+   * drop-shadow has space to extend on every side without being
+   * clipped (the shadow blur radius is ~28px, padding gives 36px
+   * clearance on every side).
    */
-  padding: 24px;
+  padding: 36px;
   overflow: hidden;
   display: flex;
   background: linear-gradient(180deg, #1c222a 0%, #161b22 100%);
@@ -177,20 +179,22 @@ aside li.primary {
 
 #terminal {
   /*
-   * Bare host for xterm.js. Fills the inner stage area (no padding of
-   * its own — FitAddon measures this element's computed width/height
-   * to decide how many cols/rows fit, so any padding here would
-   * confuse the math under our box-sizing: border-box rule). Centers
-   * its single .xterm child both axes so secondary peers (which lock
+   * Bare host for xterm.js. Fills the inner stage area and centres its
+   * single .xterm child on both axes so secondary peers (which lock
    * the grid to producer dims and apply a CSS scale transform) get
    * symmetric letterboxing on whichever axis has spare room.
+   *
+   * NOTE: must NOT have overflow: hidden — the #terminal-frame's drop
+   * shadow needs to be able to render outside #terminal into the
+   * surrounding .terminal-pane padding. The .xterm itself is wrapped
+   * by #terminal-body which has its own overflow: hidden, so we don't
+   * need #terminal to clip anything.
    */
   flex: 1;
   min-height: 0;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
 }
 
 code {
@@ -221,9 +225,16 @@ code {
   border: 2px solid #3a4250;
   border-radius: 6px;
   overflow: hidden;
+  /*
+   * Uniform drop shadow around all four sides — no Y offset, so it
+   * stays the same thickness on every edge regardless of the frame's
+   * dimensions or scale of the inner content. The .terminal-pane has
+   * 36px of padding to give this 28px-blur shadow room to render
+   * before being clipped by the gradient stage.
+   */
   box-shadow:
-    0 0 32px rgba(88, 166, 255, 0.4),
-    0 12px 40px rgba(0, 0, 0, 0.55);
+    0 0 28px rgba(88, 166, 255, 0.5),
+    0 0 12px rgba(0, 0, 0, 0.6);
 }
 
 #terminal-titlebar {
