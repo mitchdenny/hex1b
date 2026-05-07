@@ -73,24 +73,41 @@ tied to the resource's lifecycle, not any individual client.
 
 ---
 
-## 2. What HMP1 + `Hmp1WorkloadAdapter` give you
+## 2. What HMP1 + the Hex1b builder give you
 
-`Hmp1WorkloadAdapter` (in `Hex1b.Hmp1`) wraps the wire protocol and exposes
-events + commands that look like normal C#:
+The easy path is `WithHmp1UdsClient(...)` / `WithHmp1Stream(...)` /
+`WithHmp1Client(...)` with an `Action<Hmp1ClientOptions>` callback.
+Inside the callback you set hooks; the builder constructs the
+underlying adapter for you and delivers an `IHmp1ConnectionHandle`
+to your `OnConnected` hook. You should never need to type
+`Hmp1WorkloadAdapter` for normal consumer code.
+
+`IHmp1ConnectionHandle` (in `Hex1b`) is the runtime surface for
+multi-head consumers:
 
 | Surface | Notes |
 |---|---|
-| `ConnectAsync(stream, ct)` | Performs `ClientHello` ↔ `Hello` handshake, starts the read pump. **The `ct` is honoured for handshake only — read pump is governed by `DisposeAsync`.** |
-| `RemoteWidth`, `RemoteHeight` | Producer's current PTY dims. Updated when a `Resize` frame arrives. |
+| `LocalDisplayName` | The display name we sent in `ClientHello` (auto-generated base36 if you didn't set one). |
+| `DefaultRole` | The `Hmp1Role?` (Primary/Secondary) we declared at handshake — a hint, not authoritative. |
+| `RemoteWidth`, `RemoteHeight` | Producer's current PTY dims. Updated as `Resize` frames arrive. |
 | `IsPrimary` | True iff this peer currently holds the role. |
-| `Peers` | Roster of other peer ids (excluding self). Updated on `PeerJoin`/`PeerLeave`. |
-| `Connected` event | Fires once after the handshake completes. Carries `PeerId`, `PrimaryPeerId`, `Peers`, and the producer's current dims. |
+| `Peers` | Roster of other peers (excluding self). Updated on `PeerJoin`/`PeerLeave`. |
+| `Connected` event | Fires once after the handshake. Carries `Connection` (the handle), `PeerId`, `PrimaryPeerId`, `Peers`, and the producer's current dims. |
 | `RoleChanged` event | Fires on every `RoleChange` broadcast — even ones that don't affect us — and always carries the current dims. |
 | `RemoteResized` event | Fires when the producer's PTY dims change — either because we requested it as primary or because some other peer is now driving them. **Use this instead of polling `RemoteWidth/Height`.** |
-| `OutputReceived` | Raw ANSI byte stream from the producer. Consumers normally pipe this into a `Hex1bTerminal` via its writable stream. |
-| `Disconnected` | Producer socket closed or the read pump errored. |
+| `PeerJoined` / `PeerLeft` | Roster churn. |
+| `Disconnected` event | Producer socket closed or the read pump errored. |
 | `RequestPrimaryAsync(w, h, ct)` | The single mutation primitive. Re-broadcasts the new dims even if you're already primary — see §4.3. |
-| `SendInputAsync(bytes, ct)` | Sends `Input` frames. Server silently drops these from non-primary peers, which is the right behaviour but worth knowing. |
+
+The corresponding `Hmp1ClientOptions.On*` delegates are 1:1 wrappers
+that fire alongside the events — wire either, not both, or you'll get
+double dispatch. Options-callback delegates are the easy path; events
+are useful when you need to attach handlers later than `Build()` time.
+
+The under-the-hood `Hmp1WorkloadAdapter` class implements
+`IHmp1ConnectionHandle` directly. Reach for it only in the **advanced
+two-step pattern** (see §4.4) where you need the connection established
+before the surrounding `Hex1bTerminal` is built.
 
 Things HMP1 does **not** give you:
 
@@ -189,22 +206,36 @@ Two events tell you when the producer's PTY dims changed:
 Both events are wired declaratively through the options callback:
 
 ```csharp
-.WithHmp1UdsClient(socketPath, opt =>
-{
-    opt.DisplayName = "viewer-cli";
-    opt.DefaultRole = "viewer";
-    opt.OnConnected      = e => EnsureInnerSize(e.Width, e.Height);
-    opt.OnRemoteResized  = e => { EnsureInnerSize(e.Width, e.Height); _app?.Invalidate(); };
-    opt.OnRoleChanged    = e => OnRoleChanged(e);
-    opt.OnPeerJoined     = _ => _app?.Invalidate();
-    opt.OnPeerLeft       = _ => _app?.Invalidate();
-});
+IHmp1ConnectionHandle? connection = null;
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHmp1UdsClient(socketPath, opt =>
+    {
+        opt.DisplayName     = "viewer-cli";
+        opt.DefaultRole     = Hmp1Role.Secondary;
+        opt.OnConnected     = e =>
+        {
+            connection = e.Connection;             // grab the handle for hotkeys
+            EnsureInnerSize(e.Width, e.Height);
+        };
+        opt.OnRemoteResized = e => { EnsureInnerSize(e.Width, e.Height); _app?.Invalidate(); };
+        opt.OnRoleChanged   = e => OnRoleChanged(e);
+        opt.OnPeerJoined    = _ => _app?.Invalidate();
+        opt.OnPeerLeft      = _ => _app?.Invalidate();
+    })
+    .WithScrollback()
+    .WithTerminalWidget(out var handle)
+    .Build();
+
+// later, from a hotkey handler:
+await connection!.RequestPrimaryAsync(width, height, ct);
 ```
 
-If you need a long-lived reference to the adapter (e.g. to call
-`RequestPrimaryAsync` from a hotkey handler), construct it directly and
-attach via `WithWorkload(adapter)` instead — same events are reachable
-without the options callback.
+If you need the connection established **before** the surrounding
+`Hex1bTerminal` is built — for example because you want to seed
+`.WithDimensions(adapter.RemoteWidth, adapter.RemoteHeight)` from the
+producer's reported size — drop down to the advanced two-step pattern
+in §4.4. That's the only reason to type `Hmp1WorkloadAdapter` yourself.
 
 ### 4.3 Host SIGWINCH while we're primary
 
@@ -283,6 +314,47 @@ _lastBroadcastHeight = availH;
 to mask the missing resize. Host *grow* exposes the bug — the terminal
 stays pinned at the old dims with empty padding around it. Test both
 directions explicitly.
+
+### 4.4 The advanced two-step pattern (direct adapter)
+
+The easy path constructs the adapter for you, but it can only hand you
+the connection **after** the surrounding `Hex1bTerminal` has been
+built and `RunAsync` is in flight (via `OnConnected`). A few scenarios
+need the connection earlier — typically because they want to seed
+`.WithDimensions(adapter.RemoteWidth, adapter.RemoteHeight)` from the
+producer's reported size before `Build()`. For those cases, drop down
+to the explicit pattern:
+
+```csharp
+var adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+{
+    StreamFactory   = ct => Hmp1Transports.ConnectUnixSocket(socketPath, ct),
+    StreamTransform = DemoTls.AuthenticateAsClientAsync, // optional
+    DefaultRole     = Hmp1Role.Secondary,
+});
+await adapter.ConnectAsync(CancellationToken.None);
+
+EmbeddedTerminal = Hex1bTerminal.CreateBuilder()
+    .WithDimensions(adapter.RemoteWidth, adapter.RemoteHeight)
+    .WithWorkload(adapter)               // adapter implements IHex1bTerminalWorkloadAdapter
+    .WithScrollback()
+    .WithTerminalWidget(out var handle)
+    .Build();
+
+// adapter implements IHmp1ConnectionHandle, so runtime calls work the same:
+await adapter.RequestPrimaryAsync(width, height, ct);
+```
+
+This is the same wire shape as the easy path; the only difference is
+that you own `ConnectAsync` and the adapter reference. It's how
+`MuxerDemo`, `EncryptedMuxerDemo`, and the `Hex1b.Tests` white-box
+suite stitch their workloads together — and how you'd write a real
+viewer that needs the producer's dims before it knows its own grid.
+
+There is deliberately **no** `WithWorkload(IHmp1ConnectionHandle)`
+overload and **no** `Hmp1Connection.ConnectAsync(...)` static helper.
+If you're calling `WithWorkload`, you've opted into the workload
+abstraction; the adapter is the right type to pass.
 
 ---
 

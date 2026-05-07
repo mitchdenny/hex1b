@@ -13,7 +13,7 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
 
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
         Assert.True(handle.IsConnected);
@@ -28,7 +28,7 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         Assert.Equal(80, client.RemoteWidth);
@@ -52,7 +52,7 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         var inputData = "keyboard input"u8.ToArray();
@@ -73,7 +73,7 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         var resizeTcs = new TaskCompletionSource<(int Width, int Height)>();
@@ -102,8 +102,8 @@ public class MuxerAdapterTests
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
 
-        var client1 = new Hmp1WorkloadAdapter(stream1b);
-        var client2 = new Hmp1WorkloadAdapter(stream2b);
+        var client1 = Hmp1TestHelpers.NewClient(stream1b);
+        var client2 = Hmp1TestHelpers.NewClient(stream2b);
         var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
         var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
@@ -134,8 +134,8 @@ public class MuxerAdapterTests
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
 
-        var client1 = new Hmp1WorkloadAdapter(stream1b);
-        var client2 = new Hmp1WorkloadAdapter(stream2b);
+        var client1 = Hmp1TestHelpers.NewClient(stream1b);
+        var client2 = Hmp1TestHelpers.NewClient(stream2b);
         var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
         var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
@@ -191,7 +191,7 @@ public class MuxerAdapterTests
         ]);
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -229,7 +229,7 @@ public class MuxerAdapterTests
         });
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -268,7 +268,7 @@ public class MuxerAdapterTests
         terminal.ApplyTokens([new PrivateModeToken(1049, true)]);
 
         var (stream1, stream2) = CreateFullDuplexPair();
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(adapter, stream1, client);
 
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -291,7 +291,7 @@ public class MuxerAdapterTests
         var (stream1, stream2) = CreateFullDuplexPair();
 
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
         var disconnectedTcs = new TaskCompletionSource();
@@ -333,7 +333,7 @@ public class MuxerAdapterTests
         // handshake completes; only DisposeAsync owns that lifetime.
         var (stream1, stream2) = CreateFullDuplexPair();
         await using var server = new Hmp1PresentationAdapter(80, 24);
-        var client = new Hmp1WorkloadAdapter(stream2);
+        var client = Hmp1TestHelpers.NewClient(stream2);
 
         using var handshakeCts = new CancellationTokenSource();
         handshakeCts.CancelAfter(TimeSpan.FromMilliseconds(50));

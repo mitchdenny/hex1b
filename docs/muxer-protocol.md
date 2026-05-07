@@ -102,18 +102,20 @@ role hint. Both fields are optional.
 ```json
 {
   "displayName": "aspire-cli",
-  "defaultRole": "viewer"
+  "defaultRole": "secondary"
 }
 ```
 
 - `displayName` — Free-form label that other peers see in roster snapshots
   (`Hello.peers[*].displayName`, `PeerJoin.displayName`). May be `null` or
   omitted; the server uses an empty string in that case.
-- `defaultRole` — `"viewer"` or `"interactive"`. A hint to the consumer's UX
-  (e.g. CLI viewers default to `"viewer"` so they don't promote themselves to
-  primary on attach). The server does **not** auto-promote on the basis of
+- `defaultRole` — `"primary"` or `"secondary"`. A hint to the consumer's UX
+  (e.g. CLI viewers default to `"secondary"` so they don't promote themselves
+  to primary on attach). The server does **not** auto-promote on the basis of
   this field in the current iteration; explicit `RequestPrimary` is always
-  required.
+  required. The split is about screen-size following: `"primary"` peers drive
+  the producer's PTY dims, `"secondary"` peers follow them. Both are fully
+  interactive.
 
 A server that does not receive a `ClientHello` frame within a short window of
 the connection being established may time out and disconnect the client.
@@ -377,7 +379,7 @@ A `Resize` frame from a non-primary peer is silently dropped server-side
 (no NACK frame in this iteration; consider adding `Status` in a future
 revision).
 
-A peer with `defaultRole: "viewer"` is **not** auto-promoted on first attach;
+A peer with `defaultRole: "secondary"` is **not** auto-promoted on first attach;
 the role hint is purely a UX signal. Explicit `RequestPrimary` is always
 required.
 

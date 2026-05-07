@@ -326,7 +326,7 @@ public class Hmp1MultiHeadHarnessTests
         // WithWorkload(...). This is the canonical pattern for consumers that
         // need both the full terminal pipeline and runtime access to the adapter
         // (matches the established WebMuxerDemo CliViewerCommand pattern).
-        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "layer-b", defaultRole: "viewer");
+        var adapter = Hmp1TestHelpers.NewClient(s2, displayName: "layer-b", defaultRole: Hmp1Role.Secondary);
         var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithWorkload(adapter)
@@ -513,7 +513,7 @@ public class Hmp1MultiHeadHarnessTests
         public async Task<HarnessPeer> AddPeerAsync(string label)
         {
             var (s1, s2) = CreateFullDuplexPair();
-            var adapter = new Hmp1WorkloadAdapter(s2, displayName: label);
+            var adapter = Hmp1TestHelpers.NewClient(s2, displayName: label);
             var addTask = Server.AddClient(s1, CancellationToken.None);
             var connectTask = adapter.ConnectAsync(CancellationToken.None);
             var handle = await addTask.WaitAsync(ShortTimeout);

@@ -418,10 +418,12 @@ internal sealed class ClientHelloPayload
 
     /// <summary>
     /// Optional default-role hint:
-    /// <c>"viewer"</c> requests that the client not be auto-promoted on first
-    /// attach; <c>"interactive"</c> is the inverse hint. Currently the producer
+    /// <c>"secondary"</c> requests that the client not be auto-promoted on first
+    /// attach; <c>"primary"</c> is the inverse hint. Currently the producer
     /// never auto-promotes, so this is preserved only as a UX hint reachable
-    /// to the server-side consumer code.
+    /// to the server-side consumer code. The strongly-typed
+    /// <see cref="Hex1b.Hmp1Role"/> enum is the recommended surface; this
+    /// string is what's serialised on the wire.
     /// </summary>
     public string? DefaultRole { get; set; }
 }

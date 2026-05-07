@@ -263,11 +263,16 @@ public class Hmp1MultiHeadTests
     private static async Task<(Hmp1ClientHandle Handle, Hmp1WorkloadAdapter Client)> ConnectAsync(
         Hmp1PresentationAdapter server,
         string? displayName = null,
-        string? defaultRole = null,
+        Hmp1Role? defaultRole = null,
         CancellationToken ct = default)
     {
         var (s1, s2) = CreateFullDuplexPair();
-        var client = new Hmp1WorkloadAdapter(s2, displayName, defaultRole);
+        var client = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+        {
+            StreamFactory = _ => Task.FromResult<Stream>(s2),
+            DisplayName = displayName,
+            DefaultRole = defaultRole,
+        });
         var addTask = server.AddClient(s1, ct);
         var connectTask = client.ConnectAsync(ct);
         var handle = await addTask.ConfigureAwait(false);

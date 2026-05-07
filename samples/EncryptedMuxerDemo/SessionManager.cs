@@ -115,11 +115,12 @@ internal sealed class SessionManager
         {
             await DisconnectAsync();
 
-            // Connect the raw socket, then wrap with TLS
-            var rawStream = await Hmp1Transports.ConnectUnixSocket(session.SocketPath, CancellationToken.None);
-            var tlsStream = await DemoTls.AuthenticateAsClientAsync(rawStream);
-
-            Adapter = new Hmp1WorkloadAdapter(tlsStream);
+            // Connect the raw socket; let the adapter apply the TLS wrap as a stream transform.
+            Adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+            {
+                StreamFactory   = ct => Hmp1Transports.ConnectUnixSocket(session.SocketPath, ct),
+                StreamTransform = DemoTls.AuthenticateAsClientAsync,
+            });
             await Adapter.ConnectAsync(CancellationToken.None);
 
             _embeddedCts = new CancellationTokenSource();

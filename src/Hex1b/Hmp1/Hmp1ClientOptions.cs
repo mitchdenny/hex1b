@@ -2,70 +2,91 @@ namespace Hex1b;
 
 /// <summary>
 /// Configures an HMP v1 client workload built via the
-/// <see cref="Hmp1BuilderExtensions.WithHmp1Client(Hex1bTerminalBuilder, System.Func{System.Threading.CancellationToken, System.Threading.Tasks.Task{System.IO.Stream}}, System.Action{Hmp1ClientOptions}?)"/>
-/// family of builder extensions.
+/// <see cref="Hmp1BuilderExtensions"/> family of builder extensions.
 /// </summary>
 /// <remarks>
 /// <para>
-/// Holds the handshake hints sent in the <see cref="Hmp1FrameType.ClientHello"/>
-/// frame plus single-delegate event hooks invoked over the lifetime of the
-/// connection. Each hook is optional; null hooks are skipped.
+/// Carries the transport (<see cref="StreamFactory"/>, an optional
+/// <see cref="StreamTransform"/>), the handshake hints sent in the
+/// <see cref="Hmp1FrameType.ClientHello"/> frame, and single-delegate
+/// event hooks invoked over the lifetime of the connection. Each hook
+/// is optional; null hooks are skipped.
 /// </para>
 /// <para>
-/// Hooks are wired up onto the underlying <see cref="Hmp1WorkloadAdapter"/>
-/// before the workload is started, so callers see the very first events emitted
-/// by <see cref="Hmp1WorkloadAdapter.ConnectAsync"/> (notably <see cref="OnConnected"/>).
+/// <see cref="StreamFactory"/> is <c>required init</c> so the canonical
+/// <see cref="Hmp1BuilderExtensions.WithHmp1Client(Hex1bTerminalBuilder, Hmp1ClientOptions)"/>
+/// path can construct the options bag with the transport pre-populated;
+/// the convenience wrappers (<c>WithHmp1Stream</c>, <c>WithHmp1UdsClient</c>)
+/// pre-populate it on your behalf and invoke an additional configure
+/// callback, which cannot accidentally replace the transport.
 /// </para>
 /// <para>
-/// For consumers that need a long-lived adapter reference for runtime queries
-/// (e.g. calling <see cref="Hmp1WorkloadAdapter.RequestPrimaryAsync"/> from a
-/// render loop), construct the adapter directly via
-/// <see cref="Hmp1WorkloadAdapter(System.Func{System.Threading.CancellationToken, System.Threading.Tasks.Task{System.IO.Stream}}, string?, string?)"/>
-/// and attach it through <see cref="Hex1bTerminalBuilder.WithWorkload"/>.
+/// The <see cref="OnConnected"/> callback receives an
+/// <see cref="Hmp1ConnectedEventArgs"/> whose
+/// <see cref="Hmp1ConnectedEventArgs.Connection"/> property is the
+/// <see cref="IHmp1ConnectionHandle"/> for runtime calls
+/// (e.g. <see cref="IHmp1ConnectionHandle.RequestPrimaryAsync"/>).
+/// Stash the handle for later use; this is the only place it's
+/// surfaced when the easy-path builder extensions are used.
 /// </para>
 /// </remarks>
 public sealed class Hmp1ClientOptions
 {
     /// <summary>
+    /// Transport factory invoked when the workload starts. Returns a
+    /// bidirectional stream connected to the producer. <c>required
+    /// init</c> so callers cannot accidentally replace the transport
+    /// from a configure callback.
+    /// </summary>
+    public required Func<CancellationToken, Task<Stream>> StreamFactory { get; init; }
+
+    /// <summary>
+    /// Optional async stream-wrap applied between the
+    /// <see cref="StreamFactory"/> connect and the HMP v1 handshake.
+    /// Use this to layer TLS, compression, or other framing on top of
+    /// the raw transport without having to wire it into a custom
+    /// <see cref="StreamFactory"/>.
+    /// </summary>
+    public Func<Stream, Task<Stream>>? StreamTransform { get; set; }
+
+    /// <summary>
     /// Optional human-readable label sent in the
     /// <see cref="Hmp1FrameType.ClientHello"/> frame so other peers can
-    /// identify this client in roster output.
+    /// identify this client in roster output. When null, an
+    /// auto-generated 13-character base-36 identifier is sent.
     /// </summary>
     public string? DisplayName { get; set; }
 
     /// <summary>
     /// Optional default-role hint sent in the
-    /// <see cref="Hmp1FrameType.ClientHello"/> frame (typically
-    /// <c>"viewer"</c> or <c>"interactive"</c>). The server may honour
-    /// or ignore the hint.
+    /// <see cref="Hmp1FrameType.ClientHello"/> frame. The producer may
+    /// honour or ignore the hint.
     /// </summary>
-    public string? DefaultRole { get; set; }
+    public Hmp1Role? DefaultRole { get; set; }
 
     /// <summary>
     /// Invoked once after the HMP v1 handshake (ClientHello → Hello →
     /// StateSync) completes successfully. The argument carries the
-    /// server-assigned peer ID, current primary, peer roster, and
-    /// producer dims.
+    /// <see cref="IHmp1ConnectionHandle"/> for this client plus initial
+    /// state (peer ID, current primary, peer roster, producer dims).
     /// </summary>
-    public System.Action<Hmp1ConnectedEventArgs>? OnConnected { get; set; }
+    public Action<Hmp1ConnectedEventArgs>? OnConnected { get; set; }
 
     /// <summary>
     /// Invoked when this client's role transitions between primary and
-    /// secondary. Use this to drive UX state, seed dim trackers after
-    /// a successful <see cref="Hmp1WorkloadAdapter.RequestPrimaryAsync"/>,
-    /// or to hand off rendering responsibility.
+    /// secondary.
     /// </summary>
-    public System.Action<RoleChangedEventArgs>? OnRoleChanged { get; set; }
+    public Action<RoleChangedEventArgs>? OnRoleChanged { get; set; }
 
     /// <summary>
     /// Invoked when another peer joins the same producer.
     /// </summary>
-    public System.Action<PeerJoinEventArgs>? OnPeerJoined { get; set; }
+    public Action<PeerJoinEventArgs>? OnPeerJoined { get; set; }
 
     /// <summary>
     /// Invoked when another peer leaves the same producer.
     /// </summary>
-    public System.Action<PeerLeaveEventArgs>? OnPeerLeft { get; set; }
+    public Action<PeerLeaveEventArgs>? OnPeerLeft { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime —
@@ -73,14 +94,14 @@ public sealed class Hmp1ClientOptions
     /// another peer became primary and broadcast different dims.
     /// </summary>
     /// <remarks>
-    /// Does NOT fire for the initial dims learned in the handshake; those
-    /// are surfaced via <see cref="OnConnected"/> instead.
+    /// Does NOT fire for the initial dims learned in the handshake;
+    /// those are surfaced via <see cref="OnConnected"/> instead.
     /// </remarks>
-    public System.Action<RemoteResizedEventArgs>? OnRemoteResized { get; set; }
+    public Action<RemoteResizedEventArgs>? OnRemoteResized { get; set; }
 
     /// <summary>
     /// Invoked once when the underlying transport stream closes,
     /// regardless of cause (server shutdown, network error, local cancel).
     /// </summary>
-    public System.Action? OnDisconnected { get; set; }
+    public Action? OnDisconnected { get; set; }
 }

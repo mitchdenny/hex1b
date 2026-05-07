@@ -104,6 +104,19 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     public event Action<string?>? PrimaryChanged;
 
     /// <summary>
+    /// Raised after a new client completes its ClientHello → Hello →
+    /// StateSync handshake. Argument carries the assigned peer ID, the
+    /// display name and (parsed) role hint the client supplied.
+    /// </summary>
+    public event EventHandler<Hmp1ClientConnectedEventArgs>? ClientConnected;
+
+    /// <summary>
+    /// Raised when a per-client session ends (clean disconnect or
+    /// transport failure).
+    /// </summary>
+    public event EventHandler<Hmp1ClientDisconnectedEventArgs>? ClientDisconnected;
+
+    /// <summary>
     /// Gets the number of currently connected clients.
     /// </summary>
     public int ClientCount
@@ -248,6 +261,22 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // Start per-client write pump and read pump
         session.WriteTask = Task.Run(() => WriteClientPumpAsync(session), sessionCts.Token);
         session.ReadTask = Task.Run(() => ReadClientPumpAsync(session), sessionCts.Token);
+
+        // Notify server-side observers AFTER the pumps are spinning so an
+        // OnClientConnected handler that turns around and inspects the
+        // session sees a fully-live state. Failures here must not propagate
+        // to the caller (which already has a working handle).
+        if (ClientConnected is { } onConnected)
+        {
+            try
+            {
+                onConnected(this, new Hmp1ClientConnectedEventArgs(
+                    session.PeerId,
+                    session.DisplayName,
+                    Hmp1RoleExtensions.TryParseWireString(session.DefaultRole)));
+            }
+            catch { /* observer must not break the server */ }
+        }
 
         return new Hmp1ClientHandle(session, this);
     }
@@ -655,6 +684,16 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         if (actuallyRemoved && wasPrimary)
         {
             PrimaryChanged?.Invoke(null);
+        }
+
+        if (actuallyRemoved && ClientDisconnected is { } onDisconnected)
+        {
+            try
+            {
+                onDisconnected(this, new Hmp1ClientDisconnectedEventArgs(
+                    session.PeerId, session.DisplayName));
+            }
+            catch { /* observer must not break the server */ }
         }
 
         _ = DisposeSessionAsync(session);

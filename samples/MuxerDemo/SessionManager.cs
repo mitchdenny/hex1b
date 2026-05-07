@@ -117,7 +117,10 @@ internal sealed class SessionManager
 
             var stream = await Hmp1Transports.ConnectUnixSocket(session.SocketPath, CancellationToken.None);
 
-            Adapter = new Hmp1WorkloadAdapter(stream);
+            Adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+            {
+                StreamFactory = _ => Task.FromResult<Stream>(stream),
+            });
             await Adapter.ConnectAsync(CancellationToken.None);
 
             _embeddedCts = new CancellationTokenSource();

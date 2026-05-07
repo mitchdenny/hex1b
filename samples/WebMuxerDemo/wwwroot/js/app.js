@@ -664,7 +664,7 @@ function connect() {
   client = new Hmp1Client({
     url,
     displayName: `browser-${Math.random().toString(36).slice(2, 7)}`,
-    defaultRole: "viewer",
+    defaultRole: "secondary",
   });
 
   client.onOpen = () => {

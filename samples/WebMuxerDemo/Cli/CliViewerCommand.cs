@@ -57,10 +57,12 @@ internal static class CliViewerCommand
         try
         {
             stream = await Hmp1Transports.ConnectUnixSocket(socketPath, CancellationToken.None);
-            adapter = new Hmp1WorkloadAdapter(
-                stream,
-                displayName: displayName ?? "webmux-cli",
-                defaultRole: "viewer");
+            adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
+            {
+                StreamFactory = _ => Task.FromResult(stream),
+                DisplayName = displayName ?? "webmux-cli",
+                DefaultRole = Hmp1Role.Secondary,
+            });
 
             // Connect handshake: this awaits the server Hello which carries
             // PeerId, PrimaryPeerId, current dims, and the existing roster.

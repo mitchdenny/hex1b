@@ -22,7 +22,7 @@ public class Hmp1ClientOptionsTests
 
         var (s1, s2) = CreateFullDuplexPair();
 
-        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "viewer");
+        var adapter = Hmp1TestHelpers.NewClient(s2, displayName: "viewer");
         await using var adapterDispose = adapter;
 
         var connectedCount = 0;
@@ -55,7 +55,7 @@ public class Hmp1ClientOptionsTests
 
         var (s1, s2) = CreateFullDuplexPair();
 
-        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "primary");
+        var adapter = Hmp1TestHelpers.NewClient(s2, displayName: "primary");
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
@@ -93,7 +93,7 @@ public class Hmp1ClientOptionsTests
 
         var (s1, s2) = CreateFullDuplexPair();
 
-        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "primary");
+        var adapter = Hmp1TestHelpers.NewClient(s2, displayName: "primary");
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
@@ -137,7 +137,7 @@ public class Hmp1ClientOptionsTests
 
         var (s1, s2) = CreateFullDuplexPair();
 
-        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "primary");
+        var adapter = Hmp1TestHelpers.NewClient(s2, displayName: "primary");
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
@@ -188,7 +188,7 @@ public class Hmp1ClientOptionsTests
             .WithHmp1Stream(s2, opt =>
             {
                 opt.DisplayName = "viewer-via-options";
-                opt.DefaultRole = "viewer";
+                opt.DefaultRole = Hmp1Role.Secondary;
                 opt.OnConnected = e =>
                 {
                     Interlocked.Increment(ref connectedCount);
@@ -230,7 +230,7 @@ public class Hmp1ClientOptionsTests
 
         // Add a second peer to drive PeerJoined.
         var (other1, other2) = CreateFullDuplexPair();
-        var otherAdapter = new Hmp1WorkloadAdapter(other2, displayName: "other-peer");
+        var otherAdapter = Hmp1TestHelpers.NewClient(other2, displayName: "other-peer");
         await using var otherAdapterDispose = otherAdapter;
         var otherAddTask = server.AddClient(other1, CancellationToken.None);
         await otherAdapter.ConnectAsync(CancellationToken.None);

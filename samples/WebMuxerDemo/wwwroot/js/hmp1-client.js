@@ -159,7 +159,7 @@ export class Hmp1Client {
   constructor({ url, displayName, defaultRole }) {
     this._url = url;
     this._displayName = displayName ?? "browser";
-    this._defaultRole = defaultRole ?? "viewer";
+    this._defaultRole = defaultRole ?? "secondary";
     this._buffer = new FrameBuffer();
     this._ws = null;
 

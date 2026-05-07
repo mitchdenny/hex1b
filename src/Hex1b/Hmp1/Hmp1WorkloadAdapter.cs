@@ -27,11 +27,10 @@ namespace Hex1b;
 /// <see cref="PeerJoined"/>, and <see cref="PeerLeft"/> to drive UX state.
 /// </para>
 /// </remarks>
-public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
+public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle
 {
-    private readonly Func<CancellationToken, Task<Stream>> _streamFactory;
-    private readonly string? _displayName;
-    private readonly string? _defaultRole;
+    private readonly Hmp1ClientOptions _options;
+    private readonly string _localDisplayName;
     private Stream? _stream;
     private readonly Channel<ReadOnlyMemory<byte>> _outputChannel;
     private CancellationTokenSource? _readCts;
@@ -45,21 +44,28 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private int _currentHeight;
 
     /// <summary>
-    /// Creates a muxer workload adapter that connects via the given stream factory.
+    /// Creates a muxer workload adapter from the supplied options bag.
     /// </summary>
-    /// <param name="streamFactory">Factory that creates a bidirectional stream to the server.</param>
-    /// <param name="displayName">Optional human-readable label sent to the server in
-    /// <see cref="Hmp1FrameType.ClientHello"/>.</param>
-    /// <param name="defaultRole">Optional default-role hint
-    /// (<c>"viewer"</c> or <c>"interactive"</c>).</param>
-    public Hmp1WorkloadAdapter(
-        Func<CancellationToken, Task<Stream>> streamFactory,
-        string? displayName = null,
-        string? defaultRole = null)
+    /// <param name="options">
+    /// Transport (<see cref="Hmp1ClientOptions.StreamFactory"/>),
+    /// optional <see cref="Hmp1ClientOptions.StreamTransform"/>,
+    /// handshake hints, and event hooks.
+    /// </param>
+    /// <remarks>
+    /// Most consumers should use the
+    /// <see cref="Hmp1BuilderExtensions"/> family instead — the
+    /// extensions construct and wire this adapter for you, and deliver
+    /// an <see cref="IHmp1ConnectionHandle"/> via
+    /// <see cref="Hmp1ClientOptions.OnConnected"/>. Construct this
+    /// adapter directly only when you need to drive
+    /// <see cref="ConnectAsync"/> before assembling the surrounding
+    /// terminal builder (typically because the builder needs to read
+    /// producer dimensions before <c>Build()</c>).
+    /// </remarks>
+    public Hmp1WorkloadAdapter(Hmp1ClientOptions options)
     {
-        _streamFactory = streamFactory ?? throw new ArgumentNullException(nameof(streamFactory));
-        _displayName = displayName;
-        _defaultRole = defaultRole;
+        _options = options ?? throw new ArgumentNullException(nameof(options));
+        _localDisplayName = options.DisplayName ?? Hmp1Base36.GenerateDisplayName();
         // Wait (not DropOldest) so producer back-pressures over the wire when the
         // consumer is slow, instead of silently losing terminal output. Restored
         // from Hex1b PR #308 (Phase 9c) after the Phase 10 rewrite.
@@ -70,19 +76,49 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 SingleReader = true,
                 SingleWriter = true
             });
+
+        // Wire option callbacks to events. Done in the ctor so direct
+        // adapter construction (advanced path) gets the same callback
+        // surface as the WithHmp1* easy path. Subscribing here means
+        // the Connected handler is in place before ConnectAsync fires it.
+        if (options.OnConnected is { } onConnected)
+        {
+            Connected += (_, e) => onConnected(e);
+        }
+        if (options.OnRoleChanged is { } onRoleChanged)
+        {
+            RoleChanged += (_, e) => onRoleChanged(e);
+        }
+        if (options.OnPeerJoined is { } onPeerJoined)
+        {
+            PeerJoined += (_, e) => onPeerJoined(e);
+        }
+        if (options.OnPeerLeft is { } onPeerLeft)
+        {
+            PeerLeft += (_, e) => onPeerLeft(e);
+        }
+        if (options.OnRemoteResized is { } onRemoteResized)
+        {
+            RemoteResized += (_, e) => onRemoteResized(e);
+        }
+        if (options.OnDisconnected is { } onDisconnected)
+        {
+            Disconnected += () => onDisconnected();
+        }
     }
 
     /// <summary>
-    /// Creates a muxer workload adapter with an already-connected stream.
+    /// The display name this adapter sent in its
+    /// <see cref="Hmp1FrameType.ClientHello"/> frame. If the caller
+    /// did not supply one, this returns the auto-generated value.
     /// </summary>
-    /// <param name="stream">A bidirectional stream connected to the server.</param>
-    /// <param name="displayName">Optional human-readable label.</param>
-    /// <param name="defaultRole">Optional default-role hint.</param>
-    public Hmp1WorkloadAdapter(Stream stream, string? displayName = null, string? defaultRole = null)
-        : this(_ => Task.FromResult(stream), displayName, defaultRole)
-    {
-        ArgumentNullException.ThrowIfNull(stream);
-    }
+    public string LocalDisplayName => _localDisplayName;
+
+    /// <summary>
+    /// The role hint this adapter sent in its ClientHello, or
+    /// <see langword="null"/> if no hint was supplied.
+    /// </summary>
+    public Hmp1Role? DefaultRole => _options.DefaultRole;
 
     /// <summary>
     /// Gets the peer ID assigned by the server in the Hello frame.
@@ -208,11 +244,23 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
     /// </remarks>
     public async Task ConnectAsync(CancellationToken ct)
     {
-        _stream = await _streamFactory(ct).ConfigureAwait(false);
+        var rawStream = await _options.StreamFactory(ct).ConfigureAwait(false);
+
+        // Apply optional stream wrap (TLS, compression, framing) between
+        // the raw transport and the HMP1 handshake. This is what makes
+        // the EncryptedMuxerDemo "easy path" possible without forcing
+        // the caller to write a custom StreamFactory.
+        _stream = _options.StreamTransform is { } transform
+            ? await transform(rawStream).ConfigureAwait(false)
+            : rawStream;
 
         // Send ClientHello first. The producer reads this before sending its
         // Hello, so a slow server cannot deadlock here.
-        await Hmp1Protocol.WriteClientHelloAsync(_stream, _displayName, _defaultRole, ct).ConfigureAwait(false);
+        await Hmp1Protocol.WriteClientHelloAsync(
+            _stream,
+            _localDisplayName,
+            _options.DefaultRole?.ToWireString(),
+            ct).ConfigureAwait(false);
 
         // Read Hello frame
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(_stream, ct).ConfigureAwait(false)
@@ -275,7 +323,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
                 height = _currentHeight;
                 peers = [.. _peers];
             }
-            connectedArgs = new Hmp1ConnectedEventArgs(peerId, primaryPeerId, peers, width, height);
+            connectedArgs = new Hmp1ConnectedEventArgs(this, peerId, primaryPeerId, peers, width, height);
             connectedHandler(this, connectedArgs);
         }
     }
@@ -667,14 +715,23 @@ public sealed class PeerLeaveEventArgs : EventArgs
 /// </summary>
 public sealed class Hmp1ConnectedEventArgs : EventArgs
 {
-    internal Hmp1ConnectedEventArgs(string peerId, string? primaryPeerId, IReadOnlyList<PeerInfo> peers, int width, int height)
+    internal Hmp1ConnectedEventArgs(IHmp1ConnectionHandle connection, string peerId, string? primaryPeerId, IReadOnlyList<PeerInfo> peers, int width, int height)
     {
+        Connection = connection;
         PeerId = peerId;
         PrimaryPeerId = primaryPeerId;
         Peers = peers;
         Width = width;
         Height = height;
     }
+
+    /// <summary>
+    /// The connection handle for this client. Stash this reference for
+    /// later runtime calls (e.g. <see cref="IHmp1ConnectionHandle.RequestPrimaryAsync"/>);
+    /// no other public surface delivers it when the easy-path
+    /// <c>WithHmp1*</c> builder extensions are used.
+    /// </summary>
+    public IHmp1ConnectionHandle Connection { get; }
 
     /// <summary>Peer ID assigned by the server.</summary>
     public string PeerId { get; }

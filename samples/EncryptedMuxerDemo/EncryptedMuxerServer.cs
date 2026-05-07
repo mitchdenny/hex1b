@@ -19,7 +19,8 @@ internal static class EncryptedMuxerServer
                 if (OperatingSystem.IsWindows())
                     options.WindowsPtyMode = WindowsPtyMode.RequireProxy;
             })
-            .WithHmp1UdsServer(socketPath, DemoTls.AuthenticateAsServerAsync)
+            .WithHmp1UdsServer(socketPath, opt =>
+                opt.StreamTransform = DemoTls.AuthenticateAsServerAsync)
             .Build();
 
         await terminal.RunAsync();
