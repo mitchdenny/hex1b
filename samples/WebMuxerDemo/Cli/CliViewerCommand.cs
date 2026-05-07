@@ -90,7 +90,7 @@ internal static class CliViewerCommand
 
         try
         {
-            var app = new CliViewerApp(adapter, sessionName);
+            var app = new CliViewerApp(adapter, adapter, sessionName);
             await app.RunAsync();
         }
         finally

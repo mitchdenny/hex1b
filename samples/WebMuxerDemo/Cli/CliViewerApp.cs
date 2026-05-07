@@ -41,7 +41,8 @@ internal sealed class CliViewerApp
     // blank cell, making the terminal indistinguishable from its frame.
     private static readonly Hex1bColor TerminalBackground = Hex1bColor.FromRgb(0x0d, 0x11, 0x17);
 
-    private readonly Hmp1WorkloadAdapter _adapter;
+    private readonly IHmp1ConnectionHandle _connection;
+    private readonly IHex1bTerminalWorkloadAdapter _workload;
     private readonly string _sessionName;
     private Hex1bApp? _app;
     private Hex1bTerminal? _embedded;
@@ -68,9 +69,25 @@ internal sealed class CliViewerApp
     // current call completes if the target moved while we were waiting.
     private int _resizeInFlight; // 0 = idle, 1 = a request is in flight
 
-    public CliViewerApp(Hmp1WorkloadAdapter adapter, string sessionName)
+    /// <summary>
+    /// Constructs the viewer app from the two HMP1 surfaces it needs:
+    /// an <see cref="IHmp1ConnectionHandle"/> for runtime queries +
+    /// events + <c>RequestPrimaryAsync</c>, and an
+    /// <see cref="IHex1bTerminalWorkloadAdapter"/> to feed
+    /// <c>WithWorkload</c> when constructing the inner embedded
+    /// terminal. Today both are satisfied by the same
+    /// <see cref="Hmp1WorkloadAdapter"/> instance — the caller passes it
+    /// twice. The split keeps the consumer code honest about which
+    /// surface it's reaching for: every call site here goes through
+    /// <c>_connection</c> except the single <c>WithWorkload</c> hop.
+    /// </summary>
+    public CliViewerApp(
+        IHmp1ConnectionHandle connection,
+        IHex1bTerminalWorkloadAdapter workload,
+        string sessionName)
     {
-        _adapter = adapter;
+        _connection = connection;
+        _workload = workload;
         _sessionName = sessionName;
     }
 
@@ -78,12 +95,12 @@ internal sealed class CliViewerApp
     {
         // Build the embedded inner terminal that consumes the HMP1 byte
         // stream. Initial size = producer's current dims at handshake.
-        _innerWidth = Math.Max(1, _adapter.RemoteWidth);
-        _innerHeight = Math.Max(1, _adapter.RemoteHeight);
+        _innerWidth = Math.Max(1, _connection.RemoteWidth);
+        _innerHeight = Math.Max(1, _connection.RemoteHeight);
 
         _embedded = Hex1bTerminal.CreateBuilder()
             .WithDimensions(_innerWidth, _innerHeight)
-            .WithWorkload(_adapter)
+            .WithWorkload(_workload)
             .WithScrollback()
             .WithTerminalWidget(out var handle)
             .Build();
@@ -97,10 +114,10 @@ internal sealed class CliViewerApp
         // primary resized their host) come through RemoteResized — that
         // event was added so consumers don't have to poll RemoteWidth /
         // RemoteHeight every render.
-        _adapter.RoleChanged += OnRoleChanged;
-        _adapter.RemoteResized += OnRemoteResized;
-        _adapter.PeerJoined += OnPeerEvent;
-        _adapter.PeerLeft += OnPeerEvent;
+        _connection.RoleChanged += OnRoleChanged;
+        _connection.RemoteResized += OnRemoteResized;
+        _connection.PeerJoined += OnPeerEvent;
+        _connection.PeerLeft += OnPeerEvent;
 
         try
         {
@@ -117,10 +134,10 @@ internal sealed class CliViewerApp
         }
         finally
         {
-            _adapter.RoleChanged -= OnRoleChanged;
-            _adapter.RemoteResized -= OnRemoteResized;
-            _adapter.PeerJoined -= OnPeerEvent;
-            _adapter.PeerLeft -= OnPeerEvent;
+            _connection.RoleChanged -= OnRoleChanged;
+            _connection.RemoteResized -= OnRemoteResized;
+            _connection.PeerJoined -= OnPeerEvent;
+            _connection.PeerLeft -= OnPeerEvent;
 
             try
             {
@@ -156,7 +173,7 @@ internal sealed class CliViewerApp
 
         // If we no longer hold the primary role, drop the broadcast tracker
         // so a future re-take starts from scratch and immediately resyncs.
-        if (!_adapter.IsPrimary)
+        if (!_connection.IsPrimary)
         {
             _lastBroadcastWidth = -1;
             _lastBroadcastHeight = -1;
@@ -203,10 +220,10 @@ internal sealed class CliViewerApp
         var availW = Math.Max(1, Console.WindowWidth);
         var availH = Math.Max(1, Console.WindowHeight - 1);
 
-        var producerW = _adapter.RemoteWidth;
-        var producerH = _adapter.RemoteHeight;
+        var producerW = _connection.RemoteWidth;
+        var producerH = _connection.RemoteHeight;
 
-        var isPrimary = _adapter.IsPrimary;
+        var isPrimary = _connection.IsPrimary;
         var fits = producerW <= availW && producerH <= availH;
         var showTerminal = isPrimary || fits;
 
@@ -310,7 +327,7 @@ internal sealed class CliViewerApp
         where TParent : Hex1bWidget
     {
         var role = isPrimary ? "PRIMARY" : "viewer";
-        var peers = _adapter.Peers.Count + 1;
+        var peers = _connection.Peers.Count + 1;
         var dims = $"{producerW}\u00d7{producerH}";
         var session = _sessionName;
 
@@ -337,7 +354,7 @@ internal sealed class CliViewerApp
             // (host TTY minus InfoBar). Producer broadcasts RoleChange +
             // implicit Resize; our RoleChanged handler updates the inner
             // terminal grid + invalidates the app.
-            await _adapter.RequestPrimaryAsync(availW, availH, CancellationToken.None);
+            await _connection.RequestPrimaryAsync(availW, availH, CancellationToken.None);
 
             // Seed the SIGWINCH tracker so the render-time host-resize
             // poll doesn't immediately re-broadcast the dims we just set.
@@ -373,7 +390,7 @@ internal sealed class CliViewerApp
         {
             try
             {
-                await _adapter.RequestPrimaryAsync(width, height, CancellationToken.None);
+                await _connection.RequestPrimaryAsync(width, height, CancellationToken.None);
             }
             catch
             {
