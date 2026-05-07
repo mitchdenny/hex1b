@@ -160,9 +160,14 @@ function applyRoleAwareLayout() {
 
   if (!isSecondary) {
     // Primary, no-primary, or pre-handshake: clear any previous scaling
-    // and fill the container at native font size.
-    if (root.style.transform) {
+    // and let fitAddon grow the grid to fill the container at native
+    // font size. Always clear all three properties — never gate on
+    // transform alone, because takePrimary() may have already cleared
+    // transform but left width/height pinned, which would clip the
+    // viewport (and its scrollbar) to the secondary's old natural size.
+    if (root.style.transform || root.style.width || root.style.height) {
       root.style.transform = "";
+      root.style.transformOrigin = "";
       root.style.width = "";
       root.style.height = "";
     }
@@ -330,13 +335,19 @@ function takePrimary() {
   if (!client || !term || !fitAddon) return;
 
   // We want the producer to switch to *our* available space, not the
-  // currently-locked producer dims. Temporarily clear the scale and
-  // fit-to-container so term.cols/rows reflect what we'd want as primary,
-  // then send RequestPrimary with those dims. The server will accept and
-  // broadcast a Resize back, after which applyRoleAwareLayout (called
-  // from onRoleChange) will leave us at native scale because we're now
-  // primary.
-  if (term.element) term.element.style.transform = "";
+  // currently-locked producer dims. Clear ALL of the secondary's
+  // lock-and-scale styling (transform, width, height) so the .xterm
+  // wrapper can grow back to its parent's flex size, then fit to the
+  // container so term.cols/rows reflect what we'd want as primary.
+  // Send RequestPrimary with those dims; the server accepts and
+  // broadcasts a Resize back, after which applyRoleAwareLayout (called
+  // from onRoleChange) sees us as primary and re-fits cleanly.
+  if (term.element) {
+    term.element.style.transform = "";
+    term.element.style.transformOrigin = "";
+    term.element.style.width = "";
+    term.element.style.height = "";
+  }
   safeFit();
   client.requestPrimary(term.cols, term.rows);
 }
