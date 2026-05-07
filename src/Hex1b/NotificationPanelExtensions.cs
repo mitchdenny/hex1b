@@ -49,7 +49,7 @@ public static class NotificationPanelExtensions
         this WidgetContext<T> context,
         Hex1bWidget content) where T : Hex1bWidget
     {
-        return new NotificationPanelWidget().WithContent(content);
+        return new NotificationPanelWidget().Content(content);
     }
 
     /// <summary>
@@ -70,7 +70,7 @@ public static class NotificationPanelExtensions
         int maxFloating) where T : Hex1bWidget
     {
         return new NotificationPanelWidget()
-            .WithContent(content)
-            .WithMaxFloating(maxFloating);
+            .Content(content)
+            .MaxFloating(maxFloating);
     }
 }

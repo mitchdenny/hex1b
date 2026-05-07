@@ -22,7 +22,7 @@ public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overf
     /// Per the OSC 8 spec, the id parameter can be used to group multiple hyperlink
     /// segments that should be treated as a single logical link.
     /// </summary>
-    public string Parameters { get; init; } = "";
+    internal string ParameterString { get; init; } = "";
     
     /// <summary>
     /// The async click handler. Called when the hyperlink is activated via Enter or mouse click.
@@ -45,29 +45,29 @@ public sealed record HyperlinkWidget(string Text, string Uri, TextOverflow Overf
     /// <summary>
     /// Sets the optional parameters for the hyperlink.
     /// </summary>
-    public HyperlinkWidget WithParameters(string parameters)
-        => this with { Parameters = parameters };
+    public HyperlinkWidget Parameters(string parameters)
+        => this with { ParameterString = parameters };
 
     /// <summary>
     /// Sets a unique ID parameter for the hyperlink.
     /// This is useful for grouping multiple hyperlink segments together.
     /// </summary>
-    public HyperlinkWidget WithId(string id)
-        => this with { Parameters = $"id={id}" };
+    public HyperlinkWidget Id(string id)
+        => this with { ParameterString = $"id={id}" };
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as HyperlinkNode ?? new HyperlinkNode();
         
         // Mark dirty if properties changed
-        if (node.Text != Text || node.Uri != Uri || node.Parameters != Parameters || node.Overflow != Overflow)
+        if (node.Text != Text || node.Uri != Uri || node.Parameters != ParameterString || node.Overflow != Overflow)
         {
             node.MarkDirty();
         }
         
         node.Text = Text;
         node.Uri = Uri;
-        node.Parameters = Parameters;
+        node.Parameters = ParameterString;
         node.Overflow = Overflow;
         node.SourceWidget = this;
         

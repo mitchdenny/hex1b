@@ -271,7 +271,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         ])
                     ])
                 ]) // Close HStack
-            ).WithOffset(2, 2).Fill(), // Close NotificationPanel
+            ).Offset(2, 2).Fill(), // Close NotificationPanel
 
             // ─────────────────────────────────────────────────────────────────
             // INFO BAR (Status Bar)

@@ -292,12 +292,12 @@ When the drawer opens:
 
 | Setting | Method | Description |
 |---------|--------|-------------|
-| Float over content | `.WithDrawerFloats(true)` | Drawer overlays content (default) |
-| Push content aside | `.WithDrawerFloats(false)` | Content resizes when drawer opens |
+| Float over content | `.DrawerFloats(true)` | Drawer overlays content (default) |
+| Push content aside | `.DrawerFloats(false)` | Content resizes when drawer opens |
 
 ```csharp
 v.NotificationPanel(content)
-    .WithDrawerFloats(false) // Drawer docks instead of floating
+    .DrawerFloats(false) // Drawer docks instead of floating
 ```
 
 ## Notification Icon
@@ -315,7 +315,7 @@ bar.NotificationIcon()
 bar.NotificationIcon("*")
 
 // Hide the count badge
-bar.NotificationIcon().WithCount(false)
+bar.NotificationIcon().ShowCount(false)
 ```
 
 ## Panel Configuration
@@ -324,20 +324,20 @@ Configure the notification panel behavior:
 
 ```csharp
 v.NotificationPanel(content)
-    .WithMaxFloating(5)        // Show up to 5 floating notifications (default: 3)
-    .WithOffset(4, 2)          // Offset from corner (x=4, y=2)
-    .WithAnimation(false)      // Disable progress bar animation
-    .WithDrawerFloats(true)    // Drawer floats over content
+    .MaxFloating(5)        // Show up to 5 floating notifications (default: 3)
+    .Offset(4, 2)          // Offset from corner (x=4, y=2)
+    .Animation(false)      // Disable progress bar animation
+    .DrawerFloats(true)    // Drawer floats over content
 ```
 
 ### Configuration Options
 
 | Method | Default | Description |
 |--------|---------|-------------|
-| `WithMaxFloating(n)` | 3 | Maximum floating notifications visible |
-| `WithOffset(x, y)` | (2, 1) | Offset from top-right corner |
-| `WithAnimation(bool)` | true | Animate timeout progress bars |
-| `WithDrawerFloats(bool)` | true | Drawer floats vs pushes content |
+| `MaxFloating(n)` | 3 | Maximum floating notifications visible |
+| `Offset(x, y)` | (2, 1) | Offset from top-right corner |
+| `Animation(bool)` | true | Animate timeout progress bars |
+| `DrawerFloats(bool)` | true | Drawer floats vs pushes content |
 
 ## Keyboard Shortcuts
 

@@ -93,7 +93,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <summary>
     /// The content widget that notifications will overlay. This is your main application content.
     /// </summary>
-    internal Hex1bWidget? Content { get; init; }
+    internal Hex1bWidget? ContentChild { get; init; }
 
     /// <summary>
     /// Maximum number of floating notifications to show at once. Defaults to 3.
@@ -102,7 +102,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// Older notifications remain in the notification stack but are only visible when
     /// the user opens the drawer.
     /// </remarks>
-    public int MaxFloating { get; init; } = 3;
+    internal int MaxFloatingCount { get; init; } = 3;
 
     /// <summary>
     /// Horizontal offset from the right edge for floating notifications. Defaults to 2.
@@ -127,23 +127,23 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// Whether the drawer floats on top of content (true) or pushes content aside (false).
     /// Defaults to true (floating).
     /// </summary>
-    public bool DrawerFloats { get; init; } = true;
+    internal bool IsDrawerFloating { get; init; } = true;
 
     /// <summary>
     /// Sets the content widget that notifications will overlay.
     /// </summary>
     /// <param name="content">The main content widget.</param>
     /// <returns>A new widget instance with the content configured.</returns>
-    public NotificationPanelWidget WithContent(Hex1bWidget content)
-        => this with { Content = content };
+    public NotificationPanelWidget Content(Hex1bWidget content)
+        => this with { ContentChild = content };
 
     /// <summary>
     /// Sets whether the drawer floats on top of content or pushes content aside.
     /// </summary>
     /// <param name="floats">True for floating overlay (default), false to push content aside.</param>
     /// <returns>A new widget instance with the setting configured.</returns>
-    public NotificationPanelWidget WithDrawerFloats(bool floats = true)
-        => this with { DrawerFloats = floats };
+    public NotificationPanelWidget DrawerFloats(bool floats = true)
+        => this with { IsDrawerFloating = floats };
 
     /// <summary>
     /// Sets the maximum number of floating notifications visible at once.
@@ -154,8 +154,8 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// Additional notifications are queued and become visible as earlier ones time out or are dismissed.
     /// All notifications are always visible in the drawer.
     /// </remarks>
-    public NotificationPanelWidget WithMaxFloating(int max)
-        => this with { MaxFloating = max };
+    public NotificationPanelWidget MaxFloating(int max)
+        => this with { MaxFloatingCount = max };
 
     /// <summary>
     /// Sets the offset from the corner for floating notifications.
@@ -163,7 +163,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// <param name="x">Horizontal offset from right edge in columns.</param>
     /// <param name="y">Vertical offset from top edge in rows.</param>
     /// <returns>A new widget instance with the offsets configured.</returns>
-    public NotificationPanelWidget WithOffset(int x, int y)
+    public NotificationPanelWidget Offset(int x, int y)
         => this with { OffsetX = x, OffsetY = y };
 
     /// <summary>
@@ -171,7 +171,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
     /// </summary>
     /// <param name="enable">True to enable animation (default), false to disable.</param>
     /// <returns>A new widget instance with the setting configured.</returns>
-    public NotificationPanelWidget WithAnimation(bool enable = true)
+    public NotificationPanelWidget Animation(bool enable = true)
         => this with { EnableAnimation = enable };
 
     /// <summary>
@@ -196,15 +196,15 @@ public sealed record NotificationPanelWidget : Hex1bWidget
         // Clear cached stack so it re-discovers from parent chain
         node.ClearCachedStack();
         
-        node.MaxFloating = MaxFloating;
+        node.MaxFloating = MaxFloatingCount;
         node.OffsetX = OffsetX;
         node.OffsetY = OffsetY;
-        node.DrawerFloats = DrawerFloats;
+        node.DrawerFloats = IsDrawerFloating;
 
         // Reconcile content
-        if (Content != null)
+        if (ContentChild != null)
         {
-            node.Content = await context.ReconcileChildAsync(node.Content, Content, node);
+            node.Content = await context.ReconcileChildAsync(node.Content, ContentChild, node);
         }
         else
         {
@@ -225,7 +225,7 @@ public sealed record NotificationPanelWidget : Hex1bWidget
         }
         
         var floating = notifications.Floating;
-        var visibleCount = Math.Min(floating.Count, MaxFloating);
+        var visibleCount = Math.Min(floating.Count, MaxFloatingCount);
         
         // Ensure card node list matches visible count
         while (node.CardNodes.Count < visibleCount)

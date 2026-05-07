@@ -843,8 +843,8 @@ public class Osc8HyperlinkTests
         await using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Text("Links with same ID should be grouped:"),
-                v.Hyperlink("Part 1 of", "https://example.com").WithId("multi-line"),
-                v.Hyperlink("the same link", "https://example.com").WithId("multi-line")
+                v.Hyperlink("Part 1 of", "https://example.com").Id("multi-line"),
+                v.Hyperlink("the same link", "https://example.com").Id("multi-line")
             ]),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );

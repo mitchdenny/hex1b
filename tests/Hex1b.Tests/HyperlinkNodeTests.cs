@@ -225,21 +225,21 @@ public class HyperlinkWidgetTests
     }
 
     [Fact]
-    public async Task WithParameters_SetsParameters()
+    public async Task Parameters_SetsParameters()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
-            .WithParameters("id=test");
+            .Parameters("id=test");
         
-        Assert.Equal("id=test", widget.Parameters);
+        Assert.Equal("id=test", widget.ParameterString);
     }
 
     [Fact]
-    public async Task WithId_SetsIdParameter()
+    public async Task Id_SetsIdParameter()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
-            .WithId("unique123");
+            .Id("unique123");
         
-        Assert.Equal("id=unique123", widget.Parameters);
+        Assert.Equal("id=unique123", widget.ParameterString);
     }
 
     [Fact]
@@ -290,7 +290,7 @@ public class HyperlinkWidgetTests
     public async Task Reconcile_UpdatesNodeProperties()
     {
         var widget = new HyperlinkWidget("New Text", "https://new.com")
-            .WithParameters("id=new");
+            .Parameters("id=new");
         var existingNode = new HyperlinkNode 
         { 
             Text = "Old Text", 

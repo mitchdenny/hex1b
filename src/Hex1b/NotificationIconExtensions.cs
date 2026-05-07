@@ -56,6 +56,6 @@ public static class NotificationIconExtensions
         this WidgetContext<T> context,
         string bell) where T : Hex1bWidget
     {
-        return new NotificationIconWidget().WithBell(bell);
+        return new NotificationIconWidget().Bell(bell);
     }
 }
