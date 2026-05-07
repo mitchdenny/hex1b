@@ -40,6 +40,19 @@ internal sealed class CliViewerApp
     private int _innerWidth;
     private int _innerHeight;
 
+    // Last host TTY dims we broadcast to the producer while we held the
+    // primary role. We use this to detect host SIGWINCH (Windows Terminal
+    // resize) and re-broadcast the new dims so the producer's PTY follows.
+    // -1 means "no broadcast in flight"; reset whenever we lose the role.
+    private int _lastBroadcastWidth = -1;
+    private int _lastBroadcastHeight = -1;
+
+    // Single-flight gate so SIGWINCH bursts (typical from a mouse drag-
+    // resize) collapse to one in-flight RequestPrimaryAsync at a time.
+    // We always remember the most recent target and re-broadcast when the
+    // current call completes if the target moved while we were waiting.
+    private int _resizeInFlight; // 0 = idle, 1 = a request is in flight
+
     public CliViewerApp(Hmp1WorkloadAdapter adapter, string sessionName)
     {
         _adapter = adapter;
@@ -122,6 +135,15 @@ internal sealed class CliViewerApp
         // terminal to match; this is the cleanest signal we get for
         // "producer's PTY is now N x M".
         EnsureInnerSize(e.Width, e.Height);
+
+        // If we no longer hold the primary role, drop the broadcast tracker
+        // so a future re-take starts from scratch and immediately resyncs.
+        if (!_adapter.IsPrimary)
+        {
+            _lastBroadcastWidth = -1;
+            _lastBroadcastHeight = -1;
+        }
+
         _app?.Invalidate();
     }
 
@@ -166,6 +188,16 @@ internal sealed class CliViewerApp
         var isPrimary = _adapter.IsPrimary;
         var fits = producerW <= availW && producerH <= availH;
         var showTerminal = isPrimary || fits;
+
+        // While we hold the primary role, follow host SIGWINCH: re-broadcast
+        // the new dims so the producer's PTY grows or shrinks with the host
+        // terminal (Windows Terminal, iTerm2, tmux pane, ...). Without this
+        // a host grow leaves the producer pinned at the original dims and
+        // the terminal sits with empty padding around it forever.
+        if (isPrimary && (availW != _lastBroadcastWidth || availH != _lastBroadcastHeight))
+        {
+            BroadcastResize(availW, availH);
+        }
 
         Hex1bWidget body = showTerminal
             ? BuildTerminalView(ctx)
@@ -277,6 +309,11 @@ internal sealed class CliViewerApp
             // implicit Resize; our RoleChanged handler updates the inner
             // terminal grid + invalidates the app.
             await _adapter.RequestPrimaryAsync(availW, availH, CancellationToken.None);
+
+            // Seed the SIGWINCH tracker so the render-time host-resize
+            // poll doesn't immediately re-broadcast the dims we just set.
+            _lastBroadcastWidth = availW;
+            _lastBroadcastHeight = availH;
         }
         catch (Exception)
         {
@@ -284,5 +321,40 @@ internal sealed class CliViewerApp
             // shortly. Don't escalate — Hex1bApp surface should never
             // unwind a binding action with an exception.
         }
+    }
+
+    private void BroadcastResize(int width, int height)
+    {
+        // Record the target dims up-front so we don't loop on the next
+        // Render(): if multiple SIGWINCH events fire while a request is in
+        // flight, only the latest pair persists in _lastBroadcastWidth/H.
+        _lastBroadcastWidth = width;
+        _lastBroadcastHeight = height;
+
+        // Single-flight: bail if a broadcast is already in flight. Future
+        // renders will re-detect drift if the host kept resizing while the
+        // request was in flight (because the in-flight call captured an
+        // older target) and trigger a fresh broadcast then.
+        if (Interlocked.CompareExchange(ref _resizeInFlight, 1, 0) != 0)
+        {
+            return;
+        }
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                await _adapter.RequestPrimaryAsync(width, height, CancellationToken.None);
+            }
+            catch
+            {
+                // Best-effort; producer may have gone away mid-resize.
+            }
+            finally
+            {
+                Volatile.Write(ref _resizeInFlight, 0);
+                _app?.Invalidate();
+            }
+        });
     }
 }
