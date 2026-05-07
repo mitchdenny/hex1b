@@ -149,8 +149,9 @@ function ensureTerminal() {
   //                            secondary mode, fills available space in
   //                            primary font mode, hugs natural dims in
   //                            primary fixed mode; clips overflow)
-  //       #terminal-footer    (primary-mode controls; hidden in
-  //                            secondary mode)
+  //       #terminal-footer    (always-visible-when-connected chrome;
+  //                            interactive controls in primary mode,
+  //                            dims-only readout in secondary)
   //
   // Putting border/shadow on #terminal-frame keeps them at fixed CSS
   // pixel sizes regardless of the CSS transform we apply to the .xterm
@@ -233,13 +234,13 @@ function ensureTerminal() {
   }
 }
 
-// Builds the primary-mode footer DOM and wires button/select events.
-// The footer is only displayed in primary mode (toggled in
-// updateFooterControls); buttons/select are inert until shown.
+// Builds the footer DOM and wires button/select events. The footer's
+// visibility and read-only state are toggled in updateFooterControls
+// based on connection state and role.
 function buildFooter() {
   const footer = document.createElement("div");
   footer.id = "terminal-footer";
-  footer.style.display = "none"; // hidden until we become primary
+  footer.style.display = "none"; // hidden until we connect
 
   // Font controls
   const fontGroup = document.createElement("div");
@@ -529,16 +530,23 @@ function setSizeMode(mode, dims) {
   applyRoleAwareLayout();
 }
 
-// Refreshes the footer's visibility (primary-only) and the state of its
-// controls (font display, button disabled state, dropdown selection,
-// dims readout). Idempotent — safe to call from anywhere.
+// Refreshes the footer's visibility and the state of its controls.
+// Footer is shown whenever connected (any role); in primary mode all
+// controls are interactive, in secondary/no-primary mode the .read-only
+// class hides the control groups so only the dims readout is visible.
+// Idempotent — safe to call from anywhere.
 function updateFooterControls() {
   const footer = document.getElementById("terminal-footer");
   if (!footer) return;
 
-  const isPrimary = !!client && client.isPrimary;
-  // Show footer in primary mode only. Use display:flex (matches CSS).
-  footer.style.display = isPrimary ? "flex" : "none";
+  const connected = !!client;
+  const isPrimary = connected && client.isPrimary;
+  // Show footer whenever connected. Hides when offline.
+  footer.style.display = connected ? "flex" : "none";
+  // Toggle read-only chrome — hides font/size groups via CSS so only
+  // the dims readout shows, keeping the footer band visually consistent
+  // across roles.
+  footer.classList.toggle("read-only", connected && !isPrimary);
 
   const fontDisplay = document.getElementById("font-display");
   const fontMinus = document.getElementById("font-minus");
@@ -549,14 +557,18 @@ function updateFooterControls() {
   if (fontDisplay) fontDisplay.textContent = `${currentFontPx}`;
 
   // +/- disabled in fixed mode (font is purely auto-derived there).
-  if (fontMinus) fontMinus.disabled = sizeMode === "fixed";
-  if (fontPlus) fontPlus.disabled = sizeMode === "fixed";
+  // Also disabled when not primary so they're inert even if somehow
+  // shown via dev tools or stale CSS state.
+  const fontDisabled = sizeMode === "fixed" || !isPrimary;
+  if (fontMinus) fontMinus.disabled = fontDisabled;
+  if (fontPlus) fontPlus.disabled = fontDisabled;
 
   if (sizeSelect) {
     const expected = sizeMode === "fixed" && fixedDims
       ? `${fixedDims.cols}x${fixedDims.rows}`
       : "auto";
     if (sizeSelect.value !== expected) sizeSelect.value = expected;
+    sizeSelect.disabled = !isPrimary;
   }
 
   if (dimsReadout) {

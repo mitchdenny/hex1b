@@ -287,11 +287,13 @@ code {
 }
 
 /*
- * Footer — primary-mode control surface for terminal sizing. Hidden in
- * secondary mode (set via JS). Mirrors the titlebar's visual treatment
- * for a consistent chrome.
+ * Footer — primary-mode control surface for terminal sizing. Shown
+ * whenever connected; in primary mode all controls are interactive,
+ * in secondary/no-primary modes the .read-only class hides the
+ * font/size groups so only the dims readout is visible. Mirrors the
+ * titlebar's visual treatment for a consistent chrome.
  *
- * Two mutually-exclusive sizing modes:
+ * Two mutually-exclusive sizing modes (primary mode only):
  *   - "Auto" (font-driven): +/- adjust font size, fit() re-picks cols×rows.
  *   - Fixed preset (e.g. 80×24): cols×rows are locked, font is auto-
  *     computed to fill the available space; +/- buttons disabled.
@@ -384,6 +386,16 @@ code {
 
 #footer-dims .value {
   color: var(--fg);
+}
+
+/*
+ * Read-only footer — shown whenever connected but not primary
+ * (secondary, no-primary). Hides the font/size control groups so only
+ * the dims readout is visible on the right; preserves the chrome so
+ * the frame card has a consistent footer band in every state.
+ */
+#terminal-footer.read-only .footer-group {
+  display: none;
 }
 
 .xterm:focus,
