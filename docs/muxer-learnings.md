@@ -21,9 +21,13 @@ format. Read that first.
 - **The producer is the long-lived "session". Clients come and go.** Discover
   producers by well-known UDS paths. The client must always start in viewer
   mode and let the user opt into the primary role explicitly.
-- **Hex1b doesn't expose host or producer resize events.** Poll
-  `Console.WindowWidth/Height` and `_adapter.RemoteWidth/Height` from your
-  `Render()` callback every frame. It's the only signal you get.
+- **Subscribe to adapter events instead of polling for producer dims.**
+  `Connected`, `RoleChanged`, `RemoteResized`, `PeerJoined`, `PeerLeft`,
+  and `Disconnected` cover everything HMP1 surfaces. Configure them
+  declaratively via `WithHmp1UdsClient(path, opt => …)` /
+  `WithHmp1Stream(stream, opt => …)` so the wiring runs before the first
+  frame is read. Host-side dims (TTY SIGWINCH) you still poll from
+  `Console.WindowWidth/Height` because they're not in scope of HMP1.
 - **`TerminalWidget` is greedy and transparent by default.** Pin it with
   `FixedWidth`/`FixedHeight` so `Align` can centre it, and call
   `.Background(color)` so it doesn't bleed through whatever container is
@@ -76,11 +80,13 @@ events + commands that look like normal C#:
 
 | Surface | Notes |
 |---|---|
-| `ConnectAsync(stream, ct)` | Performs `ClientHello` ↔ `Hello` handshake, starts the read pump. **Captures `ct` into a long-lived linked CTS for the read pump's lifetime — see §6.1.** |
+| `ConnectAsync(stream, ct)` | Performs `ClientHello` ↔ `Hello` handshake, starts the read pump. **The `ct` is honoured for handshake only — read pump is governed by `DisposeAsync`.** |
 | `RemoteWidth`, `RemoteHeight` | Producer's current PTY dims. Updated when a `Resize` frame arrives. |
 | `IsPrimary` | True iff this peer currently holds the role. |
 | `Peers` | Roster of other peer ids (excluding self). Updated on `PeerJoin`/`PeerLeave`. |
+| `Connected` event | Fires once after the handshake completes. Carries `PeerId`, `PrimaryPeerId`, `Peers`, and the producer's current dims. |
 | `RoleChanged` event | Fires on every `RoleChange` broadcast — even ones that don't affect us — and always carries the current dims. |
+| `RemoteResized` event | Fires when the producer's PTY dims change — either because we requested it as primary or because some other peer is now driving them. **Use this instead of polling `RemoteWidth/Height`.** |
 | `OutputReceived` | Raw ANSI byte stream from the producer. Consumers normally pipe this into a `Hex1bTerminal` via its writable stream. |
 | `Disconnected` | Producer socket closed or the read pump errored. |
 | `RequestPrimaryAsync(w, h, ct)` | The single mutation primitive. Re-broadcasts the new dims even if you're already primary — see §4.3. |
@@ -135,12 +141,13 @@ That's the shape of `CliViewerApp.Render()` in `WebMuxerDemo`.
 
 ---
 
-## 4. State sync: things you have to poll
+## 4. State sync: events vs polling
 
-Hex1b doesn't expose Resized events for the host TTY or for the embedded
-terminal. The only place you get a guaranteed-consistent view of "what
-dims do I have right now" is inside your `Render()` callback, which fires
-on every invalidate. Your sync loop runs in there.
+Producer dims are event-driven (`Connected`, `RoleChanged`,
+`RemoteResized`). Host TTY dims and the embedded terminal's grid are
+not — Hex1b currently exposes no Resized event for either, so you check
+`Console.WindowWidth/Height` from `Render()` and reconcile against your
+own `_innerWidth/_innerHeight` locals. Your sync loop runs there.
 
 ### 4.1 Embedded terminal grid
 
@@ -165,12 +172,39 @@ per render. It's an O(1) compare; the resize is a no-op when sizes
 already match. This catches silent producer `Resize` frames that arrived
 without a `RoleChange` (e.g. the current primary resized their host).
 
-### 4.2 Producer dim drift via `RoleChanged`
+### 4.2 Producer dim drift via `RemoteResized` (and `RoleChanged`)
 
-The `RoleChanged` event always carries the current dims, even when the
-event is just a "primary changed but you stayed a viewer" notification.
-Wire its handler to `EnsureInnerSize(e.Width, e.Height)` and call
-`Invalidate()` so the next `Render()` picks the new mode.
+Two events tell you when the producer's PTY dims changed:
+
+- **`RemoteResized`** — fires whenever the dims actually moved, regardless
+  of whether the role transition that triggered it touched us. Use this
+  as your primary subscription point: wire its handler to
+  `EnsureInnerSize(e.Width, e.Height)` and `Invalidate()`. Carries
+  `CausedByLocalPrimary` so you can suppress your own resize echo if
+  needed.
+- **`RoleChanged`** — fires on every `RoleChange` broadcast (including
+  ones with unchanged dims). Use this to recompute the render mode
+  (primary vs viewer) and to reset re-broadcast trackers — see §4.3.
+
+Both events are wired declaratively through the options callback:
+
+```csharp
+.WithHmp1UdsClient(socketPath, opt =>
+{
+    opt.DisplayName = "viewer-cli";
+    opt.DefaultRole = "viewer";
+    opt.OnConnected      = e => EnsureInnerSize(e.Width, e.Height);
+    opt.OnRemoteResized  = e => { EnsureInnerSize(e.Width, e.Height); _app?.Invalidate(); };
+    opt.OnRoleChanged    = e => OnRoleChanged(e);
+    opt.OnPeerJoined     = _ => _app?.Invalidate();
+    opt.OnPeerLeft       = _ => _app?.Invalidate();
+});
+```
+
+If you need a long-lived reference to the adapter (e.g. to call
+`RequestPrimaryAsync` from a hotkey handler), construct it directly and
+attach via `WithWorkload(adapter)` instead — same events are reachable
+without the options callback.
 
 ### 4.3 Host SIGWINCH while we're primary
 
@@ -326,28 +360,24 @@ poll inside `Render()`. See §4.
 
 ## 6. Adapter lifecycle gotchas
 
-### 6.1 `ConnectAsync(ct)` captures the CT for the read pump's lifetime
+### 6.1 Use the new `ConnectAsync` CT contract for handshake bounds
 
-`Hmp1WorkloadAdapter.ConnectAsync(stream, ct)` creates a linked CTS that
-drives the read pump for the entire connection lifetime — not just the
-handshake. Don't pass a short-lived "handshake timeout" CT; cancel it
-and you've killed your connection.
-
-The right pattern is two CTs:
+`Hmp1WorkloadAdapter.ConnectAsync(ct)` honours `ct` for the handshake
+only. Once the handshake completes successfully, the read pump is
+governed by `DisposeAsync` instead of the supplied CT. This means the
+"obvious" pattern is also the right one:
 
 ```csharp
 using var handshakeCts = CancellationTokenSource.CreateLinkedTokenSource(appCt);
 handshakeCts.CancelAfter(TimeSpan.FromSeconds(5));
-
-// adapter holds onto appCt for the read pump
-await adapter.ConnectAsync(stream, appCt);
-
-// timeout the handshake separately
-await handshakeCts.Token.WaitForHandshakeAsync(...);
+await adapter.ConnectAsync(handshakeCts.Token);   // bounded by 5s
+// read pump now runs until DisposeAsync — not until handshakeCts fires.
 ```
 
-(Or just `await Task.WhenAny(adapter.WaitForHelloAsync(), Task.Delay(5s))`
-if your adapter exposes that.)
+(Older drafts of this doc warned against passing a short-lived CT here
+because the read pump used to capture it. Fixed in the multihead PR
+together with the rest of the API clean-up; the warning is preserved
+here as historical context.)
 
 ### 6.2 `DisposeAsync()` can hang on the read pump
 

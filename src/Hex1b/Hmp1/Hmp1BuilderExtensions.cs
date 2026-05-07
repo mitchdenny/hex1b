@@ -157,7 +157,7 @@ public static class Hmp1BuilderExtensions
     public static Hex1bTerminalBuilder WithHmp1Client(
         this Hex1bTerminalBuilder builder,
         Func<CancellationToken, Task<Stream>> streamFactory)
-        => WithHmp1Client(builder, streamFactory, displayName: null, defaultRole: null);
+        => WithHmp1Client(builder, streamFactory, configure: null);
 
     /// <summary>
     /// Configures the terminal as an HMP v1 client with optional ClientHello hints.
@@ -172,10 +172,80 @@ public static class Hmp1BuilderExtensions
         Func<CancellationToken, Task<Stream>> streamFactory,
         string? displayName,
         string? defaultRole)
+        => WithHmp1Client(builder, streamFactory, opt =>
+        {
+            opt.DisplayName = displayName;
+            opt.DefaultRole = defaultRole;
+        });
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client. Canonical overload — every
+    /// other <c>WithHmp1*</c> variant in this class delegates here.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="streamFactory">A factory that creates a bidirectional stream to the server.
+    /// Called when the terminal starts running.</param>
+    /// <param name="configure">Optional callback that receives an <see cref="Hmp1ClientOptions"/>
+    /// for setting handshake hints and event hooks.</param>
+    /// <returns>The builder for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHmp1Client(ct => MyTransport.ConnectAsync(ct), options =>
+    ///     {
+    ///         options.DisplayName = "viewer";
+    ///         options.DefaultRole = "viewer";
+    ///         options.OnConnected = e =>
+    ///             Console.WriteLine($"connected as peer {e.PeerId}, primary={e.PrimaryPeerId ?? "&lt;none&gt;"}");
+    ///         options.OnRoleChanged = e =>
+    ///             Console.WriteLine($"role: {(e.NowPrimary ? "primary" : "secondary")}");
+    ///         options.OnRemoteResized = e =>
+    ///             Console.WriteLine($"producer resized to {e.Width}x{e.Height}");
+    ///     })
+    ///     .Build();
+    ///
+    /// await terminal.RunAsync();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1Client(
+        this Hex1bTerminalBuilder builder,
+        Func<CancellationToken, Task<Stream>> streamFactory,
+        Action<Hmp1ClientOptions>? configure)
     {
         ArgumentNullException.ThrowIfNull(streamFactory);
 
-        var adapter = new Hmp1WorkloadAdapter(streamFactory, displayName, defaultRole);
+        var options = new Hmp1ClientOptions();
+        configure?.Invoke(options);
+
+        var adapter = new Hmp1WorkloadAdapter(streamFactory, options.DisplayName, options.DefaultRole);
+
+        // Wire option event hooks onto the adapter BEFORE the workload is started so
+        // handlers see the very first events emitted by ConnectAsync (notably Connected,
+        // and any RoleChange/PeerJoin frames that ride alongside the initial Hello).
+        if (options.OnConnected is { } onConnected)
+        {
+            adapter.Connected += (_, e) => onConnected(e);
+        }
+        if (options.OnRoleChanged is { } onRoleChanged)
+        {
+            adapter.RoleChanged += (_, e) => onRoleChanged(e);
+        }
+        if (options.OnPeerJoined is { } onPeerJoined)
+        {
+            adapter.PeerJoined += (_, e) => onPeerJoined(e);
+        }
+        if (options.OnPeerLeft is { } onPeerLeft)
+        {
+            adapter.PeerLeft += (_, e) => onPeerLeft(e);
+        }
+        if (options.OnRemoteResized is { } onRemoteResized)
+        {
+            adapter.RemoteResized += (_, e) => onRemoteResized(e);
+        }
+        if (options.OnDisconnected is { } onDisconnected)
+        {
+            adapter.Disconnected += () => onDisconnected();
+        }
 
         builder.SetWorkloadFactory(_ =>
         {
@@ -218,6 +288,23 @@ public static class Hmp1BuilderExtensions
     }
 
     /// <summary>
+    /// Configures the terminal as an HMP v1 client over an already-connected
+    /// bidirectional stream, with a configuration callback for handshake hints
+    /// and event hooks.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="stream">The already-connected bidirectional stream.</param>
+    /// <param name="configure">Callback that receives an <see cref="Hmp1ClientOptions"/>.</param>
+    public static Hex1bTerminalBuilder WithHmp1Stream(
+        this Hex1bTerminalBuilder builder,
+        Stream stream,
+        Action<Hmp1ClientOptions>? configure)
+    {
+        ArgumentNullException.ThrowIfNull(stream);
+        return WithHmp1Client(builder, _ => Task.FromResult(stream), configure);
+    }
+
+    /// <summary>
     /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket.
     /// </summary>
     /// <param name="builder">The terminal builder.</param>
@@ -241,6 +328,40 @@ public static class Hmp1BuilderExtensions
     }
 
     /// <summary>
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain
+    /// socket, with a configuration callback for handshake hints and event hooks.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
+    /// <param name="configure">Callback that receives an <see cref="Hmp1ClientOptions"/>.</param>
+    /// <returns>The builder for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHmp1UdsClient("/tmp/my-terminal.sock", options =>
+    ///     {
+    ///         options.DisplayName = "viewer";
+    ///         options.DefaultRole = "viewer";
+    ///         options.OnConnected = e =>
+    ///             Console.WriteLine($"connected as peer {e.PeerId}");
+    ///         options.OnRoleChanged = e =>
+    ///             Console.WriteLine($"role: {(e.NowPrimary ? "primary" : "secondary")}");
+    ///         options.OnRemoteResized = e =>
+    ///             Console.WriteLine($"producer resized to {e.Width}x{e.Height}");
+    ///     })
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Action<Hmp1ClientOptions>? configure)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
+        return builder.WithHmp1Client(ct => Hmp1Transports.ConnectUnixSocket(socketPath, ct), configure);
+    }
+
+    /// <summary>
     /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket
     /// with a stream transform applied after connection. Use this to wrap transport streams
     /// with encryption, compression, or other transformations before HMP v1 framing is applied.
@@ -256,6 +377,23 @@ public static class Hmp1BuilderExtensions
         this Hex1bTerminalBuilder builder,
         string socketPath,
         Func<Stream, Stream> streamTransform)
+        => WithHmp1UdsClient(builder, socketPath, streamTransform, configure: null);
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain
+    /// socket with a stream transform plus a configuration callback for handshake
+    /// hints and event hooks.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
+    /// <param name="streamTransform">A function that wraps the raw transport stream.</param>
+    /// <param name="configure">Callback that receives an <see cref="Hmp1ClientOptions"/>.</param>
+    /// <returns>The builder for fluent chaining.</returns>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Stream> streamTransform,
+        Action<Hmp1ClientOptions>? configure)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
         ArgumentNullException.ThrowIfNull(streamTransform);
@@ -263,7 +401,7 @@ public static class Hmp1BuilderExtensions
         {
             var stream = await Hmp1Transports.ConnectUnixSocket(socketPath, ct);
             return streamTransform(stream);
-        });
+        }, configure);
     }
 
     /// <summary>
@@ -294,6 +432,23 @@ public static class Hmp1BuilderExtensions
         this Hex1bTerminalBuilder builder,
         string socketPath,
         Func<Stream, Task<Stream>> streamTransform)
+        => WithHmp1UdsClient(builder, socketPath, streamTransform, configure: null);
+
+    /// <summary>
+    /// Configures the terminal as an HMP v1 client connecting to a Unix domain socket
+    /// with an async stream transform plus a configuration callback for handshake
+    /// hints and event hooks.
+    /// </summary>
+    /// <param name="builder">The terminal builder.</param>
+    /// <param name="socketPath">Path to the Unix domain socket to connect to.</param>
+    /// <param name="streamTransform">An async function that wraps the raw transport stream.</param>
+    /// <param name="configure">Callback that receives an <see cref="Hmp1ClientOptions"/>.</param>
+    /// <returns>The builder for fluent chaining.</returns>
+    public static Hex1bTerminalBuilder WithHmp1UdsClient(
+        this Hex1bTerminalBuilder builder,
+        string socketPath,
+        Func<Stream, Task<Stream>> streamTransform,
+        Action<Hmp1ClientOptions>? configure)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(socketPath);
         ArgumentNullException.ThrowIfNull(streamTransform);
@@ -301,7 +456,7 @@ public static class Hmp1BuilderExtensions
         {
             var stream = await Hmp1Transports.ConnectUnixSocket(socketPath, ct);
             return await streamTransform(stream);
-        });
+        }, configure);
     }
 
     private static async IAsyncEnumerable<Stream> TransformStreams(

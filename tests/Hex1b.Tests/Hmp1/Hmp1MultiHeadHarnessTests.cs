@@ -19,8 +19,8 @@ namespace Hex1b.Tests.Hmp1;
 /// <para>
 /// Layer B (smoke): one full <see cref="Hex1bTerminal"/> built with
 /// <c>WithHmp1Stream</c> + <c>WithHeadless</c> against the same producer,
-/// proving that the builder + lifecycle + <see cref="Hex1bTerminal.Hmp1"/>
-/// access all wire up end-to-end.
+/// proving that the builder + lifecycle + adapter event surface
+/// all wire up end-to-end.
 /// </para>
 /// </summary>
 public class Hmp1MultiHeadHarnessTests
@@ -314,47 +314,50 @@ public class Hmp1MultiHeadHarnessTests
     // ---- Layer B: one full Hex1bTerminal --------------------------------
 
     [Fact]
-    public async Task LayerB_Hex1bTerminalSmokeTest_ExposesHmp1Adapter()
+    public async Task LayerB_Hex1bTerminalSmokeTest_DrivesHmp1WorkloadAdapter()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
         await using var serverDispose = (IAsyncDisposable)server;
 
         var (s1, s2) = CreateFullDuplexPair();
 
-        // Build a real Hex1bTerminal whose workload is HMP1 over the duplex pair.
+        // Build an Hmp1WorkloadAdapter explicitly so the test holds a long-lived
+        // reference for assertions, then attach it to a real Hex1bTerminal via
+        // WithWorkload(...). This is the canonical pattern for consumers that
+        // need both the full terminal pipeline and runtime access to the adapter
+        // (matches the established WebMuxerDemo CliViewerCommand pattern).
+        var adapter = new Hmp1WorkloadAdapter(s2, displayName: "layer-b", defaultRole: "viewer");
         var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
-            .WithHmp1Stream(s2, displayName: "layer-b", defaultRole: "viewer")
+            .WithWorkload(adapter)
             .Build();
         await using var terminalDispose = terminal;
 
-        // Connect the producer side concurrently with terminal.RunAsync.
+        // The producer accepts the new client and the adapter completes its
+        // handshake concurrently. Drive both before kicking off RunAsync.
         using var ctsRun = new CancellationTokenSource();
         var addTask = server.AddClient(s1, ctsRun.Token);
-        var runTask = Task.Run(() => terminal.RunAsync(ctsRun.Token));
-
+        await adapter.ConnectAsync(ctsRun.Token).WaitAsync(ShortTimeout);
         var handle = await addTask.WaitAsync(ShortTimeout);
         await using var handleDispose = handle;
 
-        // Wait for the workload adapter's handshake to complete.
-        var hmp1 = await WaitForNonNullAsync(() => terminal.Hmp1, ShortTimeout)
-            ?? throw new Xunit.Sdk.XunitException("terminal.Hmp1 was null after RunAsync started.");
+        var runTask = Task.Run(() => terminal.RunAsync(ctsRun.Token));
 
-        // Hmp1 surface is reachable and reports the connection is healthy.
+        // Adapter surface is reachable and reports the connection is healthy.
         await WaitUntilAsync(
-            () => !string.IsNullOrEmpty(hmp1.PeerId),
+            () => !string.IsNullOrEmpty(adapter.PeerId),
             ShortTimeout,
             () => "Hmp1 peer id never assigned.");
 
-        Assert.False(hmp1.IsPrimary);
-        Assert.Null(hmp1.PrimaryPeerId);
+        Assert.False(adapter.IsPrimary);
+        Assert.Null(adapter.PrimaryPeerId);
 
         // Take primary through the full Hex1bTerminal pipeline and verify it
         // reaches the producer's authoritative state.
-        await hmp1.RequestPrimaryAsync(110, 35);
-        await hmp1.WaitForRoleAsync(primary: true, ShortTimeout, CancellationToken.None);
+        await adapter.RequestPrimaryAsync(110, 35);
+        await adapter.WaitForRoleAsync(primary: true, ShortTimeout, CancellationToken.None);
 
-        Assert.Equal(hmp1.PeerId, server.PrimaryPeerId);
+        Assert.Equal(adapter.PeerId, server.PrimaryPeerId);
         Assert.Equal(110, server.Width);
         Assert.Equal(35, server.Height);
 
@@ -373,21 +376,6 @@ public class Hmp1MultiHeadHarnessTests
     {
         var raw = Environment.GetEnvironmentVariable(name);
         return int.TryParse(raw, out var v) ? v : defaultValue;
-    }
-
-    private static async Task<T?> WaitForNonNullAsync<T>(Func<T?> probe, TimeSpan timeout) where T : class
-    {
-        var sw = Stopwatch.StartNew();
-        while (sw.Elapsed < timeout)
-        {
-            var v = probe();
-            if (v is not null)
-            {
-                return v;
-            }
-            await Task.Delay(10);
-        }
-        return null;
     }
 
     private static async Task WaitUntilAsync(Func<bool> predicate, TimeSpan timeout, Func<string> describeFailure)

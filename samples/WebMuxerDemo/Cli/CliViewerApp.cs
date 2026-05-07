@@ -93,10 +93,12 @@ internal sealed class CliViewerApp
         _ = _embedded.RunAsync(_embeddedCts.Token);
 
         // Re-render the outer app whenever the producer roster or role
-        // changes. Resize-only broadcasts (no role change) silently update
-        // the adapter's RemoteWidth/Height; we catch those at render time
-        // by comparing against _innerWidth/_innerHeight.
+        // changes. Pure-Resize broadcasts (no role change, e.g. the current
+        // primary resized their host) come through RemoteResized — that
+        // event was added so consumers don't have to poll RemoteWidth /
+        // RemoteHeight every render.
         _adapter.RoleChanged += OnRoleChanged;
+        _adapter.RemoteResized += OnRemoteResized;
         _adapter.PeerJoined += OnPeerEvent;
         _adapter.PeerLeft += OnPeerEvent;
 
@@ -116,6 +118,7 @@ internal sealed class CliViewerApp
         finally
         {
             _adapter.RoleChanged -= OnRoleChanged;
+            _adapter.RemoteResized -= OnRemoteResized;
             _adapter.PeerJoined -= OnPeerEvent;
             _adapter.PeerLeft -= OnPeerEvent;
 
@@ -162,6 +165,15 @@ internal sealed class CliViewerApp
         _app?.Invalidate();
     }
 
+    private void OnRemoteResized(object? sender, RemoteResizedEventArgs e)
+    {
+        // Producer's PTY just changed dims (either we requested it as primary
+        // or another peer is driving it). Resize the embedded terminal and
+        // re-render so viewer-fit / doesn't-fit recomputes.
+        EnsureInnerSize(e.Width, e.Height);
+        _app?.Invalidate();
+    }
+
     private void OnPeerEvent(object? sender, EventArgs e)
     {
         // Roster changed; re-render so the InfoBar peer count is fresh.
@@ -184,12 +196,6 @@ internal sealed class CliViewerApp
     private Hex1bWidget Render<TParent>(WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
     {
-        // Catch silent producer-resize broadcasts that happen without an
-        // accompanying RoleChange (e.g. the current primary resized their
-        // host TTY). Cheap O(1) compare; resize is a no-op when sizes
-        // already match.
-        EnsureInnerSize(_adapter.RemoteWidth, _adapter.RemoteHeight);
-
         // Available widget space ~= host TTY minus the InfoBar (1 row).
         // Console.WindowWidth / WindowHeight reflect the live host TTY
         // size including SIGWINCH; the outer Hex1bTerminal is bound to

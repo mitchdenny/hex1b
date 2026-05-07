@@ -151,6 +151,19 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
     public event Action? Disconnected;
 
     /// <summary>
+    /// Raised once after the HMP v1 handshake completes successfully
+    /// (ClientHello → Hello → StateSync). The arguments carry the
+    /// server-assigned peer ID, current primary, initial peer roster,
+    /// and the producer's PTY dimensions.
+    /// </summary>
+    /// <remarks>
+    /// Fires synchronously from inside <see cref="ConnectAsync"/> after
+    /// the read pump has been started but before <see cref="ConnectAsync"/>
+    /// returns to its caller. Handlers run on the connecting thread.
+    /// </remarks>
+    public event EventHandler<Hmp1ConnectedEventArgs>? Connected;
+
+    /// <summary>
     /// Raised when the primary peer changes (including to <see langword="null"/>
     /// after the previous primary disconnects).
     /// </summary>
@@ -165,6 +178,22 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
     /// Raised when another peer leaves.
     /// </summary>
     public event EventHandler<PeerLeaveEventArgs>? PeerLeft;
+
+    /// <summary>
+    /// Raised when the producer's PTY dimensions change at runtime —
+    /// either because this client (as primary) requested a new size,
+    /// or because another peer became primary and broadcast different
+    /// dims. Useful for picking fit / doesn't-fit overlays in viewer
+    /// UIs without polling <see cref="CurrentWidth"/> / <see cref="CurrentHeight"/>
+    /// from a render loop.
+    /// </summary>
+    /// <remarks>
+    /// Does NOT fire for the initial dims learned from the Hello frame
+    /// — those are surfaced via <see cref="Connected"/> instead. Fires
+    /// only when a Resize or RoleChange frame actually changes the
+    /// previously-known dims.
+    /// </remarks>
+    public event EventHandler<RemoteResizedEventArgs>? RemoteResized;
 
     /// <summary>
     /// Connects to the server, sends ClientHello, reads Hello and StateSync,
@@ -227,6 +256,28 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
         // owned by DisposeAsync (and DisposeAsync alone) via _readCts.
         _readCts = new CancellationTokenSource();
         _readTask = Task.Run(() => ReadPumpAsync(_readCts.Token));
+
+        // Snapshot connected-state under the lock, raise the event without
+        // holding it. Handlers run synchronously on the connecting thread.
+        Hmp1ConnectedEventArgs? connectedArgs = null;
+        if (Connected is { } connectedHandler)
+        {
+            string peerId;
+            string? primaryPeerId;
+            int width;
+            int height;
+            PeerInfo[] peers;
+            lock (_stateLock)
+            {
+                peerId = _peerId;
+                primaryPeerId = _primaryPeerId;
+                width = _currentWidth;
+                height = _currentHeight;
+                peers = [.. _peers];
+            }
+            connectedArgs = new Hmp1ConnectedEventArgs(peerId, primaryPeerId, peers, width, height);
+            connectedHandler(this, connectedArgs);
+        }
     }
 
     /// <inheritdoc />
@@ -417,10 +468,18 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
                     case Hmp1FrameType.Resize:
                         var (width, height) = Hmp1Protocol.ParseResize(frame.Payload);
+                        bool resizeChanged;
+                        bool resizeIsPrimary;
                         lock (_stateLock)
                         {
+                            resizeChanged = _currentWidth != width || _currentHeight != height;
                             _currentWidth = width;
                             _currentHeight = height;
+                            resizeIsPrimary = _primaryPeerId != null && _primaryPeerId == _peerId;
+                        }
+                        if (resizeChanged)
+                        {
+                            RemoteResized?.Invoke(this, new RemoteResizedEventArgs(width, height, resizeIsPrimary));
                         }
                         break;
 
@@ -459,15 +518,21 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter
         var p = Hmp1Protocol.ParseRoleChange(payload);
         bool nowPrimary;
         bool previouslyPrimary;
+        bool dimsChanged;
         lock (_stateLock)
         {
             previouslyPrimary = _primaryPeerId != null && _primaryPeerId == _peerId;
             _primaryPeerId = p.PrimaryPeerId;
+            dimsChanged = _currentWidth != p.Width || _currentHeight != p.Height;
             _currentWidth = p.Width;
             _currentHeight = p.Height;
             nowPrimary = _primaryPeerId != null && _primaryPeerId == _peerId;
         }
         RoleChanged?.Invoke(this, new RoleChangedEventArgs(p.PrimaryPeerId, p.Width, p.Height, p.Reason, previouslyPrimary, nowPrimary));
+        if (dimsChanged)
+        {
+            RemoteResized?.Invoke(this, new RemoteResizedEventArgs(p.Width, p.Height, nowPrimary));
+        }
     }
 
     private void HandlePeerJoin(ReadOnlyMemory<byte> payload)
@@ -594,4 +659,63 @@ public sealed class PeerLeaveEventArgs : EventArgs
 
     /// <summary>Peer ID of the leaving peer.</summary>
     public string PeerId { get; }
+}
+
+/// <summary>
+/// Arguments for the <see cref="Hmp1WorkloadAdapter.Connected"/> event.
+/// Carries the state assembled from the Hello and StateSync handshake frames.
+/// </summary>
+public sealed class Hmp1ConnectedEventArgs : EventArgs
+{
+    internal Hmp1ConnectedEventArgs(string peerId, string? primaryPeerId, IReadOnlyList<PeerInfo> peers, int width, int height)
+    {
+        PeerId = peerId;
+        PrimaryPeerId = primaryPeerId;
+        Peers = peers;
+        Width = width;
+        Height = height;
+    }
+
+    /// <summary>Peer ID assigned by the server.</summary>
+    public string PeerId { get; }
+
+    /// <summary>Peer ID of the current primary, or <see langword="null"/> when no peer is primary.</summary>
+    public string? PrimaryPeerId { get; }
+
+    /// <summary>Snapshot of the peer roster at handshake time (excluding self).</summary>
+    public IReadOnlyList<PeerInfo> Peers { get; }
+
+    /// <summary>Producer PTY width reported in the Hello frame.</summary>
+    public int Width { get; }
+
+    /// <summary>Producer PTY height reported in the Hello frame.</summary>
+    public int Height { get; }
+}
+
+/// <summary>
+/// Arguments for the <see cref="Hmp1WorkloadAdapter.RemoteResized"/> event.
+/// </summary>
+public sealed class RemoteResizedEventArgs : EventArgs
+{
+    internal RemoteResizedEventArgs(int width, int height, bool causedByLocalPrimary)
+    {
+        Width = width;
+        Height = height;
+        CausedByLocalPrimary = causedByLocalPrimary;
+    }
+
+    /// <summary>The new producer PTY width.</summary>
+    public int Width { get; }
+
+    /// <summary>The new producer PTY height.</summary>
+    public int Height { get; }
+
+    /// <summary>
+    /// <see langword="true"/> when the receiving adapter was primary at the
+    /// moment the resize took effect (typically meaning this client caused
+    /// the resize via <see cref="Hmp1WorkloadAdapter.RequestPrimaryAsync"/>
+    /// or <see cref="Hmp1WorkloadAdapter.ResizeAsync"/>); <see langword="false"/>
+    /// when another peer caused it.
+    /// </summary>
+    public bool CausedByLocalPrimary { get; }
 }
