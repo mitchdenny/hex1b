@@ -1,3 +1,4 @@
+using System.Net.Sockets;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Theming;
@@ -25,6 +26,18 @@ namespace WebMuxerDemo.Cli;
 /// (Ctrl+B), to avoid clashing with normal input forwarded to the embedded
 /// terminal in primary mode.
 /// </summary>
+/// <remarks>
+/// This class is the textbook "easy path" consumer of Hex1b's HMP1
+/// builder extensions: it never types <c>Hmp1WorkloadAdapter</c>. The
+/// embedded terminal is constructed via
+/// <see cref="Hmp1BuilderExtensions.WithHmp1Client(Hex1bTerminalBuilder, Action{Hmp1ClientOptions})"/>
+/// and the <see cref="IHmp1ConnectionHandle"/> is captured in the
+/// <see cref="Hmp1ClientOptions.OnConnected"/> callback. Every runtime
+/// query and event subscription goes through the handle. Compare with
+/// the advanced two-step pattern in <c>MuxerDemo.SessionManager</c>,
+/// which constructs the adapter directly because it needs the
+/// producer's reported dimensions before <c>Build()</c>.
+/// </remarks>
 internal sealed class CliViewerApp
 {
     // Panel background colour matching the WebMuxerDemo browser UI's
@@ -41,13 +54,31 @@ internal sealed class CliViewerApp
     // blank cell, making the terminal indistinguishable from its frame.
     private static readonly Hex1bColor TerminalBackground = Hex1bColor.FromRgb(0x0d, 0x11, 0x17);
 
-    private readonly IHmp1ConnectionHandle _connection;
-    private readonly IHex1bTerminalWorkloadAdapter _workload;
+    private readonly string _socketPath;
     private readonly string _sessionName;
+    private readonly string? _displayName;
+
+    // Captured in OnConnected once the HMP1 handshake completes. Until
+    // then the app renders a "Connecting…" placeholder. Subsequent
+    // events / hotkey actions guard on null too, so a mid-session
+    // disconnect doesn't NRE.
+    private IHmp1ConnectionHandle? _connection;
+
     private Hex1bApp? _app;
     private Hex1bTerminal? _embedded;
     private TerminalWidgetHandle? _handle;
     private CancellationTokenSource? _embeddedCts;
+
+    // Cancels the outer Hex1bApp when the embedded HMP1 transport
+    // closes (clean disconnect or fault). Without this the outer app
+    // would sit in its read loop until the user hits Ctrl+B D.
+    private CancellationTokenSource? _outerCts;
+
+    // Captured if the embedded terminal's RunAsync faults during
+    // handshake (typical: connection refused, handshake timeout). We
+    // surface it from RunAsync so CliViewerCommand can print a clean
+    // error message instead of leaving the exception unobserved.
+    private Exception? _embeddedFault;
 
     // Locally-tracked inner terminal dimensions. Hex1bTerminal doesn't
     // expose its current grid size, so we track it here. Updated whenever
@@ -69,56 +100,66 @@ internal sealed class CliViewerApp
     // current call completes if the target moved while we were waiting.
     private int _resizeInFlight; // 0 = idle, 1 = a request is in flight
 
-    /// <summary>
-    /// Constructs the viewer app from the two HMP1 surfaces it needs:
-    /// an <see cref="IHmp1ConnectionHandle"/> for runtime queries +
-    /// events + <c>RequestPrimaryAsync</c>, and an
-    /// <see cref="IHex1bTerminalWorkloadAdapter"/> to feed
-    /// <c>WithWorkload</c> when constructing the inner embedded
-    /// terminal. Today both are satisfied by the same
-    /// <see cref="Hmp1WorkloadAdapter"/> instance — the caller passes it
-    /// twice. The split keeps the consumer code honest about which
-    /// surface it's reaching for: every call site here goes through
-    /// <c>_connection</c> except the single <c>WithWorkload</c> hop.
-    /// </summary>
-    public CliViewerApp(
-        IHmp1ConnectionHandle connection,
-        IHex1bTerminalWorkloadAdapter workload,
-        string sessionName)
+    public CliViewerApp(string socketPath, string sessionName, string? displayName)
     {
-        _connection = connection;
-        _workload = workload;
+        _socketPath = socketPath;
         _sessionName = sessionName;
+        _displayName = displayName;
     }
 
     public async Task RunAsync()
     {
-        // Build the embedded inner terminal that consumes the HMP1 byte
-        // stream. Initial size = producer's current dims at handshake.
-        _innerWidth = Math.Max(1, _connection.RemoteWidth);
-        _innerHeight = Math.Max(1, _connection.RemoteHeight);
-
+        // Embedded inner terminal that consumes the HMP1 byte stream.
+        // We use the easy-path WithHmp1Client builder extension; the
+        // workload adapter is constructed internally and wired up to
+        // the terminal's pump. Initial dimensions are an arbitrary
+        // opener (80x24) — the embedded terminal supports dynamic
+        // Resize() at runtime, so OnConnected snaps it to the
+        // producer's actual grid the moment the handshake completes.
         _embedded = Hex1bTerminal.CreateBuilder()
-            .WithDimensions(_innerWidth, _innerHeight)
-            .WithWorkload(_workload)
+            .WithDimensions(80, 24)
+            .WithHmp1UdsClient(_socketPath, opts =>
+            {
+                opts.DisplayName = _displayName ?? "webmux-cli";
+                opts.DefaultRole = Hmp1Role.Secondary;
+
+                opts.OnConnected = e =>
+                {
+                    _connection = e.Connection;
+                    EnsureInnerSize(e.Width, e.Height);
+                    _app?.Invalidate();
+                };
+                opts.OnRoleChanged = OnRoleChanged;
+                opts.OnRemoteResized = OnRemoteResized;
+                opts.OnPeerJoined = _ => _app?.Invalidate();
+                opts.OnPeerLeft = _ => _app?.Invalidate();
+                opts.OnDisconnected = OnDisconnected;
+            })
             .WithScrollback()
             .WithTerminalWidget(out var handle)
             .Build();
         _handle = handle;
 
         _embeddedCts = new CancellationTokenSource();
-        _ = _embedded.RunAsync(_embeddedCts.Token);
+        var embeddedTask = _embedded.RunAsync(_embeddedCts.Token);
 
-        // Re-render the outer app whenever the producer roster or role
-        // changes. Pure-Resize broadcasts (no role change, e.g. the current
-        // primary resized their host) come through RemoteResized — that
-        // event was added so consumers don't have to poll RemoteWidth /
-        // RemoteHeight every render.
-        _connection.RoleChanged += OnRoleChanged;
-        _connection.RemoteResized += OnRemoteResized;
-        _connection.PeerJoined += OnPeerEvent;
-        _connection.PeerLeft += OnPeerEvent;
+        // Observe the embedded terminal for faults so handshake failures
+        // (socket connect refused, ClientHello write failure, malformed
+        // server Hello) cancel the outer app and bubble out via
+        // _embeddedFault rather than disappearing as an unobserved task
+        // exception. Without this observer, a connection failure would
+        // strand the user inside the alt-screen TUI with no producer
+        // bytes ever arriving.
+        _ = embeddedTask.ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+            {
+                _embeddedFault = t.Exception?.GetBaseException();
+            }
+            _outerCts?.Cancel();
+        }, TaskScheduler.Default);
 
+        _outerCts = new CancellationTokenSource();
         try
         {
             await using var outer = Hex1bTerminal.CreateBuilder()
@@ -130,15 +171,19 @@ internal sealed class CliViewerApp
                 })
                 .Build();
 
-            await outer.RunAsync();
+            try
+            {
+                await outer.RunAsync(_outerCts.Token);
+            }
+            catch (OperationCanceledException) when (_outerCts.IsCancellationRequested)
+            {
+                // Triggered by the embedded-task observer when the
+                // workload disconnects or faults. Swallow here; the
+                // post-finally rethrow surfaces _embeddedFault if any.
+            }
         }
         finally
         {
-            _connection.RoleChanged -= OnRoleChanged;
-            _connection.RemoteResized -= OnRemoteResized;
-            _connection.PeerJoined -= OnPeerEvent;
-            _connection.PeerLeft -= OnPeerEvent;
-
             try
             {
                 if (_embeddedCts is not null)
@@ -149,8 +194,6 @@ internal sealed class CliViewerApp
             }
             catch { }
 
-            // Bound the embedded terminal teardown so a stuck adapter read
-            // pump can't keep the process alive forever after detach.
             try
             {
                 if (_embedded is not null)
@@ -161,10 +204,22 @@ internal sealed class CliViewerApp
                 }
             }
             catch { }
+
+            _outerCts?.Dispose();
+        }
+
+        // Surface a handshake / transport failure so the caller can
+        // translate it into a clean stderr message after the alt
+        // screen has been restored. SocketException, IOException, and
+        // OperationCanceledException are the typical shapes here; the
+        // top-level CliViewerCommand catches each.
+        if (_embeddedFault is not null)
+        {
+            throw _embeddedFault;
         }
     }
 
-    private void OnRoleChanged(object? sender, RoleChangedEventArgs e)
+    private void OnRoleChanged(RoleChangedEventArgs e)
     {
         // RoleChange always carries the current dims. Resize the inner
         // terminal to match; this is the cleanest signal we get for
@@ -173,7 +228,7 @@ internal sealed class CliViewerApp
 
         // If we no longer hold the primary role, drop the broadcast tracker
         // so a future re-take starts from scratch and immediately resyncs.
-        if (!_connection.IsPrimary)
+        if (_connection is { IsPrimary: false })
         {
             _lastBroadcastWidth = -1;
             _lastBroadcastHeight = -1;
@@ -182,7 +237,7 @@ internal sealed class CliViewerApp
         _app?.Invalidate();
     }
 
-    private void OnRemoteResized(object? sender, RemoteResizedEventArgs e)
+    private void OnRemoteResized(RemoteResizedEventArgs e)
     {
         // Producer's PTY just changed dims (either we requested it as primary
         // or another peer is driving it). Resize the embedded terminal and
@@ -191,10 +246,12 @@ internal sealed class CliViewerApp
         _app?.Invalidate();
     }
 
-    private void OnPeerEvent(object? sender, EventArgs e)
+    private void OnDisconnected()
     {
-        // Roster changed; re-render so the InfoBar peer count is fresh.
-        _app?.Invalidate();
+        // Producer hung up. Cancel the outer app so RunAsync returns
+        // cleanly; without this the user would have to hit Ctrl+B D
+        // even though there's nothing left to view.
+        _outerCts?.Cancel();
     }
 
     private void EnsureInnerSize(int width, int height)
@@ -213,6 +270,16 @@ internal sealed class CliViewerApp
     private Hex1bWidget Render<TParent>(WidgetContext<TParent> ctx)
         where TParent : Hex1bWidget
     {
+        // Until the handshake completes we have no dims and no role to
+        // render. Show a placeholder; OnConnected calls Invalidate to
+        // re-trigger this method as soon as the connection lands.
+        if (_connection is not { } connection)
+        {
+            return new BackgroundPanelWidget(
+                PanelColor,
+                ctx.Center(ctx.Text($"  Connecting to {_sessionName}…  ")).Fill());
+        }
+
         // Available widget space ~= host TTY minus the InfoBar (1 row).
         // Console.WindowWidth / WindowHeight reflect the live host TTY
         // size including SIGWINCH; the outer Hex1bTerminal is bound to
@@ -220,10 +287,10 @@ internal sealed class CliViewerApp
         var availW = Math.Max(1, Console.WindowWidth);
         var availH = Math.Max(1, Console.WindowHeight - 1);
 
-        var producerW = _connection.RemoteWidth;
-        var producerH = _connection.RemoteHeight;
+        var producerW = connection.RemoteWidth;
+        var producerH = connection.RemoteHeight;
 
-        var isPrimary = _connection.IsPrimary;
+        var isPrimary = connection.IsPrimary;
         var fits = producerW <= availW && producerH <= availH;
         var showTerminal = isPrimary || fits;
 
@@ -234,14 +301,14 @@ internal sealed class CliViewerApp
         // the terminal sits with empty padding around it forever.
         if (isPrimary && (availW != _lastBroadcastWidth || availH != _lastBroadcastHeight))
         {
-            BroadcastResize(availW, availH);
+            BroadcastResize(connection, availW, availH);
         }
 
         Hex1bWidget body = showTerminal
             ? BuildTerminalView(ctx)
             : BuildDoesntFitView(ctx, producerW, producerH, availW, availH);
 
-        var info = BuildInfoBar(ctx, isPrimary, producerW, producerH, availW, availH);
+        var info = BuildInfoBar(ctx, connection, isPrimary, producerW, producerH, availW, availH);
 
         // Wrap the body+infobar in a BackgroundPanelWidget so the framing
         // area around a smaller producer grid fills with the panel colour
@@ -262,7 +329,7 @@ internal sealed class CliViewerApp
             {
                 bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.T)
                     .OverridesCapture()
-                    .Action(async _ => await TakeControlAsync(availW, availH),
+                    .Action(async _ => await TakeControlAsync(connection, availW, availH),
                         "Take Control");
             }
         });
@@ -321,13 +388,14 @@ internal sealed class CliViewerApp
 
     private Hex1bWidget BuildInfoBar<TParent>(
         WidgetContext<TParent> ctx,
+        IHmp1ConnectionHandle connection,
         bool isPrimary,
         int producerW, int producerH,
         int availW, int availH)
         where TParent : Hex1bWidget
     {
         var role = isPrimary ? "PRIMARY" : "viewer";
-        var peers = _connection.Peers.Count + 1;
+        var peers = connection.Peers.Count + 1;
         var dims = $"{producerW}\u00d7{producerH}";
         var session = _sessionName;
 
@@ -346,7 +414,7 @@ internal sealed class CliViewerApp
         ]).Divider(" ");
     }
 
-    private async Task TakeControlAsync(int availW, int availH)
+    private async Task TakeControlAsync(IHmp1ConnectionHandle connection, int availW, int availH)
     {
         try
         {
@@ -354,7 +422,7 @@ internal sealed class CliViewerApp
             // (host TTY minus InfoBar). Producer broadcasts RoleChange +
             // implicit Resize; our RoleChanged handler updates the inner
             // terminal grid + invalidates the app.
-            await _connection.RequestPrimaryAsync(availW, availH, CancellationToken.None);
+            await connection.RequestPrimaryAsync(availW, availH, CancellationToken.None);
 
             // Seed the SIGWINCH tracker so the render-time host-resize
             // poll doesn't immediately re-broadcast the dims we just set.
@@ -369,7 +437,7 @@ internal sealed class CliViewerApp
         }
     }
 
-    private void BroadcastResize(int width, int height)
+    private void BroadcastResize(IHmp1ConnectionHandle connection, int width, int height)
     {
         // Record the target dims up-front so we don't loop on the next
         // Render(): if multiple SIGWINCH events fire while a request is in
@@ -390,7 +458,7 @@ internal sealed class CliViewerApp
         {
             try
             {
-                await _connection.RequestPrimaryAsync(width, height, CancellationToken.None);
+                await connection.RequestPrimaryAsync(width, height, CancellationToken.None);
             }
             catch
             {

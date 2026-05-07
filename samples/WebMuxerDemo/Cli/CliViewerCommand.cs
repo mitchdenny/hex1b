@@ -1,13 +1,16 @@
 using System.Net.Sockets;
-using Hex1b;
 
 namespace WebMuxerDemo.Cli;
 
 /// <summary>
-/// Entry point for the <c>webmuxerdemo connect</c> subcommand.
-/// Parses args, opens a UDS connection to the well-known session socket,
-/// builds the outer (host TTY) and inner (embedded HMP1-driven) Hex1b
-/// terminals, and runs the viewer app.
+/// Entry point for the <c>webmuxerdemo connect</c> subcommand. Parses
+/// args, lists discoverable sessions on no <c>--session</c>, verifies
+/// the target socket file exists, and runs the viewer app. The HMP1
+/// handshake itself is owned by <see cref="CliViewerApp"/> via the
+/// easy-path <c>WithHmp1Client</c> builder extension; this command
+/// merely catches the typical transport-failure exception shapes that
+/// can escape <see cref="CliViewerApp.RunAsync"/> and translates them
+/// into clean stderr messages.
 /// </summary>
 internal static class CliViewerCommand
 {
@@ -52,59 +55,31 @@ internal static class CliViewerCommand
             return 1;
         }
 
-        Hmp1WorkloadAdapter? adapter = null;
-        Stream? stream = null;
+        var app = new CliViewerApp(socketPath, sessionName, displayName);
         try
         {
-            stream = await Hmp1Transports.ConnectUnixSocket(socketPath, CancellationToken.None);
-            adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
-            {
-                StreamFactory = _ => Task.FromResult(stream),
-                DisplayName = displayName ?? "webmux-cli",
-                DefaultRole = Hmp1Role.Secondary,
-            });
-
-            // Connect handshake: this awaits the server Hello which carries
-            // PeerId, PrimaryPeerId, current dims, and the existing roster.
-            // We fail fast if the producer doesn't reply within 5s — better
-            // than hanging forever on a wedged socket.
-            using (var handshakeCts = new CancellationTokenSource(TimeSpan.FromSeconds(5)))
-            {
-                await adapter.ConnectAsync(handshakeCts.Token);
-            }
+            await app.RunAsync();
         }
         catch (SocketException ex)
         {
+            // Typical when the producer is gone but the socket file
+            // still exists — e.g. webmuxerdemo serve crashed without
+            // unlinking, or someone deleted just the inode.
             Console.Error.WriteLine($"Failed to connect to '{sessionName}': {ex.Message}");
-            try { await (adapter?.DisposeAsync() ?? ValueTask.CompletedTask); } catch { }
-            try { stream?.Dispose(); } catch { }
+            return 1;
+        }
+        catch (IOException ex)
+        {
+            // Catches read/write errors from the underlying NetworkStream
+            // (e.g. EPIPE if the producer hangs up mid-handshake).
+            Console.Error.WriteLine($"Connection error on '{sessionName}': {ex.Message}");
             return 1;
         }
         catch (OperationCanceledException)
         {
-            Console.Error.WriteLine($"Timed out waiting for session '{sessionName}' to handshake.");
-            try { await (adapter?.DisposeAsync() ?? ValueTask.CompletedTask); } catch { }
-            try { stream?.Dispose(); } catch { }
+            // Surfaces if the host caller cancels mid-handshake.
+            Console.Error.WriteLine($"Connection to '{sessionName}' was cancelled.");
             return 1;
-        }
-
-        try
-        {
-            var app = new CliViewerApp(adapter, adapter, sessionName);
-            await app.RunAsync();
-        }
-        finally
-        {
-            // Bound the adapter teardown for the same reason we bound the
-            // embedded terminal teardown — the read pump can outlive a
-            // graceful Dispose if the producer is still pumping output.
-            try
-            {
-                var disposeTask = adapter.DisposeAsync().AsTask();
-                var timeout = Task.Delay(TimeSpan.FromSeconds(2));
-                await Task.WhenAny(disposeTask, timeout);
-            }
-            catch { }
         }
 
         return 0;
