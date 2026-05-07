@@ -168,7 +168,7 @@ public class RescueExample(ILogger<RescueExample> logger) : Hex1bExample
                     inner.Text("════════════════════════════════════════"),
                     inner.Text(""),
                     inner.Text("This demonstrates a custom fallback UI."),
-                    inner.Text("Use WithFallback() to provide your own"),
+                    inner.Text("Use Fallback() to provide your own"),
                     inner.Text("error display instead of the default."),
                     inner.Text(""),
                     inner.Text("The RescueContext gives you:"),

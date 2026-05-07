@@ -146,7 +146,7 @@ OSC 8 supports optional parameters for advanced link behavior:
 
 ### Grouping Links with IDs
 
-Use `WithId` to group multiple hyperlink segments as a single logical link. This is useful when a link spans multiple lines or elements:
+Use `Id` to group multiple hyperlink segments as a single logical link. This is useful when a link spans multiple lines or elements:
 
 <StaticTerminalPreview svgPath="/svg/hyperlink-with-id.svg" :code="withIdSnippet" />
 
@@ -154,12 +154,12 @@ When grouped, terminals highlight all segments together on hover.
 
 ### Custom Parameters
 
-Use `WithParameters` for arbitrary OSC 8 parameters:
+Use `Parameters` for arbitrary OSC 8 parameters:
 
 <StaticTerminalPreview svgPath="/svg/hyperlink-truncate.svg" :code="paramsSnippet" />
 
 ::: tip
-In practice, only the `id` parameter is routinely used. For link grouping, prefer the `WithId` method shown above—it's more readable and type-safe.
+In practice, only the `id` parameter is routinely used. For link grouping, prefer the `Id` method shown above—it's more readable and type-safe.
 :::
 
 ## Default Bindings

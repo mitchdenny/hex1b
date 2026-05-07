@@ -38,7 +38,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.Rescue(v => [
         v.Text("Custom Fallback Demo"),
         v.Text(""),
-        v.Text("This uses WithFallback() to provide"),
+        v.Text("This uses Fallback() to provide"),
         v.Text("a custom error UI instead of the default."),
         v.Text(""),
         v.Button("Trigger Error").OnClick(_ => {
@@ -207,7 +207,7 @@ Both handlers support async versions:
 
 ## Custom Fallback UI
 
-### WithFallback
+### Fallback
 
 Override the default fallback with your own UI using `RescueContext`:
 
@@ -215,7 +215,7 @@ Override the default fallback with your own UI using `RescueContext`:
 
 ### RescueContext
 
-The `RescueContext` passed to `WithFallback` extends `WidgetContext<VStackWidget>` and provides:
+The `RescueContext` passed to `Fallback` extends `WidgetContext<VStackWidget>` and provides:
 
 | Property/Method | Type | Description |
 |-----------------|------|-------------|

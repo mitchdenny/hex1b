@@ -220,7 +220,7 @@ Zoom is internally clamped to the range **-4 to 8**.
 
 ## Points of Interest
 
-Overlay clickable markers on the tile map using `WithPointsOfInterest`:
+Overlay clickable markers on the tile map using `PointsOfInterest`:
 
 ```csharp
 var pois = new List<TilePointOfInterest>
