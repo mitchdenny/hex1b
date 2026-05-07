@@ -28,6 +28,24 @@ internal sealed class SessionHost : IAsyncDisposable
 
     public static SessionHost Start(string name, string socketPath, string shell, IReadOnlyList<string>? args = null)
     {
+        // Belt-and-braces: switching from a randomized temp dir to a
+        // well-known dir means a previous serve that crashed mid-run can
+        // leave a stale .sock file. Hmp1Transports.ListenUnixSocket
+        // already unlinks before bind, but doing it explicitly here
+        // makes the lifecycle more obvious.
+        try
+        {
+            if (File.Exists(socketPath))
+            {
+                File.Delete(socketPath);
+            }
+        }
+        catch
+        {
+            // Best effort. If we genuinely can't delete (perms), bind will
+            // fail with a clear error and the serve aborts.
+        }
+
         var terminal = Hex1bTerminal.CreateBuilder()
             .WithPtyProcess(options =>
             {
