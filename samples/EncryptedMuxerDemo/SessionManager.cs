@@ -20,7 +20,7 @@ internal sealed class SessionManager
         Directory.CreateDirectory(sessionDir);
     }
 
-    public Hmp1WorkloadAdapter? Adapter { get; private set; }
+    public IHmp1ConnectionHandle? Connection { get; private set; }
     public Hex1bTerminal? EmbeddedTerminal { get; private set; }
     public TerminalWidgetHandle? Handle { get; private set; }
     public string? ConnectedSessionName { get; private set; }
@@ -115,19 +115,28 @@ internal sealed class SessionManager
         {
             await DisconnectAsync();
 
-            // Connect the raw socket; let the adapter apply the TLS wrap as a stream transform.
-            Adapter = new Hmp1WorkloadAdapter(new Hmp1ClientOptions
-            {
-                StreamFactory   = ct => Hmp1Transports.ConnectUnixSocket(session.SocketPath, ct),
-                StreamTransform = DemoTls.AuthenticateAsClientAsync,
-            });
-            await Adapter.ConnectAsync(CancellationToken.None);
-
             _embeddedCts = new CancellationTokenSource();
 
+            // Easy-path HMP1 client. The TLS wrap is applied via
+            // opts.StreamTransform; the connection handle is captured in
+            // OnConnected and exposed through the Connection property for
+            // the surrounding UI to read producer dims / role / peers.
+            // Initial dims are an arbitrary 80x24 opener -- OnConnected
+            // snaps the embedded terminal to the producer's actual grid
+            // the moment the handshake completes (Hex1bTerminal supports
+            // dynamic Resize at runtime).
             EmbeddedTerminal = Hex1bTerminal.CreateBuilder()
-                .WithDimensions(Adapter.RemoteWidth, Adapter.RemoteHeight)
-                .WithWorkload(Adapter)
+                .WithDimensions(80, 24)
+                .WithHmp1UdsClient(session.SocketPath, opts =>
+                {
+                    opts.StreamTransform = DemoTls.AuthenticateAsClientAsync;
+                    opts.OnConnected = (e, _) =>
+                    {
+                        Connection = e.Connection;
+                        EmbeddedTerminal?.Resize(Math.Max(1, e.Width), Math.Max(1, e.Height));
+                        return ValueTask.CompletedTask;
+                    };
+                })
                 .WithScrollback()
                 .WithTerminalWidget(out var handle)
                 .Build();
@@ -157,13 +166,13 @@ internal sealed class SessionManager
         {
             try { File.Delete(session.SocketPath); } catch { }
             StatusMessage = $"Session '{session.Name}' is no longer available (cleaned up).";
-            Adapter = null;
+            Connection = null;
             onStateChanged?.Invoke();
         }
         catch (Exception ex)
         {
             StatusMessage = $"Failed to connect: {ex.Message}";
-            Adapter = null;
+            Connection = null;
             onStateChanged?.Invoke();
         }
     }
@@ -194,18 +203,17 @@ internal sealed class SessionManager
             _embeddedCts = null;
         }
 
+        // EmbeddedTerminal owns the underlying HMP1 workload adapter
+        // (created internally by WithHmp1UdsClient); disposing it tears
+        // down the connection. The Connection handle becomes inert and
+        // is dropped here.
         if (EmbeddedTerminal is not null)
         {
             await EmbeddedTerminal.DisposeAsync();
             EmbeddedTerminal = null;
         }
 
-        if (Adapter is not null)
-        {
-            await Adapter.DisposeAsync();
-            Adapter = null;
-        }
-
+        Connection = null;
         Handle = null;
         ConnectedSessionName = null;
         ConnectedSocketPath = null;

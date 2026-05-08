@@ -101,8 +101,8 @@ internal sealed class SessionManagerApp
     private Hex1bWidget BuildTerminalView<TParent>(WidgetContext<TParent> ctx, TerminalWidgetHandle handle)
         where TParent : Hex1bWidget
     {
-        var dims = _sessions.Adapter is not null
-            ? $"{_sessions.Adapter.RemoteWidth}\u00d7{_sessions.Adapter.RemoteHeight}"
+        var dims = _sessions.Connection is { } connection
+            ? $"{connection.RemoteWidth}\u00d7{connection.RemoteHeight}"
             : "";
 
         return ctx.VStack(v =>
