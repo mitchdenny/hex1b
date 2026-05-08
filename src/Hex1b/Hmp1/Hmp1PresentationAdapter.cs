@@ -215,7 +215,18 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                 var ansi = snap.ToAnsi(new TerminalAnsiOptions
                 {
                     IncludeClearScreen = true,
-                    IncludeTrailingNewline = true
+                    // Critical: the default IncludeTrailingNewline=true is for
+                    // FILE output (the caller wants a clean POSIX line termination
+                    // at EOF). For a network state-replay it is actively
+                    // harmful — IncludeCursorPosition has just emitted CSI to
+                    // park the cursor at the workload's actual (col, row) and
+                    // a trailing \n would then push it down one row. PSReadLine
+                    // and any other readline-style consumer would type the next
+                    // byte into the wrong row, then refresh and clobber its own
+                    // ghost text on next redraw. (Repro: PowerShell autocomplete
+                    // ghosting on every fresh viewer connect or RoleChange-driven
+                    // re-StateSync.)
+                    IncludeTrailingNewline = false,
                 });
                 var suffix = BuildStateReplaySuffix(snap);
                 syncBytes = Encoding.UTF8.GetBytes(prefix + ansi + suffix);
