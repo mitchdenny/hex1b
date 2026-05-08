@@ -90,6 +90,52 @@ Spectre.Tui's output to land on the main scroll-back instead of the
 alternate screen — handy for embedding inside scripted automation or
 recording mixed inline + TUI sessions.
 
+## Driving Spectre with Hex1b's automator
+
+Because the bridge feeds Spectre's input reader from Hex1b's input
+channel, anything that pushes events into that channel — including
+`Hex1bTerminalAutomator` — can drive a Spectre app the same way it
+drives a Hex1bApp. That makes the integration a viable target for the
+existing automation/test harness without any extra plumbing.
+
+The included `samples/SpectreConsoleDemo` ships in two modes:
+
+```bash
+# Interactive: a looping menu that walks through ten Spectre.Console
+# controls — markup, tables, trees, calendar, charts, status spinner,
+# live display, progress, prompts. Use the arrow keys + Enter to
+# navigate.
+dotnet run --project samples/SpectreConsoleDemo
+
+# Self-driving: the same demo, but a background Hex1bTerminalAutomator
+# walks every menu entry, types answers into the prompts, and selects
+# Quit at the end. Output is captured to spectre-console-demo.cast in
+# the build output directory. Headless terminal, deterministic timing.
+dotnet run --project samples/SpectreConsoleDemo -- --auto
+```
+
+In `--auto` mode the program builds the terminal with `WithHeadless()`
+and then spins up the automator on a background task in parallel with
+`terminal.RunAsync()`:
+
+```csharp
+var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromSeconds(20));
+await auto.WaitUntilTextAsync("Pick a demo");
+
+// Walk the SelectionPrompt — Down N times then Enter selects the Nth item.
+for (var d = 0; d < itemIndex; d++) await auto.DownAsync();
+await auto.EnterAsync();
+
+// For the Prompts demo, type into Ask/Confirm/MultiSelectionPrompt directly.
+await auto.WaitUntilTextAsync("name");
+await auto.TypeAsync("Hex1b");
+await auto.EnterAsync();
+```
+
+That's the same pattern Hex1b's own widget tests use — proof that the
+bridge is a first-class workload as far as the rest of Hex1b is
+concerned.
+
 ## What's not bridged
 
 - **Mouse input.** Neither Spectre.Console nor Spectre.Tui have a mouse
