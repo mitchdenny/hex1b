@@ -74,7 +74,7 @@ public interface IHmp1ConnectionHandle
     /// runtime (multicast handlers are awaited sequentially with
     /// per-handler exception isolation).
     /// </summary>
-    Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
+    Func<Hmp1ConnectedEventArgs, CancellationToken, Task>? OnConnected { get; set; }
 
     /// <summary>
     /// Invoked when the primary peer changes.
@@ -87,7 +87,7 @@ public interface IHmp1ConnectionHandle
     /// (<c>await connection.DisposeAsync()</c>) from inside the handler
     /// is guarded against deadlock.
     /// </remarks>
-    Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
+    Func<RoleChangedEventArgs, CancellationToken, Task>? OnRoleChanged { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime.
@@ -96,7 +96,7 @@ public interface IHmp1ConnectionHandle
     /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
     /// self-disposal notes.
     /// </remarks>
-    Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
+    Func<RemoteResizedEventArgs, CancellationToken, Task>? OnRemoteResized { get; set; }
 
     /// <summary>
     /// Invoked when another peer joins the same producer.
@@ -105,7 +105,7 @@ public interface IHmp1ConnectionHandle
     /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
     /// self-disposal notes.
     /// </remarks>
-    Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
+    Func<PeerJoinEventArgs, CancellationToken, Task>? OnPeerJoined { get; set; }
 
     /// <summary>
     /// Invoked when another peer leaves.
@@ -114,7 +114,7 @@ public interface IHmp1ConnectionHandle
     /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
     /// self-disposal notes.
     /// </remarks>
-    Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
+    Func<PeerLeaveEventArgs, CancellationToken, Task>? OnPeerLeft { get; set; }
 
     /// <summary>
     /// Invoked once when the underlying transport stream closes.
@@ -125,7 +125,7 @@ public interface IHmp1ConnectionHandle
     /// and passing it would short-circuit cleanup work in naive
     /// handlers. Multicast supported.
     /// </remarks>
-    Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
+    Func<CancellationToken, Task>? OnDisconnected { get; set; }
 
     /// <summary>
     /// Asks the producer to make this peer the primary at the supplied

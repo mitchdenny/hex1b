@@ -31,7 +31,7 @@ public class Hmp1ClientOptionsTests
         {
             Interlocked.Increment(ref connectedCount);
             captured = e;
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -63,7 +63,7 @@ public class Hmp1ClientOptionsTests
         adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -102,7 +102,7 @@ public class Hmp1ClientOptionsTests
         adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -147,7 +147,7 @@ public class Hmp1ClientOptionsTests
         adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -197,28 +197,28 @@ public class Hmp1ClientOptionsTests
                 {
                     Interlocked.Increment(ref connectedCount);
                     capturedConnected = e;
-                    return ValueTask.CompletedTask;
+                    return Task.CompletedTask;
                 };
-                opt.OnRoleChanged = (_, _) => { Interlocked.Increment(ref roleChangedCount); return ValueTask.CompletedTask; };
+                opt.OnRoleChanged = (_, _) => { Interlocked.Increment(ref roleChangedCount); return Task.CompletedTask; };
                 opt.OnPeerJoined = (e, _) =>
                 {
                     Interlocked.Increment(ref peerJoinedCount);
                     capturedPeerJoined = e;
-                    return ValueTask.CompletedTask;
+                    return Task.CompletedTask;
                 };
                 opt.OnPeerLeft = (e, _) =>
                 {
                     Interlocked.Increment(ref peerLeftCount);
                     capturedPeerLeft = e;
-                    return ValueTask.CompletedTask;
+                    return Task.CompletedTask;
                 };
                 opt.OnRemoteResized = (e, _) =>
                 {
                     Interlocked.Increment(ref remoteResizedCount);
                     lastRemoteResized = e;
-                    return ValueTask.CompletedTask;
+                    return Task.CompletedTask;
                 };
-                opt.OnDisconnected = _ => { Interlocked.Increment(ref disconnectedCount); return ValueTask.CompletedTask; };
+                opt.OnDisconnected = _ => { Interlocked.Increment(ref disconnectedCount); return Task.CompletedTask; };
             })
             .Build();
         await using var terminalDispose = terminal;

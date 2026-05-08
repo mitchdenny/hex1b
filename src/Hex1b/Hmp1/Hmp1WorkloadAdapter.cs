@@ -174,22 +174,22 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     public int RemoteHeight => CurrentHeight;
 
     /// <inheritdoc />
-    public Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
+    public Func<CancellationToken, Task>? OnDisconnected { get; set; }
 
     /// <inheritdoc />
-    public Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
+    public Func<Hmp1ConnectedEventArgs, CancellationToken, Task>? OnConnected { get; set; }
 
     /// <inheritdoc />
-    public Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
+    public Func<RoleChangedEventArgs, CancellationToken, Task>? OnRoleChanged { get; set; }
 
     /// <inheritdoc />
-    public Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
+    public Func<PeerJoinEventArgs, CancellationToken, Task>? OnPeerJoined { get; set; }
 
     /// <inheritdoc />
-    public Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
+    public Func<PeerLeaveEventArgs, CancellationToken, Task>? OnPeerLeft { get; set; }
 
     /// <inheritdoc />
-    public Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
+    public Func<RemoteResizedEventArgs, CancellationToken, Task>? OnRemoteResized { get; set; }
 
     /// <summary>
     /// Raised when the underlying transport closes. Required by the
@@ -457,10 +457,10 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         if (IsPrimary == primary) return true;
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        Func<RoleChangedEventArgs, CancellationToken, ValueTask> handler = (_, _) =>
+        Func<RoleChangedEventArgs, CancellationToken, Task> handler = (_, _) =>
         {
             if (IsPrimary == primary) tcs.TrySetResult(true);
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
         OnRoleChanged += handler;
         try

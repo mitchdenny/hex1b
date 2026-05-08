@@ -134,7 +134,7 @@ internal sealed class SessionManager
                     {
                         Connection = e.Connection;
                         EmbeddedTerminal?.Resize(Math.Max(1, e.Width), Math.Max(1, e.Height));
-                        return ValueTask.CompletedTask;
+                        return Task.CompletedTask;
                     };
                 })
                 .WithScrollback()

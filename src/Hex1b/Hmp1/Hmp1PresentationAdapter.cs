@@ -116,7 +116,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// Multicast (<c>+=</c>) is supported; each handler is awaited
     /// independently with its own exception isolation.
     /// </summary>
-    public Func<Hmp1ServerResizedEventArgs, CancellationToken, ValueTask>? OnResized { get; set; }
+    public Func<Hmp1ServerResizedEventArgs, CancellationToken, Task>? OnResized { get; set; }
 
     /// <summary>
     /// Invoked when the primary peer changes (including transitions to no primary).
@@ -125,7 +125,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// Awaited inline by the per-client read pump (or by RemoveSession
     /// when the previous primary disconnects). Multicast supported.
     /// </remarks>
-    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, ValueTask>? OnPrimaryChanged { get; set; }
+    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, Task>? OnPrimaryChanged { get; set; }
 
     /// <summary>
     /// Invoked after a new client completes its ClientHello → Hello →
@@ -136,7 +136,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// Awaited inline by the per-client write pump after the handshake
     /// frames have been written but before output streaming begins.
     /// </remarks>
-    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, ValueTask>? OnClientConnected { get; set; }
+    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, Task>? OnClientConnected { get; set; }
 
     /// <summary>
     /// Invoked when a per-client session ends (clean disconnect or
@@ -144,7 +144,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     /// slow handler does not delay transport cleanup. Receives
     /// <see cref="CancellationToken.None"/>.
     /// </summary>
-    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, ValueTask>? OnClientDisconnected { get; set; }
+    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, Task>? OnClientDisconnected { get; set; }
 
     /// <summary>
     /// Gets the number of currently connected clients.

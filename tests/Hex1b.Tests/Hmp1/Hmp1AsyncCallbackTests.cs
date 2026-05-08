@@ -32,7 +32,7 @@ public class Hmp1AsyncCallbackTests
         primary.OnPeerJoined += (e, _) =>
         {
             lock (calls) calls.Add($"second:{e.DisplayName}");
-            return ValueTask.CompletedTask;
+            return Task.CompletedTask;
         };
 
         var addPrimary = server.AddClient(s1, CancellationToken.None);

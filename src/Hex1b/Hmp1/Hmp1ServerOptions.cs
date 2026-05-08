@@ -31,7 +31,7 @@ public sealed class Hmp1ServerOptions
     /// slow handler back-pressures handshake completion for that client
     /// only. Multicast (<c>+=</c>) is supported.
     /// </remarks>
-    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, ValueTask>? OnClientConnected { get; set; }
+    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, Task>? OnClientConnected { get; set; }
 
     /// <summary>
     /// Invoked when a per-client session ends (clean disconnect or
@@ -42,7 +42,7 @@ public sealed class Hmp1ServerOptions
     /// slow handler does not delay transport cleanup. Receives
     /// <see cref="CancellationToken.None"/>.
     /// </remarks>
-    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, ValueTask>? OnClientDisconnected { get; set; }
+    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, Task>? OnClientDisconnected { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime
@@ -52,7 +52,7 @@ public sealed class Hmp1ServerOptions
     /// Awaited inline by the per-client read pump that processed the
     /// triggering frame. Multicast supported.
     /// </remarks>
-    public Func<Hmp1ServerResizedEventArgs, CancellationToken, ValueTask>? OnResized { get; set; }
+    public Func<Hmp1ServerResizedEventArgs, CancellationToken, Task>? OnResized { get; set; }
 
     /// <summary>
     /// Invoked when the primary peer changes (including transitions to
@@ -63,5 +63,5 @@ public sealed class Hmp1ServerOptions
     /// <c>RemoveSession</c> when the previous primary disconnects).
     /// Multicast supported.
     /// </remarks>
-    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, ValueTask>? OnPrimaryChanged { get; set; }
+    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, Task>? OnPrimaryChanged { get; set; }
 }

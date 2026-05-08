@@ -13,7 +13,7 @@ namespace Hex1b;
 /// runtime delegate combine semantic still applies — assigning with
 /// <c>+=</c> produces a multicast delegate. If we naively did
 /// <c>await cb(args, ct)</c> on a multicast, only the *last* handler's
-/// returned <see cref="ValueTask"/> would be awaited; earlier handlers
+/// returned <see cref="Task"/> would be awaited; earlier handlers
 /// would be invoked but their async work would be effectively
 /// fire-and-forget (with their exceptions silently dropped). The
 /// <c>InvokeAsync</c> helpers here iterate <see cref="Delegate.GetInvocationList"/>
@@ -39,8 +39,8 @@ namespace Hex1b;
 /// </remarks>
 internal static class Hmp1AsyncCallback
 {
-    public static async ValueTask InvokeAsync<TArgs>(
-        Func<TArgs, CancellationToken, ValueTask>? callback,
+    public static async Task InvokeAsync<TArgs>(
+        Func<TArgs, CancellationToken, Task>? callback,
         TArgs args,
         CancellationToken ct)
     {
@@ -52,7 +52,7 @@ internal static class Hmp1AsyncCallback
         using var scope = Hmp1CallbackContext.Enter();
         foreach (var d in callback.GetInvocationList())
         {
-            var handler = (Func<TArgs, CancellationToken, ValueTask>)d;
+            var handler = (Func<TArgs, CancellationToken, Task>)d;
             try
             {
                 await handler(args, ct).ConfigureAwait(false);
@@ -72,8 +72,8 @@ internal static class Hmp1AsyncCallback
         }
     }
 
-    public static async ValueTask InvokeAsync(
-        Func<CancellationToken, ValueTask>? callback,
+    public static async Task InvokeAsync(
+        Func<CancellationToken, Task>? callback,
         CancellationToken ct)
     {
         if (callback is null)
@@ -84,7 +84,7 @@ internal static class Hmp1AsyncCallback
         using var scope = Hmp1CallbackContext.Enter();
         foreach (var d in callback.GetInvocationList())
         {
-            var handler = (Func<CancellationToken, ValueTask>)d;
+            var handler = (Func<CancellationToken, Task>)d;
             try
             {
                 await handler(ct).ConfigureAwait(false);

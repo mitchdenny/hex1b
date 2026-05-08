@@ -128,13 +128,13 @@ internal sealed class CliViewerApp
                     _connection = e.Connection;
                     EnsureInnerSize(e.Width, e.Height);
                     _app?.Invalidate();
-                    return ValueTask.CompletedTask;
+                    return Task.CompletedTask;
                 };
-                opts.OnRoleChanged = (e, _) => { OnRoleChanged(e); return ValueTask.CompletedTask; };
-                opts.OnRemoteResized = (e, _) => { OnRemoteResized(e); return ValueTask.CompletedTask; };
-                opts.OnPeerJoined = (_, _) => { _app?.Invalidate(); return ValueTask.CompletedTask; };
-                opts.OnPeerLeft = (_, _) => { _app?.Invalidate(); return ValueTask.CompletedTask; };
-                opts.OnDisconnected = _ => { OnDisconnected(); return ValueTask.CompletedTask; };
+                opts.OnRoleChanged = (e, _) => { OnRoleChanged(e); return Task.CompletedTask; };
+                opts.OnRemoteResized = (e, _) => { OnRemoteResized(e); return Task.CompletedTask; };
+                opts.OnPeerJoined = (_, _) => { _app?.Invalidate(); return Task.CompletedTask; };
+                opts.OnPeerLeft = (_, _) => { _app?.Invalidate(); return Task.CompletedTask; };
+                opts.OnDisconnected = _ => { OnDisconnected(); return Task.CompletedTask; };
             })
             .WithScrollback()
             .WithTerminalWidget(out var handle)

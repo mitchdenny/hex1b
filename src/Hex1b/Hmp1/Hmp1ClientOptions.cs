@@ -80,7 +80,7 @@ public sealed class Hmp1ClientOptions
     /// this path; for the per-event callbacks below, an
     /// <see cref="AsyncLocal{T}"/> guard makes self-disposal safe).
     /// </remarks>
-    public Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
+    public Func<Hmp1ConnectedEventArgs, CancellationToken, Task>? OnConnected { get; set; }
 
     /// <summary>
     /// Invoked when this client's role transitions between primary and
@@ -91,7 +91,7 @@ public sealed class Hmp1ClientOptions
     /// frame processing — offload long work yourself if you need
     /// non-blocking observation. Multicast (<c>+=</c>) is supported.
     /// </remarks>
-    public Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
+    public Func<RoleChangedEventArgs, CancellationToken, Task>? OnRoleChanged { get; set; }
 
     /// <summary>
     /// Invoked when another peer joins the same producer.
@@ -100,7 +100,7 @@ public sealed class Hmp1ClientOptions
     /// Awaited inline by the read pump. See <see cref="OnRoleChanged"/>
     /// for back-pressure and multicast notes.
     /// </remarks>
-    public Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
+    public Func<PeerJoinEventArgs, CancellationToken, Task>? OnPeerJoined { get; set; }
 
     /// <summary>
     /// Invoked when another peer leaves the same producer.
@@ -109,7 +109,7 @@ public sealed class Hmp1ClientOptions
     /// Awaited inline by the read pump. See <see cref="OnRoleChanged"/>
     /// for back-pressure and multicast notes.
     /// </remarks>
-    public Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
+    public Func<PeerLeaveEventArgs, CancellationToken, Task>? OnPeerLeft { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime —
@@ -126,7 +126,7 @@ public sealed class Hmp1ClientOptions
     /// for back-pressure and multicast notes.
     /// </para>
     /// </remarks>
-    public Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
+    public Func<RemoteResizedEventArgs, CancellationToken, Task>? OnRemoteResized { get; set; }
 
     /// <summary>
     /// Invoked once when the underlying transport stream closes,
@@ -139,5 +139,5 @@ public sealed class Hmp1ClientOptions
     /// short-circuit the very cleanup work the disconnect callback
     /// exists to perform. Awaited inline; multicast supported.
     /// </remarks>
-    public Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
+    public Func<CancellationToken, Task>? OnDisconnected { get; set; }
 }
