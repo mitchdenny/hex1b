@@ -11,7 +11,7 @@ public static class ScrollbarExtensions
     /// Creates a vertical scrollbar.
     /// </summary>
     public static ScrollbarWidget VScrollbar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int contentSize,
         int viewportSize,
         int offset)
@@ -22,7 +22,7 @@ public static class ScrollbarExtensions
     /// Creates a horizontal scrollbar.
     /// </summary>
     public static ScrollbarWidget HScrollbar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int contentSize,
         int viewportSize,
         int offset)
@@ -33,7 +33,7 @@ public static class ScrollbarExtensions
     /// Creates a scrollbar with the specified orientation.
     /// </summary>
     public static ScrollbarWidget Scrollbar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         ScrollOrientation orientation,
         int contentSize,
         int viewportSize,

@@ -13,7 +13,7 @@ public static class ThemePanelExtensions
     /// The theme mutator function receives the current theme and returns the theme to use.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="themeMutator">
     /// A function that receives a clone of the current theme and returns the theme to use.
     /// The theme is already cloned, so you can safely call Set() directly.
@@ -22,14 +22,14 @@ public static class ThemePanelExtensions
     /// <returns>A ThemePanelWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.ThemePanel(
+    /// context.ThemePanel(
     ///     theme => theme.Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue),
-    ///     ctx.Button("Blue Button")
+    ///     context.Button("Blue Button")
     /// )
     /// </code>
     /// </example>
     public static ThemePanelWidget ThemePanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<Hex1bTheme, Hex1bTheme> themeMutator,
         Hex1bWidget child)
         where TParent : Hex1bWidget
@@ -39,7 +39,7 @@ public static class ThemePanelExtensions
     /// Creates a ThemePanel with a VStack child that applies theme customizations.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="themeMutator">
     /// A function that receives a clone of the current theme and returns the theme to use.
     /// The theme is already cloned, so you can safely call Set() directly.
@@ -48,7 +48,7 @@ public static class ThemePanelExtensions
     /// <returns>A ThemePanelWidget containing a VStack.</returns>
     /// <example>
     /// <code>
-    /// ctx.ThemePanel(
+    /// context.ThemePanel(
     ///     theme => theme
     ///         .Set(TextTheme.ForegroundColor, Hex1bColor.Green)
     ///         .Set(ButtonTheme.ForegroundColor, Hex1bColor.Yellow),
@@ -60,7 +60,7 @@ public static class ThemePanelExtensions
     /// </code>
     /// </example>
     public static ThemePanelWidget ThemePanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<Hex1bTheme, Hex1bTheme> themeMutator,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget

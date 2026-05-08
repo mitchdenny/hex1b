@@ -27,18 +27,18 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Determinate progress (0-100):</para>
 /// <code>
-/// ctx.VStack(v => [
+/// context.VStack(v => [
 ///     v.Text("Downloading..."),
 ///     v.Progress(percentComplete)
 /// ])
 /// </code>
 /// <para>Custom range:</para>
 /// <code>
-/// ctx.Progress(current: bytesDownloaded, min: 0, max: totalBytes)
+/// context.Progress(current: bytesDownloaded, min: 0, max: totalBytes)
 /// </code>
 /// <para>Indeterminate (self-animating):</para>
 /// <code>
-/// ctx.ProgressIndeterminate()
+/// context.ProgressIndeterminate()
 /// </code>
 /// </example>
 public static class ProgressExtensions
@@ -47,7 +47,7 @@ public static class ProgressExtensions
     /// Creates a determinate progress bar with a value from 0 to 100.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="current">The current progress value (0-100 by default).</param>
     /// <returns>A new ProgressWidget configured for determinate mode.</returns>
     /// <example>
@@ -56,7 +56,7 @@ public static class ProgressExtensions
     /// </code>
     /// </example>
     public static ProgressWidget Progress<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         double current)
         where TParent : Hex1bWidget
         => new() { Value = current, Minimum = 0, Maximum = 100 };
@@ -65,7 +65,7 @@ public static class ProgressExtensions
     /// Creates a determinate progress bar with a custom range.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="current">The current progress value.</param>
     /// <param name="min">The minimum value of the range.</param>
     /// <param name="max">The maximum value of the range.</param>
@@ -84,7 +84,7 @@ public static class ProgressExtensions
     /// </code>
     /// </example>
     public static ProgressWidget Progress<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         double current,
         double min,
         double max)
@@ -95,7 +95,7 @@ public static class ProgressExtensions
     /// Creates an indeterminate progress bar for operations with unknown completion.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <returns>A new ProgressWidget configured for indeterminate mode with automatic animation.</returns>
     /// <remarks>
     /// <para>
@@ -105,11 +105,11 @@ public static class ProgressExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// ctx.ProgressIndeterminate()
+    /// context.ProgressIndeterminate()
     /// </code>
     /// </example>
     public static ProgressWidget ProgressIndeterminate<TParent>(
-        this WidgetContext<TParent> ctx)
+        this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new() { IsIndeterminate = true };
 }

@@ -11,17 +11,17 @@ public static class WindowPanelExtensions
     /// Creates a WindowPanel that can host floating windows.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <returns>A new WindowPanelWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.WindowPanel()
+    /// context.WindowPanel()
     ///    .Background(b => b.Surface(...))
     ///    .Unbounded()
     ///    .Fill()
     /// </code>
     /// </example>
-    public static WindowPanelWidget WindowPanel<TParent>(this WidgetContext<TParent> ctx)
+    public static WindowPanelWidget WindowPanel<TParent>(this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
     {
         return new WindowPanelWidget();
@@ -32,21 +32,21 @@ public static class WindowPanelExtensions
     /// Use named panels when you have multiple WindowPanels in your app.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="name">The unique name for this panel.</param>
     /// <returns>A new WindowPanelWidget.</returns>
     /// <example>
     /// <code>
     /// // Create named panels
-    /// ctx.WindowPanel("editor");
-    /// ctx.WindowPanel("preview");
+    /// context.WindowPanel("editor");
+    /// context.WindowPanel("preview");
     /// 
     /// // Access specific panel from event handler
     /// e.Windows["editor"].Open(...);
     /// </code>
     /// </example>
     public static WindowPanelWidget WindowPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string name)
         where TParent : Hex1bWidget
     {
@@ -67,20 +67,20 @@ public static class WindowPanelExtensions
     /// The background does not receive focus or input.
     /// </summary>
     /// <param name="widget">The WindowPanelWidget to configure.</param>
-    /// <param name="backgroundBuilder">A function that builds the background widget using a context.</param>
+    /// <param name="builder">A function that builds the background widget using a context.</param>
     /// <returns>A new WindowPanelWidget with the background configured.</returns>
     /// <example>
     /// <code>
-    /// ctx.WindowPanel()
+    /// context.WindowPanel()
     ///    .Background(b => b.Surface(s => [s.Layer(GradientBackground)]))
     /// </code>
     /// </example>
     public static WindowPanelWidget Background(
         this WindowPanelWidget widget, 
-        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> backgroundBuilder)
+        Func<WidgetContext<Hex1bWidget>, Hex1bWidget> builder)
     {
         var bgContext = new WidgetContext<Hex1bWidget>();
-        var background = backgroundBuilder(bgContext);
+        var background = builder(bgContext);
         return widget with { Background = background };
     }
 }

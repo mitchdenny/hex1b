@@ -12,6 +12,10 @@ internal static class Hex1bDiagnosticIds
     public const string NodeTypeNameMissingSuffix = "HEX1B0003";
     public const string WidgetMustBeRecord = "HEX1B0004";
     public const string NodeMustBeClass = "HEX1B0005";
+    public const string WidgetContextReceiverName = "HEX1B0006";
+    public const string WidgetInstanceReceiverName = "HEX1B0007";
+    public const string WidgetBuilderCallbackName = "HEX1B0008";
+    public const string WidgetMultipleBuilderCallbacks = "HEX1B0009";
 
     /// <summary>
     /// Help link template. Diagnostic-specific suffix is appended.

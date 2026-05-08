@@ -14,13 +14,13 @@ public static class StatePanelExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.StatePanel(myViewModel, sp =>
+    /// context.StatePanel(myViewModel, sp =>
     ///     sp.Text($"Count: {myViewModel.Count}")
     /// );
     /// </code>
     /// </example>
     public static StatePanelWidget StatePanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         object stateKey,
         Func<StatePanelContext, Hex1bWidget> builder)
         where TParent : Hex1bWidget

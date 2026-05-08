@@ -12,7 +12,7 @@ public static class ButtonExtensions
     /// Creates a ButtonWidget with the specified label.
     /// </summary>
     public static ButtonWidget Button<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string label)
         where TParent : Hex1bWidget
         => new(label);

@@ -14,7 +14,7 @@ public static class VStackExtensions
     /// Use collection expression syntax: v => [v.Text("a"), v.Button("b", e => {})]
     /// </summary>
     public static VStackWidget VStack<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {

@@ -12,9 +12,9 @@ public static class ScatterChartExtensions
     /// Creates a scatter chart bound to the specified data.
     /// </summary>
     /// <typeparam name="T">The data item type.</typeparam>
-    /// <param name="ctx">The root context.</param>
+    /// <param name="context">The root context.</param>
     /// <param name="data">The data source for the chart.</param>
-    public static ScatterChartWidget<T> ScatterChart<T>(this RootContext ctx, IReadOnlyList<T> data)
+    public static ScatterChartWidget<T> ScatterChart<T>(this RootContext context, IReadOnlyList<T> data)
         => new() { Data = data };
 
     /// <summary>
@@ -22,10 +22,10 @@ public static class ScatterChartExtensions
     /// </summary>
     /// <typeparam name="T">The data item type.</typeparam>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="data">The data source for the chart.</param>
     public static ScatterChartWidget<T> ScatterChart<T, TParent>(
-        this WidgetContext<TParent> ctx, IReadOnlyList<T> data)
+        this WidgetContext<TParent> context, IReadOnlyList<T> data)
         where TParent : Hex1bWidget
         => new() { Data = data };
 }

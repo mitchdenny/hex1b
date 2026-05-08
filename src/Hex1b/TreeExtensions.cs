@@ -18,7 +18,7 @@ public static class TreeExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// ctx.Tree(t => [
+    /// context.Tree(t => [
     ///     t.Item("Root", root => [
     ///         root.Item("Child 1"),
     ///         root.Item("Child 2")
@@ -27,7 +27,7 @@ public static class TreeExtensions
     /// </code>
     /// </example>
     public static TreeWidget Tree<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<TreeContext, IEnumerable<TreeItemWidget>> builder)
         where TParent : Hex1bWidget
     {
@@ -40,7 +40,7 @@ public static class TreeExtensions
     /// Creates a Tree with the specified root items.
     /// </summary>
     public static TreeWidget Tree<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         params TreeItemWidget[] items)
         where TParent : Hex1bWidget
         => new(items);
@@ -49,7 +49,7 @@ public static class TreeExtensions
     /// Creates a Tree with the specified root items.
     /// </summary>
     public static TreeWidget Tree<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IReadOnlyList<TreeItemWidget> items)
         where TParent : Hex1bWidget
         => new(items);
@@ -59,14 +59,14 @@ public static class TreeExtensions
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <typeparam name="T">The data item type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="items">The root data items.</param>
     /// <param name="labelSelector">Function to get the label from a data item.</param>
     /// <param name="childrenSelector">Function to get children from a data item.</param>
     /// <param name="iconSelector">Optional function to get the icon from a data item.</param>
     /// <param name="isExpandedSelector">Optional function to determine if an item is expanded.</param>
     public static TreeWidget Tree<TParent, T>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IEnumerable<T> items,
         Func<T, string> labelSelector,
         Func<T, IEnumerable<T>> childrenSelector,
@@ -83,14 +83,14 @@ public static class TreeExtensions
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <typeparam name="T">The data item type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="items">The root data items.</param>
     /// <param name="labelSelector">Function to get the label from a data item.</param>
     /// <param name="hasChildrenSelector">Function to determine if an item has children to load.</param>
     /// <param name="childrenLoader">Async function to load children when an item is expanded.</param>
     /// <param name="iconSelector">Optional function to get the icon from a data item.</param>
     public static TreeWidget Tree<TParent, T>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IEnumerable<T> items,
         Func<T, string> labelSelector,
         Func<T, bool> hasChildrenSelector,

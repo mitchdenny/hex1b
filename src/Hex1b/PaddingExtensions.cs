@@ -11,7 +11,7 @@ public static class PaddingExtensions
     /// Creates a Padding wrapper with per-side values around a single child widget.
     /// </summary>
     public static PaddingWidget Padding<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int left, int right, int top, int bottom,
         Hex1bWidget child)
         where TParent : Hex1bWidget
@@ -21,7 +21,7 @@ public static class PaddingExtensions
     /// Creates a Padding wrapper with per-side values and a builder for a single child.
     /// </summary>
     public static PaddingWidget Padding<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int left, int right, int top, int bottom,
         Func<WidgetContext<PaddingWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
@@ -34,7 +34,7 @@ public static class PaddingExtensions
     /// Creates a Padding wrapper with per-side values and an implicit VStack for multiple children.
     /// </summary>
     public static PaddingWidget Padding<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int left, int right, int top, int bottom,
         Func<WidgetContext<PaddingWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
@@ -47,7 +47,7 @@ public static class PaddingExtensions
     /// Creates a Padding wrapper with uniform padding on all sides.
     /// </summary>
     public static PaddingWidget Padding<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int all,
         Hex1bWidget child)
         where TParent : Hex1bWidget
@@ -57,7 +57,7 @@ public static class PaddingExtensions
     /// Creates a Padding wrapper with uniform horizontal and vertical padding.
     /// </summary>
     public static PaddingWidget Padding<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int horizontal, int vertical,
         Hex1bWidget child)
         where TParent : Hex1bWidget

@@ -12,7 +12,7 @@ public static class TerminalExtensions
     /// Creates a TerminalWidget that displays the content of the specified terminal handle.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="handle">The terminal handle to display.</param>
     /// <returns>A new TerminalWidget bound to the handle.</returns>
     /// <example>
@@ -24,11 +24,11 @@ public static class TerminalExtensions
     /// 
     /// _ = terminal.RunAsync(appCt);
     /// 
-    /// ctx.Terminal(bashHandle);
+    /// context.Terminal(bashHandle);
     /// </code>
     /// </example>
     public static TerminalWidget Terminal<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         TerminalWidgetHandle handle)
         where TParent : Hex1bWidget
         => new(handle);
@@ -54,8 +54,8 @@ public static class TerminalExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// ctx.Terminal(bashHandle)
-    ///    .WhenNotRunning(args => ctx.VStack(v => [
+    /// context.Terminal(bashHandle)
+    ///    .WhenNotRunning(args => context.VStack(v => [
     ///        v.Text($"Terminal exited with code {args.ExitCode}"),
     ///        v.Button("Restart").OnClick(_ => RestartTerminal())
     ///    ]));
@@ -105,8 +105,8 @@ public static class TerminalExtensions
     /// // Frame the terminal with a panel colour, terminal itself stays opaque black.
     /// var content = new BackgroundPanelWidget(
     ///     panelColor,
-    ///     ctx.Align(Alignment.Center,
-    ///         ctx.Terminal(handle).Background(Hex1bColor.FromRgb(0x0d, 0x11, 0x17))
+    ///     context.Align(Alignment.Center,
+    ///         context.Terminal(handle).Background(Hex1bColor.FromRgb(0x0d, 0x11, 0x17))
     ///             .FixedWidth(80).FixedHeight(24)).Fill());
     /// </code>
     /// </example>
@@ -126,13 +126,13 @@ public static class TerminalExtensions
     /// <example>
     /// <description>Enable copy mode with default vi-style bindings:</description>
     /// <code>
-    /// ctx.Terminal(handle).CopyModeBindings().Fill()
+    /// context.Terminal(handle).CopyModeBindings().Fill()
     /// </code>
     /// </example>
     /// <example>
     /// <description>Customize the entry key:</description>
     /// <code>
-    /// ctx.Terminal(handle).CopyModeBindings(options =>
+    /// context.Terminal(handle).CopyModeBindings(options =>
     /// {
     ///     options.EnterKeys = [Hex1bKey.F5];
     /// }).Fill()

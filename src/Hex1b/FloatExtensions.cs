@@ -14,14 +14,14 @@ public static class FloatExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.VStack(v => [
+    /// context.VStack(v => [
     ///     v.Text("Normal flow"),
     ///     v.Float(v.Icon("📍")).Absolute(10, 5),
     /// ])
     /// </code>
     /// </example>
     public static FloatWidget Float<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget, IFloatWidgetContainer
         => new(child);

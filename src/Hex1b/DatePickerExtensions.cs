@@ -11,7 +11,7 @@ public static class DatePickerExtensions
     /// Creates a date picker widget with no initial date.
     /// </summary>
     public static DatePickerWidget DatePicker<TParent>(
-        this WidgetContext<TParent> ctx)
+        this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new();
 
@@ -19,7 +19,7 @@ public static class DatePickerExtensions
     /// Creates a date picker widget with an initial selected date.
     /// </summary>
     public static DatePickerWidget DatePicker<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         DateOnly initialDate)
         where TParent : Hex1bWidget
         => new() { InitialDate = initialDate };

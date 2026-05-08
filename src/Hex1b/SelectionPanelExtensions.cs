@@ -13,7 +13,7 @@ public static class SelectionPanelExtensions
     /// add a copy/select mode similar to <c>TerminalWidget</c>'s.
     /// </summary>
     public static SelectionPanelWidget SelectionPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget
         => new(child);

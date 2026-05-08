@@ -13,13 +13,13 @@ public static class SixelExtensions
     /// <summary>
     /// Creates a SixelWidget with the specified image data and fallback widget.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="imageData">The Sixel-encoded image data.</param>
     /// <param name="fallback">A widget to display if Sixel is not supported.</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
     public static SixelWidget Sixel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string imageData,
         Hex1bWidget fallback,
         int? width = null,
@@ -30,13 +30,13 @@ public static class SixelExtensions
     /// <summary>
     /// Creates a SixelWidget with the specified image data and a text fallback.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="imageData">The Sixel-encoded image data.</param>
     /// <param name="fallbackText">Text to display if Sixel is not supported.</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
     public static SixelWidget Sixel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string imageData,
         string fallbackText,
         int? width = null,
@@ -47,15 +47,15 @@ public static class SixelExtensions
     /// <summary>
     /// Creates a SixelWidget with image data and a fallback widget builder.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="imageData">The Sixel-encoded image data.</param>
-    /// <param name="fallbackBuilder">Builder for the fallback widget.</param>
+    /// <param name="builder">Builder for the fallback widget.</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
     public static SixelWidget Sixel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string imageData,
-        Func<WidgetContext<SixelWidget>, Hex1bWidget> fallbackBuilder,
+        Func<WidgetContext<SixelWidget>, Hex1bWidget> builder,
         int? width = null,
         int? height = null)
         where TParent : Hex1bWidget
@@ -63,7 +63,7 @@ public static class SixelExtensions
         var fallbackCtx = new WidgetContext<SixelWidget>();
         return new SixelWidget(
             imageData,
-            fallbackBuilder(fallbackCtx),
+            builder(fallbackCtx),
             width,
             height);
     }
@@ -71,15 +71,15 @@ public static class SixelExtensions
     /// <summary>
     /// Creates a SixelWidget with image data and a VStack fallback.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="imageData">The Sixel-encoded image data.</param>
-    /// <param name="fallbackBuilder">Builder for the fallback widgets (wrapped in VStack).</param>
+    /// <param name="builder">Builder for the fallback widgets (wrapped in VStack).</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
     public static SixelWidget Sixel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string imageData,
-        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> fallbackBuilder,
+        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder,
         int? width = null,
         int? height = null)
         where TParent : Hex1bWidget
@@ -87,7 +87,7 @@ public static class SixelExtensions
         var fallbackCtx = new WidgetContext<VStackWidget>();
         return new SixelWidget(
             imageData,
-            new VStackWidget(fallbackBuilder(fallbackCtx)),
+            new VStackWidget(builder(fallbackCtx)),
             width,
             height);
     }

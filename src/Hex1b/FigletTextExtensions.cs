@@ -15,7 +15,7 @@ using Hex1b.Widgets;
 /// </remarks>
 /// <example>
 /// <code>
-/// ctx.FigletText("Hello, World")
+/// context.FigletText("Hello, World")
 ///    .Font(FigletFonts.Slant)
 ///    .Layout(FigletLayoutMode.Smushed)
 ///    .HorizontalOverflow(FigletHorizontalOverflow.Wrap);
@@ -27,11 +27,11 @@ public static class FigletTextExtensions
     /// Creates a <see cref="FigletTextWidget"/> with the specified text content.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The text to render.</param>
     /// <returns>A new <see cref="FigletTextWidget"/> using <see cref="FigletFonts.Standard"/>.</returns>
     public static FigletTextWidget FigletText<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text)
         where TParent : Hex1bWidget
         => new(text);

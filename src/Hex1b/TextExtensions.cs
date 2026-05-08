@@ -16,7 +16,7 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Using Text within a VStack:</para>
 /// <code>
-/// ctx.VStack(v =&gt; [
+/// context.VStack(v =&gt; [
 ///     v.Text("Title"),
 ///     v.Text("Long description that wraps").Wrap(),
 ///     v.Text("Status: OK").FillWidth()
@@ -31,16 +31,16 @@ public static class TextExtensions
     /// Creates a <see cref="TextBlockWidget"/> with the specified text content.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The text content to display.</param>
     /// <returns>A new <see cref="TextBlockWidget"/> with default overflow behavior (Truncate).</returns>
     /// <example>
     /// <code>
-    /// ctx.Text("Hello, World!")
+    /// context.Text("Hello, World!")
     /// </code>
     /// </example>
     public static TextBlockWidget Text<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text)
         where TParent : Hex1bWidget
         => new(text);

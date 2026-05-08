@@ -12,7 +12,7 @@ public static class TextBoxExtensions
     /// Creates a TextBox with default empty text.
     /// </summary>
     public static TextBoxWidget TextBox<TParent>(
-        this WidgetContext<TParent> ctx)
+        this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new();
 
@@ -20,7 +20,7 @@ public static class TextBoxExtensions
     /// Creates a TextBox with the specified text.
     /// </summary>
     public static TextBoxWidget TextBox<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text)
         where TParent : Hex1bWidget
         => new(text);

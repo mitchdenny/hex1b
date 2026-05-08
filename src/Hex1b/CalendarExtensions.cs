@@ -11,11 +11,11 @@ public static class CalendarExtensions
     /// <summary>
     /// Creates a calendar widget displaying the specified month.
     /// </summary>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <param name="month">The month to display. Only the Year and Month components are used.</param>
     /// <returns>A configured <see cref="CalendarWidget"/>.</returns>
     public static CalendarWidget Calendar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         DateOnly month)
         where TParent : Hex1bWidget
         => new(month);
@@ -23,22 +23,22 @@ public static class CalendarExtensions
     /// <summary>
     /// Creates a calendar widget displaying the current month.
     /// </summary>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <returns>A configured <see cref="CalendarWidget"/>.</returns>
     public static CalendarWidget Calendar<TParent>(
-        this WidgetContext<TParent> ctx)
+        this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new(DateOnly.FromDateTime(DateTime.Today));
 
     /// <summary>
     /// Creates a calendar widget displaying the specified year and month.
     /// </summary>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <param name="year">The year.</param>
     /// <param name="month">The month (1-12).</param>
     /// <returns>A configured <see cref="CalendarWidget"/>.</returns>
     public static CalendarWidget Calendar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int year, int month)
         where TParent : Hex1bWidget
         => new(new DateOnly(year, month, 1));

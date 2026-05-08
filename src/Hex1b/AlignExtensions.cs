@@ -19,21 +19,21 @@ public static class AlignExtensions
     /// Aligns a child widget within the available space.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="alignment">The alignment flags (e.g., Alignment.Center, Alignment.TopRight).</param>
     /// <param name="child">The child widget to align.</param>
     /// <returns>An AlignWidget with the specified alignment.</returns>
     /// <example>
     /// <code>
     /// // Right-align a button
-    /// ctx.Align(Alignment.Right, ctx.Button("OK"))
+    /// context.Align(Alignment.Right, context.Button("OK"))
     /// 
     /// // Center a dialog
-    /// ctx.Align(Alignment.Center, ctx.Border(b =&gt; [...]).Title("Dialog"))
+    /// context.Align(Alignment.Center, context.Border(b =&gt; [...]).Title("Dialog"))
     /// </code>
     /// </example>
     public static AlignWidget Align<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Alignment alignment,
         Hex1bWidget child)
         where TParent : Hex1bWidget
@@ -43,12 +43,12 @@ public static class AlignExtensions
     /// Aligns a child widget within the available space using a builder.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="alignment">The alignment flags (e.g., Alignment.Center, Alignment.TopRight).</param>
     /// <param name="builder">A function that builds the child widget.</param>
     /// <returns>An AlignWidget with the specified alignment.</returns>
     public static AlignWidget Align<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Alignment alignment,
         Func<WidgetContext<AlignWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
@@ -62,16 +62,16 @@ public static class AlignExtensions
     /// Centers a child widget both horizontally and vertically.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="child">The child widget to center.</param>
     /// <returns>An AlignWidget centered in both axes.</returns>
     /// <example>
     /// <code>
-    /// ctx.Center(ctx.Text("Welcome!"))
+    /// context.Center(context.Text("Welcome!"))
     /// </code>
     /// </example>
     public static AlignWidget Center<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget
         => new(child, Alignment.Center);
@@ -80,11 +80,11 @@ public static class AlignExtensions
     /// Centers a child widget both horizontally and vertically using a builder.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="builder">A function that builds the child widget.</param>
     /// <returns>An AlignWidget centered in both axes.</returns>
     public static AlignWidget Center<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<AlignWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {

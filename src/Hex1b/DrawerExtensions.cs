@@ -14,7 +14,7 @@ public static class DrawerExtensions
     /// Use <see cref="DrawerWidget.CollapsedContent"/> and <see cref="DrawerWidget.ExpandedContent"/>
     /// to define the drawer's content for each state.
     /// </remarks>
-    public static DrawerWidget Drawer<TParent>(this WidgetContext<TParent> ctx)
+    public static DrawerWidget Drawer<TParent>(this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new();
 }

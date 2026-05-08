@@ -22,10 +22,10 @@ public static class LanguageServerExtensions
     /// reuse the same connection. For explicit control, create a
     /// <see cref="LanguageServerDecorationProvider"/> and use <c>.Decorations(provider)</c>.
     /// </remarks>
-    /// <param name="editor">The editor widget to enhance.</param>
+    /// <param name="widget">The editor widget to enhance.</param>
     /// <param name="configure">Configuration callback for the language server connection.</param>
     /// <returns>A new editor widget with the language server decoration provider added.</returns>
-    public static EditorWidget LanguageServer(this EditorWidget editor, Action<LanguageServerConfiguration> configure)
+    public static EditorWidget LanguageServer(this EditorWidget widget, Action<LanguageServerConfiguration> configure)
     {
         var provider = s_providers.GetValue(configure, key =>
         {
@@ -34,7 +34,7 @@ public static class LanguageServerExtensions
             return new LanguageServerDecorationProvider(config);
         });
 
-        return editor.Decorations(provider);
+        return widget.Decorations(provider);
     }
 
     /// <summary>
@@ -42,7 +42,7 @@ public static class LanguageServerExtensions
     /// The workspace handles server lifecycle and connection sharing — multiple
     /// documents of the same language share a single server process.
     /// </summary>
-    /// <param name="editor">The editor widget to enhance.</param>
+    /// <param name="widget">The editor widget to enhance.</param>
     /// <param name="workspace">The workspace that manages server instances.</param>
     /// <param name="documentUri">
     /// The document's URI (e.g., <c>file:///path/to/file.cs</c>).
@@ -57,17 +57,17 @@ public static class LanguageServerExtensions
     /// var workspace = new Hex1bLanguageServerWorkspace("/my/project");
     /// workspace.RegisterServer("csharp", lsp => lsp.WithServerCommand("csharp-ls"));
     ///
-    /// ctx.Editor(state).LanguageServer(workspace, "file:///my/project/Program.cs")
+    /// context.Editor(state).LanguageServer(workspace, "file:///my/project/Program.cs")
     /// </code>
     /// </example>
     public static EditorWidget LanguageServer(
-        this EditorWidget editor,
+        this EditorWidget widget,
         Hex1bLanguageServerWorkspace workspace,
         string documentUri,
         string? languageId = null)
     {
         var provider = workspace.GetProvider(documentUri, languageId);
-        return editor.Decorations(provider);
+        return widget.Decorations(provider);
     }
 
     /// <summary>
@@ -77,14 +77,14 @@ public static class LanguageServerExtensions
     /// or <see cref="Hex1bDocumentWorkspace.MapDecorationProvider"/>.
     /// In-process decoration providers are checked first, then language server providers.
     /// </summary>
-    /// <param name="editor">The editor widget to enhance.</param>
+    /// <param name="widget">The editor widget to enhance.</param>
     /// <param name="workspace">The document workspace that manages servers.</param>
     /// <returns>The editor widget, with a decoration provider if a server matches.</returns>
     public static EditorWidget LanguageServer(
-        this EditorWidget editor,
+        this EditorWidget widget,
         Hex1bDocumentWorkspace workspace)
     {
-        var provider = workspace.GetDecorationProvider(editor.State.Document);
-        return provider != null ? editor.Decorations(provider) : editor;
+        var provider = workspace.GetDecorationProvider(widget.State.Document);
+        return provider != null ? widget.Decorations(provider) : widget;
     }
 }

@@ -16,7 +16,7 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Using Hyperlink within a VStack:</para>
 /// <code>
-/// ctx.VStack(v =&gt; [
+/// context.VStack(v =&gt; [
 ///     v.Hyperlink("Click here", "https://example.com"),
 ///     v.Hyperlink("Long link text that wraps", "https://example.com").Wrap()
 /// ])
@@ -30,12 +30,12 @@ public static class HyperlinkExtensions
     /// Creates a <see cref="HyperlinkWidget"/> with the specified text and URI.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The visible text to display.</param>
     /// <param name="uri">The URI to link to when clicked.</param>
     /// <returns>A new <see cref="HyperlinkWidget"/> with default overflow behavior (Truncate).</returns>
     public static HyperlinkWidget Hyperlink<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text,
         string uri)
         where TParent : Hex1bWidget
@@ -45,13 +45,13 @@ public static class HyperlinkExtensions
     /// Creates a <see cref="HyperlinkWidget"/> with the specified text, URI, and click handler.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The visible text to display.</param>
     /// <param name="uri">The URI to link to when clicked.</param>
     /// <param name="onClick">The click handler to invoke when the hyperlink is activated.</param>
     /// <returns>A new <see cref="HyperlinkWidget"/> configured with the click handler.</returns>
     public static HyperlinkWidget Hyperlink<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text,
         string uri,
         Action<HyperlinkClickedEventArgs> onClick)
@@ -62,13 +62,13 @@ public static class HyperlinkExtensions
     /// Creates a <see cref="HyperlinkWidget"/> with the specified text, URI, and async click handler.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The visible text to display.</param>
     /// <param name="uri">The URI to link to when clicked.</param>
     /// <param name="onClick">The async click handler to invoke when the hyperlink is activated.</param>
     /// <returns>A new <see cref="HyperlinkWidget"/> configured with the async click handler.</returns>
     public static HyperlinkWidget Hyperlink<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text,
         string uri,
         Func<HyperlinkClickedEventArgs, Task> onClick)

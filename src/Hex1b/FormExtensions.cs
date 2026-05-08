@@ -14,7 +14,7 @@ public static class FormExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.Form(form =>
+    /// context.Form(form =>
     /// {
     ///     var name = form.TextField("Name");
     ///     return [name, form.SubmitButton("Save", e => { })];
@@ -22,7 +22,7 @@ public static class FormExtensions
     /// </code>
     /// </example>
     public static FormWidget Form<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<FormContext, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {

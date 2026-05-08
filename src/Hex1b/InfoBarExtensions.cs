@@ -12,13 +12,13 @@ public static class InfoBarExtensions
     /// Creates an InfoBar widget using a builder pattern.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="builder">A function that builds the info bar children using an InfoBarContext.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
     /// <returns>An InfoBarWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.InfoBar(s => [
+    /// context.InfoBar(s => [
     ///     s.Section("NORMAL"),
     ///     s.Section("file.cs"),
     ///     s.Section("Ln 42, Col 15")
@@ -26,7 +26,7 @@ public static class InfoBarExtensions
     /// </code>
     /// </example>
     public static InfoBarWidget InfoBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<InfoBarContext, IEnumerable<IInfoBarChild>> builder,
         bool invertColors = true)
         where TParent : Hex1bWidget
@@ -39,11 +39,11 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates an InfoBar widget with legacy InfoBarSection objects.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="sections">The sections to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
     public static InfoBarWidget InfoBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IReadOnlyList<InfoBarSection> sections,
         bool invertColors = true)
         where TParent : Hex1bWidget
@@ -58,10 +58,10 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates a simple InfoBar widget with text sections.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="texts">The text strings to display as sections.</param>
     public static InfoBarWidget InfoBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         params string[] texts)
         where TParent : Hex1bWidget
     {
@@ -73,11 +73,11 @@ public static class InfoBarExtensions
     /// <summary>
     /// Creates an InfoBar widget with a single text section.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="text">The text to display.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
     public static InfoBarWidget InfoBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string text,
         bool invertColors = true)
         where TParent : Hex1bWidget
@@ -90,12 +90,12 @@ public static class InfoBarExtensions
     /// Creates an InfoBar widget with pre-built children.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="children">The info bar children.</param>
     /// <param name="invertColors">Whether to invert foreground/background colors (default: true).</param>
     /// <returns>An InfoBarWidget.</returns>
     public static InfoBarWidget InfoBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IEnumerable<IInfoBarChild> children,
         bool invertColors = true)
         where TParent : Hex1bWidget
@@ -109,7 +109,7 @@ public static class InfoBarExtensions
     /// <param name="text">The text content.</param>
     /// <param name="foreground">Optional foreground color.</param>
     /// <param name="background">Optional background color.</param>
-    [Obsolete("Use the builder pattern: ctx.InfoBar(s => [s.Section(...)]) instead.")]
+    [Obsolete("Use the builder pattern: context.InfoBar(s => [s.Section(...)]) instead.")]
     public static InfoBarSection Section(
         string text,
         Hex1bColor? foreground = null,

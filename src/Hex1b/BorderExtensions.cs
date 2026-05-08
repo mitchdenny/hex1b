@@ -11,7 +11,7 @@ public static class BorderExtensions
     /// Creates a Border wrapping a single child widget.
     /// </summary>
     public static BorderWidget Border<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget
         => new(child);
@@ -20,7 +20,7 @@ public static class BorderExtensions
     /// Creates a Border with a VStack child.
     /// </summary>
     public static BorderWidget Border<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {

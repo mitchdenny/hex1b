@@ -13,14 +13,14 @@ public static class WrapPanelExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.WrapPanel(w => templates.Select(t => w.Border(b => [
+    /// context.WrapPanel(w => templates.Select(t => w.Border(b => [
     ///     b.Text(t.Name),
     ///     b.Text(t.Language),
     /// ]).FixedWidth(30)).ToArray())
     /// </code>
     /// </example>
     public static WrapPanelWidget WrapPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<WrapPanelWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
@@ -34,7 +34,7 @@ public static class WrapPanelExtensions
     /// and wrap to the next column when the available height is exceeded.
     /// </summary>
     public static WrapPanelWidget VWrapPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<WrapPanelWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {
