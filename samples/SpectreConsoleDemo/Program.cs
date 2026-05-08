@@ -76,15 +76,17 @@ internal static class SpectreConsoleDemo
     {
         console.Write(new FigletText("Hex1b ⨯ Spectre").Color(Color.Aqua));
         console.MarkupLine("[grey]An interactive showcase of Spectre.Console controls running inside a Hex1b terminal.[/]");
-        console.MarkupLine("[grey]Use [yellow]↑/↓[/] and [yellow]Enter[/] to navigate. Pick [yellow]Quit[/] to exit.[/]");
+        console.MarkupLine("[grey]Use [yellow]↑/↓[/] and [yellow]Enter[/] to navigate. Pick [red]Quit[/] (last item) to exit.[/]");
         console.WriteLine();
 
         while (!ct.IsCancellationRequested)
         {
             var choice = await console.PromptAsync(
                 new SelectionPrompt<string>()
-                    .Title("[bold aqua]Pick a demo[/]")
+                    .Title("[bold aqua]Pick a demo[/] [grey](or [red]Quit[/] to exit)[/]")
                     .HighlightStyle(new Style(foreground: Color.Black, background: Color.Aqua))
+                    .PageSize(MenuItems.Length)
+                    .UseConverter(item => string.Equals(item, "Quit", StringComparison.Ordinal) ? "[red bold]Quit[/]" : item)
                     .AddChoices(MenuItems),
                 ct);
 
