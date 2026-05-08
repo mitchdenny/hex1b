@@ -5,24 +5,30 @@ using Hex1b.Integrations.Spectre.SpectreConsole;
 using Spectre.Console;
 
 // SpectreConsoleDemo — A looping interactive showcase of Spectre.Console
-// controls running inside a Hex1b terminal. Pass --auto to drive the demo
-// from a Hex1bTerminalAutomator (handy for generating asciinema casts and
-// for verifying the input bridge end-to-end).
+// controls running inside a Hex1b terminal.
+//
+//   --auto       Drive the demo from a Hex1bTerminalAutomator instead of
+//                waiting for keyboard input. Visible by default, so you can
+//                watch the run live.
+//   --headless   Render to an off-screen buffer and write an asciinema cast
+//                to the binary directory. Combine with --auto in CI to
+//                produce a reproducible recording without any UI.
 
 var auto = args.Contains("--auto", StringComparer.OrdinalIgnoreCase);
+var headless = args.Contains("--headless", StringComparer.OrdinalIgnoreCase);
 var castPath = Path.Combine(AppContext.BaseDirectory, "spectre-console-demo.cast");
 
 var builder = Hex1bTerminal.CreateBuilder()
-    .WithAsciinemaRecording(castPath)
     .WithSpectreConsole(SpectreConsoleDemo.RunAsync);
 
-if (auto)
+if (headless)
 {
-    // Headless + fixed dimensions so the auto-driven session is deterministic
-    // and reproducible across machines and recordings.
+    // Headless + fixed dimensions + asciinema so the recorded cast is
+    // deterministic and reproducible across machines.
     builder = builder
         .WithHeadless()
-        .WithDimensions(120, 40);
+        .WithDimensions(120, 40)
+        .WithAsciinemaRecording(castPath);
 }
 
 await using var terminal = builder.Build();
@@ -51,8 +57,12 @@ if (autoTask is not null)
     }
 }
 
-Console.WriteLine();
-Console.WriteLine($"Recording saved to {castPath}");
+if (headless)
+{
+    Console.WriteLine();
+    Console.WriteLine($"Recording saved to {castPath}");
+}
+
 return exit;
 
 internal static class SpectreConsoleDemo

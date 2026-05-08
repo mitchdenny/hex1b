@@ -98,7 +98,7 @@ channel, anything that pushes events into that channel — including
 drives a Hex1bApp. That makes the integration a viable target for the
 existing automation/test harness without any extra plumbing.
 
-The included `samples/SpectreConsoleDemo` ships in two modes:
+The included `samples/SpectreConsoleDemo` exposes two independent flags:
 
 ```bash
 # Interactive: a looping menu that walks through ten Spectre.Console
@@ -107,16 +107,22 @@ The included `samples/SpectreConsoleDemo` ships in two modes:
 # navigate.
 dotnet run --project samples/SpectreConsoleDemo
 
-# Self-driving: the same demo, but a background Hex1bTerminalAutomator
-# walks every menu entry, types answers into the prompts, and selects
-# Quit at the end. Output is captured to spectre-console-demo.cast in
-# the build output directory. Headless terminal, deterministic timing.
+# Self-driving: a background Hex1bTerminalAutomator walks every menu
+# entry, types answers into the prompts, and selects Quit at the end.
+# The terminal is still visible so you can watch the automator move.
 dotnet run --project samples/SpectreConsoleDemo -- --auto
+
+# Headless: render to an off-screen 120×40 buffer and write
+# spectre-console-demo.cast (asciinema) into the build output
+# directory. Combine with --auto in CI for a reproducible recording
+# without any visible UI.
+dotnet run --project samples/SpectreConsoleDemo -- --auto --headless
 ```
 
-In `--auto` mode the program builds the terminal with `WithHeadless()`
-and then spins up the automator on a background task in parallel with
-`terminal.RunAsync()`:
+In `--auto` mode the program spins up the automator on a background
+task in parallel with `terminal.RunAsync()`. `--headless` is the flag
+that swaps in a deterministic 120×40 off-screen surface and turns on
+asciinema recording.
 
 ```csharp
 var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromSeconds(20));
