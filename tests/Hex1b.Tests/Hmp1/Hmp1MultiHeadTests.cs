@@ -82,7 +82,7 @@ public class Hmp1MultiHeadTests
         await client1.WaitForRoleAsync(primary: true, TestTimeout, CancellationToken.None);
 
         var joinTcs = new TaskCompletionSource<PeerJoinEventArgs>();
-        client1.PeerJoined += (_, e) => joinTcs.TrySetResult(e);
+        client1.OnPeerJoined += (e, _) => { joinTcs.TrySetResult(e); return ValueTask.CompletedTask; };
 
         var (handle2, client2) = await ConnectAsync(server, displayName: "beta");
 
@@ -114,8 +114,8 @@ public class Hmp1MultiHeadTests
 
         var role1Tcs = new TaskCompletionSource<RoleChangedEventArgs>();
         var role2Tcs = new TaskCompletionSource<RoleChangedEventArgs>();
-        client1.RoleChanged += (_, e) => role1Tcs.TrySetResult(e);
-        client2.RoleChanged += (_, e) => role2Tcs.TrySetResult(e);
+        client1.OnRoleChanged += (e, _) => { role1Tcs.TrySetResult(e); return ValueTask.CompletedTask; };
+        client2.OnRoleChanged += (e, _) => { role2Tcs.TrySetResult(e); return ValueTask.CompletedTask; };
 
         await client2.RequestPrimaryAsync(140, 50);
 
@@ -155,8 +155,8 @@ public class Hmp1MultiHeadTests
 
         var roleChangedTcs = new TaskCompletionSource<RoleChangedEventArgs>();
         var leaveTcs = new TaskCompletionSource<PeerLeaveEventArgs>();
-        client2.RoleChanged += (_, e) => roleChangedTcs.TrySetResult(e);
-        client2.PeerLeft += (_, e) => leaveTcs.TrySetResult(e);
+        client2.OnRoleChanged += (e, _) => { roleChangedTcs.TrySetResult(e); return ValueTask.CompletedTask; };
+        client2.OnPeerLeft += (e, _) => { leaveTcs.TrySetResult(e); return ValueTask.CompletedTask; };
 
         await handle1.DisposeAsync();
         await client1.DisposeAsync();
@@ -189,9 +189,9 @@ public class Hmp1MultiHeadTests
         var (handle2, client2) = await ConnectAsync(server, displayName: "secondary");
 
         var roleChanged = false;
-        client1.RoleChanged += (_, _) => roleChanged = true;
+        client1.OnRoleChanged += (_, _) => { roleChanged = true; return ValueTask.CompletedTask; };
         var leaveTcs = new TaskCompletionSource<PeerLeaveEventArgs>();
-        client1.PeerLeft += (_, e) => leaveTcs.TrySetResult(e);
+        client1.OnPeerLeft += (e, _) => { leaveTcs.TrySetResult(e); return ValueTask.CompletedTask; };
 
         await handle2.DisposeAsync();
         await client2.DisposeAsync();

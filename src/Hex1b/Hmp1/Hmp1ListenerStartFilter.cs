@@ -41,40 +41,19 @@ internal sealed class Hmp1ListenerStartFilter : IHex1bTerminalPresentationFilter
         adapter = new Hmp1PresentationAdapter();
         var filter = new Hmp1ListenerStartFilter(adapter);
 
-        // Wire the first-caller options to adapter-wide events. Subsequent
-        // WithHmp1*Server calls add additional listeners (and may carry
-        // their own per-listener stream transforms) but do not get to
-        // re-bind the adapter-wide hooks.
+        // Wire the first-caller options to adapter-wide async callback
+        // properties. Subsequent WithHmp1*Server calls add additional
+        // listeners (and may carry their own per-listener stream
+        // transforms) but do not get to re-bind the adapter-wide hooks.
+        // Hmp1AsyncCallback handles per-handler exception isolation
+        // internally so we don't need to wrap each assignment in
+        // try/catch here.
         if (options is not null)
         {
-            if (options.OnClientConnected is { } onClientConnected)
-            {
-                adapter.ClientConnected += (_, e) =>
-                {
-                    try { onClientConnected(e); } catch { /* observer must not break the server */ }
-                };
-            }
-            if (options.OnClientDisconnected is { } onClientDisconnected)
-            {
-                adapter.ClientDisconnected += (_, e) =>
-                {
-                    try { onClientDisconnected(e); } catch { /* observer must not break the server */ }
-                };
-            }
-            if (options.OnResized is { } onResized)
-            {
-                adapter.Resized += (w, h) =>
-                {
-                    try { onResized(new Hmp1ServerResizedEventArgs(w, h)); } catch { }
-                };
-            }
-            if (options.OnPrimaryChanged is { } onPrimaryChanged)
-            {
-                adapter.PrimaryChanged += primaryPeerId =>
-                {
-                    try { onPrimaryChanged(new Hmp1ServerPrimaryChangedEventArgs(primaryPeerId)); } catch { }
-                };
-            }
+            adapter.OnClientConnected = options.OnClientConnected;
+            adapter.OnClientDisconnected = options.OnClientDisconnected;
+            adapter.OnResized = options.OnResized;
+            adapter.OnPrimaryChanged = options.OnPrimaryChanged;
         }
 
         builder.WithPresentation(adapter);

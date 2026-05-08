@@ -23,8 +23,9 @@ namespace Hex1b;
 /// underlying PTY's dimensions, call <see cref="RequestPrimaryAsync"/>. Until the role
 /// transition is acknowledged, <see cref="ResizeAsync"/> calls are silently dropped at
 /// the producer (the local <see cref="ResizeAsync"/> is also a no-op while
-/// <see cref="IsPrimary"/> is false). Subscribe to <see cref="RoleChanged"/>,
-/// <see cref="PeerJoined"/>, and <see cref="PeerLeft"/> to drive UX state.
+/// <see cref="IsPrimary"/> is false). Set <see cref="IHmp1ConnectionHandle.OnRoleChanged"/>,
+/// <see cref="IHmp1ConnectionHandle.OnPeerJoined"/>, and
+/// <see cref="IHmp1ConnectionHandle.OnPeerLeft"/> to drive UX state.
 /// </para>
 /// </remarks>
 public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle
@@ -42,6 +43,11 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     private string? _primaryPeerId;
     private int _currentWidth;
     private int _currentHeight;
+    // Completed early in the read-pump finally — *before* invoking the
+    // user's OnDisconnected — so internal "wait for transport disconnect"
+    // consumers (e.g. WithHmp1Client's runCallback) don't get coupled to
+    // user-handler duration. See WaitForDisconnectAsync.
+    private readonly TaskCompletionSource _disconnectedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Creates a muxer workload adapter from the supplied options bag.
@@ -77,34 +83,18 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 SingleWriter = true
             });
 
-        // Wire option callbacks to events. Done in the ctor so direct
-        // adapter construction (advanced path) gets the same callback
-        // surface as the WithHmp1* easy path. Subscribing here means
-        // the Connected handler is in place before ConnectAsync fires it.
-        if (options.OnConnected is { } onConnected)
-        {
-            Connected += (_, e) => onConnected(e);
-        }
-        if (options.OnRoleChanged is { } onRoleChanged)
-        {
-            RoleChanged += (_, e) => onRoleChanged(e);
-        }
-        if (options.OnPeerJoined is { } onPeerJoined)
-        {
-            PeerJoined += (_, e) => onPeerJoined(e);
-        }
-        if (options.OnPeerLeft is { } onPeerLeft)
-        {
-            PeerLeft += (_, e) => onPeerLeft(e);
-        }
-        if (options.OnRemoteResized is { } onRemoteResized)
-        {
-            RemoteResized += (_, e) => onRemoteResized(e);
-        }
-        if (options.OnDisconnected is { } onDisconnected)
-        {
-            Disconnected += () => onDisconnected();
-        }
+        // Pre-populate adapter callback properties from the options bag.
+        // Single assignment per property. Consumers who construct this
+        // adapter directly may later compose additional handlers via
+        // `+=` on the IHmp1ConnectionHandle properties — Hmp1AsyncCallback
+        // iterates the invocation list so multicast composition behaves
+        // exactly as a developer migrating from C# events would expect.
+        OnConnected = options.OnConnected;
+        OnRoleChanged = options.OnRoleChanged;
+        OnPeerJoined = options.OnPeerJoined;
+        OnPeerLeft = options.OnPeerLeft;
+        OnRemoteResized = options.OnRemoteResized;
+        OnDisconnected = options.OnDisconnected;
     }
 
     /// <summary>
@@ -184,52 +174,48 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     public int RemoteHeight => CurrentHeight;
 
     /// <inheritdoc />
+    public Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
+
+    /// <inheritdoc />
+    public Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
+
+    /// <inheritdoc />
+    public Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
+
+    /// <inheritdoc />
+    public Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
+
+    /// <inheritdoc />
+    public Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
+
+    /// <inheritdoc />
+    public Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
+
+    /// <summary>
+    /// Raised when the underlying transport closes. Required by the
+    /// <see cref="IHex1bTerminalWorkloadAdapter"/> contract so the
+    /// hosting <c>Hex1bTerminal</c> can observe workload exit. HMP1
+    /// consumers that want async-callback semantics should set
+    /// <see cref="OnDisconnected"/> instead — the event remains for
+    /// the workload-adapter contract only.
+    /// </summary>
     public event Action? Disconnected;
 
     /// <summary>
-    /// Raised once after the HMP v1 handshake completes successfully
-    /// (ClientHello → Hello → StateSync). The arguments carry the
-    /// server-assigned peer ID, current primary, initial peer roster,
-    /// and the producer's PTY dimensions.
+    /// Completes when the read pump has observed disconnection (clean
+    /// transport close, stream error, or local disposal). Completed
+    /// <em>before</em> the <see cref="OnDisconnected"/> callback is
+    /// awaited so framework consumers that just want to know "the
+    /// transport went away" do not get coupled to user-handler duration.
     /// </summary>
     /// <remarks>
-    /// Fires synchronously from inside <see cref="ConnectAsync"/> after
-    /// the read pump has been started but before <see cref="ConnectAsync"/>
-    /// returns to its caller. Handlers run on the connecting thread.
+    /// Used by <c>Hmp1BuilderExtensions.WithHmp1Client</c>'s internal
+    /// <c>runCallback</c> as the "wait for disconnect" signal — replaces
+    /// the previous pattern of subscribing to a multicast event, which
+    /// is no longer available now that callbacks are async-callback
+    /// properties.
     /// </remarks>
-    public event EventHandler<Hmp1ConnectedEventArgs>? Connected;
-
-    /// <summary>
-    /// Raised when the primary peer changes (including to <see langword="null"/>
-    /// after the previous primary disconnects).
-    /// </summary>
-    public event EventHandler<RoleChangedEventArgs>? RoleChanged;
-
-    /// <summary>
-    /// Raised when another peer joins the same producer.
-    /// </summary>
-    public event EventHandler<PeerJoinEventArgs>? PeerJoined;
-
-    /// <summary>
-    /// Raised when another peer leaves.
-    /// </summary>
-    public event EventHandler<PeerLeaveEventArgs>? PeerLeft;
-
-    /// <summary>
-    /// Raised when the producer's PTY dimensions change at runtime —
-    /// either because this client (as primary) requested a new size,
-    /// or because another peer became primary and broadcast different
-    /// dims. Useful for picking fit / doesn't-fit overlays in viewer
-    /// UIs without polling <see cref="CurrentWidth"/> / <see cref="CurrentHeight"/>
-    /// from a render loop.
-    /// </summary>
-    /// <remarks>
-    /// Does NOT fire for the initial dims learned from the Hello frame
-    /// — those are surfaced via <see cref="Connected"/> instead. Fires
-    /// only when a Resize or RoleChange frame actually changes the
-    /// previously-known dims.
-    /// </remarks>
-    public event EventHandler<RemoteResizedEventArgs>? RemoteResized;
+    public Task DisconnectedTask => _disconnectedTcs.Task;
 
     /// <summary>
     /// Connects to the server, sends ClientHello, reads Hello and StateSync,
@@ -306,9 +292,10 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         _readTask = Task.Run(() => ReadPumpAsync(_readCts.Token));
 
         // Snapshot connected-state under the lock, raise the event without
-        // holding it. Handlers run synchronously on the connecting thread.
-        Hmp1ConnectedEventArgs? connectedArgs = null;
-        if (Connected is { } connectedHandler)
+        // holding it. Handlers run on the connecting thread and are
+        // awaited inline so ConnectAsync only returns after they
+        // complete (matches the previous synchronous-event semantic).
+        if (OnConnected is not null)
         {
             string peerId;
             string? primaryPeerId;
@@ -323,8 +310,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 height = _currentHeight;
                 peers = [.. _peers];
             }
-            connectedArgs = new Hmp1ConnectedEventArgs(this, peerId, primaryPeerId, peers, width, height);
-            connectedHandler(this, connectedArgs);
+            var args = new Hmp1ConnectedEventArgs(this, peerId, primaryPeerId, peers, width, height);
+            await Hmp1AsyncCallback.InvokeAsync(OnConnected, args, ct).ConfigureAwait(false);
         }
     }
 
@@ -432,7 +419,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 
     /// <summary>
     /// Asks the server to make this peer the primary at the supplied dimensions.
-    /// The server always grants in this iteration; observe <see cref="RoleChanged"/>
+    /// The server always grants in this iteration; observe
+    /// <see cref="IHmp1ConnectionHandle.OnRoleChanged"/>
     /// (or call <see cref="WaitForRoleAsync"/>) for the acknowledged transition.
     /// </summary>
     public async Task RequestPrimaryAsync(int cols, int rows, CancellationToken ct = default)
@@ -469,11 +457,12 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         if (IsPrimary == primary) return true;
 
         var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        EventHandler<RoleChangedEventArgs> handler = (_, _) =>
+        Func<RoleChangedEventArgs, CancellationToken, ValueTask> handler = (_, _) =>
         {
             if (IsPrimary == primary) tcs.TrySetResult(true);
+            return ValueTask.CompletedTask;
         };
-        RoleChanged += handler;
+        OnRoleChanged += handler;
         try
         {
             // Re-check after subscribing to close the race window.
@@ -487,7 +476,7 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         }
         finally
         {
-            RoleChanged -= handler;
+            OnRoleChanged -= handler;
         }
     }
 
@@ -527,20 +516,23 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                         }
                         if (resizeChanged)
                         {
-                            RemoteResized?.Invoke(this, new RemoteResizedEventArgs(width, height, resizeIsPrimary));
+                            await Hmp1AsyncCallback.InvokeAsync(
+                                OnRemoteResized,
+                                new RemoteResizedEventArgs(width, height, resizeIsPrimary),
+                                ct).ConfigureAwait(false);
                         }
                         break;
 
                     case Hmp1FrameType.RoleChange:
-                        HandleRoleChange(frame.Payload);
+                        await HandleRoleChangeAsync(frame.Payload, ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.PeerJoin:
-                        HandlePeerJoin(frame.Payload);
+                        await HandlePeerJoinAsync(frame.Payload, ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.PeerLeave:
-                        HandlePeerLeave(frame.Payload);
+                        await HandlePeerLeaveAsync(frame.Payload, ct).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.Exit:
@@ -557,11 +549,26 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         finally
         {
             _outputChannel.Writer.TryComplete();
-            Disconnected?.Invoke();
+            // Complete the disconnect task BEFORE invoking the user
+            // callback so framework consumers awaiting DisconnectedTask
+            // don't get blocked behind a slow user OnDisconnected
+            // handler. The TCS is one-shot — only the first disconnect
+            // observation completes it.
+            _disconnectedTcs.TrySetResult();
+            // Fire the IHex1bTerminalWorkloadAdapter contract event so
+            // the hosting Hex1bTerminal can react to workload exit.
+            // Wrap in try/catch so a misbehaving subscriber can't
+            // suppress the OnDisconnected callback below.
+            try { Disconnected?.Invoke(); } catch { }
+            // Pass CancellationToken.None: by this point _readCts has
+            // (likely) been cancelled, and a naive handler that throws
+            // on a cancelled token would skip the cleanup work the
+            // disconnect callback exists to perform.
+            await Hmp1AsyncCallback.InvokeAsync(OnDisconnected, CancellationToken.None).ConfigureAwait(false);
         }
     }
 
-    private void HandleRoleChange(ReadOnlyMemory<byte> payload)
+    private async ValueTask HandleRoleChangeAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var p = Hmp1Protocol.ParseRoleChange(payload);
         bool nowPrimary;
@@ -576,24 +583,33 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
             _currentHeight = p.Height;
             nowPrimary = _primaryPeerId != null && _primaryPeerId == _peerId;
         }
-        RoleChanged?.Invoke(this, new RoleChangedEventArgs(p.PrimaryPeerId, p.Width, p.Height, p.Reason, previouslyPrimary, nowPrimary));
+        await Hmp1AsyncCallback.InvokeAsync(
+            OnRoleChanged,
+            new RoleChangedEventArgs(p.PrimaryPeerId, p.Width, p.Height, p.Reason, previouslyPrimary, nowPrimary),
+            ct).ConfigureAwait(false);
         if (dimsChanged)
         {
-            RemoteResized?.Invoke(this, new RemoteResizedEventArgs(p.Width, p.Height, nowPrimary));
+            await Hmp1AsyncCallback.InvokeAsync(
+                OnRemoteResized,
+                new RemoteResizedEventArgs(p.Width, p.Height, nowPrimary),
+                ct).ConfigureAwait(false);
         }
     }
 
-    private void HandlePeerJoin(ReadOnlyMemory<byte> payload)
+    private async ValueTask HandlePeerJoinAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var p = Hmp1Protocol.ParsePeerJoin(payload);
         lock (_stateLock)
         {
             _peers.Add(new PeerInfo(p.PeerId, p.DisplayName));
         }
-        PeerJoined?.Invoke(this, new PeerJoinEventArgs(p.PeerId, p.DisplayName));
+        await Hmp1AsyncCallback.InvokeAsync(
+            OnPeerJoined,
+            new PeerJoinEventArgs(p.PeerId, p.DisplayName),
+            ct).ConfigureAwait(false);
     }
 
-    private void HandlePeerLeave(ReadOnlyMemory<byte> payload)
+    private async ValueTask HandlePeerLeaveAsync(ReadOnlyMemory<byte> payload, CancellationToken ct)
     {
         var p = Hmp1Protocol.ParsePeerLeave(payload);
         lock (_stateLock)
@@ -606,7 +622,10 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
                 }
             }
         }
-        PeerLeft?.Invoke(this, new PeerLeaveEventArgs(p.PeerId));
+        await Hmp1AsyncCallback.InvokeAsync(
+            OnPeerLeft,
+            new PeerLeaveEventArgs(p.PeerId),
+            ct).ConfigureAwait(false);
     }
 
     /// <inheritdoc />
@@ -615,19 +634,40 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         if (_disposed) return;
         _disposed = true;
 
+        // Detect dispose-from-callback: a user handler running on the
+        // read pump that calls back into us (e.g.
+        // OnRoleChanged = async (e, ct) => await connection.DisposeAsync())
+        // would otherwise deadlock waiting on _readTask, which is the
+        // task currently executing the callback. Cancel the pump but
+        // don't wait for it — the pump will unwind naturally after the
+        // callback returns and the next ReadFrameAsync observes
+        // cancellation.
+        var fromCallback = Hmp1CallbackContext.InCallback;
+
         if (_readCts is not null)
         {
             await _readCts.CancelAsync().ConfigureAwait(false);
-            try
+            if (!fromCallback)
             {
-                if (_readTask is not null)
-                    await _readTask.ConfigureAwait(false);
+                try
+                {
+                    if (_readTask is not null)
+                        await _readTask.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) { }
             }
-            catch (OperationCanceledException) { }
-            _readCts.Dispose();
+            // Defer Dispose until the pump has actually finished if
+            // we're being called from outside it; otherwise the pump's
+            // CT.IsCancellationRequested check already saw the cancel
+            // signal and the CTS can be disposed by whoever finally
+            // does a non-callback Dispose.
+            if (!fromCallback)
+            {
+                _readCts.Dispose();
+            }
         }
 
-        if (_stream is not null)
+        if (_stream is not null && !fromCallback)
         {
             await _stream.DisposeAsync().ConfigureAwait(false);
         }
@@ -644,7 +684,8 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
 public readonly record struct PeerInfo(string PeerId, string? DisplayName);
 
 /// <summary>
-/// Arguments for the <see cref="Hmp1WorkloadAdapter.RoleChanged"/> event.
+/// Arguments for the <see cref="IHmp1ConnectionHandle.OnRoleChanged"/>
+/// callback.
 /// </summary>
 public sealed class RoleChangedEventArgs : EventArgs
 {
@@ -678,7 +719,8 @@ public sealed class RoleChangedEventArgs : EventArgs
 }
 
 /// <summary>
-/// Arguments for the <see cref="Hmp1WorkloadAdapter.PeerJoined"/> event.
+/// Arguments for the <see cref="IHmp1ConnectionHandle.OnPeerJoined"/>
+/// callback.
 /// </summary>
 public sealed class PeerJoinEventArgs : EventArgs
 {
@@ -696,7 +738,8 @@ public sealed class PeerJoinEventArgs : EventArgs
 }
 
 /// <summary>
-/// Arguments for the <see cref="Hmp1WorkloadAdapter.PeerLeft"/> event.
+/// Arguments for the <see cref="IHmp1ConnectionHandle.OnPeerLeft"/>
+/// callback.
 /// </summary>
 public sealed class PeerLeaveEventArgs : EventArgs
 {
@@ -710,7 +753,7 @@ public sealed class PeerLeaveEventArgs : EventArgs
 }
 
 /// <summary>
-/// Arguments for the <see cref="Hmp1WorkloadAdapter.Connected"/> event.
+/// Arguments for the <see cref="IHmp1ConnectionHandle.OnConnected"/> callback.
 /// Carries the state assembled from the Hello and StateSync handshake frames.
 /// </summary>
 public sealed class Hmp1ConnectedEventArgs : EventArgs
@@ -750,7 +793,7 @@ public sealed class Hmp1ConnectedEventArgs : EventArgs
 }
 
 /// <summary>
-/// Arguments for the <see cref="Hmp1WorkloadAdapter.RemoteResized"/> event.
+/// Arguments for the <see cref="IHmp1ConnectionHandle.OnRemoteResized"/> callback.
 /// </summary>
 public sealed class RemoteResizedEventArgs : EventArgs
 {

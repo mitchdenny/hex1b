@@ -70,23 +70,46 @@ public sealed class Hmp1ClientOptions
     /// <see cref="IHmp1ConnectionHandle"/> for this client plus initial
     /// state (peer ID, current primary, peer roster, producer dims).
     /// </summary>
-    public Action<Hmp1ConnectedEventArgs>? OnConnected { get; set; }
+    /// <remarks>
+    /// Awaited inline by <see cref="Hmp1WorkloadAdapter.ConnectAsync"/>
+    /// before <c>ConnectAsync</c> returns. Multicast assignment via
+    /// <c>+=</c> is supported — each handler is awaited independently
+    /// with its own exception isolation. Handlers should not call
+    /// <see cref="IAsyncDisposable.DisposeAsync"/> on the connection
+    /// from inside the callback (the read pump is not yet running on
+    /// this path; for the per-event callbacks below, an
+    /// <see cref="AsyncLocal{T}"/> guard makes self-disposal safe).
+    /// </remarks>
+    public Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
 
     /// <summary>
     /// Invoked when this client's role transitions between primary and
     /// secondary.
     /// </summary>
-    public Action<RoleChangedEventArgs>? OnRoleChanged { get; set; }
+    /// <remarks>
+    /// Awaited inline by the read pump. A slow handler back-pressures
+    /// frame processing — offload long work yourself if you need
+    /// non-blocking observation. Multicast (<c>+=</c>) is supported.
+    /// </remarks>
+    public Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
 
     /// <summary>
     /// Invoked when another peer joins the same producer.
     /// </summary>
-    public Action<PeerJoinEventArgs>? OnPeerJoined { get; set; }
+    /// <remarks>
+    /// Awaited inline by the read pump. See <see cref="OnRoleChanged"/>
+    /// for back-pressure and multicast notes.
+    /// </remarks>
+    public Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
 
     /// <summary>
     /// Invoked when another peer leaves the same producer.
     /// </summary>
-    public Action<PeerLeaveEventArgs>? OnPeerLeft { get; set; }
+    /// <remarks>
+    /// Awaited inline by the read pump. See <see cref="OnRoleChanged"/>
+    /// for back-pressure and multicast notes.
+    /// </remarks>
+    public Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime —
@@ -94,14 +117,27 @@ public sealed class Hmp1ClientOptions
     /// another peer became primary and broadcast different dims.
     /// </summary>
     /// <remarks>
+    /// <para>
     /// Does NOT fire for the initial dims learned in the handshake;
     /// those are surfaced via <see cref="OnConnected"/> instead.
+    /// </para>
+    /// <para>
+    /// Awaited inline by the read pump. See <see cref="OnRoleChanged"/>
+    /// for back-pressure and multicast notes.
+    /// </para>
     /// </remarks>
-    public Action<RemoteResizedEventArgs>? OnRemoteResized { get; set; }
+    public Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
 
     /// <summary>
     /// Invoked once when the underlying transport stream closes,
     /// regardless of cause (server shutdown, network error, local cancel).
     /// </summary>
-    public Action? OnDisconnected { get; set; }
+    /// <remarks>
+    /// Receives <see cref="CancellationToken.None"/> — by the time this
+    /// callback runs the adapter's lifetime token has already been
+    /// cancelled, and passing it would cause naive handlers to
+    /// short-circuit the very cleanup work the disconnect callback
+    /// exists to perform. Awaited inline; multicast supported.
+    /// </remarks>
+    public Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
 }

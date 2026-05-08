@@ -49,7 +49,7 @@ public interface IHmp1ConnectionHandle
     /// <summary>
     /// The producer's PTY width as last observed by this client.
     /// Updated by Resize and RoleChange frames; surfaced via
-    /// <see cref="RemoteResized"/>.
+    /// <see cref="OnRemoteResized"/>.
     /// </summary>
     int RemoteWidth { get; }
 
@@ -60,46 +60,76 @@ public interface IHmp1ConnectionHandle
 
     /// <summary>
     /// Snapshot of currently-connected peers (excluding self) as known
-    /// to this client. Updated by PeerJoin / PeerLeave frames; subscribe
-    /// to <see cref="PeerJoined"/> / <see cref="PeerLeft"/> for
+    /// to this client. Updated by PeerJoin / PeerLeave frames; set
+    /// <see cref="OnPeerJoined"/> / <see cref="OnPeerLeft"/> for
     /// notifications.
     /// </summary>
     IReadOnlyList<PeerInfo> Peers { get; }
 
     /// <summary>
-    /// Raised once after the HMP v1 handshake (ClientHello → Hello →
-    /// StateSync) completes successfully.
+    /// Invoked once after the HMP v1 handshake (ClientHello → Hello →
+    /// StateSync) completes successfully. Pre-populated from
+    /// <see cref="Hmp1ClientOptions.OnConnected"/> at adapter
+    /// construction; may be replaced or composed with <c>+=</c> at
+    /// runtime (multicast handlers are awaited sequentially with
+    /// per-handler exception isolation).
     /// </summary>
-    event EventHandler<Hmp1ConnectedEventArgs>? Connected;
+    Func<Hmp1ConnectedEventArgs, CancellationToken, ValueTask>? OnConnected { get; set; }
 
     /// <summary>
-    /// Raised when the primary peer changes.
+    /// Invoked when the primary peer changes.
     /// </summary>
-    event EventHandler<RoleChangedEventArgs>? RoleChanged;
+    /// <remarks>
+    /// Awaited inline by the read pump. Slow handlers back-pressure
+    /// frame processing — offload long work yourself if required.
+    /// Multicast (<c>+=</c>) is supported and each handler is awaited
+    /// independently. Self-disposal
+    /// (<c>await connection.DisposeAsync()</c>) from inside the handler
+    /// is guarded against deadlock.
+    /// </remarks>
+    Func<RoleChangedEventArgs, CancellationToken, ValueTask>? OnRoleChanged { get; set; }
 
     /// <summary>
-    /// Raised when the producer's PTY dimensions change at runtime.
+    /// Invoked when the producer's PTY dimensions change at runtime.
     /// </summary>
-    event EventHandler<RemoteResizedEventArgs>? RemoteResized;
+    /// <remarks>
+    /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
+    /// self-disposal notes.
+    /// </remarks>
+    Func<RemoteResizedEventArgs, CancellationToken, ValueTask>? OnRemoteResized { get; set; }
 
     /// <summary>
-    /// Raised when another peer joins the same producer.
+    /// Invoked when another peer joins the same producer.
     /// </summary>
-    event EventHandler<PeerJoinEventArgs>? PeerJoined;
+    /// <remarks>
+    /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
+    /// self-disposal notes.
+    /// </remarks>
+    Func<PeerJoinEventArgs, CancellationToken, ValueTask>? OnPeerJoined { get; set; }
 
     /// <summary>
-    /// Raised when another peer leaves.
+    /// Invoked when another peer leaves.
     /// </summary>
-    event EventHandler<PeerLeaveEventArgs>? PeerLeft;
+    /// <remarks>
+    /// See <see cref="OnRoleChanged"/> for back-pressure, multicast and
+    /// self-disposal notes.
+    /// </remarks>
+    Func<PeerLeaveEventArgs, CancellationToken, ValueTask>? OnPeerLeft { get; set; }
 
     /// <summary>
-    /// Raised once when the underlying transport stream closes.
+    /// Invoked once when the underlying transport stream closes.
     /// </summary>
-    event Action? Disconnected;
+    /// <remarks>
+    /// Receives <see cref="CancellationToken.None"/> — by the time the
+    /// callback runs the adapter's lifetime token has been cancelled,
+    /// and passing it would short-circuit cleanup work in naive
+    /// handlers. Multicast supported.
+    /// </remarks>
+    Func<CancellationToken, ValueTask>? OnDisconnected { get; set; }
 
     /// <summary>
     /// Asks the producer to make this peer the primary at the supplied
-    /// dimensions. Observe <see cref="RoleChanged"/> for the
+    /// dimensions. Observe <see cref="OnRoleChanged"/> for the
     /// acknowledged transition.
     /// </summary>
     Task RequestPrimaryAsync(int cols, int rows, CancellationToken ct = default);

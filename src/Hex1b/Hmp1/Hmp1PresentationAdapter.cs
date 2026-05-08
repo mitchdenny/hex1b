@@ -92,29 +92,59 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
     };
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Required by <see cref="IHex1bTerminalPresentationAdapter"/>. Not
+    /// surfaced to HMP1 server-side observers; for runtime size changes
+    /// driven by primary-peer resize, use <see cref="OnResized"/>.
+    /// </remarks>
     public event Action<int, int>? Resized;
 
     /// <inheritdoc />
+    /// <remarks>
+    /// Required by <see cref="IHex1bTerminalPresentationAdapter"/>.
+    /// Fired by <see cref="DisposeAsync"/> when the presentation layer
+    /// is torn down. Not surfaced to HMP1 server-side observers — the
+    /// per-client lifecycle is observed via
+    /// <see cref="OnClientDisconnected"/> instead.
+    /// </remarks>
     public event Action? Disconnected;
 
     /// <summary>
-    /// Raised when the primary peer changes (including transitions to no primary).
-    /// Argument is the new <see cref="PrimaryPeerId"/>.
+    /// Invoked when the producer's PTY dimensions change at runtime
+    /// (typically as a result of a primary-peer resize). Awaited inline
+    /// by the per-client read pump that processed the triggering frame.
+    /// Multicast (<c>+=</c>) is supported; each handler is awaited
+    /// independently with its own exception isolation.
     /// </summary>
-    public event Action<string?>? PrimaryChanged;
+    public Func<Hmp1ServerResizedEventArgs, CancellationToken, ValueTask>? OnResized { get; set; }
 
     /// <summary>
-    /// Raised after a new client completes its ClientHello → Hello →
+    /// Invoked when the primary peer changes (including transitions to no primary).
+    /// </summary>
+    /// <remarks>
+    /// Awaited inline by the per-client read pump (or by RemoveSession
+    /// when the previous primary disconnects). Multicast supported.
+    /// </remarks>
+    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, ValueTask>? OnPrimaryChanged { get; set; }
+
+    /// <summary>
+    /// Invoked after a new client completes its ClientHello → Hello →
     /// StateSync handshake. Argument carries the assigned peer ID, the
     /// display name and (parsed) role hint the client supplied.
     /// </summary>
-    public event EventHandler<Hmp1ClientConnectedEventArgs>? ClientConnected;
+    /// <remarks>
+    /// Awaited inline by the per-client write pump after the handshake
+    /// frames have been written but before output streaming begins.
+    /// </remarks>
+    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, ValueTask>? OnClientConnected { get; set; }
 
     /// <summary>
-    /// Raised when a per-client session ends (clean disconnect or
-    /// transport failure).
+    /// Invoked when a per-client session ends (clean disconnect or
+    /// transport failure). Per-session disposal runs in parallel so a
+    /// slow handler does not delay transport cleanup. Receives
+    /// <see cref="CancellationToken.None"/>.
     /// </summary>
-    public event EventHandler<Hmp1ClientDisconnectedEventArgs>? ClientDisconnected;
+    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, ValueTask>? OnClientDisconnected { get; set; }
 
     /// <summary>
     /// Gets the number of currently connected clients.
@@ -276,18 +306,15 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         // Notify server-side observers AFTER the pumps are spinning so an
         // OnClientConnected handler that turns around and inspects the
         // session sees a fully-live state. Failures here must not propagate
-        // to the caller (which already has a working handle).
-        if (ClientConnected is { } onConnected)
-        {
-            try
-            {
-                onConnected(this, new Hmp1ClientConnectedEventArgs(
-                    session.PeerId,
-                    session.DisplayName,
-                    Hmp1RoleExtensions.TryParseWireString(session.DefaultRole)));
-            }
-            catch { /* observer must not break the server */ }
-        }
+        // to the caller (which already has a working handle) — the
+        // Hmp1AsyncCallback helper isolates per-handler exceptions.
+        await Hmp1AsyncCallback.InvokeAsync(
+            OnClientConnected,
+            new Hmp1ClientConnectedEventArgs(
+                session.PeerId,
+                session.DisplayName,
+                Hmp1RoleExtensions.TryParseWireString(session.DefaultRole)),
+            ct).ConfigureAwait(false);
 
         return new Hmp1ClientHandle(session, this);
     }
@@ -487,7 +514,7 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
         finally
         {
-            RemoveSession(session);
+            await RemoveSessionAsync(session).ConfigureAwait(false);
         }
     }
 
@@ -514,11 +541,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
                         break;
 
                     case Hmp1FrameType.Resize:
-                        HandleResize(session, frame.Payload);
+                        await HandleResizeAsync(session, frame.Payload).ConfigureAwait(false);
                         break;
 
                     case Hmp1FrameType.RequestPrimary:
-                        HandleRequestPrimary(session, frame.Payload);
+                        await HandleRequestPrimaryAsync(session, frame.Payload).ConfigureAwait(false);
                         break;
 
                     // Unknown frame types are intentionally silently ignored to
@@ -533,11 +560,11 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         }
         finally
         {
-            RemoveSession(session);
+            await RemoveSessionAsync(session).ConfigureAwait(false);
         }
     }
 
-    private void HandleResize(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
+    private async ValueTask HandleResizeAsync(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
         var (width, height) = Hmp1Protocol.ParseResize(payload);
 
@@ -580,11 +607,18 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
 
         if (acceptedAsPrimary)
         {
+            // The interface contract Resized event still drives the
+            // underlying PTY's resize.
             Resized?.Invoke(width, height);
+            // The HMP-server-specific async callback for observers.
+            await Hmp1AsyncCallback.InvokeAsync(
+                OnResized,
+                new Hmp1ServerResizedEventArgs(width, height),
+                session.Cts.Token).ConfigureAwait(false);
         }
     }
 
-    private void HandleRequestPrimary(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
+    private async ValueTask HandleRequestPrimaryAsync(Hmp1ClientSession session, ReadOnlyMemory<byte> payload)
     {
         var req = Hmp1Protocol.ParseRequestPrimary(payload);
 
@@ -632,12 +666,19 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
         if (sizeChanged)
         {
             Resized?.Invoke(cols, rows);
+            await Hmp1AsyncCallback.InvokeAsync(
+                OnResized,
+                new Hmp1ServerResizedEventArgs(cols, rows),
+                session.Cts.Token).ConfigureAwait(false);
         }
 
-        PrimaryChanged?.Invoke(session.PeerId);
+        await Hmp1AsyncCallback.InvokeAsync(
+            OnPrimaryChanged,
+            new Hmp1ServerPrimaryChangedEventArgs(session.PeerId),
+            session.Cts.Token).ConfigureAwait(false);
     }
 
-    internal void RemoveSession(Hmp1ClientSession session)
+    internal async ValueTask RemoveSessionAsync(Hmp1ClientSession session)
     {
         bool wasPrimary;
         bool actuallyRemoved;
@@ -692,22 +733,27 @@ public sealed class Hmp1PresentationAdapter : ITerminalLifecycleAwarePresentatio
             }
         }
 
+        // Kick off per-session cleanup in parallel with awaiting observer
+        // callbacks: a slow observer must not delay stream/channel teardown.
+        var disposeTask = DisposeSessionAsync(session);
+
         if (actuallyRemoved && wasPrimary)
         {
-            PrimaryChanged?.Invoke(null);
+            await Hmp1AsyncCallback.InvokeAsync(
+                OnPrimaryChanged,
+                new Hmp1ServerPrimaryChangedEventArgs(null),
+                CancellationToken.None).ConfigureAwait(false);
         }
 
-        if (actuallyRemoved && ClientDisconnected is { } onDisconnected)
+        if (actuallyRemoved)
         {
-            try
-            {
-                onDisconnected(this, new Hmp1ClientDisconnectedEventArgs(
-                    session.PeerId, session.DisplayName));
-            }
-            catch { /* observer must not break the server */ }
+            await Hmp1AsyncCallback.InvokeAsync(
+                OnClientDisconnected,
+                new Hmp1ClientDisconnectedEventArgs(session.PeerId, session.DisplayName),
+                CancellationToken.None).ConfigureAwait(false);
         }
 
-        _ = DisposeSessionAsync(session);
+        await disposeTask.ConfigureAwait(false);
     }
 
     private static void EnqueueControlFrameAsync(Hmp1ClientSession session, Func<Stream, Task> writer)

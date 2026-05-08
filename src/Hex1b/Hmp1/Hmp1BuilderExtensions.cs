@@ -130,12 +130,22 @@ public static class Hmp1BuilderExtensions
             {
                 await adapter.ConnectAsync(ct);
 
-                var tcs = new TaskCompletionSource<int>();
-                adapter.Disconnected += () => tcs.TrySetResult(0);
+                // Use the adapter's TCS-backed DisconnectedTask instead of
+                // subscribing to an event — keeps this internal wait
+                // independent of the user's OnDisconnected callback
+                // duration (which the framework should not block on)
+                // and avoids racing with any callback the user supplied
+                // via options.
+                var disconnect = adapter.DisconnectedTask;
+                var cancelled = Task.Delay(Timeout.Infinite, ct);
+                var first = await Task.WhenAny(disconnect, cancelled).ConfigureAwait(false);
+                if (first != disconnect)
+                {
+                    // Cancellation won the race; surface it.
+                    ct.ThrowIfCancellationRequested();
+                }
 
-                using var registration = ct.Register(() => tcs.TrySetCanceled(ct));
-
-                return await tcs.Task;
+                return 0;
             };
 
             return new Hex1bTerminalBuildContext(adapter, runCallback);

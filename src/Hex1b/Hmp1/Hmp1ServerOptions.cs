@@ -25,23 +25,43 @@ public sealed class Hmp1ServerOptions
     /// <summary>
     /// Invoked after a new HMP v1 client completes its handshake.
     /// </summary>
-    public Action<Hmp1ClientConnectedEventArgs>? OnClientConnected { get; set; }
+    /// <remarks>
+    /// Awaited inline by the per-client write pump after the handshake
+    /// frames have been written but before output streaming begins. A
+    /// slow handler back-pressures handshake completion for that client
+    /// only. Multicast (<c>+=</c>) is supported.
+    /// </remarks>
+    public Func<Hmp1ClientConnectedEventArgs, CancellationToken, ValueTask>? OnClientConnected { get; set; }
 
     /// <summary>
     /// Invoked when a per-client session ends (clean disconnect or
     /// transport failure).
     /// </summary>
-    public Action<Hmp1ClientDisconnectedEventArgs>? OnClientDisconnected { get; set; }
+    /// <remarks>
+    /// Per-session disposal runs in parallel with this callback so a
+    /// slow handler does not delay transport cleanup. Receives
+    /// <see cref="CancellationToken.None"/>.
+    /// </remarks>
+    public Func<Hmp1ClientDisconnectedEventArgs, CancellationToken, ValueTask>? OnClientDisconnected { get; set; }
 
     /// <summary>
     /// Invoked when the producer's PTY dimensions change at runtime
     /// (typically as a result of a primary-peer Resize).
     /// </summary>
-    public Action<Hmp1ServerResizedEventArgs>? OnResized { get; set; }
+    /// <remarks>
+    /// Awaited inline by the per-client read pump that processed the
+    /// triggering frame. Multicast supported.
+    /// </remarks>
+    public Func<Hmp1ServerResizedEventArgs, CancellationToken, ValueTask>? OnResized { get; set; }
 
     /// <summary>
     /// Invoked when the primary peer changes (including transitions to
     /// no-primary).
     /// </summary>
-    public Action<Hmp1ServerPrimaryChangedEventArgs>? OnPrimaryChanged { get; set; }
+    /// <remarks>
+    /// Awaited inline by the per-client read pump (or by
+    /// <c>RemoveSession</c> when the previous primary disconnects).
+    /// Multicast supported.
+    /// </remarks>
+    public Func<Hmp1ServerPrimaryChangedEventArgs, CancellationToken, ValueTask>? OnPrimaryChanged { get; set; }
 }

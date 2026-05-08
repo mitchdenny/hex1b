@@ -49,11 +49,10 @@ public sealed class Hmp1ClientHandle : IAsyncDisposable
     public int RemoteHeight => _session.RemoteHeight;
 
     /// <inheritdoc />
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        if (_disposed) return ValueTask.CompletedTask;
+        if (_disposed) return;
         _disposed = true;
-        _adapter.RemoveSession(_session);
-        return ValueTask.CompletedTask;
+        await _adapter.RemoveSessionAsync(_session).ConfigureAwait(false);
     }
 }

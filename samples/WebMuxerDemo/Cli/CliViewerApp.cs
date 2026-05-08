@@ -123,17 +123,18 @@ internal sealed class CliViewerApp
                 opts.DisplayName = _displayName ?? "webmux-cli";
                 opts.DefaultRole = Hmp1Role.Secondary;
 
-                opts.OnConnected = e =>
+                opts.OnConnected = (e, _) =>
                 {
                     _connection = e.Connection;
                     EnsureInnerSize(e.Width, e.Height);
                     _app?.Invalidate();
+                    return ValueTask.CompletedTask;
                 };
-                opts.OnRoleChanged = OnRoleChanged;
-                opts.OnRemoteResized = OnRemoteResized;
-                opts.OnPeerJoined = _ => _app?.Invalidate();
-                opts.OnPeerLeft = _ => _app?.Invalidate();
-                opts.OnDisconnected = OnDisconnected;
+                opts.OnRoleChanged = (e, _) => { OnRoleChanged(e); return ValueTask.CompletedTask; };
+                opts.OnRemoteResized = (e, _) => { OnRemoteResized(e); return ValueTask.CompletedTask; };
+                opts.OnPeerJoined = (_, _) => { _app?.Invalidate(); return ValueTask.CompletedTask; };
+                opts.OnPeerLeft = (_, _) => { _app?.Invalidate(); return ValueTask.CompletedTask; };
+                opts.OnDisconnected = _ => { OnDisconnected(); return ValueTask.CompletedTask; };
             })
             .WithScrollback()
             .WithTerminalWidget(out var handle)

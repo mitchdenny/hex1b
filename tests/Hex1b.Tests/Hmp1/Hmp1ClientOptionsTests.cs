@@ -7,8 +7,8 @@ namespace Hex1b.Tests.Hmp1;
 /// <summary>
 /// Tests for the <see cref="Hmp1ClientOptions"/> callback surface plumbed
 /// through <see cref="Hmp1BuilderExtensions.WithHmp1Stream(Hex1bTerminalBuilder, System.IO.Stream, System.Action{Hmp1ClientOptions}?)"/>,
-/// plus the underlying <see cref="Hmp1WorkloadAdapter.Connected"/> and
-/// <see cref="Hmp1WorkloadAdapter.RemoteResized"/> events.
+/// plus the underlying <see cref="Hmp1WorkloadAdapter.OnConnected"/> and
+/// <see cref="Hmp1WorkloadAdapter.OnRemoteResized"/> async callbacks.
 /// </summary>
 public class Hmp1ClientOptionsTests
 {
@@ -27,10 +27,11 @@ public class Hmp1ClientOptionsTests
 
         var connectedCount = 0;
         Hmp1ConnectedEventArgs? captured = null;
-        adapter.Connected += (_, e) =>
+        adapter.OnConnected += (e, _) =>
         {
             Interlocked.Increment(ref connectedCount);
             captured = e;
+            return ValueTask.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -59,9 +60,10 @@ public class Hmp1ClientOptionsTests
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
-        adapter.RemoteResized += (_, e) =>
+        adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
+            return ValueTask.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -97,9 +99,10 @@ public class Hmp1ClientOptionsTests
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
-        adapter.RemoteResized += (_, e) =>
+        adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
+            return ValueTask.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -141,9 +144,10 @@ public class Hmp1ClientOptionsTests
         await using var adapterDispose = adapter;
 
         var resizes = new List<RemoteResizedEventArgs>();
-        adapter.RemoteResized += (_, e) =>
+        adapter.OnRemoteResized += (e, _) =>
         {
             lock (resizes) { resizes.Add(e); }
+            return ValueTask.CompletedTask;
         };
 
         var addTask = server.AddClient(s1, CancellationToken.None);
@@ -189,28 +193,32 @@ public class Hmp1ClientOptionsTests
             {
                 opt.DisplayName = "viewer-via-options";
                 opt.DefaultRole = Hmp1Role.Secondary;
-                opt.OnConnected = e =>
+                opt.OnConnected = (e, _) =>
                 {
                     Interlocked.Increment(ref connectedCount);
                     capturedConnected = e;
+                    return ValueTask.CompletedTask;
                 };
-                opt.OnRoleChanged = _ => Interlocked.Increment(ref roleChangedCount);
-                opt.OnPeerJoined = e =>
+                opt.OnRoleChanged = (_, _) => { Interlocked.Increment(ref roleChangedCount); return ValueTask.CompletedTask; };
+                opt.OnPeerJoined = (e, _) =>
                 {
                     Interlocked.Increment(ref peerJoinedCount);
                     capturedPeerJoined = e;
+                    return ValueTask.CompletedTask;
                 };
-                opt.OnPeerLeft = e =>
+                opt.OnPeerLeft = (e, _) =>
                 {
                     Interlocked.Increment(ref peerLeftCount);
                     capturedPeerLeft = e;
+                    return ValueTask.CompletedTask;
                 };
-                opt.OnRemoteResized = e =>
+                opt.OnRemoteResized = (e, _) =>
                 {
                     Interlocked.Increment(ref remoteResizedCount);
                     lastRemoteResized = e;
+                    return ValueTask.CompletedTask;
                 };
-                opt.OnDisconnected = () => Interlocked.Increment(ref disconnectedCount);
+                opt.OnDisconnected = _ => { Interlocked.Increment(ref disconnectedCount); return ValueTask.CompletedTask; };
             })
             .Build();
         await using var terminalDispose = terminal;
