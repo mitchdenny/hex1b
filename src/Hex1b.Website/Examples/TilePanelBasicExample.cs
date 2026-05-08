@@ -88,7 +88,7 @@ public class TilePanelBasicExample(ILogger<TilePanelBasicExample> logger) : Hex1
             return ctx.VStack(v => [
                 v.Text($"Camera: ({state.CameraX:F1}, {state.CameraY:F1})  Zoom: {state.ZoomLevel}  [Arrows=Pan, +/-=Zoom, Home=Reset]"),
                 v.TilePanel(dataSource, state.CameraX, state.CameraY, state.ZoomLevel)
-                    .WithPointsOfInterest(pois)
+                    .PointsOfInterest(pois)
                     .OnPan(e =>
                     {
                         state.CameraX += e.DeltaX;

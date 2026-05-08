@@ -89,7 +89,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         {
             var term = ctx.Terminal(bashHandle)
                 .WhenNotRunning(_ => ctx.Text(""))
-                .WithInputBindings(bindings =>
+                .InputBindings(bindings =>
                 {
                     bindings.Drag(MouseButton.Left).Action((sx, sy) =>
                     {

@@ -154,7 +154,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                     // Build image widget with optional explicit cell dimensions
                     var kgpImage = v.KgpImage(imageData, pixelW, pixelH,
                         img => img.Text($" [KGP not supported - {name} fallback]"))
-                        .WithStretch(stretch);
+                        .Stretch(stretch);
 
                     if (sizeEnabled
                         && int.TryParse(widthText, out var cw) && cw > 0
@@ -167,7 +167,7 @@ void OpenImageWindow(MenuItemActivatedEventArgs e, string name, byte[] imageData
                             var aspectRatio = (double)pixelW / pixelH;
                             ch = Math.Max(1, (int)Math.Round(cw / aspectRatio * 0.5));
                         }
-                        kgpImage = kgpImage.WithWidth(cw).WithHeight(ch);
+                        kgpImage = kgpImage.Width(cw).Height(ch);
                     }
 
                     image = kgpImage.Width(SizeHint.Fill).Height(SizeHint.Fill);
@@ -365,7 +365,7 @@ void OpenBareImageWindow(MenuItemActivatedEventArgs e, string name, byte[] image
     var window = e.Windows.Window(w =>
         w.KgpImage(imageData, pixelW, pixelH,
                 img => img.Text($" [KGP not supported - {name} fallback]"))
-            .WithStretch(KgpImageStretch.Fit)
+            .Stretch(KgpImageStretch.Fit)
             .Width(SizeHint.Fill)
             .Height(SizeHint.Fill))
         .Title($"Bare {name} #{num}")

@@ -37,18 +37,18 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Minimum width of the text input in columns.
     /// </summary>
-    public int? MinWidth { get; init; }
+    internal int? MinWidthValue { get; init; }
 
     /// <summary>
     /// Maximum width of the text input in columns.
     /// Defaults to MinWidth if not explicitly set.
     /// </summary>
-    public int? MaxWidth { get; init; }
+    internal int? MaxWidthValue { get; init; }
 
     /// <summary>
     /// Initial text value for the field.
     /// </summary>
-    public string? InitialValue { get; init; }
+    internal string? InitialValueText { get; init; }
 
     /// <summary>
     /// Validators to run against the field value.
@@ -58,7 +58,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// When validation should be triggered.
     /// </summary>
-    public ValidateOn ValidateOn { get; init; } = ValidateOn.Change;
+    internal ValidateOn ValidateOnMode { get; init; } = Widgets.ValidateOn.Change;
 
     /// <summary>
     /// Field IDs that must all be valid for this field to be enabled.
@@ -90,20 +90,20 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Sets the minimum width of the text input.
     /// </summary>
-    public FormTextFieldWidget WithMinWidth(int width)
-        => this with { MinWidth = width };
+    public FormTextFieldWidget MinWidth(int width)
+        => this with { MinWidthValue = width };
 
     /// <summary>
     /// Sets the maximum width of the text input.
     /// </summary>
-    public FormTextFieldWidget WithMaxWidth(int width)
-        => this with { MaxWidth = width };
+    public FormTextFieldWidget MaxWidth(int width)
+        => this with { MaxWidthValue = width };
 
     /// <summary>
     /// Sets an exact fixed width for the text input (sets both MinWidth and MaxWidth).
     /// </summary>
-    public FormTextFieldWidget WithWidth(int width)
-        => this with { MinWidth = width, MaxWidth = width };
+    public FormTextFieldWidget Width(int width)
+        => this with { MinWidthValue = width, MaxWidthValue = width };
 
     /// <summary>
     /// When true, the text field supports multi-line editing.
@@ -154,7 +154,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Sets the height of the text input in lines.
     /// </summary>
-    public FormTextFieldWidget WithHeight(int lines)
+    public FormTextFieldWidget Height(int lines)
         => this with { HeightValue = lines };
 
     /// <summary>
@@ -180,8 +180,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Sets the initial text value.
     /// </summary>
-    public FormTextFieldWidget WithInitialValue(string value)
-        => this with { InitialValue = value };
+    public FormTextFieldWidget InitialValue(string value)
+        => this with { InitialValueText = value };
 
     /// <summary>
     /// Adds a validator to this field.
@@ -192,8 +192,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Sets when validation should be triggered for this field.
     /// </summary>
-    public FormTextFieldWidget WithValidateOn(ValidateOn mode)
-        => this with { ValidateOn = mode };
+    public FormTextFieldWidget ValidateOn(ValidateOn mode)
+        => this with { ValidateOnMode = mode };
 
     /// <summary>
     /// Enables this field only when all specified fields are valid.
@@ -222,7 +222,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
     /// <summary>
     /// Overrides the label placement for this specific field.
     /// </summary>
-    public FormTextFieldWidget WithLabelPlacement(LabelPlacement placement)
+    public FormTextFieldWidget LabelPlacement(LabelPlacement placement)
         => this with { LabelPlacementOverride = placement };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
@@ -235,20 +235,20 @@ public sealed record FormTextFieldWidget : Hex1bWidget
 
         // Resolve label placement from field override or form-level setting
         var formNode = context.FindAncestor<FormNode>();
-        node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? LabelPlacement.Above;
+        node.LabelPlacement = LabelPlacementOverride ?? formNode?.LabelPlacement ?? Widgets.LabelPlacement.Above;
         node.LabelWidth = formNode?.LabelWidth ?? 15;
-        node.HasExplicitWidth = MinWidth.HasValue;
+        node.HasExplicitWidth = MinWidthValue.HasValue;
 
         // Apply initial value only once
-        if (!node.HasAppliedInitialValue && InitialValue != null)
+        if (!node.HasAppliedInitialValue && InitialValueText != null)
         {
-            node.CurrentValue = InitialValue;
+            node.CurrentValue = InitialValueText;
             node.HasAppliedInitialValue = true;
         }
 
         // Sync validators
         node.Validators = Validators;
-        node.ValidateOn = ValidateOn;
+        node.ValidateOn = ValidateOnMode;
 
         // Build the label widget
         var labelWidget = new TextBlockWidget(Label);
@@ -258,8 +258,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
         var effectiveAdornments = BuildEffectiveAdornments(node);
 
         // Build the text box widget with fill mode enabled (no brackets, painted background).
-        var textBoxMinWidth = MinWidth ?? 1;
-        var textBoxMaxWidth = MaxWidth ?? MinWidth;
+        var textBoxMinWidth = MinWidthValue ?? 1;
+        var textBoxMaxWidth = MaxWidthValue ?? MinWidthValue;
         var textBox = new TextBoxWidget(node.CurrentValue) { MinWidth = textBoxMinWidth, MaxWidth = textBoxMaxWidth,
                 IsMultilineValue = IsMultilineValue, MaxLinesValue = MaxLinesValue,
                 IsWordWrapValue = IsWordWrapValue, HeightValue = HeightValue }
@@ -267,7 +267,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
             {
                 node.CurrentValue = e.NewText;
 
-                if (node.ValidateOn == ValidateOn.Change)
+                if (node.ValidateOn == Widgets.ValidateOn.Change)
                 {
                     node.RunValidation();
                 }
@@ -277,7 +277,7 @@ public sealed record FormTextFieldWidget : Hex1bWidget
                 if (parentFormNode != null)
                 {
                     parentFormNode.SetFieldValue(FieldId, e.NewText);
-                    if (node.ValidateOn == ValidateOn.Change)
+                    if (node.ValidateOn == Widgets.ValidateOn.Change)
                     {
                         parentFormNode.SetValidationResult(FieldId, node.CurrentValidationResult);
                     }

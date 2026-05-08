@@ -84,7 +84,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                         rotQ, zoom, pois, poiScreenPositions))];
                 })
             )
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                 {

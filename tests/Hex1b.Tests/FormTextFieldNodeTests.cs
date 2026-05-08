@@ -294,7 +294,7 @@ public class FormTextFieldNodeTests
     public async Task Reconcile_AppliesInitialValue()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
-            .WithInitialValue("John");
+            .InitialValue("John");
         var context = ReconcileContext.CreateRoot();
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
@@ -307,7 +307,7 @@ public class FormTextFieldNodeTests
     public async Task Reconcile_InitialValueAppliedOnlyOnce()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
-            .WithInitialValue("John");
+            .InitialValue("John");
         var context = ReconcileContext.CreateRoot();
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
@@ -469,7 +469,7 @@ public class FormTextFieldNodeTests
 
         // Reconcile with initial value set
         var node = (FormTextFieldNode)await widget
-            .WithInitialValue("Hello")
+            .InitialValue("Hello")
             .ReconcileAsync(null, context);
 
         // Give async predicate time to resolve
@@ -477,7 +477,7 @@ public class FormTextFieldNodeTests
 
         // Re-reconcile to pick up resolved adornment
         node = (FormTextFieldNode)await widget
-            .WithInitialValue("Hello")
+            .InitialValue("Hello")
             .ReconcileAsync(node, context);
 
         Assert.NotEmpty(node.AdornmentChildren);

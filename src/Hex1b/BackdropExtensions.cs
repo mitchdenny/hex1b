@@ -45,7 +45,7 @@ public static class BackdropExtensions
     ///               v.Text("Modal content"),
     ///               v.Button("Close").OnClick(_ => showModal = false)
     ///           ])).Title("Dialog"))
-    ///           .WithBackground(Hex1bColor.FromRgb(0, 0, 0)) // Dim background
+    ///           .Background(Hex1bColor.FromRgb(0, 0, 0)) // Dim background
     ///           .OnClickAway(() => showModal = false)
     ///         : null
     /// ])

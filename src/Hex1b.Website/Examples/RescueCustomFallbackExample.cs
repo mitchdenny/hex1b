@@ -6,7 +6,7 @@ namespace Hex1b.Website.Examples;
 
 /// <summary>
 /// Rescue Widget Documentation: Custom Fallback
-/// Demonstrates custom fallback UI using WithFallback.
+/// Demonstrates custom fallback UI using Fallback.
 /// </summary>
 /// <remarks>
 /// MIRROR WARNING: This example must stay in sync with the customFallbackCode sample in:
@@ -19,7 +19,7 @@ public class RescueCustomFallbackExample(ILogger<RescueCustomFallbackExample> lo
 
     public override string Id => "rescue-custom-fallback";
     public override string Title => "Rescue Widget - Custom Fallback";
-    public override string Description => "Demonstrates custom fallback UI using WithFallback";
+    public override string Description => "Demonstrates custom fallback UI using Fallback";
 
     private class ExampleState
     {
@@ -41,14 +41,14 @@ public class RescueCustomFallbackExample(ILogger<RescueCustomFallbackExample> lo
                     ? throw new InvalidOperationException("Something went wrong!")
                     : v.Text("Custom Fallback Demo"),
                 v.Text(""),
-                v.Text("This uses WithFallback() to provide"),
+                v.Text("This uses Fallback() to provide"),
                 v.Text("a custom error UI instead of the default."),
                 v.Text(""),
                 v.Button("Trigger Error").OnClick(_ => {
                     state.ShouldThrow = true;
                 })
             ])
-            .WithFallback(rescue => rescue.Border(b => [
+            .Fallback(rescue => rescue.Border(b => [
                 b.VStack(inner => [
                     inner.Text("🔥 Custom Error Handler 🔥"),
                     inner.Text(""),

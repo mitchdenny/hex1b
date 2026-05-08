@@ -169,7 +169,7 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
     /// Sets the view renderer for this editor. Use <see cref="TextEditorViewRenderer"/> for text
     /// or <see cref="HexEditorViewRenderer"/> for hex dump views.
     /// </summary>
-    public EditorWidget WithViewRenderer(IEditorViewRenderer renderer)
+    public EditorWidget ViewRenderer(IEditorViewRenderer renderer)
         => this with { Renderer = renderer };
 
     /// <summary>

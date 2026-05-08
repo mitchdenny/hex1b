@@ -47,19 +47,19 @@ public static class KgpImageExtensions
     /// <summary>
     /// Sets the display width in character cells.
     /// </summary>
-    public static KgpImageWidget WithWidth(this KgpImageWidget widget, int width)
+    public static KgpImageWidget Width(this KgpImageWidget widget, int width)
         => widget with { Width = width };
 
     /// <summary>
     /// Sets the display height in character cells.
     /// </summary>
-    public static KgpImageWidget WithHeight(this KgpImageWidget widget, int height)
+    public static KgpImageWidget Height(this KgpImageWidget widget, int height)
         => widget with { Height = height };
 
     /// <summary>
     /// Sets the image stretch mode.
     /// </summary>
-    public static KgpImageWidget WithStretch(this KgpImageWidget widget, KgpImageStretch stretch)
+    public static KgpImageWidget Stretch(this KgpImageWidget widget, KgpImageStretch stretch)
         => widget with { Stretch = stretch };
 
     /// <summary>

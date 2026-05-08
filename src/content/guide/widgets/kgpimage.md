@@ -82,8 +82,8 @@ By default, the image size is calculated from the pixel dimensions (roughly 10 p
 ```csharp
 // Explicit size in character cells
 v.KgpImage(pixels, width, height, img => img.Text("fallback"))
-    .WithWidth(20)
-    .WithHeight(10)
+    .Width(20)
+    .Height(10)
 
 // Or set size at creation time
 v.KgpImage(pixels, width, height, img => img.Text("fallback"), width: 20, height: 10)

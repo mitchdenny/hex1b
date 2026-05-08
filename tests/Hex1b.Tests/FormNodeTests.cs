@@ -44,7 +44,7 @@ public class FormNodeTests
     public async Task Reconcile_SetsLabelPlacement()
     {
         var widget = new FormWidget([new TextBlockWidget("Hello")])
-            .WithLabelPlacement(LabelPlacement.Inline);
+            .LabelPlacement(LabelPlacement.Inline);
         var context = ReconcileContext.CreateRoot();
 
         var node = (FormNode)await widget.ReconcileAsync(null, context);
@@ -56,7 +56,7 @@ public class FormNodeTests
     public async Task Reconcile_SetsLabelWidth()
     {
         var widget = new FormWidget([new TextBlockWidget("Hello")])
-            .WithLabelWidth(25);
+            .LabelWidth(25);
         var context = ReconcileContext.CreateRoot();
 
         var node = (FormNode)await widget.ReconcileAsync(null, context);

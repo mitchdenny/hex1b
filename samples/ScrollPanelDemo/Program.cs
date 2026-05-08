@@ -62,7 +62,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text("  The binding bubbles up from the button to the panel (no IsFocused guard)."),
 
             v.VScrollPanel(p => BuildScrollItems(p, items, label => lastAction = label))
-                .WithInputBindings(b =>
+                .InputBindings(b =>
                 {
                     // Promote PageUp/PageDown to global so they fire from anywhere — issue #296.
                     b.Remove(ScrollPanelWidget.PageUpAction);
@@ -137,7 +137,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text(""),
             v.Text("Tab / Shift+Tab to move focus.   Ctrl+Q to quit.")
         ])
-        .WithInputBindings(b =>
+        .InputBindings(b =>
         {
             b.Ctrl().Key(Hex1bKey.Q).Action(c => { c.RequestStop(); return Task.CompletedTask; }, "Quit");
         });

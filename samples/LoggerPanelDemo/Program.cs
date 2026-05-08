@@ -99,7 +99,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 "Logger", "Hex1b LogStore",
                 "Panel", drawerExpanded ? "F12 to hide" : "F12 to show"
             ])
-        ]).WithInputBindings(bindings =>
+        ]).InputBindings(bindings =>
         {
             bindings.Key(Hex1bKey.F12).Global()
                 .Action(_ => drawerExpanded = !drawerExpanded, "Toggle panel");

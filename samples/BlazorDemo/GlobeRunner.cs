@@ -70,7 +70,7 @@ public static class GlobeRunner
                                 cachedProjectedPois, cachedOccupiedRows))];
                         })
                     ))
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                         {

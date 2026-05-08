@@ -454,7 +454,7 @@ public class Hex1bAppIntegrationTests
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new ButtonWidget("Test").OnClick(_ => Task.CompletedTask)
-                }).WithInputBindings(bindings =>
+                }).InputBindings(bindings =>
                 {
                     bindings.Ctrl().Key(Hex1bKey.C).Action(_ => ctrlCPressed.TrySetResult());
                 })
@@ -506,7 +506,7 @@ public class Hex1bAppIntegrationTests
                 new VStackWidget(new Hex1bWidget[]
                 {
                     new ButtonWidget("Test").OnClick(_ => Task.CompletedTask)
-                }).WithInputBindings(bindings =>
+                }).InputBindings(bindings =>
                 {
                     // User's CTRL-C binding should override the default
                     bindings.Ctrl().Key(Hex1bKey.C).Action(_ => customHandlerCalled = true);

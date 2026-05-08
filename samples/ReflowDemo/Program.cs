@@ -58,7 +58,7 @@ await using var display = Hex1bTerminal.CreateBuilder()
             ]),
             v.Separator(),
             v.Text("  \u2190 \u2192 \u00b11   Shift+\u2190 \u2192 \u00b15   R Reset   Ctrl+C Quit"),
-        ]).WithInputBindings(bindings =>
+        ]).InputBindings(bindings =>
         {
             bindings.Key(Hex1bKey.RightArrow).Action(_ => Resize(1), "Widen");
             bindings.Key(Hex1bKey.LeftArrow).Action(_ => Resize(-1), "Narrow");

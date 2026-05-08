@@ -329,7 +329,7 @@ public async Task CtrlS_TriggersSave()
         ctx => Task.FromResult<Hex1bWidget>(
             ctx.VStack(v => [
                 v.Text("Press Ctrl+S to save")
-            ]).WithInputBindings(bindings =>
+            ]).InputBindings(bindings =>
             {
                 bindings.Ctrl().Key(Hex1bKey.S)
                     .Action(_ => saveTriggered = true);

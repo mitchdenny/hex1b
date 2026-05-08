@@ -196,7 +196,7 @@ internal sealed class PlaybackPlayerApp
                 "←/→", "Seek ±10s",
                 "Q", "Quit"
             ])
-        ]).WithInputBindings(bindings =>
+        ]).InputBindings(bindings =>
         {
             bindings.Key(Hex1bKey.Spacebar).Global().Action(_ =>
             {

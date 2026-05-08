@@ -51,7 +51,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Key(key).Action(_ =>
                         {
@@ -113,7 +113,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Ctrl().Key(key).Action(_ =>
                         {
@@ -167,7 +167,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Shift().Key(key).Action(_ =>
                         {
@@ -222,7 +222,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Key(Hex1bKey.A).Action(_ => { aFired.TrySetResult(); return Task.CompletedTask; }, "A");
                         bindings.Key(Hex1bKey.B).Action(_ => { bFired.TrySetResult(); return Task.CompletedTask; }, "B");
@@ -256,13 +256,13 @@ public class InputBindingFluentApiTests
     }
 
     [Fact]
-    public void InputBinding_WithInputBindings_SetsConfiguratorOnWidget()
+    public void InputBinding_InputBindings_SetsConfiguratorOnWidget()
     {
-        // Verify that WithInputBindings actually sets the configurator on the widget
+        // Verify that InputBindings actually sets the configurator on the widget
         var configured = false;
         
         var widget = new VStackWidget([])
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 configured = true;
                 bindings.Key(Hex1bKey.X).Action(() => { }, "Test");
@@ -287,7 +287,7 @@ public class InputBindingFluentApiTests
     [Fact]
     public async Task InputBinding_DiagnosticTest_VerifyBindingsAreSet()
     {
-        // This test verifies that user bindings configured via WithInputBindings work
+        // This test verifies that user bindings configured via InputBindings work
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
@@ -301,7 +301,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Key(Hex1bKey.X).Action(_ => 
                         { 
@@ -350,7 +350,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Key(Hex1bKey.X).Action(_ => 
                         { 
@@ -401,7 +401,7 @@ public class InputBindingFluentApiTests
                     .OnRender(_ => renderOccurred.TrySetResult());
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         // Create a chord: Ctrl+K, then Ctrl+C
                         bindings.Ctrl().Key(Hex1bKey.K)
@@ -456,7 +456,7 @@ public class InputBindingFluentApiTests
                     .OnReconcile(_ => Interlocked.Increment(ref reconcileCount));
 
                 var vstack = new VStackWidget([testWidget])
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Key(Hex1bKey.X).Action(_ =>
                         {

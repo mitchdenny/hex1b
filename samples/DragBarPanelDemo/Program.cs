@@ -76,7 +76,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 "Ctrl+C", "Exit"
             ])
         ])
-    .WithInputBindings(bindings => { }))
+    .InputBindings(bindings => { }))
     .WithMouse()
     .Build();
 

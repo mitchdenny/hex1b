@@ -115,7 +115,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 })
                 .RedrawAfter(2000)
             )
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                 {

@@ -109,7 +109,7 @@ internal static class SizzleCommand
                         })
                         .RedrawAfter(2000)
                     )
-                    .WithInputBindings(bindings =>
+                    .InputBindings(bindings =>
                     {
                         bindings.Drag(MouseButton.Left).Action((startX, startY) =>
                         {

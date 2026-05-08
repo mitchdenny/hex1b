@@ -19,7 +19,7 @@ public static class InputBindingExtensions
     /// <returns>A new widget with the binding configurator set.</returns>
     /// <example>
     /// <code>
-    /// ctx.TextBox(state).WithInputBindings(bindings => 
+    /// ctx.TextBox(state).InputBindings(bindings => 
     /// {
     ///     // At breakpoint here, bindings.Bindings shows all defaults
     ///     
@@ -36,7 +36,7 @@ public static class InputBindingExtensions
     /// });
     /// </code>
     /// </example>
-    public static TWidget WithInputBindings<TWidget>(this TWidget widget, Action<InputBindingsBuilder> configure)
+    public static TWidget InputBindings<TWidget>(this TWidget widget, Action<InputBindingsBuilder> configure)
         where TWidget : Hex1bWidget
     {
         return (TWidget)(widget with { BindingsConfigurator = configure });

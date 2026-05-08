@@ -154,7 +154,7 @@ public class PrebuiltBindingTests
         using var app = new Hex1bApp(
             ctx => ctx.VStack(v => [
                 v.Test().OnRender(_ => renderOccurred.TrySetResult())
-            ]).WithInputBindings(b => b.Add(prebuilt)),
+            ]).InputBindings(b => b.Add(prebuilt)),
             new Hex1bAppOptions { WorkloadAdapter = workload, EnableDefaultCtrlCExit = false }
         );
 
@@ -327,7 +327,7 @@ public class PrebuiltBindingTests
                 var widget = ctx.VStack(v => [
                     v.Terminal(handle).Fill(),
                     v.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(b => b.Add(prebuilt));
+                ]).InputBindings(b => b.Add(prebuilt));
 
                 return Task.FromResult<Hex1bWidget>(widget);
             },
@@ -456,8 +456,8 @@ public class PrebuiltBindingTests
             ctx => ctx.VStack(outer => [
                 outer.VStack(inner => [
                     inner.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(b => b.Add(prebuiltGlobal))
-            ]).WithInputBindings(b =>
+                ]).InputBindings(b => b.Add(prebuiltGlobal))
+            ]).InputBindings(b =>
             {
                 b.Key(Hex1bKey.X).Global().Action(() => { }, "Fluent global X");
             }),

@@ -442,7 +442,7 @@ Hex1bWidget BuildTerminalWidget(RootContext ctx)
             "Ctrl+Q", "Quit",
             "", statusMessage
         ])
-    ]).WithInputBindings(bindings =>
+    ]).InputBindings(bindings =>
     {
         bindings.Ctrl().Key(Hex1bKey.N).Action(_ => AddTerminal(ShellType.Bash), "Add terminal");
         bindings.Ctrl().Key(Hex1bKey.Q).Action(_ => displayApp?.RequestStop(), "Quit");

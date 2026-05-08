@@ -848,7 +848,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
             if (_rescueFallbackBuilder != null)
             {
-                rescueWidget = rescueWidget.WithFallback(_rescueFallbackBuilder);
+                rescueWidget = rescueWidget.Fallback(_rescueFallbackBuilder);
             }
 
             if (_onRescue != null)

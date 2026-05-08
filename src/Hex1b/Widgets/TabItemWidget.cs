@@ -15,7 +15,7 @@ public sealed record TabItemWidget(
     /// <summary>
     /// Optional icon displayed before the tab title.
     /// </summary>
-    public string? Icon { get; init; }
+    internal string? IconValue { get; init; }
 
     /// <summary>
     /// Whether this tab is disabled (cannot be selected).
@@ -44,8 +44,8 @@ public sealed record TabItemWidget(
     /// Sets the icon for this tab.
     /// </summary>
     /// <param name="icon">The icon string (emoji or text).</param>
-    public TabItemWidget WithIcon(string icon)
-        => this with { Icon = icon };
+    public TabItemWidget Icon(string icon)
+        => this with { IconValue = icon };
 
     /// <summary>
     /// Sets whether this tab is disabled.

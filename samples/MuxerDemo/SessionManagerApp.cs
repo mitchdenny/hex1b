@@ -33,7 +33,7 @@ internal sealed class SessionManagerApp
                     else
                         content = BuildSessionListView(ctx);
 
-                    return content.WithInputBindings(bindings =>
+                    return content.InputBindings(bindings =>
                     {
                         bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
                             .OverridesCapture()

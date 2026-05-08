@@ -1,7 +1,7 @@
 ctx.Rescue(
     ctx.SomeWidget()
 )
-.WithFallback(rescue => rescue.VStack(v => [
+.Fallback(rescue => rescue.VStack(v => [
     v.Text("Oops! Something went wrong."),
     v.Text(""),
     v.Text($"Error: {rescue.Exception.Message}"),

@@ -84,7 +84,7 @@ await Hex1bTerminal.CreateBuilder()
                     ]),
                     v.Separator(),
                     scenarioWidget.FillHeight(),
-                ]).WithInputBindings(b =>
+                ]).InputBindings(b =>
                     b.Ctrl().Key(Hex1bKey.Q).Global().OverridesCapture().Action(() =>
                     {
                         ctx.Step.Complete(y => y.Text($"  ✓ Completed: {currentScenario.Name}"));

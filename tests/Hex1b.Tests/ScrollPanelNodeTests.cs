@@ -1322,7 +1322,7 @@ public class ScrollPanelNodeTests
         {
             Child = CreateTallContent(50),
             Orientation = ScrollOrientation.Vertical,
-            // Simulate the user's WithInputBindings: register a global PageDown that triggers PageDownAction.
+            // Simulate the user's InputBindings: register a global PageDown that triggers PageDownAction.
             BindingsConfigurator = b => b.Key(Hex1bKey.PageDown).Global().Triggers(ScrollPanelWidget.PageDownAction)
         };
         scrollPanel.Measure(Constraints.Unbounded);

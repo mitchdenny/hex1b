@@ -270,7 +270,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                             else
                                             {
                                                 widgets.Add(content.Editor(hexState)
-                                                    .WithViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
+                                                    .ViewRenderer(new HexEditorViewRenderer { HighlightMultiByteChars = true })
                                                     .FillWidth().FillHeight());
                                             }
 

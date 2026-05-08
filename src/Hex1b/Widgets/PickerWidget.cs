@@ -110,7 +110,7 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : Hex1bWidget
                 // Build and show popup list
                 e.PushAnchored(AnchorPosition.Below, () => BuildPickerList(node, e.Context));
             })
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 // Down arrow: open popup with next item selected (or current if at end)
                 bindings.Key(Hex1bKey.DownArrow).Action(ctx =>

@@ -55,7 +55,7 @@ public sealed record NotificationIconWidget : Hex1bWidget
     /// <summary>
     /// Whether to show the notification count badge next to the bell. Defaults to true.
     /// </summary>
-    public bool ShowCount { get; init; } = true;
+    internal bool IsCountVisible { get; init; } = true;
 
     /// <summary>
     /// Sets the bell character to display.
@@ -66,7 +66,7 @@ public sealed record NotificationIconWidget : Hex1bWidget
     /// You can use emoji (🔔), Unicode characters (␇), or plain ASCII (*) depending
     /// on your terminal's capabilities.
     /// </remarks>
-    public NotificationIconWidget WithBell(string bell)
+    public NotificationIconWidget Bell(string bell)
         => this with { BellCharacter = bell };
 
     /// <summary>
@@ -74,14 +74,14 @@ public sealed record NotificationIconWidget : Hex1bWidget
     /// </summary>
     /// <param name="show">True to show the count (default), false to hide it.</param>
     /// <returns>A new widget instance with the setting configured.</returns>
-    public NotificationIconWidget WithCount(bool show = true)
-        => this with { ShowCount = show };
+    public NotificationIconWidget ShowCount(bool show = true)
+        => this with { IsCountVisible = show };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NotificationIconNode ?? new NotificationIconNode();
         node.BellCharacter = BellCharacter;
-        node.ShowCount = ShowCount;
+        node.ShowCount = IsCountVisible;
         return node;
     }
 

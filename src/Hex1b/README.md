@@ -70,7 +70,7 @@ using var app = new Hex1bApp(ctx =>
         b.Text("Ctrl+A: Increment"),
         b.Text("Ctrl+D: Decrement"),
         b.Text("Ctrl+Q: Quit")
-    ]).WithInputBindings(bindings =>
+    ]).InputBindings(bindings =>
     {
         bindings.Ctrl().Key(Hex1bKey.A).Action(() => count++, "Increment counter");
         bindings.Ctrl().Key(Hex1bKey.D).Action(() => count--, "Decrement counter");
@@ -118,7 +118,7 @@ new VStackWidget(
 Define keyboard shortcuts using the fluent builder API:
 
 ```csharp
-widget.WithInputBindings(bindings =>
+widget.InputBindings(bindings =>
 {
     // Simple key
     bindings.Key(Hex1bKey.Delete).Action(() => DeleteItem());

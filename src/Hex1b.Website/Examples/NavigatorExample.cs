@@ -127,7 +127,7 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.TextBox(EmailInput).OnTextChanged(args => EmailInput = args.NewText),
                 v.Text(""),
                 v.Button("Save Customer").OnClick(_ => SaveNewCustomer(nav))
-            ]).WithInputBindings(bindings =>
+            ]).InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
             });
@@ -241,7 +241,7 @@ public class NavigatorExample(ILogger<NavigatorExample> logger) : Hex1bExample
                 v.TextBox(OpportunityAmountInput).OnTextChanged(args => OpportunityAmountInput = args.NewText),
                 v.Text(""),
                 v.Button("Save Opportunity").OnClick(_ => SaveNewOpportunity(nav, customer))
-            ]).WithInputBindings(bindings =>
+            ]).InputBindings(bindings =>
             {
                 bindings.Key(Hex1bKey.Escape).Action(() => nav.Pop(), "Cancel");
             });

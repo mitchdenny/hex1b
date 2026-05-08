@@ -430,7 +430,7 @@ public class HoverStateTests
     {
         // Mirror of the AgenticPromptDemo Ctrl+wheel scenario: a widget's
         // ConfigureDefaultBindings registers a handler against an ActionId
-        // (plain ScrollUp). A user-supplied WithInputBindings configurator
+        // (plain ScrollUp). A user-supplied InputBindings configurator
         // then aliases the same ActionId to a different mouse trigger
         // (Ctrl+ScrollUp). Both bindings must coexist and route to the
         // same handler.

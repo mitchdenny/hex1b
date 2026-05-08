@@ -35,7 +35,7 @@ public class CaptureOverrideChordTests
                 var widget = ctx.VStack(v => [
                     v.Terminal(handle).Fill(),
                     v.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(bindings =>
+                ]).InputBindings(bindings =>
                 {
                     // Chord: Ctrl+B, then D (modifier on first step only)
                     bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
@@ -98,7 +98,7 @@ public class CaptureOverrideChordTests
                 var widget = ctx.VStack(v => [
                     v.Terminal(handle).Fill(),
                     v.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(bindings =>
+                ]).InputBindings(bindings =>
                 {
                     bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
                         .OverridesCapture()
@@ -176,7 +176,7 @@ public class CaptureOverrideChordTests
                 var widget = ctx.VStack(v => [
                     v.Terminal(handle).Fill(),
                     v.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(bindings =>
+                ]).InputBindings(bindings =>
                 {
                     bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)
                         .OverridesCapture()
@@ -247,7 +247,7 @@ public class CaptureOverrideChordTests
                 var widget = ctx.VStack(v => [
                     v.Terminal(handle).Fill(),
                     v.Test().OnRender(_ => renderOccurred.TrySetResult())
-                ]).WithInputBindings(bindings =>
+                ]).InputBindings(bindings =>
                 {
                     bindings.Key(Hex1bKey.F12)
                         .OverridesCapture()

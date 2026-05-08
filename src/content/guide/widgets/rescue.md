@@ -38,14 +38,14 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.Rescue(v => [
         v.Text("Custom Fallback Demo"),
         v.Text(""),
-        v.Text("This uses WithFallback() to provide"),
+        v.Text("This uses Fallback() to provide"),
         v.Text("a custom error UI instead of the default."),
         v.Text(""),
         v.Button("Trigger Error").OnClick(_ => {
             throw new InvalidOperationException("Something went wrong!");
         })
     ])
-    .WithFallback(rescue => rescue.Border(b => [
+    .Fallback(rescue => rescue.Border(b => [
         b.VStack(inner => [
             inner.Text("🔥 Custom Error Handler 🔥"),
             inner.Text(""),
@@ -207,7 +207,7 @@ Both handlers support async versions:
 
 ## Custom Fallback UI
 
-### WithFallback
+### Fallback
 
 Override the default fallback with your own UI using `RescueContext`:
 
@@ -215,7 +215,7 @@ Override the default fallback with your own UI using `RescueContext`:
 
 ### RescueContext
 
-The `RescueContext` passed to `WithFallback` extends `WidgetContext<VStackWidget>` and provides:
+The `RescueContext` passed to `Fallback` extends `WidgetContext<VStackWidget>` and provides:
 
 | Property/Method | Type | Description |
 |-----------------|------|-------------|
@@ -226,7 +226,7 @@ The `RescueContext` passed to `WithFallback` extends `WidgetContext<VStackWidget
 Since `RescueContext` is a widget context, you can use all the standard widget methods:
 
 ```csharp
-.WithFallback(rescue => rescue.Border(b => [
+.Fallback(rescue => rescue.Border(b => [
     b.VStack(v => [
         v.Text($"Error during {rescue.ErrorPhase}:"),
         v.Scroll(s => s.Text(rescue.Exception.ToString()).Wrap()).Height(10),
@@ -375,7 +375,7 @@ Customize fallback based on the error type:
 ctx.Rescue(
     ctx.NetworkWidget()
 )
-.WithFallback(rescue => {
+.Fallback(rescue => {
     if (rescue.Exception is HttpRequestException)
     {
         return rescue.VStack(v => [

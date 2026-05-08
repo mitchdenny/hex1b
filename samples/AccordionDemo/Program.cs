@@ -445,7 +445,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                                     else
                                     {
                                         widgets.Add(content.Editor(hexState)
-                                            .WithViewRenderer(new HexEditorViewRenderer())
+                                            .ViewRenderer(new HexEditorViewRenderer())
                                             .FillWidth().FillHeight());
                                     }
 

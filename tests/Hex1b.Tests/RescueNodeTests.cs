@@ -379,7 +379,7 @@ public class RescueNodeTests
     public async Task RescueWidget_WithFallback_UsesCustomFallback()
     {
         var widget = new RescueWidget(new TextBlockWidget("Test"))
-            .WithFallback(rescue => new TextBlockWidget($"Error: {rescue.Exception?.Message}"));
+            .Fallback(rescue => new TextBlockWidget($"Error: {rescue.Exception?.Message}"));
 
         Assert.NotNull(widget.FallbackBuilder);
     }

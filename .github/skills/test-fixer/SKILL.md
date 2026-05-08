@@ -575,7 +575,7 @@ using var app = new Hex1bApp(
     ctx =>
     {
         var vstack = new VStackWidget([ctx.Test()])
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Shift().Key(key).Action(_ =>
                 {
@@ -613,7 +613,7 @@ using var app = new Hex1bApp(
     ctx =>
     {
         var vstack = new VStackWidget([ctx.Test()])
-            .WithInputBindings(bindings =>
+            .InputBindings(bindings =>
             {
                 bindings.Shift().Key(key).Action(_ =>
                 {

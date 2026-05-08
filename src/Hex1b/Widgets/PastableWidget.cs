@@ -37,13 +37,13 @@ public sealed record PastableWidget(Hex1bWidget Child) : Hex1bWidget
     /// Maximum number of characters to accept. If exceeded, the paste is auto-cancelled.
     /// Null means unlimited.
     /// </summary>
-    internal int? MaxSize { get; init; }
+    internal int? MaxPasteSize { get; init; }
 
     /// <summary>
     /// Maximum duration for the paste operation. If exceeded, the paste is auto-cancelled.
     /// Null means no timeout.
     /// </summary>
-    internal TimeSpan? Timeout { get; init; }
+    internal TimeSpan? PasteTimeout { get; init; }
 
     /// <summary>
     /// Sets the async paste handler that receives streaming paste data.
@@ -60,22 +60,22 @@ public sealed record PastableWidget(Hex1bWidget Child) : Hex1bWidget
     /// <summary>
     /// Sets the maximum paste size in characters. If exceeded, the paste is auto-cancelled.
     /// </summary>
-    public PastableWidget WithMaxSize(int maxCharacters)
-        => this with { MaxSize = maxCharacters };
+    public PastableWidget MaxSize(int maxCharacters)
+        => this with { MaxPasteSize = maxCharacters };
 
     /// <summary>
     /// Sets a timeout for the paste operation. If exceeded, the paste is auto-cancelled.
     /// </summary>
-    public PastableWidget WithTimeout(TimeSpan timeout)
-        => this with { Timeout = timeout };
+    public PastableWidget Timeout(TimeSpan timeout)
+        => this with { PasteTimeout = timeout };
 
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as PastableNode ?? new PastableNode();
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);
         node.PasteAction = PasteHandler;
-        node.MaxSize = MaxSize;
-        node.PasteTimeout = Timeout;
+        node.MaxSize = MaxPasteSize;
+        node.PasteTimeout = PasteTimeout;
         return node;
     }
 

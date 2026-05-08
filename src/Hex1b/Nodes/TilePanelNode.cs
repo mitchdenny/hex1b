@@ -238,7 +238,7 @@ public sealed class TilePanelNode : Hex1bNode, IDisposable
 
         // Wrap the tile surface in an Interactable so it receives focus and input
         Hex1bWidget interactableTiles = new InteractableWidget(_ => tileLayer)
-            .WithInputBindings(ConfigureBindings);
+            .InputBindings(ConfigureBindings);
 
         // ZStack: tiles at bottom, POI floats on top
         if (poiFloats.Count > 0)

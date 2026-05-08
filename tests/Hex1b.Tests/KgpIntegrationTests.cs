@@ -59,8 +59,8 @@ public class KgpIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
-                    .WithWidth(4)
-                    .WithHeight(2)
+                    .Width(4)
+                    .Height(2)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -97,8 +97,8 @@ public class KgpIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[fallback]"))
-                    .WithWidth(10)
-                    .WithHeight(2)
+                    .Width(10)
+                    .Height(2)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -140,8 +140,8 @@ public class KgpIntegrationTests
                 new VStackWidget([
                     new TextBlockWidget("Title Line"),
                     new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
-                        .WithWidth(4)
-                        .WithHeight(2),
+                        .Width(4)
+                        .Height(2),
                     new TextBlockWidget("Footer Line"),
                 ])
             ),
@@ -185,8 +185,8 @@ public class KgpIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 8, 8, new TextBlockWidget("[no kgp]"))
                     .BelowText()
-                    .WithWidth(8)
-                    .WithHeight(4)
+                    .Width(8)
+                    .Height(4)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -228,8 +228,8 @@ public class KgpIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 8, 8, new TextBlockWidget("[no kgp]"))
                     .AboveText()
-                    .WithWidth(8)
-                    .WithHeight(4)
+                    .Width(8)
+                    .Height(4)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -313,9 +313,9 @@ public class KgpIntegrationTests
             ctx => Task.FromResult<Hex1bWidget>(
                 new VStackWidget([
                     new KgpImageWidget(image1, 4, 4, new TextBlockWidget("[img1]"))
-                        .WithWidth(4).WithHeight(2),
+                        .Width(4).Height(2),
                     new KgpImageWidget(image2, 6, 6, new TextBlockWidget("[img2]"))
-                        .WithWidth(6).WithHeight(3),
+                        .Width(6).Height(3),
                 ])
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
@@ -357,8 +357,8 @@ public class KgpIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
-                    .WithWidth(4)
-                    .WithHeight(2)
+                    .Width(4)
+                    .Height(2)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
@@ -493,8 +493,8 @@ public class KgpIntegrationTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 new KgpImageWidget(imageData, 4, 4, new TextBlockWidget("[no kgp]"))
-                    .WithWidth(4)
-                    .WithHeight(2)
+                    .Width(4)
+                    .Height(2)
             ),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
