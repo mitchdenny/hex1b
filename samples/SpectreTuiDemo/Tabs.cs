@@ -42,7 +42,7 @@ internal sealed class WelcomeTab : DemoTab
                 .Border(Border.Rounded)
                 .Style(new Style(Color.Green))
                 .TitlePadding(1)
-                .MarkupTitle("[bold yellow]Hex1b x Spectre.Tui[/]")
+                .MarkupTitle("[bold yellow]Hex1b \u2764 Spectre TUI[/]")
                 .Inner(
                     new PaddingWidget(
                         new Padding(2, 1),

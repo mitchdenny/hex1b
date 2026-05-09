@@ -63,7 +63,7 @@ public sealed class MainScreen : Screen
 
     public override void Render(RenderContext context)
     {
-        context.SetString(2, 1, "Hex1b ⨯ Spectre.Tui");
+        context.SetString(2, 1, "Hex1b \u2764 Spectre TUI");
         context.SetString(2, 3, "Press Q to quit");
     }
 }

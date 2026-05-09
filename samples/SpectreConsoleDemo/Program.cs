@@ -23,7 +23,7 @@ var headlessOption = new Option<bool>("--headless")
     Description = "Render to an off-screen 120x40 buffer and write an asciinema cast.",
 };
 
-var root = new RootCommand("Hex1b x Spectre.Console interactive showcase.");
+var root = new RootCommand("Hex1b + Spectre.Console interactive showcase.");
 root.Options.Add(autoOption);
 root.Options.Add(headlessOption);
 

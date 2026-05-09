@@ -17,4 +17,10 @@
     <PackageReference Include="System.CommandLine" Version="2.0.2" />
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Include="fonts\Small.flf">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

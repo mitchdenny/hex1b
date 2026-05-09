@@ -34,9 +34,11 @@ internal static class InteractiveDemo
 
     public static async Task RunAsync(IAnsiConsole console, CancellationToken ct)
     {
-        console.Write(new FigletText("Hex1b ⨯ Spectre").Color(Color.Aqua));
+        var smallFont = LoadSmallFont();
+        console.Write(new FigletText(smallFont, "Hex1b").Color(Color.Aqua));
+        console.MarkupLine("    [red]\u2764[/]  [bold yellow]Spectre Console[/]");
         console.MarkupLine("[grey]An interactive showcase of Spectre.Console controls running inside a Hex1b terminal.[/]");
-        console.MarkupLine("[grey]Use [yellow]↑/↓[/] and [yellow]Enter[/] to navigate. Pick [red]Quit[/] (last item) to exit.[/]");
+        console.MarkupLine("[grey]Use [yellow]\u2191/\u2193[/] and [yellow]Enter[/] to navigate. Pick [red]Quit[/] (last item) to exit.[/]");
         console.WriteLine();
 
         while (!ct.IsCancellationRequested)
@@ -131,7 +133,7 @@ internal static class InteractiveDemo
         var table = new Table()
             .Border(TableBorder.Rounded)
             .BorderColor(Color.Grey)
-            .Title("[bold yellow]Hex1b ⨯ Spectre Capability Matrix[/]")
+            .Title("[bold yellow]Hex1b \u2764 Spectre Capability Matrix[/]")
             .AddColumn(new TableColumn("[yellow]Feature[/]"))
             .AddColumn(new TableColumn("[yellow]Provided by[/]").Centered())
             .AddColumn(new TableColumn("[yellow]Notes[/]"));
@@ -355,5 +357,15 @@ internal static class InteractiveDemo
                 return;
             }
         }
+    }
+
+    private static FigletFont LoadSmallFont()
+    {
+        // The Small font (by Glenn Chappell, public license) ships next to the
+        // assembly via <Content Include="fonts\Small.flf" />. It's 5 rows tall
+        // (vs Standard's 6) with full smushing for a tighter, more compact
+        // header — much friendlier than Standard.flf when terminals are short.
+        var fontPath = Path.Combine(AppContext.BaseDirectory, "fonts", "Small.flf");
+        return FigletFont.Load(fontPath);
     }
 }

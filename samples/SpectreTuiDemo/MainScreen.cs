@@ -146,7 +146,7 @@ internal sealed class MainScreen : Screen
 
         // Title
         context.Render(
-            Paragraph.FromMarkup("[bold aqua]Hex1b[/] [grey]x[/] [bold yellow]Spectre.Tui[/] [grey]widget showcase[/]")
+            Paragraph.FromMarkup("[bold aqua]Hex1b[/] [red]\u2764[/] [bold yellow]Spectre TUI[/] [grey]widget showcase[/]")
                 .Centered(),
             _layout.GetArea(context, "Title"));
 
