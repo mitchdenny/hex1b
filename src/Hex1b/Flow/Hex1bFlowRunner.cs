@@ -24,7 +24,8 @@ internal sealed class Hex1bFlowRunner
     /// the last emitted line (capped to the bottom of the viewport when the
     /// terminal had to scroll). After a resize on the soft-wrap path, this is
     /// re-anchored to the top of the bottom-aligned active-step region so the
-    /// next tombstone appears immediately above the active step again.
+    /// next tombstone (when the active step completes) lands directly in the
+    /// step's place.
     /// </summary>
     private int _cursorRow;
 
@@ -34,45 +35,20 @@ internal sealed class Hex1bFlowRunner
     // CancellationToken from RunAsync, surfaced to flow callbacks via Hex1bFlowContext.
     private CancellationToken _cancellationToken;
 
-    // Builders for every soft-wrap tombstone emitted by this runner, in
-    // emission order. Used by the resize handler on the
-    // UseSoftWrapTombstones path to re-render the entire tombstone history
-    // at the new terminal width: the host terminal's reflow algorithm is
-    // unpredictable across terminal emulators (xterm vs Windows Terminal vs
-    // iTerm2 vs VTE), and the previous "clear only the active-step region
-    // and trust the terminal" strategy left ghost copies of the old active
-    // step above the new one and could clip wrapped tombstones. Owning the
-    // re-render eliminates the dependence on terminal-specific behaviour at
-    // the cost of one extra surface render per tombstone per resize event.
-    // Resize is rare and tombstones are small, so the cost is negligible.
-    // List is appended to from the soft-wrap branches of RenderStaticAsync
-    // and RunStepLifecycleAsync's post-step block; never cleared during the
-    // flow's lifetime.
-    private readonly List<Func<RootContext, Hex1bWidget>> _tombstoneBuilders = new();
-
-    // The terminal row at which this flow's content begins. Initialised
-    // from Hex1bFlowOptions.InitialCursorRow at the start of RunAsync, then
-    // decremented by overflow whenever the runner pre-scrolls the terminal
-    // (in EmitSoftWrapTombstone, RenderStaticAsync, or
-    // RunStepLifecycleAsync). The resize handler uses this to position the
-    // cursor at the flow's origin and clear-from-cursor-to-end (ESC[J),
-    // preserving any user content above the flow (typically a shell prompt)
-    // that hasn't yet been scrolled into the host terminal's scrollback.
-    private int _flowOriginRow;
-
     // DEC private mode 2026 (Synchronized Update Mode). Wrapping the
-    // resize-time clear-and-re-render in BSU/ESU lets supporting terminals
-    // present the whole repaint as a single atomic frame, eliminating the
-    // brief blank flash between "clear viewport" and "tombstones drawn".
-    // Terminals that don't recognise mode 2026 ignore both sequences.
+    // resize-time clear-and-redraw in BSU/ESU lets supporting terminals
+    // present the whole repaint as a single atomic frame, eliminating any
+    // brief blank flash between clearing the old step region and the step
+    // app re-rendering into the new one. Terminals that don't recognise
+    // mode 2026 ignore both sequences.
     private const string SyncUpdateBegin = "\x1b[?2026h";
     private const string SyncUpdateEnd = "\x1b[?2026l";
 
     // Diagnostic trace gated on the HEX1B_FLOW_TRACE environment variable.
     // When set to a writable file path, every interesting state transition
-    // (tombstone emission, pre-scroll, resize handling, re-render) is
-    // appended to that file. Used to investigate visual artefacts like
-    // duplicate tombstones on resize. The path is read once at process start.
+    // (tombstone emission, pre-scroll, resize handling) is appended to
+    // that file. Used to investigate visual artefacts like duplicate
+    // tombstones on resize. The path is read once at process start.
     private static readonly string? TraceLogPath = Environment.GetEnvironmentVariable("HEX1B_FLOW_TRACE");
     private static readonly object TraceLock = new();
     private static int _resizeCounter;
@@ -140,14 +116,13 @@ internal sealed class Hex1bFlowRunner
 
         // Query the current cursor position using DSR (Device Status Report)
         _cursorRow = await QueryCursorRowAsync(ct);
-        _flowOriginRow = _cursorRow;
 
-        Trace($"RunAsync start: termSize={_parentAdapter.Width}x{_parentAdapter.Height} cursorRow={_cursorRow} flowOriginRow={_flowOriginRow} useSoftWrap={_options.UseSoftWrapTombstones}");
+        Trace($"RunAsync start: termSize={_parentAdapter.Width}x{_parentAdapter.Height} cursorRow={_cursorRow} useSoftWrap={_options.UseSoftWrapTombstones}");
 
         var context = new Hex1bFlowContext(this);
         await _flowCallback(context);
 
-        Trace($"RunAsync end: cursorRow={_cursorRow} flowOriginRow={_flowOriginRow} tombstones={_tombstoneBuilders.Count}");
+        Trace($"RunAsync end: cursorRow={_cursorRow}");
 
         // After flow completes, position cursor below the last yield widget
         _parentAdapter.SetCursorPosition(0, _cursorRow);
@@ -177,7 +152,6 @@ internal sealed class Hex1bFlowRunner
                 _parentAdapter.Write("\n");
             }
             _cursorRow -= overflow;
-            _flowOriginRow = Math.Max(0, _flowOriginRow - overflow);
         }
 
         // Clear and render
@@ -186,14 +160,11 @@ internal sealed class Hex1bFlowRunner
         {
             // Render the static content into a surface and emit it as
             // soft-wrap-friendly logical lines so the host terminal owns
-            // the reflow/scroll behaviour.
+            // the reflow/scroll behaviour for the lifetime of the flow.
             var surface = RenderToSurface(builder, terminalWidth, contentHeight);
             if (surface is not null)
             {
                 EmitSoftWrapTombstone(surface);
-                // Track the builder so a later resize can re-render this
-                // static tombstone at the new width via the resize handler.
-                _tombstoneBuilders.Add(builder);
                 return;
             }
             // Fall through to legacy path if surface rendering failed.
@@ -299,7 +270,6 @@ internal sealed class Hex1bFlowRunner
                 }
                 rowOrigin -= overflow;
                 _cursorRow = rowOrigin;
-                _flowOriginRow = Math.Max(0, _flowOriginRow - overflow);
             }
 
             // Clear the step region
@@ -343,15 +313,18 @@ internal sealed class Hex1bFlowRunner
 
                     if (_options.UseSoftWrapTombstones)
                     {
-                        // Owned re-render: clear the entire visible area and
-                        // redraw the tombstone history from scratch at the new
-                        // width, then re-anchor the active step. This avoids
-                        // the unpredictable host-terminal reflow behaviour that
-                        // would otherwise leave a ghost of the old active step
-                        // above the new one and could clip wrapped tombstones
-                        // on width shrink. See the comment on
-                        // _tombstoneBuilders for the full rationale.
-                        var newRowOrigin = ReRenderTombstonesAndAnchorStep(newWidth, newHeight, newStepHeight);
+                        // Tombstones above are append-only — once they were
+                        // emitted as logical lines they belong to the host
+                        // terminal, which reflows them naturally on width
+                        // change and scrolls them into scrollback when they
+                        // overflow. The runner only needs to re-anchor the
+                        // active step (which uses absolute cursor positioning
+                        // and therefore does NOT reflow with the terminal).
+                        // Capture the OLD origin/height before mutating so
+                        // AnchorActiveStepOnResize can clear the right region.
+                        var oldRowOrigin = rowOrigin;
+                        var oldStepHeight = desiredHeight;
+                        var newRowOrigin = AnchorActiveStepOnResize(oldRowOrigin, oldStepHeight, newHeight, newStepHeight);
 
                         stepAdapter.RowOrigin = newRowOrigin;
                         rowOrigin = newRowOrigin;
@@ -414,11 +387,7 @@ internal sealed class Hex1bFlowRunner
                     if (surface is not null)
                     {
                         EmitSoftWrapTombstone(surface);
-                        // Track the builder so a later resize can re-render
-                        // this completed-step tombstone at the new width
-                        // via the resize handler.
-                        _tombstoneBuilders.Add(completedBuilder);
-                        Trace($"Step completed: tombstone tracked, total builders={_tombstoneBuilders.Count}");
+                        Trace("Step completed: tombstone emitted (append-only, terminal owns reflow)");
                     }
                     else
                     {
@@ -527,7 +496,6 @@ internal sealed class Hex1bFlowRunner
                 for (int i = 0; i < overflow; i++)
                     _parentAdapter.Write("\n");
                 _cursorRow -= overflow;
-                _flowOriginRow = Math.Max(0, _flowOriginRow - overflow);
             }
 
             // Clear the page region
@@ -738,7 +706,7 @@ internal sealed class Hex1bFlowRunner
         var height = surface.Height;
         var terminalHeight = _parentAdapter.Height;
 
-        Trace($"EmitSoftWrapTombstone[#{emitId}] enter: surfaceSize={surface.Width}x{height} cursorRow={_cursorRow} flowOriginRow={_flowOriginRow} termH={terminalHeight}");
+        Trace($"EmitSoftWrapTombstone[#{emitId}] enter: surfaceSize={surface.Width}x{height} cursorRow={_cursorRow} termH={terminalHeight}");
 
         // Pre-scroll the viewport if there isn't enough room below the cursor
         // for the tombstone. We use the same trick as the legacy paths
@@ -754,8 +722,7 @@ internal sealed class Hex1bFlowRunner
                 _parentAdapter.Write("\n");
             }
             _cursorRow -= overflow;
-            _flowOriginRow = Math.Max(0, _flowOriginRow - overflow);
-            Trace($"EmitSoftWrapTombstone[#{emitId}] pre-scroll: overflow={overflow} -> cursorRow={_cursorRow} flowOriginRow={_flowOriginRow}");
+            Trace($"EmitSoftWrapTombstone[#{emitId}] pre-scroll: overflow={overflow} -> cursorRow={_cursorRow}");
         }
 
         // Position the cursor at the row where the tombstone should land.
@@ -775,129 +742,75 @@ internal sealed class Hex1bFlowRunner
         // *below* the last visible tombstone row, so the next render lands
         // there cleanly.
         _cursorRow += height;
-        Trace($"EmitSoftWrapTombstone[#{emitId}] exit: cursorRow={_cursorRow} flowOriginRow={_flowOriginRow}");
+        Trace($"EmitSoftWrapTombstone[#{emitId}] exit: cursorRow={_cursorRow}");
     }
 
     /// <summary>
-    /// Resize-time owned re-render: clears the entire visible viewport,
-    /// re-emits every tracked tombstone at the new terminal width starting
-    /// at the top of the screen, and computes the row origin where the
-    /// active step should be anchored. Called only on the soft-wrap path.
-    /// Returns the row origin for the active step.
+    /// Resize-time helper that re-positions only the active step. Emitted
+    /// tombstones are append-only — once written into the host terminal's
+    /// buffer they are owned by the terminal, which reflows and scrolls
+    /// them naturally on resize. The runner never re-emits them.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// The previous resize strategy ("clear from <see cref="_flowOriginRow"/>
-    /// down and trust our row tracking to be in sync") had an unfixable
-    /// problem on terminals that reflow logical lines on horizontal resize
-    /// (Windows Terminal, iTerm2, modern xterm builds): tombstones are
-    /// emitted as logical lines via <see cref="SoftWrapEmitter"/> precisely
-    /// so that they reflow naturally, but reflow also moves them around
-    /// vertically — what was at row N before the resize might now be at
-    /// row M after the resize. <see cref="_flowOriginRow"/> tracked our
-    /// own pre-scrolls but had no way to learn about reflow-induced row
-    /// shifts. The result was that <c>SetCursorPosition(0, _flowOriginRow)
-    /// + ESC[J</c> sometimes left terminal-reflowed copies of the
-    /// tombstones above the cursor, and our re-emitted copies landed
-    /// below them — duplicate tombstones on screen.
+    /// The runner clears the OLD active-step region (using the row origin
+    /// and height the step occupied immediately before the resize fired)
+    /// and then clears the NEW bottom-anchored region into which the step
+    /// app will re-render. The active step uses absolute cursor positioning
+    /// rather than logical lines, so the host terminal does not reflow it
+    /// — explicit clear-and-re-anchor is required.
     /// </para>
     /// <para>
-    /// To make the resize repaint deterministic regardless of host
-    /// terminal reflow behaviour, this method now wipes the entire
-    /// visible viewport (<c>ESC[H ESC[2J</c>) and redraws the tombstone
-    /// history starting at row 0 of the visible area. Any user content
-    /// that was visible above the flow before the resize (typically a
-    /// shell prompt) is therefore lost from the visible area on the
-    /// first resize. It is preserved in the host terminal's scrollback
-    /// (the host has already reflowed it there as part of its own resize
-    /// handling), so the user can still scroll up to see it. This is a
-    /// deliberate trade-off: a one-time loss of the prompt from view is
-    /// less disruptive than ghost copies of every tombstone stacking up
-    /// each time the user resizes.
+    /// Trade-off: if a horizontal shrink causes a tombstone above the
+    /// active step to wrap downward into the new step region, the bottom
+    /// of that tombstone is wiped by the new-region clear and the step
+    /// repaints over it. The remainder of the tombstone above the step
+    /// stays visible. This is the deliberate cost of the
+    /// "tombstones-are-append-only" design: we never fight the host
+    /// terminal's reflow algorithm or risk stacking up duplicate
+    /// tombstones by re-emitting on every resize.
     /// </para>
     /// <para>
-    /// The clear+redraw is bracketed in DEC private mode 2026
+    /// The clear+repaint is bracketed in DEC private mode 2026
     /// (Synchronized Update Mode), so terminals that recognise it present
     /// the entire repaint as one atomic frame instead of a brief blank
     /// flash. Terminals that ignore mode 2026 see a slightly more visible
     /// repaint but no functional regression.
     /// </para>
-    /// <para>
-    /// <see cref="EmitSoftWrapTombstone"/>'s pre-scroll logic handles
-    /// overflow into the host terminal's scrollback the same way it does
-    /// during normal flow execution, so the user's mental model — "oldest
-    /// tombstones go up into scrollback as new ones land at the bottom" —
-    /// is preserved across resize.
-    /// </para>
     /// </remarks>
-    private int ReRenderTombstonesAndAnchorStep(int newWidth, int newHeight, int newStepHeight)
+    /// <param name="oldRowOrigin">Top row of the active step before the resize.</param>
+    /// <param name="oldStepHeight">Height of the active step before the resize.</param>
+    /// <param name="newHeight">New terminal height.</param>
+    /// <param name="newStepHeight">Computed new height for the active step.</param>
+    /// <returns>The new bottom-anchored row origin for the active step.</returns>
+    private int AnchorActiveStepOnResize(int oldRowOrigin, int oldStepHeight, int newHeight, int newStepHeight)
     {
         var resizeId = Interlocked.Increment(ref _resizeCounter);
-        Trace($"ReRender[#{resizeId}] enter: newSize={newWidth}x{newHeight} newStepH={newStepHeight} cursorRow={_cursorRow} flowOriginRow={_flowOriginRow} builders={_tombstoneBuilders.Count}");
+        var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
 
-        // Begin synchronized update so supporting terminals present the whole
-        // clear-and-redraw as a single atomic frame.
+        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} newRO={newRowOrigin}");
+
         _parentAdapter.Write(SyncUpdateBegin);
-
         try
         {
-            // Wipe the entire visible viewport. We deliberately do NOT use
-            // _flowOriginRow + ESC[J here: the host terminal may have
-            // already reflowed our tombstones to a different row range
-            // before this handler runs, and our row tracking has no way
-            // to learn about that. ESC[H ESC[2J unconditionally homes the
-            // cursor and clears the visible area, giving us a known-good
-            // starting state. Anything previously visible above the flow
-            // is preserved in scrollback (the host terminal puts it
-            // there during its own resize handling).
-            _parentAdapter.Write("\x1b[H\x1b[2J");
-            _cursorRow = 0;
-            _flowOriginRow = 0;
-            Trace($"ReRender[#{resizeId}] cleared full viewport, reset to row 0");
-
-            // Re-emit every tracked tombstone at the new width starting at
-            // row 0. The emitter's pre-scroll logic naturally pushes
-            // earlier tombstones into scrollback when the viewport can't
-            // hold them all, matching the behaviour of normal flow
-            // execution.
-            for (int i = 0; i < _tombstoneBuilders.Count; i++)
+            // Clear the OLD step region first. After horizontal-only resize
+            // the old absolute-positioned cells typically remain at the same
+            // rows, so this hits the right place. After vertical resize or
+            // unusual reflow the clear may miss — leftover ghost cells are
+            // accepted as part of the append-only design.
+            if (oldStepHeight > 0)
             {
-                var builder = _tombstoneBuilders[i];
-                var surface = RenderToSurface(builder, newWidth, newHeight);
-                if (surface is null)
-                {
-                    Trace($"ReRender[#{resizeId}] tombstone[{i}] surface=NULL, skipping");
-                    continue;
-                }
-                Trace($"ReRender[#{resizeId}] tombstone[{i}] re-emit: size={surface.Width}x{surface.Height}");
-                EmitSoftWrapTombstone(surface);
+                ClearRegion(oldRowOrigin, oldStepHeight);
             }
 
-            // Pre-scroll if the active step won't fit below the last
-            // tombstone. After this, _cursorRow + newStepHeight <= newHeight
-            // is guaranteed, so the step region we hand back is fully on
-            // screen.
-            var overflow = (_cursorRow + newStepHeight) - newHeight;
-            if (overflow > 0)
-            {
-                _parentAdapter.SetCursorPosition(0, newHeight - 1);
-                for (int i = 0; i < overflow; i++)
-                {
-                    _parentAdapter.Write("\n");
-                }
-                _cursorRow -= overflow;
-                _flowOriginRow = Math.Max(0, _flowOriginRow - overflow);
-                Trace($"ReRender[#{resizeId}] step pre-scroll: overflow={overflow} -> cursorRow={_cursorRow} flowOriginRow={_flowOriginRow}");
-            }
+            // Clear the NEW step region so the step app's first post-resize
+            // render lands on a clean canvas, even if the new region overlaps
+            // the old one or any reflowed tombstone content above.
+            ClearRegion(newRowOrigin, newStepHeight);
 
-            // Clear the active-step region so the step app's first
-            // post-resize render lands on a clean canvas. Without this the
-            // tombstone renderer's last emitted glyph would still be visible
-            // in column 0 of the step's first row until overwritten.
-            ClearRegion(_cursorRow, newStepHeight);
-
-            Trace($"ReRender[#{resizeId}] exit: returning rowOrigin={_cursorRow} flowOriginRow={_flowOriginRow}");
-            return _cursorRow;
+            _cursorRow = newRowOrigin;
+            Trace($"AnchorActiveStep[#{resizeId}] exit: cursorRow={_cursorRow}");
+            return newRowOrigin;
         }
         finally
         {
