@@ -74,11 +74,4 @@
     <EmbeddedResource Include="TestData\ReflowFixtures.json" />
   </ItemGroup>
 
-  <ItemGroup>
-    <!-- Link the real AgenticPromptDemo composite into the test assembly so we
-         can drive it through the input pipeline without spawning the full demo. -->
-    <Compile Include="..\..\samples\AgenticPromptDemo\SlashCommandPromptWidget.cs"
-             Link="Composition\Real_SlashCommandPromptWidget.cs" />
-  </ItemGroup>
-
 </Project>

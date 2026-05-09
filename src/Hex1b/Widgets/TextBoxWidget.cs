@@ -172,6 +172,25 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public TextBoxWidget Height(int lines)
         => this with { HeightValue = lines };
 
+    /// <summary>
+    /// When true, the widget acts as a "controlled" component: every
+    /// reconcile pass forces <see cref="Hex1bNode"/> text to match the
+    /// widget's <see cref="Text"/>, even when the user has typed something
+    /// in between renders. This is the right mode for callers that want to
+    /// drive the displayed text from external state on every frame (for
+    /// example, a typeahead/preview UI that overrides what the user typed
+    /// with a suggestion). The default (uncontrolled) mode lets the user's
+    /// in-progress typing persist and only honors a new <see cref="Text"/>
+    /// value when it differs from the previously-supplied widget text.
+    /// </summary>
+    internal bool IsControlledValue { get; init; }
+
+    /// <summary>
+    /// Enables controlled-mode behavior: see <see cref="IsControlledValue"/>.
+    /// </summary>
+    public TextBoxWidget Controlled()
+        => this with { IsControlledValue = true };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
@@ -193,9 +212,12 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
                 node.State.CursorPosition = node.Text.Length;
             }
         }
-        else if (!context.IsNew && Text != null && Text != node.LastWidgetText)
+        else if (!context.IsNew && Text != null && (IsControlledValue || Text != node.LastWidgetText))
         {
-            // External code changed the text value in the widget - update node
+            // External code changed the text value in the widget - update node.
+            // In controlled mode we always honor the widget's Text — even when
+            // it's identical to the previously-supplied value — so callers can
+            // override user input on every frame (e.g. typeahead previews).
             var oldText = node.Text;
             node.Text = Text;
             node.LastWidgetText = Text;
