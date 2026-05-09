@@ -347,6 +347,175 @@ You can find this exact program under `samples/CompositionDemo` in the repo.
 - **Shadowing works.** A nested composite that provides the same `T` shadows the outer value for *its* subtree only.
 - **`Require<T>()` is the strict variant.** Use it when you've made an ancestor a hard prerequisite — you'll get a clear `InvalidOperationException` if someone places the consumer outside the right subtree.
 
+## A real-world example: a slash-command prompt
+
+The counter examples above show the mechanics, but composites really shine when you bundle up a non-trivial *interactive control*. Here's one straight from `samples/AgenticPromptDemo`: a textbox that pops up a floating completion list whenever the buffer starts with `/`.
+
+What it does:
+
+- Buffer starts with `/` → a bordered list of matching commands floats above the textbox.
+- **Up / Down** highlight rows in the list.
+- **Tab / Enter** accepts the highlighted row, replacing the buffer with `"/<commandName> "` and parking the cursor after the space.
+- **Escape** clears the buffer and dismisses the list.
+- Typing past the command name (e.g. `/picker hello`) closes the palette automatically — you're now writing arguments.
+- When the palette is closed, **Enter** submits the text the normal way and fires `OnSubmit`.
+
+All of that lives in a single composite — no custom node, no manual focus tricks. Here's the whole thing:
+
+```csharp
+using Hex1b;
+using Hex1b.Composition;
+using Hex1b.Input;
+using Hex1b.Widgets;
+
+public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
+    : Hex1bCompositeWidget
+{
+    internal Func<string, Task>? SubmitHandler { get; init; }
+
+    public SlashCommandPromptWidget OnSubmit(Action<string> handler)
+        => this with { SubmitHandler = t => { handler(t); return Task.CompletedTask; } };
+
+    protected override Hex1bWidget Build(CompositionContext ctx)
+    {
+        var state = ctx.UseState(() => new PromptState());
+
+        // Compute palette state from the current buffer.
+        var matches = ComputeMatches(state.CurrentText, Commands);
+        var paletteVisible = matches.Count > 0;
+
+        if (paletteVisible)
+            state.SelectedIndex = Math.Clamp(state.SelectedIndex, 0, matches.Count - 1);
+        else
+            state.SelectedIndex = 0;
+
+        // Pop and consume any pending text we want to push INTO the textbox.
+        // In steady state we pass `null` so the textbox owns its own text +
+        // cursor; we only override when WE want to overwrite (Accept/Escape).
+        var pendingOverride = state.PendingTextOverride;
+        state.PendingTextOverride = null;
+
+        return ctx.VStack(v =>
+        {
+            var textbox = (pendingOverride is not null
+                    ? v.TextBox(pendingOverride)
+                    : v.TextBox())
+                .OnTextChanged(e => state.CurrentText = e.NewText)
+                .OnSubmit(e =>
+                {
+                    var text = e.Text?.Trim();
+                    if (string.IsNullOrEmpty(text)) return;
+
+                    SubmitHandler?.Invoke(text);
+                    state.CurrentText = "";
+                    state.PendingTextOverride = "";
+                });
+
+            if (paletteVisible)
+            {
+                var snapshot = matches;  // capture for handlers
+                textbox = textbox.InputBindings(b =>
+                {
+                    b.Key(Hex1bKey.UpArrow).Action(_ =>
+                    {
+                        if (state.SelectedIndex > 0) state.SelectedIndex--;
+                    }, "Previous command");
+
+                    b.Key(Hex1bKey.DownArrow).Action(_ =>
+                    {
+                        if (state.SelectedIndex < snapshot.Count - 1) state.SelectedIndex++;
+                    }, "Next command");
+
+                    void Accept(InputBindingActionContext _)
+                    {
+                        var completion = "/" + snapshot[state.SelectedIndex].Name + " ";
+                        state.CurrentText = completion;
+                        state.PendingTextOverride = completion;
+                    }
+
+                    // Override Enter so it accepts instead of submitting while open.
+                    b.Key(Hex1bKey.Tab).Action(Accept, "Accept");
+                    b.Key(Hex1bKey.Enter).Action(Accept, "Accept");
+
+                    b.Key(Hex1bKey.Escape).Action(_ =>
+                    {
+                        state.CurrentText = "";
+                        state.PendingTextOverride = "";
+                    }, "Dismiss");
+                });
+
+                return [
+                    v.Float(BuildPalette(v, snapshot, state.SelectedIndex))
+                        .ExtendTop(textbox),
+                    textbox,
+                ];
+            }
+
+            return [textbox];
+        });
+    }
+
+    static IReadOnlyList<SlashCommand> ComputeMatches(string text, IReadOnlyList<SlashCommand> commands)
+    {
+        if (string.IsNullOrEmpty(text) || text[0] != '/') return Array.Empty<SlashCommand>();
+
+        var query = text.AsSpan(1);
+        if (query.IndexOf(' ') >= 0) return Array.Empty<SlashCommand>();
+
+        var q = query.ToString();
+        return commands.Where(c => c.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    static Hex1bWidget BuildPalette(WidgetContext<VStackWidget> ctx, IReadOnlyList<SlashCommand> matches, int selected)
+        => ctx.Border(b => matches
+            .Select((cmd, i) => (Hex1bWidget)b.Text((i == selected ? " ❯ " : "   ") + "/" + cmd.Name + "    " + cmd.Description))
+            .ToArray()).Title("Commands");
+
+    sealed class PromptState
+    {
+        public string CurrentText = "";
+        public string? PendingTextOverride;
+        public int SelectedIndex;
+    }
+}
+
+public sealed record SlashCommand(string Name, string Description);
+
+public static class SlashCommandPromptExtensions
+{
+    public static SlashCommandPromptWidget SlashCommandPrompt<T>(
+        this WidgetContext<T> ctx,
+        IReadOnlyList<SlashCommand> commands)
+        where T : Hex1bWidget
+        => new(commands);
+}
+```
+
+Call site is just one line:
+
+```csharp
+ctx.VStack(v => [
+    /* ...transcript and other widgets... */
+
+    v.Separator(),
+    v.SlashCommandPrompt(commands)
+        .OnSubmit(text => HandleSubmittedText(text)),
+])
+```
+
+### What's worth pointing out
+
+A few things in this composite illustrate the patterns from earlier in the guide:
+
+- **State is one small object**, allocated once with `UseState`. `CurrentText`, `SelectedIndex`, and a `PendingTextOverride` flag is all the bookkeeping needed.
+- **No custom node.** A traditional implementation would reach for an `Hex1bNode` subclass that owned the textbox and the floating list as children, with manual layout, focus shuffling, and ancestor-walking to coordinate them. The composite version doesn't.
+- **Conditional input capture.** Up/Down/Tab/Esc/Enter are only attached *while the palette is open*. When the palette is closed (no slash, or the user has typed past the command), those bindings simply don't exist that frame, so Enter falls through to the textbox's default Submit and Up/Down do nothing on the single-line textbox. This avoids needing any "if open" check inside handlers and keeps the input model honest.
+- **Controlled-text via override flag.** The textbox normally owns its own text and cursor (we pass no `Text` argument). When the composite needs to *push* a value in (after Accept or Escape), it parks the new string in `PendingTextOverride`, which is consumed on the very next `Build` and then nulled. This lets us reuse `TextBoxWidget`'s built-in "if widget Text differs from last frame, replace text and move cursor to end" behaviour without losing control of the cursor on every keystroke.
+- **Float positioning.** `v.Float(...).ExtendTop(textbox)` places the palette directly above the textbox — `Float` lives in the same `VStack` as the textbox precisely so it can anchor relative to it. Floats need an `IFloatWidgetContainer` parent, which is why both children are inside the `VStack` builder lambda (where `v` is `WidgetContext<VStackWidget>`).
+- **Fluent extension method.** `SlashCommandPromptExtensions` keeps callers on the standard `v.SlashCommandPrompt(...)` surface — no `new SlashCommandPromptWidget(...)` at the call site.
+
+Run it with `dotnet run --project samples/AgenticPromptDemo`, then type `/` to see the palette.
+
 ## Decision guide
 
 Walk down the list and stop at the first "yes":
