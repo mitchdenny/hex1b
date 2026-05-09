@@ -45,6 +45,7 @@ export default defineConfig({
             { text: 'Your First Flow App', link: '/guide/building-clis' },
             { text: 'Widgets & Nodes', link: '/guide/widgets-and-nodes' },
             { text: 'API Design Guidelines', link: '/guide/api-design' },
+            { text: 'Composing Widgets', link: '/guide/composition' },
             { text: 'Layout System', link: '/guide/layout' },
             { text: 'Input Handling', link: '/guide/input' },
             { text: 'Theming', link: '/guide/theming' }
