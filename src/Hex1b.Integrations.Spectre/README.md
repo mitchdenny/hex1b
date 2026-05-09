@@ -159,6 +159,63 @@ dotnet run --project samples/SpectreTuiDemo -- --auto              # self-drivin
 dotnet run --project samples/SpectreTuiDemo -- --auto --headless   # off-screen + cast
 ```
 
+## Embedding Hex1b inside a Spectre.Tui app (net10.0 only)
+
+The bridge also runs in the **other direction** — drop a Hex1b widget tree
+into a sub-region of any `Spectre.Tui.IWidget` host. `Hex1bSpectreTuiWidget`
+implements `Spectre.Tui.IWidget`, so it composes with `Layout`, `BoxWidget`,
+side panels, tabs, popups — every Spectre.Tui chrome element.
+
+Internally it lifts Hex1b's `Build → Reconcile → Measure → Arrange → Render`
+pipeline out of `Hex1bApp`'s self-driven loop into a discrete
+`Hex1bEmbeddedHost` that the Spectre.Tui frame thread calls every redraw.
+The host owns the persisted node tree, focus ring, and input router state,
+so cursor position, list selection, scroll offset, and chord state all
+survive across Spectre.Tui's 60 fps redraws.
+
+```csharp
+using Hex1b.Integrations.Spectre.SpectreTui;
+using Hex1b.Widgets;
+using Spectre.Tui;
+using Spectre.Tui.App;
+
+public sealed class EmbedScreen : Screen
+{
+    private readonly Hex1bSpectreTuiWidget _hex1b = new(() =>
+        new BorderWidget(
+            new VStackWidget([
+                new TextBlockWidget("This is a Hex1b widget tree."),
+                new ListWidget(["Apple", "Banana", "Cherry"]),
+            ]))
+            .Title("Hex1b inside Spectre.Tui"));
+
+    public override void OnMessage(ApplicationContext context, ApplicationMessage message)
+    {
+        if (message is KeyMessage key)
+        {
+            if (key.Info.Key is ConsoleKey.Q or ConsoleKey.Escape)
+            {
+                context.Quit();
+                return;
+            }
+
+            // Forward keys to the embedded Hex1b widget. Selection, cursor,
+            // and focus state survive across every Spectre.Tui frame.
+            _hex1b.HandleKey(key.Info);
+        }
+    }
+
+    public override void Render(RenderContext context) => context.Render(_hex1b);
+}
+```
+
+For an end-to-end example — a Spectre.Tui screen with native chrome
+(title bar, side panel with `BoxWidget` + `Paragraph` + `SparklineWidget`,
+status bar) hosting a Hex1b panel in the centre — see
+`samples/Hex1bInsideSpectreTui`. Run it with `--auto --headless` to capture
+an asciinema cast that proves Hex1b list selection persists across
+Spectre.Tui's continuous redraw loop.
+
 ## What's not bridged
 
 - **Mouse input.** Neither Spectre.Console nor Spectre.Tui have a mouse
