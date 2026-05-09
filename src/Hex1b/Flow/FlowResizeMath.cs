@@ -36,9 +36,13 @@ internal static class FlowResizeMath
     /// <c>ClearRegion(rowOrigin, height)</c>. Under the legacy path this is
     /// always <c>(0, terminalHeight)</c> — every row in the visible area gets
     /// cleared because cell-positioned tombstones cannot survive a resize
-    /// anyway. Under the soft-wrap path this is the bottom-aligned active-step
-    /// region only — tombstones above have been reflowed by the host terminal
-    /// and must not be touched.
+    /// anyway. The soft-wrap path no longer calls into this helper at all:
+    /// the runner owns the resize repaint there (clears the viewport, redraws
+    /// every tracked tombstone at the new width via
+    /// <c>SoftWrapEmitter</c>, then re-anchors the active step). The
+    /// soft-wrap branch in this method is retained only for tests and
+    /// possible future reuse — production code on the soft-wrap path
+    /// bypasses it.
     /// </returns>
     public static (int RowOrigin, int Height) ComputeClearRegion(
         bool useSoftWrapTombstones,
