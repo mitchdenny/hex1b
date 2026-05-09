@@ -13,4 +13,8 @@
     <ProjectReference Include="../../src/Hex1b.Integrations.Spectre/Hex1b.Integrations.Spectre.csproj" />
   </ItemGroup>
 
+  <ItemGroup>
+    <PackageReference Include="System.CommandLine" Version="2.0.2" />
+  </ItemGroup>
+
 </Project>
