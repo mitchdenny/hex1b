@@ -1,8 +1,6 @@
 # API Design Guidelines
 
-These guidelines describe how the public API of Hex1b is shaped — and why the shape is the way it is. They apply both to the library itself and to any third-party packages that ship widgets or extensions on top of it.
-
-The conventions on this page are enforced by Roslyn analyzers (HEX1B0001–HEX1B0009) so that the library and its ecosystem stay consistent over time. Each rule below names the analyzer that polices it.
+These guidelines describe how the public API of Hex1b is shaped — and why the shape is the way it is. They apply to the library itself and inform any widgets or extensions you build on top of it.
 
 ## Two builders, two patterns
 
@@ -18,7 +16,7 @@ Both are fluent, but they do different jobs:
 - **`Hex1bTerminalBuilder`** wires together the host process — terminal plumbing, presentation/workload adapters, recording, mouse, MCP diagnostics, etc. It is configured **once at startup**, returns the same builder for chaining, and uses `With*` because each call mutates a builder configuration object.
 - **Widget composition** describes the **UI tree on every render pass**. Widgets are immutable `record`s, so a "fluent" call returns a new widget value (or constructs a new one in an extension method) — there is nothing to "be `With`'d into". The `With*` prefix is reserved for the terminal builder so that, when you read a chain of calls, you can tell at a glance which surface you're on.
 
-This is why `HEX1B0001` will reject any `With*` method declared on a widget extension or instance. If you find yourself wanting `WithTitle(...)` on a widget, use `Title(...)` instead.
+If you find yourself wanting `WithTitle(...)` on a widget, use `Title(...)` instead.
 
 ## Anatomy of a widget
 
@@ -44,15 +42,15 @@ public class ButtonNode : Hex1bNode { /* … */ }
 
 Naming rules:
 
-| Rule | Convention | Analyzer |
-|---|---|---|
-| Widget type names | end in `Widget` | HEX1B0002 |
-| Node type names | end in `Node` | HEX1B0003 |
-| Widget kind | declared as `record` | HEX1B0004 |
-| Node kind | declared as `class` | HEX1B0005 |
-| Event handlers on a widget | `On<Verb>` (`OnClick`, `OnSelectionChanged`) | — |
-| Configuration on a widget | bare verb-noun (`Title`, `MaxFloating`, `Disabled`) | — |
-| Never on a widget | `With*` (reserved for `Hex1bTerminalBuilder`) | HEX1B0001 |
+| Rule | Convention |
+|---|---|
+| Widget type names | end in `Widget` |
+| Node type names | end in `Node` |
+| Widget kind | declared as `record` |
+| Node kind | declared as `class` |
+| Event handlers on a widget | `On<Verb>` (`OnClick`, `OnSelectionChanged`) |
+| Configuration on a widget | bare verb-noun (`Title`, `MaxFloating`, `Disabled`) |
+| Never on a widget | `With*` (reserved for `Hex1bTerminalBuilder`) |
 
 ## The `WidgetContext<T>` family
 
@@ -67,10 +65,10 @@ public static BorderWidget Border<TParent>(
     => /* … */;
 ```
 
-Two parameter naming rules apply:
+Two parameter naming conventions apply:
 
-- **`HEX1B0006`** — the `WidgetContext<T>` receiver is always named **`context`**.
-- **`HEX1B0008`** — a single widget-builder callback is always named **`builder`**.
+- The `WidgetContext<T>` receiver is always named **`context`**.
+- A single widget-builder callback is always named **`builder`**.
 
 So every call site reads the same way:
 
@@ -81,7 +79,7 @@ context.Border(b => [
 ])
 ```
 
-Inside the lambda, the parameter is the **child** context (here named `b` for brevity). Lambda variable names are unconstrained — the analyzer only governs the names declared in the extension method signature, so callers can use whatever short alias they like.
+Inside the lambda, the parameter is the **child** context (here named `b` for brevity). Lambda variable names are unconstrained — the convention only governs the names declared in the extension method signature, so callers can use whatever short alias they like.
 
 ## Widget instance extensions
 
@@ -94,9 +92,7 @@ public static EditorWidget LanguageServer(
     => /* … */;
 ```
 
-- **`HEX1B0007`** — when the receiver is a `Hex1bWidget`-derived type (or a generic constrained to `Hex1bWidget`), it is named **`widget`**, never `editor`, `target`, `self`, or a role-name.
-
-This keeps every widget-on-widget operation reading the same way regardless of which widget it acts on:
+When the receiver is a `Hex1bWidget`-derived type (or a generic constrained to `Hex1bWidget`), it is named **`widget`**, never `editor`, `target`, `self`, or a role-name. This keeps every widget-on-widget operation reading the same way regardless of which widget it acts on:
 
 ```csharp
 context.Editor(state)
@@ -109,10 +105,6 @@ context.Editor(state)
 Most widget-builder methods take exactly one builder callback. A handful of widgets — splitters, for example — genuinely need two, one per pane:
 
 ```csharp
-[SuppressMessage(
-    "Hex1b.ApiDesign",
-    "HEX1B0009",
-    Justification = "A splitter inherently has two independent panes; each side takes its own builder callback.")]
 public static SplitterWidget HSplitter<TParent>(
     this WidgetContext<TParent> context,
     Func<WidgetContext<VStackWidget>, Hex1bWidget[]> leftBuilder,
@@ -122,25 +114,23 @@ public static SplitterWidget HSplitter<TParent>(
     => /* … */;
 ```
 
-- **`HEX1B0009`** — declaring two or more widget-builder callbacks on the same method is a warning, suppressible with a `Justification`. The suppression is the documentation: it tells the next reader that the multi-builder shape is deliberate, not an oversight.
-
-When you have a choice, prefer a single `builder` that returns multiple children (e.g. `Func<…, Hex1bWidget[]>`) over multiple positional builders. Splitters are the exception because the two panes have different roles, not just different positions.
+When you have a choice, prefer a single `builder` that returns multiple children (e.g. `Func<…, Hex1bWidget[]>`) over multiple positional builders. Splitters are the exception because the two panes have different roles, not just different positions — so they get role-named builders (`leftBuilder` / `rightBuilder`, `topBuilder` / `bottomBuilder`).
 
 ### `On*` methods are not builders
 
-Both `HEX1B0008` and `HEX1B0009` ignore methods whose name matches `On<Verb>`. These are event-handler decorators — they happen to take a callback that returns a widget, but they fire in response to an event rather than participating in the widget tree's static composition:
+Event-handler decorators sometimes take a callback that returns a widget — they fire in response to an event rather than participating in the widget tree's static composition, so they don't follow the `builder` convention:
 
 ```csharp
-// Allowed: OnBlock takes a Func that returns a widget, but it's an event handler.
+// OnBlock takes a Func that returns a widget, but it's an event handler.
 public MarkdownWidget OnBlock<TBlock>(
     Func<MarkdownBlockContext, TBlock, Hex1bWidget> handler) => /* … */;
 ```
 
-If you find yourself adding a non-`On*` method that takes more than one widget-producing callback and the suppression message would feel awkward to write, that's a hint to rethink the shape — perhaps the widget itself should expose a child collection, or the method should be split.
+If you find yourself adding a non-`On*` method that takes more than one widget-producing callback, that's a hint to rethink the shape — perhaps the widget itself should expose a child collection, or the method should be split.
 
 ## Action callbacks vs. widget builders
 
-Some widgets take an `Action<TWidget>` / `Action<TBuilder>` style configuration callback that mutates a builder rather than returning a widget tree. These are not "widget builders" by the analyzer's definition — they don't return `Hex1bWidget` — and the convention for them is `configure`:
+Some widgets take an `Action<TWidget>` / `Action<TBuilder>` style configuration callback that mutates a builder rather than returning a widget tree. These are not "widget builders" — they don't return `Hex1bWidget` — and the convention for them is `configure`:
 
 ```csharp
 public static FormWidget Form<TParent>(
@@ -168,6 +158,4 @@ Every rule on this page exists to remove a small daily friction:
 - You can read any widget call site without checking the type of the receiver, because `context` and `widget` always mean the same thing.
 - You can spot the boundary between "wiring up the host" and "describing the UI" at a glance, because `With*` only appears on the terminal builder.
 - You don't have to remember whether this widget calls its callback `childBuilder`, `contentBuilder`, or `fallbackBuilder` — it's always `builder`.
-- When a widget genuinely needs a non-default shape (two builders, an Action callback, an `On*` handler), the deviation carries its own justification, so it doesn't read as an inconsistency.
-
-The analyzers turn these conventions into compile-time guarantees rather than style guidelines, which means the rules can evolve without leaving the codebase littered with stragglers — the build will tell you what's left to update.
+- When a widget genuinely needs a non-default shape (two builders, an Action callback, an `On*` handler), the deviation is small enough to read as a deliberate exception rather than an inconsistency.
