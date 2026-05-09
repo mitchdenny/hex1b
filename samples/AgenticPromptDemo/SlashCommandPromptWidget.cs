@@ -33,6 +33,7 @@ using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Events;
 using Hex1b.Input;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
@@ -133,13 +134,19 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
 
                 return [
                     BuildPalette(v, matchesSnapshot, state.SelectedIndex),
-                    textbox,
+                    StyleTextBox(v, textbox),
                 ];
             }
 
-            return [textbox];
+            return [StyleTextBox(v, textbox)];
         });
     }
+
+    // Wrap the textbox in a ThemePanel that switches it into "fill mode" — no
+    // [ / ] brackets, with a shaded background that brightens on focus. This is
+    // the same trick FormTextFieldWidget uses to get a chunky form-style input.
+    private static Hex1bWidget StyleTextBox(WidgetContext<VStackWidget> ctx, TextBoxWidget textbox)
+        => ctx.ThemePanel(t => t.Set(TextBoxTheme.UseFillMode, true), textbox);
 
     private static IReadOnlyList<SlashCommand> ComputeMatches(
         string text,
