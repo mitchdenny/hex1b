@@ -108,14 +108,32 @@ internal sealed class SamplesGraveyardSlide : ISlide, IAsyncDisposable
         if (_handle is { } handle)
         {
             return ctx.Terminal(handle)
-                .WhenNotRunning(args => ctx.VStack(v =>
-                [
-                    v.Text(""),
-                    v.Text($"  Exited with code {args.ExitCode ?? 0}."),
-                    v.Text(""),
-                    v.Text("  Press R to restart, K to clear, or Enter another"),
-                    v.Text("  sample on the left to switch."),
-                ]));
+                .WhenNotRunning(args =>
+                {
+                    if (args.State == TerminalState.NotStarted)
+                    {
+                        // dotnet run does a build first, which takes a few seconds before any
+                        // output reaches the embedded buffer. Show a friendly placeholder so the
+                        // pane doesn't look broken.
+                        return ctx.VStack(v =>
+                        [
+                            v.Text(""),
+                            v.Text($"  starting samples/{_runningName}..."),
+                            v.Text(""),
+                            v.Text("  dotnet run does a build first, so this can take a"),
+                            v.Text("  few seconds before any output appears."),
+                        ]);
+                    }
+
+                    return ctx.VStack(v =>
+                    [
+                        v.Text(""),
+                        v.Text($"  Exited with code {args.ExitCode ?? 0}."),
+                        v.Text(""),
+                        v.Text("  Press R to restart, K to clear, or Enter another"),
+                        v.Text("  sample on the left to switch."),
+                    ]);
+                });
         }
 
         return ctx.VStack(v =>
@@ -160,18 +178,45 @@ internal sealed class SamplesGraveyardSlide : ISlide, IAsyncDisposable
             _running = nested;
             _handle = handle;
             _runningName = name;
-            _statusMessage = $"running samples/{name}  ·  R restart  ·  K kill";
+            _statusMessage = $"starting samples/{name}  ·  R restart  ·  K kill";
+
+            // Surface state transitions in the footer status line so the presenter (and the
+            // audience) can see something is actually happening — Hex1bApp will re-render
+            // for each transition because TerminalNode forwards OutputReceived (which fires
+            // alongside StateChanged) to the framework's invalidate callback.
+            handle.StateChanged += state =>
+            {
+                _statusMessage = state switch
+                {
+                    TerminalState.NotStarted => $"starting samples/{name}  ·  R restart  ·  K kill",
+                    TerminalState.Running => $"running samples/{name}  ·  R restart  ·  K kill",
+                    TerminalState.Completed => $"exited samples/{name} ({handle.ExitCode ?? 0})  ·  R restart  ·  K kill",
+                    _ => _statusMessage
+                };
+            };
 
             _ = Task.Run(async () =>
             {
-                try { await nested.RunAsync(cts.Token); }
-                catch (OperationCanceledException) { /* normal shutdown */ }
-                catch { /* don't crash the deck */ }
+                try
+                {
+                    await nested.RunAsync(cts.Token);
+                }
+                catch (OperationCanceledException)
+                {
+                    // normal shutdown — presenter navigated away or pressed K
+                }
+                catch (Exception ex)
+                {
+                    // Don't crash the deck — surface the failure in the footer so we can
+                    // see what went wrong (e.g. missing hex1bpty.exe, missing dotnet on
+                    // PATH, missing csproj, etc.).
+                    _statusMessage = $"failed samples/{name}: {ex.GetType().Name}: {ex.Message}";
+                }
             });
         }
         catch (Exception ex)
         {
-            _statusMessage = $"failed to launch: {ex.Message}";
+            _statusMessage = $"failed to launch samples/{name}: {ex.Message}";
         }
     }
 
