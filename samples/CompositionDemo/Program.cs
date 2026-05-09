@@ -17,9 +17,9 @@ using Hex1b.Widgets;
 //         CounterStatusWidget (composite)
 //             └─ pulls the store via ctx.Use<CounterStore>() and renders status
 //
-// All "shared state" plumbing fits into the composite's Build method, and the
-// fluent API (ctx.Text, ctx.VStack, ctx.Separator, ...) is available directly
-// on CompositionContext because it derives from WidgetContext<>.
+// Every composite ships a fluent extension method (see CompositionDemoExtensions
+// at the bottom of this file), so call sites stay on the standard `ctx.X(...)`
+// surface and never write `new ...Widget(...)` inside a Build method.
 
 Hex1bApp? app = null;
 
@@ -27,7 +27,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((a, options) =>
     {
         app = a;
-        return ctx => new AppShellWidget(InvalidateApp, RequestStopApp);
+        return ctx => ctx.AppShell(InvalidateApp, RequestStopApp);
     })
     .Build();
 
@@ -56,8 +56,8 @@ internal sealed record AppShellWidget(Action Invalidate, Action RequestStop) : H
             v.Text(" Up/Down to change counter, R to reset, Q to quit"),
             v.Separator(),
 
-            new CounterDisplayWidget(),
-            new CounterStatusWidget(),
+            v.CounterDisplay(),
+            v.CounterStatus(),
 
             v.Separator(),
             v.Text(" Both inner widgets share state via ctx.Use<CounterStore>()"),
@@ -106,4 +106,23 @@ internal sealed class CounterStore
     public void Increment() { Count++; Invalidate(); }
     public void Decrement() { Count--; Invalidate(); }
     public void Reset() { Count = 0; Invalidate(); }
+}
+
+// --- Fluent extensions: one per composite ---
+
+internal static class CompositionDemoExtensions
+{
+    public static AppShellWidget AppShell<T>(
+        this WidgetContext<T> ctx,
+        Action invalidate,
+        Action requestStop) where T : Hex1bWidget
+        => new(invalidate, requestStop);
+
+    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> ctx)
+        where T : Hex1bWidget
+        => new();
+
+    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> ctx)
+        where T : Hex1bWidget
+        => new();
 }

@@ -122,12 +122,11 @@ The shape of the API may change before it's marked stable.
 
 ### A minimal example
 
-A self-contained counter widget — its own state, its own keybindings, no node subclass:
+A self-contained counter widget — its own state, its own keybindings, no node subclass — and the small extension method that lets callers reach for it through the fluent API:
 
 ```csharp
 using Hex1b;
 using Hex1b.Composition;
-using Hex1b.Input;
 using Hex1b.Widgets;
 
 public sealed record CounterWidget(string Label) : Hex1bCompositeWidget
@@ -148,26 +147,42 @@ public sealed record CounterWidget(string Label) : Hex1bCompositeWidget
         public int Count;
     }
 }
+
+public static class CounterWidgetExtensions
+{
+    public static CounterWidget Counter<T>(this WidgetContext<T> ctx, string label)
+        where T : Hex1bWidget
+        => new(label);
+}
 ```
 
-Use it like any other widget — including from inside another `VStack`, `Border`, etc.:
+Now callers consume it the same way they consume any built-in widget:
 
 ```csharp
 ctx.VStack(v => [
-    new CounterWidget("Apples"),
-    new CounterWidget("Oranges"),
+    v.Counter("Apples"),
+    v.Counter("Oranges"),
 ])
 ```
 
 Each instance keeps its own `CounterState`. They don't see each other.
 
-::: info Naming rules
-The `Hex1b.Analyzers` package enforces some conventions for composite widgets, the same as any other widget:
-- The type **must end in `Widget`** (HEX1B0002)
-- It **must be declared `record`** (HEX1B0004)
-- It **must not declare `With*` methods** — use bare verb-noun names like `Title(...)`, `OnClick(...)` (HEX1B0001)
+::: tip Always ship an extension method
+This is the convention every built-in widget follows, and you should follow it for your own composites too. The pattern is:
 
-The compiler will tell you if you forget.
+1. Define the widget record (`MyThingWidget`).
+2. Add a `static class MyThingWidgetExtensions` with an extension method on `WidgetContext<T>` returning the widget.
+
+That way, **inside any builder lambda, callers never have to write `new ...Widget(...)`** — they stay on the discoverable, IntelliSense-friendly `v.MyThing(...)` surface. Keeping `new` out of `Build` methods and builder lambdas is a hard convention in the codebase.
+:::
+
+::: info Naming conventions
+Composite widgets follow the same conventions as any other Hex1b widget:
+- The type ends in `Widget`.
+- It's declared `record`.
+- It doesn't expose `With*` methods — use bare verb-noun names like `Title(...)` and `OnClick(...)` (the `With*` prefix is reserved for `Hex1bTerminalBuilder`).
+
+The Hex1b repo enforces these via analyzer rules HEX1B0001–HEX1B0005 internally; the analyzers aren't shipped in the public NuGet package, so external projects should treat the conventions as a code-review checklist rather than a build error.
 :::
 
 ### What `CompositionContext` gives you
@@ -249,8 +264,8 @@ public sealed record AppShellWidget(Action Invalidate, Action RequestStop)
             v.Text("Up/Down to change counter, R to reset, Q to quit"),
             v.Separator(),
 
-            new CounterDisplayWidget(),
-            new CounterStatusWidget(),
+            v.CounterDisplay(),
+            v.CounterStatus(),
         ])
         .InputBindings(b =>
         {
@@ -294,6 +309,25 @@ internal sealed class CounterStore
     public void Increment() { Count++; Invalidate(); }
     public void Decrement() { Count--; Invalidate(); }
     public void Reset()     { Count = 0; Invalidate(); }
+}
+
+// Fluent extensions — one per composite, so call sites never use `new`.
+
+public static class CounterCompositeExtensions
+{
+    public static AppShellWidget AppShell<T>(
+        this WidgetContext<T> ctx,
+        Action invalidate,
+        Action requestStop) where T : Hex1bWidget
+        => new(invalidate, requestStop);
+
+    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> ctx)
+        where T : Hex1bWidget
+        => new();
+
+    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> ctx)
+        where T : Hex1bWidget
+        => new();
 }
 ```
 
@@ -376,9 +410,33 @@ public sealed record FormFieldWidget(string Name, string Label) : Hex1bComposite
         ]);
     }
 }
+
+public static class FormCompositeExtensions
+{
+    public static FormWidget Form<T>(
+        this WidgetContext<T> ctx,
+        Func<FormResult, Task> onSubmit,
+        Hex1bWidget body) where T : Hex1bWidget
+        => new(onSubmit, body);
+
+    public static FormFieldWidget FormField<T>(
+        this WidgetContext<T> ctx,
+        string name,
+        string label) where T : Hex1bWidget
+        => new(name, label);
+}
 ```
 
-Any number of `FormFieldWidget`s nested anywhere under a `FormWidget` will pick up the same `FormController`.
+Callers compose entirely through the fluent API:
+
+```csharp
+ctx.Form(SubmitAsync, ctx.VStack(v => [
+    v.FormField("name",  "Name"),
+    v.FormField("email", "Email"),
+]))
+```
+
+Any number of `FormField`s nested anywhere under a `Form` will pick up the same `FormController`.
 
 ### Theming or localisation overrides
 
