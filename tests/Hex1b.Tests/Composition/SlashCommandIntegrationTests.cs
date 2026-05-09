@@ -90,6 +90,56 @@ public class SlashCommandIntegrationTests
             "No completions should be shown");
     }
 
+    [Fact]
+    public async Task DownArrow_MovesPaletteSelection()
+    {
+        // Drives the prompt with "/", then DownArrow, and verifies the
+        // selection marker (>) moves from the first row (picker) to the
+        // second row (clear). This proves InputBindings on the textbox
+        // fires when the palette is visible.
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithWorkload(workload)
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(new SlashPromptHostWidget()),
+            new Hex1bAppOptions { WorkloadAdapter = workload });
+
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
+            .Type("/")
+            .WaitUntil(s => s.ContainsText("picker"), TimeSpan.FromSeconds(5))
+            .Wait(TimeSpan.FromMilliseconds(100))
+            .Key(Hex1bKey.DownArrow)
+            .Wait(TimeSpan.FromMilliseconds(200))
+            .Capture("after-down")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        var screen = string.Join("\n", Enumerable.Range(0, 24).Select(r =>
+        {
+            try { return snapshot.GetTextAt(r, 0, 79); }
+            catch { return ""; }
+        }));
+
+        // After one DownArrow press, the > marker should be on the "clear" row,
+        // not on "picker". If the binding never fires, the marker stays on picker.
+        var lines = screen.Split('\n');
+        var pickerLine = lines.FirstOrDefault(l => l.Contains("picker")) ?? "";
+        var clearLine = lines.FirstOrDefault(l => l.Contains("clear")) ?? "";
+
+        Assert.True(clearLine.Contains(">"),
+            $"After DownArrow, '>' should mark the 'clear' row but did not. Screen:\n{screen}");
+        Assert.False(pickerLine.Contains(">"),
+            $"After DownArrow, '>' should no longer mark the 'picker' row. Screen:\n{screen}");
+    }
+
     private sealed record SlashPromptHostWidget : Hex1bCompositeWidget
     {
         private static readonly IReadOnlyList<DemoCommand> Commands =
@@ -126,6 +176,11 @@ public class SlashCommandIntegrationTests
                 .ToList();
             var paletteVisible = matches.Count > 0;
 
+            if (paletteVisible)
+                state.SelectedIndex = Math.Clamp(state.SelectedIndex, 0, matches.Count - 1);
+            else
+                state.SelectedIndex = 0;
+
             return ctx.VStack(v =>
             {
                 var tb = v.TextBox()
@@ -133,20 +188,39 @@ public class SlashCommandIntegrationTests
 
                 if (paletteVisible)
                 {
-                    var palette = v.Border(b => matches
-                        .Select((cmd, i) => (Hex1bWidget)b.Text("/" + cmd.Name + "  " + cmd.Description))
+                    var snapshot = matches;
+                    tb = tb.InputBindings(b =>
+                    {
+                        b.Key(Hex1bKey.UpArrow).Action(_ =>
+                        {
+                            if (state.SelectedIndex > 0) state.SelectedIndex--;
+                        }, "Previous");
+
+                        b.Key(Hex1bKey.DownArrow).Action(_ =>
+                        {
+                            if (state.SelectedIndex < snapshot.Count - 1) state.SelectedIndex++;
+                        }, "Next");
+                    });
+
+                    var palette = v.Border(b => snapshot
+                        .Select((cmd, i) => (Hex1bWidget)b.Text(
+                            (i == state.SelectedIndex ? " > " : "   ") + "/" + cmd.Name + "  " + cmd.Description))
                         .ToArray()).Title("Commands");
-                    return [palette, tb];
+                    return [palette, v.ThemePanel(t => t.Set(Theming.TextBoxTheme.UseFillMode, true), tb)];
                 }
 
-                return [tb];
+                return [v.ThemePanel(t => t.Set(Theming.TextBoxTheme.UseFillMode, true), tb)];
             });
         }
     }
 
     internal sealed record DemoCommand(string Name, string Description);
 
-    private sealed class PromptState { public string Text = ""; }
+    private sealed class PromptState
+    {
+        public string Text = "";
+        public int SelectedIndex;
+    }
 }
 
 internal static class SlashPromptExtensions

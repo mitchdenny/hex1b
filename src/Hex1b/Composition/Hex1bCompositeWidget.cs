@@ -93,6 +93,16 @@ public abstract record Hex1bCompositeWidget : Hex1bWidget
         node ??= new Hex1bCompositeNode();
         node.CompositeWidgetType = GetType();
 
+        // Snapshot focus state for the composite's subtree BEFORE rebuild.
+        // If a descendant currently owns focus and rebuild discards that node
+        // (e.g. because a child shifted position in a VStack), focus would be
+        // lost — and FocusRing.EnsureFocus would snap focus to the FIRST
+        // focusable in the entire app, which usually isn't what the composite
+        // author wanted. We restore focus to a focusable inside this subtree
+        // after the rebuild so focus stays "with" the composite.
+        var previouslyFocusedDescendant = FindFocusedDescendant(node);
+        var previousFocusedWidgetType = previouslyFocusedDescendant?.GetType();
+
         var compositionContext = new CompositionContext(node, context);
         var built = Build(compositionContext);
         if (built is null)
@@ -107,7 +117,38 @@ public abstract record Hex1bCompositeWidget : Hex1bWidget
         if (isNew)
             node.MarkDirty();
 
+        // Restore focus inside the composite's subtree if rebuild orphaned it.
+        if (previouslyFocusedDescendant is not null)
+        {
+            var currentFocused = FindFocusedDescendant(node);
+            if (currentFocused is null)
+            {
+                // Prefer a focusable of the same node type as the previously
+                // focused one (e.g. a TextBoxNode that shifted position). Fall
+                // back to the first focusable in the subtree.
+                var focusables = node.GetFocusableNodes().ToList();
+                var preferred = previousFocusedWidgetType is not null
+                    ? focusables.FirstOrDefault(n => n.GetType() == previousFocusedWidgetType)
+                    : null;
+                var target = preferred ?? focusables.FirstOrDefault();
+                if (target is not null)
+                {
+                    ReconcileContext.SetNodeFocus(target, true);
+                }
+            }
+        }
+
         return node;
+    }
+
+    private static Hex1bNode? FindFocusedDescendant(Hex1bCompositeNode node)
+    {
+        foreach (var focusable in node.GetFocusableNodes())
+        {
+            if (focusable.IsFocused)
+                return focusable;
+        }
+        return null;
     }
 
     internal sealed override Type GetExpectedNodeType() => typeof(Hex1bCompositeNode);
