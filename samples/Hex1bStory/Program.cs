@@ -11,6 +11,19 @@ using Hex1bStory.Shell;
 var state = new PresenterState();
 var playlists = Playlists.All;
 
+// Slides own their own background resources (e.g. embedded dotnet processes
+// in SamplesGraveyardSlide). When the presenter navigates away, fire OnExit
+// so the slide can clean up. Errors are swallowed — the presentation must
+// never crash on stage because of cleanup misbehaviour.
+state.SlideExited += slide =>
+{
+    _ = Task.Run(async () =>
+    {
+        try { await slide.OnExit(); }
+        catch { /* swallow */ }
+    });
+};
+
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx =>
     {
@@ -22,7 +35,28 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     })
     .Build();
 
-await terminal.RunAsync();
+try
+{
+    await terminal.RunAsync();
+}
+finally
+{
+    // Final cleanup — dispose any slide that allocated unmanaged resources.
+    // Slides may appear in multiple playlists, so deduplicate on instance.
+    var seen = new HashSet<ISlide>();
+    foreach (var playlist in playlists)
+    {
+        foreach (var slide in playlist.Slides)
+        {
+            if (!seen.Add(slide)) continue;
+            if (slide is IAsyncDisposable disposable)
+            {
+                try { await disposable.DisposeAsync(); }
+                catch { /* swallow */ }
+            }
+        }
+    }
+}
 
 static void RegisterGlobalBindings(InputBindingsBuilder bindings, PresenterState state)
 {

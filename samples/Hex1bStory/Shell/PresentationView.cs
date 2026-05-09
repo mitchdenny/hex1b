@@ -14,7 +14,25 @@ internal static class PresentationView
         // Caller guarantees Current is set when Mode == Presenting.
         var playlist = state.Current!;
         var slide = playlist.Slides[state.SlideIndex];
-        var slideCtx = new SlideContext(ctx, state);
+
+        // Slides receive the OUTER terminal dimensions so they can size
+        // embedded widgets (notably TerminalWidgets in the samples graveyard
+        // slide) sensibly. Console.Window* matches what Hex1b's TTY workload
+        // adapter sees on real terminals; we fall back to a reasonable
+        // default in non-interactive contexts so the deck never crashes.
+        int width, height;
+        try
+        {
+            width = Console.WindowWidth;
+            height = Console.WindowHeight;
+        }
+        catch
+        {
+            width = 80;
+            height = 24;
+        }
+
+        var slideCtx = new SlideContext(ctx, state, width, height);
 
         return ctx.VStack(v =>
         [

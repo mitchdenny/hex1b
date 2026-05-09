@@ -9,28 +9,48 @@ namespace Hex1bStory;
 /// </summary>
 internal static class Playlists
 {
+    // Slides are SHARED between playlists — the same instance fields hold the
+    // user's last selection / cursor state, so jumping between playlists feels
+    // continuous.
+    private static readonly TitleSlide Title = new();
+    private static readonly FourItchesSlide FourItches = new();
+    private static readonly TheWagerSlide Wager = new();
+    private static readonly BootstrapFirstSlide Bootstrap = new();
+    private static readonly SamplesGraveyardSlide Graveyard = new();
+    private static readonly AgentsTolerateCrapSlide Tolerate = new();
+    private static readonly TerminalEmulatorPlotTwistSlide PlotTwist = new();
+    private static readonly ConformanceViaAgentsSlide Conformance = new();
+    private static readonly VerdictSlide Verdict = new();
+    private static readonly ThanksSlide Thanks = new();
+
     public static IReadOnlyList<Playlist> All { get; } =
     [
         new Playlist(
-            Name: "short",
-            Description: "Lightning version (~5 min)",
+            Name: "story",
+            Description: "How Hex1b came to be (full talk)",
             Slides:
             [
-                new TitleSlide(),
-                new WhatIsHex1bSlide(),
-                new ThanksSlide(),
+                Title,
+                FourItches,
+                Wager,
+                Bootstrap,
+                Graveyard,
+                Tolerate,
+                PlotTwist,
+                Conformance,
+                Verdict,
+                Thanks,
             ]),
 
         new Playlist(
-            Name: "full",
-            Description: "Full talk with codebase tour",
+            Name: "short",
+            Description: "Lightning version — title, samples graveyard, verdict",
             Slides:
             [
-                new TitleSlide(),
-                new WhatIsHex1bSlide(),
-                new BuiltWithAgentsSlide(),
-                new CodebaseTourSlide(),
-                new ThanksSlide(),
+                Title,
+                Graveyard,
+                Verdict,
+                Thanks,
             ]),
     ];
 }
