@@ -19,7 +19,7 @@ internal static class AgentInitCommand
         new("Windsurf", ".windsurfrules", "Codeium's AI IDE"),
     ];
 
-    public static async Task RunAsync()
+    public static async Task RunAsync(bool softWrap = false)
     {
         var cursorRow = Console.GetCursorPosition().Top;
 
@@ -117,7 +117,11 @@ internal static class AgentInitCommand
                 await Task.Delay(300);
                 await configStep.CompleteAsync(y => y.Text($"  ✓ Configured {configured.Count} agents"));
 
-            }, options => options.InitialCursorRow = cursorRow)
+            }, options =>
+            {
+                options.InitialCursorRow = cursorRow;
+                options.UseSoftWrapTombstones = softWrap;
+            })
             .Build()
             .RunAsync();
 

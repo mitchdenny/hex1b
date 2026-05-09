@@ -1,6 +1,7 @@
 using System.Text;
 using Hex1b.Input;
 using Hex1b.Layout;
+using Hex1b.Surfaces;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
@@ -16,7 +17,15 @@ internal sealed class Hex1bFlowRunner
     private readonly Hex1bFlowOptions _options;
     private readonly IHex1bAppTerminalWorkloadAdapter _parentAdapter;
 
-    // Current cursor row in the terminal buffer (0-based, relative to terminal top)
+    /// <summary>
+    /// Current cursor row in the terminal buffer (0-based, relative to terminal top).
+    /// Tracks where the next yield widget or step should be rendered. After a
+    /// soft-wrap tombstone is emitted, this becomes the row immediately past
+    /// the last emitted line (capped to the bottom of the viewport when the
+    /// terminal had to scroll). After a resize on the soft-wrap path, this is
+    /// re-anchored to the top of the bottom-aligned active-step region so the
+    /// next tombstone appears immediately above the active step again.
+    /// </summary>
     private int _cursorRow;
 
     // The currently active step, if any. Only one step may run at a time.
@@ -101,6 +110,20 @@ internal sealed class Hex1bFlowRunner
 
         // Clear and render
         ClearRegion(_cursorRow, contentHeight);
+        if (_options.UseSoftWrapTombstones)
+        {
+            // Render the static content into a surface and emit it as
+            // soft-wrap-friendly logical lines so the host terminal owns
+            // the reflow/scroll behaviour.
+            var surface = RenderToSurface(builder, terminalWidth, contentHeight);
+            if (surface is not null)
+            {
+                EmitSoftWrapTombstone(surface);
+                return;
+            }
+            // Fall through to legacy path if surface rendering failed.
+        }
+
         var renderedHeight = await RenderYieldWidgetAsync(builder, terminalWidth, contentHeight);
         _cursorRow += renderedHeight;
     }
@@ -239,12 +262,12 @@ internal sealed class Hex1bFlowRunner
             var inputPumpTask = PumpStepInputAsync(stepAdapter, inputPumpCts.Token,
                 onResize: (newWidth, newHeight) =>
                 {
-                    var newStepHeight = Math.Min(options?.MaxHeight ?? newHeight, newHeight);
-                    if (newStepHeight < 1) newStepHeight = 1;
-
+                    var newStepHeight = FlowResizeMath.ComputeStepHeight(options?.MaxHeight, newHeight);
+                    var (clearOrigin, clearHeight) = FlowResizeMath.ComputeClearRegion(
+                        _options.UseSoftWrapTombstones, newHeight, newStepHeight);
                     var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
 
-                    ClearRegion(0, newHeight);
+                    ClearRegion(clearOrigin, clearHeight);
 
                     stepAdapter.RowOrigin = newRowOrigin;
                     rowOrigin = newRowOrigin;
@@ -283,8 +306,25 @@ internal sealed class Hex1bFlowRunner
             var completedBuilder = step.CompletedBuilder;
             if (completedBuilder != null)
             {
-                var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
-                _cursorRow += completedHeight;
+                if (_options.UseSoftWrapTombstones)
+                {
+                    var surface = RenderToSurface(completedBuilder, terminalWidth, desiredHeight);
+                    if (surface is not null)
+                    {
+                        EmitSoftWrapTombstone(surface);
+                    }
+                    else
+                    {
+                        // Fall back to the legacy path if surface rendering failed.
+                        var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
+                        _cursorRow += completedHeight;
+                    }
+                }
+                else
+                {
+                    var completedHeight = await RenderYieldWidgetAsync(completedBuilder, terminalWidth, desiredHeight);
+                    _cursorRow += completedHeight;
+                }
             }
 
             _activeStep = null;
@@ -522,6 +562,101 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
+    /// Renders a yield builder into a freshly-allocated <see cref="Surface"/>.
+    /// Returns <c>null</c> if reconciliation, measurement, or rendering fails
+    /// — callers should fall back to the legacy emission path in that case.
+    /// </summary>
+    /// <remarks>
+    /// Used only on the soft-wrap tombstone path
+    /// (<see cref="Hex1bFlowOptions.UseSoftWrapTombstones"/>). The surface is
+    /// sized to <paramref name="width"/> by the widget's measured height
+    /// (clamped to <paramref name="maxHeight"/> × 10 to bound page-by-page
+    /// content). The surface is then arranged and rendered using the standard
+    /// rendering pipeline so any widget that works on screen will work here.
+    /// </remarks>
+    private Surface? RenderToSurface(
+        Func<RootContext, Hex1bWidget> builder,
+        int width,
+        int maxHeight)
+    {
+        try
+        {
+            var rootCtx = new RootContext();
+            var widget = builder(rootCtx);
+            if (widget == null) return null;
+
+            var reconcileCtx = ReconcileContext.CreateRoot();
+            var nodeTask = widget.ReconcileAsync(null, reconcileCtx);
+            // Reconciliation should complete synchronously for the widgets
+            // used in flow tombstones today; if it doesn't, defer to the
+            // legacy renderer which has its own measurement fallback.
+            if (!nodeTask.IsCompleted) return null;
+
+            var node = nodeTask.Result;
+            if (node == null) return null;
+
+            // Measure with a generous height bound so multi-line tombstones
+            // get their full height, then clamp to a safety ceiling so a
+            // misbehaving widget can't allocate an unbounded surface.
+            var measureMax = Math.Max(maxHeight * 10, maxHeight);
+            var constraints = new Constraints(0, width, 0, measureMax);
+            var measured = node.Measure(constraints);
+            var height = Math.Max(1, Math.Min(measured.Height, measureMax));
+
+            var surface = new Surface(width, height);
+            node.Arrange(new Rect(0, 0, width, height));
+
+            var renderCtx = new SurfaceRenderContext(surface, _options.Theme);
+            renderCtx.SetCapabilities(_parentAdapter.Capabilities);
+            node.Render(renderCtx);
+
+            return surface;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Emits the contents of <paramref name="surface"/> as a tombstone via
+    /// <see cref="SoftWrapEmitter"/>, pre-scrolling the terminal as needed so
+    /// the emission fits in the visible area, and updating <see cref="_cursorRow"/>
+    /// to point at the row directly below the tombstone.
+    /// </summary>
+    private void EmitSoftWrapTombstone(Surface surface)
+    {
+        var height = surface.Height;
+        var terminalHeight = _parentAdapter.Height;
+
+        // Pre-scroll the viewport if there isn't enough room below the cursor
+        // for the tombstone. We use the same trick as the legacy paths
+        // (writing newlines at the bottom row) which causes the terminal to
+        // scroll the existing content up — including any older tombstones,
+        // which is the desired behaviour.
+        var overflow = (_cursorRow + height) - terminalHeight;
+        if (overflow > 0)
+        {
+            _parentAdapter.SetCursorPosition(0, terminalHeight - 1);
+            for (int i = 0; i < overflow; i++)
+            {
+                _parentAdapter.Write("\n");
+            }
+            _cursorRow -= overflow;
+        }
+
+        // Position the cursor at the row where the tombstone should land.
+        _parentAdapter.SetCursorPosition(0, _cursorRow);
+
+        SoftWrapEmitter.Emit(surface, _parentAdapter);
+
+        // Each row in the surface terminates with a hard '\n', so the
+        // terminal cursor has advanced exactly `height` rows. Update our
+        // bookkeeping accordingly.
+        _cursorRow += height;
+    }
+
+    /// <summary>
     /// Pumps output from a step adapter to the parent adapter.
     /// </summary>
     private async Task PumpStepOutputAsync(InlineStepAdapter stepAdapter, CancellationToken ct)
@@ -601,4 +736,29 @@ public sealed class Hex1bFlowOptions
     /// If null, defaults to 0.
     /// </summary>
     public int? InitialCursorRow { get; set; }
+
+    /// <summary>
+    /// When <c>true</c>, tombstoned (yield) widget output is emitted as
+    /// soft-wrap-friendly logical lines (text + <c>ESC[K</c> + LF) so the host
+    /// terminal can reflow tombstones during a resize and scroll older
+    /// tombstones into the scrollback buffer naturally. When <c>false</c>
+    /// (the default), tombstones are emitted with absolute cursor positioning
+    /// and the entire visible area is cleared on every resize, which causes
+    /// tombstones to disappear when the terminal is resized.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// This option is experimental and gates two related behaviours together:
+    /// the tombstone emission path and the resize handler. The new resize
+    /// handler only clears the active step region and trusts the host
+    /// terminal to have reflowed tombstones above it — that is only a valid
+    /// assumption when tombstones were emitted as proper logical lines, so
+    /// both behaviours move together under this single flag.
+    /// </para>
+    /// <para>
+    /// Once validated across the supported terminal matrix this will become
+    /// the default and the legacy cell-positioning path will be removed.
+    /// </para>
+    /// </remarks>
+    public bool UseSoftWrapTombstones { get; set; }
 }

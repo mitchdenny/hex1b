@@ -19,7 +19,7 @@ internal static class NewCommand
 
     private static readonly string[] Languages = ["C#", "TypeScript"];
 
-    public static async Task RunAsync(string? name, string? output)
+    public static async Task RunAsync(string? name, string? output, bool softWrap = false)
     {
         var cursorRow = Console.GetCursorPosition().Top;
 
@@ -145,7 +145,11 @@ internal static class NewCommand
                 await Task.Delay(300);
                 await spinnerStep.CompleteAsync(y => y.Text($"  ✓ Project created at {outputPath}"));
 
-            }, options => options.InitialCursorRow = cursorRow)
+            }, options =>
+            {
+                options.InitialCursorRow = cursorRow;
+                options.UseSoftWrapTombstones = softWrap;
+            })
             .Build()
             .RunAsync();
 

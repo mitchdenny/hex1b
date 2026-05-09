@@ -14,7 +14,7 @@ namespace FlowDemo.Commands;
 /// </summary>
 internal static class SizzleCommand
 {
-    public static async Task RunAsync()
+    public static async Task RunAsync(bool softWrap = false)
     {
         var cursorRow = Console.GetCursorPosition().Top;
         string? selectedLocation = null;
@@ -163,7 +163,11 @@ internal static class SizzleCommand
                 );
                 await step.WaitForCompletionAsync();
 
-            }, options => options.InitialCursorRow = cursorRow)
+            }, options =>
+            {
+                options.InitialCursorRow = cursorRow;
+                options.UseSoftWrapTombstones = softWrap;
+            })
             .Build()
             .RunAsync();
 

@@ -42,7 +42,7 @@ internal static class CopilotCommand
         ("/exit", "Exit the Copilot CLI"),
     ];
 
-    public static async Task RunAsync()
+    public static async Task RunAsync(bool softWrap = false)
     {
         var cursorRow = Console.GetCursorPosition().Top;
         var state = new AppState();
@@ -171,7 +171,11 @@ internal static class CopilotCommand
                     if (state.ChildTerminal != null)
                         await state.ChildTerminal.DisposeAsync();
                 }
-            }, options => options.InitialCursorRow = cursorRow)
+            }, options =>
+            {
+                options.InitialCursorRow = cursorRow;
+                options.UseSoftWrapTombstones = softWrap;
+            })
             .Build()
             .RunAsync();
     }

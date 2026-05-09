@@ -1,0 +1,55 @@
+namespace Hex1b.Flow;
+
+/// <summary>
+/// Pure helpers for the flow runner's resize handler. Extracted so the
+/// behavioural choice between the legacy "clear the whole visible area" path
+/// and the soft-wrap "clear only the active-step region" path can be unit
+/// tested without spinning up a real terminal pipeline.
+/// </summary>
+internal static class FlowResizeMath
+{
+    /// <summary>
+    /// Clamps the desired step height to the terminal's available rows.
+    /// </summary>
+    /// <param name="maxHeight">Caller-supplied max height (from
+    /// <see cref="Hex1bFlowStepOptions.MaxHeight"/>); when <c>null</c> the
+    /// step is allowed to fill the terminal.</param>
+    /// <param name="terminalHeight">New terminal height in rows.</param>
+    /// <returns>Step height in rows, never less than 1.</returns>
+    public static int ComputeStepHeight(int? maxHeight, int terminalHeight)
+    {
+        var stepHeight = Math.Min(maxHeight ?? terminalHeight, terminalHeight);
+        return stepHeight < 1 ? 1 : stepHeight;
+    }
+
+    /// <summary>
+    /// Selects the rows that the resize handler should clear before the
+    /// active step's app re-renders into the new region.
+    /// </summary>
+    /// <param name="useSoftWrapTombstones">The
+    /// <see cref="Hex1bFlowOptions.UseSoftWrapTombstones"/> flag.</param>
+    /// <param name="terminalHeight">New terminal height in rows.</param>
+    /// <param name="stepHeight">New step height in rows (see
+    /// <see cref="ComputeStepHeight(int?, int)"/>).</param>
+    /// <returns>
+    /// A <c>(rowOrigin, height)</c> tuple suitable for
+    /// <c>ClearRegion(rowOrigin, height)</c>. Under the legacy path this is
+    /// always <c>(0, terminalHeight)</c> — every row in the visible area gets
+    /// cleared because cell-positioned tombstones cannot survive a resize
+    /// anyway. Under the soft-wrap path this is the bottom-aligned active-step
+    /// region only — tombstones above have been reflowed by the host terminal
+    /// and must not be touched.
+    /// </returns>
+    public static (int RowOrigin, int Height) ComputeClearRegion(
+        bool useSoftWrapTombstones,
+        int terminalHeight,
+        int stepHeight)
+    {
+        if (useSoftWrapTombstones)
+        {
+            var rowOrigin = Math.Max(0, terminalHeight - stepHeight);
+            return (rowOrigin, stepHeight);
+        }
+        return (0, terminalHeight);
+    }
+}
