@@ -1,27 +1,39 @@
-using Hex1b;
-using Hex1b.Composition;
-using Hex1b.Events;
-using Hex1b.Input;
-using Hex1b.Widgets;
-
 // SlashCommandPromptWidget — a composite that turns a plain TextBox into a
-// slash-command prompt with a floating completion list.
+// slash-command prompt with a completion palette.
 //
 // Behaviour:
 //   - When the text starts with "/" and the rest of the buffer (up to the
-//     first space) prefix-matches a registered command, a floating list of
-//     matches appears above the textbox.
-//   - Up/Down arrows navigate the list (input is captured by overriding the
-//     textbox's bindings while the list is visible).
+//     first space) prefix-matches a registered command, a bordered list of
+//     matches appears immediately above the textbox in normal flow (it
+//     pushes the transcript above it up by however many rows the list
+//     needs).
+//   - Up/Down arrows navigate the list (the textbox's input bindings are
+//     overridden while the list is visible).
 //   - Tab or Enter accepts the highlighted command, replacing the buffer
 //     with "/<commandName> " and placing the cursor after the space.
 //   - Escape dismisses the palette by clearing the current input.
 //   - When the palette is closed, Enter submits as normal and fires OnSubmit.
 //
+// Implementation note — why the palette is in flow rather than a Float:
+//   We originally tried to anchor a FloatWidget above the TextBox with
+//   `.ExtendTop(textbox)`. In a composite whose flow content is just one
+//   row tall (the textbox), the surface allocated for the composite is
+//   also one row tall, and any float that arranges *outside* those bounds
+//   is clipped away during compositing. Putting the palette in normal
+//   flow makes the composite grow vertically when the palette is visible
+//   — which is what users intuitively expect from a slash-command popup
+//   anyway.
+//
 // All state lives in the composite's CompositionContext via UseState — there
 // is no custom Hex1bNode anywhere in this file.
 
 namespace AgenticPromptDemo;
+
+using Hex1b;
+using Hex1b.Composition;
+using Hex1b.Events;
+using Hex1b.Input;
+using Hex1b.Widgets;
 
 public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
     : Hex1bCompositeWidget
@@ -120,8 +132,7 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
                 });
 
                 return [
-                    v.Float(BuildPalette(v, matchesSnapshot, state.SelectedIndex))
-                        .ExtendTop(textbox),
+                    BuildPalette(v, matchesSnapshot, state.SelectedIndex),
                     textbox,
                 ];
             }

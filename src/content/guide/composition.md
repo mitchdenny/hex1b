@@ -349,11 +349,11 @@ You can find this exact program under `samples/CompositionDemo` in the repo.
 
 ## A real-world example: a slash-command prompt
 
-The counter examples above show the mechanics, but composites really shine when you bundle up a non-trivial *interactive control*. Here's one straight from `samples/AgenticPromptDemo`: a textbox that pops up a floating completion list whenever the buffer starts with `/`.
+The counter examples above show the mechanics, but composites really shine when you bundle up a non-trivial *interactive control*. Here's one straight from `samples/AgenticPromptDemo`: a textbox that pops up a completion list whenever the buffer starts with `/`.
 
 What it does:
 
-- Buffer starts with `/` → a bordered list of matching commands floats above the textbox.
+- Buffer starts with `/` → a bordered list of matching commands appears immediately above the textbox (it grows the prompt's vertical footprint by however many rows the list needs, pushing the transcript above it up by the same amount).
 - **Up / Down** highlight rows in the list.
 - **Tab / Enter** accepts the highlighted row, replacing the buffer with `"/<commandName> "` and parking the cursor after the space.
 - **Escape** clears the buffer and dismisses the list.
@@ -445,8 +445,7 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
                 });
 
                 return [
-                    v.Float(BuildPalette(v, snapshot, state.SelectedIndex))
-                        .ExtendTop(textbox),
+                    BuildPalette(v, snapshot, state.SelectedIndex),
                     textbox,
                 ];
             }
@@ -508,10 +507,10 @@ ctx.VStack(v => [
 A few things in this composite illustrate the patterns from earlier in the guide:
 
 - **State is one small object**, allocated once with `UseState`. `CurrentText`, `SelectedIndex`, and a `PendingTextOverride` flag is all the bookkeeping needed.
-- **No custom node.** A traditional implementation would reach for an `Hex1bNode` subclass that owned the textbox and the floating list as children, with manual layout, focus shuffling, and ancestor-walking to coordinate them. The composite version doesn't.
+- **No custom node.** A traditional implementation would reach for an `Hex1bNode` subclass that owned the textbox and the popup list as children, with manual layout, focus shuffling, and ancestor-walking to coordinate them. The composite version doesn't.
 - **Conditional input capture.** Up/Down/Tab/Esc/Enter are only attached *while the palette is open*. When the palette is closed (no slash, or the user has typed past the command), those bindings simply don't exist that frame, so Enter falls through to the textbox's default Submit and Up/Down do nothing on the single-line textbox. This avoids needing any "if open" check inside handlers and keeps the input model honest.
 - **Controlled-text via override flag.** The textbox normally owns its own text and cursor (we pass no `Text` argument). When the composite needs to *push* a value in (after Accept or Escape), it parks the new string in `PendingTextOverride`, which is consumed on the very next `Build` and then nulled. This lets us reuse `TextBoxWidget`'s built-in "if widget Text differs from last frame, replace text and move cursor to end" behaviour without losing control of the cursor on every keystroke.
-- **Float positioning.** `v.Float(...).ExtendTop(textbox)` places the palette directly above the textbox — `Float` lives in the same `VStack` as the textbox precisely so it can anchor relative to it. Floats need an `IFloatWidgetContainer` parent, which is why both children are inside the `VStack` builder lambda (where `v` is `WidgetContext<VStackWidget>`).
+- **Palette is in flow, not a `Float`.** When the palette is visible the composite returns `[palette, textbox]` instead of `[textbox]`, so the composite simply *grows* by the height of the palette and the textbox slides down with it. Whatever sits above the prompt in the parent layout (e.g. a `VScrollPanel` filling the rest of the column) gets pushed up by the same amount. We tried `Float`-anchoring the palette above the textbox first, but a composite that's only one row tall (the textbox) renders into a one-row child surface during compositing, and a float arranged outside those bounds gets clipped. Putting the palette in flow side-steps the issue entirely — and is what real terminal apps like Claude Code do.
 - **Fluent extension method.** `SlashCommandPromptExtensions` keeps callers on the standard `v.SlashCommandPrompt(...)` surface — no `new SlashCommandPromptWidget(...)` at the call site.
 
 Run it with `dotnet run --project samples/AgenticPromptDemo`, then type `/` to see the palette.
