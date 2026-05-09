@@ -142,6 +142,23 @@ That's the same pattern Hex1b's own widget tests use — proof that the
 bridge is a first-class workload as far as the rest of Hex1b is
 concerned.
 
+The same `--auto` / `--headless` switches work on `samples/SpectreTuiDemo`,
+which is a five-tab widget showcase covering the full breadth of
+Spectre.Tui — `Layout`, `TabsWidget`, `Paragraph`, `BoxWidget`,
+`ListWidget` + `ScrollbarWidget`, `TableWidget`, `ScrollViewWidget`,
+animated `SparklineWidget`, `ProgressBarWidget` (with a wave brush),
+`SpinnerWidget`, and a `PopupWidget` help screen pushed onto the
+application stack. The automator advances through every tab via
+`Tab`, exercises tab-specific input (`Up`/`Down`, `PgUp`/`PgDn`,
+`Space`), opens the popup with `?`, dismisses it with `Esc`, and quits
+with `Q`:
+
+```bash
+dotnet run --project samples/SpectreTuiDemo                       # interactive
+dotnet run --project samples/SpectreTuiDemo -- --auto              # self-driving, visible
+dotnet run --project samples/SpectreTuiDemo -- --auto --headless   # off-screen + cast
+```
+
 ## What's not bridged
 
 - **Mouse input.** Neither Spectre.Console nor Spectre.Tui have a mouse
