@@ -113,16 +113,16 @@ internal sealed class CounterStore
 internal static class CompositionDemoExtensions
 {
     public static AppShellWidget AppShell<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         Action invalidate,
         Action requestStop) where T : Hex1bWidget
         => new(invalidate, requestStop);
 
-    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> ctx)
+    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> context)
         where T : Hex1bWidget
         => new();
 
-    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> ctx)
+    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> context)
         where T : Hex1bWidget
         => new();
 }

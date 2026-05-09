@@ -213,7 +213,7 @@ public sealed record SlashCommand(string Name, string Description);
 public static class SlashCommandPromptExtensions
 {
     public static SlashCommandPromptWidget SlashCommandPrompt<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         IReadOnlyList<SlashCommand> commands)
         where T : Hex1bWidget
         => new(commands);

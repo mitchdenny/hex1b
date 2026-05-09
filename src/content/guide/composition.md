@@ -77,10 +77,10 @@ namespace MyApp.Widgets;
 public static class FieldExtensions
 {
     public static Hex1bWidget LabelledField<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         string label,
         string value) where T : Hex1bWidget
-        => ctx.HStack(h => [
+        => context.HStack(h => [
             h.Text($"{label}:"),
             h.Text(value)
         ]);
@@ -150,7 +150,7 @@ public sealed record CounterWidget(string Label) : Hex1bCompositeWidget
 
 public static class CounterWidgetExtensions
 {
-    public static CounterWidget Counter<T>(this WidgetContext<T> ctx, string label)
+    public static CounterWidget Counter<T>(this WidgetContext<T> context, string label)
         where T : Hex1bWidget
         => new(label);
 }
@@ -316,16 +316,16 @@ internal sealed class CounterStore
 public static class CounterCompositeExtensions
 {
     public static AppShellWidget AppShell<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         Action invalidate,
         Action requestStop) where T : Hex1bWidget
         => new(invalidate, requestStop);
 
-    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> ctx)
+    public static CounterDisplayWidget CounterDisplay<T>(this WidgetContext<T> context)
         where T : Hex1bWidget
         => new();
 
-    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> ctx)
+    public static CounterStatusWidget CounterStatus<T>(this WidgetContext<T> context)
         where T : Hex1bWidget
         => new();
 }
@@ -483,7 +483,7 @@ public sealed record SlashCommand(string Name, string Description);
 public static class SlashCommandPromptExtensions
 {
     public static SlashCommandPromptWidget SlashCommandPrompt<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         IReadOnlyList<SlashCommand> commands)
         where T : Hex1bWidget
         => new(commands);
@@ -582,13 +582,13 @@ public sealed record FormFieldWidget(string Name, string Label) : Hex1bComposite
 public static class FormCompositeExtensions
 {
     public static FormWidget Form<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         Func<FormResult, Task> onSubmit,
         Hex1bWidget body) where T : Hex1bWidget
         => new(onSubmit, body);
 
     public static FormFieldWidget FormField<T>(
-        this WidgetContext<T> ctx,
+        this WidgetContext<T> context,
         string name,
         string label) where T : Hex1bWidget
         => new(name, label);

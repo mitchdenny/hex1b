@@ -152,7 +152,7 @@ public class SlashCommandIntegrationTests
 internal static class SlashPromptExtensions
 {
     public static SlashCommandIntegrationTests.SlashPromptWidget SlashPrompt<T>(
-        this WidgetContext<T> _,
+        this WidgetContext<T> context,
         IReadOnlyList<SlashCommandIntegrationTests.DemoCommand> commands)
         where T : Hex1bWidget
         => new(commands);
