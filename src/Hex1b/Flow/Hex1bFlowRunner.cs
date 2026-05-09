@@ -650,9 +650,17 @@ internal sealed class Hex1bFlowRunner
 
         SoftWrapEmitter.Emit(surface, _parentAdapter);
 
-        // Each row in the surface terminates with a hard '\n', so the
-        // terminal cursor has advanced exactly `height` rows. Update our
-        // bookkeeping accordingly.
+        // The emitter terminates rows 0 .. height-2 with CR + LF (each
+        // advances the cursor down one row, with no scrolling because we
+        // pre-scrolled above to guarantee the last row lands at or above the
+        // bottom of the viewport). The final row deliberately has no trailing
+        // newline so emitting a tombstone at the very bottom does not scroll
+        // the content one row up — visually the tombstone freezes in place
+        // exactly where the step was. The terminal cursor therefore ends up
+        // at (last-row-content-column, _cursorRow + height - 1); for our
+        // bookkeeping we want _cursorRow to point at the row immediately
+        // *below* the last visible tombstone row, so the next render lands
+        // there cleanly.
         _cursorRow += height;
     }
 

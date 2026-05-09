@@ -21,31 +21,37 @@ public class SoftWrapEmitterTests
     }
 
     [Fact]
-    public void Format_AllRowsBlank_EmitsClearLineAndNewlinePerRow()
+    public void Format_AllRowsBlank_EmitsClearLinePerRow_AndCrLfBetweenRows()
     {
         var surface = new Surface(20, 3);
 
         var output = SoftWrapEmitter.Format(surface);
 
-        // Preamble + (ESC[K + \n) per row + epilogue.
+        // Preamble + (ESC[K + CR + LF) for rows 0..n-2 + ESC[K for the last row + epilogue.
+        // The last row deliberately omits the CR + LF so emitting at the bottom
+        // of the viewport does not scroll the screen.
         Assert.Equal(
             "\x1b[?25l\x1b[?7h" +
-            "\x1b[K\n" +
-            "\x1b[K\n" +
-            "\x1b[K\n" +
+            "\x1b[K\r\n" +
+            "\x1b[K\r\n" +
+            "\x1b[K" +
             "\x1b[?25h",
             output);
     }
 
     [Fact]
-    public void Format_PlainTextRow_EmitsCharactersThenClearAndNewline()
+    public void Format_PlainTextRow_EmitsCharactersThenClearLine()
     {
         var surface = new Surface(20, 1);
         surface.WriteText(0, 0, "hello");
 
         var output = SoftWrapEmitter.Format(surface);
 
-        Assert.Contains("hello\x1b[K\n", output);
+        // Single-row surface: the only row is also the last row, so it ends
+        // with ESC[K and no trailing CR + LF.
+        Assert.Contains("hello\x1b[K", output);
+        Assert.DoesNotContain("hello\x1b[K\r\n", output);
+        Assert.DoesNotContain("hello\x1b[K\n", output);
         Assert.StartsWith("\x1b[?25l\x1b[?7h", output);
         Assert.EndsWith("\x1b[?25h", output);
     }
@@ -61,7 +67,7 @@ public class SoftWrapEmitterTests
         // The row must end with the two characters and the clear-line directly
         // after them; trailing 18 columns must not be emitted as literal
         // spaces (they are wiped by ESC[K).
-        Assert.Contains("hi\x1b[K\n", output);
+        Assert.Contains("hi\x1b[K", output);
         Assert.DoesNotContain("hi  ", output);
     }
 
@@ -75,7 +81,7 @@ public class SoftWrapEmitterTests
 
         var output = SoftWrapEmitter.Format(surface);
 
-        Assert.Contains("   x\x1b[K\n", output);
+        Assert.Contains("   x\x1b[K", output);
     }
 
     [Fact]
@@ -89,7 +95,7 @@ public class SoftWrapEmitterTests
         // First SGR on row always resets, then sets the colour: ESC[0;31m.
         Assert.Contains("\x1b[0;31mX", output);
         // Reset SGR before the line clear so cleared cells don't inherit colour.
-        Assert.Contains("X\x1b[0m\x1b[K\n", output);
+        Assert.Contains("X\x1b[0m\x1b[K", output);
     }
 
     [Fact]
@@ -118,7 +124,7 @@ public class SoftWrapEmitterTests
 
         // Without the reset, ESC[K would paint the blue background to the
         // edge of the terminal — not what we want for a logical-line emit.
-        Assert.Contains("\x1b[0m\x1b[K\n", output);
+        Assert.Contains("\x1b[0m\x1b[K", output);
     }
 
     [Fact]
@@ -133,7 +139,7 @@ public class SoftWrapEmitterTests
 
         // The wide char should appear exactly once and immediately precede
         // 'A'; the continuation cell at x=1 must not produce any glyph.
-        Assert.Contains("漢A\x1b[K\n", output);
+        Assert.Contains("漢A\x1b[K", output);
     }
 
     [Fact]
@@ -167,7 +173,7 @@ public class SoftWrapEmitterTests
     }
 
     [Fact]
-    public void Format_MultiRow_EmitsExpectedNumberOfLineFeeds()
+    public void Format_MultiRow_EmitsCrLfBetweenRowsButNotAfterLast()
     {
         var surface = new Surface(8, 4);
         surface.WriteText(0, 0, "r0");
@@ -177,9 +183,41 @@ public class SoftWrapEmitterTests
 
         var output = SoftWrapEmitter.Format(surface);
 
-        // One \n per row, exactly.
-        var lfCount = output.Count(c => c == '\n');
-        Assert.Equal(4, lfCount);
+        // CR + LF between rows: 3 of them for a 4-row surface (rows 0, 1, 2 end
+        // with CR + LF; row 3 — the last row — ends with just ESC[K).
+        Assert.Equal(3, output.Count(c => c == '\n'));
+        Assert.Equal(3, output.Count(c => c == '\r'));
+
+        // Rows 0, 1, 2 each terminate with ESC[K + CR + LF.
+        Assert.Contains("r0\x1b[K\r\n", output);
+        Assert.Contains("r1\x1b[K\r\n", output);
+        Assert.Contains("r2\x1b[K\r\n", output);
+
+        // Row 3 (last) terminates with just ESC[K, immediately followed by
+        // the cursor-show epilogue.
+        Assert.Contains("r3\x1b[K\x1b[?25h", output);
+        Assert.DoesNotContain("r3\x1b[K\r\n", output);
+        Assert.DoesNotContain("r3\x1b[K\n", output);
+    }
+
+    [Fact]
+    public void Format_MultiRow_EmitsCarriageReturnBeforeLineFeed_SoNextRowStartsAtColumnZero()
+    {
+        // Regression: in raw output mode a bare LF only moves the cursor down
+        // one row without resetting the column, so a subsequent row's
+        // characters would emit at the column where the previous row ended,
+        // shifting every row except the first to the right and effectively
+        // losing their leading content. The CR before LF is the fix.
+        var surface = new Surface(8, 2);
+        surface.WriteText(0, 0, "abc");
+        surface.WriteText(0, 1, "xyz");
+
+        var output = SoftWrapEmitter.Format(surface);
+
+        // Critically: the line feed must be immediately preceded by a CR,
+        // not by a bare ESC[K. This guarantees column reset between rows.
+        Assert.Contains("abc\x1b[K\r\n", output);
+        Assert.DoesNotContain("abc\x1b[K\n", output);
     }
 
     [Fact]
@@ -203,10 +241,13 @@ public class SoftWrapEmitterTests
 
         var output = SoftWrapEmitter.Format(surface);
 
-        // Each row including the empty middle row terminates with ESC[K\n.
-        Assert.Contains("top\x1b[K\n", output);
-        Assert.Contains("bottom\x1b[K\n", output);
-        // Three line feeds total.
-        Assert.Equal(3, output.Count(c => c == '\n'));
+        // Row 0 (top) terminates with ESC[K + CR + LF.
+        Assert.Contains("top\x1b[K\r\n", output);
+        // Row 2 (bottom, last) terminates with just ESC[K.
+        Assert.Contains("bottom\x1b[K", output);
+        Assert.DoesNotContain("bottom\x1b[K\r\n", output);
+        // Two line feeds total: one between rows 0/1, one between rows 1/2.
+        Assert.Equal(2, output.Count(c => c == '\n'));
+        Assert.Equal(2, output.Count(c => c == '\r'));
     }
 }

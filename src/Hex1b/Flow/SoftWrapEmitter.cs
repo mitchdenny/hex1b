@@ -8,7 +8,9 @@ namespace Hex1b.Flow;
 /// <summary>
 /// Walks a <see cref="Surface"/> and emits its contents as soft-wrap-friendly
 /// terminal output: per row, the visible characters with grouped SGR runs,
-/// followed by <c>ESC[K</c> (clear-to-end-of-line) and <c>\n</c> (line feed).
+/// followed by <c>ESC[K</c> (clear-to-end-of-line). Rows other than the last
+/// are also terminated with <c>CR + LF</c> so the next row starts at column
+/// zero of the next terminal line.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -31,10 +33,20 @@ namespace Hex1b.Flow;
 /// </list>
 /// </para>
 /// <para>
-/// Each row is emitted as <c>(SGR runs and characters) + ESC[K + \n</c>.
-/// The terminating <c>ESC[K</c> clears any residual content past the rendered
-/// glyphs, and the <c>\n</c> makes the row a hard logical line so subsequent
-/// content cannot be confused with a wrapped continuation.
+/// Each row except the last is emitted as
+/// <c>(SGR runs and characters) + ESC[K + CR + LF</c>. The terminating
+/// <c>ESC[K</c> clears any residual content past the rendered glyphs, and
+/// <c>CR + LF</c> moves the cursor to column zero of the next row so the
+/// following row's characters start at the left margin (a bare LF would only
+/// move the cursor down and would shift each subsequent row right by the
+/// width of the previous row's content — a raw-mode terminal does not
+/// translate LF to CRLF). The final row deliberately omits the trailing
+/// <c>CR + LF</c>: when a tombstone is emitted at the very bottom of the
+/// viewport, a trailing newline would scroll the screen up by one row,
+/// causing the tombstone to appear one row higher than the step it is
+/// freezing in place. The next operation that writes to the terminal
+/// (typically <see cref="IHex1bAppTerminalWorkloadAdapter.SetCursorPosition"/>
+/// for the next step) terminates the open row implicitly.
 /// </para>
 /// </remarks>
 internal static class SoftWrapEmitter
@@ -67,7 +79,7 @@ internal static class SoftWrapEmitter
 
         for (int row = 0; row < surface.Height; row++)
         {
-            EmitRow(surface, row, sb);
+            EmitRow(surface, row, sb, isLastRow: row == surface.Height - 1);
         }
 
         sb.Append("\x1b[?25h");
@@ -88,7 +100,7 @@ internal static class SoftWrapEmitter
         sb.Append("\x1b[?7h");
         for (int row = 0; row < surface.Height; row++)
         {
-            EmitRow(surface, row, sb);
+            EmitRow(surface, row, sb, isLastRow: row == surface.Height - 1);
         }
         sb.Append("\x1b[?25h");
         return sb.ToString();
@@ -97,12 +109,13 @@ internal static class SoftWrapEmitter
     private static int EstimateBufferSize(Surface surface)
     {
         // Rough estimate: each cell averages ~2 chars (SGR overhead amortises
-        // across runs), plus 4 bytes per row for ESC[K + \n, plus the cursor
-        // and wraparound preamble.
-        return surface.Width * surface.Height * 2 + surface.Height * 4 + 16;
+        // across runs), plus 5 bytes per row for ESC[K + CR + LF (the last
+        // row drops the CR + LF but the over-estimate is harmless), plus the
+        // cursor and wraparound preamble.
+        return surface.Width * surface.Height * 2 + surface.Height * 5 + 16;
     }
 
-    private static void EmitRow(Surface surface, int row, StringBuilder sb)
+    private static void EmitRow(Surface surface, int row, StringBuilder sb, bool isLastRow)
     {
         // Track SGR state within the row. We always emit a leading reset
         // ("\x1b[0m") as part of the first SGR — see BuildSgrParameters where
@@ -176,10 +189,26 @@ internal static class SoftWrapEmitter
         }
 
         // Clear any residual content past the rendered glyphs (handles
-        // overwriting the active-step region) and terminate the row as a
-        // hard logical line.
+        // overwriting the active-step region). For every row except the
+        // last we also emit CR + LF to terminate the row as a hard logical
+        // line and reset the cursor to column zero of the next row. The
+        // CR (\r) is essential: in raw output mode a bare LF (\n) only
+        // moves the cursor down one row without resetting the column, so
+        // every row after the first would emit at the column where the
+        // previous row's content ended, producing a cumulative right-shift
+        // and effectively losing the leading content of each row.
+        //
+        // The final row deliberately omits the CR + LF: when a tombstone is
+        // emitted at the very bottom of the viewport, a trailing newline
+        // would scroll the screen up by one row, causing the tombstone to
+        // appear one row higher than the step it is freezing in place. The
+        // next operation that writes to the terminal terminates the open
+        // row implicitly.
         sb.Append("\x1b[K");
-        sb.Append('\n');
+        if (!isLastRow)
+        {
+            sb.Append("\r\n");
+        }
     }
 
     private static int FindLastContentColumn(Surface surface, int row)
