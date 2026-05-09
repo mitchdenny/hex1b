@@ -363,6 +363,13 @@ public sealed class ReconcileContext
     }
 
     /// <summary>
+    /// Enumerates the ancestor chain of this reconciliation context, from immediate parent
+    /// outward to root. Used by composite widgets to walk for provided ambient values that
+    /// don't fit into a single typed ancestor lookup.
+    /// </summary>
+    internal IEnumerable<Hex1bNode> EnumerateAncestors() => _ancestors;
+
+    /// <summary>
     /// Returns true if the parent node (or any ancestor) manages focus for its children.
     /// When a parent manages focus, child containers should NOT set initial focus.
     /// </summary>
