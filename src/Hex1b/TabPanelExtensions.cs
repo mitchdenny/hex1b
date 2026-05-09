@@ -11,12 +11,12 @@ public static class TabPanelExtensions
     /// Creates a TabPanel widget using a builder pattern.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="builder">A function that builds the tabs using a TabPanelContext.</param>
     /// <returns>A TabPanelWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.TabPanel(tp => [
+    /// context.TabPanel(tp => [
     ///     tp.Tab("Overview", t => [
     ///         t.Text("Overview content")
     ///     ]),
@@ -27,7 +27,7 @@ public static class TabPanelExtensions
     /// </code>
     /// </example>
     public static TabPanelWidget TabPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<TabPanelContext, IEnumerable<TabItemWidget>> builder)
         where TParent : Hex1bWidget
     {
@@ -40,11 +40,11 @@ public static class TabPanelExtensions
     /// Creates a TabPanel widget with pre-built tabs.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="tabs">The tabs to display.</param>
     /// <returns>A TabPanelWidget.</returns>
     public static TabPanelWidget TabPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IEnumerable<TabItemWidget> tabs)
         where TParent : Hex1bWidget
     {

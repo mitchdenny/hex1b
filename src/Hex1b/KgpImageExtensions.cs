@@ -10,26 +10,26 @@ public static class KgpImageExtensions
     /// <summary>
     /// Creates a <see cref="KgpImageWidget"/> with the specified RGBA32 pixel data and fallback builder.
     /// </summary>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="imageData">Raw RGBA32 pixel data.</param>
     /// <param name="pixelWidth">Width of the image in pixels.</param>
     /// <param name="pixelHeight">Height of the image in pixels.</param>
-    /// <param name="fallbackBuilder">Builds the widget displayed when KGP is not supported.</param>
+    /// <param name="builder">Builds the widget displayed when KGP is not supported.</param>
     /// <param name="width">Optional width in character cells.</param>
     /// <param name="height">Optional height in character cells.</param>
     /// <returns>A new <see cref="KgpImageWidget"/>.</returns>
     public static KgpImageWidget KgpImage<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         byte[] imageData,
         int pixelWidth,
         int pixelHeight,
-        Func<WidgetContext<KgpImageWidget>, Hex1bWidget> fallbackBuilder,
+        Func<WidgetContext<KgpImageWidget>, Hex1bWidget> builder,
         int? width = null,
         int? height = null)
         where TParent : Hex1bWidget
     {
         var fallbackCtx = new WidgetContext<KgpImageWidget>();
-        return new(imageData, pixelWidth, pixelHeight, fallbackBuilder(fallbackCtx), width, height);
+        return new(imageData, pixelWidth, pixelHeight, builder(fallbackCtx), width, height);
     }
 
     /// <summary>

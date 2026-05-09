@@ -11,12 +11,12 @@ public static class MenuExtensions
     /// Creates a menu bar with the specified menus.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="menuBuilder">A function that builds the menus using a MenuContext.</param>
+    /// <param name="context">The widget context.</param>
+    /// <param name="builder">A function that builds the menus using a MenuContext.</param>
     /// <returns>A MenuBarWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.MenuBar(m => [
+    /// context.MenuBar(m => [
     ///     m.Menu("File", m => [
     ///         m.MenuItem("New").OnActivated(e => { /* action */ }),
     ///         m.MenuItem("Open").OnActivated(e => { /* action */ }),
@@ -35,12 +35,12 @@ public static class MenuExtensions
     /// </code>
     /// </example>
     public static MenuBarWidget MenuBar<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<MenuContext, IEnumerable<MenuWidget>> menuBuilder)
+        this WidgetContext<TParent> context,
+        Func<MenuContext, IEnumerable<MenuWidget>> builder)
         where TParent : Hex1bWidget
     {
         var menuContext = new MenuContext();
-        var menus = menuBuilder(menuContext).ToList();
+        var menus = builder(menuContext).ToList();
         return new MenuBarWidget(menus);
     }
 
@@ -48,11 +48,11 @@ public static class MenuExtensions
     /// Creates a menu bar with pre-built menus.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="menus">The menus to include in the bar.</param>
     /// <returns>A MenuBarWidget.</returns>
     public static MenuBarWidget MenuBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IEnumerable<MenuWidget> menus)
         where TParent : Hex1bWidget
     {
@@ -63,11 +63,11 @@ public static class MenuExtensions
     /// Creates a menu bar with pre-built menus.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="menus">The menus to include in the bar.</param>
     /// <returns>A MenuBarWidget.</returns>
     public static MenuBarWidget MenuBar<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         params MenuWidget[] menus)
         where TParent : Hex1bWidget
     {

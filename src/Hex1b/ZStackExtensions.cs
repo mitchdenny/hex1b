@@ -13,12 +13,12 @@ public static class ZStackExtensions
     /// All children share the same bounds (the ZStack's bounds).
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
-    /// <param name="children">A function that returns the child widgets. First = bottom, last = top.</param>
+    /// <param name="context">The widget context.</param>
+    /// <param name="builder">A function that returns the child widgets. First = bottom, last = top.</param>
     /// <returns>A new ZStackWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.ZStack(z => [
+    /// context.ZStack(z => [
     ///     // Base layer (bottom)
     ///     z.VStack(v => [
     ///         v.Text("Main content here")
@@ -32,12 +32,12 @@ public static class ZStackExtensions
     /// </code>
     /// </example>
     public static ZStackWidget ZStack<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<WidgetContext<ZStackWidget>, IEnumerable<Hex1bWidget?>> children)
+        this WidgetContext<TParent> context,
+        Func<WidgetContext<ZStackWidget>, IEnumerable<Hex1bWidget?>> builder)
         where TParent : Hex1bWidget
     {
         var childContext = new WidgetContext<ZStackWidget>();
-        var childWidgets = children(childContext)
+        var childWidgets = builder(childContext)
             .Where(c => c != null)
             .Cast<Hex1bWidget>()
             .ToList();

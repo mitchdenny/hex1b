@@ -12,18 +12,18 @@ public static class DragDropExtensions
     /// The builder lambda receives a <see cref="DraggableContext"/> with
     /// <see cref="DraggableContext.IsDragging"/> to reflect the current drag state.
     /// </summary>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <param name="dragData">The reference data that will be passed to the drop target.</param>
     /// <param name="builder">A builder that creates the child widget using drag state.</param>
     /// <example>
     /// <code>
-    /// ctx.Draggable("task-1", dc =>
+    /// context.Draggable("task-1", dc =>
     ///     dc.Border(dc.Text(dc.IsDragging ? "Dragging..." : "Task 1"))
     /// )
     /// </code>
     /// </example>
     public static DraggableWidget Draggable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         object dragData,
         Func<DraggableContext, Hex1bWidget> builder)
         where TParent : Hex1bWidget
@@ -33,7 +33,7 @@ public static class DragDropExtensions
     /// Creates a draggable wrapper with an implicit VStack for multiple children.
     /// </summary>
     public static DraggableWidget Draggable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         object dragData,
         Func<DraggableContext, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
@@ -45,11 +45,11 @@ public static class DragDropExtensions
     /// <see cref="DroppableContext.IsHoveredByDrag"/> and <see cref="DroppableContext.CanAcceptDrag"/>
     /// to reflect the current drag-hover state.
     /// </summary>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <param name="builder">A builder that creates the child widget using drop state.</param>
     /// <example>
     /// <code>
-    /// ctx.Droppable(dc =>
+    /// context.Droppable(dc =>
     ///     dc.Text(dc.IsHoveredByDrag ? "Drop here!" : "Target")
     /// )
     /// .Accept(data => data is string)
@@ -57,7 +57,7 @@ public static class DragDropExtensions
     /// </code>
     /// </example>
     public static DroppableWidget Droppable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<DroppableContext, Hex1bWidget> builder)
         where TParent : Hex1bWidget
         => new(builder);
@@ -66,7 +66,7 @@ public static class DragDropExtensions
     /// Creates a droppable target with an implicit VStack for multiple children.
     /// </summary>
     public static DroppableWidget Droppable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<DroppableContext, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
         => new(dc => new VStackWidget(builder(dc)));

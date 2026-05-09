@@ -14,7 +14,7 @@ public static class NavigatorExtensions
     /// </summary>
     [Experimental("HEX1B001")]
     public static NavigatorWidget Navigator<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         NavigatorState navigatorState)
         where TParent : Hex1bWidget
         => new(navigatorState);

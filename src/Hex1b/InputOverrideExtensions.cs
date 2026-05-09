@@ -13,8 +13,8 @@ public static class InputOverrideExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.InputOverride(
-    ///     ctx.VStack([list1, list2, textbox1])
+    /// context.InputOverride(
+    ///     context.VStack([list1, list2, textbox1])
     /// )
     /// .Override&lt;ListWidget&gt;(b =&gt;
     /// {
@@ -24,11 +24,11 @@ public static class InputOverrideExtensions
     /// </code>
     /// </example>
     /// <typeparam name="TParent">The parent widget context type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="content">The child widget tree to wrap.</param>
     /// <returns>An <see cref="InputOverrideWidget"/> that can be further configured with <see cref="InputOverrideWidget.Override{TWidget}"/>.</returns>
     public static InputOverrideWidget InputOverride<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget content)
         where TParent : Hex1bWidget
         => new(content);

@@ -11,26 +11,26 @@ public static class BreakdownChartExtensions
     /// <summary>
     /// Creates a breakdown chart bound to the specified data.
     /// </summary>
-    public static BreakdownChartWidget<T> BreakdownChart<T>(this RootContext ctx, IReadOnlyList<T> data)
+    public static BreakdownChartWidget<T> BreakdownChart<T>(this RootContext context, IReadOnlyList<T> data)
         => new() { Data = data };
 
     /// <summary>
     /// Creates a breakdown chart with <see cref="ChartItem"/> data (selectors pre-wired).
     /// </summary>
-    public static BreakdownChartWidget<ChartItem> BreakdownChart(this RootContext ctx, IReadOnlyList<ChartItem> data)
+    public static BreakdownChartWidget<ChartItem> BreakdownChart(this RootContext context, IReadOnlyList<ChartItem> data)
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
     /// <summary>
     /// Creates a breakdown chart with <see cref="ChartItem"/> data (params overload).
     /// </summary>
-    public static BreakdownChartWidget<ChartItem> BreakdownChart(this RootContext ctx, params ChartItem[] data)
+    public static BreakdownChartWidget<ChartItem> BreakdownChart(this RootContext context, params ChartItem[] data)
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
     /// <summary>
     /// Creates a breakdown chart bound to the specified data.
     /// </summary>
     public static BreakdownChartWidget<T> BreakdownChart<T, TParent>(
-        this WidgetContext<TParent> ctx, IReadOnlyList<T> data)
+        this WidgetContext<TParent> context, IReadOnlyList<T> data)
         where TParent : Hex1bWidget
         => new() { Data = data };
 
@@ -38,7 +38,7 @@ public static class BreakdownChartExtensions
     /// Creates a breakdown chart with <see cref="ChartItem"/> data (selectors pre-wired).
     /// </summary>
     public static BreakdownChartWidget<ChartItem> BreakdownChart<TParent>(
-        this WidgetContext<TParent> ctx, IReadOnlyList<ChartItem> data)
+        this WidgetContext<TParent> context, IReadOnlyList<ChartItem> data)
         where TParent : Hex1bWidget
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
@@ -46,7 +46,7 @@ public static class BreakdownChartExtensions
     /// Creates a breakdown chart with <see cref="ChartItem"/> data (params overload).
     /// </summary>
     public static BreakdownChartWidget<ChartItem> BreakdownChart<TParent>(
-        this WidgetContext<TParent> ctx, params ChartItem[] data)
+        this WidgetContext<TParent> context, params ChartItem[] data)
         where TParent : Hex1bWidget
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 }

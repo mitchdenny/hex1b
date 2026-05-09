@@ -14,7 +14,7 @@ public static class DocumentDiagnosticPanelExtensions
     /// of the given document. Useful for debugging and understanding document state.
     /// </summary>
     public static TreeWidget DocumentDiagnosticPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         IHex1bDocument document)
         where TParent : Hex1bWidget
     {

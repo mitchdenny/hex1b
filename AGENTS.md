@@ -83,8 +83,12 @@ This repo ships a Roslyn analyzer (`src/Hex1b.Analyzers/`) that runs against eve
 | HEX1B0003  | Types deriving from `Hex1bNode` must end with `Node` | |
 | HEX1B0004  | Types deriving from `Hex1bWidget` must be declared as `record` | |
 | HEX1B0005  | Types deriving from `Hex1bNode` must be declared as `class` | |
+| HEX1B0006  | Receiver of widget extension on `WidgetContext<T>` must be named `context` | Flutter-style — keeps the receiver name predictable across every `context.Border(...)`-style call. |
+| HEX1B0007  | Receiver of widget instance extension must be named `widget` | Applies when the receiver is `Hex1bWidget`-derived (or a generic constrained to it). `WidgetContext<T>` receivers are governed by HEX1B0006. |
+| HEX1B0008  | A single widget-builder callback parameter must be named `builder` | "Widget-builder callback" = `Func<…, Hex1bWidget>` (or array / `IEnumerable<>` / derived widget). `On[A-Z]…` event-handler methods are excluded. |
+| HEX1B0009  | A widget extension/instance method should declare at most one widget-builder callback parameter | Multi-builder shapes (e.g. `HSplitter(left, right)`) require explicit `[SuppressMessage("Hex1b.ApiDesign", "HEX1B0009")]`. Same `On*` exclusion as HEX1B0008. |
 
-All five rules default to `Warning` severity and the lib builds under `TreatWarningsAsErrors=true` with zero suppressions. Any new `With*` method on a widget will break the build immediately.
+All nine rules default to `Warning` severity and the lib builds under `TreatWarningsAsErrors=true`. Suppressions exist only where they encode a deliberate API decision (HEX1B0009 on `Splitter`'s two-pane shape).
 
 Tests for the analyzers live in `tests/Hex1b.Analyzers.Tests/`. New rules should follow the existing pattern: implement in `src/Hex1b.Analyzers/`, declare the ID in `Hex1bDiagnosticIds.cs` and `AnalyzerReleases.Unshipped.md`, and add positive + negative tests.
 
@@ -93,6 +97,11 @@ Tests for the analyzers live in `tests/Hex1b.Analyzers.Tests/`. New rules should
 - Nodes: `*Node` (e.g., `TextBlockNode`, `ButtonNode`) — enforced by HEX1B0003/HEX1B0005.
 - State objects: `*State` (e.g., `TextBoxState`) - for widgets requiring user-owned mutable state
 - Widget configuration methods: never `With*` — that prefix is reserved for `Hex1bTerminalBuilder`. Use `On*` for event handlers and verb-noun for properties (e.g., `Title`, `MaxFloating`, `Disabled`). Enforced by HEX1B0001.
+- Widget extension method parameters (Flutter-style):
+  - `WidgetContext<T>` receiver → `context` (HEX1B0006)
+  - Widget instance receiver (`this XxxWidget …` or `where TWidget : Hex1bWidget`) → `widget` (HEX1B0007)
+  - A single widget-builder callback (`Func<…, Hex1bWidget>` etc.) → `builder` (HEX1B0008)
+  - Avoid having two builder callbacks on one method; if genuinely required, suppress HEX1B0009 with a justification (HEX1B0009)
 
 ### Widget Definition Pattern
 ```csharp

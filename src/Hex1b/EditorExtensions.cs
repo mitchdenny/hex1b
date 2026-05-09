@@ -14,7 +14,7 @@ public static class EditorExtensions
     /// available vertical space in stack layouts rather than requesting unbounded height.
     /// </summary>
     public static EditorWidget Editor<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         EditorState state)
         where TParent : Hex1bWidget
         => new(state) { HeightHint = SizeHint.Fill };

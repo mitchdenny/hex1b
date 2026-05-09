@@ -15,7 +15,7 @@ public static class ResponsiveExtensions
     /// Use inside a Responsive() builder to create conditional branches.
     /// </summary>
     public static ConditionalWidget When<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<int, int, bool> condition,
         Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
@@ -30,12 +30,12 @@ public static class ResponsiveExtensions
     /// Convenience overload for common width-based responsive layouts.
     /// </summary>
     public static ConditionalWidget WhenWidth<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<int, bool> widthCondition,
         Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
-        return ctx.When((w, h) => widthCondition(w), builder);
+        return context.When((w, h) => widthCondition(w), builder);
     }
 
     /// <summary>
@@ -43,12 +43,12 @@ public static class ResponsiveExtensions
     /// The content is displayed when availableWidth >= minWidth.
     /// </summary>
     public static ConditionalWidget WhenMinWidth<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         int minWidth,
         Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
-        return ctx.When((w, h) => w >= minWidth, builder);
+        return context.When((w, h) => w >= minWidth, builder);
     }
 
     /// <summary>
@@ -56,21 +56,21 @@ public static class ResponsiveExtensions
     /// Use as the last branch in a Responsive() to provide a fallback.
     /// </summary>
     public static ConditionalWidget Otherwise<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<ConditionalWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
-        return ctx.When((w, h) => true, builder);
+        return context.When((w, h) => true, builder);
     }
 
     /// <summary>
     /// Creates a Responsive widget that displays the first child whose condition evaluates to true.
     /// Conditions receive (availableWidth, availableHeight) from the parent's layout constraints.
     /// Use collection expression syntax with When()/WhenMinWidth()/Otherwise() to define conditional branches.
-    /// Example: ctx.Responsive(r => [r.WhenMinWidth(100, r => r.Text("Wide")), r.Otherwise(r => r.Text("Narrow"))])
+    /// Example: context.Responsive(r => [r.WhenMinWidth(100, r => r.Text("Wide")), r.Otherwise(r => r.Text("Narrow"))])
     /// </summary>
     public static ResponsiveWidget Responsive<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<ResponsiveWidget>, ConditionalWidget[]> builder)
         where TParent : Hex1bWidget
     {

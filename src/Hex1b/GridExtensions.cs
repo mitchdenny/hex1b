@@ -19,7 +19,7 @@ public static class GridExtensions
     /// </para>
     /// <example>
     /// <code>
-    /// ctx.Grid(g => [
+    /// context.Grid(g => [
     ///     g.Cell(c => c.Text("Nav")).RowSpan(0, 2).Column(0).Width(20),
     ///     g.Cell(c => c.Text("Header")).Row(0).Column(1),
     ///     g.Cell(c => c.Text("Content")).Row(1).Column(1).FillHeight(),
@@ -27,11 +27,11 @@ public static class GridExtensions
     /// </code>
     /// </example>
     /// </remarks>
-    /// <param name="ctx">The parent widget context.</param>
+    /// <param name="context">The parent widget context.</param>
     /// <param name="builder">A callback that receives a <see cref="GridContext"/> and returns an array of <see cref="GridCellWidget"/>.</param>
     /// <returns>A configured <see cref="GridWidget"/>.</returns>
     public static GridWidget Grid<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<GridContext, GridCellWidget[]> builder)
         where TParent : Hex1bWidget
     {

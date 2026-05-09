@@ -14,7 +14,7 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Using QrCode within a VStack:</para>
 /// <code>
-/// ctx.VStack(v => [
+/// context.VStack(v => [
 ///     v.Text("Scan to visit:"),
 ///     v.QrCode("https://github.com/mitchdenny/hex1b"),
 ///     v.Text("GitHub Repository")
@@ -28,16 +28,16 @@ public static class QrCodeExtensions
     /// Creates a <see cref="QrCodeWidget"/> with the specified data to encode.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="data">The data to encode in the QR code (typically a URL).</param>
     /// <returns>A new <see cref="QrCodeWidget"/> with a default quiet zone of 1.</returns>
     /// <example>
     /// <code>
-    /// ctx.QrCode("https://example.com")
+    /// context.QrCode("https://example.com")
     /// </code>
     /// </example>
     public static QrCodeWidget QrCode<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         string data)
         where TParent : Hex1bWidget
         => new(data);

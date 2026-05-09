@@ -12,7 +12,7 @@ public static class PastableExtensions
     /// Creates a Pastable container wrapping a single child widget.
     /// </summary>
     public static PastableWidget Pastable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget
         => new(child);
@@ -21,7 +21,7 @@ public static class PastableExtensions
     /// Creates a Pastable container with a VStack child.
     /// </summary>
     public static PastableWidget Pastable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {

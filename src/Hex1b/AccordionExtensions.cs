@@ -13,12 +13,12 @@ public static class AccordionExtensions
     /// The accordion fills available vertical space by default.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="builder">A function that builds the sections using an AccordionContext.</param>
     /// <returns>An AccordionWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.Accordion(a => [
+    /// context.Accordion(a => [
     ///     a.Section(s => [s.Text("File list")]).Title("Explorer"),
     ///     a.Section(s => [s.Text("Outline")]).Title("Outline"),
     ///     a.Section(s => [s.Text("Timeline")]).Title("Timeline")
@@ -26,7 +26,7 @@ public static class AccordionExtensions
     /// </code>
     /// </example>
     public static AccordionWidget Accordion<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<AccordionContext, IEnumerable<AccordionSectionWidget>> builder)
         where TParent : Hex1bWidget
     {

@@ -15,7 +15,7 @@ public static class InteractableExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.Interactable(ic =>
+    /// context.Interactable(ic =>
     ///     ic.VStack(v => [
     ///         v.Text("Tile content"),
     ///     ])
@@ -23,7 +23,7 @@ public static class InteractableExtensions
     /// </code>
     /// </example>
     public static InteractableWidget Interactable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<InteractableContext, Hex1bWidget> builder)
         where TParent : Hex1bWidget
         => new(builder);
@@ -33,14 +33,14 @@ public static class InteractableExtensions
     /// </summary>
     /// <example>
     /// <code>
-    /// ctx.Interactable(ic => [
+    /// context.Interactable(ic => [
     ///     ic.Text("Line 1"),
     ///     ic.Text("Line 2"),
     /// ]).OnClick(args => DoSomething())
     /// </code>
     /// </example>
     public static InteractableWidget Interactable<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<InteractableContext, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
         => new(ic => new VStackWidget(builder(ic)));

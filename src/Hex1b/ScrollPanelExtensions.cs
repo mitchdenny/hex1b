@@ -11,7 +11,7 @@ public static class ScrollPanelExtensions
     /// Creates a vertical scroll panel with the specified child.
     /// </summary>
     public static ScrollPanelWidget VScrollPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
@@ -21,14 +21,14 @@ public static class ScrollPanelExtensions
     /// Creates a vertical scroll panel with a VStack child built from a callback.
     /// </summary>
     public static ScrollPanelWidget VScrollPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> childBuilder,
+        this WidgetContext<TParent> context,
+        Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
         var childCtx = new WidgetContext<VStackWidget>();
         return new ScrollPanelWidget(
-            new VStackWidget(childBuilder(childCtx)),
+            new VStackWidget(builder(childCtx)),
             ScrollOrientation.Vertical,
             showScrollbar);
     }
@@ -37,7 +37,7 @@ public static class ScrollPanelExtensions
     /// Creates a horizontal scroll panel with the specified child.
     /// </summary>
     public static ScrollPanelWidget HScrollPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
@@ -47,14 +47,14 @@ public static class ScrollPanelExtensions
     /// Creates a horizontal scroll panel with an HStack child built from a callback.
     /// </summary>
     public static ScrollPanelWidget HScrollPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<WidgetContext<HStackWidget>, Hex1bWidget[]> childBuilder,
+        this WidgetContext<TParent> context,
+        Func<WidgetContext<HStackWidget>, Hex1bWidget[]> builder,
         bool showScrollbar = true)
         where TParent : Hex1bWidget
     {
         var childCtx = new WidgetContext<HStackWidget>();
         return new ScrollPanelWidget(
-            new HStackWidget(childBuilder(childCtx)),
+            new HStackWidget(builder(childCtx)),
             ScrollOrientation.Horizontal,
             showScrollbar);
     }
@@ -63,7 +63,7 @@ public static class ScrollPanelExtensions
     /// Creates a scroll panel with the specified orientation.
     /// </summary>
     public static ScrollPanelWidget ScrollPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child,
         ScrollOrientation orientation,
         bool showScrollbar = true)

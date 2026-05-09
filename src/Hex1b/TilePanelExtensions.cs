@@ -13,7 +13,7 @@ public static class TilePanelExtensions
     /// Creates a TilePanel with the specified data source at the default camera position.
     /// </summary>
     public static TilePanelWidget TilePanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         ITileDataSource dataSource)
         where TParent : Hex1bWidget
         => new() { DataSource = dataSource, HeightHint = SizeHint.Fill };
@@ -22,7 +22,7 @@ public static class TilePanelExtensions
     /// Creates a TilePanel with the specified data source and camera position.
     /// </summary>
     public static TilePanelWidget TilePanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         ITileDataSource dataSource,
         double cameraX,
         double cameraY,

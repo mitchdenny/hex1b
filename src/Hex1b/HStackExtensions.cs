@@ -11,7 +11,7 @@ public static class HStackExtensions
     /// Creates an HStack where the callback returns an array of children.
     /// </summary>
     public static HStackWidget HStack<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<HStackWidget>, Hex1bWidget[]> builder)
         where TParent : Hex1bWidget
     {

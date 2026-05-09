@@ -11,26 +11,26 @@ public static class DonutChartExtensions
     /// <summary>
     /// Creates a donut chart bound to the specified data.
     /// </summary>
-    public static DonutChartWidget<T> DonutChart<T>(this RootContext ctx, IReadOnlyList<T> data)
+    public static DonutChartWidget<T> DonutChart<T>(this RootContext context, IReadOnlyList<T> data)
         => new() { Data = data };
 
     /// <summary>
     /// Creates a donut chart with <see cref="ChartItem"/> data (selectors pre-wired).
     /// </summary>
-    public static DonutChartWidget<ChartItem> DonutChart(this RootContext ctx, IReadOnlyList<ChartItem> data)
+    public static DonutChartWidget<ChartItem> DonutChart(this RootContext context, IReadOnlyList<ChartItem> data)
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
     /// <summary>
     /// Creates a donut chart with <see cref="ChartItem"/> data (params overload).
     /// </summary>
-    public static DonutChartWidget<ChartItem> DonutChart(this RootContext ctx, params ChartItem[] data)
+    public static DonutChartWidget<ChartItem> DonutChart(this RootContext context, params ChartItem[] data)
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
     /// <summary>
     /// Creates a donut chart bound to the specified data.
     /// </summary>
     public static DonutChartWidget<T> DonutChart<T, TParent>(
-        this WidgetContext<TParent> ctx, IReadOnlyList<T> data)
+        this WidgetContext<TParent> context, IReadOnlyList<T> data)
         where TParent : Hex1bWidget
         => new() { Data = data };
 
@@ -38,7 +38,7 @@ public static class DonutChartExtensions
     /// Creates a donut chart with <see cref="ChartItem"/> data (selectors pre-wired).
     /// </summary>
     public static DonutChartWidget<ChartItem> DonutChart<TParent>(
-        this WidgetContext<TParent> ctx, IReadOnlyList<ChartItem> data)
+        this WidgetContext<TParent> context, IReadOnlyList<ChartItem> data)
         where TParent : Hex1bWidget
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 
@@ -46,7 +46,7 @@ public static class DonutChartExtensions
     /// Creates a donut chart with <see cref="ChartItem"/> data (params overload).
     /// </summary>
     public static DonutChartWidget<ChartItem> DonutChart<TParent>(
-        this WidgetContext<TParent> ctx, params ChartItem[] data)
+        this WidgetContext<TParent> context, params ChartItem[] data)
         where TParent : Hex1bWidget
         => new() { Data = data, LabelSelector = i => i.Label, ValueSelector = i => i.Value };
 }

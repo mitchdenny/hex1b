@@ -11,7 +11,7 @@ public static class LayoutExtensions
     /// Creates a Layout that wraps a single child widget with clipping enabled.
     /// </summary>
     public static LayoutWidget Layout<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child,
         ClipMode clipMode = ClipMode.Clip)
         where TParent : Hex1bWidget
@@ -21,7 +21,7 @@ public static class LayoutExtensions
     /// Creates a Layout with a VStack child.
     /// </summary>
     public static LayoutWidget Layout<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Func<WidgetContext<VStackWidget>, Hex1bWidget[]> builder,
         ClipMode clipMode = ClipMode.Clip)
         where TParent : Hex1bWidget
@@ -35,7 +35,7 @@ public static class LayoutExtensions
     /// Wraps an existing widget in a Layout with clipping.
     /// </summary>
     public static LayoutWidget WithClipping<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget child)
         where TParent : Hex1bWidget
         => new(child, ClipMode.Clip);

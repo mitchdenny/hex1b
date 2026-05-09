@@ -11,12 +11,12 @@ public static class DragBarPanelExtensions
     /// Creates a DragBarPanel that wraps content built from a callback.
     /// </summary>
     public static DragBarPanelWidget DragBarPanel<TParent>(
-        this WidgetContext<TParent> ctx,
-        Func<WidgetContext<DragBarPanelWidget>, Hex1bWidget> contentBuilder)
+        this WidgetContext<TParent> context,
+        Func<WidgetContext<DragBarPanelWidget>, Hex1bWidget> builder)
         where TParent : Hex1bWidget
     {
         var contentCtx = new WidgetContext<DragBarPanelWidget>();
-        var content = contentBuilder(contentCtx);
+        var content = builder(contentCtx);
         return new DragBarPanelWidget { Content = content };
     }
     
@@ -24,7 +24,7 @@ public static class DragBarPanelExtensions
     /// Creates a DragBarPanel that wraps a widget directly.
     /// </summary>
     public static DragBarPanelWidget DragBarPanel<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         Hex1bWidget content)
         where TParent : Hex1bWidget
         => new DragBarPanelWidget { Content = content };

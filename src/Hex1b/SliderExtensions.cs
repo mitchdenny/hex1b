@@ -15,15 +15,15 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Simple slider with default 0-100 range:</para>
 /// <code>
-/// ctx.Slider(50)
+/// context.Slider(50)
 /// </code>
 /// <para>Slider with custom range:</para>
 /// <code>
-/// ctx.Slider(25, min: 0, max: 50)
+/// context.Slider(25, min: 0, max: 50)
 /// </code>
 /// <para>Slider with discrete steps:</para>
 /// <code>
-/// ctx.Slider(0, min: 0, max: 100, step: 10)
+/// context.Slider(0, min: 0, max: 100, step: 10)
 /// </code>
 /// </example>
 /// <seealso cref="SliderWidget"/>
@@ -34,16 +34,16 @@ public static class SliderExtensions
     /// Creates a slider with a 0-100 range.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="initialValue">The initial value (0-100). Default is 0.</param>
     /// <returns>A new SliderWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.Slider(50) // Slider at 50%
+    /// context.Slider(50) // Slider at 50%
     /// </code>
     /// </example>
     public static SliderWidget Slider<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         double initialValue = 0)
         where TParent : Hex1bWidget
         => new() { InitialValue = initialValue, Minimum = 0, Maximum = 100 };
@@ -52,18 +52,18 @@ public static class SliderExtensions
     /// Creates a slider with a custom range.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="initialValue">The initial value.</param>
     /// <param name="min">The minimum value of the range.</param>
     /// <param name="max">The maximum value of the range.</param>
     /// <returns>A new SliderWidget.</returns>
     /// <example>
     /// <code>
-    /// ctx.Slider(5, min: 0, max: 10)
+    /// context.Slider(5, min: 0, max: 10)
     /// </code>
     /// </example>
     public static SliderWidget Slider<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         double initialValue,
         double min,
         double max)
@@ -74,7 +74,7 @@ public static class SliderExtensions
     /// Creates a slider with a custom range and step increment.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <param name="initialValue">The initial value.</param>
     /// <param name="min">The minimum value of the range.</param>
     /// <param name="max">The maximum value of the range.</param>
@@ -86,11 +86,11 @@ public static class SliderExtensions
     /// </remarks>
     /// <example>
     /// <code>
-    /// ctx.Slider(0, min: 0, max: 100, step: 5)
+    /// context.Slider(0, min: 0, max: 100, step: 5)
     /// </code>
     /// </example>
     public static SliderWidget Slider<TParent>(
-        this WidgetContext<TParent> ctx,
+        this WidgetContext<TParent> context,
         double initialValue,
         double min,
         double max,

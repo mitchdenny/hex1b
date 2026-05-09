@@ -19,7 +19,7 @@ using Hex1b.Widgets;
 /// <example>
 /// <para>Using Separator within a VStack:</para>
 /// <code>
-/// ctx.VStack(v =&gt; [
+/// context.VStack(v =&gt; [
 ///     v.Text("Section 1"),
 ///     v.Separator(),
 ///     v.Text("Section 2")
@@ -34,18 +34,18 @@ public static class SeparatorExtensions
     /// The orientation is inferred from the parent container (horizontal in VStack, vertical in HStack).
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <returns>A new <see cref="SeparatorWidget"/>.</returns>
     /// <example>
     /// <code>
-    /// ctx.VStack(v =&gt; [
+    /// context.VStack(v =&gt; [
     ///     v.Text("Above"),
     ///     v.Separator(),
     ///     v.Text("Below")
     /// ])
     /// </code>
     /// </example>
-    public static SeparatorWidget Separator<TParent>(this WidgetContext<TParent> ctx)
+    public static SeparatorWidget Separator<TParent>(this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new();
 
@@ -53,9 +53,9 @@ public static class SeparatorExtensions
     /// Creates a horizontal <see cref="SeparatorWidget"/> regardless of parent container.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <returns>A new horizontal <see cref="SeparatorWidget"/>.</returns>
-    public static SeparatorWidget HSeparator<TParent>(this WidgetContext<TParent> ctx)
+    public static SeparatorWidget HSeparator<TParent>(this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new() { ExplicitAxis = LayoutAxis.Vertical }; // Horizontal line in vertical layout
 
@@ -63,9 +63,9 @@ public static class SeparatorExtensions
     /// Creates a vertical <see cref="SeparatorWidget"/> regardless of parent container.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type in the current context.</typeparam>
-    /// <param name="ctx">The widget context.</param>
+    /// <param name="context">The widget context.</param>
     /// <returns>A new vertical <see cref="SeparatorWidget"/>.</returns>
-    public static SeparatorWidget VSeparator<TParent>(this WidgetContext<TParent> ctx)
+    public static SeparatorWidget VSeparator<TParent>(this WidgetContext<TParent> context)
         where TParent : Hex1bWidget
         => new() { ExplicitAxis = LayoutAxis.Horizontal }; // Vertical line in horizontal layout
 }
