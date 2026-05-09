@@ -211,10 +211,18 @@ public sealed class EmbedScreen : Screen
 
 For an end-to-end example — a Spectre.Tui screen with native chrome
 (title bar, side panel with `BoxWidget` + `Paragraph` + `SparklineWidget`,
-status bar) hosting a Hex1b panel in the centre — see
-`samples/Hex1bInsideSpectreTui`. Run it with `--auto --headless` to capture
-an asciinema cast that proves Hex1b list selection persists across
-Spectre.Tui's continuous redraw loop.
+status bar) hosting a Hex1b `SurfaceWidget` in the centre that draws the
+**GlobeDemo** globe (auto-rotating braille terrain with drifting clouds and
+POI labels) — see `samples/Hex1bInsideSpectreTui`. Arrow keys spin the
+globe and `+/-` zoom; the rotation/zoom/cloud-drift state lives on a
+`Globe` instance owned by the `Screen`, while the embedded
+`Hex1bEmbeddedHost` reconciles a fresh `SurfaceWidget` layer every
+Spectre.Tui frame against its persisted node tree.
+
+Run it with `--auto --headless` to capture an asciinema cast that proves
+the `SurfaceWidget` re-renders inside Spectre.Tui's continuous redraw
+loop and that arrow-key input flows through Spectre.Tui's `OnMessage`
+back into the embedded host without any custom mouse/keyboard plumbing.
 
 ## What's not bridged
 

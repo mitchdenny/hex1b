@@ -5,10 +5,10 @@ namespace Hex1bInsideSpectreTui;
 
 /// <summary>
 /// Drives the embed demo end-to-end via <see cref="Hex1bTerminalAutomator"/>.
-/// Walks the embedded Hex1b list with arrow keys and PgUp/PgDn to prove that
-/// (a) keys flow through the Spectre.Tui input loop into the embedded host's
-/// <see cref="Hex1b.Input.InputRouter"/>, and (b) selection state survives
-/// every Spectre.Tui frame's reconcile pass.
+/// Sends arrow keys and +/- through Spectre.Tui's input loop into
+/// <see cref="EmbedScreen.OnMessage"/>, which mutates the persisted
+/// <see cref="Globe"/> state so the embedded Hex1b SurfaceWidget renders
+/// new globe frames every Spectre.Tui redraw.
 /// </summary>
 internal static class EmbedAutomator
 {
@@ -16,39 +16,51 @@ internal static class EmbedAutomator
     {
         var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromSeconds(20));
 
-        // Wait until both the Spectre.Tui chrome and the embedded Hex1b
-        // ListWidget have rendered their first frame.
-        await auto.WaitUntilTextAsync("embed showcase");
-        await auto.WaitUntilTextAsync(EmbedScreen.ListItems[0]);
-        await auto.WaitAsync(800);
+        // Wait for the Spectre.Tui chrome and the embedded globe panel.
+        await auto.WaitUntilTextAsync("embedded GlobeDemo");
+        await auto.WaitUntilTextAsync("GlobeDemo embed");
 
-        // Walk the list with Down. Each step is forwarded through Spectre.Tui's
-        // OnMessage to the embedded Hex1b widget's input router, which moves
-        // the ListNode's selection.
-        for (var i = 0; i < 4; i++)
+        // Let the globe spin on its own first so the recording captures the
+        // auto-rotation and cloud drift.
+        await auto.WaitAsync(1500);
+
+        // Spin right.
+        for (var i = 0; i < 6; i++)
+        {
+            await auto.RightAsync();
+            await auto.WaitAsync(140);
+        }
+
+        // Spin down (pitch).
+        for (var i = 0; i < 3; i++)
         {
             await auto.DownAsync();
+            await auto.WaitAsync(140);
+        }
+
+        // Zoom in (Spectre.Tui surfaces both Add and OemPlus depending on layout).
+        for (var i = 0; i < 3; i++)
+        {
+            await auto.TypeAsync("+");
+            await auto.WaitAsync(180);
+        }
+        await auto.WaitAsync(800);
+
+        // Zoom back out.
+        for (var i = 0; i < 4; i++)
+        {
+            await auto.TypeAsync("-");
             await auto.WaitAsync(180);
         }
 
-        // Page down once to demonstrate larger jumps still flow through.
-        await auto.PageDownAsync();
-        await auto.WaitAsync(500);
-
-        // Walk back up.
-        for (var i = 0; i < 3; i++)
+        // Spin left to demonstrate rotation in the opposite direction.
+        for (var i = 0; i < 6; i++)
         {
-            await auto.UpAsync();
-            await auto.WaitAsync(160);
+            await auto.LeftAsync();
+            await auto.WaitAsync(140);
         }
 
-        // Page back up to the top.
-        await auto.PageUpAsync();
-        await auto.WaitAsync(500);
-
-        // Linger so the sparkline animation in the Spectre.Tui chrome
-        // accumulates visibly in the recording (proves Spectre.Tui's render
-        // loop is still alive while the embedded Hex1b panel is hosted).
+        // Linger so the auto-rotate + cloud drift are visible.
         await auto.WaitAsync(1500);
 
         // Quit via the screen-level Q binding.
@@ -57,3 +69,4 @@ internal static class EmbedAutomator
         return 0;
     }
 }
+
