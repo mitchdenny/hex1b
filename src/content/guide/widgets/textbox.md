@@ -300,7 +300,7 @@ var theme = Hex1bTheme.Create()
     .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.Yellow)
     .Set(TextBoxTheme.SelectionForegroundColor, Hex1bColor.White)
     .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.Blue)
-    .Set(TextBoxTheme.PredictionForegroundColor, Hex1bColor.DarkGray);
+    .Set(TextBoxTheme.PredictionForegroundColor, Hex1bColor.LightGray);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
@@ -324,7 +324,7 @@ await terminal.RunAsync();
 | `CursorBackgroundColor` | `Hex1bColor` | White | Cursor background color |
 | `SelectionForegroundColor` | `Hex1bColor` | Black | Selected text color |
 | `SelectionBackgroundColor` | `Hex1bColor` | Cyan | Selection background |
-| `PredictionForegroundColor` | `Hex1bColor` | DarkGray | Inline prediction text color |
+| `PredictionForegroundColor` | `Hex1bColor` | Gray | Inline prediction text color. Monochrome by default for a ghost-text look; theme to any color to brand suggestions. |
 | `PredictionBackgroundColor` | `Hex1bColor` | Default | Inline prediction background. `Default` follows the field fill color; set explicitly to draw the suggestion on a contrasting band. |
 
 ## Related Widgets

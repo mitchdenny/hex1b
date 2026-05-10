@@ -47,11 +47,12 @@ public static class TextBoxTheme
 
     /// <summary>
     /// Foreground color of the inline prediction (suggestion) text rendered to
-    /// the right of the cursor. Defaults to <see cref="Hex1bColor.DarkGray"/>
-    /// so the suggestion sits clearly behind the user's typed text.
+    /// the right of the cursor. Defaults to <see cref="Hex1bColor.Gray"/> — a
+    /// monochrome mid-gray that stays clearly visible against typical field
+    /// backgrounds while remaining distinct from regular typed text.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> PredictionForegroundColor =
-        new($"{nameof(TextBoxTheme)}.{nameof(PredictionForegroundColor)}", () => Hex1bColor.DarkGray);
+        new($"{nameof(TextBoxTheme)}.{nameof(PredictionForegroundColor)}", () => Hex1bColor.Gray);
 
     /// <summary>
     /// Background color of the inline prediction text. Defaults to
