@@ -394,13 +394,21 @@ protected override Hex1bWidget Build(CompositionContext ctx)
 
 ### Conflicts fail fast
 
-If you supply both a `Text` ctor argument *and* a hoisted state, the framework throws `InvalidOperationException` on reconcile. There's no precedence rule to memorise — pick one.
+If you supply both a `Text` ctor argument *and* a hoisted state, the textbox throws `InvalidOperationException` on reconcile. There's no precedence rule to memorise — pick one.
 
 ```csharp
 new TextBoxWidget("hello").State(state);   // throws on reconcile
 ```
 
 Use the ctor for "set the initial text once" (the framework owns it after that); use `.State(...)` for "I'm holding the state object externally". They are different programming models.
+
+::: info Per-widget conflict semantics
+The `IStatefulWidget` interface only requires that implementations route the supplied state into their node — it doesn't mandate how to handle conflicts with ctor-supplied initial values. Each widget picks what makes sense for its UX:
+
+- **TextBox** — throws `InvalidOperationException`. The ctor `Text` and a hoisted `TextBoxState` are equally meaningful, so silently picking one would mask bugs.
+- **Checkbox** — silently ignores the ctor `Value` when state is hoisted. The ctor's `Value` parameter has a default (`Unchecked`), so it's effectively "always supplied" and throwing would force every caller to switch to a no-arg constructor when lifting state.
+- **Editor / Navigator** — no conflict possible. The state object is the only ctor parameter, so `.State(...)` simply replaces it.
+:::
 
 ### The slash-command example below uses this
 
@@ -689,7 +697,7 @@ public sealed record FormFieldWidget(string Name, string Label) : Hex1bWidget
         var form = ctx.Require<FormController>();
         return ctx.HStack(h => [
             h.Text(Label),
-            h.TextBox(form.GetValue(Name)).OnChanged(e => form.SetValue(Name, e.Text)),
+            h.TextBox(form.GetValue(Name)).OnTextChanged(e => form.SetValue(Name, e.NewText)),
         ]);
     }
 }
