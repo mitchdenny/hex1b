@@ -30,7 +30,7 @@
 //   — which is what users intuitively expect from a slash-command popup
 //   anyway.
 //
-// All state lives in the composite's CompositionContext via UseState — there
+// All state lives in the widget's CompositionContext via UseState — there
 // is no custom Hex1bNode anywhere in this file.
 
 namespace AgenticPromptDemo;
@@ -43,7 +43,7 @@ using Hex1b.Theming;
 using Hex1b.Widgets;
 
 public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
-    : Hex1bCompositeWidget
+    : Hex1bWidget
 {
     // The prompt chevron rendered to the left of the textbox. Exposed so
     // tests (and any other layout-aware code) can locate the prompt row in

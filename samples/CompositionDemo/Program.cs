@@ -4,20 +4,20 @@ using Hex1b.Input;
 using Hex1b.Theming;
 using Hex1b.Widgets;
 
-// Demo: Hex1bCompositeWidget — composite widgets without a custom node.
+// Demo: composing widgets via Hex1bWidget.Build — composite widgets without a custom node.
 //
-// Three composites cooperate without any of the usual workarounds (no node
+// Three widgets cooperate without any of the usual workarounds (no node
 // subclasses, no FindAncestor walks, no closure-over-mutable-node tricks):
 //
-//   AppShellWidget (composite)
+//   AppShellWidget
 //     ├─ provides a CounterStore via ctx.Provide(...)
 //     └─ contains:
-//         CounterDisplayWidget (composite)
+//         CounterDisplayWidget
 //             └─ pulls the store via ctx.Use<CounterStore>() and renders count
-//         CounterStatusWidget (composite)
+//         CounterStatusWidget
 //             └─ pulls the store via ctx.Use<CounterStore>() and renders status
 //
-// Every composite ships a fluent extension method (see CompositionDemoExtensions
+// Every widget ships a fluent extension method (see CompositionDemoExtensions
 // at the bottom of this file), so call sites stay on the standard `ctx.X(...)`
 // surface and never write `new ...Widget(...)` inside a Build method.
 
@@ -38,7 +38,7 @@ void RequestStopApp() => app?.RequestStop();
 
 // --- Composite widgets ---
 
-internal sealed record AppShellWidget(Action Invalidate, Action RequestStop) : Hex1bCompositeWidget
+internal sealed record AppShellWidget(Action Invalidate, Action RequestStop) : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -52,7 +52,7 @@ internal sealed record AppShellWidget(Action Invalidate, Action RequestStop) : H
         [
             v.ThemePanel(
                 t => t.Set(GlobalTheme.ForegroundColor, Hex1bColor.Cyan),
-                v.Text(" ◆ Hex1bCompositeWidget Demo")),
+                v.Text(" ◆ Composition Demo")),
             v.Text(" Up/Down to change counter, R to reset, Q to quit"),
             v.Separator(),
 
@@ -72,7 +72,7 @@ internal sealed record AppShellWidget(Action Invalidate, Action RequestStop) : H
     }
 }
 
-internal sealed record CounterDisplayWidget : Hex1bCompositeWidget
+internal sealed record CounterDisplayWidget : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -81,7 +81,7 @@ internal sealed record CounterDisplayWidget : Hex1bCompositeWidget
     }
 }
 
-internal sealed record CounterStatusWidget : Hex1bCompositeWidget
+internal sealed record CounterStatusWidget : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {

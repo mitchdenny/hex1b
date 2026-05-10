@@ -6,7 +6,6 @@
     <PublishAot>true</PublishAot>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-    <NoWarn>$(NoWarn);HEX1B_COMPOSITION</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>

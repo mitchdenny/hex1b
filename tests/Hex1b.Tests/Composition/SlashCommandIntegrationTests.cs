@@ -1,5 +1,3 @@
-#pragma warning disable HEX1B_COMPOSITION
-
 using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Input;
@@ -140,7 +138,7 @@ public class SlashCommandIntegrationTests
             $"After DownArrow, '>' should no longer mark the 'picker' row. Screen:\n{screen}");
     }
 
-    private sealed record SlashPromptHostWidget : Hex1bCompositeWidget
+    private sealed record SlashPromptHostWidget : Hex1bWidget
     {
         private static readonly IReadOnlyList<DemoCommand> Commands =
         [
@@ -164,7 +162,7 @@ public class SlashCommandIntegrationTests
         }
     }
 
-    internal sealed record SlashPromptWidget(IReadOnlyList<DemoCommand> Commands) : Hex1bCompositeWidget
+    internal sealed record SlashPromptWidget(IReadOnlyList<DemoCommand> Commands) : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {

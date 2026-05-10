@@ -1,5 +1,3 @@
-#pragma warning disable HEX1B_COMPOSITION
-
 using AgenticPromptDemo;
 using Hex1b;
 using Hex1b.Composition;
@@ -483,7 +481,7 @@ public class SlashCommandPromptWidgetTests
     private static async Task<string> DriveAsync<THost>(
         Func<Hex1bTerminalInputSequenceBuilder, Hex1bTerminalInputSequenceBuilder> script,
         Action<string>? onSubmit = null)
-        where THost : Hex1bCompositeWidget, new()
+        where THost : Hex1bWidget, new()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
@@ -545,7 +543,7 @@ public class SlashCommandPromptWidgetTests
     /// extra focusables — useful for tests that don't care about focus
     /// shenanigans.
     /// </summary>
-    private sealed record HostWidget : Hex1bCompositeWidget
+    private sealed record HostWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {
@@ -562,9 +560,10 @@ public class SlashCommandPromptWidgetTests
 
     /// <summary>
     /// Host with a focusable Button above the prompt — exercises the
-    /// composite-level focus restoration in <see cref="Hex1bCompositeWidget"/>.
+    /// composite-level focus restoration in the default
+    /// <see cref="Hex1bWidget.Build"/> reconciliation pipeline.
     /// </summary>
-    private sealed record FocusableAboveHostWidget : Hex1bCompositeWidget
+    private sealed record FocusableAboveHostWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {

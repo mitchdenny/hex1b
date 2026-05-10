@@ -36,6 +36,15 @@ internal static class AnalyzerTestHelpers<TAnalyzer>
         // resolve the same symbols the analyzer is looking for.
         test.TestState.AdditionalReferences.Add(typeof(global::Hex1b.Widgets.Hex1bWidget).Assembly);
 
+        // Set the test compilation's assembly name to "Hex1b.Tests" — already in Hex1b's
+        // [InternalsVisibleTo] list — so test inputs can override internal members on
+        // Hex1bWidget (e.g. ReconcileAsync) without CS0122/CS0507 noise.
+        test.SolutionTransforms.Add((solution, projectId) =>
+        {
+            var project = solution.GetProject(projectId)!;
+            return solution.WithProjectAssemblyName(projectId, "Hex1b.Tests");
+        });
+
         test.ExpectedDiagnostics.AddRange(expected);
 
         return test.RunAsync(CancellationToken.None);

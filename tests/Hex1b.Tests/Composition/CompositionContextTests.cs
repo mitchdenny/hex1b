@@ -1,5 +1,3 @@
-#pragma warning disable HEX1B_COMPOSITION // Experimental API
-
 using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Layout;
@@ -100,7 +98,7 @@ public class CompositionContextTests
 
     // --- Composite test fixtures ---
 
-    private sealed record InspectStateCompositeWidget : Hex1bCompositeWidget
+    private sealed record InspectStateCompositeWidget : Hex1bWidget
     {
         public static StateBox? LastSeenState { get; private set; }
 
@@ -113,7 +111,7 @@ public class CompositionContextTests
         internal sealed class StateBox { }
     }
 
-    private sealed record IsNewObservingCompositeWidget : Hex1bCompositeWidget
+    private sealed record IsNewObservingCompositeWidget : Hex1bWidget
     {
         public static bool LastIsNew { get; private set; }
 
@@ -129,7 +127,7 @@ public class CompositionContextTests
         public required string Value { get; init; }
     }
 
-    private sealed record UseFooCompositeWidget : Hex1bCompositeWidget
+    private sealed record UseFooCompositeWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {
@@ -138,7 +136,7 @@ public class CompositionContextTests
         }
     }
 
-    private sealed record RequireFooCompositeWidget : Hex1bCompositeWidget
+    private sealed record RequireFooCompositeWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {
@@ -147,7 +145,7 @@ public class CompositionContextTests
         }
     }
 
-    private sealed record ProvideFooCompositeWidget(string Value, Hex1bCompositeWidget? Inner = null) : Hex1bCompositeWidget
+    private sealed record ProvideFooCompositeWidget(string Value, Hex1bWidget? Inner = null) : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {

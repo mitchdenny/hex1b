@@ -24,7 +24,7 @@ Reusing a chunk of that tree is, at its core, just reusing some C# code that ret
 |---|---|
 | **Builder method** | One file, a snippet of UI you call in a few places. No state, no inputs of its own. |
 | **Extension method on `WidgetContext<>`** | A reusable visual that should feel like a built-in (`v.MyCard(...)`). |
-| **`Hex1bCompositeWidget`** | A reusable *control* with its own state, event handlers, ambient context, or rebindable input. |
+| **`Hex1bWidget` with `Build`** | A reusable *control* with its own state, event handlers, ambient context, or rebindable input. |
 
 Pick the smallest one that does the job. You can always graduate later.
 
@@ -110,15 +110,7 @@ Eventually you'll want a piece of UI that:
 - **Exposes a typed configuration surface** (so callers say `v.SearchBar(placeholder: "...").OnQuery(...)`).
 - **Coordinates other widgets** that share state (a date picker that internally has a header, a grid, and arrow buttons all reading the same selected date).
 
-That's what `Hex1bCompositeWidget` is for. You write a record that describes the widget's *inputs*, override `Build`, and the framework hands you a `CompositionContext` that exposes per-instance state and ambient values.
-
-::: warning Experimental
-The composite-widget API is currently gated behind the `HEX1B_COMPOSITION` experimental diagnostic. To use it, suppress the warning in your `.csproj`:
-```xml
-<NoWarn>$(NoWarn);HEX1B_COMPOSITION</NoWarn>
-```
-The shape of the API may change before it's marked stable.
-:::
+That's what the compositional path on `Hex1bWidget` is for. You write a record that describes the widget's *inputs*, override `Build`, and the framework hands you a `CompositionContext` that exposes per-instance state and ambient values. There's no separate base class — every widget can either author this way (override `Build`) or drop down to a custom `Hex1bNode` (override `ReconcileAsync` plus `GetExpectedNodeType`). Pick exactly one path; analyzer **HEX1B0010** flags widgets that try to do both.
 
 ### A minimal example
 
@@ -129,7 +121,7 @@ using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Widgets;
 
-public sealed record CounterWidget(string Label) : Hex1bCompositeWidget
+public sealed record CounterWidget(string Label) : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -250,7 +242,7 @@ using Hex1b.Input;
 using Hex1b.Widgets;
 
 public sealed record AppShellWidget(Action Invalidate, Action RequestStop)
-    : Hex1bCompositeWidget
+    : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -277,7 +269,7 @@ public sealed record AppShellWidget(Action Invalidate, Action RequestStop)
     }
 }
 
-public sealed record CounterDisplayWidget : Hex1bCompositeWidget
+public sealed record CounterDisplayWidget : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -286,7 +278,7 @@ public sealed record CounterDisplayWidget : Hex1bCompositeWidget
     }
 }
 
-public sealed record CounterStatusWidget : Hex1bCompositeWidget
+public sealed record CounterStatusWidget : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -369,7 +361,7 @@ using Hex1b.Input;
 using Hex1b.Widgets;
 
 public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
-    : Hex1bCompositeWidget
+    : Hex1bWidget
 {
     internal Func<string, Task>? SubmitHandler { get; init; }
 
@@ -557,7 +549,7 @@ static async Task LoadAsync(LoaderState state, CancellationToken ct)
 
 ```csharp
 public sealed record FormWidget(Func<FormResult, Task> OnSubmit, Hex1bWidget Body)
-    : Hex1bCompositeWidget
+    : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -567,7 +559,7 @@ public sealed record FormWidget(Func<FormResult, Task> OnSubmit, Hex1bWidget Bod
     }
 }
 
-public sealed record FormFieldWidget(string Name, string Label) : Hex1bCompositeWidget
+public sealed record FormFieldWidget(string Name, string Label) : Hex1bWidget
 {
     protected override Hex1bWidget Build(CompositionContext ctx)
     {
@@ -616,7 +608,7 @@ Any number of `FormField`s nested anywhere under a `Form` will pick up the same 
 - **State is per *node position*.** If you swap a composite at the same tree position for a *different composite type*, the framework disposes the old state and starts fresh. Same type → state preserved.
 - **`Build` runs every frame.** Keep it cheap. Heavy work belongs inside state objects that compute once and read on subsequent frames.
 - **No sibling visibility.** If two unrelated composites need to share state, hoist a common ancestor and `Provide` it. Don't try to look sideways.
-- **Experimental.** The composite-widget API may change; pin a version if you're relying on it in production.
+- **Pick one authoring path per widget.** Override `Build` *or* override `ReconcileAsync` + `GetExpectedNodeType`, never both — analyzer **HEX1B0010** flags the mistake. The `ReconcileAsync` override always wins at runtime, so a stray `Build` becomes silently dead code.
 
 ## Related reading
 

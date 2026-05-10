@@ -1,5 +1,3 @@
-#pragma warning disable HEX1B_COMPOSITION // Experimental API
-
 using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Layout;
@@ -8,7 +6,12 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests.Composition;
 
-public class Hex1bCompositeWidgetTests
+/// <summary>
+/// Tests for the default <see cref="Hex1bWidget.ReconcileAsync"/> pipeline that
+/// dispatches into <see cref="Hex1bWidget.Build(CompositionContext)"/>. Covers node
+/// recycling, state lifetime, and disposal across widget-type swaps.
+/// </summary>
+public class CompositeBuildPipelineTests
 {
     [Fact]
     public async Task Reconcile_NewComposite_BuildsChildAndStoresType()
@@ -81,17 +84,17 @@ public class Hex1bCompositeWidgetTests
 
     // --- Composite test fixtures ---
 
-    private sealed record TextOnlyCompositeWidget(string Message) : Hex1bCompositeWidget
+    private sealed record TextOnlyCompositeWidget(string Message) : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx) => ctx.Text(Message);
     }
 
-    private sealed record NullReturningCompositeWidget : Hex1bCompositeWidget
+    private sealed record NullReturningCompositeWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx) => null!;
     }
 
-    private sealed record StatefulCounterCompositeWidget : Hex1bCompositeWidget
+    private sealed record StatefulCounterCompositeWidget : Hex1bWidget
     {
         protected override Hex1bWidget Build(CompositionContext ctx)
         {
@@ -106,7 +109,7 @@ public class Hex1bCompositeWidgetTests
         }
     }
 
-    private sealed record DisposableSeedingCompositeWidget : Hex1bCompositeWidget
+    private sealed record DisposableSeedingCompositeWidget : Hex1bWidget
     {
         public static TrackingDisposable? NextSeed { get; set; }
 

@@ -7,9 +7,8 @@
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
     <!-- Suppress xUnit analyzer recommendations (not bugs):
          xUnit1031: blocking task operations
-         xUnit1051: CancellationToken usage
-         HEX1B_COMPOSITION: experimental composition API used by the widget under test -->
-    <NoWarn>xUnit1031;xUnit1051;HEX1B_COMPOSITION</NoWarn>
+         xUnit1051: CancellationToken usage -->
+    <NoWarn>xUnit1031;xUnit1051</NoWarn>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>

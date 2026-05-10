@@ -3,14 +3,15 @@ using Hex1b.Layout;
 namespace Hex1b.Nodes;
 
 /// <summary>
-/// The single node type that backs every <see cref="Composition.Hex1bCompositeWidget"/>.
-/// Acts as a layout-invisible identity anchor whose layout, arrangement, rendering, and
-/// focus are all delegated to its single built child.
+/// The single node type that backs every widget authored via the compositional path
+/// (overriding <see cref="Widgets.Hex1bWidget.Build"/>). Acts as a layout-invisible
+/// identity anchor whose layout, arrangement, rendering, and focus are all delegated to
+/// its single built child.
 /// </summary>
 /// <remarks>
 /// <para>
-/// All composite widgets reconcile into a <see cref="Hex1bCompositeNode"/> regardless of
-/// their concrete widget type. The node tracks which composite widget type produced it via
+/// All compositional widgets reconcile into a <see cref="Hex1bCompositeNode"/> regardless
+/// of their concrete widget type. The node tracks which widget type produced it via
 /// <see cref="CompositeWidgetType"/>; if that type changes between frames, the composite
 /// reconciler disposes prior state and starts fresh.
 /// </para>
@@ -20,21 +21,25 @@ namespace Hex1b.Nodes;
 /// published with <see cref="Composition.CompositionContext.Provide{T}(T)"/> are stored in a
 /// separate dictionary on this node and looked up by descendants walking the ancestor chain.
 /// </para>
+/// <para>
+/// This type is an implementation detail of the compositional path. Authors interact with
+/// it indirectly through <see cref="Composition.CompositionContext"/>.
+/// </para>
 /// </remarks>
-public sealed class Hex1bCompositeNode : Hex1bNode
+internal sealed class Hex1bCompositeNode : Hex1bNode
 {
     private readonly Dictionary<Type, object> _stateStore = new();
     private Dictionary<Type, object>? _provides;
 
     /// <summary>
-    /// The runtime <see cref="Type"/> of the composite widget that last reconciled this node.
-    /// Used to detect when an existing node is being repurposed by a different composite type
+    /// The runtime <see cref="Type"/> of the widget that last reconciled this node.
+    /// Used to detect when an existing node is being repurposed by a different widget type
     /// so that previously stored state can be safely disposed.
     /// </summary>
     internal Type? CompositeWidgetType { get; set; }
 
     /// <summary>
-    /// The single child node produced by the composite's <c>Build</c> method.
+    /// The single child node produced by the widget's <c>Build</c> method.
     /// </summary>
     public Hex1bNode? Child { get; set; }
 

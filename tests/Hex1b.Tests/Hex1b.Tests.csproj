@@ -8,7 +8,7 @@
     <!-- Suppress xUnit analyzer recommendations (not bugs):
          xUnit1031: blocking task operations
          xUnit1051: CancellationToken usage -->
-    <NoWarn>xUnit1031;xUnit1051;HEX1B_COMPOSITION</NoWarn>
+    <NoWarn>xUnit1031;xUnit1051</NoWarn>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
   </PropertyGroup>

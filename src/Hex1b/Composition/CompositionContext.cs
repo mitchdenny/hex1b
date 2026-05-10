@@ -1,19 +1,18 @@
-using System.Diagnostics.CodeAnalysis;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
 
 namespace Hex1b.Composition;
 
 /// <summary>
-/// The hooks-style context passed to <see cref="Hex1bCompositeWidget.Build"/>.
+/// The hooks-style context passed to <see cref="Hex1bWidget.Build(CompositionContext)"/>.
 /// Provides per-instance state storage and an ambient context API for sharing values
 /// between a composite and its descendants.
 /// </summary>
 /// <remarks>
 /// <para>
 /// A new <see cref="CompositionContext"/> is constructed on every reconciliation pass, but
-/// the underlying <see cref="Hex1bCompositeNode"/> persists, so calls to
-/// <see cref="UseState{T}(System.Func{T})"/> return the same instance across frames.
+/// the underlying composite node persists, so calls to <see cref="UseState{T}(System.Func{T})"/>
+/// return the same instance across frames.
 /// </para>
 /// <para>
 /// Every value published with <see cref="Provide{T}(T)"/> lives on the composite's own node;
@@ -26,8 +25,7 @@ namespace Hex1b.Composition;
 /// <c>ctx.Button(...)</c>, etc.) is available directly inside <c>Build</c>.
 /// </para>
 /// </remarks>
-[Experimental("HEX1B_COMPOSITION", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/composition.md")]
-public sealed class CompositionContext : WidgetContext<Hex1bCompositeWidget>
+public sealed class CompositionContext : WidgetContext<Hex1bWidget>
 {
     private readonly Hex1bCompositeNode _node;
     private readonly ReconcileContext _reconcileContext;
@@ -111,8 +109,9 @@ public sealed class CompositionContext : WidgetContext<Hex1bCompositeWidget>
         {
             throw new InvalidOperationException(
                 $"No ancestor composite has provided a value of type '{typeof(T).FullName}'. " +
-                $"Call Provide<{typeof(T).Name}>() in an ancestor Hex1bCompositeWidget.");
+                $"Call Provide<{typeof(T).Name}>() in an ancestor widget's Build method.");
         }
         return value;
     }
 }
+

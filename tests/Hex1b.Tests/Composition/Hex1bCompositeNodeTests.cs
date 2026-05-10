@@ -1,5 +1,3 @@
-#pragma warning disable HEX1B_COMPOSITION // Experimental API
-
 using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Layout;
