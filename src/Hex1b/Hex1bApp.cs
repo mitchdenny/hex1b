@@ -2144,8 +2144,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
         node.CachePredicate = widget.CachePredicate;
         
-        node.WidthHint = widget.WidthHint;
-        node.HeightHint = widget.HeightHint;
+        node.WidthHint = widget.WidthHint ?? widget.DefaultWidthHint;
+        node.HeightHint = widget.HeightHint ?? widget.DefaultHeightHint;
         
         // Schedule animation timer if widget has RedrawDelay (for root widget)
         var effectiveDelay = widget.GetEffectiveRedrawDelay();

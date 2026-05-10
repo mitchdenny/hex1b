@@ -66,6 +66,21 @@ public abstract record Hex1bWidget
     public SizeHint? HeightHint { get; init; }
 
     /// <summary>
+    /// Per-widget default for <see cref="WidthHint"/> when the user hasn't
+    /// explicitly set one. Returning a non-null value lets a widget opt into
+    /// "expand to fill" or any other sizing behavior without forcing every
+    /// caller to chain <c>.FillWidth()</c>. The user-supplied
+    /// <see cref="WidthHint"/> always wins over this default.
+    /// </summary>
+    protected internal virtual SizeHint? DefaultWidthHint => null;
+
+    /// <summary>
+    /// Per-widget default for <see cref="HeightHint"/>. See
+    /// <see cref="DefaultWidthHint"/> for the rationale.
+    /// </summary>
+    protected internal virtual SizeHint? DefaultHeightHint => null;
+
+    /// <summary>
     /// A user-assigned name for this widget used as a tag value in per-node metrics.
     /// When per-node metrics are enabled, this name becomes a segment in the hierarchical
     /// metric path (e.g., <c>root.sidebar.orders</c>). If null, an auto-generated name

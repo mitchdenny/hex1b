@@ -1437,7 +1437,11 @@ public sealed class TextBoxNode : Hex1bNode
             ? theme.Get(TextBoxTheme.FocusedFillBackgroundColor)
             : theme.Get(TextBoxTheme.FillBackgroundColor);
         var predictionFg = theme.Get(TextBoxTheme.PredictionForegroundColor);
-        var predictionBg = theme.Get(TextBoxTheme.PredictionBackgroundColor);
+        var predictionBgRaw = theme.Get(TextBoxTheme.PredictionBackgroundColor);
+        // Treat the Default sentinel as "follow the textbox fill background"
+        // so the suggestion blends into the input surface unless the user
+        // explicitly themed it to a contrasting color.
+        var predictionBg = predictionBgRaw.IsDefault ? fillBg : predictionBgRaw;
 
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
@@ -1554,8 +1558,10 @@ public sealed class TextBoxNode : Hex1bNode
                 return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
             }
 
-            // Line caret: render the text, then the prediction (if any), and
-            // let the native terminal cursor sit between them.
+            // Line caret: render the text, then the prediction (if any) on the
+            // resolved prediction background, and let the native terminal cursor
+            // sit between them. The caller normalizes a Default prediction
+            // background to fillBg so the suggestion blends with the field.
             var before = text[..cursor];
             var after = cursor < text.Length ? text[cursor..] : "";
 

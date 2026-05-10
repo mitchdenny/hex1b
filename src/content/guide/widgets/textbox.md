@@ -266,6 +266,30 @@ Try it yourself—navigate through the text with arrow keys, delete some emoji, 
 
 <CodeBlock lang="csharp" :code="unicodeCode" command="dotnet run" example="textbox-unicode" exampleTitle="TextBox Widget - Unicode Support" />
 
+## Sizing
+
+By default, `TextBoxWidget` reports a `Fill` width hint, so it expands to
+take up whatever horizontal space its parent makes available — input feels
+best on a wide editable surface. Override that default the same way you
+would for any other widget:
+
+```csharp
+ctx.HStack(h => [
+    h.Text("Name:"),
+    h.TextBox(state.Name),                       // fills the rest of the row
+]);
+
+ctx.HStack(h => [
+    h.Text("Code:"),
+    h.TextBox(state.Code).FixedWidth(8),         // hugs an 8-cell field
+    h.Text(" "),
+    h.TextBox(state.Notes).ContentWidth(),       // sizes to its current text
+]);
+```
+
+Multi-line textboxes still default to fill width; height defaults to
+content (one line per visual line) unless you call `.Height(lines)`.
+
 ## Theming
 
 Customize TextBox appearance using theme elements:
@@ -301,7 +325,7 @@ await terminal.RunAsync();
 | `SelectionForegroundColor` | `Hex1bColor` | Black | Selected text color |
 | `SelectionBackgroundColor` | `Hex1bColor` | Cyan | Selection background |
 | `PredictionForegroundColor` | `Hex1bColor` | DarkGray | Inline prediction text color |
-| `PredictionBackgroundColor` | `Hex1bColor` | Default | Inline prediction background color |
+| `PredictionBackgroundColor` | `Hex1bColor` | Default | Inline prediction background. `Default` follows the field fill color; set explicitly to draw the suggestion on a contrasting band. |
 
 ## Related Widgets
 

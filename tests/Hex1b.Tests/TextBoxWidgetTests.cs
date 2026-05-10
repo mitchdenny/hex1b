@@ -194,6 +194,63 @@ public class TextBoxStateHoistedTests
         Assert.True(ReadVersion(state) > v0);
     }
 
+    [Fact]
+    public void DefaultWidthHint_IsFill_SoTextBoxExpandsByDefault()
+    {
+        // The bare widget reports Fill so HStack/VStack hand it the remaining
+        // space without callers having to chain .FillWidth() on every textbox.
+        var widget = new TextBoxWidget("hello");
+        Assert.Null(widget.WidthHint);
+        Assert.Equal(Hex1b.Layout.SizeHint.Fill, widget.DefaultWidthHint);
+    }
+
+    [Fact]
+    public void ExplicitWidthHint_OverridesDefault()
+    {
+        // ContentWidth/FixedWidth/etc. set WidthHint, which always wins over
+        // the per-widget default.
+        var widget = new TextBoxWidget("hello").ContentWidth();
+        Assert.Equal(Hex1b.Layout.SizeHint.Content, widget.WidthHint);
+        Assert.Equal(Hex1b.Layout.SizeHint.Fill, widget.DefaultWidthHint);
+    }
+
+    [Fact]
+    public async Task Reconcile_PropagatesFillDefault_ToNode()
+    {
+        var context = ReconcileContext.CreateRoot();
+        context.IsNew = true;
+
+        var widget = new TextBoxWidget("hi");
+        var node = (TextBoxNode)await widget.ReconcileAsync(null, context);
+
+        // The widget's ReconcileAsync alone doesn't push the hint — that
+        // happens in Hex1bApp's central reconcile path. Simulate that step.
+        node.WidthHint = widget.WidthHint ?? widget.DefaultWidthHint;
+
+        Assert.Equal(Hex1b.Layout.SizeHint.Fill, node.WidthHint);
+    }
+
+    [Fact]
+    public void TextBoxInHStack_GetsRemainingWidth_ByDefault()
+    {
+        // Build an HStack with a fixed-width label and a bare TextBox; arrange
+        // the stack into a 40-cell rect and check the textbox got the leftover.
+        var label = new Hex1b.Widgets.TextBlockWidget("Name: ") { WidthHint = Hex1b.Layout.SizeHint.Fixed(6) };
+        var textbox = new TextBoxWidget("");
+        var hstack = new HStackNode
+        {
+            Children = new List<Hex1bNode>
+            {
+                new TextBlockNode { Text = "Name: ", WidthHint = label.WidthHint },
+                new TextBoxNode { WidthHint = textbox.DefaultWidthHint }
+            }
+        };
+
+        hstack.Arrange(new Hex1b.Layout.Rect(0, 0, 40, 1));
+
+        Assert.Equal(34, hstack.Children[1].Bounds.Width);
+    }
+
     private static long ReadVersion(TextBoxState state)
     {
         var prop = typeof(TextBoxState).GetProperty(

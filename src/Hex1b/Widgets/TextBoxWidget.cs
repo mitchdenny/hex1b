@@ -1,6 +1,7 @@
 using System.Threading;
 using Hex1b.Events;
 using Hex1b.Input;
+using Hex1b.Layout;
 using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
@@ -246,6 +247,14 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget,
     /// </remarks>
     public TextBoxWidget State(TextBoxState state)
         => this with { InjectedState = state };
+
+    /// <summary>
+    /// Text boxes default to filling their parent's available width — text
+    /// input feels best when the editable surface is wide rather than
+    /// hugging the content. Override with <c>.ContentWidth()</c>,
+    /// <c>.FixedWidth(n)</c>, or any explicit <c>WidthHint</c>.
+    /// </summary>
+    protected internal override SizeHint? DefaultWidthHint => SizeHint.Fill;
 
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {

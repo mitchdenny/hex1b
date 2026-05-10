@@ -50,17 +50,15 @@ public static class TextBoxTheme
     /// the right of the cursor. Defaults to <see cref="Hex1bColor.DarkGray"/>
     /// so the suggestion sits clearly behind the user's typed text.
     /// </summary>
-    /// <remarks>
-    /// Set this via <c>ThemePanelWidget</c> or directly on the application
-    /// theme to restyle predictions, e.g. with an italic/foreground color combo.
-    /// </remarks>
     public static readonly Hex1bThemeElement<Hex1bColor> PredictionForegroundColor =
         new($"{nameof(TextBoxTheme)}.{nameof(PredictionForegroundColor)}", () => Hex1bColor.DarkGray);
 
     /// <summary>
     /// Background color of the inline prediction text. Defaults to
-    /// <see cref="Hex1bColor.Default"/> so the prediction inherits the
-    /// textbox background fill.
+    /// <see cref="Hex1bColor.Default"/>, which the renderer treats as
+    /// "follow the textbox field fill background" so the suggestion blends
+    /// into the input surface. Set to any concrete color to draw the
+    /// prediction on a contrasting band instead.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> PredictionBackgroundColor =
         new($"{nameof(TextBoxTheme)}.{nameof(PredictionBackgroundColor)}", () => Hex1bColor.Default);
