@@ -14,22 +14,44 @@ namespace Hex1b.Widgets;
 /// - Replace: Swap the current screen without adding to history
 /// </summary>
 [Experimental("HEX1B001")]
-public sealed record NavigatorWidget(NavigatorState State) : Hex1bWidget
+public sealed record NavigatorWidget : Hex1bWidget,
+    IStatefulWidget<NavigatorWidget, NavigatorState>
 {
+    /// <summary>
+    /// The externally-owned <see cref="NavigatorState"/> this widget is bound to.
+    /// Set via the constructor or the fluent <see cref="State(NavigatorState)"/> method.
+    /// </summary>
+    internal NavigatorState BoundState { get; init; }
+
+    /// <summary>
+    /// Creates a navigator widget bound to the supplied <see cref="NavigatorState"/>.
+    /// </summary>
+    public NavigatorWidget(NavigatorState state)
+    {
+        BoundState = state;
+    }
+
+    /// <summary>
+    /// Returns a copy of the navigator bound to <paramref name="state"/>. Implements
+    /// <see cref="IStatefulWidget{TSelf, TState}"/> so the widget participates in
+    /// the framework-wide lifted-state convention.
+    /// </summary>
+    public NavigatorWidget State(NavigatorState state) => this with { BoundState = state };
+
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as NavigatorNode ?? new NavigatorNode();
-        node.State = State;
+        node.State = BoundState;
 
         // Detect if the route has changed
-        var newRouteId = State.CurrentRoute.Id;
+        var newRouteId = BoundState.CurrentRoute.Id;
         var routeChanged = node.CurrentRouteId != newRouteId;
         
         // Check if we have a pending focus restore (from a pop)
-        var pendingFocusRestore = State.PendingFocusRestore;
+        var pendingFocusRestore = BoundState.PendingFocusRestore;
         // Check if we need to save focus to a previous entry (from a push)
-        var entryToSaveFocusTo = State.EntryToSaveFocusTo;
-        State.ClearPendingFocusRestore();
+        var entryToSaveFocusTo = BoundState.EntryToSaveFocusTo;
+        BoundState.ClearPendingFocusRestore();
         
         node.CurrentRouteId = newRouteId;
 
@@ -69,7 +91,7 @@ public sealed record NavigatorWidget(NavigatorState State) : Hex1bWidget
         }
 
         // Build the current route's widget and reconcile it as the child
-        var currentWidget = State.BuildCurrentWidget();
+        var currentWidget = BoundState.BuildCurrentWidget();
         node.CurrentChild = await context.ReconcileChildAsync(node.CurrentChild, currentWidget, node);
 
         // Set focus based on whether we're returning from pop or navigating forward

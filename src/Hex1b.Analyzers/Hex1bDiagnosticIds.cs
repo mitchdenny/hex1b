@@ -16,6 +16,7 @@ internal static class Hex1bDiagnosticIds
     public const string WidgetInstanceReceiverName = "HEX1B0007";
     public const string WidgetBuilderCallbackName = "HEX1B0008";
     public const string WidgetMultipleBuilderCallbacks = "HEX1B0009";
+    public const string WidgetOverridesBuildAndReconcile = "HEX1B0010";
 
     /// <summary>
     /// Help link template. Diagnostic-specific suffix is appended.

@@ -30,6 +30,13 @@
 // "/picker" for a reply with a row of action buttons that append
 // follow-up entries when clicked.
 //
+// The bottom prompt is a SlashCommandPromptWidget — a composite widget
+// (no custom Hex1bNode!) that displays a floating completion list above
+// the textbox whenever the buffer starts with "/". Up/Down navigates
+// the list; Tab or Enter accepts the highlighted command and replaces
+// the buffer with "/<commandName> "; Escape clears the prompt and
+// dismisses the palette. See SlashCommandPromptWidget.cs.
+//
 // The OnCopy handler receives a SelectionPanelCopyEventArgs payload
 // — text plus geometry plus a per-node breakdown — so the InfoBar can
 // show how many entries were touched by the last copy and how many of
@@ -47,15 +54,30 @@ using Hex1b.Input;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
 
+using AgenticPromptDemo;
+
 var transcript = new List<TranscriptEntry>
 {
     new(EntryRole.System,
         "Type a message below and press Enter to add it to the transcript. " +
-        "Try \"/picker\" for a reply with action buttons. " +
+        "Type \"/\" to open the slash-command palette — Up/Down to navigate, " +
+        "Tab/Enter to accept a command, Esc to dismiss. Try \"/picker\" for a " +
+        "reply with action buttons. " +
         "Press F12 to enter copy mode: arrows or hjkl move the cursor, V/Shift+V/Alt+V " +
         "starts a character/line/block selection, Y / Enter / right-click copies into the editor on the " +
         "right, Esc cancels. Ctrl+Q quits."),
 };
+
+// Slash commands surfaced by the SlashCommandPromptWidget at the bottom of
+// the left pane. The composite handles all the palette UX; we just hand it
+// the catalog and an OnSubmit callback.
+SlashCommand[] SlashCommands =
+[
+    new("picker",          "Reply with action buttons that append follow-up entries"),
+    new("clear",           "Clear the transcript"),
+    new("help",            "Show what commands are available"),
+    new("washthedishes",   "Pretend to do the dishes"),
+];
 
 // Read-only editor on the right shows the most recent SelectionPanel copy
 // (or the text from a per-entry Copy button).
@@ -113,18 +135,8 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
                     left.Separator(),
 
-                    left.TextBox()
-                        .OnSubmit(e =>
-                        {
-                            var text = e.Text?.Trim();
-                            if (string.IsNullOrEmpty(text))
-                            {
-                                return;
-                            }
-
-                            HandleSubmittedText(text, transcript);
-                            e.Node.Text = "";
-                        }),
+                    left.SlashCommandPrompt(SlashCommands)
+                        .OnSubmit(text => HandleSubmittedText(text, transcript)),
                 ]),
 
                 // RIGHT — read-only editor for inspecting copied text on

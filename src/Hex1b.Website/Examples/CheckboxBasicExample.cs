@@ -38,7 +38,7 @@ public class CheckboxBasicExample(ILogger<CheckboxBasicExample> logger) : Hex1bE
             return ctx.VStack(v => [
                 v.Text("Terms and Conditions"),
                 v.Text(""),
-                v.Checkbox(state.AcceptTerms ? CheckboxState.Checked : CheckboxState.Unchecked)
+                v.Checkbox(state.AcceptTerms ? CheckboxValue.Checked : CheckboxValue.Unchecked)
                     .Label("I accept the terms")
                     .OnToggled(_ => state.AcceptTerms = !state.AcceptTerms),
                 v.Text(""),

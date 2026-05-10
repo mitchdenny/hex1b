@@ -4,7 +4,11 @@ using Hex1b.Widgets;
 namespace Hex1b.Events;
 
 /// <summary>
-/// Event arguments for when a checkbox is toggled.
+/// Event arguments for when a checkbox is toggled. The state transition is
+/// expressed as a pair of <see cref="CheckboxValue"/> values rather than as
+/// references to the underlying <see cref="CheckboxState"/> instance — toggles
+/// mutate the existing state in place, so the "previous" instance no longer
+/// exists by the time the event fires.
 /// </summary>
 public sealed class CheckboxToggledEventArgs
 {
@@ -24,27 +28,27 @@ public sealed class CheckboxToggledEventArgs
     public InputBindingActionContext Context { get; }
 
     /// <summary>
-    /// The previous state before toggling.
+    /// The previous value before toggling.
     /// </summary>
-    public CheckboxState PreviousState { get; }
+    public CheckboxValue PreviousValue { get; }
 
     /// <summary>
-    /// The new state after toggling.
+    /// The new value after toggling.
     /// </summary>
-    public CheckboxState NewState { get; }
+    public CheckboxValue NewValue { get; }
 
     internal CheckboxToggledEventArgs(
         CheckboxWidget widget,
         CheckboxNode node,
         InputBindingActionContext context,
-        CheckboxState previousState,
-        CheckboxState newState)
+        CheckboxValue previousValue,
+        CheckboxValue newValue)
     {
         Widget = widget;
         Node = node;
         Context = context;
-        PreviousState = previousState;
-        NewState = newState;
+        PreviousValue = previousValue;
+        NewValue = newValue;
     }
 
     internal CheckboxToggledEventArgs(
@@ -55,9 +59,11 @@ public sealed class CheckboxToggledEventArgs
         Widget = widget;
         Node = node;
         Context = context;
-        // node.State has already been toggled by CheckboxNode.Toggle(),
-        // so it represents the NEW state. Derive the previous state.
-        NewState = node.State;
-        PreviousState = node.State == CheckboxState.Checked ? CheckboxState.Unchecked : CheckboxState.Checked;
+        // node.State.Value has already been toggled by CheckboxNode.Toggle(),
+        // so it represents the NEW value. Derive the previous value.
+        NewValue = node.State.Value;
+        PreviousValue = node.State.Value == CheckboxValue.Checked
+            ? CheckboxValue.Unchecked
+            : CheckboxValue.Checked;
     }
 }

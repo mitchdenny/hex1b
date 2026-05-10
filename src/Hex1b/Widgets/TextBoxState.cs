@@ -3,12 +3,61 @@ using Hex1b.Input;
 namespace Hex1b.Widgets;
 
 /// <summary>
-/// Holds the mutable state for a TextBox. Internal implementation detail.
+/// Mutable state object for a <see cref="TextBoxWidget"/>. Owns the text buffer,
+/// the cursor position, the optional selection anchor, and the multiline / line
+/// limits configured through the widget.
 /// </summary>
-internal class TextBoxState
+/// <remarks>
+/// <para>
+/// A <see cref="TextBoxState"/> can be created and managed inside a composite via
+/// <see cref="Composition.CompositionContext.UseState{T}(System.Func{T})"/> and routed
+/// into a <see cref="TextBoxWidget"/> with
+/// <see cref="TextBoxWidget.State(TextBoxState)"/>. When state is supplied this way,
+/// the textbox becomes a pure view of the instance — the parent can mutate
+/// <see cref="Text"/> directly and the change is reflected on the next reconcile,
+/// without an <c>OnTextChanged</c> shadow-sync handler.
+/// </para>
+/// <para>
+/// When the parent does not supply a state instance, the framework allocates one
+/// per <see cref="TextBoxWidget"/> node automatically and seeds it from the
+/// widget's <see cref="TextBoxWidget.Text"/> constructor argument.
+/// </para>
+/// </remarks>
+public class TextBoxState
 {
     private string _text = "";
     private int _cursorPosition = 0;
+
+    /// <summary>
+    /// Monotonically-increasing counter that bumps every time the buffer or
+    /// cursor mutates. Used by <c>TextBoxNode</c> to detect out-of-band parent
+    /// mutations on hoisted state and re-render in response. Internal because
+    /// there is no scenario where a caller needs to read or reset it directly.
+    /// </summary>
+    internal long Version { get; private set; }
+
+    private void BumpVersion() => Version++;
+
+    /// <summary>
+    /// Creates an empty text box state with the cursor at offset zero.
+    /// </summary>
+    public TextBoxState()
+    {
+    }
+
+    /// <summary>
+    /// Creates a text box state seeded with <paramref name="initialText"/>. The
+    /// cursor is positioned at the end of the supplied text and there is no
+    /// active selection.
+    /// </summary>
+    /// <param name="initialText">The initial text to populate the buffer with.
+    /// A <c>null</c> value is treated as an empty string.</param>
+    public TextBoxState(string initialText)
+    {
+        _text = initialText ?? "";
+        _cursorPosition = _text.Length;
+        BumpVersion();
+    }
 
     /// <summary>
     /// When true, the text box operates in multi-line mode.
@@ -41,7 +90,12 @@ internal class TextBoxState
         get => _text;
         set
         {
-            _text = value ?? "";
+            var newValue = value ?? "";
+            if (_text == newValue)
+            {
+                return;
+            }
+            _text = newValue;
             // Clamp cursor position to valid range when text changes
             _cursorPosition = Math.Clamp(_cursorPosition, 0, _text.Length);
             // Also clamp selection anchor if it exists
@@ -49,13 +103,23 @@ internal class TextBoxState
             {
                 SelectionAnchor = Math.Clamp(SelectionAnchor.Value, 0, _text.Length);
             }
+            BumpVersion();
         }
     }
 
     public int CursorPosition
     {
         get => _cursorPosition;
-        set => _cursorPosition = Math.Clamp(value, 0, _text.Length);
+        set
+        {
+            var clamped = Math.Clamp(value, 0, _text.Length);
+            if (_cursorPosition == clamped)
+            {
+                return;
+            }
+            _cursorPosition = clamped;
+            BumpVersion();
+        }
     }
     
     /// <summary>

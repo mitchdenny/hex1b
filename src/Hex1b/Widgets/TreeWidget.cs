@@ -264,16 +264,16 @@ public sealed record TreeWidget(IReadOnlyList<TreeItemWidget> Items) : Hex1bWidg
             if (IsMultiSelect)
             {
                 // Always use cascade selection state
-                var checkboxState = node.ComputeSelectionState() switch
+                var checkboxValue = node.ComputeSelectionState() switch
                 {
-                    TreeSelectionState.Selected => CheckboxState.Checked,
-                    TreeSelectionState.Indeterminate => CheckboxState.Indeterminate,
-                    _ => CheckboxState.Unchecked
+                    TreeSelectionState.Selected => CheckboxValue.Checked,
+                    TreeSelectionState.Indeterminate => CheckboxValue.Indeterminate,
+                    _ => CheckboxValue.Unchecked
                 };
                 
                 // Capture node for closure
                 var capturedNode = node;
-                var checkboxWidget = new CheckboxWidget(checkboxState)
+                var checkboxWidget = new CheckboxWidget(checkboxValue)
                     .OnToggled(async args =>
                     {
                         // Update tree focus to this item

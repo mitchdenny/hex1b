@@ -53,29 +53,29 @@ public class CheckboxNodeTests
     [Fact]
     public async Task Widget_Reconcile_CreatesNode()
     {
-        var widget = new CheckboxWidget(CheckboxState.Checked);
+        var widget = new CheckboxWidget(CheckboxValue.Checked);
 
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
 
         Assert.NotNull(node);
-        Assert.Equal(CheckboxState.Checked, node.State);
+        Assert.Equal(CheckboxValue.Checked, node.State.Value);
     }
 
     [Fact]
     public async Task Widget_Reconcile_UpdatesState()
     {
-        var widget1 = new CheckboxWidget(CheckboxState.Unchecked);
-        var widget2 = new CheckboxWidget(CheckboxState.Checked);
+        var widget1 = new CheckboxWidget(CheckboxValue.Unchecked);
+        var widget2 = new CheckboxWidget(CheckboxValue.Checked);
 
         var context = ReconcileContext.CreateRoot();
         var node = await widget1.ReconcileAsync(null, context) as CheckboxNode;
-        Assert.Equal(CheckboxState.Unchecked, node!.State);
+        Assert.Equal(CheckboxValue.Unchecked, node!.State.Value);
 
         node.ClearDirty();
         await widget2.ReconcileAsync(node, context);
 
-        Assert.Equal(CheckboxState.Checked, node.State);
+        Assert.Equal(CheckboxValue.Checked, node.State.Value);
         Assert.True(node.IsDirty);
     }
 
@@ -97,7 +97,7 @@ public class CheckboxNodeTests
             .Checked()
             .Label("Option 1");
 
-        Assert.Equal(CheckboxState.Checked, widget.State);
+        Assert.Equal(CheckboxValue.Checked, widget.Value);
         Assert.Equal("Option 1", widget.LabelText);
     }
 
@@ -106,6 +106,41 @@ public class CheckboxNodeTests
     {
         var widget = new CheckboxWidget().Indeterminate();
 
-        Assert.Equal(CheckboxState.Indeterminate, widget.State);
+        Assert.Equal(CheckboxValue.Indeterminate, widget.Value);
+    }
+
+    [Fact]
+    public async Task Widget_HoistedState_RoutesParentInstanceIntoNode()
+    {
+        // When the parent supplies a CheckboxState via .State(...), the node
+        // adopts that exact instance — mutations are visible to the parent.
+        var parentState = new CheckboxState(CheckboxValue.Checked);
+        var widget = new CheckboxWidget().State(parentState);
+
+        var context = ReconcileContext.CreateRoot();
+        var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
+
+        Assert.Same(parentState, node!.State);
+        Assert.Equal(CheckboxValue.Checked, parentState.Value);
+    }
+
+    [Fact]
+    public async Task Widget_HoistedState_TogglePropagatesToParent()
+    {
+        // The framework's Toggle() mutates State.Value in place — so when a
+        // composite has lifted the state up via UseState, the parent's instance
+        // observes the toggle without any OnToggled handler.
+        var parentState = new CheckboxState(CheckboxValue.Unchecked);
+        var widget = new CheckboxWidget().State(parentState);
+
+        var context = ReconcileContext.CreateRoot();
+        var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
+
+        // Simulate a toggle by mutating in-place the way Toggle() does.
+        node!.State.Value = node.State.Value == CheckboxValue.Checked
+            ? CheckboxValue.Unchecked
+            : CheckboxValue.Checked;
+
+        Assert.Equal(CheckboxValue.Checked, parentState.Value);
     }
 }

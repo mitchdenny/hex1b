@@ -4,7 +4,8 @@ using Hex1b.Nodes;
 
 namespace Hex1b.Widgets;
 
-public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
+public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget,
+    IStatefulWidget<TextBoxWidget, TextBoxState>
 {
     /// <summary>Rebindable action: Move cursor left.</summary>
     public static readonly ActionId MoveLeft = new($"{nameof(TextBoxWidget)}.{nameof(MoveLeft)}");
@@ -172,40 +173,106 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
     public TextBoxWidget Height(int lines)
         => this with { HeightValue = lines };
 
+    /// <summary>
+    /// Externally-supplied state instance. When set, the textbox becomes a
+    /// pure view of <see cref="InjectedState"/> — the framework routes this
+    /// exact instance into the underlying node on every reconcile, so the
+    /// parent can mutate <c>state.Text</c> (and friends) directly and the
+    /// change is reflected without any <see cref="OnTextChanged(System.Action{Events.TextChangedEventArgs})"/>
+    /// shadow-sync handler. Pair with
+    /// <see cref="Composition.CompositionContext.UseState{T}(System.Func{T})"/>
+    /// inside a composite parent.
+    /// </summary>
+    internal TextBoxState? InjectedState { get; init; }
+
+    /// <summary>
+    /// Returns a copy of the textbox bound to the supplied <paramref name="state"/>
+    /// instance. The textbox becomes a pure view of <paramref name="state"/>:
+    /// every reconcile assigns this exact instance to the underlying node, and
+    /// the framework no longer drift-detects against the constructor
+    /// <see cref="Text"/> argument.
+    /// </summary>
+    /// <remarks>
+    /// Supplying both a non-null constructor <see cref="Text"/> argument and
+    /// <c>State(...)</c> is a programming error and will throw
+    /// <see cref="System.InvalidOperationException"/> at reconcile time. Pick
+    /// one source of truth.
+    /// </remarks>
+    public TextBoxWidget State(TextBoxState state)
+        => this with { InjectedState = state };
+
     internal override Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as TextBoxNode ?? new TextBoxNode();
-        
+
         // Store reference to source widget for event args
         node.SourceWidget = this;
-        
-        // Set the text from the widget only if:
-        // 1. This is a new node and Text is provided
-        // 2. The widget's text changed from what it provided last time (external control)
-        if (context.IsNew && Text != null)
+
+        if (InjectedState is not null)
         {
-            var oldText = node.Text;
-            node.Text = Text;
-            node.LastWidgetText = Text;
-            if (oldText != node.Text)
+            // Hoisted-state path: the parent owns the TextBoxState instance and
+            // is the single source of truth. We just route the instance into
+            // the node on every reconcile and never drift-detect against a
+            // constructor Text — that combination would be ambiguous and is
+            // disallowed below.
+            if (Text != null)
             {
-                node.State.ClearSelection();
-                node.State.CursorPosition = node.Text.Length;
+                throw new InvalidOperationException(
+                    $"{nameof(TextBoxWidget)} cannot be constructed with both a Text " +
+                    $"argument and {nameof(State)}(...). Pick one source of truth: " +
+                    $"either pass an initial Text and let the framework manage the " +
+                    $"state, or pass a TextBoxState owned by the parent (typically " +
+                    $"via UseState&lt;TextBoxState&gt;()).");
+            }
+
+            node.State = InjectedState;
+            // LastWidgetText is irrelevant in this mode; clear it so a future
+            // switch back to the framework-managed mode doesn't see stale data.
+            node.LastWidgetText = null;
+
+            // The hoisted TextBoxState mutates outside the framework's dirty
+            // tracking — e.g. when a composite's Build sets state.Text = ... or
+            // when an OnSubmit handler clears the buffer. The state bumps an
+            // internal Version on every such mutation; we mark the node dirty
+            // when the version advances so the new value reaches the screen on
+            // the next render.
+            if (InjectedState.Version != node.LastSeenStateVersion)
+            {
+                node.LastSeenStateVersion = InjectedState.Version;
+                node.MarkDirty();
             }
         }
-        else if (!context.IsNew && Text != null && Text != node.LastWidgetText)
+        else
         {
-            // External code changed the text value in the widget - update node
-            var oldText = node.Text;
-            node.Text = Text;
-            node.LastWidgetText = Text;
-            if (oldText != node.Text)
+            // Framework-managed path: the node owns its TextBoxState. Seed on
+            // first reconcile, and observe a changed widget Text on subsequent
+            // reconciles so callers that rebuild the widget with a fresh Text
+            // (e.g. a redux-style render) still see the new value.
+            if (context.IsNew && Text != null)
             {
-                node.State.ClearSelection();
-                node.State.CursorPosition = node.Text.Length;
+                var oldText = node.Text;
+                node.Text = Text;
+                node.LastWidgetText = Text;
+                if (oldText != node.Text)
+                {
+                    node.State.ClearSelection();
+                    node.State.CursorPosition = node.Text.Length;
+                }
+            }
+            else if (!context.IsNew && Text != null && Text != node.LastWidgetText)
+            {
+                // External code changed the text value in the widget - update node.
+                var oldText = node.Text;
+                node.Text = Text;
+                node.LastWidgetText = Text;
+                if (oldText != node.Text)
+                {
+                    node.State.ClearSelection();
+                    node.State.CursorPosition = node.Text.Length;
+                }
             }
         }
-        
+
         // Set up event handlers - wrap to convert InputBindingActionContext to typed event args
         if (TextChangedHandler != null)
         {
@@ -247,7 +314,7 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget
         node.MaxLines = MaxLinesValue;
         node.State.IsMultiline = IsMultilineValue;
         node.State.MaxLines = MaxLinesValue;
-        
+
         return Task.FromResult<Hex1bNode>(node);
     }
 

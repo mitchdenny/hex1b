@@ -121,6 +121,41 @@ new TableWidget(columns, rows, selectedIndex, onSelectionChanged, sortColumn, so
 
 **Guideline**: Only include the most essential arguments in the constructor. Make usage "bleeding obvious." Use extension methods to splice in extra behavior.
 
+### Stateful Widgets: Lift-State-Up via `IStatefulWidget<TSelf, TState>`
+
+When a widget owns non-trivial **mutable user-facing state** (a textbox's buffer + cursor, an editor's document, a navigator's selection, a checkbox's checked value), expose that state to callers so composites can drive the widget from outside.
+
+The framework-wide contract is `IStatefulWidget<TSelf, TState>`:
+
+```csharp
+public sealed record TextBoxWidget(...)
+    : Hex1bWidget, IStatefulWidget<TextBoxWidget, TextBoxState>
+{
+    internal TextBoxState? InjectedState { get; init; }
+    public TextBoxWidget State(TextBoxState state) => this with { InjectedState = state };
+}
+```
+
+Callers then own the state via `ctx.UseState(...)` and bind it:
+
+```csharp
+var state = ctx.UseState(() => new TextBoxState());
+return ctx.TextBox().State(state);
+```
+
+**When to apply**:
+- ✅ Mutable state that a parent might read or write (buffer text, selection, history).
+- ✅ Multi-instance widgets that need independent state (two textboxes, two editors) — wrap in a single state class with explicit fields, no keyed `UseState` needed.
+- ❌ Pure visual/transient state (focus, hover, animation phase) — keep that internal to the node.
+
+**Rules**:
+- The state type must be a **class** (`where TState : class`) so external mutations are observed.
+- Reference equality matters — `.State(s)` must route the *same instance* into the node every reconcile.
+- If a widget supports both a ctor-arg "initial value" and `.State(...)`, conflicting use must throw `InvalidOperationException` on reconcile (no precedence rules to memorise).
+- Method name is `State(...)` — the analyzer (HEX1B0001) forbids `With*` on widget extension methods.
+
+See `TextBoxWidget`/`TextBoxState`, `EditorWidget`/`EditorState`, `NavigatorWidget`/`NavigatorState`, `CheckboxWidget`/`CheckboxState` for the canonical patterns.
+
 ### Options Types for Complex Configuration
 
 When you start creating many overloads, use an options type:

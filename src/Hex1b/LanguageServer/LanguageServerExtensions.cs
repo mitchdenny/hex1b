@@ -84,7 +84,7 @@ public static class LanguageServerExtensions
         this EditorWidget widget,
         Hex1bDocumentWorkspace workspace)
     {
-        var provider = workspace.GetDecorationProvider(widget.State.Document);
+        var provider = workspace.GetDecorationProvider(widget.BoundState.Document);
         return provider != null ? widget.Decorations(provider) : widget;
     }
 }

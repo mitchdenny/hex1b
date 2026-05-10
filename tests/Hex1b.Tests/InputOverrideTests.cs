@@ -148,7 +148,7 @@ public class InputOverrideTests
         // Multiple Override<T> calls on the same InputOverrideWidget should all be present.
         var overrideWidget = new InputOverrideWidget(new VStackWidget([
             new ListWidget(["A"]),
-            new CheckboxWidget(CheckboxState.Unchecked)
+            new CheckboxWidget(CheckboxValue.Unchecked)
         ]))
         .Override<ListWidget>(b => b.Remove(ListWidget.MoveUp))
         .Override<CheckboxWidget>(b => b.Remove(CheckboxWidget.ToggleActionId));
