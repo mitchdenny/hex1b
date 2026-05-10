@@ -749,10 +749,10 @@ public sealed class TreeNode : Hex1bNode
             // Add checkbox from composed node
             if (node.CheckboxNode != null)
             {
-                line.Append(node.CheckboxNode.State switch
+                line.Append(node.CheckboxNode.State.Value switch
                 {
-                    CheckboxState.Checked => checkboxChecked,
-                    CheckboxState.Indeterminate => checkboxIndeterminate,
+                    CheckboxValue.Checked => checkboxChecked,
+                    CheckboxValue.Indeterminate => checkboxIndeterminate,
                     _ => checkboxUnchecked
                 });
             }

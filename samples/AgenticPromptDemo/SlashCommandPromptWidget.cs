@@ -9,16 +9,27 @@
 //     needs).
 //   - Up/Down arrows navigate the list; mouse hover over a row also moves
 //     the selection. While the palette is open the textbox shows a /<cmd>
-//     PREVIEW of the highlighted match — the user's typed text is preserved
+//     PREVIEW of the highlighted match — the user's typed prefix is preserved
 //     internally and is only replaced when they actively confirm.
 //   - Tab, Enter or a left-click on a row CONFIRM the highlighted command,
 //     baking it into the buffer as "/<commandName> " with the cursor after
 //     the trailing space (ready for arguments).
 //   - Typing or backspacing while a preview is showing edits the user's
-//     underlying typed text (we diff against the rendered preview, not
-//     against the typed text), so the visible filter behaves naturally.
+//     underlying typed prefix (we diff against the rendered preview, not
+//     against the typed prefix), so the visible filter behaves naturally.
 //   - Escape dismisses the palette by clearing the current input.
 //   - When the palette is closed, Enter submits as normal and fires OnSubmit.
+//
+// Implementation note — state lifting:
+//   The textbox is bound to a hoisted TextBoxState owned by this composite via
+//   CompositionContext.UseState. Build is the single source of truth for what
+//   appears in the textbox: it overwrites state.TextBox.Text on every render
+//   to either the typed prefix (palette closed) or a preview of the
+//   highlighted match (palette open). User keystrokes flow through
+//   OnTextChanged, which diffs the change against the previously-rendered
+//   text and applies the same delta to state.TypedPrefix. There is no
+//   "controlled-mode" flag — hoisted state IS the framework-wide pattern
+//   for this kind of preview/confirm UI.
 //
 // Implementation note — why the palette is in flow rather than a Float:
 //   We originally tried to anchor a FloatWidget above the TextBox with
@@ -62,9 +73,9 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
     {
         var state = ctx.UseState(() => new PromptState());
 
-        // Filter commands against the user's typed text (NOT against whatever
+        // Filter commands against the user's typed prefix (NOT against whatever
         // preview is currently rendered).
-        var matches = ComputeMatches(state.TypedText, Commands);
+        var matches = ComputeMatches(state.TypedPrefix, Commands);
         var paletteVisible = matches.Count > 0;
 
         if (paletteVisible)
@@ -78,22 +89,39 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
 
         // Compute what the textbox should show. While the palette is open we
         // show a "/<command>" preview of the highlighted match; otherwise we
-        // show the user's literal typed text. The preview is a hint only —
-        // it is not committed to TypedText until the user confirms via
-        // Enter/Tab/click.
+        // show the user's literal typed prefix.
         var displayText = paletteVisible
             ? "/" + matches[state.SelectedIndex].Name
-            : state.TypedText;
+            : state.TypedPrefix;
 
-        // Track what the textbox is rendering so OnTextChanged can compute
-        // the user's intent as a diff against the visible content (rather
-        // than against TypedText, which the preview may have overridden).
-        state.LastRendered = displayText;
+        // Drive the textbox via its hoisted TextBoxState. Build owns the
+        // displayed text — we overwrite Text on every render to keep preview
+        // / typed-prefix in sync. The textbox itself is now a pure view.
+        //
+        // Whenever Build OVERWRITES the buffer, push the cursor to the end of
+        // the new contents. This is correct for every overwrite scenario:
+        //
+        //   - Palette open with a new preview: cursor sits at the end of the
+        //     preview so further keystrokes append (and HandleUserEdit can
+        //     interpret them as suffix-add against the rendered preview).
+        //   - Palette closed because the user just confirmed: cursor sits at
+        //     the end of "/cmd " so the user types arguments.
+        //   - Palette closed because the user submitted (Text=""): cursor at 0.
+        //
+        // When the user is editing TypedPrefix mid-string, Build does NOT
+        // enter this branch — state.TextBox.Text already equals displayText
+        // (because OnTextChanged updated TypedPrefix to match what the user
+        // just typed), so we leave the cursor alone.
+        if (state.TextBox.Text != displayText)
+        {
+            state.TextBox.Text = displayText;
+            state.TextBox.CursorPosition = displayText.Length;
+        }
 
         return ctx.VStack(v =>
         {
-            var textbox = v.TextBox(displayText)
-                .Controlled()
+            var textbox = v.TextBox()
+                .State(state.TextBox)
                 .OnTextChanged(e => HandleUserEdit(state, e.OldText, e.NewText))
                 .OnSubmit(e =>
                 {
@@ -104,7 +132,8 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
                     }
 
                     SubmitHandler?.Invoke(text);
-                    state.TypedText = "";
+                    state.TypedPrefix = "";
+                    state.TextBox.Text = "";
                 });
 
             // Capture navigation / accept / dismiss only while the palette is open.
@@ -136,7 +165,8 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
 
                     b.Key(Hex1bKey.Escape).Action(_ =>
                     {
-                        state.TypedText = "";
+                        state.TypedPrefix = "";
+                        state.TextBox.Text = "";
                     }, "Dismiss palette");
                 });
 
@@ -154,56 +184,60 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
         });
     }
 
-    // Translate a user edit on the visible text into an edit on TypedText.
+    // Translate a user edit on the visible text into an edit on TypedPrefix.
     //
     // While the palette is open the textbox shows a /<cmd> PREVIEW. We don't
     // want a keystroke to commit the preview wholesale (the user just wants
     // to keep editing their actual prefix); but we also can't trust e.NewText
     // verbatim because the OS-level change is from "preview" to
-    // "preview ± edit", not from "TypedText" to "TypedText ± edit".
+    // "preview ± edit", not from "TypedPrefix" to "TypedPrefix ± edit".
     //
-    // So we compute the diff between OldText (= what was on screen, i.e. the
-    // preview, captured in state.LastRendered) and NewText, and apply the
-    // SAME diff to TypedText:
-    //   - suffix added → append to TypedText
-    //   - suffix removed → trim same number of trailing chars from TypedText
+    // So we compute the diff between OldText (= what was on screen before
+    // the edit, i.e. the preview) and NewText (= what's there now), and
+    // apply the SAME diff to TypedPrefix:
+    //   - suffix added → append to TypedPrefix
+    //   - suffix removed → trim same number of trailing chars from TypedPrefix
     //   - other (paste, midline edit, etc.) → fall back to NewText verbatim
+    //
+    // Note: when the palette is closed, OldText == TypedPrefix, so the diff
+    // collapses to "TypedPrefix ± edit" naturally. The same code path works
+    // for both modes.
     private static void HandleUserEdit(PromptState state, string oldText, string newText)
     {
         // Pure suffix-add: NewText starts with OldText and is longer.
         if (newText.Length > oldText.Length && newText.StartsWith(oldText, StringComparison.Ordinal))
         {
             var suffix = newText[oldText.Length..];
-            state.TypedText += suffix;
+            state.TypedPrefix += suffix;
             return;
         }
 
         // Pure suffix-remove (e.g. backspace at end): OldText starts with
         // NewText and is longer. Strip the same number of trailing chars
-        // from TypedText, clamped to >= 0.
+        // from TypedPrefix, clamped to >= 0.
         if (oldText.Length > newText.Length && oldText.StartsWith(newText, StringComparison.Ordinal))
         {
             var removed = oldText.Length - newText.Length;
-            var keep = Math.Max(0, state.TypedText.Length - removed);
-            state.TypedText = state.TypedText[..keep];
+            var keep = Math.Max(0, state.TypedPrefix.Length - removed);
+            state.TypedPrefix = state.TypedPrefix[..keep];
             return;
         }
 
         // Anything else (paste, midline edit, full replace) — give up on the
         // diff and adopt whatever the textbox now contains as the new typed
-        // text. This is the safe fallback even if the palette was hiding a
+        // prefix. This is the safe fallback even if the palette was hiding a
         // preview, because the user's edit was big enough that they almost
         // certainly meant to overwrite.
-        state.TypedText = newText;
+        state.TypedPrefix = newText;
     }
 
-    // Bake the highlighted command into TypedText with a trailing space.
+    // Bake the highlighted command into TypedPrefix with a trailing space.
     // The trailing space causes ComputeMatches to return no hits on the next
     // build, which closes the palette and leaves the cursor positioned after
     // "/cmd " ready for arguments.
     private static void Confirm(PromptState state, IReadOnlyList<SlashCommand> matches)
     {
-        state.TypedText = "/" + matches[state.SelectedIndex].Name + " ";
+        state.TypedPrefix = "/" + matches[state.SelectedIndex].Name + " ";
     }
 
     // The visible prompt row: a chevron prefix on the left and the textbox
@@ -294,23 +328,26 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
 
     private sealed class PromptState
     {
+        // Hoisted TextBoxState — this composite owns the textbox's mutable
+        // state (text, cursor, selection). Build mutates Text on every render
+        // to either the typed prefix (palette closed) or a preview of the
+        // highlighted match (palette open). The textbox is bound to this
+        // exact instance via TextBox().State(state.TextBox), so no
+        // OnTextChanged shadow-sync or "controlled-mode" flag is needed to
+        // keep the displayed text consistent with our intent.
+        public TextBoxState TextBox { get; } = new();
+
         // The literal characters the user has typed. This is the source of
         // truth for filter matching and for what gets submitted on Enter
         // when there are no matches. While the palette is open the textbox
         // may be displaying a /<command> PREVIEW that does not match this
         // value — that's the preview/confirm separation: previews are not
         // committed until the user actively confirms (Enter / Tab / click).
-        public string TypedText = "";
+        public string TypedPrefix = "";
 
         // Highlighted row in the palette. Updated by Up/Down keys AND by
         // mouse hover on a palette row. Clamped after match recompute.
         public int SelectedIndex;
-
-        // The text the textbox is currently rendering — could be a preview
-        // (palette open) or the typed text (palette closed). Captured each
-        // render so HandleUserEdit can diff "what was visible" against
-        // "what's there now" to figure out what the user actually did.
-        public string LastRendered = "";
     }
 }
 

@@ -9,8 +9,24 @@ namespace Hex1b.Widgets;
 /// <summary>
 /// Widget for multi-line document editing. Supports shared documents and synced cursors.
 /// </summary>
-public sealed record EditorWidget(EditorState State) : Hex1bWidget
+public sealed record EditorWidget : Hex1bWidget,
+    IStatefulWidget<EditorWidget, EditorState>
 {
+    /// <summary>
+    /// The externally-owned <see cref="EditorState"/> this widget is bound to.
+    /// Set via the constructor or the fluent <see cref="State(EditorState)"/> method.
+    /// The framework routes this exact instance into the underlying node on every
+    /// reconcile, making the widget a pure view of the state.
+    /// </summary>
+    internal EditorState BoundState { get; init; }
+
+    /// <summary>
+    /// Creates an editor widget bound to the supplied <see cref="EditorState"/>.
+    /// </summary>
+    public EditorWidget(EditorState state)
+    {
+        BoundState = state;
+    }
     // ── Navigation ──────────────────────────────────────────
     /// <summary>Rebindable action: Move cursor left.</summary>
     public static readonly ActionId MoveLeft = new($"{nameof(EditorWidget)}.{nameof(MoveLeft)}");
@@ -166,6 +182,15 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
         => this with { TextChangedHandler = handler };
 
     /// <summary>
+    /// Returns a copy of the editor bound to <paramref name="state"/>. Implements
+    /// <see cref="IStatefulWidget{TSelf, TState}"/> so the widget participates in
+    /// the framework-wide lifted-state convention. The editor already takes its
+    /// state as a constructor argument; this fluent overload lets callers swap
+    /// it in via <c>ctx.Editor(initial).State(s)</c>-style chaining.
+    /// </summary>
+    public EditorWidget State(EditorState state) => this with { BoundState = state };
+
+    /// <summary>
     /// Sets the view renderer for this editor. Use <see cref="TextEditorViewRenderer"/> for text
     /// or <see cref="HexEditorViewRenderer"/> for hex dump views.
     /// </summary>
@@ -221,7 +246,7 @@ public sealed record EditorWidget(EditorState State) : Hex1bWidget
         var node = existingNode as EditorNode ?? new EditorNode();
 
         node.SourceWidget = this;
-        node.State = State;
+        node.State = BoundState;
 
         node.ViewRenderer = Renderer ?? TextEditorViewRenderer.Instance;
         node.ShowLineNumbers = ShowLineNumbersValue;

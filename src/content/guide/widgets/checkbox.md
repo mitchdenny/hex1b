@@ -2,13 +2,13 @@
 const basicCode = `using Hex1b;
 using Hex1b.Widgets;
 
-var state = new CheckboxState();
+var state = new TermsState();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Terms and Conditions"),
         v.Text(""),
-        v.Checkbox(state.AcceptTerms ? CheckboxState.Checked : CheckboxState.Unchecked)
+        v.Checkbox(state.AcceptTerms ? CheckboxValue.Checked : CheckboxValue.Unchecked)
             .Label("I accept the terms")
             .OnToggled(e => state.AcceptTerms = !state.AcceptTerms),
         v.Text(""),
@@ -19,7 +19,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 
 await terminal.RunAsync();
 
-class CheckboxState
+class TermsState
 {
     public bool AcceptTerms { get; set; }
 }`

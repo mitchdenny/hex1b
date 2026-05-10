@@ -171,6 +171,8 @@ Nodes are **mutable** classes that hold render state and perform actual renderin
 - Override `IsFocusable` if the widget can receive focus
 - Override `ConfigureDefaultBindings()` for keyboard/mouse handling
 
+> **Lift state up when mutable state would benefit composites.** If your widget owns non-trivial mutable state that a parent might want to read, write, or coordinate with — buffer text, selection index, navigation history, checked value — promote that state to a public class and have your widget implement `IStatefulWidget<TSelf, TState>` so callers can pass an external instance via `.State(...)`. See `TextBoxWidget` / `TextBoxState`, `EditorWidget` / `EditorState`, `NavigatorWidget` / `NavigatorState`, `CheckboxWidget` / `CheckboxState` for the canonical pattern. The composition guide has a worked example. Pure visual state (focus, hover, animation phase) stays internal to the node — only mutable *user-facing data* needs lifting.
+
 **Template**:
 
 ```csharp

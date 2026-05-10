@@ -339,6 +339,73 @@ You can find this exact program under `samples/CompositionDemo` in the repo.
 - **Shadowing works.** A nested composite that provides the same `T` shadows the outer value for *its* subtree only.
 - **`Require<T>()` is the strict variant.** Use it when you've made an ancestor a hard prerequisite — you'll get a clear `InvalidOperationException` if someone places the consumer outside the right subtree.
 
+## Lifting widget state
+
+Some widgets ship with their own mutable state — the textbox owns its buffer and cursor; the editor owns a document model; the navigator owns selection and breadcrumb history; the checkbox owns its checked value. By default that state is private to the node and the widget is a one-shot configuration: you describe what it should look like initially, and the user drives it from there.
+
+For most apps that's all you need. But composites that build a *coordinated* control out of those primitives — a typeahead box, a preview/confirm picker, a slash-command prompt — usually need the parent to drive the inner widget. The pattern is the same as React's "lift state up": the parent allocates the state object once, hands it to the inner widget, and the widget becomes a pure view of that state.
+
+Hex1b spells this contract as `IStatefulWidget<TSelf, TState>`:
+
+```csharp
+public interface IStatefulWidget<TSelf, TState>
+    where TSelf : Hex1bWidget, IStatefulWidget<TSelf, TState>
+    where TState : class
+{
+    TSelf State(TState state);
+}
+```
+
+Every widget that supports external state implements it and exposes a fluent `State(...)` method. Today: `TextBoxWidget` / `TextBoxState`, `EditorWidget` / `EditorState`, `NavigatorWidget` / `NavigatorState`, `CheckboxWidget` / `CheckboxState`.
+
+The pattern is two lines from a composite:
+
+```csharp
+protected override Hex1bWidget Build(CompositionContext ctx)
+{
+    var state = ctx.UseState(() => new TextBoxState());   // own it
+    return ctx.TextBox().State(state);                    // bind it
+}
+```
+
+`UseState` allocates the state once on the first frame and reuses the same instance forever after; `.State(state)` routes that exact instance into the textbox's node every reconcile. There is no shadow string, no `OnTextChanged` syncing, no "controlled mode" flag — `state.Text` is the textbox's buffer.
+
+### What this gets you
+
+- **Out-of-band writes are observed.** You can mutate `state.Text = "/help "` from a button click, an input binding, a scheduled task, anywhere — the textbox renders the new value on the next frame and the cursor lands at the right place.
+- **One source of truth.** Filter logic, validation, autosave, undo stacks — they all read from the same `state` object the widget reads from. You can't drift.
+- **Two textboxes? One state class.** Wrap the peers in a single object and route each one explicitly:
+
+  ```csharp
+  sealed class CredsState
+  {
+      public TextBoxState Username = new();
+      public TextBoxState Password = new();
+  }
+
+  var creds = ctx.UseState(() => new CredsState());
+  return ctx.VStack(v => [
+      v.TextBox().State(creds.Username),
+      v.TextBox().State(creds.Password),
+  ]);
+  ```
+
+  Each textbox gets its own state instance; mutations to one don't affect the other.
+
+### Conflicts fail fast
+
+If you supply both a `Text` ctor argument *and* a hoisted state, the framework throws `InvalidOperationException` on reconcile. There's no precedence rule to memorise — pick one.
+
+```csharp
+new TextBoxWidget("hello").State(state);   // throws on reconcile
+```
+
+Use the ctor for "set the initial text once" (the framework owns it after that); use `.State(...)` for "I'm holding the state object externally". They are different programming models.
+
+### The slash-command example below uses this
+
+The slash-command prompt in the next section is the canonical worked example. It owns a `TextBoxState`, overwrites its `Text` on every render to either the typed prefix or a preview of the highlighted command, and has no shadow state at all.
+
 ## A real-world example: a slash-command prompt
 
 The counter examples above show the mechanics, but composites really shine when you bundle up a non-trivial *interactive control*. Here's one straight from `samples/AgenticPromptDemo`: a textbox that pops up a completion list whenever the buffer starts with `/`.
@@ -346,18 +413,20 @@ The counter examples above show the mechanics, but composites really shine when 
 What it does:
 
 - Buffer starts with `/` → a bordered list of matching commands appears immediately above the textbox (it grows the prompt's vertical footprint by however many rows the list needs, pushing the transcript above it up by the same amount).
-- **Up / Down** highlight rows in the list.
-- **Tab / Enter** accepts the highlighted row, replacing the buffer with `"/<commandName> "` and parking the cursor after the space.
+- **Up / Down** highlight rows in the list. **Mouse hover** does the same. As you move through the list, the textbox previews the highlighted command in-place — but it's a *preview*, not a commit.
+- **Tab / Enter / left-click** confirm the highlighted row, baking it into the buffer as `"/<commandName> "` with the cursor parked after the trailing space (ready for arguments).
 - **Escape** clears the buffer and dismisses the list.
 - Typing past the command name (e.g. `/picker hello`) closes the palette automatically — you're now writing arguments.
 - When the palette is closed, **Enter** submits the text the normal way and fires `OnSubmit`.
+- If the user types `/` followed by characters that match nothing (e.g. `/xyz`), the palette stays empty and **Enter** submits the literal text just like any other input.
 
-All of that lives in a single composite — no custom node, no manual focus tricks. Here's the whole thing:
+All of that lives in a single composite — no custom node, no manual focus tricks, no shadow state. The textbox itself is bound to a hoisted `TextBoxState` owned by the composite, so `Build` is the single source of truth for what appears in the buffer:
 
 ```csharp
 using Hex1b;
 using Hex1b.Composition;
 using Hex1b.Input;
+using Hex1b.Theming;
 using Hex1b.Widgets;
 
 public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Commands)
@@ -372,8 +441,8 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
     {
         var state = ctx.UseState(() => new PromptState());
 
-        // Compute palette state from the current buffer.
-        var matches = ComputeMatches(state.CurrentText, Commands);
+        // Filter against the user's TYPED prefix (not against any preview).
+        var matches = ComputeMatches(state.TypedPrefix, Commands);
         var paletteVisible = matches.Count > 0;
 
         if (paletteVisible)
@@ -381,31 +450,39 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
         else
             state.SelectedIndex = 0;
 
-        // Pop and consume any pending text we want to push INTO the textbox.
-        // In steady state we pass `null` so the textbox owns its own text +
-        // cursor; we only override when WE want to overwrite (Accept/Escape).
-        var pendingOverride = state.PendingTextOverride;
-        state.PendingTextOverride = null;
+        // Decide what to display: a preview of the highlighted command while
+        // the palette is open, otherwise the literal typed prefix.
+        var displayText = paletteVisible
+            ? "/" + matches[state.SelectedIndex].Name
+            : state.TypedPrefix;
+
+        // Single source of truth: overwrite the hoisted TextBoxState's buffer
+        // every frame, and park the cursor at the end whenever Build replaces
+        // the contents (so subsequent typing appends).
+        if (state.TextBox.Text != displayText)
+        {
+            state.TextBox.Text = displayText;
+            state.TextBox.CursorPosition = displayText.Length;
+        }
 
         return ctx.VStack(v =>
         {
-            var textbox = (pendingOverride is not null
-                    ? v.TextBox(pendingOverride)
-                    : v.TextBox())
-                .OnTextChanged(e => state.CurrentText = e.NewText)
+            var textbox = v.TextBox()
+                .State(state.TextBox)
+                .OnTextChanged(e => HandleUserEdit(state, e.OldText, e.NewText))
                 .OnSubmit(e =>
                 {
                     var text = e.Text?.Trim();
                     if (string.IsNullOrEmpty(text)) return;
 
                     SubmitHandler?.Invoke(text);
-                    state.CurrentText = "";
-                    state.PendingTextOverride = "";
+                    state.TypedPrefix = "";
+                    state.TextBox.Text = "";
                 });
 
             if (paletteVisible)
             {
-                var snapshot = matches;  // capture for handlers
+                var snapshot = matches;
                 textbox = textbox.InputBindings(b =>
                 {
                     b.Key(Hex1bKey.UpArrow).Action(_ =>
@@ -418,54 +495,101 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
                         if (state.SelectedIndex < snapshot.Count - 1) state.SelectedIndex++;
                     }, "Next command");
 
-                    void Accept(InputBindingActionContext _)
-                    {
-                        var completion = "/" + snapshot[state.SelectedIndex].Name + " ";
-                        state.CurrentText = completion;
-                        state.PendingTextOverride = completion;
-                    }
+                    void Confirm(InputBindingActionContext _)
+                        => state.TypedPrefix = "/" + snapshot[state.SelectedIndex].Name + " ";
 
-                    // Override Enter so it accepts instead of submitting while open.
-                    b.Key(Hex1bKey.Tab).Action(Accept, "Accept");
-                    b.Key(Hex1bKey.Enter).Action(Accept, "Accept");
+                    b.Key(Hex1bKey.Tab).Action(Confirm, "Accept");
+                    b.Key(Hex1bKey.Enter).Action(Confirm, "Accept");
 
                     b.Key(Hex1bKey.Escape).Action(_ =>
                     {
-                        state.CurrentText = "";
-                        state.PendingTextOverride = "";
+                        state.TypedPrefix = "";
+                        state.TextBox.Text = "";
                     }, "Dismiss");
                 });
 
                 return [
-                    BuildPalette(v, snapshot, state.SelectedIndex),
-                    textbox,
+                    BuildPalette(v, snapshot, state),
+                    BuildPromptRow(v, textbox),
+                    v.Separator(),
                 ];
             }
 
-            return [textbox];
+            return [
+                BuildPromptRow(v, textbox),
+                v.Separator(),
+            ];
         });
+    }
+
+    // Translate a user edit on the visible text into an edit on TypedPrefix.
+    // While the palette is open the textbox shows a /<cmd> preview; when the
+    // user types or backspaces, we diff against the rendered text and apply
+    // the SAME delta to TypedPrefix. When the palette is closed the rendered
+    // text already IS TypedPrefix, so the diff collapses naturally.
+    static void HandleUserEdit(PromptState state, string oldText, string newText)
+    {
+        if (newText.Length > oldText.Length && newText.StartsWith(oldText, StringComparison.Ordinal))
+        {
+            state.TypedPrefix += newText[oldText.Length..];
+            return;
+        }
+
+        if (oldText.Length > newText.Length && oldText.StartsWith(newText, StringComparison.Ordinal))
+        {
+            var removed = oldText.Length - newText.Length;
+            state.TypedPrefix = state.TypedPrefix[..Math.Max(0, state.TypedPrefix.Length - removed)];
+            return;
+        }
+
+        // Paste / midline edit — just adopt whatever the textbox now contains.
+        state.TypedPrefix = newText;
     }
 
     static IReadOnlyList<SlashCommand> ComputeMatches(string text, IReadOnlyList<SlashCommand> commands)
     {
         if (string.IsNullOrEmpty(text) || text[0] != '/') return Array.Empty<SlashCommand>();
-
         var query = text.AsSpan(1);
         if (query.IndexOf(' ') >= 0) return Array.Empty<SlashCommand>();
-
         var q = query.ToString();
         return commands.Where(c => c.Name.StartsWith(q, StringComparison.OrdinalIgnoreCase)).ToList();
     }
 
-    static Hex1bWidget BuildPalette(WidgetContext<VStackWidget> ctx, IReadOnlyList<SlashCommand> matches, int selected)
-        => ctx.Border(b => matches
-            .Select((cmd, i) => (Hex1bWidget)b.Text((i == selected ? " ❯ " : "   ") + "/" + cmd.Name + "    " + cmd.Description))
-            .ToArray()).Title("Commands");
+    static Hex1bWidget BuildPromptRow(WidgetContext<VStackWidget> ctx, TextBoxWidget textbox)
+        => ctx.HStack(h => [
+            h.Text(" > "),
+            ctx.ThemePanel(t => t.Set(TextBoxTheme.UseFillMode, true), textbox).FillWidth(),
+        ]);
+
+    static Hex1bWidget BuildPalette(
+        WidgetContext<VStackWidget> ctx,
+        IReadOnlyList<SlashCommand> matches,
+        PromptState state)
+    {
+        // Each row is interactable so the mouse can drive both selection
+        // (hover updates SelectedIndex → preview updates) and confirmation
+        // (click bakes in the command, just like Enter).
+        var rows = matches.Select((cmd, i) => (Hex1bWidget)ctx.Interactable(ic =>
+                ic.Text((i == state.SelectedIndex ? " ❯ " : "   ") + "/" + cmd.Name + "    " + cmd.Description))
+            .OnHoverChanged(args => { if (args.IsHovered) state.SelectedIndex = i; })
+            .OnClick(_ => state.TypedPrefix = "/" + matches[state.SelectedIndex].Name + " "))
+            .ToArray();
+
+        return ctx.Border(b => rows).Title("Commands");
+    }
 
     sealed class PromptState
     {
-        public string CurrentText = "";
-        public string? PendingTextOverride;
+        // The hoisted TextBoxState — Build mutates Text every frame to
+        // either the typed prefix (palette closed) or a preview of the
+        // highlighted match (palette open). The textbox is a pure view.
+        public TextBoxState TextBox { get; } = new();
+
+        // The user's literal characters. This is what filters the palette
+        // and what gets submitted on Enter when there are no matches.
+        public string TypedPrefix = "";
+
+        // Palette highlight, driven by Up/Down keys AND mouse hover.
         public int SelectedIndex;
     }
 }
@@ -488,7 +612,6 @@ Call site is just one line:
 ctx.VStack(v => [
     /* ...transcript and other widgets... */
 
-    v.Separator(),
     v.SlashCommandPrompt(commands)
         .OnSubmit(text => HandleSubmittedText(text)),
 ])
@@ -498,11 +621,11 @@ ctx.VStack(v => [
 
 A few things in this composite illustrate the patterns from earlier in the guide:
 
-- **State is one small object**, allocated once with `UseState`. `CurrentText`, `SelectedIndex`, and a `PendingTextOverride` flag is all the bookkeeping needed.
+- **State lifting in action.** The composite owns a `TextBoxState` via `UseState` and binds it into the textbox with `.State(...)`. There is no shadow `string TypedText` field paired with a `Controlled()` flag — the textbox literally renders `state.TextBox.Text` because they're the same buffer. The composite's `Build` is the only thing that ever overwrites it.
+- **Preview ≠ commit.** `state.TypedPrefix` is the user's literal input — it filters the palette and is what `OnSubmit` sees. `state.TextBox.Text` may temporarily show a `/<cmd>` preview for the highlighted match, but that preview is never *baked into* `TypedPrefix` until the user actively confirms (Enter, Tab, or click). Mouse hover moves the selection but doesn't commit; the next render just shows a different preview.
 - **No custom node.** A traditional implementation would reach for an `Hex1bNode` subclass that owned the textbox and the popup list as children, with manual layout, focus shuffling, and ancestor-walking to coordinate them. The composite version doesn't.
 - **Conditional input capture.** Up/Down/Tab/Esc/Enter are only attached *while the palette is open*. When the palette is closed (no slash, or the user has typed past the command), those bindings simply don't exist that frame, so Enter falls through to the textbox's default Submit and Up/Down do nothing on the single-line textbox. This avoids needing any "if open" check inside handlers and keeps the input model honest.
-- **Controlled-text via override flag.** The textbox normally owns its own text and cursor (we pass no `Text` argument). When the composite needs to *push* a value in (after Accept or Escape), it parks the new string in `PendingTextOverride`, which is consumed on the very next `Build` and then nulled. This lets us reuse `TextBoxWidget`'s built-in "if widget Text differs from last frame, replace text and move cursor to end" behaviour without losing control of the cursor on every keystroke.
-- **Palette is in flow, not a `Float`.** When the palette is visible the composite returns `[palette, textbox]` instead of `[textbox]`, so the composite simply *grows* by the height of the palette and the textbox slides down with it. Whatever sits above the prompt in the parent layout (e.g. a `VScrollPanel` filling the rest of the column) gets pushed up by the same amount. We tried `Float`-anchoring the palette above the textbox first, but a composite that's only one row tall (the textbox) renders into a one-row child surface during compositing, and a float arranged outside those bounds gets clipped. Putting the palette in flow side-steps the issue entirely — and is what real terminal apps like Claude Code do.
+- **Palette is in flow, not a `Float`.** When the palette is visible the composite returns `[palette, prompt-row, separator]` instead of `[prompt-row, separator]`, so the composite simply *grows* by the height of the palette and the prompt slides down with it. Whatever sits above the prompt in the parent layout (e.g. a `VScrollPanel` filling the rest of the column) gets pushed up by the same amount. We tried `Float`-anchoring the palette above the textbox first, but a composite that's only one row tall (the textbox) renders into a one-row child surface during compositing, and a float arranged outside those bounds gets clipped. Putting the palette in flow side-steps the issue entirely — and is what real terminal apps like Claude Code do.
 - **Fluent extension method.** `SlashCommandPromptExtensions` keeps callers on the standard `v.SlashCommandPrompt(...)` surface — no `new SlashCommandPromptWidget(...)` at the call site.
 
 Run it with `dotnet run --project samples/AgenticPromptDemo`, then type `/` to see the palette.

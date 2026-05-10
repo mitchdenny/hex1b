@@ -318,7 +318,7 @@ internal sealed class CliViewerApp
         // space around the centred terminal grid.
         var content = new BackgroundPanelWidget(PanelColor, ctx.VStack(v => [body, info]));
 
-        return content.WithInputBindings(bindings =>
+        return content.InputBindings(bindings =>
         {
             // Detach: works in any mode.
             bindings.Ctrl().Key(Hex1bKey.B).Then().Key(Hex1bKey.D)

@@ -70,7 +70,7 @@ internal static class AgentInitCommand
                 [
                     v.Text("Select agents to configure:"),
                     .. detected.Select(agent =>
-                        (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxState.Checked : CheckboxState.Unchecked)
+                        (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxValue.Checked : CheckboxValue.Unchecked)
                             .Label(agent.Name)
                             .OnToggled(e =>
                             {

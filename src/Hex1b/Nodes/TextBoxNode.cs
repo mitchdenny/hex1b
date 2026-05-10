@@ -23,6 +23,16 @@ public sealed class TextBoxNode : Hex1bNode
     /// Used to detect when external code changes the text vs internal user input.
     /// </summary>
     internal string? LastWidgetText { get; set; }
+
+    /// <summary>
+    /// Tracks the last <see cref="TextBoxState.Version"/> seen by reconcile when
+    /// the node is bound to an externally-owned (hoisted) state instance. When
+    /// the parent mutates <see cref="TextBoxState.Text"/> or <c>CursorPosition</c>
+    /// directly (e.g. inside a composite's <c>Build</c>), the state's version
+    /// counter advances; reconcile compares it against this field and marks the
+    /// node dirty so the change is visible on the next render.
+    /// </summary>
+    internal long LastSeenStateVersion { get; set; }
     
     /// <summary>
     /// Gets or sets the text content. Convenience property that accesses State.Text.

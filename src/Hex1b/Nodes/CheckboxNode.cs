@@ -11,9 +11,21 @@ namespace Hex1b;
 public sealed class CheckboxNode : Hex1bNode
 {
     /// <summary>
-    /// The current state of the checkbox.
+    /// The current state of the checkbox. The instance can either be owned by
+    /// the framework (when no <see cref="CheckboxWidget.State(CheckboxState)"/> was
+    /// supplied) or by a composite parent (when it was). Either way, toggle
+    /// gestures mutate <see cref="CheckboxState.Value"/> in place so external
+    /// observers see the change immediately.
     /// </summary>
-    public CheckboxState State { get; set; }
+    public CheckboxState State { get; set; } = new();
+
+    /// <summary>
+    /// Tracks the last value supplied via the widget's
+    /// <see cref="CheckboxWidget.Value"/> constructor argument. Used by
+    /// reconcile to drift-detect the framework-managed path. <c>null</c> while
+    /// the widget is in hoisted-state mode.
+    /// </summary>
+    internal CheckboxValue? LastWidgetValue { get; set; }
 
     /// <summary>
     /// Optional label displayed after the checkbox.
@@ -70,9 +82,13 @@ public sealed class CheckboxNode : Hex1bNode
 
     private async Task Toggle(InputBindingActionContext ctx)
     {
-        var previousState = State;
-        // Toggle: Checked -> Unchecked, anything else -> Checked
-        State = State == CheckboxState.Checked ? CheckboxState.Unchecked : CheckboxState.Checked;
+        // Toggle: Checked -> Unchecked, anything else -> Checked. We mutate the
+        // existing State instance's Value so a parent that lifted the state via
+        // CheckboxWidget.State(...) observes the change immediately, without
+        // needing an OnToggled handler to shadow-sync.
+        State.Value = State.Value == CheckboxValue.Checked
+            ? CheckboxValue.Unchecked
+            : CheckboxValue.Checked;
         MarkDirty();
 
         if (ToggledCallback != null)
@@ -96,10 +112,10 @@ public sealed class CheckboxNode : Hex1bNode
     /// </summary>
     public int GetCheckboxWidth(Hex1bTheme theme)
     {
-        var boxText = State switch
+        var boxText = State.Value switch
         {
-            CheckboxState.Checked => theme.Get(CheckboxTheme.CheckedBox),
-            CheckboxState.Indeterminate => theme.Get(CheckboxTheme.IndeterminateBox),
+            CheckboxValue.Checked => theme.Get(CheckboxTheme.CheckedBox),
+            CheckboxValue.Indeterminate => theme.Get(CheckboxTheme.IndeterminateBox),
             _ => theme.Get(CheckboxTheme.UncheckedBox)
         };
         return DisplayWidth.GetStringWidth(boxText);
@@ -131,10 +147,10 @@ public sealed class CheckboxNode : Hex1bNode
             : theme.Get(CheckboxTheme.BackgroundColor);
 
         // Select box text based on state
-        var boxText = State switch
+        var boxText = State.Value switch
         {
-            CheckboxState.Checked => checkedBox,
-            CheckboxState.Indeterminate => indeterminateBox,
+            CheckboxValue.Checked => checkedBox,
+            CheckboxValue.Indeterminate => indeterminateBox,
             _ => uncheckedBox
         };
 
