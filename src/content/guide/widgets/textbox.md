@@ -276,8 +276,7 @@ var theme = Hex1bTheme.Create()
     .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.Yellow)
     .Set(TextBoxTheme.SelectionForegroundColor, Hex1bColor.White)
     .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.Blue)
-    .Set(TextBoxTheme.LeftBracket, "< ")
-    .Set(TextBoxTheme.RightBracket, " >");
+    .Set(TextBoxTheme.PredictionForegroundColor, Hex1bColor.DarkGray);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
@@ -301,10 +300,8 @@ await terminal.RunAsync();
 | `CursorBackgroundColor` | `Hex1bColor` | White | Cursor background color |
 | `SelectionForegroundColor` | `Hex1bColor` | Black | Selected text color |
 | `SelectionBackgroundColor` | `Hex1bColor` | Cyan | Selection background |
-| `HoverCursorForegroundColor` | `Hex1bColor` | Default | Hover cursor text color |
-| `HoverCursorBackgroundColor` | `Hex1bColor` | DarkGray | Hover cursor background |
-| `LeftBracket` | `string` | `"["` | Left bracket decoration |
-| `RightBracket` | `string` | `"]"` | Right bracket decoration |
+| `PredictionForegroundColor` | `Hex1bColor` | DarkGray | Inline prediction text color |
+| `PredictionBackgroundColor` | `Hex1bColor` | Default | Inline prediction background color |
 
 ## Related Widgets
 

@@ -204,10 +204,10 @@ public class SlashCommandIntegrationTests
                         .Select((cmd, i) => (Hex1bWidget)b.Text(
                             (i == state.SelectedIndex ? " > " : "   ") + "/" + cmd.Name + "  " + cmd.Description))
                         .ToArray()).Title("Commands");
-                    return [palette, v.ThemePanel(t => t.Set(Theming.TextBoxTheme.UseFillMode, true), tb)];
+                    return [palette, tb];
                 }
 
-                return [v.ThemePanel(t => t.Set(Theming.TextBoxTheme.UseFillMode, true), tb)];
+                return [tb];
             });
         }
     }

@@ -250,14 +250,13 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
             StyleTextBox(h, textbox).FillWidth(),
         ]);
 
-    // Wrap the textbox in a ThemePanel that switches it into "fill mode" — no
-    // [ / ] brackets, with a shaded background that brightens on focus. This is
-    // the same trick FormTextFieldWidget uses to get a chunky form-style input.
-    // Generic over the parent context type so the same helper works whether
-    // we're sitting in a VStack or an HStack.
+    // The textbox already renders with the form-style fill background by
+    // default, so this helper is just a passthrough kept for parity with the
+    // older bracket-mode API. Generic over the parent context type so the
+    // same helper works whether we're sitting in a VStack or an HStack.
     private static Hex1bWidget StyleTextBox<TParent>(WidgetContext<TParent> context, TextBoxWidget textbox)
         where TParent : Hex1bWidget
-        => context.ThemePanel(t => t.Set(TextBoxTheme.UseFillMode, true), textbox);
+        => textbox;
 
     private static IReadOnlyList<SlashCommand> ComputeMatches(
         string text,

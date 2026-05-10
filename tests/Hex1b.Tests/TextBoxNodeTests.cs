@@ -20,8 +20,8 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[hello]" = 2 brackets + 5 chars = 7
-        Assert.Equal(7, size.Width);
+        // Bracketless inline render: "hello" = 5 chars
+        Assert.Equal(5, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -32,8 +32,8 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[ ]" = 2 brackets + 1 min char = 3
-        Assert.Equal(3, size.Width);
+        // Empty text still measures 1 so the cursor cell is visible.
+        Assert.Equal(1, size.Width);
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // 30 chars + 2 brackets = 32
-        Assert.Equal(32, size.Width);
+        // 30 chars
+        Assert.Equal(30, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -66,8 +66,8 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[😀]" = 2 brackets + 2 display width for emoji = 4
-        Assert.Equal(4, size.Width);
+        // 2 display width for emoji
+        Assert.Equal(2, size.Width);
     }
 
     [Fact]
@@ -78,8 +78,8 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[中文]" = 2 brackets + 4 display width = 6
-        Assert.Equal(6, size.Width);
+        // 4 display width
+        Assert.Equal(4, size.Width);
     }
 
     [Fact]
@@ -90,8 +90,7 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[Hi😀]" = 2 brackets + 4 display width = 6
-        Assert.Equal(6, size.Width);
+        Assert.Equal(4, size.Width);
     }
 
     [Fact]
@@ -102,8 +101,7 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[👨‍👩‍👧]" = 2 brackets + 2 display width = 4
-        Assert.Equal(4, size.Width);
+        Assert.Equal(2, size.Width);
     }
 
     #endregion
@@ -124,14 +122,16 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        
+
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[test]"), TimeSpan.FromSeconds(5), "bracketed text visible")
+            .WaitUntil(s => s.ContainsText("test"), TimeSpan.FromSeconds(5), "text visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[test]", snapshot.GetLineTrimmed(0));
+        Assert.Contains("test", snapshot.GetLineTrimmed(0));
+        // No bookend brackets in the new inline rendering.
+        Assert.DoesNotContain("[test]", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -148,14 +148,16 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        
+
+        // With no brackets, an empty unfocused textbox renders as a single
+        // background-filled cell (the measured min width).
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[]"), TimeSpan.FromSeconds(5), "empty brackets visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[]", snapshot.GetLineTrimmed(0));
+        Assert.DoesNotContain("[", snapshot.GetLineTrimmed(0));
+        Assert.DoesNotContain("]", snapshot.GetLineTrimmed(0));
     }
 
     [Fact]
@@ -172,14 +174,14 @@ public class TextBoxNodeTests
         };
 
         node.Render(context);
-        
+
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[This is a longer piece of text]"), TimeSpan.FromSeconds(5), "long text visible")
+            .WaitUntil(s => s.ContainsText("This is a longer piece of text"), TimeSpan.FromSeconds(5), "long text visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Contains("[This is a longer piece of text]", snapshot.GetLineTrimmed(0));
+        Assert.Contains("This is a longer piece of text", snapshot.GetLineTrimmed(0));
     }
 
     #endregion
@@ -288,17 +290,17 @@ public class TextBoxNodeTests
         node.State.CursorPosition = 0;
 
         node.Render(context);
-        
-        // Wait for brackets to appear and capture snapshot atomically
+
+        // No bookend brackets in the new inline rendering — empty focused
+        // textbox is just a single background-filled cell with the native
+        // cursor positioned at column 0.
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]"), TimeSpan.FromSeconds(5), "brackets visible")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        
-        // Line caret: brackets visible, native cursor positioned between them
-        Assert.Contains("[", snapshot.GetLineTrimmed(0));
-        Assert.Contains("]", snapshot.GetLineTrimmed(0));
+
+        Assert.DoesNotContain("[", snapshot.GetLineTrimmed(0));
+        Assert.DoesNotContain("]", snapshot.GetLineTrimmed(0));
         Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret in empty text box");
     }
 
@@ -702,12 +704,13 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=3, which is "ll" in "[hello]" (0='[', 1='h', 2='e', 3='l')
+        // Bracketless inline rendering: localX maps directly to a column in
+        // the visible text. localX=3 is the 4th cell ('l' at position 3).
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(2, node.State.CursorPosition); // Position after 'he' (click on 'l')
+        Assert.Equal(3, node.State.CursorPosition);
     }
 
     [Fact]
@@ -717,12 +720,12 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=1, which is 'h' in "[hello]" (0='[', 1='h')
-        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
-        var result = node.HandleMouseClick(1, 0, mouseEvent);
+        // localX=0 is the very first cell ('h') — cursor lands before it.
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
+        var result = node.HandleMouseClick(0, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.State.CursorPosition); // Click on first char positions at start
+        Assert.Equal(0, node.State.CursorPosition);
     }
 
     [Fact]
@@ -732,22 +735,23 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=6, which is ']' in "[hello]" (past the text)
+        // Click past the end of the text — cursor clamps to the end of "hello".
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 6, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(6, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(5, node.State.CursorPosition); // End of "hello"
+        Assert.Equal(5, node.State.CursorPosition);
     }
 
     [Fact]
     public async Task HandleMouseClick_OnBracket_PositionsCursorAtStart()
     {
+        // Brackets are gone — this test now just confirms clicking at column 0
+        // positions the cursor at the start, same as HandleMouseClick_AtStart.
         var node = new TextBoxNode { Text = "hello" };
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=0, which is '[' in "[hello]"
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
 
@@ -808,14 +812,14 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=3 which is after the emoji (column 1-2), on 'a' (column 3)
-        // "[😀ab]" - localX: 0='[', 1-2='😀', 3='a', 4='b', 5=']'
+        // Bracketless layout: localX 0-1 = emoji, 2 = 'a', 3 = 'b'.
+        // Click at localX=3 lands on 'b'; cursor lands before 'b' (string
+        // index 3, since the emoji occupies 2 chars).
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
-        // After emoji (which is 2 chars in string), before 'a'
-        Assert.Equal(2, node.State.CursorPosition);
+        Assert.Equal(3, node.State.CursorPosition);
     }
 
     [Fact]
@@ -826,14 +830,14 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        // Click at localX=1 (first half of emoji) "[😀]"
-        var mouseEvent1 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
-        node.HandleMouseClick(1, 0, mouseEvent1);
+        // Click at localX=0 (first half of emoji)
+        var mouseEvent1 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
+        node.HandleMouseClick(0, 0, mouseEvent1);
         Assert.Equal(0, node.State.CursorPosition); // Before emoji
 
-        // Click at localX=2 (second half of emoji)
-        var mouseEvent2 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 2, 0, Hex1bModifiers.None, ClickCount: 1);
-        node.HandleMouseClick(2, 0, mouseEvent2);
+        // Click at localX=1 (second half of emoji) — past the midpoint
+        var mouseEvent2 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
+        node.HandleMouseClick(1, 0, mouseEvent2);
         Assert.Equal(2, node.State.CursorPosition); // After emoji (emoji is 2 chars in string)
     }
 
@@ -1635,7 +1639,7 @@ public class TextBoxNodeTests
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("pqrst"), TimeSpan.FromSeconds(5))
             .Key(Hex1bKey.Home)
-            .WaitUntil(s => s.ContainsText("[abcdefghijklm"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("abcdefghijklmno"), TimeSpan.FromSeconds(5))
             .Capture("after_home")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1646,7 +1650,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("[abcdefghijklm"));
+        Assert.True(snapshot.ContainsText("abcdefghijklmno"));
     }
 
     [Fact]
@@ -1664,7 +1668,7 @@ public class TextBoxNodeTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[hello"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("hello"), TimeSpan.FromSeconds(5))
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1675,7 +1679,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("[hello"));
+        Assert.True(snapshot.ContainsText("hello"));
     }
 
     [Fact]
@@ -1692,11 +1696,11 @@ public class TextBoxNodeTests
 
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
-        // Wait for empty textbox (renders as "[ ]" with cursor space), then type 12 characters (viewport = 8 in bracket mode)
+        // Type 12 characters into a 10-column viewport — the visible text
+        // should be the trailing portion that fits.
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[ ]"), TimeSpan.FromSeconds(5))
             .Type("abcdefghijkl")
-            .WaitUntil(s => s.ContainsText("fghijkl"), TimeSpan.FromSeconds(5))
+            .WaitUntil(s => s.ContainsText("ijkl"), TimeSpan.FromSeconds(5))
             .Capture("after_typing")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
@@ -1707,9 +1711,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // After typing 12 chars in 8-char viewport, should see the end of the text
-        // ScrollOffset = 12 - 8 + 1 = 5, visible text = "fghijkl"
-        Assert.True(snapshot.ContainsText("fghijkl"));
+        Assert.True(snapshot.ContainsText("ijkl"));
     }
 
     #endregion

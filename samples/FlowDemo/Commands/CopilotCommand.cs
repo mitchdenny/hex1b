@@ -117,10 +117,9 @@ internal static class CopilotCommand
                             theme => theme.Set(SeparatorTheme.Color, modeColor),
                             ctx.Separator()
                         ),
-                        pv.ThemePanel(
-                            theme => theme
-                                .Set(TextBoxTheme.LeftBracket, $"{modeColorAnsi}❯ \x1b[0m")
-                                .Set(TextBoxTheme.RightBracket, ""),
+                        pv.HStack(h =>
+                        [
+                            h.Text($"{modeColorAnsi}❯\x1b[0m "),
                             ctx.TextBox().OnSubmit(e =>
                             {
                                 var text = e.Text?.Trim() ?? "";
@@ -143,8 +142,8 @@ internal static class CopilotCommand
                                     state.ShowCommands = !state.ShowCommands;
                                     actionCtx.Invalidate();
                                 }, "Toggle commands");
-                            })
-                        ),
+                            }).FillWidth()
+                        ]),
                         pv.ThemePanel(
                             theme => theme.Set(SeparatorTheme.Color, modeColor),
                             ctx.Separator()

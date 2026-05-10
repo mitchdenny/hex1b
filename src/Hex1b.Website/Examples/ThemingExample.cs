@@ -168,8 +168,7 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))
             .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.FromRgb(255, 0, 255))
             .Set(TextBoxTheme.SelectionForegroundColor, Hex1bColor.White)
-            .Set(TextBoxTheme.LeftBracket, "<")
-            .Set(TextBoxTheme.RightBracket, ">")
+            .Set(TextBoxTheme.PredictionForegroundColor, Hex1bColor.FromRgb(255, 0, 255))
             // List
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.Black)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))

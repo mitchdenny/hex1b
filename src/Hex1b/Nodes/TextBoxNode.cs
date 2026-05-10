@@ -1,3 +1,4 @@
+using System.Threading;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
@@ -117,6 +118,12 @@ public sealed class TextBoxNode : Hex1bNode
             if (_isFocused != value)
             {
                 _isFocused = value;
+                if (!value)
+                {
+                    // Lose focus → drop any active suggestion so it doesn't
+                    // ghost into the next focused widget's render area.
+                    ClearPrediction();
+                }
                 MarkDirty();
             }
         }
@@ -155,11 +162,195 @@ public sealed class TextBoxNode : Hex1bNode
     /// </summary>
     internal int ScreenCursorY { get; private set; }
 
+    // ───── Predictive input ────────────────────────────────────────────────
+
+    /// <summary>
+    /// User-supplied async predictor. When non-null, typing a character with
+    /// the cursor at end of buffer asks the predictor for an inline suggestion.
+    /// </summary>
+    internal Func<string, CancellationToken, Task<string?>>? Predictor { get; set; }
+
+    /// <summary>
+    /// Optional debounce window. When &gt; <see cref="TimeSpan.Zero"/>, multiple
+    /// keystrokes within the window collapse into a single predictor invocation.
+    /// </summary>
+    internal TimeSpan PredictionDebounce { get; set; }
+
+    /// <summary>
+    /// The current inline prediction string shown after the cursor.
+    /// <c>null</c> when no prediction is active. Always cleared on any
+    /// non-typing input (movement, deletion, paste, focus loss, mouse click).
+    /// </summary>
+    internal string? CurrentPrediction { get; private set; }
+
+    /// <summary>
+    /// Monotonic counter incremented every time a prediction request is issued
+    /// or invalidated. Async predictor callbacks compare the captured id to
+    /// this field on completion and discard stale results.
+    /// </summary>
+    private long _predictionRequestId;
+
+    /// <summary>
+    /// Cancels the in-flight predictor task. Replaced atomically each time a
+    /// new prediction is requested or an invalidation occurs.
+    /// </summary>
+    private CancellationTokenSource? _predictionInflightCts;
+
+    /// <summary>
+    /// Cancels the pending debounce delay for the next prediction request.
+    /// </summary>
+    private CancellationTokenSource? _predictionDebounceCts;
+
+    /// <summary>
+    /// Cancels any in-flight prediction work and clears
+    /// <see cref="CurrentPrediction"/>. Returns <c>true</c> if a prediction
+    /// was actually showing (used by Escape to decide whether to consume).
+    /// </summary>
+    internal bool ClearPrediction()
+    {
+        // Always invalidate request id so any racing predictor task discards
+        // its result, even if no prediction is currently displayed.
+        _predictionRequestId++;
+
+        try { _predictionDebounceCts?.Cancel(); } catch { }
+        _predictionDebounceCts?.Dispose();
+        _predictionDebounceCts = null;
+
+        try { _predictionInflightCts?.Cancel(); } catch { }
+        _predictionInflightCts?.Dispose();
+        _predictionInflightCts = null;
+
+        if (CurrentPrediction is null)
+            return false;
+
+        CurrentPrediction = null;
+        MarkDirty();
+        return true;
+    }
+
+    /// <summary>
+    /// Replaces the current prediction string and marks the node dirty.
+    /// </summary>
+    private void SetPrediction(string? prediction)
+    {
+        if (CurrentPrediction == prediction)
+            return;
+        CurrentPrediction = string.IsNullOrEmpty(prediction) ? null : prediction;
+        MarkDirty();
+    }
+
+    /// <summary>
+    /// Returns true when a prediction is currently shown and should respond
+    /// to <c>RightArrow</c> (accept) and <c>Escape</c> (dismiss).
+    /// </summary>
+    private bool HasActivePrediction => !string.IsNullOrEmpty(CurrentPrediction)
+        && IsFocused
+        && State.CursorPosition == State.Text.Length
+        && !State.HasSelection;
+
+    /// <summary>
+    /// Inserts the current prediction at the end of the buffer (accepting it),
+    /// fires <see cref="TextChangedAction"/>, and clears prediction state.
+    /// Returns the new text on success; <c>null</c> if no prediction was active.
+    /// </summary>
+    private async Task<string?> AcceptCurrentPredictionAsync(InputBindingActionContext ctx)
+    {
+        var prediction = CurrentPrediction;
+        if (string.IsNullOrEmpty(prediction))
+            return null;
+
+        var oldText = State.Text;
+        // Append at the very end — by precondition the cursor is at end and
+        // there is no selection.
+        State.Text = oldText + prediction;
+        State.CursorPosition = State.Text.Length;
+        State.ResetPreferredColumn();
+
+        // Clear before invoking the change handler so handlers observing the
+        // node see a coherent post-accept state.
+        ClearPrediction();
+        MarkDirty();
+
+        if (TextChangedAction != null && oldText != State.Text)
+        {
+            await TextChangedAction(ctx, oldText, State.Text);
+        }
+
+        return State.Text;
+    }
+
+    /// <summary>
+    /// Requests a new prediction for the current buffer. Honours the
+    /// configured debounce window and uses request-id + cancellation to
+    /// discard stale results when the user keeps typing.
+    /// </summary>
+    private void RequestPrediction()
+    {
+        var predictor = Predictor;
+        if (predictor is null) return;
+        // Predictions are a single-line affordance only.
+        if (IsMultiline) return;
+        if (!IsFocused) return;
+        if (State.HasSelection) return;
+        if (State.CursorPosition != State.Text.Length) return;
+
+        // Cancel pending/in-flight work and bump the request id.
+        var requestId = ++_predictionRequestId;
+        try { _predictionDebounceCts?.Cancel(); } catch { }
+        _predictionDebounceCts?.Dispose();
+        try { _predictionInflightCts?.Cancel(); } catch { }
+        _predictionInflightCts?.Dispose();
+
+        var snapshot = State.Text;
+        var debounce = PredictionDebounce;
+        var inflight = new CancellationTokenSource();
+        _predictionInflightCts = inflight;
+        var debounceCts = debounce > TimeSpan.Zero ? new CancellationTokenSource() : null;
+        _predictionDebounceCts = debounceCts;
+
+        _ = Task.Run(async () =>
+        {
+            try
+            {
+                if (debounceCts is not null)
+                {
+                    await Task.Delay(debounce, debounceCts.Token);
+                }
+
+                if (inflight.IsCancellationRequested) return;
+
+                var result = await predictor(snapshot, inflight.Token);
+
+                // Drop result if a newer request superseded us, the input was
+                // mutated, the cursor moved off the end, or focus was lost.
+                if (requestId != _predictionRequestId) return;
+                if (inflight.IsCancellationRequested) return;
+                if (!IsFocused) return;
+                if (State.HasSelection) return;
+                if (State.Text != snapshot) return;
+                if (State.CursorPosition != State.Text.Length) return;
+                if (string.IsNullOrEmpty(result)) return;
+
+                SetPrediction(result);
+                AppInvalidate?.Invoke();
+            }
+            catch (OperationCanceledException)
+            {
+                // Stale request — ignore.
+            }
+            catch
+            {
+                // Predictor threw — silently swallow so a misbehaving predictor
+                // can't crash the render loop.
+            }
+        });
+    }
+
     public override void ConfigureDefaultBindings(InputBindingsBuilder bindings)
     {
         // Navigation
         bindings.Key(Hex1bKey.LeftArrow).Triggers(TextBoxWidget.MoveLeft, MoveLeft, "Move left");
-        bindings.Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.MoveRight, MoveRight, "Move right");
+        bindings.Key(Hex1bKey.RightArrow).Triggers(TextBoxWidget.MoveRight, MoveRightOrAcceptPredictionAsync, "Move right / accept prediction");
         bindings.Key(Hex1bKey.Home).Triggers(TextBoxWidget.MoveHome, MoveHome, "Go to start");
         bindings.Key(Hex1bKey.End).Triggers(TextBoxWidget.MoveEnd, MoveEnd, "Go to end");
         
@@ -199,7 +390,15 @@ public sealed class TextBoxNode : Hex1bNode
             // Submit (Enter key) — single-line only
             bindings.Key(Hex1bKey.Enter).Triggers(TextBoxWidget.Submit, SubmitAction, "Submit");
         }
-        
+
+        // Escape only consumes when there is an active prediction. Bindings
+        // are rebuilt per key event, so registering this conditionally lets
+        // a "naked" Escape bubble to ancestors (form / window) as before.
+        if (HasActivePrediction)
+        {
+            bindings.Key(Hex1bKey.Escape).Triggers(TextBoxWidget.DismissPrediction, DismissPredictionAction, "Dismiss prediction");
+        }
+
         // Selection
         bindings.Ctrl().Key(Hex1bKey.A).Triggers(TextBoxWidget.SelectAll, SelectAll, "Select all");
         
@@ -211,6 +410,30 @@ public sealed class TextBoxNode : Hex1bNode
     }
 
     /// <summary>
+    /// RightArrow either moves the cursor right (default) or accepts the
+    /// active prediction and inserts it into the buffer.
+    /// </summary>
+    private async Task MoveRightOrAcceptPredictionAsync(InputBindingActionContext ctx)
+    {
+        if (HasActivePrediction)
+        {
+            await AcceptCurrentPredictionAsync(ctx);
+            return;
+        }
+        MoveRight();
+    }
+
+    /// <summary>
+    /// Escape handler registered only while a prediction is showing —
+    /// dismisses the suggestion. (When no prediction is active this binding
+    /// is not registered, so Escape bubbles normally.)
+    /// </summary>
+    private void DismissPredictionAction()
+    {
+        ClearPrediction();
+    }
+
+    /// <summary>
     /// Handles bracketed paste. If a custom paste handler is set via OnPaste(),
     /// it is called instead of the default text insertion behavior.
     /// For default behavior: reads full paste content and inserts at cursor position.
@@ -218,6 +441,9 @@ public sealed class TextBoxNode : Hex1bNode
     /// </summary>
     public override async Task<InputResult> HandlePasteAsync(Hex1bPasteEvent pasteEvent)
     {
+        // Paste is treated as an out-of-band edit — drop any in-flight prediction.
+        ClearPrediction();
+
         // Custom handler overrides default behavior
         if (CustomPasteAction != null)
         {
@@ -272,17 +498,25 @@ public sealed class TextBoxNode : Hex1bNode
         State.Text = State.Text.Insert(State.CursorPosition, text);
         State.CursorPosition += text.Length;
         State.ResetPreferredColumn();
+
+        // Drop any stale prediction — the buffer just changed.
+        ClearPrediction();
         MarkDirty();
-        
+
         // Fire callback if text changed
         if (TextChangedAction != null && oldText != State.Text)
         {
             await TextChangedAction(ctx, oldText, State.Text);
         }
+
+        // Predictions only fire on real keystrokes (this method) and only
+        // when the cursor is at the very end of the buffer.
+        RequestPrediction();
     }
 
     private void MoveLeft()
     {
+        ClearPrediction();
         if (State.HasSelection)
         {
             State.CursorPosition = State.SelectionStart;
@@ -299,6 +533,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveRight()
     {
+        ClearPrediction();
         if (State.HasSelection)
         {
             State.CursorPosition = State.SelectionEnd;
@@ -315,6 +550,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveHome()
     {
+        ClearPrediction();
         State.ClearSelection();
         if (IsMultiline)
         {
@@ -331,6 +567,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveEnd()
     {
+        ClearPrediction();
         State.ClearSelection();
         if (IsMultiline)
         {
@@ -347,6 +584,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveWordLeft()
     {
+        ClearPrediction();
         if (State.HasSelection)
         {
             State.CursorPosition = State.SelectionStart;
@@ -359,6 +597,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveWordRight()
     {
+        ClearPrediction();
         if (State.HasSelection)
         {
             State.CursorPosition = State.SelectionEnd;
@@ -371,6 +610,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectLeft()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -386,6 +626,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectRight()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -401,6 +642,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectToStart()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -420,6 +662,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectToEnd()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -439,6 +682,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectWordLeft()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -450,6 +694,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectWordRight()
     {
+        ClearPrediction();
         if (!State.SelectionAnchor.HasValue)
         {
             State.SelectionAnchor = State.CursorPosition;
@@ -461,12 +706,14 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void MoveUp()
     {
+        ClearPrediction();
         State.MoveUp();
         MarkDirty();
     }
 
     private async Task MoveDownAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         var (line, _) = State.OffsetToLineColumn(State.CursorPosition);
         if (line >= State.GetLineCount() - 1)
         {
@@ -493,12 +740,14 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectUp()
     {
+        ClearPrediction();
         State.MoveUp(extend: true);
         MarkDirty();
     }
 
     private void SelectDown()
     {
+        ClearPrediction();
         State.MoveDown(extend: true);
         MarkDirty();
     }
@@ -508,6 +757,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private async Task InsertNewlineAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         if (!CanInsertNewline())
             return;
 
@@ -524,6 +774,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private async Task DeleteBackwardAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         var oldText = State.Text;
         
         if (State.HasSelection)
@@ -550,6 +801,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private async Task DeleteForwardAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         var oldText = State.Text;
         
         if (State.HasSelection)
@@ -575,6 +827,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private async Task DeleteWordBackwardAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         var oldText = State.Text;
         
         if (State.HasSelection)
@@ -600,6 +853,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private async Task DeleteWordForwardAsync(InputBindingActionContext ctx)
     {
+        ClearPrediction();
         var oldText = State.Text;
         
         if (State.HasSelection)
@@ -636,6 +890,7 @@ public sealed class TextBoxNode : Hex1bNode
 
     private void SelectAll()
     {
+        ClearPrediction();
         State.SelectAll();
         MarkDirty();
     }
@@ -651,30 +906,21 @@ public sealed class TextBoxNode : Hex1bNode
             return InputResult.NotHandled;
         }
 
+        // Any click cancels an active prediction.
+        ClearPrediction();
+
         if (IsMultiline)
         {
             return HandleMouseClickMultiline(localX, localY);
         }
 
-        // The TextBox renders as "[text]" so localX=0 is '[', localX=1 is first char
-        var textColumn = localX - 1; // Subtract 1 for the '[' bracket
-        
-        if (textColumn < 0)
-        {
-            // Clicked on or before the '[' - position at start
-            State.ClearSelection();
-            State.CursorPosition = ScrollOffset;
-        }
-        else
-        {
-            // Find the cursor position in the visible text, then offset to full text
-            var visStart = Math.Min(ScrollOffset, State.Text.Length);
-            var visEnd = Math.Min(visStart + Math.Max(0, Bounds.Width - 2), State.Text.Length);
-            var visibleText = State.Text[visStart..visEnd];
-            var visPos = DisplayColumnToVisibleTextPosition(visibleText, textColumn);
-            State.ClearSelection();
-            State.CursorPosition = visStart + visPos;
-        }
+        // Single-line: localX maps directly to a column in the visible text.
+        var visStart = Math.Min(ScrollOffset, State.Text.Length);
+        var visEnd = Math.Min(visStart + Math.Max(0, Bounds.Width), State.Text.Length);
+        var visibleText = State.Text[visStart..visEnd];
+        var visPos = DisplayColumnToVisibleTextPosition(visibleText, Math.Max(0, localX));
+        State.ClearSelection();
+        State.CursorPosition = visStart + visPos;
 
         return InputResult.Handled;
     }
@@ -796,8 +1042,9 @@ public sealed class TextBoxNode : Hex1bNode
         }
         else
         {
-            // Default bracket mode: "[text]" - 2 chars for brackets
-            width = textDisplayWidth + 2;
+            // Inline fill mode: width is just the text content. The empty-text
+            // floor of 1 above keeps the cursor cell visible.
+            width = textDisplayWidth;
         }
 
         var height = 1;
@@ -1182,33 +1429,33 @@ public sealed class TextBoxNode : Hex1bNode
         ScreenCursorX = -1;
 
         var theme = context.Theme;
-        var leftBracket = theme.Get(TextBoxTheme.LeftBracket);
-        var rightBracket = theme.Get(TextBoxTheme.RightBracket);
         var cursorFg = theme.Get(TextBoxTheme.CursorForegroundColor);
         var cursorBg = theme.Get(TextBoxTheme.CursorBackgroundColor);
         var selFg = theme.Get(TextBoxTheme.SelectionForegroundColor);
         var selBg = theme.Get(TextBoxTheme.SelectionBackgroundColor);
-        var useFillMode = theme.Get(TextBoxTheme.UseFillMode);
         var fillBg = IsFocused
             ? theme.Get(TextBoxTheme.FocusedFillBackgroundColor)
             : theme.Get(TextBoxTheme.FillBackgroundColor);
-        
+        var predictionFg = theme.Get(TextBoxTheme.PredictionForegroundColor);
+        var predictionBg = theme.Get(TextBoxTheme.PredictionBackgroundColor);
+
         var globalColors = theme.GetGlobalColorCodes();
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
-        // Multiline text boxes use their own render path
+        // Multiline text boxes use their own render path. Predictions are
+        // single-line only by design.
         if (IsMultiline)
         {
             RenderMultiline(context, globalColors, resetToGlobal, fillBg, cursorFg, cursorBg, selFg, selBg);
             return;
         }
 
-        // Calculate viewport width (the number of text columns available)
-        var viewportWidth = useFillMode ? Bounds.Width : Math.Max(0, Bounds.Width - 2);
+        // Inline (no-bracket) viewport: full bounds width is available for text.
+        var viewportWidth = Bounds.Width;
         var textLen = State.Text.Length;
 
-        // When bounds haven't been set (direct Render without layout) or the text fits,
-        // show the full text without viewport slicing.
+        // When bounds haven't been set (direct Render without layout) or the
+        // text fits, show the full text without viewport slicing.
         var needsViewport = viewportWidth > 0 && textLen > viewportWidth;
 
         string visibleText;
@@ -1228,48 +1475,10 @@ public sealed class TextBoxNode : Hex1bNode
             visSelEnd = State.HasSelection ? State.SelectionEnd : 0;
         }
 
-        string output;
-        if (useFillMode)
-        {
-            output = RenderFillMode(visibleText, visCursor, globalColors, resetToGlobal,
-                fillBg, cursorFg, cursorBg, selFg, selBg, context,
-                visSelStart, visSelEnd);
-        }
-        else if (IsFocused)
-        {
-            if (State.HasSelection && visSelStart != visSelEnd)
-            {
-                var beforeSel = visibleText[..visSelStart];
-                var selected = visibleText[visSelStart..visSelEnd];
-                var afterSel = visibleText[visSelEnd..];
-                
-                output = $"{globalColors}{leftBracket}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{afterSel}{rightBracket}";
-            }
-            else
-            {
-                // Line caret: render text normally, position native cursor
-                var before = visibleText[..visCursor];
-                var after = visCursor < visibleText.Length ? visibleText[visCursor..] : "";
-                // When cursor is at end, add a space so the bracket layout matches the old block cursor
-                var cursorSpace = visCursor >= visibleText.Length ? " " : "";
+        var output = RenderInline(visibleText, visCursor, globalColors, resetToGlobal,
+            fillBg, cursorFg, cursorBg, selFg, selBg, predictionFg, predictionBg, context,
+            visSelStart, visSelEnd);
 
-                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(leftBracket) + DisplayWidth.GetStringWidth(before);
-                ScreenCursorY = Bounds.Y;
-
-                output = $"{globalColors}{leftBracket}{before}{after}{cursorSpace}{rightBracket}";
-            }
-        }
-        else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
-        {
-            // Hover renders text normally — the native terminal mouse cursor handles
-            // showing the cursor shape at the mouse position.
-            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}";
-        }
-        else
-        {
-            output = $"{globalColors}{leftBracket}{visibleText}{rightBracket}{resetToGlobal}";
-        }
-        
         // Use clipped rendering when a layout provider is active
         if (context.CurrentLayoutProvider != null)
         {
@@ -1282,10 +1491,11 @@ public sealed class TextBoxNode : Hex1bNode
     }
 
     /// <summary>
-    /// Renders the text box in fill mode: no brackets, background-filled to the measured width.
-    /// Text and cursor positions are already adjusted for the viewport.
+    /// Renders the single-line text box: background-filled, no bookend
+    /// characters, with optional inline prediction overlay drawn after the
+    /// cursor in the prediction colors.
     /// </summary>
-    private string RenderFillMode(
+    private string RenderInline(
         string text,
         int cursor,
         string globalColors,
@@ -1295,14 +1505,41 @@ public sealed class TextBoxNode : Hex1bNode
         Hex1bColor cursorBg,
         Hex1bColor selFg,
         Hex1bColor selBg,
+        Hex1bColor predictionFg,
+        Hex1bColor predictionBg,
         Hex1bRenderContext context,
         int visSelStart = 0,
         int visSelEnd = 0)
     {
         var measuredWidth = Bounds.Width;
         var textDisplayWidth = DisplayWidth.GetStringWidth(text);
-        var padding = Math.Max(0, measuredWidth - textDisplayWidth);
         var fillBgAnsi = fillBg.ToBackgroundAnsi();
+
+        // Resolve the (possibly clipped) inline prediction overlay. Only valid
+        // when focused, no selection, cursor at end of *real* buffer, and the
+        // visible slice already contains the whole buffer.
+        string? predictionOverlay = null;
+        var canShowPrediction =
+            IsFocused
+            && !string.IsNullOrEmpty(CurrentPrediction)
+            && !State.HasSelection
+            && State.CursorPosition == State.Text.Length
+            && cursor == text.Length;
+
+        if (canShowPrediction)
+        {
+            var remaining = Math.Max(0, measuredWidth - textDisplayWidth);
+            if (remaining > 0)
+            {
+                predictionOverlay = ClipToDisplayWidth(CurrentPrediction!, remaining);
+            }
+        }
+
+        var predictionDisplayWidth = predictionOverlay is null ? 0 : DisplayWidth.GetStringWidth(predictionOverlay);
+        var padding = Math.Max(0, measuredWidth - textDisplayWidth - predictionDisplayWidth);
+        var predictionFgAnsi = predictionFg.ToForegroundAnsi();
+        var predictionBgAnsi = predictionBg.ToBackgroundAnsi();
+        var padStr = padding > 0 ? new string(' ', padding) : "";
 
         if (IsFocused)
         {
@@ -1312,40 +1549,53 @@ public sealed class TextBoxNode : Hex1bNode
                 var selected = text[visSelStart..visSelEnd];
                 var afterSel = text[visSelEnd..];
 
-                // Pad after the text to fill the measured width.
-                // No cursor space adjustment needed — the selection highlight covers
-                // the cursor position without adding an extra character.
-                var padStr = new string(' ', Math.Max(0, padding));
-
+                // Selection rendering masks the cursor cell — predictions are
+                // suppressed when there's a selection so no overlay here.
                 return $"{globalColors}{fillBgAnsi}{beforeSel}{selFg.ToForegroundAnsi()}{selBg.ToBackgroundAnsi()}{selected}{resetToGlobal}{fillBgAnsi}{afterSel}{padStr}{resetToGlobal}";
             }
-            else
+
+            // Line caret: render the text, then the prediction (if any), and
+            // let the native terminal cursor sit between them.
+            var before = text[..cursor];
+            var after = cursor < text.Length ? text[cursor..] : "";
+
+            ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
+            ScreenCursorY = Bounds.Y;
+
+            if (predictionOverlay is not null)
             {
-                // Line caret: render the text normally and let the native terminal cursor
-                // show a blinking bar at the cursor position.
-                var before = text[..cursor];
-                var after = cursor < text.Length ? text[cursor..] : "";
-
-                // Record screen position for the native cursor
-                ScreenCursorX = Bounds.X + DisplayWidth.GetStringWidth(before);
-                ScreenCursorY = Bounds.Y;
-
-                var padStr = new string(' ', padding);
-                return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
+                return $"{globalColors}{fillBgAnsi}{before}{after}{predictionFgAnsi}{predictionBgAnsi}{predictionOverlay}{resetToGlobal}{fillBgAnsi}{padStr}{resetToGlobal}";
             }
+
+            return $"{globalColors}{fillBgAnsi}{before}{after}{padStr}{resetToGlobal}";
         }
-        else if (IsHovered && context.MouseX >= 0 && context.MouseY >= 0)
-        {
-            // Hover renders text normally — the native terminal mouse cursor handles
-            // showing the cursor shape at the mouse position.
-            var padStr = new string(' ', padding);
-            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
-        }
-        else
-        {
-            var padStr = new string(' ', padding);
-            return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
-        }
+
+        // Unfocused — no cursor, no prediction.
+        return $"{globalColors}{fillBgAnsi}{text}{padStr}{resetToGlobal}";
     }
-    
+
+    /// <summary>
+    /// Returns a prefix of <paramref name="value"/> whose total display width
+    /// is at most <paramref name="maxDisplayWidth"/>. Wide graphemes are kept
+    /// whole — they're either fully included or omitted, never split.
+    /// </summary>
+    private static string ClipToDisplayWidth(string value, int maxDisplayWidth)
+    {
+        if (maxDisplayWidth <= 0 || string.IsNullOrEmpty(value)) return string.Empty;
+
+        var enumerator = System.Globalization.StringInfo.GetTextElementEnumerator(value);
+        var consumed = 0;
+        var lastFitEnd = 0;
+        while (enumerator.MoveNext())
+        {
+            var grapheme = (string)enumerator.Current;
+            var width = DisplayWidth.GetGraphemeWidth(grapheme);
+            if (consumed + width > maxDisplayWidth)
+                break;
+            consumed += width;
+            lastFitEnd = enumerator.ElementIndex + grapheme.Length;
+        }
+        return lastFitEnd >= value.Length ? value : value[..lastFitEnd];
+    }
+
 }

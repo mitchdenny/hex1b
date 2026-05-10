@@ -100,6 +100,7 @@ builder.Services.AddSingleton<IGalleryExample, TextBoxBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxSubmitExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxFormExample>();
 builder.Services.AddSingleton<IGalleryExample, TextBoxUnicodeExample>();
+builder.Services.AddSingleton<IGalleryExample, TextBoxPredictExample>();
 
 // Register ToggleSwitch widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, ToggleSwitchBasicExample>();

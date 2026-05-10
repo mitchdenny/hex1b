@@ -3,6 +3,12 @@ namespace Hex1b.Theming;
 /// <summary>
 /// Theme elements for TextBox widgets.
 /// </summary>
+/// <remarks>
+/// As of the prediction-input refresh, the TextBox no longer renders the
+/// classic <c>[…]</c> bookends. The fill/background-based rendering that
+/// used to be opt-in via <c>UseFillMode</c> is now the only style. If you
+/// need a bracketed look, render brackets in surrounding widgets.
+/// </remarks>
 public static class TextBoxTheme
 {
     public static readonly Hex1bThemeElement<Hex1bColor> ForegroundColor = 
@@ -25,36 +31,37 @@ public static class TextBoxTheme
     
     public static readonly Hex1bThemeElement<Hex1bColor> SelectionBackgroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(SelectionBackgroundColor)}", () => Hex1bColor.White);
-    
-    public static readonly Hex1bThemeElement<Hex1bColor> HoverCursorForegroundColor = 
-        new($"{nameof(TextBoxTheme)}.{nameof(HoverCursorForegroundColor)}", () => Hex1bColor.Default);
-    
-    public static readonly Hex1bThemeElement<Hex1bColor> HoverCursorBackgroundColor = 
-        new($"{nameof(TextBoxTheme)}.{nameof(HoverCursorBackgroundColor)}", () => Hex1bColor.DarkGray);
-    
-    public static readonly Hex1bThemeElement<string> LeftBracket = 
-        new($"{nameof(TextBoxTheme)}.{nameof(LeftBracket)}", () => "[");
-    
-    public static readonly Hex1bThemeElement<string> RightBracket = 
-        new($"{nameof(TextBoxTheme)}.{nameof(RightBracket)}", () => "]");
 
     /// <summary>
-    /// When true, renders the text box with a background fill instead of brackets.
-    /// This mode is typically enabled by form containers via ThemePanel.
-    /// </summary>
-    public static readonly Hex1bThemeElement<bool> UseFillMode = 
-        new($"{nameof(TextBoxTheme)}.{nameof(UseFillMode)}", () => false);
-
-    /// <summary>
-    /// Background color used in fill mode to delineate the text area.
+    /// Background color used to delineate the text area when the textbox is unfocused.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FillBackgroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(FillBackgroundColor)}", () => Hex1bColor.FromRgb(40, 40, 40));
 
     /// <summary>
-    /// Background color used in fill mode when the text box has focus.
+    /// Background color used when the text box has focus.
     /// Slightly lighter than <see cref="FillBackgroundColor"/> to indicate active input.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedFillBackgroundColor = 
         new($"{nameof(TextBoxTheme)}.{nameof(FocusedFillBackgroundColor)}", () => Hex1bColor.FromRgb(55, 55, 55));
+
+    /// <summary>
+    /// Foreground color of the inline prediction (suggestion) text rendered to
+    /// the right of the cursor. Defaults to <see cref="Hex1bColor.DarkGray"/>
+    /// so the suggestion sits clearly behind the user's typed text.
+    /// </summary>
+    /// <remarks>
+    /// Set this via <c>ThemePanelWidget</c> or directly on the application
+    /// theme to restyle predictions, e.g. with an italic/foreground color combo.
+    /// </remarks>
+    public static readonly Hex1bThemeElement<Hex1bColor> PredictionForegroundColor =
+        new($"{nameof(TextBoxTheme)}.{nameof(PredictionForegroundColor)}", () => Hex1bColor.DarkGray);
+
+    /// <summary>
+    /// Background color of the inline prediction text. Defaults to
+    /// <see cref="Hex1bColor.Default"/> so the prediction inherits the
+    /// textbox background fill.
+    /// </summary>
+    public static readonly Hex1bThemeElement<Hex1bColor> PredictionBackgroundColor =
+        new($"{nameof(TextBoxTheme)}.{nameof(PredictionBackgroundColor)}", () => Hex1bColor.Default);
 }

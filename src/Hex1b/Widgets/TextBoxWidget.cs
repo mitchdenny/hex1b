@@ -1,3 +1,4 @@
+using System.Threading;
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Nodes;
@@ -55,6 +56,10 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget,
     public static readonly ActionId SelectDown = new($"{nameof(TextBoxWidget)}.{nameof(SelectDown)}");
     /// <summary>Rebindable action: Insert a newline (multiline only).</summary>
     public static readonly ActionId InsertNewline = new($"{nameof(TextBoxWidget)}.{nameof(InsertNewline)}");
+    /// <summary>Rebindable action: Accept the inline prediction (default: Right Arrow at end of buffer).</summary>
+    public static readonly ActionId AcceptPrediction = new($"{nameof(TextBoxWidget)}.{nameof(AcceptPrediction)}");
+    /// <summary>Rebindable action: Dismiss the inline prediction (default: Escape while a prediction is showing).</summary>
+    public static readonly ActionId DismissPrediction = new($"{nameof(TextBoxWidget)}.{nameof(DismissPrediction)}");
 
     /// <summary>
     /// Internal handler for text changed events.
@@ -172,6 +177,47 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget,
     /// </summary>
     public TextBoxWidget Height(int lines)
         => this with { HeightValue = lines };
+
+    /// <summary>
+    /// Internal predictor callback. Invoked after each typed character (when
+    /// the cursor is at the end of the buffer) with the current text, and
+    /// expected to return the suggested completion text or <c>null</c> for
+    /// no suggestion. The token is signalled when a newer keystroke arrives.
+    /// </summary>
+    internal Func<string, CancellationToken, Task<string?>>? PredictHandler { get; init; }
+
+    /// <summary>
+    /// Internal debounce window for <see cref="PredictHandler"/>. When greater
+    /// than zero, the predictor is only invoked after the user pauses typing
+    /// for this duration. <see cref="TimeSpan.Zero"/> (the default) invokes
+    /// immediately.
+    /// </summary>
+    internal TimeSpan PredictionDebounceValue { get; init; }
+
+    /// <summary>
+    /// Configures an inline predictive-completion provider. After the user
+    /// types a character (and only when the cursor is at the end of the
+    /// buffer), <paramref name="predictor"/> is invoked with the current
+    /// text. If it returns a non-null, non-empty string, that text is shown
+    /// inline after the cursor in the prediction colors. The user accepts
+    /// the suggestion with <see cref="AcceptPrediction"/> (Right Arrow by
+    /// default) or dismisses it with <see cref="DismissPrediction"/>
+    /// (Escape by default). The cancellation token is signalled when the
+    /// user types another character before the predictor returns, so an
+    /// expensive predictor can short-circuit.
+    /// </summary>
+    public TextBoxWidget Predict(Func<string, CancellationToken, Task<string?>> predictor)
+        => this with { PredictHandler = predictor };
+
+    /// <summary>
+    /// Configures an inline predictive-completion provider with a debounce.
+    /// The predictor is only invoked after the user pauses typing for
+    /// <paramref name="debounce"/>; intermediate keystrokes restart the
+    /// timer and cancel any in-flight request. Use this when the predictor
+    /// is expensive (e.g. an LLM round-trip).
+    /// </summary>
+    public TextBoxWidget Predict(Func<string, CancellationToken, Task<string?>> predictor, TimeSpan debounce)
+        => this with { PredictHandler = predictor, PredictionDebounceValue = debounce };
 
     /// <summary>
     /// Externally-supplied state instance. When set, the textbox becomes a
@@ -314,6 +360,16 @@ public sealed record TextBoxWidget(string? Text = null) : Hex1bWidget,
         node.MaxLines = MaxLinesValue;
         node.State.IsMultiline = IsMultilineValue;
         node.State.MaxLines = MaxLinesValue;
+
+        // Sync predictor configuration. Removing the handler also clears any
+        // in-flight prediction so the overlay disappears on the next render.
+        var predictorChanged = !ReferenceEquals(node.Predictor, PredictHandler);
+        node.Predictor = PredictHandler;
+        node.PredictionDebounce = PredictionDebounceValue;
+        if (predictorChanged && PredictHandler is null)
+        {
+            node.ClearPrediction();
+        }
 
         return Task.FromResult<Hex1bNode>(node);
     }

@@ -295,12 +295,8 @@ public sealed record FormTextFieldWidget : Hex1bWidget
                 }
             });
 
-        // Wrap in ThemePanel to enable fill mode rendering
-        Hex1bWidget inputWidget = new ThemePanelWidget(
-            t => t.Set(Theming.TextBoxTheme.UseFillMode, true),
-            textBox);
-
-        node.InputChild = await context.ReconcileChildAsync(node.InputChild, inputWidget, node);
+        // The TextBox already renders with the inline fill style by default.
+        node.InputChild = await context.ReconcileChildAsync(node.InputChild, textBox, node);
 
         // Reconcile adornment children based on current visibility state.
         // On first reconcile (or when adornment count changes), trigger evaluation.

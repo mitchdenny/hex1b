@@ -564,7 +564,7 @@ public sealed record SlashCommandPromptWidget(IReadOnlyList<SlashCommand> Comman
     static Hex1bWidget BuildPromptRow(WidgetContext<VStackWidget> ctx, TextBoxWidget textbox)
         => ctx.HStack(h => [
             h.Text(" > "),
-            ctx.ThemePanel(t => t.Set(TextBoxTheme.UseFillMode, true), textbox).FillWidth(),
+            textbox.FillWidth(),
         ]);
 
     static Hex1bWidget BuildPalette(
