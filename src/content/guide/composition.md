@@ -392,23 +392,21 @@ protected override Hex1bWidget Build(CompositionContext ctx)
 
   Each textbox gets its own state instance; mutations to one don't affect the other.
 
-### Conflicts fail fast
+### What happens when the ctor and `.State(...)` both carry a value
 
-If you supply both a `Text` ctor argument *and* a hoisted state, the textbox throws `InvalidOperationException` on reconcile. There's no precedence rule to memorise — pick one.
+Each widget chooses what to do when you supply *both* an initial-value ctor argument *and* a hoisted state. The `IStatefulWidget` interface doesn't mandate one rule — the widgets pick what makes sense for their UX:
 
-```csharp
-new TextBoxWidget("hello").State(state);   // throws on reconcile
-```
+- **TextBox** throws `InvalidOperationException` on reconcile. `new TextBoxWidget("hello")` and `.State(state)` are equally meaningful, and silently picking one would mask bugs.
 
-Use the ctor for "set the initial text once" (the framework owns it after that); use `.State(...)` for "I'm holding the state object externally". They are different programming models.
+  ```csharp
+  new TextBoxWidget("hello").State(state);   // throws on reconcile — pick one
+  ```
 
-::: info Per-widget conflict semantics
-The `IStatefulWidget` interface only requires that implementations route the supplied state into their node — it doesn't mandate how to handle conflicts with ctor-supplied initial values. Each widget picks what makes sense for its UX:
+- **Checkbox** silently lets `.State(...)` win. The ctor's `Value` defaults to `Unchecked`, so it's effectively "always supplied"; throwing would force every caller to switch to a no-arg constructor just to lift state.
 
-- **TextBox** — throws `InvalidOperationException`. The ctor `Text` and a hoisted `TextBoxState` are equally meaningful, so silently picking one would mask bugs.
-- **Checkbox** — silently ignores the ctor `Value` when state is hoisted. The ctor's `Value` parameter has a default (`Unchecked`), so it's effectively "always supplied" and throwing would force every caller to switch to a no-arg constructor when lifting state.
-- **Editor / Navigator** — no conflict possible. The state object is the only ctor parameter, so `.State(...)` simply replaces it.
-:::
+- **Editor / Navigator** can't conflict at all. The state object is the only ctor parameter, so `.State(...)` simply replaces it.
+
+The mental model is the same in every case: ctor arguments are for "set the initial value once and let the framework manage it from there"; `.State(...)` is for "I'm holding the state object externally". They're different programming models — pick one per widget instance.
 
 ### The slash-command example below uses this
 
