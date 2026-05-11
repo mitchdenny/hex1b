@@ -185,6 +185,43 @@ Split buttons work well for:
 | Enter (in menu) | Select option |
 | Escape | Close dropdown |
 
+## Theming
+
+A SplitButton chip is rendered as two colour regions on the same body:
+
+* **Primary region** — `" {Label} "` cells. Styled by [`ButtonTheme`](/guide/widgets/button#available-theme-elements) (the same colours that style a regular `Button`), so a SplitButton's primary chip always reads as part of the same family as your Buttons.
+* **Secondary affordance region** — `" │ ▼ "` cells (only rendered when secondary actions exist). Styled by `SplitButtonTheme`, defaulting to a half-shade darker tone than the matching primary colour so the dropdown affordance reads as a distinct sub-region of the chip without breaking the chip into two visual pieces.
+
+```csharp
+using Hex1b;
+using Hex1b.Theming;
+
+var theme = new Hex1bTheme("Custom")
+    // Primary region — same as Button
+    .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(25, 40, 60))
+    .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
+    .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.White)
+    // Secondary affordance — half-shade darker than the primary
+    .Set(SplitButtonTheme.ArrowBackgroundColor, Hex1bColor.FromRgb(20, 32, 48))
+    .Set(SplitButtonTheme.FocusedArrowBackgroundColor, Hex1bColor.FromRgb(0, 80, 140))
+    .Set(SplitButtonTheme.FocusedArrowForegroundColor, Hex1bColor.White);
+```
+
+### Available Theme Elements
+
+| Element | Type | Default | Description |
+|---------|------|---------|-------------|
+| `ArrowForegroundColor` | `Hex1bColor` | Default | Text colour for the divider + arrow text in the resting state. Inherits global text colour by default, matching the resting primary label. |
+| `ArrowBackgroundColor` | `Hex1bColor` | `rgb(50, 50, 50)` | Resting background tint for the divider + arrow region. Half-shade darker than `ButtonTheme.BackgroundColor` so the dropdown affordance reads as a distinct sub-region of the chip. |
+| `FocusedArrowForegroundColor` | `Hex1bColor` | Black | Text colour for the divider + arrow text when focused. |
+| `FocusedArrowBackgroundColor` | `Hex1bColor` | `rgb(225, 225, 225)` | Background tint for the divider + arrow region when focused. Slightly dimmed white so the secondary affordance stays distinguishable from the brighter primary chip while remaining inside the high-contrast focused palette. |
+| `HoveredArrowForegroundColor` | `Hex1bColor` | Black | Text colour for the divider + arrow text when hovered (mouse-only mid state). |
+| `HoveredArrowBackgroundColor` | `Hex1bColor` | `rgb(160, 160, 160)` | Background tint for the divider + arrow region when hovered. Half-shade darker than `ButtonTheme.HoveredBackgroundColor`. |
+
+::: tip Uniform Chip
+Setting any `SplitButtonTheme` colour to `Hex1bColor.Default` makes the arrow region inherit the matching primary colour, producing a uniform chip without a visible secondary tint. Useful when you want the dropdown affordance to be advertised by the `▼` glyph alone.
+:::
+
 ## Related Widgets
 
 - [Button](/guide/widgets/button) - Simple single-action buttons

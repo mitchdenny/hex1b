@@ -149,24 +149,31 @@ In terminals that support mouse input, users can click directly on any option to
 
 ## Focus Behavior
 
-ToggleSwitch visually indicates its focus state with different bracket colors:
+ToggleSwitch renders as a horizontal strip of per-option chips. Each
+option occupies `1 + label_length + 1` cells (a single padding cell on
+each side of the label) and is painted in either the unselected colours
+(recessed dark chip) or — when it is the active option — the selected
+colours.
 
 | State | Appearance |
 |-------|------------|
-| Unfocused | Subtle gray brackets `< Option >` |
-| Focused | Bright brackets with highlighted selection |
+| Unselected option | Recessed dark chip (default `rgb(40, 40, 40)`) — same tone as `TextBoxTheme.FillBackgroundColor`, so the toggle reads as part of the input-surface family |
+| Selected option (focused) | Bright invert (default white-on-black) — maximum contrast so the active focus target is unambiguous |
+| Selected option (unfocused) | Subtle invert (default gray) — selection still visible but less prominent |
 
 <StaticTerminalPreview svgPath="/svg/toggle-switch-focus.svg" :code="focusSnippet" />
 
 When focused:
-- The selected option has a bright background (white by default)
-- The brackets change to a brighter color
-- Arrow key navigation is active
+- The selected option paints with the focused selected colours
+  (`FocusedSelectedForegroundColor` / `FocusedSelectedBackgroundColor`)
+  to read as the active focus target.
+- Arrow key navigation is active.
 
 When unfocused:
-- The selected option still shows a subtle background (gray by default)
-- The brackets are dimmed
-- The selection is visible but less prominent
+- The selected option paints with the unfocused selected colours
+  (`UnfocusedSelectedForegroundColor` / `UnfocusedSelectedBackgroundColor`)
+  so selection is still visible but doesn't compete for attention.
+- Unselected options remain on the recessed dark chip.
 
 ### Focus Navigation
 
@@ -183,8 +190,7 @@ var theme = Hex1bTheme.Create()
     .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Cyan)
     .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.White)
     .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.DarkGray)
-    .Set(ToggleSwitchTheme.LeftBracket, "[ ")
-    .Set(ToggleSwitchTheme.RightBracket, " ]");
+    .Set(ToggleSwitchTheme.UnselectedBackgroundColor, Hex1bColor.FromRgb(30, 30, 40));
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
@@ -205,15 +211,8 @@ await terminal.RunAsync();
 | `FocusedSelectedBackgroundColor` | `Hex1bColor` | White | Background of selected option when focused |
 | `UnfocusedSelectedForegroundColor` | `Hex1bColor` | Black | Text color of selected option when unfocused |
 | `UnfocusedSelectedBackgroundColor` | `Hex1bColor` | Gray | Background of selected option when unfocused |
-| `UnselectedForegroundColor` | `Hex1bColor` | Default | Text color of unselected options |
-| `UnselectedBackgroundColor` | `Hex1bColor` | Default | Background of unselected options |
-| `FocusedBracketForegroundColor` | `Hex1bColor` | White | Bracket color when focused |
-| `FocusedBracketBackgroundColor` | `Hex1bColor` | Default | Bracket background when focused |
-| `UnfocusedBracketForegroundColor` | `Hex1bColor` | Gray | Bracket color when unfocused |
-| `UnfocusedBracketBackgroundColor` | `Hex1bColor` | Default | Bracket background when unfocused |
-| `LeftBracket` | `string` | `"< "` | Left bracket decoration |
-| `RightBracket` | `string` | `" >"` | Right bracket decoration |
-| `Separator` | `string` | `" \| "` | Separator between options |
+| `UnselectedForegroundColor` | `Hex1bColor` | Default | Text color of unselected options (inherits global text colour) |
+| `UnselectedBackgroundColor` | `Hex1bColor` | `rgb(40, 40, 40)` | Background chip body for unselected options. Same tone as `TextBoxTheme.FillBackgroundColor` so the toggle reads as part of the input-surface family. Set to `Hex1bColor.Default` to disable the chip background entirely. |
 
 ## Common Use Cases
 

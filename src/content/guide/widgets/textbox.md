@@ -317,9 +317,11 @@ await terminal.RunAsync();
 
 | Element | Type | Default | Description |
 |---------|------|---------|-------------|
-| `ForegroundColor` | `Hex1bColor` | Default | Text color |
-| `BackgroundColor` | `Hex1bColor` | Default | Background color |
+| `ForegroundColor` | `Hex1bColor` | Default | Text color (inherits global text colour) |
+| `BackgroundColor` | `Hex1bColor` | Default | Background outside the field fill (rarely set; the field itself uses `FillBackgroundColor`) |
 | `FocusedForegroundColor` | `Hex1bColor` | Default | Text color when focused |
+| `FillBackgroundColor` | `Hex1bColor` | `rgb(40, 40, 40)` | Resting field background. Paints the chip body that delineates the text area when the textbox is unfocused. The same tone is used by `ToggleSwitchTheme.UnselectedBackgroundColor` so input surfaces share a family. |
+| `FocusedFillBackgroundColor` | `Hex1bColor` | `rgb(55, 55, 55)` | Focused field background. Slightly lighter than `FillBackgroundColor` to indicate active input. |
 | `CursorForegroundColor` | `Hex1bColor` | Black | Cursor text color |
 | `CursorBackgroundColor` | `Hex1bColor` | White | Cursor background color |
 | `SelectionForegroundColor` | `Hex1bColor` | Black | Selected text color |

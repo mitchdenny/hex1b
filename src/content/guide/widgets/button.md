@@ -236,8 +236,8 @@ var theme = new Hex1bTheme("Custom")
     .Set(ButtonTheme.BackgroundColor, Hex1bColor.Blue)
     .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.Black)
     .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Yellow)
-    .Set(ButtonTheme.LeftBracket, "< ")
-    .Set(ButtonTheme.RightBracket, " >");
+    .Set(ButtonTheme.HoveredForegroundColor, Hex1bColor.Black)
+    .Set(ButtonTheme.HoveredBackgroundColor, Hex1bColor.FromRgb(150, 150, 200));
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) =>
@@ -254,13 +254,12 @@ await terminal.RunAsync();
 
 | Element | Type | Default | Description |
 |---------|------|---------|-------------|
-| `ForegroundColor` | `Hex1bColor` | Default | Text color when unfocused |
-| `BackgroundColor` | `Hex1bColor` | Default | Background when unfocused |
+| `ForegroundColor` | `Hex1bColor` | Default | Text color when unfocused (inherits global text colour) |
+| `BackgroundColor` | `Hex1bColor` | `rgb(60, 60, 60)` | Resting chip background. Slightly brighter than the input-field family (`rgb(40, 40, 40)`) so buttons read as sitting visually above input surfaces. Set to `Hex1bColor.Default` to disable the chip background. |
 | `FocusedForegroundColor` | `Hex1bColor` | Black | Text color when focused |
-| `FocusedBackgroundColor` | `Hex1bColor` | White | Background when focused |
-| `LeftBracket` | `string` | `"[ "` | Left bracket decoration |
-| `RightBracket` | `string` | `" ]"` | Right bracket decoration |
-| `MinimumWidth` | `int` | `10` | Minimum button width |
+| `FocusedBackgroundColor` | `Hex1bColor` | White | Background when focused (brightest invert) |
+| `HoveredForegroundColor` | `Hex1bColor` | Black | Text color when hovered (mouse-only mid state) |
+| `HoveredBackgroundColor` | `Hex1bColor` | `rgb(180, 180, 180)` | Background when hovered (mouse-only mid state) |
 
 ## Input Bindings
 
