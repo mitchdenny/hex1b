@@ -181,7 +181,13 @@ public sealed class SplitButtonNode : Hex1bNode
                 }
             });
 
-        return new BorderWidget(list);
+        // Wrap the bordered list in a BackgroundPanel so every cell inside
+        // the popup is opaquely painted — otherwise BorderNode's inner fill
+        // writes spaces with no background ANSI (when GlobalBackground is
+        // Default), letting whatever was painted underneath bleed through.
+        return new BackgroundPanelWidget(
+            OverlayTheme.BackgroundColor,
+            new BorderWidget(list));
     }
 
     protected override Size MeasureCore(Constraints constraints)

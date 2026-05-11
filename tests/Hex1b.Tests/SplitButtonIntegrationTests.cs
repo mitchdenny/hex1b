@@ -522,4 +522,84 @@ public class SplitButtonIntegrationTests
         }
         Assert.NotEqual(arrowBg, snapshot.GetCell(7, 0).Background);
     }
+
+    [Fact]
+    public async Task SplitButton_StackedSplitButtons_OpenedDropdown_DoesNotBleedSiblingChipBackground()
+    {
+        // Companion to PickerIntegrationTests.Picker_StackedPickers_OpenedDropdown_DoesNotBleedSiblingChipBackground.
+        // SplitButton's BuildDropdownContent uses the same BorderWidget(list)
+        // pattern as Picker, so it shares the same bleed-through bug: any cell
+        // the popup doesn't explicitly paint shows whatever was on the surface
+        // before — including a sibling SplitButton's resting chip background.
+        var topButton = BuildButton();
+        var bottomButton = new SplitButtonWidget()
+            .PrimaryAction("Other", _ => { })
+            .SecondaryAction("Choice X", _ => { })
+            .SecondaryAction("Choice Y", _ => { });
+
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([topButton, bottomButton]))
+            .WithHeadless()
+            .WithDimensions(40, 12)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("Other"),
+                TimeSpan.FromSeconds(5), "both split buttons to render")
+            .Down()  // Open the focused (top) split button's dropdown
+            .WaitUntil(s => s.ContainsText("Option A") && s.ContainsText("Option B"),
+                TimeSpan.FromSeconds(5), "top split button dropdown to open")
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+
+        using var snapshot = terminal.CreateSnapshot();
+
+        (int Line, int Column)? popupOptionA = null;
+        foreach (var match in snapshot.FindText("Option A"))
+        {
+            if (match.Line >= 2)
+            {
+                popupOptionA = match;
+                break;
+            }
+        }
+        Assert.True(popupOptionA.HasValue,
+            $"Expected to find Option A inside the popup body.\nScreen:\n{snapshot.GetText()}");
+
+        var popupLeft = popupOptionA.Value.Column - 3;  // border + indicator
+        var popupTop = popupOptionA.Value.Line - 1;     // border above first item
+
+        var siblingChipBg = Hex1bThemes.Default.Get(ButtonTheme.BackgroundColor);
+
+        var leakedCells = new List<(int X, int Y, Hex1bColor? Bg)>();
+        for (int y = popupTop; y < popupTop + 4; y++)
+        {
+            for (int x = popupLeft; x < popupLeft + 14; x++)
+            {
+                if (x < 0 || y < 0 || x >= snapshot.Width || y >= snapshot.Height)
+                {
+                    continue;
+                }
+                var bg = snapshot.GetCell(x, y).Background;
+                if (bg.HasValue && bg.Value.Equals(siblingChipBg))
+                {
+                    leakedCells.Add((x, y, bg));
+                }
+            }
+        }
+
+        await new Hex1bTerminalInputSequenceBuilder()
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        Assert.True(
+            leakedCells.Count == 0,
+            $"Sibling SplitButton chip background ({siblingChipBg}) bled through the open dropdown at {leakedCells.Count} cell(s): " +
+            string.Join(", ", leakedCells.Take(10).Select(c => $"({c.X},{c.Y})")) +
+            $".\nScreen:\n{snapshot.GetText()}");
+    }
 }

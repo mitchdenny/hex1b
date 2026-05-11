@@ -1,6 +1,7 @@
 using Hex1b.Events;
 using Hex1b.Input;
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -145,8 +146,13 @@ public sealed record PickerWidget(IReadOnlyList<string> Items) : Hex1bWidget
             {
                 await node.SelectItemAsync(e.ActivatedIndex, e.Context);
             });
-        
-        // Wrap in a border for visual distinction
-        return new BorderWidget(list);
+
+        // Wrap in a border for visual distinction, then in a BackgroundPanel
+        // so every cell inside the popup bounding box is opaquely painted.
+        // Without the BackgroundPanel, BorderNode's inner fill writes spaces
+        // with no background ANSI when GlobalBackground is Default — letting
+        // whatever surface was painted underneath bleed through (e.g. a
+        // sibling Picker's chip background sitting where the dropdown opens).
+        return new BackgroundPanelWidget(OverlayTheme.BackgroundColor, new BorderWidget(list));
     }
 }
