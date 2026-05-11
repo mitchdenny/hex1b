@@ -16,7 +16,7 @@ public class CheckboxNodeTests
         var node = new CheckboxNode { State = CheckboxState.Unchecked };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
 
-        // " □ " = 3 display cells, no label
+        // " ▢ " = 3 display cells, no label
         Assert.Equal(3, size.Width);
         Assert.Equal(1, size.Height);
     }
@@ -27,7 +27,7 @@ public class CheckboxNodeTests
         var node = new CheckboxNode { State = CheckboxState.Unchecked, Label = "Option" };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
 
-        // " □ " = 3 cells + " " + "Option" = 3 + 1 + 6 = 10
+        // " ▢ " = 3 cells + " " + "Option" = 3 + 1 + 6 = 10
         Assert.Equal(10, size.Width);
         Assert.Equal(1, size.Height);
     }

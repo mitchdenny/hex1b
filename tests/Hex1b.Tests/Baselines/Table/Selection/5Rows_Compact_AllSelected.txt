@@ -1,5 +1,5 @@
 ┌───┬───────────────┬────────────┬──────────┬──────┐                            
-│ □ │Name           │Category    │     Price│ Stock│                            
+│ ▢ │Name           │Category    │     Price│ Stock│                            
 ├───┼───────────────┼────────────┼──────────┼──────┤                            
 │ ▣ │Laptop         │Electronics │     $9.99│    10│                            
 │ ▣ │Mouse          │Clothing    │    $19.99│    11│                            

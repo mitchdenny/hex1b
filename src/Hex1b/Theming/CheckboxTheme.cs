@@ -33,7 +33,7 @@ public static class CheckboxTheme
 
     /// <summary>
     /// Resting chip background painted behind the box glyph (the
-    /// <c>" □ "</c> / <c>" ▣ "</c> / <c>" ▤ "</c> cells). Defaults to the
+    /// <c>" ▢ "</c> / <c>" ▣ "</c> / <c>" ▤ "</c> cells). Defaults to the
     /// same <c>rgb(60,60,60)</c> as <see cref="ButtonTheme.BackgroundColor"/>
     /// so checkboxes and buttons share a coherent "solid" feel. Set to
     /// <see cref="Hex1bColor.Default"/> to disable the chip and render the
@@ -103,11 +103,14 @@ public static class CheckboxTheme
 
     /// <summary>
     /// The checkbox glyph (padded to 3 display cells) used when the checkbox
-    /// is unchecked. Default is <c>" □ "</c> — a 1-cell U+25A1 "white square"
-    /// framed by single-cell padding so it fills a 3-cell chip.
+    /// is unchecked. Default is <c>" ▢ "</c> — a 1-cell U+25A2 "white square
+    /// with rounded corners" glyph, intentionally chosen as the matched-pair
+    /// partner of <c>▣</c> (U+25A3) so both states share consistent stroke
+    /// metrics across most monospace fonts. Framed by single-cell padding so
+    /// it fills a 3-cell chip.
     /// </summary>
     public static readonly Hex1bThemeElement<string> UncheckedBox =
-        new($"{nameof(CheckboxTheme)}.{nameof(UncheckedBox)}", () => " □ ");
+        new($"{nameof(CheckboxTheme)}.{nameof(UncheckedBox)}", () => " ▢ ");
 
     /// <summary>
     /// The checkbox glyph (padded to 3 display cells) used when the checkbox

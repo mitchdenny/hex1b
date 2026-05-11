@@ -132,7 +132,7 @@ public static class TableTheme
     /// Character shown for unchecked (unselected) rows.
     /// </summary>
     public static readonly Hex1bThemeElement<string> CheckboxUnchecked = 
-        new($"{nameof(TableTheme)}.{nameof(CheckboxUnchecked)}", () => " □ ");
+        new($"{nameof(TableTheme)}.{nameof(CheckboxUnchecked)}", () => " ▢ ");
     
     /// <summary>
     /// Character shown for checked (selected) rows.

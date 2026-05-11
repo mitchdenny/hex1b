@@ -31,7 +31,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
         v.Text("Checkbox States:"),
         v.Text(""),
-        v.Checkbox().Unchecked().Label("Unchecked □"),
+        v.Checkbox().Unchecked().Label("Unchecked ▢"),
         v.Checkbox().Checked().Label("Checked ▣"),
         v.Checkbox().Indeterminate().Label("Indeterminate ▤")
     ]))
@@ -63,7 +63,7 @@ Checkboxes support three visual states:
 
 | State | Display | Usage |
 |-------|---------|-------|
-| `Unchecked` | ` □ ` | Default, option not selected |
+| `Unchecked` | ` ▢ ` | Default, option not selected |
 | `Checked` | ` ▣ ` | Option is selected |
 | `Indeterminate` | ` ▤ ` | Partial selection (e.g., some children selected) |
 

@@ -318,8 +318,8 @@ public class TreeCascadeSelectionTests
         // Child 1 should show checked ▣
         Assert.True(snapshot.ContainsText("▣"), 
             "Should show checked checkbox for selected child");
-        // Child 2 should show unchecked □
-        Assert.True(snapshot.ContainsText("□"), 
+        // Child 2 should show unchecked ▢
+        Assert.True(snapshot.ContainsText("▢"), 
             "Should show unchecked checkbox for unselected child");
     }
 
