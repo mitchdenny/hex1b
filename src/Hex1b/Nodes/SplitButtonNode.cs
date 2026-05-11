@@ -142,26 +142,32 @@ public sealed class SplitButtonNode : Hex1bNode
 
     private Hex1bWidget BuildDropdownContent()
     {
-        // Build a simple list of buttons for secondary actions
-        var items = SecondaryActions.Select(action =>
-            new ButtonWidget(action.Label)
-                .OnClick(async e =>
+        // Use a ListWidget so the popup naturally responds to UpArrow /
+        // DownArrow / Enter / Escape, mirroring how PickerNode opens its
+        // popup. Building this as a VStack of ButtonWidgets — as an earlier
+        // implementation did — left the popup with no built-in keyboard
+        // navigation, so focus would stay stuck on the first secondary
+        // action.
+        var labels = SecondaryActions.Select(a => a.Label).ToList();
+        var list = new ListWidget(labels)
+            .OnItemActivated(async e =>
+            {
+                // Close the dropdown — onDismiss (set by OpenDropdown) takes
+                // care of clearing IsDropdownOpen and marking dirty.
+                e.Context.Popups.Pop();
+                IsDropdownOpen = false;
+                MarkDirty();
+
+                // Execute the matching action.
+                if (SourceWidget != null && e.ActivatedIndex >= 0 && e.ActivatedIndex < SecondaryActions.Count)
                 {
-                    // Close dropdown first
-                    e.Context.Popups.Pop();
-                    IsDropdownOpen = false;
-                    MarkDirty();
+                    var action = SecondaryActions[e.ActivatedIndex];
+                    var args = new SplitButtonClickedEventArgs(SourceWidget, this, e.Context);
+                    await action.Handler(args);
+                }
+            });
 
-                    // Execute the action
-                    if (SourceWidget != null)
-                    {
-                        var args = new SplitButtonClickedEventArgs(SourceWidget, this, e.Context);
-                        await action.Handler(args);
-                    }
-                }) as Hex1bWidget
-        ).ToList();
-
-        return new BorderWidget(new VStackWidget(items));
+        return new BorderWidget(list);
     }
 
     protected override Size MeasureCore(Constraints constraints)
