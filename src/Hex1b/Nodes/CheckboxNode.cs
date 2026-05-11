@@ -99,7 +99,7 @@ public sealed class CheckboxNode : Hex1bNode
 
     private async Task HandleClick(InputBindingActionContext ctx)
     {
-        // Only toggle on the visual checkbox box (e.g., "[x]" = 3 chars), not trailing space
+        // Only toggle on the visual checkbox box (e.g., " ▣ " = 3 cells), not trailing space
         var localX = ctx.MouseX - Bounds.X;
         if (localX >= 0 && localX < 3)
         {
@@ -108,7 +108,7 @@ public sealed class CheckboxNode : Hex1bNode
     }
 
     /// <summary>
-    /// Gets the width of the checkbox box (e.g., "[x]" = 3).
+    /// Gets the width of the checkbox box (e.g., " ▣ " = 3).
     /// </summary>
     public int GetCheckboxWidth(Hex1bTheme theme)
     {
@@ -123,7 +123,7 @@ public sealed class CheckboxNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Checkbox is typically 3 chars for "[x]" plus optional label
+        // Checkbox is typically 3 cells for " ▣ " plus optional label
         var checkboxWidth = 3; // Default width
         var labelWidth = string.IsNullOrEmpty(Label) ? 0 : DisplayWidth.GetStringWidth(Label) + 1; // +1 for space
         var totalWidth = checkboxWidth + labelWidth;
@@ -139,13 +139,6 @@ public sealed class CheckboxNode : Hex1bNode
         var uncheckedBox = theme.Get(CheckboxTheme.UncheckedBox);
         var indeterminateBox = theme.Get(CheckboxTheme.IndeterminateBox);
 
-        var fg = IsFocused
-            ? theme.Get(CheckboxTheme.FocusedForegroundColor)
-            : theme.Get(CheckboxTheme.ForegroundColor);
-        var bg = IsFocused
-            ? theme.Get(CheckboxTheme.FocusedBackgroundColor)
-            : theme.Get(CheckboxTheme.BackgroundColor);
-
         // Select box text based on state
         var boxText = State.Value switch
         {
@@ -154,19 +147,88 @@ public sealed class CheckboxNode : Hex1bNode
             _ => uncheckedBox
         };
 
-        // Build output
+        var resetCodes = theme.GetResetToGlobalCodes();
         var output = new System.Text.StringBuilder();
-        output.Append(fg.ToForegroundAnsi());
-        output.Append(bg.ToBackgroundAnsi());
-        output.Append(boxText);
 
-        if (!string.IsNullOrEmpty(Label))
+        if (IsFocused)
         {
-            output.Append(' ');
-            output.Append(Label);
-        }
+            // Focused: paint the entire control (box + label) with the focus
+            // chip so the focus ring spans the whole row.
+            var fg = theme.Get(CheckboxTheme.FocusedForegroundColor);
+            var bg = theme.Get(CheckboxTheme.FocusedBackgroundColor);
+            var fgAnsi = fg.ToForegroundAnsi();
+            var bgAnsi = bg.ToBackgroundAnsi();
 
-        output.Append(theme.GetResetToGlobalCodes());
+            output.Append(fgAnsi);
+            output.Append(bgAnsi);
+            output.Append(boxText);
+            if (!string.IsNullOrEmpty(Label))
+            {
+                output.Append(' ');
+                output.Append(Label);
+            }
+            output.Append(resetCodes);
+        }
+        else if (IsHovered)
+        {
+            // Hovered (mouse over, not focused): same full-row chip as focus
+            // but using the hover palette.
+            var fg = theme.Get(CheckboxTheme.HoveredForegroundColor);
+            var bg = theme.Get(CheckboxTheme.HoveredBackgroundColor);
+            var fgAnsi = fg.ToForegroundAnsi();
+            var bgAnsi = bg.ToBackgroundAnsi();
+
+            output.Append(fgAnsi);
+            output.Append(bgAnsi);
+            output.Append(boxText);
+            if (!string.IsNullOrEmpty(Label))
+            {
+                output.Append(' ');
+                output.Append(Label);
+            }
+            output.Append(resetCodes);
+        }
+        else
+        {
+            // Resting: only the box gets the chip background. The label
+            // renders against the surrounding surface so checkboxes don't
+            // visually overpower the form they sit in. The box glyph itself
+            // is tinted with the state-specific colour (CheckMark / Indeterminate)
+            // when set, falling back to the generic foreground.
+            var boxBg = theme.Get(CheckboxTheme.BoxBackgroundColor);
+            var labelFg = theme.Get(CheckboxTheme.ForegroundColor);
+            var labelBg = theme.Get(CheckboxTheme.BackgroundColor);
+
+            Hex1bColor boxFg = State.Value switch
+            {
+                CheckboxValue.Checked => theme.Get(CheckboxTheme.CheckMarkColor),
+                CheckboxValue.Indeterminate => theme.Get(CheckboxTheme.IndeterminateColor),
+                _ => labelFg
+            };
+            if (boxFg.IsDefault)
+            {
+                boxFg = labelFg;
+            }
+
+            var boxFgCode = boxFg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : boxFg.ToForegroundAnsi();
+            var boxBgCode = boxBg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : boxBg.ToBackgroundAnsi();
+
+            output.Append(boxFgCode);
+            output.Append(boxBgCode);
+            output.Append(boxText);
+            output.Append(resetCodes);
+
+            if (!string.IsNullOrEmpty(Label))
+            {
+                var labelFgCode = labelFg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : labelFg.ToForegroundAnsi();
+                var labelBgCode = labelBg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : labelBg.ToBackgroundAnsi();
+                output.Append(labelFgCode);
+                output.Append(labelBgCode);
+                output.Append(' ');
+                output.Append(Label);
+                output.Append(resetCodes);
+            }
+        }
 
         // Render
         if (context.CurrentLayoutProvider != null)

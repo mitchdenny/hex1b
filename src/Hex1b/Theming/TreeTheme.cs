@@ -76,13 +76,13 @@ public static class TreeTheme
         new($"{nameof(TreeTheme)}.{nameof(LeafIndicator)}", () => " ");
 
     public static readonly Hex1bThemeElement<string> CheckboxChecked =
-        new($"{nameof(TreeTheme)}.{nameof(CheckboxChecked)}", () => "[x] ");
+        new($"{nameof(TreeTheme)}.{nameof(CheckboxChecked)}", () => " ▣  ");
 
     public static readonly Hex1bThemeElement<string> CheckboxUnchecked =
-        new($"{nameof(TreeTheme)}.{nameof(CheckboxUnchecked)}", () => "[ ] ");
+        new($"{nameof(TreeTheme)}.{nameof(CheckboxUnchecked)}", () => " □  ");
 
     public static readonly Hex1bThemeElement<string> CheckboxIndeterminate =
-        new($"{nameof(TreeTheme)}.{nameof(CheckboxIndeterminate)}", () => "[-] ");
+        new($"{nameof(TreeTheme)}.{nameof(CheckboxIndeterminate)}", () => " ▤  ");
 
     #endregion
 }

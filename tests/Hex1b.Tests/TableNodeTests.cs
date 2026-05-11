@@ -716,7 +716,7 @@ public class TableNodeTests
         TestContext.Current.TestOutputHelper?.WriteLine($"Header row (first 15): '{headerRow}'");
         
         // Check that we have the selection column separator at position 4
-        // Expected: │[ ]│Name...
+        // Expected: │ □ │Name...
         Assert.True(char0 == "│", $"Expected left border '│' at position 0, got '{char0}'"); // Left border
         Assert.True(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
     }
@@ -1092,7 +1092,7 @@ public class TableNodeTests
         TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
         
         // Initial state - first row focused, no selection
-        Assert.Contains("[ ]", initialText); // Unchecked checkbox
+        Assert.Contains("□", initialText); // Unchecked checkbox (□)
         Assert.Equal(0, products.Count(p => p.IsSelected));
 
         // Press Space to toggle selection
@@ -1109,7 +1109,7 @@ public class TableNodeTests
         TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // After Space, first row should be selected
-        Assert.Contains("[x]", afterSpaceText); // Checked checkbox
+        Assert.Contains("▣", afterSpaceText); // Checked checkbox (▣)
         Assert.Equal(1, products.Count(p => p.IsSelected));
 
         // Navigate down and select that row too
@@ -1207,15 +1207,15 @@ public class TableNodeTests
         Assert.Equal(0, products.Count(p => p.IsSelected));
 
         // Click on the checkbox of the first data row
-        // Table structure: │[ ]│> Laptop...
+        // Table structure: │ □ │> Laptop...
         // Top border at Y=0: ┌───┬...
-        // Header at Y=1: │[ ]│Product...
+        // Header at Y=1: │ □ │Product...
         // Separator at Y=2: ├───┼...
-        // First data row at Y=3: │[ ]│> Laptop...
+        // First data row at Y=3: │ □ │> Laptop...
         // Checkbox is at X positions 1-3 (after left border │ at position 0)
         
         // Let's try clicking more towards the center of the checkbox area
-        // Position X=2 should be right in the middle of "[ ]"
+        // Position X=2 should be right in the middle of " □ "
         TestContext.Current.TestOutputHelper?.WriteLine($"Clicking at (2, 3) - should be on checkbox of first data row");
         
         await new Hex1bTerminalInputSequenceBuilder()

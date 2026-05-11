@@ -312,14 +312,14 @@ public class TreeCascadeSelectionTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Parent should show indeterminate checkbox [-]
-        Assert.True(snapshot.ContainsText("[-]"), 
+        // Parent should show indeterminate checkbox ▤
+        Assert.True(snapshot.ContainsText("▤"), 
             $"Should show indeterminate checkbox. Output:\n{snapshot.GetDisplayText()}");
-        // Child 1 should show checked [x]
-        Assert.True(snapshot.ContainsText("[x]"), 
+        // Child 1 should show checked ▣
+        Assert.True(snapshot.ContainsText("▣"), 
             "Should show checked checkbox for selected child");
-        // Child 2 should show unchecked [ ]
-        Assert.True(snapshot.ContainsText("[ ]"), 
+        // Child 2 should show unchecked □
+        Assert.True(snapshot.ContainsText("□"), 
             "Should show unchecked checkbox for unselected child");
     }
 
@@ -354,9 +354,9 @@ public class TreeCascadeSelectionTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // All items should show checked [x] - count occurrences
+        // All items should show checked ▣ - count occurrences
         var text = snapshot.GetDisplayText();
-        var checkedCount = text.Split("[x]").Length - 1;
+        var checkedCount = text.Split("▣").Length - 1;
         Assert.Equal(3, checkedCount); // Parent + 2 children
     }
 
@@ -383,7 +383,7 @@ public class TreeCascadeSelectionTests
         // For root leaf items (depth 0): no guide, no indicator, checkbox at x=0-2
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Item 1"), TimeSpan.FromSeconds(5), "tree to render")
-            .ClickAt(1, 1)  // Click on checkbox of Item 2 (second row, x=1 is on the 'x' in [x])
+            .ClickAt(1, 1)  // Click on checkbox of Item 2 (second row, x=1 is on the ▣ glyph in " ▣ ")
             .Wait(50)
             .Capture("after_click")
             .Ctrl().Key(Hex1bKey.C)
@@ -393,7 +393,7 @@ public class TreeCascadeSelectionTests
 
         // Item 2 should now be selected
         var text = snapshot.GetDisplayText();
-        Assert.Contains("[x]", text);
+        Assert.Contains("▣", text);
     }
 
     [Fact]
@@ -429,7 +429,7 @@ public class TreeCascadeSelectionTests
 
         // No items should be selected (checkboxes still all unchecked)
         var text = snapshot.GetDisplayText();
-        var checkedCount = text.Split("[x]").Length - 1;
+        var checkedCount = text.Split("▣").Length - 1;
         Assert.Equal(0, checkedCount);
     }
 

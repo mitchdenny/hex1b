@@ -22,8 +22,8 @@ public class TreeIntegrationTests
     // Indicators
     private const string ExpandedIndicator = "▼";
     private const string CollapsedIndicator = "▶";
-    private const string CheckboxChecked = "[x]";
-    private const string CheckboxUnchecked = "[ ]";
+    private const string CheckboxChecked = "▣";
+    private const string CheckboxUnchecked = "□";
     
     #endregion
 

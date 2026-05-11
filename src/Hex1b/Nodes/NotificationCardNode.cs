@@ -166,7 +166,7 @@ public sealed class NotificationCardNode : Hex1bNode
         // Measure child buttons and cache their sizes
         if (DismissButton != null)
         {
-            _dismissButtonSize = DismissButton.Measure(new Constraints(0, 5, 0, 1)); // "[ × ]" style
+            _dismissButtonSize = DismissButton.Measure(new Constraints(0, 5, 0, 1)); // " × " chip with possible padding
         }
         if (ActionButton != null)
         {
@@ -224,10 +224,10 @@ public sealed class NotificationCardNode : Hex1bNode
         var titleColor = originalTheme.Get(NotificationCardTheme.TitleColor);
         var bodyColor = originalTheme.Get(NotificationCardTheme.BodyColor);
 
-        // Create a scoped theme for children that sets button background to card background
-        // This ensures buttons rendered inside the card use the card's background color
+        // Create a scoped theme for children (used for progress bar / future overrides).
+        // Action and dismiss buttons intentionally render with their normal chip backgrounds
+        // so they are visually distinct from the card body.
         var childTheme = originalTheme.Clone();
-        childTheme.Set(ButtonTheme.BackgroundColor, cardBg);
         context.Theme = childTheme;
 
         // Half-block border: card bg as foreground, global bg as background
@@ -401,25 +401,6 @@ public sealed class NotificationCardNode : Hex1bNode
         if (remaining <= TimeSpan.Zero) return 0;
         
         return remaining.TotalMilliseconds / Notification.TimeoutDuration.Value.TotalMilliseconds;
-    }
-
-    private string BuildActionText(int maxWidth)
-    {
-        var parts = new List<string>();
-
-        if (PrimaryAction != null)
-        {
-            var arrow = SecondaryActions.Count > 0 ? " ▼" : "";
-            parts.Add($"[{PrimaryAction.Label}{arrow}]");
-        }
-
-        var result = string.Join(" ", parts);
-        if (result.Length > maxWidth)
-        {
-            result = result[..(maxWidth - 1)] + "…";
-        }
-
-        return result.PadRight(maxWidth);
     }
 
     private static List<string> WrapText(string text, int maxWidth)

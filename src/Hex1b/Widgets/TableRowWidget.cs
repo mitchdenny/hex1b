@@ -1,5 +1,6 @@
 using Hex1b.Layout;
 using Hex1b.Nodes;
+using Hex1b.Theming;
 
 namespace Hex1b.Widgets;
 
@@ -75,7 +76,7 @@ internal sealed record TableRowWidget(
             }
             else
             {
-                checkText = IsSelected == true ? "[x]" : "[ ]";
+                checkText = IsSelected == true ? TableTheme.CheckboxChecked.DefaultValue() : TableTheme.CheckboxUnchecked.DefaultValue();
             }
             widgets.Add(new TextBlockWidget(checkText).FixedWidth(3));
             widgets.Add(new TextBlockWidget(Vertical.ToString()));

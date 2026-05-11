@@ -1314,7 +1314,7 @@ public class TableNode<TRow> : Hex1bNode, ILayoutProvider, IDisposable
         // Selection column (if enabled)
         if (ShowSelectionColumn)
         {
-            var checkText = isSelected ? "[x]" : "[ ]";
+            var checkText = isSelected ? TableTheme.CheckboxChecked.DefaultValue() : TableTheme.CheckboxUnchecked.DefaultValue();
             var selNode = new TextBlockNode { Text = checkText };
             selNode.WidthHint = SizeHint.Fixed(3);
             rowNode.Children.Add(selNode);

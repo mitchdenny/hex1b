@@ -31,9 +31,9 @@ public class CheckboxStatesExample(ILogger<CheckboxStatesExample> logger) : Hex1
             return ctx.VStack(v => [
                 v.Text("Checkbox States:"),
                 v.Text(""),
-                v.Checkbox().Unchecked().Label("Unchecked [ ]"),
-                v.Checkbox().Checked().Label("Checked [x]"),
-                v.Checkbox().Indeterminate().Label("Indeterminate [-]")
+                v.Checkbox().Unchecked().Label("Unchecked □"),
+                v.Checkbox().Checked().Label("Checked ▣"),
+                v.Checkbox().Indeterminate().Label("Indeterminate ▤")
             ]);
         };
     }

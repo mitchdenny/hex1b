@@ -251,14 +251,14 @@ public class TableIntegrationTests
 
         // Wait for render, verify unchecked state
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table with checkboxes rendered")
             .Wait(100)
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var beforeSnapshot = terminal.CreateSnapshot();
-        Assert.Contains("[ ]", beforeSnapshot.GetScreenText());
+        Assert.Contains("□", beforeSnapshot.GetScreenText());
         Assert.Equal(0, data.Count(e => e.IsSelected));
 
         // Press Space to select the focused row
@@ -276,7 +276,7 @@ public class TableIntegrationTests
         // First row should now be selected
         Assert.Equal(1, data.Count(e => e.IsSelected));
         Assert.True(data[0].IsSelected, "Employee 1 should be selected");
-        Assert.Contains("[x]", afterText);
+        Assert.Contains("▣", afterText);
 
         // Row is both focused AND selected; focused bg takes priority
         Assert.True(afterSnapshot.HasBackgroundColor(FocusedRowBg),
@@ -324,7 +324,7 @@ public class TableIntegrationTests
 
         // Wait for table to render
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered with checkboxes")
             .Wait(100)
             .Build()
@@ -392,7 +392,7 @@ public class TableIntegrationTests
 
         // Wait for render with all checked
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[x]") && s.ContainsText("Employee 1"),
+            .WaitUntil(s => s.ContainsText("▣") && s.ContainsText("Employee 1"),
                 TimeSpan.FromSeconds(5), "table rendered with all selected")
             .Wait(100)
             .Build()
@@ -455,7 +455,7 @@ public class TableIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
@@ -518,7 +518,7 @@ public class TableIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
@@ -839,7 +839,7 @@ public class TableIntegrationTests
 
         // Select the focused row (Space toggles)
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.Spacebar)  // Select Employee 1
             .Wait(200)
@@ -913,7 +913,7 @@ public class TableIntegrationTests
 
         // Select first 3 rows using Space + Down
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Key(Hex1bKey.Spacebar)  // Select Employee 1
             .Key(Hex1bKey.DownArrow)
@@ -1169,7 +1169,7 @@ public class TableIntegrationTests
         var runTask = app.RunAsync(TestContext.Current.CancellationToken);
 
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Employee 1") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
@@ -1189,10 +1189,10 @@ public class TableIntegrationTests
         TestContext.Current.TestOutputHelper?.WriteLine("=== After Select All ===");
         TestContext.Current.TestOutputHelper?.WriteLine(selectAllText);
 
-        // All checkboxes should show [x]
-        Assert.Contains("[x]", selectAllText);
+        // All checkboxes should show ▣
+        Assert.Contains("▣", selectAllText);
         // The header checkbox should show the checked indicator
-        // (exact char depends on theme, but it should change from [ ])
+        // (exact char depends on theme, but it should change from □)
 
         // Ctrl+A again should deselect all (since all are selected)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1208,7 +1208,7 @@ public class TableIntegrationTests
         TestContext.Current.TestOutputHelper?.WriteLine("=== After Deselect All ===");
         TestContext.Current.TestOutputHelper?.WriteLine(deselectAllText);
 
-        Assert.Contains("[ ]", deselectAllText);
+        Assert.Contains("□", deselectAllText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -1343,7 +1343,7 @@ public class TableIntegrationTests
 
         // Step 1: Verify initial render with focus on Alice
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("[ ]"),
+            .WaitUntil(s => s.ContainsText("Alice Johnson") && s.ContainsText("□"),
                 TimeSpan.FromSeconds(5), "table rendered")
             .Wait(100)
             .Build()
@@ -1382,7 +1382,7 @@ public class TableIntegrationTests
         var allSelectedText = allSelectedSnapshot.GetScreenText();
         TestContext.Current.TestOutputHelper?.WriteLine("=== All selected ===");
         TestContext.Current.TestOutputHelper?.WriteLine(allSelectedText);
-        Assert.Contains("[x]", allSelectedText);
+        Assert.Contains("▣", allSelectedText);
 
         // Step 4: Ctrl+A again to deselect all
         await new Hex1bTerminalInputSequenceBuilder()

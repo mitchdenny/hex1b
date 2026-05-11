@@ -17,9 +17,9 @@ namespace Hex1b.Widgets;
 /// <strong>Card layout:</strong>
 /// <code>
 /// ┌────────────────────────────────────┐
-/// │ Title                        [ × ] │
+/// │ Title                          × ▼ │
 /// │ Body text (if present)             │
-/// │ [ Primary ▼ ]                      │
+/// │  Primary ▼                         │
 /// │ ▓▓▓▓▓▓▓▓▓░░░░░ (timeout progress) │
 /// └────────────────────────────────────┘
 /// </code>

@@ -238,9 +238,9 @@ Add a checkbox column for multi-select functionality:
 ```
 
 The header checkbox shows:
-- `[ ]` when no items are selected
-- `[-]` when some items are selected
-- `[x]` when all items are selected
+- ` □ ` when no items are selected
+- ` ▤ ` when some items are selected
+- ` ▣ ` when all items are selected
 
 ::: tip Keyboard Shortcuts
 Press **Space** to toggle selection on the focused row. Press **Space** on the header to select/deselect all.
@@ -355,9 +355,9 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 | `FocusedRowBackground` | `Hex1bColor` | Background of focused row |
 | `HeaderForeground` | `Hex1bColor` | Header text color |
 | `HeaderBackground` | `Hex1bColor` | Header background color |
-| `CheckboxChecked` | `string` | Checked checkbox character (default: `[x]`) |
-| `CheckboxUnchecked` | `string` | Unchecked checkbox character (default: `[ ]`) |
-| `CheckboxIndeterminate` | `string` | Partial selection character (default: `[-]`) |
+| `CheckboxChecked` | `string` | Checked checkbox character (default: ` ▣ `) |
+| `CheckboxUnchecked` | `string` | Unchecked checkbox character (default: ` □ `) |
+| `CheckboxIndeterminate` | `string` | Partial selection character (default: ` ▤ `) |
 | `ShowFocusIndicator` | `bool` | Whether to show the thick focus bar |
 
 ## API Reference

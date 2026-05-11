@@ -29,12 +29,6 @@ public static class NotificationCardTheme
         new($"{nameof(NotificationCardTheme)}.{nameof(BodyColor)}", () => Hex1bColor.FromRgb(160, 160, 160));
     
     /// <summary>
-    /// Foreground color for action buttons.
-    /// </summary>
-    public static readonly Hex1bThemeElement<Hex1bColor> ActionColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(ActionColor)}", () => Hex1bColor.White);
-    
-    /// <summary>
     /// Background color when the notification card is focused.
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> FocusedBackgroundColor = 
@@ -45,12 +39,6 @@ public static class NotificationCardTheme
     /// </summary>
     public static readonly Hex1bThemeElement<Hex1bColor> ProgressBarColor = 
         new($"{nameof(NotificationCardTheme)}.{nameof(ProgressBarColor)}", () => Hex1bColor.White);
-    
-    /// <summary>
-    /// Color for the dismiss button text.
-    /// </summary>
-    public static readonly Hex1bThemeElement<Hex1bColor> DismissButtonColor = 
-        new($"{nameof(NotificationCardTheme)}.{nameof(DismissButtonColor)}", () => Hex1bColor.FromRgb(120, 120, 120));
     
     /// <summary>
     /// Character for a fully filled progress bar cell.
