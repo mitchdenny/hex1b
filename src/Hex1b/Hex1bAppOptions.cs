@@ -94,6 +94,36 @@ public class Hex1bAppOptions
     /// </para>
     /// </remarks>
     public bool EnableRenderCaching { get; set; }
+
+    /// <summary>
+    /// When true, every rendered frame is emitted as soft-wrap-friendly logical lines
+    /// (text + ESC[K + CR+LF per row) instead of as a CUP-positioned cell diff.
+    /// The host terminal then owns reflow and scroll behaviour for the rendered
+    /// content, which is essential for inline (non-alternate-buffer) rendering
+    /// scenarios where the content needs to survive horizontal terminal resizes.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Each frame is preceded by <c>ESC[1;1H ESC[J</c> (cursor to top-left of the
+    /// frame's coordinate space, clear from cursor to end of screen) and emitted in
+    /// full — there is no incremental diff. When the workload adapter rebases CUP
+    /// coordinates (e.g. <c>InlineStepAdapter</c>), the leading <c>ESC[1;1H</c> is
+    /// rewritten to position the cursor at the top of the host-terminal region the
+    /// adapter owns, and the trailing <c>ESC[J</c> clears just that region down to
+    /// the bottom of the screen — leaving any content above it intact.
+    /// </para>
+    /// <para>
+    /// This mode is used by <c>Hex1bFlowRunner</c> when soft-wrap tombstones are
+    /// enabled, so the active step renders as logical lines that reflow naturally
+    /// alongside the tombstones above it. KGP/sixel emission is bypassed in this
+    /// mode; soft-wrap rendering targets text-only step UIs.
+    /// </para>
+    /// <para>
+    /// Default is false. Cell-diffed CUP rendering remains the default for all
+    /// alternate-buffer and full-screen use cases.
+    /// </para>
+    /// </remarks>
+    public bool UseSoftWrapEmission { get; set; }
     
     /// <summary>
     /// Initial delay in milliseconds for input coalescing. After processing an input,

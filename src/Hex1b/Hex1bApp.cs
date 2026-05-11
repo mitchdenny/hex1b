@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Threading.Channels;
 using Hex1b.Animation;
 using Hex1b.Diagnostics;
+using Hex1b.Flow;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
@@ -153,6 +154,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
     // Surface RenderChild caching (opt-in).
     private readonly bool _enableRenderCaching;
+    private readonly bool _useSoftWrapEmission;
     
     // Surface rendering double-buffer
     private Surface? _currentSurface;
@@ -267,6 +269,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _inputCoalescingMaxDelayMs = options.InputCoalescingMaxDelayMs;
 
         _enableRenderCaching = options.EnableRenderCaching;
+        _useSoftWrapEmission = options.UseSoftWrapEmission;
 
         _surfacePool = options.EnableSurfacePooling
             ? new SurfacePool(options.SurfacePoolMaxSurfacesPerBucket, options.SurfacePoolMaxIdleFrames)
@@ -1117,7 +1120,34 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 $"frame-rendered size={width}x{height} images={_kgpRegistry.Images.Count} " +
                 $"occluders={_kgpRegistry.Occluders.Count} surfaceHasKgp={_currentSurface.HasKgp}");
         }
-        
+
+        // Soft-wrap emission: every frame emits the entire surface as
+        // logical lines (text + ESC[K + CR+LF per row), so the host
+        // terminal owns reflow and scroll. Used by inline (non-alt-buffer)
+        // step rendering where the active step content has to survive
+        // horizontal terminal resizes alongside any tombstones above it.
+        // KGP/sixel content is not supported in this mode — soft-wrap
+        // rendering targets text-only step UIs.
+        if (_useSoftWrapEmission)
+        {
+            // CUP to top-left of frame, then clear from cursor to end of
+            // screen. When the workload adapter rebases CUP coordinates
+            // (InlineStepAdapter), the leading "ESC[1;1H" lands at the
+            // top of the host-terminal region the adapter owns, and the
+            // trailing "ESC[J" wipes that region down to the bottom of
+            // the screen — leaving any content above it intact.
+            _adapter.Write("\x1b[1;1H\x1b[J");
+            SoftWrapEmitter.Emit(_currentSurface, _adapter);
+            // Reset the previous-surface cache so a future switch off of
+            // soft-wrap emission (or a downstream diff) starts from a
+            // known-empty baseline rather than a stale cell grid that the
+            // diff path never observed being written.
+            _previousSurface?.Clear();
+            _isFirstFrame = false;
+            _metrics.OutputCellsChanged.Record(width * height);
+            return true;
+        }
+
         // Diff current vs previous and emit changes
         var diffStart = Stopwatch.GetTimestamp();
         var diff = _isFirstFrame || _previousSurface == null

@@ -294,6 +294,14 @@ internal sealed class Hex1bFlowRunner
                 WorkloadAdapter = stepAdapter,
                 EnableMouse = options?.EnableMouse ?? false,
                 EnableDefaultCtrlCExit = true,
+                // On the soft-wrap path the active step is rendered as
+                // logical lines (text + ESC[K + CR+LF) instead of as a
+                // CUP-positioned cell diff. This makes the step content
+                // reflowable by the host terminal alongside any
+                // tombstones above it, so a horizontal resize doesn't
+                // leave wrap-spillover ghost cells around the new step
+                // region.
+                UseSoftWrapEmission = _options.UseSoftWrapTombstones,
             };
 
             if (_options.Theme != null)
@@ -772,18 +780,33 @@ internal sealed class Hex1bFlowRunner
     /// <see cref="PumpStepOutputAsync"/> has been parking the cursor at
     /// the tombstone-past row, the runner queries the cursor first to
     /// learn where that row landed after the host terminal reflowed the
-    /// tombstones above. The new active-step origin is computed from the
-    /// queried row using a hybrid strategy: top-anchor immediately past
-    /// the tombstones when the step fits in the remaining viewport;
-    /// bottom-anchor otherwise (which may overlap the bottom of the
-    /// reflowed tombstones — accepted as the cost of fitting the step
-    /// into a viewport that became too small).
+    /// tombstones above. The new active-step origin is anchored at the
+    /// queried row (top-anchor) so the step appears in the same logical
+    /// position it was before the resize. Soft-wrap step rendering
+    /// (<see cref="Hex1bAppOptions.UseSoftWrapEmission"/>) handles the
+    /// case where the step doesn't fit by scrolling some tombstones off
+    /// the top of the viewport into the host terminal's scrollback.
     /// </para>
     /// <para>
     /// When no live cursor query is available the runner falls back to
-    /// pure bottom-anchor based on the OLD captured origin/height, which
-    /// is the prior behaviour: simple, safe, but doesn't recover from
-    /// horizontal reflow.
+    /// bottom-anchor based on the new viewport height, which is the prior
+    /// behaviour: simple, safe, but doesn't recover from horizontal
+    /// reflow.
+    /// </para>
+    /// <para>
+    /// On the soft-wrap path the runner does NOT clear the OLD or NEW
+    /// step regions itself. The active step's
+    /// <see cref="Hex1bApp"/> emits each frame as a full-surface soft-wrap
+    /// dump prefixed by <c>ESC[1;1H ESC[J</c> — so the first post-resize
+    /// frame both clears the new step region AND wipes any leftover
+    /// content below it (including the OLD step region wherever the
+    /// terminal's reflow left it). Clearing here would only race against
+    /// that emission and risk wiping reflowed tombstone content.
+    /// </para>
+    /// <para>
+    /// The legacy (non-soft-wrap) path still clears the old/new regions
+    /// itself because the active step renders via absolute CUP and won't
+    /// emit a clear of its own.
     /// </para>
     /// <para>
     /// The clear+repaint is bracketed in DEC private mode 2026
@@ -824,20 +847,13 @@ internal sealed class Hex1bFlowRunner
         bool topAnchored;
         if (dsrRow is int row && row >= 0 && row < newHeight)
         {
-            // Hybrid strategy. Prefer top-anchor immediately past the
-            // tombstones so the step appears in the same logical position
-            // it was before the resize. Fall back to bottom-anchor when
-            // the step would overflow the viewport from that origin.
-            if (row + newStepHeight <= newHeight)
-            {
-                newRowOrigin = row;
-                topAnchored = true;
-            }
-            else
-            {
-                newRowOrigin = Math.Max(0, newHeight - newStepHeight);
-                topAnchored = false;
-            }
+            // Top-anchor at the queried row so the step appears in the
+            // same logical position it was before the resize. Soft-wrap
+            // step rendering handles overflow by scrolling some
+            // tombstones off the top of the viewport — preferable to a
+            // bottom-anchor that overlaps reflowed tombstone content.
+            newRowOrigin = row;
+            topAnchored = true;
         }
         else
         {
@@ -847,25 +863,33 @@ internal sealed class Hex1bFlowRunner
             topAnchored = false;
         }
 
-        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} dsrRow={dsrRow?.ToString() ?? "<none>"} newRO={newRowOrigin} topAnchored={topAnchored}");
+        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} dsrRow={dsrRow?.ToString() ?? "<none>"} newRO={newRowOrigin} topAnchored={topAnchored} softWrap={_options.UseSoftWrapTombstones}");
 
         _parentAdapter.Write(SyncUpdateBegin);
         try
         {
-            // Clear the OLD step region first, but only when bottom-anchoring
-            // without a cursor query — that's the path where oldRowOrigin
-            // is still meaningful (no horizontal reflow). When the cursor
-            // query succeeded the tombstones above have reflowed and the
-            // OLD region is no longer where it was; clearing there would
-            // wipe reflowed tombstone content.
-            if (oldStepHeight > 0 && dsrRow is null)
+            // On the soft-wrap path the step's Hex1bApp emits each frame
+            // as a full-surface dump prefixed by ESC[1;1H ESC[J. Once it
+            // re-renders after the resize, the leading ESC[1;1H ESC[J
+            // both positions to the new step origin AND wipes everything
+            // from there to the bottom of the viewport — which covers
+            // both the new step region AND any leftover content from the
+            // old step region wherever the host terminal's reflow left
+            // it. Clearing here would race with that emission and risk
+            // wiping reflowed tombstone content from above the new
+            // origin.
+            //
+            // The legacy (non-soft-wrap) path still clears both regions
+            // here because the step renders via absolute CUP and won't
+            // emit a clear of its own.
+            if (!_options.UseSoftWrapTombstones)
             {
-                ClearRegion(oldRowOrigin, oldStepHeight);
+                if (oldStepHeight > 0 && dsrRow is null)
+                {
+                    ClearRegion(oldRowOrigin, oldStepHeight);
+                }
+                ClearRegion(newRowOrigin, newStepHeight);
             }
-
-            // Clear the NEW step region so the step app's first post-resize
-            // render lands on a clean canvas.
-            ClearRegion(newRowOrigin, newStepHeight);
 
             _cursorRow = newRowOrigin;
 
