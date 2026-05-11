@@ -34,10 +34,20 @@ public static class Hex1bThemes
     private static Hex1bTheme CreateOceanTheme()
     {
         return new Hex1bTheme("Ocean")
-            // Buttons
+            // Buttons — resting chip is a slightly brighter blue-grey than the
+            // input-field family so buttons read as sitting above input surfaces.
+            .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(25, 40, 60))
             .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.White)
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
-            // TextBox
+            // SplitButton arrow region — half-shade darker than the primary
+            // chip; focus drops a tone below the focused button so the
+            // dropdown affordance stays distinguishable inside the bright chip.
+            .Set(SplitButtonTheme.ArrowBackgroundColor, Hex1bColor.FromRgb(20, 32, 48))
+            .Set(SplitButtonTheme.FocusedArrowForegroundColor, Hex1bColor.White)
+            .Set(SplitButtonTheme.FocusedArrowBackgroundColor, Hex1bColor.FromRgb(0, 80, 140))
+            // TextBox — deeper blue-grey for resting, mid blue-grey for focused.
+            .Set(TextBoxTheme.FillBackgroundColor, Hex1bColor.FromRgb(15, 25, 40))
+            .Set(TextBoxTheme.FocusedFillBackgroundColor, Hex1bColor.FromRgb(20, 40, 70))
             .Set(TextBoxTheme.CursorForegroundColor, Hex1bColor.Black)
             .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.FromRgb(100, 200, 255))
             .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.FromRgb(0, 80, 140))
@@ -47,7 +57,9 @@ public static class Hex1bThemes
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(0, 120, 200))
-            // ToggleSwitch
+            // ToggleSwitch — unselected chips share the TextBox resting tone so
+            // the toggle reads as part of the same input-surface family.
+            .Set(ToggleSwitchTheme.UnselectedBackgroundColor, Hex1bColor.FromRgb(15, 25, 40))
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
@@ -58,11 +70,24 @@ public static class Hex1bThemes
     private static Hex1bTheme CreateHighContrastTheme()
     {
         return new Hex1bTheme("HighContrast")
-            // Buttons
+            // Buttons — resting chip stays a stark dark grey so the bright
+            // yellow focus state lands as a maximum-contrast invert.
             .Set(ButtonTheme.ForegroundColor, Hex1bColor.White)
+            .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40))
             .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.Black)
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.Yellow)
-            // TextBox
+            // SplitButton arrow region — black resting chip, slightly dimmed
+            // yellow focus so the divider/arrow stays separable from the
+            // primary action even at peak contrast.
+            .Set(SplitButtonTheme.ArrowForegroundColor, Hex1bColor.White)
+            .Set(SplitButtonTheme.ArrowBackgroundColor, Hex1bColor.FromRgb(20, 20, 20))
+            .Set(SplitButtonTheme.FocusedArrowForegroundColor, Hex1bColor.Black)
+            .Set(SplitButtonTheme.FocusedArrowBackgroundColor, Hex1bColor.FromRgb(180, 180, 0))
+            // TextBox — deepest black resting fill; subtle yellow tint when
+            // focused so the field advertises focus without losing its
+            // identity as a recessed input surface.
+            .Set(TextBoxTheme.FillBackgroundColor, Hex1bColor.FromRgb(20, 20, 20))
+            .Set(TextBoxTheme.FocusedFillBackgroundColor, Hex1bColor.FromRgb(50, 50, 0))
             .Set(TextBoxTheme.CursorForegroundColor, Hex1bColor.Black)
             .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.Yellow)
             .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.Yellow)
@@ -74,7 +99,9 @@ public static class Hex1bThemes
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.White)
             .Set(SplitterTheme.DividerCharacter, "║")
-            // ToggleSwitch
+            // ToggleSwitch — unselected chips share the TextBox black so the
+            // toggle strip reads as the same input-surface family.
+            .Set(ToggleSwitchTheme.UnselectedBackgroundColor, Hex1bColor.FromRgb(20, 20, 20))
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Yellow)
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.Black)
@@ -85,10 +112,21 @@ public static class Hex1bThemes
     private static Hex1bTheme CreateSunsetTheme()
     {
         return new Hex1bTheme("Sunset")
-            // Buttons
+            // Buttons — slightly brighter warm dark than the input-field
+            // family so buttons sit above input surfaces with a sunlit feel.
+            .Set(ButtonTheme.BackgroundColor, Hex1bColor.FromRgb(55, 35, 25))
             .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.White)
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
-            // TextBox
+            // SplitButton arrow region — half-shade darker warm tone resting,
+            // dimmed orange when focused so the dropdown affordance stays
+            // distinguishable inside the bright chip.
+            .Set(SplitButtonTheme.ArrowBackgroundColor, Hex1bColor.FromRgb(45, 28, 22))
+            .Set(SplitButtonTheme.FocusedArrowForegroundColor, Hex1bColor.White)
+            .Set(SplitButtonTheme.FocusedArrowBackgroundColor, Hex1bColor.FromRgb(170, 60, 30))
+            // TextBox — deep warm dark for resting, slightly brighter warm
+            // when focused.
+            .Set(TextBoxTheme.FillBackgroundColor, Hex1bColor.FromRgb(40, 25, 20))
+            .Set(TextBoxTheme.FocusedFillBackgroundColor, Hex1bColor.FromRgb(60, 35, 25))
             .Set(TextBoxTheme.CursorForegroundColor, Hex1bColor.Black)
             .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.FromRgb(255, 180, 100))
             .Set(TextBoxTheme.SelectionBackgroundColor, Hex1bColor.FromRgb(180, 60, 30))
@@ -98,7 +136,9 @@ public static class Hex1bThemes
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
             // Splitter
             .Set(SplitterTheme.DividerColor, Hex1bColor.FromRgb(255, 140, 60))
-            // ToggleSwitch
+            // ToggleSwitch — unselected chips match the TextBox resting tone
+            // so the toggle strip belongs to the same warm input-surface family.
+            .Set(ToggleSwitchTheme.UnselectedBackgroundColor, Hex1bColor.FromRgb(40, 25, 20))
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.White)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(255, 180, 100))

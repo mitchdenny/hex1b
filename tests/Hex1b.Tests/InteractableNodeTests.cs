@@ -22,8 +22,8 @@ public class InteractableNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // ButtonNode: "[ Hello ]" = 4 + 5 = 9
-        Assert.Equal(9, size.Width);
+        // ButtonNode: " Hello " = 2 + 5 = 7 (Phase 2 chip layout)
+        Assert.Equal(7, size.Width);
         Assert.Equal(1, size.Height);
     }
 

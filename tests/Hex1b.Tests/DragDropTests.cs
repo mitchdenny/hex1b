@@ -51,8 +51,8 @@ public class DragDropTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // ButtonNode: "[ Drag Me ]" = 4 + 7 = 11
-        Assert.Equal(11, size.Width);
+        // ButtonNode: " Drag Me " = 2 + 7 = 9 (Phase 2 chip layout)
+        Assert.Equal(9, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -183,7 +183,7 @@ public class DragDropTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(8, size.Width); // "[ Drop ]"
+        Assert.Equal(6, size.Width); // " Drop " (Phase 2 chip layout)
         Assert.Equal(1, size.Height);
     }
 
