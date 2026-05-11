@@ -166,8 +166,11 @@ public sealed class SplitButtonNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Renders as "[ Label ▼ ]" or "[ Label ]" if no secondary actions
-        var width = PrimaryLabel.Length + 4; // brackets and spaces
+        // Renders as " Label " or " Label ▼ " on a chip background. One cell
+        // of padding either side of the label; the trailing arrow + space
+        // ride inside the chip when secondary actions exist. Phase 3 will
+        // introduce a divider glyph between the label and the arrow.
+        var width = PrimaryLabel.Length + 2;
         if (HasSecondaryActions)
         {
             width += 2; // space + arrow
@@ -178,25 +181,23 @@ public sealed class SplitButtonNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var leftBracket = theme.Get(ButtonTheme.LeftBracket);
-        var rightBracket = theme.Get(ButtonTheme.RightBracket);
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
         var arrow = HasSecondaryActions ? $" {DropdownArrow}" : "";
-        var content = $"{PrimaryLabel}{arrow}";
+        var chip = $" {PrimaryLabel}{arrow} ";
 
         string output;
         if (IsFocused || IsDropdownOpen)
         {
             var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{content}{rightBracket}{resetToGlobal}";
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
         }
         else if (IsHovered)
         {
             var fg = theme.Get(ButtonTheme.HoveredForegroundColor);
             var bg = theme.Get(ButtonTheme.HoveredBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{content}{rightBracket}{resetToGlobal}";
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
         }
         else
         {
@@ -204,7 +205,7 @@ public sealed class SplitButtonNode : Hex1bNode
             var bg = theme.Get(ButtonTheme.BackgroundColor);
             var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
             var bgCode = bg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : bg.ToBackgroundAnsi();
-            output = $"{fgCode}{bgCode}{leftBracket}{content}{rightBracket}{resetToGlobal}";
+            output = $"{fgCode}{bgCode}{chip}{resetToGlobal}";
         }
 
         if (context.CurrentLayoutProvider != null)

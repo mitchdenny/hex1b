@@ -67,8 +67,9 @@ public sealed class ButtonNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Button renders as "[ Label ]" - 4 chars for brackets/spaces + label length
-        var width = Label.Length + 4;
+        // Button renders as " Label " on a chip background - one cell of
+        // padding either side of the label.
+        var width = Label.Length + 2;
         var height = 1;
         _measuredSize = constraints.Constrain(new Size(width, height));
         return _measuredSize;
@@ -101,33 +102,33 @@ public sealed class ButtonNode : Hex1bNode
     public override void Render(Hex1bRenderContext context)
     {
         var theme = context.Theme;
-        var leftBracket = theme.Get(ButtonTheme.LeftBracket);
-        var rightBracket = theme.Get(ButtonTheme.RightBracket);
         var resetToGlobal = theme.GetResetToGlobalCodes();
-        
+        var chip = $" {Label} ";
+
         string output;
         if (IsFocused)
         {
             var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
             var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
         }
         else if (IsHovered)
         {
             var fg = theme.Get(ButtonTheme.HoveredForegroundColor);
             var bg = theme.Get(ButtonTheme.HoveredBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
+            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
         }
         else
         {
             var fg = theme.Get(ButtonTheme.ForegroundColor);
             var bg = theme.Get(ButtonTheme.BackgroundColor);
-            // Use global colors if theme colors are default
+            // Default colours fall through to the global terminal palette so
+            // setting either back to Hex1bColor.Default disables the chip.
             var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
             var bgCode = bg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : bg.ToBackgroundAnsi();
-            output = $"{fgCode}{bgCode}{leftBracket}{Label}{rightBracket}{resetToGlobal}";
+            output = $"{fgCode}{bgCode}{chip}{resetToGlobal}";
         }
-        
+
         // Use clipped rendering when a layout provider is active
         if (context.CurrentLayoutProvider != null)
         {

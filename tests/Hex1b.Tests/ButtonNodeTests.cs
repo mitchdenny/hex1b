@@ -20,8 +20,8 @@ public class ButtonNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[ Click ]" = 4 (brackets + spaces) + 5 label = 9
-        Assert.Equal(9, size.Width);
+        // " Click " = 2 (chip padding) + 5 label = 7
+        Assert.Equal(7, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -32,8 +32,8 @@ public class ButtonNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "[  ]" = 4
-        Assert.Equal(4, size.Width);
+        // "  " = 2 (chip padding only)
+        Assert.Equal(2, size.Width);
     }
 
     [Fact]
@@ -43,8 +43,8 @@ public class ButtonNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // 22 chars + 4 = 26
-        Assert.Equal(26, size.Width);
+        // 22 chars + 2 chip padding = 24
+        Assert.Equal(24, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -73,7 +73,7 @@ public class ButtonNodeTests
     #region Rendering Tests - Unfocused State
 
     [Fact]
-    public async Task Render_Unfocused_ShowsBrackets()
+    public async Task Render_Unfocused_RendersLabelInChip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -84,7 +84,8 @@ public class ButtonNodeTests
             Label = "OK",
             IsFocused = false
         };
-
+        // Layout: " OK " (4 cells: pad + O + K + pad)
+        node.Arrange(new Rect(0, 0, 4, 1));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("OK"), TimeSpan.FromSeconds(5), "button with OK label")
@@ -92,12 +93,16 @@ public class ButtonNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        // Theme-dependent bracket style, but should contain label
         Assert.Contains("OK", snapshot.GetLineTrimmed(0));
+        // Chip layout: cell 0 = leading pad, cells 1-2 = label, cell 3 = trailing pad
+        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
+        Assert.Equal("O", snapshot.GetCell(1, 0).Character);
+        Assert.Equal("K", snapshot.GetCell(2, 0).Character);
+        Assert.Equal(" ", snapshot.GetCell(3, 0).Character);
     }
 
     [Fact]
-    public async Task Render_Unfocused_ContainsBracketCharacters()
+    public async Task Render_Unfocused_PaintsRestingChipBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -108,21 +113,25 @@ public class ButtonNodeTests
             Label = "Test",
             IsFocused = false
         };
-
+        // Layout: " Test " (6 cells: pad + Test + pad)
+        node.Arrange(new Rect(0, 0, 6, 1));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]") && s.ContainsText("Test"), TimeSpan.FromSeconds(5), "brackets and Test label")
+            .WaitUntil(s => s.ContainsText("Test"), TimeSpan.FromSeconds(5), "Test label")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = snapshot.GetLineTrimmed(0);
-        Assert.Contains("[", line);
-        Assert.Contains("]", line);
+        var expectedRestingBg = context.Theme.Get(ButtonTheme.BackgroundColor);
+        // Every cell of the chip — both pads and the label — sits on the resting background.
+        for (var x = 0; x <= 5; x++)
+        {
+            Assert.Equal(expectedRestingBg, snapshot.GetCell(x, 0).Background);
+        }
     }
 
     [Fact]
-    public async Task Render_Unfocused_EmptyLabel_StillRendersBrackets()
+    public async Task Render_Unfocused_EmptyLabel_StillRendersChipPad()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
@@ -133,17 +142,20 @@ public class ButtonNodeTests
             Label = "",
             IsFocused = false
         };
-
+        // Layout: "  " (2 cells of chip padding only)
+        node.Arrange(new Rect(0, 0, 2, 1));
         node.Render(context);
         var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.ContainsText("[") && s.ContainsText("]"), TimeSpan.FromSeconds(5), "brackets in empty button")
+            .WaitUntil(s => s.GetCell(0, 0).Character == " " && s.GetCell(1, 0).Character == " ", TimeSpan.FromSeconds(5), "empty chip pads")
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        var line = snapshot.GetLineTrimmed(0);
-        Assert.Contains("[", line);
-        Assert.Contains("]", line);
+        var expectedRestingBg = context.Theme.Get(ButtonTheme.BackgroundColor);
+        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
+        Assert.Equal(" ", snapshot.GetCell(1, 0).Character);
+        Assert.Equal(expectedRestingBg, snapshot.GetCell(0, 0).Background);
+        Assert.Equal(expectedRestingBg, snapshot.GetCell(1, 0).Background);
     }
 
     #endregion
@@ -240,6 +252,37 @@ public class ButtonNodeTests
             c.Cell.Background.HasValue);
         
         Assert.True(focusedHasStyling, "Focused button should have styling applied");
+    }
+
+    [Fact]
+    public async Task Render_Focused_PaintsFocusedChipBackground()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        var node = new ButtonNode
+        {
+            Label = "Save",
+            IsFocused = true
+        };
+        // Layout: " Save " (6 cells)
+        node.Arrange(new Rect(0, 0, 6, 1));
+        node.Render(context);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Save"), TimeSpan.FromSeconds(5), "Save label")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var expectedFocusedBg = context.Theme.Get(ButtonTheme.FocusedBackgroundColor);
+        // Every cell of the chip — both pads and the label — sits on the focused background.
+        for (var x = 0; x <= 5; x++)
+        {
+            Assert.Equal(expectedFocusedBg, snapshot.GetCell(x, 0).Background);
+        }
+        Assert.Equal("S", snapshot.GetCell(1, 0).Character);
+        Assert.Equal("e", snapshot.GetCell(4, 0).Character);
     }
 
     #endregion

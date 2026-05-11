@@ -112,8 +112,8 @@ public class SplitButtonNodeTests
         
         var size = node.Measure(Constraints.Unbounded);
         
-        // "[ Test ]" = 8 chars (4 for brackets/spaces + 4 for label)
-        Assert.Equal(8, size.Width);
+        // " Test " = 6 chars (2 for chip padding + 4 for label)
+        Assert.Equal(6, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -128,8 +128,8 @@ public class SplitButtonNodeTests
         
         var size = node.Measure(Constraints.Unbounded);
         
-        // "[ Test ▼ ]" = 10 chars (4 for brackets/spaces + 4 for label + 2 for " ▼")
-        Assert.Equal(10, size.Width);
+        // " Test ▼ " = 8 chars (2 for chip padding + 4 for label + 2 for " ▼")
+        Assert.Equal(8, size.Width);
         Assert.Equal(1, size.Height);
     }
 

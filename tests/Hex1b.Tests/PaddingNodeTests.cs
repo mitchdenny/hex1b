@@ -20,9 +20,9 @@ public class PaddingNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // ButtonNode: "[ OK ]" = 6 wide, 1 tall
-        // With padding: 6 + 2 + 3 = 11 wide, 1 + 1 + 1 = 3 tall
-        Assert.Equal(6 + 5, size.Width);
+        // ButtonNode: " OK " = 4 wide, 1 tall
+        // With padding: 4 + 2 + 3 = 9 wide, 1 + 1 + 1 = 3 tall
+        Assert.Equal(4 + 5, size.Width);
         Assert.Equal(1 + 2, size.Height);
     }
 

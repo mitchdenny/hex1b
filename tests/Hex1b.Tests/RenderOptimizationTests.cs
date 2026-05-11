@@ -525,7 +525,7 @@ public class RenderOptimizationTests
         
         // Find any cells that have null (default) background instead of the panel color
         // We specifically check the area to the right of the button on the same row
-        // The button is "[ Click Me ]" which is about 13 characters, starting around column 0
+        // The button is " Click Me " which is 10 characters, starting around column 0
         // Check columns 15-40 on row 1 - these should still have the panel background
         var mismatches = finalSnapshot.FindMismatchedBackgrounds(15, 1, 25, 1, panelBgColor);
         

@@ -158,8 +158,6 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             // Buttons
             .Set(ButtonTheme.FocusedForegroundColor, Hex1bColor.Black)
             .Set(ButtonTheme.FocusedBackgroundColor, Hex1bColor.FromRgb(255, 0, 255))
-            .Set(ButtonTheme.LeftBracket, "< ")
-            .Set(ButtonTheme.RightBracket, " >")
             // TextBox
             .Set(TextBoxTheme.CursorForegroundColor, Hex1bColor.Black)
             .Set(TextBoxTheme.CursorBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))
