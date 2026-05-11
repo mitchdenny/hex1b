@@ -882,6 +882,30 @@ public sealed class Hex1bTerminalBuilder
             // This must happen before raw mode is entered (i.e., at Build() time).
             options.InitialCursorRow ??= presentation?.GetCursorPosition().Row ?? 0;
 
+            // Wire a live cursor query so the runner can recover the
+            // post-reflow row past the last tombstone after a horizontal
+            // resize. Console.GetCursorPosition() is synchronous on every
+            // supported platform (Win32 GetConsoleScreenBufferInfo on
+            // Windows, raw DSR on Unix) so this is safe to call from a
+            // resize handler. Returns null when the presentation adapter
+            // is null (headless/test scenarios) so the runner falls back
+            // to bottom-anchor.
+            if (presentation != null)
+            {
+                var liveCursor = presentation;
+                options.CursorRowProvider ??= () =>
+                {
+                    try
+                    {
+                        return liveCursor.GetCursorPosition().Row;
+                    }
+                    catch
+                    {
+                        return null;
+                    }
+                };
+            }
+
             var runner = new Flow.Hex1bFlowRunner(flowCallback, options, workloadAdapter);
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
