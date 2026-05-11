@@ -68,11 +68,17 @@ public class SplitButtonIntegrationTests
         var line = snapshot.GetLineTrimmed(0);
         Assert.Contains("Action", line);
         Assert.Contains("▼", line);
-        // Width is " Action ▼ " = 10 cells (PrimaryLabel(6) + chip pad(2) + arrow region(2)).
-        // The leading and trailing chip pads are part of the chip body, so the
-        // first and last cells are spaces.
+        // Width is " Action │ ▼ " = 12 cells (label 6 + chip pads 2 + arrow
+        // region 4 [divider, space, arrow, trailing pad]). The leading and
+        // trailing chip pads are part of the chip body, so cell 0 and cell
+        // 11 are spaces.
         Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(9, 0).Character);
+        Assert.Equal(" ", snapshot.GetCell(11, 0).Character);
+        // The divider sits at cell 8 (just past the primary region).
+        Assert.Equal("│", snapshot.GetCell(8, 0).Character);
+        // The dropdown arrow sits at cell 10 (between the divider's trailing
+        // pad and the chip's trailing pad).
+        Assert.Equal("▼", snapshot.GetCell(10, 0).Character);
     }
 
     [Fact]
@@ -94,14 +100,22 @@ public class SplitButtonIntegrationTests
         await runTask;
 
         var theme = new Hex1bTheme("Test");
-        var expectedFocusedBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+        var expectedPrimaryBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+        var expectedArrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
 
         // SplitButton is the only focusable in the tree, so it auto-focuses.
-        // The full chip — both pads, the label, and the arrow region — should
-        // sit on the focused background colour.
-        for (var x = 0; x <= 9; x++)
+        // The primary region (cells 0–7: leading pad + "Action" + trailing
+        // pad) sits on the focused primary background; the secondary
+        // affordance region (cells 8–11: divider + space + arrow + trailing
+        // pad) sits on the focused arrow background — a slightly dimmed
+        // shade so the dropdown target reads as distinct.
+        for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedFocusedBg, snapshot.GetCell(x, 0).Background);
+            Assert.Equal(expectedPrimaryBg, snapshot.GetCell(x, 0).Background);
+        }
+        for (var x = 8; x <= 11; x++)
+        {
+            Assert.Equal(expectedArrowBg, snapshot.GetCell(x, 0).Background);
         }
     }
 
@@ -128,13 +142,20 @@ public class SplitButtonIntegrationTests
         await runTask;
 
         var theme = new Hex1bTheme("Test");
-        var expectedRestingBg = theme.Get(ButtonTheme.BackgroundColor);
+        var expectedPrimaryBg = theme.Get(ButtonTheme.BackgroundColor);
+        var expectedArrowBg = theme.Get(SplitButtonTheme.ArrowBackgroundColor);
 
         // The Decoy button takes initial focus, so the SplitButton on row 1
-        // is unfocused and should sit on the resting chip background.
-        for (var x = 0; x <= 9; x++)
+        // is unfocused. Primary region (cells 0–7) sits on the resting
+        // primary background; arrow region (cells 8–11) sits on the resting
+        // arrow background (a half-shade darker than the primary chip).
+        for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedRestingBg, snapshot.GetCell(x, 1).Background);
+            Assert.Equal(expectedPrimaryBg, snapshot.GetCell(x, 1).Background);
+        }
+        for (var x = 8; x <= 11; x++)
+        {
+            Assert.Equal(expectedArrowBg, snapshot.GetCell(x, 1).Background);
         }
     }
 
@@ -410,13 +431,20 @@ public class SplitButtonIntegrationTests
         Assert.True(initialSnapshot.ContainsText("Action"));
         Assert.True(initialSnapshot.ContainsText("▼"));
         Assert.Equal(" ", initialSnapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", initialSnapshot.GetCell(9, 0).Character);
+        Assert.Equal(" ", initialSnapshot.GetCell(11, 0).Character);
+        Assert.Equal("│", initialSnapshot.GetCell(8, 0).Character);
+        Assert.Equal("▼", initialSnapshot.GetCell(10, 0).Character);
 
         var theme = new Hex1bTheme("Test");
-        var expectedFocusedBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-        for (var x = 0; x <= 9; x++)
+        var expectedPrimaryBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+        var expectedArrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
+        for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedFocusedBg, initialSnapshot.GetCell(x, 0).Background);
+            Assert.Equal(expectedPrimaryBg, initialSnapshot.GetCell(x, 0).Background);
+        }
+        for (var x = 8; x <= 11; x++)
+        {
+            Assert.Equal(expectedArrowBg, initialSnapshot.GetCell(x, 0).Background);
         }
 
         // Phase 2 — open dropdown, navigate down, activate Option B,
@@ -450,5 +478,48 @@ public class SplitButtonIntegrationTests
         Assert.True(finalSnapshot.ContainsText("▼"));
         Assert.False(finalSnapshot.ContainsText("Option A"));
         Assert.False(finalSnapshot.ContainsText("Option B"));
+    }
+
+    /// <summary>
+    /// SplitButton with no secondary actions degrades to a plain Button-style
+    /// chip — same layout as ButtonNode, no divider, no arrow, and no
+    /// secondary-affordance tint anywhere on the chip.
+    /// </summary>
+    [Fact]
+    public async Task SplitButton_NoSecondaryActions_RendersUniformChipWithoutDivider()
+    {
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new SplitButtonWidget().PrimaryAction("Action", _ => { })
+            ]))
+            .WithHeadless()
+            .WithDimensions(40, 5)
+            .Build();
+
+        var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Action"), TimeSpan.FromSeconds(5), "split button rendered")
+            .Capture("final")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Chip body is " Action " — 8 cells, no divider, no arrow.
+        Assert.True(snapshot.ContainsText("Action"));
+        Assert.False(snapshot.ContainsText("▼"));
+        Assert.False(snapshot.ContainsText("│"));
+        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
+        Assert.Equal(" ", snapshot.GetCell(7, 0).Character);
+        // The whole chip should be on the focused primary background — no
+        // arrow tint anywhere.
+        var theme = new Hex1bTheme("Test");
+        var primaryBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+        var arrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
+        for (var x = 0; x <= 7; x++)
+        {
+            Assert.Equal(primaryBg, snapshot.GetCell(x, 0).Background);
+        }
+        Assert.NotEqual(arrowBg, snapshot.GetCell(7, 0).Background);
     }
 }

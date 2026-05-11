@@ -128,8 +128,9 @@ public class SplitButtonNodeTests
         
         var size = node.Measure(Constraints.Unbounded);
         
-        // " Test ▼ " = 8 chars (2 for chip padding + 4 for label + 2 for " ▼")
-        Assert.Equal(8, size.Width);
+        // " Test │ ▼ " = 10 cells (label 4 + chip pads 2 + arrow region 4
+        // [divider, space, arrow, trailing pad]).
+        Assert.Equal(10, size.Width);
         Assert.Equal(1, size.Height);
     }
 

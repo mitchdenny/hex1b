@@ -78,6 +78,20 @@ public sealed class SplitButtonNode : Hex1bNode
     private const string DropdownArrow = "▼";
 
     /// <summary>
+    /// The divider glyph rendered between the primary label and the dropdown
+    /// arrow when secondary actions exist. Visually anchors the start of the
+    /// secondary affordance region.
+    /// </summary>
+    private const string Divider = "│";
+
+    /// <summary>
+    /// Number of trailing cells the secondary affordance occupies when
+    /// secondary actions exist: <c>│ ▼ </c> — divider, space, arrow,
+    /// trailing pad. Drives both the render layout and the click hit-test.
+    /// </summary>
+    private const int ArrowRegionWidth = 4;
+
+    /// <summary>
     /// Whether this button has secondary actions (shows dropdown arrow).
     /// </summary>
     private bool HasSecondaryActions => SecondaryActions.Count > 0;
@@ -101,17 +115,17 @@ public sealed class SplitButtonNode : Hex1bNode
 
     private Task HandleClick(InputBindingActionContext ctx)
     {
-        // Check if click is on the dropdown arrow area
+        // Clicks on the secondary affordance region (divider + arrow + pads)
+        // open the dropdown; everything else triggers the primary action.
         if (HasSecondaryActions && ctx.MouseX >= 0)
         {
-            var dropdownX = Bounds.X + Bounds.Width - 3; // Arrow is in last 2 chars + bracket
-            if (ctx.MouseX >= dropdownX)
+            var arrowRegionX = Bounds.X + Bounds.Width - ArrowRegionWidth;
+            if (ctx.MouseX >= arrowRegionX)
             {
                 return OpenDropdown(ctx);
             }
         }
 
-        // Otherwise trigger primary action
         return PrimaryAction?.Invoke(ctx) ?? Task.CompletedTask;
     }
 
@@ -172,14 +186,14 @@ public sealed class SplitButtonNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Renders as " Label " or " Label ▼ " on a chip background. One cell
-        // of padding either side of the label; the trailing arrow + space
-        // ride inside the chip when secondary actions exist. Phase 3 will
-        // introduce a divider glyph between the label and the arrow.
+        // Without secondary actions the chip is " Label " (Label.Length + 2).
+        // With secondary actions the chip becomes " Label │ ▼ " — the
+        // ArrowRegionWidth trailing cells render the divider + space + arrow
+        // + trailing pad.
         var width = PrimaryLabel.Length + 2;
         if (HasSecondaryActions)
         {
-            width += 2; // space + arrow
+            width += ArrowRegionWidth;
         }
         return constraints.Constrain(new Size(width, 1));
     }
@@ -189,30 +203,58 @@ public sealed class SplitButtonNode : Hex1bNode
         var theme = context.Theme;
         var resetToGlobal = theme.GetResetToGlobalCodes();
 
-        var arrow = HasSecondaryActions ? $" {DropdownArrow}" : "";
-        var chip = $" {PrimaryLabel}{arrow} ";
+        var primarySegment = $" {PrimaryLabel} ";
+        var arrowSegment = HasSecondaryActions ? $"{Divider} {DropdownArrow} " : "";
 
-        string output;
+        // Resolve the colour quad for the current visual state. The arrow
+        // region uses its own colour pair so the divider/arrow read as
+        // distinct from the primary chip while staying inside the same
+        // overall focus state.
+        Hex1bColor primaryFg, primaryBg, arrowFg, arrowBg;
         if (IsFocused || IsDropdownOpen)
         {
-            var fg = theme.Get(ButtonTheme.FocusedForegroundColor);
-            var bg = theme.Get(ButtonTheme.FocusedBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
+            primaryFg = theme.Get(ButtonTheme.FocusedForegroundColor);
+            primaryBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
+            arrowFg = theme.Get(SplitButtonTheme.FocusedArrowForegroundColor);
+            arrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
         }
         else if (IsHovered)
         {
-            var fg = theme.Get(ButtonTheme.HoveredForegroundColor);
-            var bg = theme.Get(ButtonTheme.HoveredBackgroundColor);
-            output = $"{fg.ToForegroundAnsi()}{bg.ToBackgroundAnsi()}{chip}{resetToGlobal}";
+            primaryFg = theme.Get(ButtonTheme.HoveredForegroundColor);
+            primaryBg = theme.Get(ButtonTheme.HoveredBackgroundColor);
+            arrowFg = theme.Get(SplitButtonTheme.HoveredArrowForegroundColor);
+            arrowBg = theme.Get(SplitButtonTheme.HoveredArrowBackgroundColor);
         }
         else
         {
-            var fg = theme.Get(ButtonTheme.ForegroundColor);
-            var bg = theme.Get(ButtonTheme.BackgroundColor);
-            var fgCode = fg.IsDefault ? theme.GetGlobalForeground().ToForegroundAnsi() : fg.ToForegroundAnsi();
-            var bgCode = bg.IsDefault ? theme.GetGlobalBackground().ToBackgroundAnsi() : bg.ToBackgroundAnsi();
-            output = $"{fgCode}{bgCode}{chip}{resetToGlobal}";
+            primaryFg = theme.Get(ButtonTheme.ForegroundColor);
+            primaryBg = theme.Get(ButtonTheme.BackgroundColor);
+            arrowFg = theme.Get(SplitButtonTheme.ArrowForegroundColor);
+            arrowBg = theme.Get(SplitButtonTheme.ArrowBackgroundColor);
         }
+
+        // Default-colour fall-through: a Default arrow colour inherits the
+        // primary chip colour so users can opt out of the secondary tint and
+        // get a uniform chip without re-stating both colour values.
+        if (arrowFg.IsDefault) arrowFg = primaryFg;
+        if (arrowBg.IsDefault) arrowBg = primaryBg;
+
+        var primaryFgCode = primaryFg.IsDefault
+            ? theme.GetGlobalForeground().ToForegroundAnsi()
+            : primaryFg.ToForegroundAnsi();
+        var primaryBgCode = primaryBg.IsDefault
+            ? theme.GetGlobalBackground().ToBackgroundAnsi()
+            : primaryBg.ToBackgroundAnsi();
+        var arrowFgCode = arrowFg.IsDefault
+            ? theme.GetGlobalForeground().ToForegroundAnsi()
+            : arrowFg.ToForegroundAnsi();
+        var arrowBgCode = arrowBg.IsDefault
+            ? theme.GetGlobalBackground().ToBackgroundAnsi()
+            : arrowBg.ToBackgroundAnsi();
+
+        var output = HasSecondaryActions
+            ? $"{primaryFgCode}{primaryBgCode}{primarySegment}{arrowFgCode}{arrowBgCode}{arrowSegment}{resetToGlobal}"
+            : $"{primaryFgCode}{primaryBgCode}{primarySegment}{resetToGlobal}";
 
         if (context.CurrentLayoutProvider != null)
         {
