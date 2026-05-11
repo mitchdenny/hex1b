@@ -186,7 +186,6 @@ public class ThemingExample(ILogger<ThemingExample> logger) : Hex1bExample
             .Set(ToggleSwitchTheme.FocusedSelectedForegroundColor, Hex1bColor.Black)
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 255, 255))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(0, 255, 255))
-            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 80, 80))
-            .Set(ToggleSwitchTheme.Separator, " ║ ");
+            .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 80, 80));
     }
 }
