@@ -220,20 +220,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
 await terminal.RunAsync();
 ```
 
-### Picker-Specific Theme Elements
-
-| Element | Type | Default | Description |
-|---------|------|---------|-------------|
-| `ForegroundColor` | `Hex1bColor` | Default | Text color for the button |
-| `BackgroundColor` | `Hex1bColor` | Default | Background for the button |
-| `FocusedForegroundColor` | `Hex1bColor` | Black | Text when focused |
-| `FocusedBackgroundColor` | `Hex1bColor` | White | Background when focused |
-| `LeftBracket` | `string` | `"[ "` | Left bracket text |
-| `RightBracket` | `string` | `" ▼]"` | Right bracket with indicator |
-| `MinimumWidth` | `int` | `10` | Minimum button width |
-
 ::: tip Theme Propagation
 When a picker is inside a `ThemePanel`, the theme automatically propagates to the popup. This ensures consistent styling even though the popup renders as a separate layer.
+:::
+
+::: info No Picker-Specific Theme Elements
+Picker has no dedicated theme namespace — it composes a `ButtonWidget` for the closed-state chip and a `ListWidget` for the popup, so all picker styling flows from `ButtonTheme`, `ListTheme`, and `BorderTheme` (see the snippet above). This keeps a single source of truth for chip styling across `Button`, `SplitButton`, and `Picker`.
 :::
 
 ## State Management
