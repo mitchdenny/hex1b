@@ -152,11 +152,14 @@ void Render()
             return;
         }
 
-        // Total content rows we asked the terminal to display past row 1.
-        // If this exceeds the viewport, the terminal has scrolled and the
-        // YELLOW line has effectively shifted up by that amount.
-        var lastRowOccupied = currentAbsoluteRow - 1;
-        var scrollAmount = Math.Max(0, lastRowOccupied - height);
+        // Scroll trigger: when the cursor moves past the bottom of the
+        // viewport (after a '\n' from row H), the terminal scrolls and the
+        // cursor stays at visual row H. currentAbsoluteRow is where the
+        // cursor would be if no scroll happened, so the amount scrolled is
+        // currentAbsoluteRow - height (clamped at zero). NOTE: deliberately
+        // NOT (currentAbsoluteRow - 1 - height); the trigger is the cursor
+        // overflowing the bottom, not the content occupying the bottom row.
+        var scrollAmount = Math.Max(0, currentAbsoluteRow - height);
         var visibleYellowRow = yellowAbsoluteRow.Value - scrollAmount;
 
         if (visibleYellowRow < 1)
