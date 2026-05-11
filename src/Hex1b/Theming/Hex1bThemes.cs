@@ -52,7 +52,6 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 100, 180))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(0, 50, 90))
-            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(100, 200, 255))
             .Lock();
     }
 
@@ -80,9 +79,6 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.Yellow)
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.Black)
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(128, 128, 0))
-            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.Yellow)
-            .Set(ToggleSwitchTheme.LeftBracket, "◄ ")
-            .Set(ToggleSwitchTheme.RightBracket, " ►")
             .Lock();
     }
 
@@ -107,7 +103,6 @@ public static class Hex1bThemes
             .Set(ToggleSwitchTheme.FocusedSelectedBackgroundColor, Hex1bColor.FromRgb(200, 80, 40))
             .Set(ToggleSwitchTheme.UnfocusedSelectedForegroundColor, Hex1bColor.FromRgb(255, 180, 100))
             .Set(ToggleSwitchTheme.UnfocusedSelectedBackgroundColor, Hex1bColor.FromRgb(100, 40, 20))
-            .Set(ToggleSwitchTheme.FocusedBracketForegroundColor, Hex1bColor.FromRgb(255, 180, 100))
             .Lock();
     }
 }

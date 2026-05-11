@@ -24,9 +24,9 @@ public class ToggleSwitchNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "< Manual | Auto | Delayed >" 
-        // = 2 (< ) + 6 (Manual) + 3 ( | ) + 4 (Auto) + 3 ( | ) + 7 (Delayed) + 2 ( >) = 27
-        Assert.Equal(27, size.Width);
+        // " Manual │ Auto │ Delayed "
+        // = 1 (left pad) + 6 (Manual) + 3 ( │ ) + 4 (Auto) + 3 ( │ ) + 7 (Delayed) + 1 (right pad) = 25
+        Assert.Equal(25, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -54,8 +54,8 @@ public class ToggleSwitchNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "< Only >" = 2 + 4 + 2 = 8
-        Assert.Equal(8, size.Width);
+        // " Only " = 1 + 4 + 1 = 6
+        Assert.Equal(6, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -69,8 +69,8 @@ public class ToggleSwitchNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        // "< On | Off >" = 2 + 2 + 3 + 3 + 2 = 12
-        Assert.Equal(12, size.Width);
+        // " On │ Off " = 1 + 2 + 3 + 3 + 1 = 10
+        Assert.Equal(10, size.Width);
         Assert.Equal(1, size.Height);
     }
 
@@ -214,6 +214,67 @@ public class ToggleSwitchNodeTests
         var exception = Record.Exception(() => node.Render(context));
 
         Assert.Null(exception);
+    }
+
+    [Fact]
+    public async Task Render_Unfocused_PaintsRestingFillBackground()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        var node = new ToggleSwitchNode
+        {
+            Options = ["On", "Off"],
+            SelectedIndex = 0,
+            IsFocused = false
+        };
+        node.Arrange(new Rect(0, 0, 10, 1));
+        node.Render(context);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("On") && s.ContainsText("Off"), TimeSpan.FromSeconds(5), "options visible")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var expectedFill = context.Theme.Get(ToggleSwitchTheme.FillBackgroundColor);
+        // Leading padding cell should sit on the resting fill colour.
+        Assert.Equal(expectedFill, snapshot.GetCell(0, 0).Background);
+        // Trailing padding cell ("On Off" → " On │ Off " → cell 9) too.
+        Assert.Equal(expectedFill, snapshot.GetCell(9, 0).Background);
+        // The " │ " separator cells should also be on the fill.
+        Assert.Equal(expectedFill, snapshot.GetCell(3, 0).Background);
+        Assert.Equal("│", snapshot.GetCell(4, 0).Character);
+        Assert.Equal(expectedFill, snapshot.GetCell(4, 0).Background);
+        Assert.Equal(expectedFill, snapshot.GetCell(5, 0).Background);
+    }
+
+    [Fact]
+    public async Task Render_Focused_PaintsFocusedFillBackground()
+    {
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 5).Build();
+        var context = new Hex1bRenderContext(workload);
+        var node = new ToggleSwitchNode
+        {
+            Options = ["On", "Off"],
+            SelectedIndex = 0,
+            IsFocused = true
+        };
+        node.Arrange(new Rect(0, 0, 10, 1));
+        node.Render(context);
+
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("On") && s.ContainsText("Off"), TimeSpan.FromSeconds(5), "options visible")
+            .Capture("final")
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+
+        var expectedFill = context.Theme.Get(ToggleSwitchTheme.FocusedFillBackgroundColor);
+        Assert.Equal(expectedFill, snapshot.GetCell(0, 0).Background);
+        Assert.Equal(expectedFill, snapshot.GetCell(9, 0).Background);
+        Assert.Equal("│", snapshot.GetCell(4, 0).Character);
+        Assert.Equal(expectedFill, snapshot.GetCell(4, 0).Background);
     }
 
     #endregion
@@ -576,18 +637,18 @@ public class ToggleSwitchNodeTests
     [Fact]
     public async Task HandleMouseClick_SelectsClickedOption()
     {
-        // Format: "[ Manual | Auto | Delayed ]"
-        // Positions: 0-1="[ ", 2-7="Manual", 8-10=" | ", 11-14="Auto", 15-17=" | ", 18-24="Delayed", 25-26=" ]"
+        // Layout: " Manual │ Auto │ Delayed "
+        // Positions: 0=" ", 1-6="Manual", 7-9=" │ ", 10-13="Auto", 14-16=" │ ", 17-23="Delayed", 24=" "
         var node = new ToggleSwitchNode
         {
             Options = ["Manual", "Auto", "Delayed"]
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 27, 1));
+        node.Arrange(new Rect(0, 0, 25, 1));
 
-        // Click on "Auto" (local X position within "Auto" range: starts at 11)
-        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 12, 0, Hex1bModifiers.None);
-        var result = node.HandleMouseClick(12, 0, mouseEvent);
+        // Click on "Auto" (local X position within "Auto" range: starts at 10)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 11, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(11, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(1, node.SelectedIndex);
@@ -602,27 +663,27 @@ public class ToggleSwitchNodeTests
             SelectedIndex = 1 // Start with second selected
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 13, 1));
+        node.Arrange(new Rect(0, 0, 11, 1));
 
-        // Click on "On" (starts at X=2)
-        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None);
-        var result = node.HandleMouseClick(3, 0, mouseEvent);
+        // Click on "On" (starts at X=1)
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 2, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(2, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, node.SelectedIndex);
     }
 
     [Fact]
-    public async Task HandleMouseClick_OnBracket_ReturnsNotHandled()
+    public async Task HandleMouseClick_OnLeadingPadding_ReturnsNotHandled()
     {
         var node = new ToggleSwitchNode
         {
             Options = ["On", "Off"]
         };
         node.Measure(Constraints.Unbounded);
-        node.Arrange(new Rect(0, 0, 13, 1));
+        node.Arrange(new Rect(0, 0, 11, 1));
 
-        // Click on the left bracket (X=0 or 1)
+        // Click on the leading padding cell (X=0) — outside any option label
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
 
