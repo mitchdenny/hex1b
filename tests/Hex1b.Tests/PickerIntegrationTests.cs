@@ -401,18 +401,28 @@ public class PickerIntegrationTests
     {
         // Reproduces the bug where a Picker dropdown's transparent inner cells
         // leak whatever was painted underneath. With two pickers stacked
-        // vertically, opening the first picker's dropdown overlays the second
-        // picker — and any cell the dropdown does NOT explicitly paint shows
-        // the second picker's chip background (rgb(60, 60, 60) by default),
-        // which reads as a stray highlighted row inside the popup.
+        // vertically and the dropdown opened, the user's reported failure
+        // mode is that the SECOND item in the dropdown ("Banana") wears the
+        // resting chip background of the second Picker that sits behind it.
+        //
+        // Reproduction recipe (from the user's screenshot in samples/PickerDemo):
+        //   1. Two pickers separated by a spacer so the second picker chip
+        //      lands at the SAME terminal Y as the second dropdown item
+        //      ("Banana"), not a border row.
+        //   2. Open with DownArrow — picker opens with "Banana" pre-selected
+        //      so the chip behind it is masked by the white selected row.
+        //   3. Press DownArrow again — selection moves to "Cherry". The
+        //      previously-selected "Banana" row loses its white background
+        //      and reveals what's underneath. THIS is the user-visible bug.
         //
         // Expectation after fix: every cell that falls inside the dropdown's
-        // bounding box is painted by the dropdown itself — i.e. no cell in
-        // that rectangle wears the resting chip background that belongs to
-        // the picker rendered behind it.
+        // bounding box stays painted by the dropdown's BackgroundPanel, even
+        // after the selected row moves away.
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp((app, options) => ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"]),
+                new TextBlockWidget(""),
+                new TextBlockWidget(""),
                 new PickerWidget(["Xenon", "Yttrium", "Zirconium"]),
             ]))
             .WithHeadless()
@@ -424,9 +434,16 @@ public class PickerIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Apple ▼") && s.ContainsText("Xenon ▼"),
                 TimeSpan.FromSeconds(5), "both pickers to render")
-            .Enter()
-            .WaitUntil(s => s.ContainsText("Banana") && s.ContainsText("Cherry"),
-                TimeSpan.FromSeconds(5), "first picker dropdown to open")
+            // DownArrow on a closed picker: open with the NEXT item (Banana)
+            // pre-selected — this matches what the user does to trigger the bug.
+            .Down()
+            .WaitUntil(s => s.ContainsText("Apple") && s.ContainsText("Banana") && s.ContainsText("Cherry"),
+                TimeSpan.FromSeconds(5), "first picker dropdown to open with Banana selected")
+            // Move selection from Banana to Cherry. Banana's row now has to be
+            // re-painted as overlay background instead of the selected white.
+            .Down()
+            .WaitUntil(s => s.GetText().Contains("> Cherry"),
+                TimeSpan.FromSeconds(2), "selection moved to Cherry")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 

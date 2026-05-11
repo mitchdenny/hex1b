@@ -149,8 +149,15 @@ public sealed class PickerNode : Hex1bNode
                 await SelectItemAsync(e.ActivatedIndex, e.Context);
             });
         
-        // Wrap in a border for visual distinction
-        var popupContent = new BorderWidget(list);
+        // Wrap the list in a border for visual distinction, and the border in a
+        // BackgroundPanel so every cell inside the popup bounding box is opaquely
+        // painted. Without the BackgroundPanel, BorderNode's inner-fill spaces and
+        // ListNode's unselected rows write transparent-bg cells that let the
+        // surface beneath the dropdown bleed through (e.g. a sibling picker chip
+        // sitting where the dropdown opens). Mirrors PickerWidget.BuildPickerList.
+        var popupContent = new BackgroundPanelWidget(
+            OverlayTheme.BackgroundColor,
+            new BorderWidget(list));
         
         // Push the popup anchored to the button, with focus restore to the button
         context.Popups.PushAnchored(buttonNode, AnchorPosition.Below, popupContent, context.FocusedNode);

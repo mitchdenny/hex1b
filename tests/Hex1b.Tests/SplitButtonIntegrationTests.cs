@@ -531,6 +531,19 @@ public class SplitButtonIntegrationTests
         // pattern as Picker, so it shares the same bleed-through bug: any cell
         // the popup doesn't explicitly paint shows whatever was on the surface
         // before — including a sibling SplitButton's resting chip background.
+        //
+        // Reproduction recipe (mirrors the user's PickerDemo screenshot):
+        //   1. Two split buttons separated by spacers so the second one's chip
+        //      lands on the SAME terminal Y as the SECOND popup item ("Option B"),
+        //      not on a popup border row. Border-row coverage already worked
+        //      after the first-pass BackgroundPanel wrap; what failed was a
+        //      previously-selected list ITEM row losing its selected fill.
+        //   2. Open with DownArrow — popup opens with "Option A" preselected.
+        //   3. Press DownArrow to move selection to "Option B" — Option A's
+        //      row now has to be repainted by the overlay background.
+        //   4. Press DownArrow again to wrap or stay; Option B's row is now
+        //      revealed (no longer selected) and the underlying sibling chip
+        //      background must NOT show through.
         var topButton = BuildButton();
         var bottomButton = new SplitButtonWidget()
             .PrimaryAction("Other", _ => { })
@@ -538,7 +551,12 @@ public class SplitButtonIntegrationTests
             .SecondaryAction("Choice Y", _ => { });
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([topButton, bottomButton]))
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                topButton,
+                new TextBlockWidget(""),
+                new TextBlockWidget(""),
+                bottomButton,
+            ]))
             .WithHeadless()
             .WithDimensions(40, 12)
             .Build();
@@ -548,9 +566,17 @@ public class SplitButtonIntegrationTests
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsText("Action") && s.ContainsText("Other"),
                 TimeSpan.FromSeconds(5), "both split buttons to render")
-            .Down()  // Open the focused (top) split button's dropdown
+            // DownArrow on the focused top split button: opens dropdown,
+            // first item "Option A" pre-selected.
+            .Down()
             .WaitUntil(s => s.ContainsText("Option A") && s.ContainsText("Option B"),
                 TimeSpan.FromSeconds(5), "top split button dropdown to open")
+            // DownArrow inside the popup: selection moves to Option B,
+            // Option A loses its selected fill and must be re-painted with
+            // overlay background — not the underlying surface.
+            .Down()
+            .WaitUntil(s => s.GetText().Contains("> Option B"),
+                TimeSpan.FromSeconds(2), "selection moved to Option B")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
