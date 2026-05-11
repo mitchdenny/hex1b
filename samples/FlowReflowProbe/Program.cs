@@ -56,10 +56,18 @@ Console.WriteLine("Probe ended.");
 
 void Render()
 {
-    var width = Console.WindowWidth;
+    var width = Math.Max(1, Console.WindowWidth);
+    var height = Math.Max(1, Console.WindowHeight);
 
     Console.Write(ClearScreen);
     Console.Write(ShowCursor);
+
+    // Cursor is now at row 1 col 1 (1-indexed). Track the absolute row we'd
+    // be on if the terminal didn't scroll — we'll fold scrolling in at the
+    // end via a single CUP, since CUU is bounded by the viewport top and
+    // can't recover a row that scrolled off.
+    int currentAbsoluteRow = 1;
+    int? yellowAbsoluteRow = null;
 
     PrintHeader();
     PrintInstructions();
@@ -69,86 +77,125 @@ void Render()
     PositionCursorAtAnchor();
     Console.Out.Flush();
 
+    void TrackedWriteLine(string s)
+    {
+        Console.WriteLine(s);
+        var visible = VisibleLength(s);
+        var rows = Math.Max(1, (visible + width - 1) / width);
+        currentAbsoluteRow += rows;
+    }
+
+    void TrackedBlankLine()
+    {
+        Console.WriteLine();
+        currentAbsoluteRow += 1;
+    }
+
     void PrintHeader()
     {
-        Console.WriteLine($"{Bold}{Cyan}=== Hex1b Flow Reflow Probe ==={Reset}");
-        Console.WriteLine();
-        Console.WriteLine($"  {Dim}Terminal:{Reset}        {detectedName}");
-        Console.WriteLine($"  {Dim}Window size:{Reset}     {width} x {Console.WindowHeight}");
-        Console.WriteLine($"  {Dim}TERM:{Reset}            {Environment.GetEnvironmentVariable("TERM") ?? "(unset)"}");
-        Console.WriteLine($"  {Dim}TERM_PROGRAM:{Reset}    {Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "(unset)"}");
-        Console.WriteLine($"  {Dim}WT_SESSION:{Reset}      {(Environment.GetEnvironmentVariable("WT_SESSION") is not null ? "set" : "(unset)")}");
-        Console.WriteLine();
-        Console.WriteLine($"  {Bold}Prediction (from Hex1b's reflow strategy):{Reset}");
-        Console.WriteLine($"    Reflows logical lines on horizontal resize:  {Color(reflowsCursor)}");
-        Console.WriteLine($"    Cursor follows reflowed content:             {Color(reflowsCursor)}");
-        Console.WriteLine($"    DECSC saved cursor is reflowed:              {Color(reflowsSavedCursor)}");
-        Console.WriteLine($"    preserveCursorRow (Kitty-style anchor):      {Color(preserveCursorRow)}");
+        TrackedWriteLine($"{Bold}{Cyan}=== Hex1b Flow Reflow Probe ==={Reset}");
+        TrackedBlankLine();
+        TrackedWriteLine($"  {Dim}Terminal:{Reset}        {detectedName}");
+        TrackedWriteLine($"  {Dim}Window size:{Reset}     {width} x {height}");
+        TrackedWriteLine($"  {Dim}TERM:{Reset}            {Environment.GetEnvironmentVariable("TERM") ?? "(unset)"}");
+        TrackedWriteLine($"  {Dim}TERM_PROGRAM:{Reset}    {Environment.GetEnvironmentVariable("TERM_PROGRAM") ?? "(unset)"}");
+        TrackedWriteLine($"  {Dim}WT_SESSION:{Reset}      {(Environment.GetEnvironmentVariable("WT_SESSION") is not null ? "set" : "(unset)")}");
+        TrackedBlankLine();
+        TrackedWriteLine($"  {Bold}Prediction (from Hex1b's reflow strategy):{Reset}");
+        TrackedWriteLine($"    Reflows logical lines on horizontal resize:  {Color(reflowsCursor)}");
+        TrackedWriteLine($"    Cursor follows reflowed content:             {Color(reflowsCursor)}");
+        TrackedWriteLine($"    DECSC saved cursor is reflowed:              {Color(reflowsSavedCursor)}");
+        TrackedWriteLine($"    preserveCursorRow (Kitty-style anchor):      {Color(preserveCursorRow)}");
         if (!string.IsNullOrEmpty(comment))
         {
-            Console.WriteLine($"    {Dim}Note:{Reset} {comment}");
+            TrackedWriteLine($"    {Dim}Note:{Reset} {comment}");
         }
-        Console.WriteLine();
+        TrackedBlankLine();
     }
 
     void PrintInstructions()
     {
-        Console.WriteLine($"{Bold}What to do:{Reset}");
-        Console.WriteLine($"  1. Look at where the cursor lands (block at start of the {Yellow}YELLOW{Reset} reference line).");
-        Console.WriteLine($"  2. Resize the terminal horizontally - shrink several columns, then expand back.");
-        Console.WriteLine($"  3. Observe:");
-        Console.WriteLine($"     {Green}OK{Reset} cursor moves with the {Yellow}YELLOW{Reset} reference line  -> terminal reflows cursor (good)");
-        Console.WriteLine($"     {Red}NO{Reset} cursor drifts away from the {Yellow}YELLOW{Reset} line          -> terminal does NOT reflow cursor (problem)");
-        Console.WriteLine($"     {Green}OK{Reset} {Magenta}MAGENTA{Reset} '[step row N]' lines stay at their rows -> cell content does not reflow (good)");
-        Console.WriteLine($"     {Red}NO{Reset} {Magenta}MAGENTA{Reset} lines wrap or relocate                  -> cell content also reflows (problem)");
-        Console.WriteLine($"  4. Press {Bold}R{Reset} to redraw with the new size. Press {Bold}Q{Reset} to quit.");
-        Console.WriteLine();
+        TrackedWriteLine($"{Bold}What to do:{Reset} resize horizontally, then press R to redraw, Q to quit.");
+        TrackedWriteLine($"  {Green}OK{Reset} cursor follows the {Yellow}YELLOW{Reset} reference  -> terminal reflows cursor (good).");
+        TrackedWriteLine($"  {Red}NO{Reset} cursor drifts away                  -> terminal does NOT reflow cursor.");
+        TrackedBlankLine();
     }
 
     void PrintTombstone()
     {
-        Console.WriteLine($"{Cyan}--- BEGIN TOMBSTONE (one long logical line, should reflow with terminal width) ---{Reset}");
-
+        TrackedWriteLine($"{Cyan}--- BEGIN TOMBSTONE (one long logical line, should reflow) ---{Reset}");
         var filler = new string('=', 220);
-        // Single logical line ending in \n. The host terminal owns wrapping.
-        Console.WriteLine($"{Cyan}[TOMBSTONE]{Reset} {filler} {Cyan}[/TOMBSTONE]{Reset}");
-        Console.WriteLine($"{Cyan}--- END TOMBSTONE ---{Reset}");
+        TrackedWriteLine($"{Cyan}[TOMBSTONE]{Reset} {filler} {Cyan}[/TOMBSTONE]{Reset}");
+        TrackedWriteLine($"{Cyan}--- END TOMBSTONE ---{Reset}");
     }
 
     void PrintReferenceLine()
     {
-        // Logical line - should reflow alongside the tombstone.
-        // We want the cursor to land at column 0 of THIS row when no reflow has
-        // happened, and to follow the reflow of THIS row as the user resizes.
-        Console.WriteLine($"{Yellow}>>> CURSOR-ANCHOR REFERENCE - the cursor should sit at col 0 of this YELLOW row <<<{Reset}");
+        // Capture the row at which the YELLOW line will be printed BEFORE we
+        // print it. This is the row the cursor should ultimately park on.
+        yellowAbsoluteRow = currentAbsoluteRow;
+        TrackedWriteLine($"{Yellow}>>> CURSOR-ANCHOR REFERENCE - cursor should park at col 0 of this YELLOW row <<<{Reset}");
     }
 
     void PrintStepContent()
     {
-        // 'Step' content: cell-positioned, like an active flow step would be.
-        for (int i = 1; i <= 5; i++)
+        for (int i = 1; i <= 3; i++)
         {
-            Console.WriteLine($"{Magenta}[step row {i}] cell-positioned content - should NOT reflow on resize{Reset}");
+            TrackedWriteLine($"{Magenta}[step row {i}] cell-positioned content - should NOT reflow on resize{Reset}");
         }
-        Console.WriteLine();
-        Console.WriteLine($"{Dim}(cursor will return to col 0 of the YELLOW reference line above){Reset}");
     }
 
     void PositionCursorAtAnchor()
     {
-        // Move the cursor back to column 0 of the YELLOW reference line.
-        // We've just printed (relative to the YELLOW line):
-        //   YELLOW line                   (1)
-        //   step row 1..5                 (5)
-        //   blank line                    (1)
-        //   "(cursor will return ...)"    (1)
-        // = 8 rows past the YELLOW line.
-        // CUU is bounded to the top of the viewport, so even if reflow has
-        // already extended the printed content slightly, it can't go below 0.
-        const int RowsToMoveUp = 8;
-        Console.Write($"{Esc}[{RowsToMoveUp}A");
-        Console.Write("\r");
+        if (yellowAbsoluteRow is null)
+        {
+            return;
+        }
+
+        // Total content rows we asked the terminal to display past row 1.
+        // If this exceeds the viewport, the terminal has scrolled and the
+        // YELLOW line has effectively shifted up by that amount.
+        var lastRowOccupied = currentAbsoluteRow - 1;
+        var scrollAmount = Math.Max(0, lastRowOccupied - height);
+        var visibleYellowRow = yellowAbsoluteRow.Value - scrollAmount;
+
+        if (visibleYellowRow < 1)
+        {
+            // YELLOW line scrolled off. Surface a clear banner at the top so
+            // the user understands the cursor anchor isn't observable here,
+            // rather than letting CUU silently clamp to the wrong row.
+            Console.Write($"{Esc}[1;1H");
+            var banner = $"{Bold}{Red}[VIEWPORT TOO SMALL]{Reset} YELLOW reference scrolled off; resize taller/wider and press R.";
+            Console.Write(banner);
+            Console.Write($"{Esc}[K"); // clear to end of line so any tail of pre-existing content goes away
+            return;
+        }
+
+        // CUP is 1-indexed; visibleYellowRow is already 1-indexed.
+        Console.Write($"{Esc}[{visibleYellowRow};1H");
     }
+}
+
+static int VisibleLength(string s)
+{
+    var count = 0;
+    var inEsc = false;
+    foreach (var c in s)
+    {
+        if (inEsc)
+        {
+            // Final byte of a CSI / SGR sequence is in 0x40..0x7E; we end on it.
+            if (c >= 0x40 && c <= 0x7E) inEsc = false;
+            continue;
+        }
+        if (c == '\x1b')
+        {
+            inEsc = true;
+            continue;
+        }
+        count++;
+    }
+    return count;
 }
 
 static string Color(bool value) => value
@@ -200,3 +247,4 @@ static (bool preserveCursorRow, bool reflowsCursor, bool reflowsSavedCursor, str
             $"Unknown strategy: {typeName}. Test empirically."),
     };
 }
+
