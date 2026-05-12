@@ -323,22 +323,20 @@ internal sealed class Hex1bFlowRunner
 
                     if (_options.UseSoftWrapTombstones)
                     {
-                        // Tombstones above are append-only — once they were
-                        // emitted as logical lines they belong to the host
-                        // terminal, which reflows them naturally on width
-                        // change and scrolls them into scrollback when they
-                        // overflow. The runner only needs to re-anchor the
-                        // active step (which uses absolute cursor positioning
-                        // and therefore does NOT reflow with the terminal).
-                        // Capture the OLD origin/height before mutating so
-                        // AnchorActiveStepOnResize can clear the right region.
-                        var oldRowOrigin = rowOrigin;
-                        var oldStepHeight = desiredHeight;
-                        var newRowOrigin = AnchorActiveStepOnResize(oldRowOrigin, oldStepHeight, newHeight, newStepHeight);
+                        // Resize strategy: push everything currently visible
+                        // up off the top of the viewport into the host
+                        // terminal's scrollback (where it will appear
+                        // soft-wrapped because tombstones were emitted as
+                        // logical lines), then clear the viewport and
+                        // re-anchor the active step at row 0. This avoids
+                        // any visual mangling from cell-positioned step
+                        // content trying to coexist with reflowed
+                        // tombstones at unpredictable rows.
+                        ScrollViewportToScrollback(newHeight);
 
-                        stepAdapter.RowOrigin = newRowOrigin;
-                        rowOrigin = newRowOrigin;
-                        _cursorRow = newRowOrigin;
+                        stepAdapter.RowOrigin = 0;
+                        rowOrigin = 0;
+                        _cursorRow = 0;
                         desiredHeight = newStepHeight;
                         step.StepHeight = newStepHeight;
                     }
@@ -753,147 +751,77 @@ internal sealed class Hex1bFlowRunner
         // there cleanly.
         _cursorRow += height;
 
-        // Park the cursor at the new tombstone-past row so a resize that
-        // arrives before the first step output flush still finds the
-        // cursor on a logical line the host terminal will reflow with the
-        // tombstones above. Only relevant when a live cursor query is
-        // available (CursorRowProvider) — without one there's nothing
-        // for the runner to recover from the parked position.
-        if (_options.CursorRowProvider != null)
-        {
-            _parentAdapter.SetCursorPosition(0, _cursorRow);
-        }
-
         Trace($"EmitSoftWrapTombstone[#{emitId}] exit: cursorRow={_cursorRow}");
     }
 
     /// <summary>
-    /// Resize-time helper that re-positions only the active step. Emitted
-    /// tombstones are append-only — once written into the host terminal's
-    /// buffer they are owned by the terminal, which reflows and scrolls
-    /// them naturally on resize. The runner never re-emits them.
+    /// Pushes the entire current viewport contents up off the top of the
+    /// screen and into the host terminal's scrollback buffer, then clears
+    /// the viewport. Used by the soft-wrap resize handler so the active
+    /// step (which uses absolute cursor positioning) can be cleanly
+    /// re-anchored at row 0 without competing with reflowed tombstone
+    /// content from the previous viewport.
     /// </summary>
     /// <remarks>
     /// <para>
-    /// When a live cursor query is available
-    /// (<see cref="Hex1bFlowOptions.CursorRowProvider"/>) and
-    /// <see cref="PumpStepOutputAsync"/> has been parking the cursor at
-    /// the tombstone-past row, the runner queries the cursor first to
-    /// learn where that row landed after the host terminal reflowed the
-    /// tombstones above. The new active-step origin is anchored at the
-    /// queried row (top-anchor) so the step appears in the same logical
-    /// position it was before the resize. Soft-wrap step rendering
-    /// (<see cref="Hex1bAppOptions.UseSoftWrapEmission"/>) handles the
-    /// case where the step doesn't fit by scrolling some tombstones off
-    /// the top of the viewport into the host terminal's scrollback.
+    /// Tombstones above the active step were emitted as soft-wrap-friendly
+    /// logical lines, so once they are scrolled into scrollback the host
+    /// terminal renders them with proper word wrap at the new width.
+    /// Cell-positioned step content cannot reflow that way, so we just
+    /// scroll it away and let the step app repaint at the new size.
     /// </para>
     /// <para>
-    /// When no live cursor query is available the runner falls back to
-    /// bottom-anchor based on the new viewport height, which is the prior
-    /// behaviour: simple, safe, but doesn't recover from horizontal
-    /// reflow.
+    /// Mechanism: park cursor at the bottom row, write <paramref name="newHeight"/>
+    /// linefeeds. Each LF at the bottom row scrolls the viewport up by one
+    /// row (pushing the top row into scrollback), so writing a full
+    /// viewport-height worth of LFs guarantees every previously-visible
+    /// row ends up in scrollback. Then position cursor at home and clear
+    /// from there to end of screen — this leaves a fully blank viewport
+    /// with cursor at (0,0), ready for the step to re-render.
     /// </para>
     /// <para>
-    /// On the soft-wrap path the runner does NOT clear the OLD or NEW
-    /// step regions itself. The active step's
-    /// <see cref="Hex1bApp"/> emits each frame as a full-surface soft-wrap
-    /// dump prefixed by <c>ESC[1;1H ESC[J</c> — so the first post-resize
-    /// frame both clears the new step region AND wipes any leftover
-    /// content below it (including the OLD step region wherever the
-    /// terminal's reflow left it). Clearing here would only race against
-    /// that emission and risk wiping reflowed tombstone content.
-    /// </para>
-    /// <para>
-    /// The legacy (non-soft-wrap) path still clears the old/new regions
-    /// itself because the active step renders via absolute CUP and won't
-    /// emit a clear of its own.
-    /// </para>
-    /// <para>
-    /// The clear+repaint is bracketed in DEC private mode 2026
-    /// (Synchronized Update Mode), so terminals that recognise it present
-    /// the entire repaint as one atomic frame instead of a brief blank
-    /// flash. Terminals that ignore mode 2026 see a slightly more visible
-    /// repaint but no functional regression.
+    /// Bracketed in DEC private mode 2026 (Synchronized Update Mode) so
+    /// supporting terminals present the scroll+clear as one atomic frame.
+    /// Terminals that ignore mode 2026 see a brief flash but no
+    /// functional regression.
     /// </para>
     /// </remarks>
-    /// <param name="oldRowOrigin">Top row of the active step before the resize.</param>
-    /// <param name="oldStepHeight">Height of the active step before the resize.</param>
-    /// <param name="newHeight">New terminal height.</param>
-    /// <param name="newStepHeight">Computed new height for the active step.</param>
-    /// <returns>The new row origin for the active step.</returns>
-    private int AnchorActiveStepOnResize(int oldRowOrigin, int oldStepHeight, int newHeight, int newStepHeight)
+    private void ScrollViewportToScrollback(int newHeight)
     {
         var resizeId = Interlocked.Increment(ref _resizeCounter);
-
-        // NOTE: Do NOT call CursorRowProvider here. On Unix, CursorRowProvider
-        // calls Console.GetCursorPosition() which sends ESC[6n to the terminal
-        // and then reads the ESC[row;colR response from stdin. But Hex1b's input
-        // pump is also reading from stdin in a background loop. This creates a
-        // deadlock: the resize handler blocks waiting for the DSR response while
-        // the background stdin reader consumes those bytes first. Always use
-        // bottom-anchor for the active step during resize — it is safe, matches
-        // pre-PR behaviour, and avoids the cross-platform stdin contention.
-        var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
-
-        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} newRO={newRowOrigin} softWrap={_options.UseSoftWrapTombstones}");
+        Trace($"ScrollViewportToScrollback[#{resizeId}] enter: newHeight={newHeight}");
 
         _parentAdapter.Write(SyncUpdateBegin);
         try
         {
-            // On the soft-wrap path the step's Hex1bApp emits each frame
-            // as a full-surface dump prefixed by ESC[1;1H ESC[J. Once it
-            // re-renders after the resize, the leading ESC[1;1H ESC[J
-            // both positions to the new step origin AND wipes everything
-            // from there to the bottom of the viewport — which covers
-            // both the new step region AND any leftover content from the
-            // old step region wherever the host terminal's reflow left
-            // it. Clearing here would race with that emission and risk
-            // wiping reflowed tombstone content from above the new
-            // origin.
-            //
-            // The legacy (non-soft-wrap) path still clears both regions
-            // here because the step renders via absolute CUP and won't
-            // emit a clear of its own.
-            if (!_options.UseSoftWrapTombstones)
+            // Park at bottom-left and emit one LF per viewport row. Each
+            // LF at the bottom scrolls the viewport up by one row, moving
+            // the top line into scrollback. After newHeight LFs every
+            // previously-visible row has been pushed into scrollback.
+            _parentAdapter.SetCursorPosition(0, newHeight - 1);
+            var sb = new StringBuilder(newHeight);
+            for (int i = 0; i < newHeight; i++)
             {
-                if (oldStepHeight > 0)
-                {
-                    ClearRegion(oldRowOrigin, oldStepHeight);
-                }
-                ClearRegion(newRowOrigin, newStepHeight);
+                sb.Append('\n');
             }
+            _parentAdapter.Write(sb.ToString());
 
-            _cursorRow = newRowOrigin;
-
-            // Re-park the cursor at the new bottom-anchor row so the next
-            // resize-during-idle finds it in the right place.
-            if (_options.UseSoftWrapTombstones)
-            {
-                _parentAdapter.SetCursorPosition(0, _cursorRow);
-            }
-
-            Trace($"AnchorActiveStep[#{resizeId}] exit: cursorRow={_cursorRow}");
-            return newRowOrigin;
+            // Home + clear-to-end-of-screen. After scrolling, the cursor
+            // may be anywhere; reset to top-left and wipe so the step can
+            // render from a known-blank canvas.
+            _parentAdapter.Write("\x1b[1;1H\x1b[J");
         }
         finally
         {
             _parentAdapter.Write(SyncUpdateEnd);
         }
+
+        Trace($"ScrollViewportToScrollback[#{resizeId}] exit");
     }
 
     /// <summary>
     /// Pumps output from a step adapter to the parent adapter.
     /// </summary>
-    /// <remarks>
-    /// On the soft-wrap path the cursor is "parked" at the row past the
-    /// last tombstone after every output flush. Cooperative terminals
-    /// (Windows Terminal, iTerm2, Kitty, Foot, VTE, Ghostty, WezTerm) move
-    /// the cursor along with reflowed logical lines on horizontal resize
-    /// — by parking the cursor on the empty logical line just past the
-    /// tombstones, the runner can recover the post-reflow tombstone-bottom
-    /// row via <see cref="QueryCursorRowAsync"/> when a resize event fires
-    /// while the step is idle.
-    /// </remarks>
     private async Task PumpStepOutputAsync(InlineStepAdapter stepAdapter, CancellationToken ct)
     {
         try
@@ -903,18 +831,6 @@ internal sealed class Hex1bFlowRunner
                 var data = await stepAdapter.ReadOutputAsync(ct);
                 if (data.IsEmpty) continue;
                 _parentAdapter.Write(Encoding.UTF8.GetString(data.Span));
-
-                if (_options.UseSoftWrapTombstones && _options.CursorRowProvider != null)
-                {
-                    // Park the cursor at the row past the last tombstone so
-                    // a resize-during-idle catches it on a logical line the
-                    // host terminal will reflow correctly. The next step
-                    // frame uses absolute CUP for every cell so this leak
-                    // does not corrupt rendering — at worst the user sees
-                    // a brief cursor blip at column 0 of the parked row,
-                    // which is hidden in TUI mode anyway.
-                    _parentAdapter.SetCursorPosition(0, _cursorRow);
-                }
             }
         }
         catch (OperationCanceledException) { }
