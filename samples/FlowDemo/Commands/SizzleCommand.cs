@@ -14,12 +14,14 @@ namespace FlowDemo.Commands;
 /// </summary>
 internal static class SizzleCommand
 {
-    public static async Task RunAsync(bool softWrap = false)
+    public static Task RunAsync(bool softWrap = false)
     {
-        var cursorRow = Console.GetCursorPosition().Top;
-        string? selectedLocation = null;
+        return FlowCancellationExtensions.RunAsync(async cancel =>
+        {
+            var cursorRow = Console.GetCursorPosition().Top;
+            string? selectedLocation = null;
 
-        await Hex1bTerminal.CreateBuilder()
+            await Hex1bTerminal.CreateBuilder()
             .WithScrollback()
             .WithHex1bFlow(async flow =>
             {
@@ -158,10 +160,11 @@ internal static class SizzleCommand
                         });
                     })
                     .Fill()
-                ]),
+                ]).ExitOnCtrlC(cancel, ctx),
                     options: opts => { opts.MaxHeight = globeHeight; opts.EnableMouse = true; }
                 );
                 await step.WaitForCompletionAsync();
+                cancel.ThrowIfCancelled();
 
             }, options =>
             {
@@ -176,6 +179,7 @@ internal static class SizzleCommand
         {
             Console.WriteLine($"Selected location: {selectedLocation}");
         }
+        });
     }
 
     // Points of interest (lat/lon in degrees, converted to unit sphere positions)

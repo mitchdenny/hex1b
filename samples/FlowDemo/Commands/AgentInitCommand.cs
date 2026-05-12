@@ -19,124 +19,130 @@ internal static class AgentInitCommand
         new("Windsurf", ".windsurfrules", "Codeium's AI IDE"),
     ];
 
-    public static async Task RunAsync(bool softWrap = false)
+    public static Task RunAsync(bool softWrap = false)
     {
-        var cursorRow = Console.GetCursorPosition().Top;
-
-        var detected = new List<AgentInfo>();
-        var selected = new HashSet<string>();
-        var configured = new List<string>();
-
-        await Hex1bTerminal.CreateBuilder()
-            .WithScrollback()
-            .WithHex1bFlow(async flow =>
-            {
-                // Step 1: Detection spinner
-                var detecting = true;
-                var detectedCount = 0;
-
-                var detectStep = flow.Step(ctx => ctx.HStack(h =>
-                [
-                    detecting ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
-                    h.Text(detecting
-                        ? $" Detecting agents... ({detectedCount} found)"
-                        : $" Found {detected.Count} agents"),
-                ]),
-                    options: opts => opts.MaxHeight = 1
-                );
-
-                // Simulate scanning for agents
-                foreach (var agent in DetectedAgents)
-                {
-                    await Task.Delay(600);
-                    detected.Add(agent);
-                    detectedCount = detected.Count;
-                    detectStep.Invalidate();
-                }
-
-                detecting = false;
-                detectStep.Invalidate();
-                await Task.Delay(300);
-                await detectStep.CompleteAsync(y => y.Text($"  ✓ Detected {detected.Count} agents"));
-
-                // Step 2: Agent selection with checkboxes
-                // Pre-select all agents
-                foreach (var agent in detected)
-                {
-                    selected.Add(agent.Name);
-                }
-
-                var selectStep = flow.Step(ctx => ctx.VStack(v =>
-                [
-                    v.Text("Select agents to configure:"),
-                    .. detected.Select(agent =>
-                        (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxValue.Checked : CheckboxValue.Unchecked)
-                            .Label(agent.Name)
-                            .OnToggled(e =>
-                            {
-                                if (selected.Contains(agent.Name))
-                                    selected.Remove(agent.Name);
-                                else
-                                    selected.Add(agent.Name);
-                            })),
-                    v.Text($"  {selected.Count} of {detected.Count} selected"),
-                    v.Button("Configure selected").OnClick(e =>
-                        ctx.Step.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
-                ]),
-                    options: opts => opts.MaxHeight = detected.Count + 5
-                );
-                await selectStep.WaitForCompletionAsync();
-
-                // Step 3: Configuration spinner per agent
-                var configuring = true;
-                var currentAgent = "";
-                var configuredIndex = 0;
-
-                var configStep = flow.Step(ctx => ctx.HStack(h =>
-                [
-                    configuring ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
-                    h.Text(configuring
-                        ? $" Configuring {currentAgent}... ({configuredIndex}/{selected.Count})"
-                        : $" Configured {configured.Count} agents"),
-                ]),
-                    options: opts => opts.MaxHeight = 1
-                );
-
-                var selectedAgents = detected.Where(a => selected.Contains(a.Name)).ToList();
-                foreach (var agent in selectedAgents)
-                {
-                    currentAgent = agent.Name;
-                    configuredIndex++;
-                    configStep.Invalidate();
-                    await Task.Delay(1000);
-                    configured.Add(agent.Name);
-                }
-
-                configuring = false;
-                configStep.Invalidate();
-                await Task.Delay(300);
-                await configStep.CompleteAsync(y => y.Text($"  ✓ Configured {configured.Count} agents"));
-
-            }, options =>
-            {
-                options.InitialCursorRow = cursorRow;
-                options.UseSoftWrapTombstones = softWrap;
-            })
-            .Build()
-            .RunAsync();
-
-        // Summary output
-        Console.WriteLine();
-        Console.WriteLine("Agent configuration complete!");
-        Console.WriteLine();
-
-        var selectedAgents = DetectedAgents.Where(a => configured.Contains(a.Name));
-        foreach (var agent in selectedAgents)
+        return FlowCancellationExtensions.RunAsync(async cancel =>
         {
-            Console.WriteLine($"  ✓ {agent.Name} — {agent.ConfigFile}");
-        }
+            var cursorRow = Console.GetCursorPosition().Top;
 
-        Console.WriteLine();
-        Console.WriteLine("Configuration files have been written to your project.");
+            var detected = new List<AgentInfo>();
+            var selected = new HashSet<string>();
+            var configured = new List<string>();
+
+            await Hex1bTerminal.CreateBuilder()
+                .WithScrollback()
+                .WithHex1bFlow(async flow =>
+                {
+                    // Step 1: Detection spinner
+                    var detecting = true;
+                    var detectedCount = 0;
+
+                    var detectStep = flow.Step(ctx => ctx.HStack(h =>
+                    [
+                        detecting ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
+                        h.Text(detecting
+                            ? $" Detecting agents... ({detectedCount} found)"
+                            : $" Found {detected.Count} agents"),
+                    ]).ExitOnCtrlC(cancel, ctx),
+                        options: opts => opts.MaxHeight = 1
+                    );
+
+                    // Simulate scanning for agents
+                    foreach (var agent in DetectedAgents)
+                    {
+                        await Task.Delay(600, cancel.Token);
+                        detected.Add(agent);
+                        detectedCount = detected.Count;
+                        detectStep.Invalidate();
+                    }
+
+                    detecting = false;
+                    detectStep.Invalidate();
+                    await Task.Delay(300, cancel.Token);
+                    await detectStep.CompleteAsync(y => y.Text($"  ✓ Detected {detected.Count} agents"));
+
+                    // Step 2: Agent selection with checkboxes
+                    // Pre-select all agents
+                    foreach (var agent in detected)
+                    {
+                        selected.Add(agent.Name);
+                    }
+
+                    var selectStep = flow.Step(ctx => ctx.VStack(v =>
+                    [
+                        v.Text("Select agents to configure:"),
+                        .. detected.Select(agent =>
+                            (Hex1bWidget)v.Checkbox(selected.Contains(agent.Name) ? CheckboxValue.Checked : CheckboxValue.Unchecked)
+                                .Label(agent.Name)
+                                .OnToggled(e =>
+                                {
+                                    if (selected.Contains(agent.Name))
+                                        selected.Remove(agent.Name);
+                                    else
+                                        selected.Add(agent.Name);
+                                })),
+                        v.Text($"  {selected.Count} of {detected.Count} selected"),
+                        v.Button("Configure selected").OnClick(e =>
+                            ctx.Step.Complete(y => y.Text($"  ✓ Selected: {string.Join(", ", selected)}"))),
+                    ]).ExitOnCtrlC(cancel, ctx),
+                        options: opts => opts.MaxHeight = detected.Count + 5
+                    );
+                    await selectStep.WaitForCompletionAsync();
+                    cancel.ThrowIfCancelled();
+
+                    // Step 3: Configuration spinner per agent
+                    var configuring = true;
+                    var currentAgent = "";
+                    var configuredIndex = 0;
+
+                    var configStep = flow.Step(ctx => ctx.HStack(h =>
+                    [
+                        configuring ? h.Spinner(SpinnerStyle.Dots) : h.Text("✓"),
+                        h.Text(configuring
+                            ? $" Configuring {currentAgent}... ({configuredIndex}/{selected.Count})"
+                            : $" Configured {configured.Count} agents"),
+                    ]).ExitOnCtrlC(cancel, ctx),
+                        options: opts => opts.MaxHeight = 1
+                    );
+
+                    var selectedAgents = detected.Where(a => selected.Contains(a.Name)).ToList();
+                    foreach (var agent in selectedAgents)
+                    {
+                        currentAgent = agent.Name;
+                        configuredIndex++;
+                        configStep.Invalidate();
+                        await Task.Delay(1000, cancel.Token);
+                        configured.Add(agent.Name);
+                    }
+
+                    configuring = false;
+                    configStep.Invalidate();
+                    await Task.Delay(300, cancel.Token);
+                    await configStep.CompleteAsync(y => y.Text($"  ✓ Configured {configured.Count} agents"));
+
+                }, options =>
+                {
+                    options.InitialCursorRow = cursorRow;
+                    options.UseSoftWrapTombstones = softWrap;
+                })
+                .Build()
+                .RunAsync();
+
+            cancel.ThrowIfCancelled();
+
+            // Summary output
+            Console.WriteLine();
+            Console.WriteLine("Agent configuration complete!");
+            Console.WriteLine();
+
+            var summaryAgents = DetectedAgents.Where(a => configured.Contains(a.Name));
+            foreach (var agent in summaryAgents)
+            {
+                Console.WriteLine($"  ✓ {agent.Name} — {agent.ConfigFile}");
+            }
+
+            Console.WriteLine();
+            Console.WriteLine("Configuration files have been written to your project.");
+        });
     }
 }

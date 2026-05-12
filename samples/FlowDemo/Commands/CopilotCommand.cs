@@ -42,17 +42,19 @@ internal static class CopilotCommand
         ("/exit", "Exit the Copilot CLI"),
     ];
 
-    public static async Task RunAsync(bool softWrap = false)
+    public static Task RunAsync(bool softWrap = false)
     {
-        var cursorRow = Console.GetCursorPosition().Top;
-        var state = new AppState();
+        return FlowCancellationExtensions.RunAsync(async cancel =>
+        {
+            var cursorRow = Console.GetCursorPosition().Top;
+            var state = new AppState();
 
-        await Hex1bTerminal.CreateBuilder()
-            .WithScrollback()
-            .WithHex1bFlow(async flow =>
-            {
-                var step = flow.Step(ctx =>
+            await Hex1bTerminal.CreateBuilder()
+                .WithScrollback()
+                .WithHex1bFlow(async flow =>
                 {
+                    var step = flow.Step(ctx =>
+                    {
                     var modeColor = GetModeColor(state.CurrentMode);
 
                     // Build the content area (output lines + optional spinner)
@@ -154,13 +156,14 @@ internal static class CopilotCommand
                             : []),
                     ]);
 
-                    return ctx.VStack(v => [mainArea, promptArea]);
+                    return ctx.VStack(v => [mainArea, promptArea]).ExitOnCtrlC(cancel, ctx);
                 },
                     options: opts => opts.EnableMouse = true
                 );
 
                 step.RequestFocus(n => n is TextBoxNode);
                 await step.WaitForCompletionAsync();
+                cancel.ThrowIfCancelled();
 
                 // Cleanup terminal if still running
                 if (state.TerminalCts != null)
@@ -178,6 +181,7 @@ internal static class CopilotCommand
             })
             .Build()
             .RunAsync();
+        });
     }
 
     private static void HandleSubmit(string text, FlowStep step, AppState state)
