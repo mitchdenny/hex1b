@@ -825,45 +825,17 @@ internal sealed class Hex1bFlowRunner
     {
         var resizeId = Interlocked.Increment(ref _resizeCounter);
 
-        // Try to recover the post-reflow tombstone-bottom row from the
-        // host terminal. The output pump has been parking the cursor at
-        // _cursorRow (i.e. the row past the last tombstone) after every
-        // step output flush, so cooperative terminals reflow that
-        // logical position alongside the tombstones above.
-        int? dsrRow = null;
-        if (_options.CursorRowProvider != null)
-        {
-            try
-            {
-                dsrRow = _options.CursorRowProvider();
-            }
-            catch
-            {
-                dsrRow = null;
-            }
-        }
+        // NOTE: Do NOT call CursorRowProvider here. On Unix, CursorRowProvider
+        // calls Console.GetCursorPosition() which sends ESC[6n to the terminal
+        // and then reads the ESC[row;colR response from stdin. But Hex1b's input
+        // pump is also reading from stdin in a background loop. This creates a
+        // deadlock: the resize handler blocks waiting for the DSR response while
+        // the background stdin reader consumes those bytes first. Always use
+        // bottom-anchor for the active step during resize — it is safe, matches
+        // pre-PR behaviour, and avoids the cross-platform stdin contention.
+        var newRowOrigin = Math.Max(0, newHeight - newStepHeight);
 
-        int newRowOrigin;
-        bool topAnchored;
-        if (dsrRow is int row && row >= 0 && row < newHeight)
-        {
-            // Top-anchor at the queried row so the step appears in the
-            // same logical position it was before the resize. Soft-wrap
-            // step rendering handles overflow by scrolling some
-            // tombstones off the top of the viewport — preferable to a
-            // bottom-anchor that overlaps reflowed tombstone content.
-            newRowOrigin = row;
-            topAnchored = true;
-        }
-        else
-        {
-            // No live cursor query (or implausible result) — bottom-anchor
-            // and accept that the tombstones above may have shifted.
-            newRowOrigin = Math.Max(0, newHeight - newStepHeight);
-            topAnchored = false;
-        }
-
-        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} dsrRow={dsrRow?.ToString() ?? "<none>"} newRO={newRowOrigin} topAnchored={topAnchored} softWrap={_options.UseSoftWrapTombstones}");
+        Trace($"AnchorActiveStep[#{resizeId}] enter: oldRO={oldRowOrigin} oldH={oldStepHeight} newH={newHeight} newSH={newStepHeight} newRO={newRowOrigin} softWrap={_options.UseSoftWrapTombstones}");
 
         _parentAdapter.Write(SyncUpdateBegin);
         try
@@ -884,7 +856,7 @@ internal sealed class Hex1bFlowRunner
             // emit a clear of its own.
             if (!_options.UseSoftWrapTombstones)
             {
-                if (oldStepHeight > 0 && dsrRow is null)
+                if (oldStepHeight > 0)
                 {
                     ClearRegion(oldRowOrigin, oldStepHeight);
                 }
@@ -893,9 +865,9 @@ internal sealed class Hex1bFlowRunner
 
             _cursorRow = newRowOrigin;
 
-            // Re-park the cursor at the new tombstone-past row so the next
+            // Re-park the cursor at the new bottom-anchor row so the next
             // resize-during-idle finds it in the right place.
-            if (_options.CursorRowProvider != null)
+            if (_options.UseSoftWrapTombstones)
             {
                 _parentAdapter.SetCursorPosition(0, _cursorRow);
             }
@@ -1031,9 +1003,8 @@ public sealed class Hex1bFlowOptions
 
     /// <summary>
     /// Optional delegate that returns the host terminal's current cursor row
-    /// (0-based). When set, the flow runner uses this to recover the
-    /// post-reflow position of the row past the last tombstone after a
-    /// horizontal resize on cooperative terminals.
+    /// (0-based). When set, the flow runner uses this to read the initial
+    /// cursor position at startup, before the input pump is running.
     /// </summary>
     /// <remarks>
     /// <para>
@@ -1041,11 +1012,18 @@ public sealed class Hex1bFlowOptions
     /// <c>Hex1bTerminalBuilder.WithHex1bFlow</c> when a presentation adapter
     /// is available. On Windows this resolves through Win32
     /// <c>GetConsoleScreenBufferInfo</c> (no DSR roundtrip); on Unix the BCL
-    /// uses a real DSR query.
+    /// uses a raw DSR query that reads the response from stdin.
+    /// </para>
+    /// <para>
+    /// <strong>Must not be called from within a resize handler.</strong>
+    /// On Unix, calling this while Hex1b's input pump is running causes a
+    /// deadlock: the DSR response arrives on the same stdin file descriptor
+    /// that the input pump owns, so <c>Console.GetCursorPosition()</c>
+    /// blocks forever waiting for bytes it will never receive.
     /// </para>
     /// <para>
     /// Returns <c>null</c> to indicate the cursor row could not be
-    /// determined; the runner then falls back to bottom-anchor on resize.
+    /// determined.
     /// </para>
     /// </remarks>
     public Func<int?>? CursorRowProvider { get; set; }
