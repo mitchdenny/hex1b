@@ -192,11 +192,11 @@ public sealed class SplitButtonNode : Hex1bNode
 
     protected override Size MeasureCore(Constraints constraints)
     {
-        // Without secondary actions the chip is " Label " (Label.Length + 2).
+        // Without secondary actions the chip is " Label " (display width + 2).
         // With secondary actions the chip becomes " Label │ ▼ " — the
         // ArrowRegionWidth trailing cells render the divider + space + arrow
         // + trailing pad.
-        var width = PrimaryLabel.Length + 2;
+        var width = DisplayWidth.GetStringWidth(PrimaryLabel) + 2;
         if (HasSecondaryActions)
         {
             width += ArrowRegionWidth;

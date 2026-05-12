@@ -12,7 +12,7 @@ namespace Hex1b;
 /// preserved across reconciliation.
 /// </summary>
 /// <remarks>
-/// Each option occupies <c>1 + label_length + 1</c> cells (a single
+/// Each option occupies <c>1 + label_display_width + 1</c> cells (a single
 /// padding cell on each side of the label) and is painted in its own
 /// colours — the selected option gets the
 /// <see cref="ToggleSwitchTheme.FocusedSelectedBackgroundColor"/> /
@@ -110,7 +110,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
     {
         if (Options.Count == 0) return;
 
-        // Layout: per-option chips of width (1 + label + 1) tiled left
+        // Layout: per-option chips of width (1 + display width + 1) tiled left
         // to right with no separator. The whole strip is clickable —
         // every cell of an option's chip (including its leading and
         // trailing padding cells) selects that option.
@@ -119,7 +119,7 @@ public sealed class ToggleSwitchNode : Hex1bNode
 
         for (int i = 0; i < Options.Count; i++)
         {
-            var chipWidth = Options[i].Length + 2;
+            var chipWidth = DisplayWidth.GetStringWidth(Options[i]) + 2;
             var endX = currentX + chipWidth; // exclusive
 
             if (localX >= currentX && localX < endX)
@@ -166,14 +166,14 @@ public sealed class ToggleSwitchNode : Hex1bNode
     {
         if (Options.Count == 0) return InputResult.NotHandled;
 
-        // Per-option chips of width (1 + label + 1) tiled left to right
+        // Per-option chips of width (1 + display width + 1) tiled left to right
         // with no separator. Padding cells are part of the chip's hit
         // region, so the entire strip is clickable.
         var currentX = 0;
 
         for (int i = 0; i < Options.Count; i++)
         {
-            var chipWidth = Options[i].Length + 2;
+            var chipWidth = DisplayWidth.GetStringWidth(Options[i]) + 2;
             var endX = currentX + chipWidth; // exclusive
 
             if (localX >= currentX && localX < endX)
@@ -196,12 +196,12 @@ public sealed class ToggleSwitchNode : Hex1bNode
             return constraints.Constrain(new Size(0, 1));
         }
 
-        // Per-option chips of width (1 + label + 1) tiled with no
-        // separator. Total width = Σ(label_len + 2) = Σlabel_len + 2n.
+        // Per-option chips of width (1 + display width + 1) tiled with no
+        // separator. Total width = Σ(display_width + 2).
         var totalWidth = 0;
         for (int i = 0; i < Options.Count; i++)
         {
-            totalWidth += Options[i].Length + 2;
+            totalWidth += DisplayWidth.GetStringWidth(Options[i]) + 2;
         }
 
         return constraints.Constrain(new Size(totalWidth, 1));

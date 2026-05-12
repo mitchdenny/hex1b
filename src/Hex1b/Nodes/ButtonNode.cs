@@ -69,7 +69,7 @@ public sealed class ButtonNode : Hex1bNode
     {
         // Button renders as " Label " on a chip background - one cell of
         // padding either side of the label.
-        var width = Label.Length + 2;
+        var width = DisplayWidth.GetStringWidth(Label) + 2;
         var height = 1;
         _measuredSize = constraints.Constrain(new Size(width, height));
         return _measuredSize;
