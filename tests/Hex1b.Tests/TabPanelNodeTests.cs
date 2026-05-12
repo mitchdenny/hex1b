@@ -48,6 +48,43 @@ public class TabPanelNodeTests
     }
 
     [Fact]
+    public async Task TabPanel_WideTabTitle_UsesDisplayWidthForSelectedIndicator()
+    {
+        // Arrange
+        const string title = "한국어 제목";
+        var expectedTabWidth = DisplayWidth.GetStringWidth(title) + 2;
+        Assert.True(expectedTabWidth > title.Length + 2, "Test title must contain wide characters.");
+
+        using var workload = new Hex1bAppWorkloadAdapter();
+        using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 8).Build();
+
+        using var app = new Hex1bApp(
+            ctx => Task.FromResult<Hex1bWidget>(ctx.TabPanel(tp => [
+                tp.Tab(title, t => [t.Text("Content")])
+            ])),
+            new Hex1bAppOptions { WorkloadAdapter = workload }
+        );
+
+        // Act
+        var runTask = app.RunAsync(TestContext.Current.CancellationToken);
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText(title) && s.ContainsText("Content"), TimeSpan.FromSeconds(5), "wide tab rendered")
+            .Capture("wide-tab-title")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        await runTask;
+
+        // Assert - the selected-tab indicator spans the full display width of the wide title.
+        for (var x = 0; x < expectedTabWidth; x++)
+        {
+            Assert.Equal("▁", snapshot.GetCell(x, 0).Character);
+        }
+
+        Assert.NotEqual("▁", snapshot.GetCell(expectedTabWidth, 0).Character);
+    }
+
+    [Fact]
     public async Task TabPanel_AltRight_SwitchesToNextTab()
     {
         // Arrange
