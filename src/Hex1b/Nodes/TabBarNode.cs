@@ -186,20 +186,20 @@ public sealed class TabBarNode : Hex1bNode
 
     private int CalculateTabWidth(TabInfo tab)
     {
-        var textWidth = tab.Title.Length;
+        var textWidth = DisplayWidth.GetStringWidth(tab.Title);
         if (!string.IsNullOrEmpty(tab.Icon))
         {
-            textWidth += tab.Icon.Length + 1;
+            textWidth += DisplayWidth.GetStringWidth(tab.Icon) + 1;
         }
         // Add space for left icons (each icon + space)
         foreach (var icon in tab.LeftActions)
         {
-            textWidth += icon.Icon.Length + 1;
+            textWidth += DisplayWidth.GetStringWidth(icon.Icon) + 1;
         }
         // Add space for right icons (space + each icon)
         foreach (var icon in tab.RightActions)
         {
-            textWidth += icon.Icon.Length + 1;
+            textWidth += DisplayWidth.GetStringWidth(icon.Icon) + 1;
         }
         return textWidth + 2; // padding
     }
@@ -286,7 +286,7 @@ public sealed class TabBarNode : Hex1bNode
             for (int iconIdx = 0; iconIdx < tab.LeftActions.Count; iconIdx++)
             {
                 var icon = tab.LeftActions[iconIdx];
-                var iconWidth = icon.Icon.Length;
+                var iconWidth = DisplayWidth.GetStringWidth(icon.Icon);
                 _iconHitRegions.Add((x, iconWidth, i, iconIdx, true, icon));
                 context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{icon.Icon} {resetToGlobal}");
                 x += iconWidth + 1;
@@ -296,18 +296,18 @@ public sealed class TabBarNode : Hex1bNode
             if (!string.IsNullOrEmpty(tab.Icon))
             {
                 context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tab.Icon} {resetToGlobal}");
-                x += tab.Icon.Length + 1;
+                x += DisplayWidth.GetStringWidth(tab.Icon) + 1;
             }
 
             // Render title
             context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode}{tab.Title}{resetToGlobal}");
-            x += tab.Title.Length;
+            x += DisplayWidth.GetStringWidth(tab.Title);
 
             // Render right icons
             for (int iconIdx = 0; iconIdx < tab.RightActions.Count; iconIdx++)
             {
                 var icon = tab.RightActions[iconIdx];
-                var iconWidth = icon.Icon.Length;
+                var iconWidth = DisplayWidth.GetStringWidth(icon.Icon);
                 context.WriteClipped(x, _tabRowY, $"{fgCode}{bgCode} {icon.Icon}{resetToGlobal}");
                 x += 1; // space before icon
                 _iconHitRegions.Add((x, iconWidth, i, iconIdx, false, icon));

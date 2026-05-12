@@ -37,10 +37,10 @@ public sealed class TabItemNode : Hex1bNode
     protected override Size MeasureCore(Constraints constraints)
     {
         // Tab renders as " [Icon] Title " with padding
-        var textWidth = Title.Length;
+        var textWidth = DisplayWidth.GetStringWidth(Title);
         if (!string.IsNullOrEmpty(Icon))
         {
-            textWidth += Icon.Length + 1; // icon + space
+            textWidth += DisplayWidth.GetStringWidth(Icon) + 1; // icon + space
         }
         var width = textWidth + 2; // 1 char padding on each side
         var height = 1;
