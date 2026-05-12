@@ -74,6 +74,21 @@ public class ToggleSwitchNodeTests
     }
 
     [Fact]
+    public async Task Measure_CJKCharacters_CorrectSize()
+    {
+        var node = new ToggleSwitchNode
+        {
+            Options = ["汉字", "Auto", "한글"]
+        };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // Per-option chips: " 汉字 " (6) + " Auto " (6) + " 한글 " (6) = 18
+        Assert.Equal(18, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
     public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new ToggleSwitchNode
@@ -702,6 +717,26 @@ public class ToggleSwitchNodeTests
         // Click on chip 0's leading padding cell (X=0)
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
+
+        Assert.Equal(InputResult.Handled, result);
+        Assert.Equal(0, node.SelectedIndex);
+    }
+
+    [Fact]
+    public async Task HandleMouseClick_CJKCharacters_UsesDisplayWidth()
+    {
+        // Layout: " 汉字  Off " — chip 0 covers cells 0-5 because
+        // "汉字" is 4 display cells wide, and chip 1 starts at cell 6.
+        var node = new ToggleSwitchNode
+        {
+            Options = ["汉字", "Off"],
+            SelectedIndex = 1
+        };
+        node.Measure(Constraints.Unbounded);
+        node.Arrange(new Rect(0, 0, 11, 1));
+
+        var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 4, 0, Hex1bModifiers.None);
+        var result = node.HandleMouseClick(4, 0, mouseEvent);
 
         Assert.Equal(InputResult.Handled, result);
         Assert.Equal(0, node.SelectedIndex);

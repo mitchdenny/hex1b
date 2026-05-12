@@ -26,6 +26,18 @@ public class ButtonNodeTests
     }
 
     [Fact]
+    public async Task Measure_CJKCharacters_CorrectSize()
+    {
+        var node = new ButtonNode { Label = "汉字かな한글" };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // " 汉字かな한글 " = 2 (chip padding) + 6 (CJK chars) * 2 (width) = 14
+        Assert.Equal(14, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
     public async Task Measure_EmptyLabel_HasMinSize()
     {
         var node = new ButtonNode { Label = "" };
@@ -229,12 +241,12 @@ public class ButtonNodeTests
         unfocusedNode.Render(unfocusedContext);
 
         var pattern = new CellPatternSearcher().Find("Click");
-        
+
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(focusedTerminal);
-        
+
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches, TimeSpan.FromSeconds(5))
             .Build()
@@ -243,14 +255,14 @@ public class ButtonNodeTests
         // Focused button should have different styling (colors or attributes)
         var focusedMatch = focusedTerminal.CreateSnapshot().SearchPattern(pattern).First;
         Assert.NotNull(focusedMatch);
-        
+
         // The focused button should have either reverse attribute or foreground/background colors
         var focusedCells = focusedMatch.Cells;
-        var focusedHasStyling = focusedCells.Any(c => 
-            c.Cell.IsReverse || 
-            c.Cell.Foreground.HasValue || 
+        var focusedHasStyling = focusedCells.Any(c =>
+            c.Cell.IsReverse ||
+            c.Cell.Foreground.HasValue ||
             c.Cell.Background.HasValue);
-        
+
         Assert.True(focusedHasStyling, "Focused button should have styling applied");
     }
 

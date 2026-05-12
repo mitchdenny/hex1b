@@ -118,6 +118,18 @@ public class SplitButtonNodeTests
     }
 
     [Fact]
+    public void Measure_CJKCharacters_CorrectSize()
+    {
+        var node = new SplitButtonNode { PrimaryLabel = "汉字かな한글" };
+
+        var size = node.Measure(Constraints.Unbounded);
+
+        // " 汉字かな한글 " = 2 (chip padding) + 6 (CJK chars) * 2 (width) = 14
+        Assert.Equal(14, size.Width);
+        Assert.Equal(1, size.Height);
+    }
+
+    [Fact]
     public void Measure_SecondaryActions_IncludesArrow()
     {
         var node = new SplitButtonNode 
