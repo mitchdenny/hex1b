@@ -109,7 +109,29 @@ public static class PlaceholderWorkloadBuilderExtensions
             }
 
             var wrapped = new PlaceholderWorkloadAdapter(primary, placeholder, placeholderRun, resumePolicy);
-            return new Hex1bTerminalBuildContext(wrapped, primaryRun);
+
+            // Compose a terminal-level run callback. The primary's own run
+            // callback (e.g. HMP1's "wait until DisconnectedTask") returns
+            // when the primary goes away — but under OnDisconnect we want
+            // the terminal to *stay alive* so the wrapper can swap back to
+            // the placeholder. Keep waiting on ct in that case; only ct
+            // cancellation tears down the terminal. Under OneShot, primary
+            // disconnect propagates as terminal exit (legacy behaviour).
+            Func<CancellationToken, Task<int>>? composedRun = primaryRun is null
+                ? null
+                : async ct =>
+                {
+                    var exit = await primaryRun(ct).ConfigureAwait(false);
+                    if (resumePolicy == PlaceholderResumePolicy.OnDisconnect
+                        && !ct.IsCancellationRequested)
+                    {
+                        try { await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false); }
+                        catch (OperationCanceledException) { }
+                    }
+                    return exit;
+                };
+
+            return new Hex1bTerminalBuildContext(wrapped, composedRun);
         });
 
         return builder;
