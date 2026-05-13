@@ -68,4 +68,12 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     })
     .Build();
 
-await terminal.RunAsync(lifetime.Token);
+try
+{
+    await terminal.RunAsync(lifetime.Token);
+}
+catch (OperationCanceledException) when (lifetime.IsCancellationRequested)
+{
+    // Normal shutdown via Q / Ctrl-C — swallow the cancellation so the
+    // process exits cleanly instead of dumping a stack trace.
+}
