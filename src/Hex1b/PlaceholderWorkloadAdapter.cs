@@ -40,6 +40,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     private readonly IHex1bTerminalWorkloadAdapter _primary;
     private readonly IHex1bTerminalWorkloadAdapter _placeholder;
+    private readonly Func<CancellationToken, Task<int>>? _placeholderRun;
     private readonly PlaceholderResumePolicy _resumePolicy;
     private readonly object _swapLock = new();
 
@@ -55,13 +56,26 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private CancellationTokenSource? _watcherCts;
     private Task? _watcherTask;
 
+    private CancellationTokenSource? _placeholderRunCts;
+    private Task? _placeholderRunTask;
+
     public PlaceholderWorkloadAdapter(
         IHex1bTerminalWorkloadAdapter primary,
         IHex1bTerminalWorkloadAdapter placeholder,
         PlaceholderResumePolicy resumePolicy)
+        : this(primary, placeholder, placeholderRun: null, resumePolicy)
+    {
+    }
+
+    public PlaceholderWorkloadAdapter(
+        IHex1bTerminalWorkloadAdapter primary,
+        IHex1bTerminalWorkloadAdapter placeholder,
+        Func<CancellationToken, Task<int>>? placeholderRun,
+        PlaceholderResumePolicy resumePolicy)
     {
         _primary = primary ?? throw new ArgumentNullException(nameof(primary));
         _placeholder = placeholder ?? throw new ArgumentNullException(nameof(placeholder));
+        _placeholderRun = placeholderRun;
         _resumePolicy = resumePolicy;
         _active = placeholder;
 
@@ -69,6 +83,21 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
         _watcherCts = new CancellationTokenSource();
         _watcherTask = Task.Run(() => WatchPrimaryAsync(_watcherCts.Token));
+
+        // Drive the placeholder's "run" loop (typically a Hex1bApp.RunAsync) so
+        // it actually produces frames into its workload adapter — otherwise the
+        // adapter's output channel stays empty and ReadOutputAsync would block
+        // forever waiting on a child that has nothing to say.
+        if (_placeholderRun is { } run)
+        {
+            _placeholderRunCts = new CancellationTokenSource();
+            _placeholderRunTask = Task.Run(async () =>
+            {
+                try { await run(_placeholderRunCts.Token).ConfigureAwait(false); }
+                catch (OperationCanceledException) { }
+                catch { /* swallow — we're a background helper */ }
+            });
+        }
     }
 
     /// <summary>The currently-active child (test hook).</summary>
@@ -161,6 +190,16 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
         // dims and renders correctly the moment it becomes active.
         await _placeholder.ResizeAsync(width, height, ct).ConfigureAwait(false);
         await _primary.ResizeAsync(width, height, ct).ConfigureAwait(false);
+
+        // For Hex1bApp-style children, the very first resize sets dimensions
+        // but doesn't fire a Hex1bResizeEvent (treated as initial setup). Without
+        // that wake-up the app's render loop sleeps after its inaugural 0x0
+        // frame and the user never sees the placeholder UI. Forcing a repaint
+        // here invalidates the app and wakes the loop so it re-renders at the
+        // newly-known dimensions. Safe for child-process style children that
+        // don't implement IRepaintableWorkloadAdapter.
+        if (_placeholder is IRepaintableWorkloadAdapter ph) ph.RequestFullRepaint();
+        if (_primary is IRepaintableWorkloadAdapter pr) pr.RequestFullRepaint();
     }
 
     public async ValueTask DisposeAsync()
@@ -179,6 +218,17 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
             }
             catch (OperationCanceledException) { }
             wcts.Dispose();
+        }
+
+        if (_placeholderRunCts is { } pcts)
+        {
+            pcts.Cancel();
+            try
+            {
+                if (_placeholderRunTask is { } pt) await pt.ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) { }
+            pcts.Dispose();
         }
 
         lock (_swapLock)

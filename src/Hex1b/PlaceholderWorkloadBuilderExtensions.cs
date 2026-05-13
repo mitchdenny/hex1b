@@ -93,6 +93,7 @@ public static class PlaceholderWorkloadBuilderExtensions
             }
 
             IHex1bTerminalWorkloadAdapter placeholder;
+            Func<CancellationToken, Task<int>>? placeholderRun = null;
             if (placeholderFactory != null)
             {
                 // Placeholder shouldn't see the outer presentation adapter — it
@@ -100,13 +101,14 @@ public static class PlaceholderWorkloadBuilderExtensions
                 // by PlaceholderWorkloadAdapter.
                 var ctx = placeholderFactory(null);
                 placeholder = ctx.WorkloadAdapter;
+                placeholderRun = ctx.RunCallback;
             }
             else
             {
                 placeholder = placeholderAdapterDirect!;
             }
 
-            var wrapped = new PlaceholderWorkloadAdapter(primary, placeholder, resumePolicy);
+            var wrapped = new PlaceholderWorkloadAdapter(primary, placeholder, placeholderRun, resumePolicy);
             return new Hex1bTerminalBuildContext(wrapped, primaryRun);
         });
 

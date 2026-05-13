@@ -147,6 +147,43 @@ public class PlaceholderWorkloadAdapterTests
         Assert.Equal(1, primary.RepaintRequests);
     }
 
+    [Fact]
+    public async Task ResizeAsync_RequestsRepaintOnRepaintableChildren()
+    {
+        var primary = new RepaintablePrimary();
+        var placeholder = new RepaintablePlaceholder();
+        await using var adapter = new PlaceholderWorkloadAdapter(
+            primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
+
+        await adapter.ResizeAsync(120, 30);
+
+        Assert.Equal(1, placeholder.RepaintRequests);
+        Assert.Equal(1, primary.RepaintRequests);
+    }
+
+    [Fact]
+    public async Task PlaceholderRunCallback_IsInvoked_WhenSupplied()
+    {
+        var primary = new FakeConnectableAdapter();
+        var placeholder = new FakeAdapter();
+        var ranTcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        Func<CancellationToken, Task<int>> placeholderRun = async ct =>
+        {
+            ranTcs.TrySetResult();
+            try { await Task.Delay(Timeout.Infinite, ct); }
+            catch (OperationCanceledException) { }
+            return 0;
+        };
+
+        await using (var adapter = new PlaceholderWorkloadAdapter(
+            primary, placeholder, placeholderRun, PlaceholderResumePolicy.OnDisconnect))
+        {
+            // Run callback should fire shortly after construction.
+            await ranTcs.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        }
+    }
+
     private static CancellationToken TestCancel() =>
         new CancellationTokenSource(TimeSpan.FromSeconds(5)).Token;
 
@@ -233,6 +270,12 @@ public class PlaceholderWorkloadAdapterTests
     }
 
     private sealed class RepaintablePrimary : FakeConnectableAdapter, IRepaintableWorkloadAdapter
+    {
+        public int RepaintRequests;
+        public void RequestFullRepaint() => Interlocked.Increment(ref RepaintRequests);
+    }
+
+    private sealed class RepaintablePlaceholder : FakeAdapter, IRepaintableWorkloadAdapter
     {
         public int RepaintRequests;
         public void RequestFullRepaint() => Interlocked.Increment(ref RepaintRequests);

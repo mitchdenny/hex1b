@@ -19,6 +19,7 @@ var socketPath = args.Length > 0
 
 using var lifetime = new CancellationTokenSource();
 var status = "Waiting for producer at " + socketPath;
+Hex1bApp? placeholderApp = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
@@ -31,6 +32,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             OnAttemptFailed = e =>
             {
                 status = $"Attempt {e.AttemptNumber} failed: {e.Error.GetType().Name}. Retrying in {e.NextDelay.TotalMilliseconds:0} ms…";
+                placeholderApp?.Invalidate();
             },
         }),
         opts =>
@@ -38,22 +40,26 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             opts.DisplayName = "placeholder-demo";
             opts.DefaultRole = Hmp1Role.Secondary;
         })
-    .WithPlaceholderHex1bApp((app, _) => ctx =>
-        ctx.Center(
-            ctx.VStack(v =>
-            [
-                v.Text("PTY not connected"),
-                v.Text(""),
-                v.Text(status),
-                v.Text(""),
-                v.Text("Press Q to quit"),
-            ]))
-        .Fill()
-        .InputBindings(b => b.Key(Hex1b.Input.Hex1bKey.Q).Action(_ =>
-        {
-            app.RequestStop();
-            lifetime.Cancel();
-        }, "Quit")))
+    .WithPlaceholderHex1bApp((app, _) =>
+    {
+        placeholderApp = app;
+        return ctx =>
+            ctx.Center(
+                ctx.VStack(v =>
+                [
+                    v.Text("PTY not connected"),
+                    v.Text(""),
+                    v.Text(status),
+                    v.Text(""),
+                    v.Text("Press Q to quit"),
+                ]))
+            .Fill()
+            .InputBindings(b => b.Key(Hex1b.Input.Hex1bKey.Q).Action(_ =>
+            {
+                app.RequestStop();
+                lifetime.Cancel();
+            }, "Quit"));
+    })
     .Build();
 
 await terminal.RunAsync(lifetime.Token);
