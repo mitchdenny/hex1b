@@ -18,6 +18,12 @@ var socketPath = args.Length > 0
     : Path.Combine(Path.GetTempPath(), "hex1b-placeholder.sock");
 
 using var lifetime = new CancellationTokenSource();
+Console.CancelKeyPress += (_, e) =>
+{
+    e.Cancel = true;
+    lifetime.Cancel();
+};
+
 var status = "Waiting for producer at " + socketPath;
 Hex1bApp? placeholderApp = null;
 
