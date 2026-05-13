@@ -46,7 +46,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             opts.DisplayName = "placeholder-demo";
             opts.DefaultRole = Hmp1Role.Secondary;
         })
-    .WithPlaceholderHex1bApp((app, _) =>
+    .WithPlaceholderHex1bApp(app =>
     {
         placeholderApp = app;
         return ctx =>

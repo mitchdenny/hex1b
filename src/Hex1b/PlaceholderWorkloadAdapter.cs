@@ -38,7 +38,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
     private static readonly ReadOnlyMemory<byte> ResetSequence =
         Encoding.ASCII.GetBytes("\u001bc\u001b[?1049l\u001b[2J\u001b[H");
 
-    private readonly IHex1bTerminalWorkloadAdapter _primary;
+    private IHex1bTerminalWorkloadAdapter _primary;
     private readonly IHex1bTerminalWorkloadAdapter _placeholder;
     private readonly Func<CancellationToken, Task<int>>? _placeholderRun;
     private readonly PlaceholderResumePolicy _resumePolicy;
@@ -102,6 +102,68 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 
     /// <summary>The currently-active child (test hook).</summary>
     internal IHex1bTerminalWorkloadAdapter ActiveChild => Volatile.Read(ref _active);
+
+    /// <summary>
+    /// Replace the primary workload with a freshly-built instance. Used by
+    /// the builder layer to recover from one-shot adapters (e.g.
+    /// <see cref="Hmp1WorkloadAdapter"/>, whose read pump dies on
+    /// disconnect) so the wrapper can reconnect on subsequent attempts.
+    /// </summary>
+    /// <remarks>
+    /// Tears down the previous primary watcher, unsubscribes its
+    /// <see cref="IHex1bTerminalWorkloadAdapter.Disconnected"/> handler,
+    /// disposes it (best-effort), then installs the replacement, propagates
+    /// the last-known dimensions, and starts a fresh watcher. Active-child
+    /// state is left alone — if the wrapper was already showing the
+    /// placeholder (the typical case after a disconnect) it stays there
+    /// until the new primary signals connected.
+    /// </remarks>
+    internal async ValueTask ReplacePrimaryAsync(
+        IHex1bTerminalWorkloadAdapter newPrimary,
+        CancellationToken ct = default)
+    {
+        ArgumentNullException.ThrowIfNull(newPrimary);
+        if (_disposed) return;
+
+        IHex1bTerminalWorkloadAdapter oldPrimary;
+        CancellationTokenSource? oldWatcherCts;
+        Task? oldWatcherTask;
+        bool needResize;
+        int width, height;
+
+        lock (_swapLock)
+        {
+            if (_disposed) return;
+            oldPrimary = _primary;
+            oldWatcherCts = _watcherCts;
+            oldWatcherTask = _watcherTask;
+            _primary = newPrimary;
+            _watcherCts = new CancellationTokenSource();
+            needResize = _hasSize;
+            width = _lastWidth;
+            height = _lastHeight;
+        }
+
+        oldPrimary.Disconnected -= OnPrimaryDisconnectedEvent;
+        if (oldWatcherCts is not null)
+        {
+            try { oldWatcherCts.Cancel(); } catch { }
+            try { if (oldWatcherTask is not null) await oldWatcherTask.ConfigureAwait(false); }
+            catch (OperationCanceledException) { }
+            catch { }
+            oldWatcherCts.Dispose();
+        }
+        await SafeDisposeAsync(oldPrimary).ConfigureAwait(false);
+
+        newPrimary.Disconnected += OnPrimaryDisconnectedEvent;
+        if (needResize)
+        {
+            try { await newPrimary.ResizeAsync(width, height, ct).ConfigureAwait(false); }
+            catch { }
+        }
+
+        _watcherTask = Task.Run(() => WatchPrimaryAsync(_watcherCts!.Token));
+    }
 
     public event Action? Disconnected;
 

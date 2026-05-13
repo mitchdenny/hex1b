@@ -111,25 +111,63 @@ public static class PlaceholderWorkloadBuilderExtensions
             var wrapped = new PlaceholderWorkloadAdapter(primary, placeholder, placeholderRun, resumePolicy);
 
             // Compose a terminal-level run callback. The primary's own run
-            // callback (e.g. HMP1's "wait until DisconnectedTask") returns
-            // when the primary goes away — but under OnDisconnect we want
-            // the terminal to *stay alive* so the wrapper can swap back to
-            // the placeholder. Keep waiting on ct in that case; only ct
-            // cancellation tears down the terminal. Under OneShot, primary
-            // disconnect propagates as terminal exit (legacy behaviour).
-            Func<CancellationToken, Task<int>>? composedRun = primaryRun is null
-                ? null
-                : async ct =>
+            // callback (e.g. HMP1's "ConnectAsync then await DisconnectedTask")
+            // returns the moment the producer goes away — but most workload
+            // adapters (HMP1 included) are one-shot and can't be reconnected
+            // on the same instance. Under OnDisconnect we therefore rebuild
+            // the primary via its factory and hand the fresh instance to the
+            // wrapper, which re-runs its connected/disconnected watcher and
+            // re-streams output from the new primary as soon as it connects.
+            // Loop terminates only when ct is cancelled (Q / Ctrl-C) or the
+            // resume policy is OneShot.
+            Func<CancellationToken, Task<int>>? composedRun;
+            if (primaryRun is null)
+            {
+                composedRun = null;
+            }
+            else if (resumePolicy == PlaceholderResumePolicy.OneShot
+                     || primaryFactory is null)
+            {
+                // OneShot: legacy "primary disconnect = terminal exit".
+                // Or no factory available (caller passed a pre-built adapter,
+                // not a factory) — we have no way to rebuild, so behave as
+                // OneShot regardless of policy.
+                composedRun = primaryRun;
+            }
+            else
+            {
+                var currentRun = primaryRun;
+                composedRun = async ct =>
                 {
-                    var exit = await primaryRun(ct).ConfigureAwait(false);
-                    if (resumePolicy == PlaceholderResumePolicy.OnDisconnect
-                        && !ct.IsCancellationRequested)
+                    var lastExit = 0;
+                    while (true)
                     {
-                        try { await Task.Delay(Timeout.Infinite, ct).ConfigureAwait(false); }
-                        catch (OperationCanceledException) { }
+                        try
+                        {
+                            lastExit = await currentRun(ct).ConfigureAwait(false);
+                        }
+                        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+                        {
+                            throw;
+                        }
+                        catch
+                        {
+                            // Connect / read failures bubble out of primaryRun;
+                            // swallow them so the placeholder UI keeps running
+                            // and the next rebuild gets a chance to reconnect.
+                        }
+
+                        if (ct.IsCancellationRequested) break;
+
+                        // Rebuild the primary and hand it to the wrapper.
+                        var newCtx = primaryFactory(presentation);
+                        await wrapped.ReplacePrimaryAsync(newCtx.WorkloadAdapter, ct)
+                            .ConfigureAwait(false);
+                        currentRun = newCtx.RunCallback ?? (_ => Task.FromResult(0));
                     }
-                    return exit;
+                    return lastExit;
                 };
+            }
 
             return new Hex1bTerminalBuildContext(wrapped, composedRun);
         });
@@ -142,16 +180,19 @@ public static class PlaceholderWorkloadBuilderExtensions
     /// </summary>
     /// <param name="builder">The terminal builder whose primary workload is being decorated.</param>
     /// <param name="configure">A standard <c>WithHex1bApp</c>-shaped configuration callback.</param>
+    /// <param name="configureOptions">Optional <see cref="Hex1bAppOptions"/> configurator.</param>
     /// <param name="resumePolicy">
     /// What to do if the primary workload disconnects after going active.
     /// Defaults to <see cref="PlaceholderResumePolicy.OnDisconnect"/>.
     /// </param>
     public static Hex1bTerminalBuilder WithPlaceholderHex1bApp(
         this Hex1bTerminalBuilder builder,
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1b.Widgets.Hex1bWidget>> configure,
+        Func<Hex1bApp, Func<RootContext, Hex1b.Widgets.Hex1bWidget>> configure,
+        Action<Hex1bAppOptions>? configureOptions = null,
         PlaceholderResumePolicy resumePolicy = PlaceholderResumePolicy.OnDisconnect)
     {
         ArgumentNullException.ThrowIfNull(configure);
-        return builder.WithPlaceholderWorkload(b => b.WithHex1bApp(configure), resumePolicy);
+        var opts = configureOptions ?? (_ => { });
+        return builder.WithPlaceholderWorkload(b => b.WithHex1bApp(opts, configure), resumePolicy);
     }
 }
