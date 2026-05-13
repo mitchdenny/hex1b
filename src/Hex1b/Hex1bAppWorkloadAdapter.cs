@@ -34,7 +34,7 @@ namespace Hex1b;
 /// await app.RunAsync();
 /// </code>
 /// </example>
-public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IDisposable
+public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, IHex1bTerminalTokenWorkloadAdapter, IRepaintableWorkloadAdapter, IDisposable
 {
     private readonly Channel<WorkloadOutputItem> _outputChannel;
     private readonly Channel<Hex1bEvent> _inputChannel;
@@ -53,6 +53,24 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// Set by Hex1bApp when it starts running.
     /// </summary>
     internal Diagnostics.IDiagnosticTreeProvider? DiagnosticTreeProvider { get; set; }
+
+    // Callback installed by Hex1bApp.RunAsync so an outer multiplexer
+    // (e.g. PlaceholderWorkloadAdapter) can ask the app to drop diff
+    // state and emit a full screen on the next frame. Null until the
+    // owning Hex1bApp has started running.
+    private Action? _repaintRequestHandler;
+
+    /// <summary>
+    /// Installs the callback invoked by <see cref="RequestFullRepaint"/>.
+    /// Owned by <see cref="Hex1bApp"/>; set once when the app starts and
+    /// cleared on dispose. Internal because the wiring is between the
+    /// adapter and its owning Hex1bApp — external callers should go
+    /// through <see cref="IRepaintableWorkloadAdapter.RequestFullRepaint"/>.
+    /// </summary>
+    internal void SetRepaintRequestHandler(Action? handler) => _repaintRequestHandler = handler;
+
+    /// <inheritdoc />
+    public void RequestFullRepaint() => _repaintRequestHandler?.Invoke();
     
     /// <summary>
     /// When true, Hex1bApp collects per-node timing metrics during reconcile and render.

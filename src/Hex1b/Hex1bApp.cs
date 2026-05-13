@@ -494,6 +494,19 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             workloadAdapter.DiagnosticTreeProvider = this;
             _diagnosticTimingEnabled = workloadAdapter.DiagnosticTimingEnabled;
+            // Wire IRepaintableWorkloadAdapter: when an outer multiplexer
+            // (e.g. PlaceholderWorkloadAdapter) tells us the surrounding
+            // terminal state was reset out from under us, flip _isFirstFrame
+            // and invalidate so the next frame is a full repaint.
+            workloadAdapter.SetRepaintRequestHandler(() =>
+            {
+                _isFirstFrame = true;
+                _lastRenderedCursorX = -1;
+                _lastRenderedCursorY = -1;
+                _lastRenderedCursorVisible = false;
+                _lastRenderedCursorNode = null;
+                Invalidate();
+            });
         }
         
         _context.EnterAlternateScreen();
@@ -672,6 +685,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             // Always exit alternate buffer, even on error
             _context.ExitAlternateScreen();
+
+            // Drop the repaint handler so we don't keep this app alive via
+            // the workload adapter's delegate slot if RunAsync is restarted
+            // or the host swaps adapters.
+            if (_adapter is Hex1bAppWorkloadAdapter wa)
+            {
+                wa.SetRepaintRequestHandler(null);
+            }
         }
     }
 

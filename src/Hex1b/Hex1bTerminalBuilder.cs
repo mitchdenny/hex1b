@@ -1426,6 +1426,21 @@ public sealed class Hex1bTerminalBuilder
         _workloadFactory = factory;
         _workloadAdapter = null;
     }
+
+    // Accessors used by builder extensions that wrap the existing workload
+    // (e.g. WithPlaceholderWorkload). Internal so they remain implementation
+    // details of the Hex1b assembly.
+
+    internal IHex1bTerminalWorkloadAdapter? GetConfiguredWorkloadAdapter() => _workloadAdapter;
+
+    internal Func<IHex1bTerminalPresentationAdapter?, Hex1bTerminalBuildContext>? GetConfiguredWorkloadFactory()
+        => _workloadFactory;
+
+    internal void ClearConfiguredWorkload()
+    {
+        _workloadAdapter = null;
+        _workloadFactory = null;
+    }
 }
 
 /// <summary>

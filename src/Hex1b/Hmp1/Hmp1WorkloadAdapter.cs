@@ -28,7 +28,7 @@ namespace Hex1b;
 /// <see cref="IHmp1ConnectionHandle.OnPeerLeft"/> to drive UX state.
 /// </para>
 /// </remarks>
-public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle
+public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1ConnectionHandle, IConnectableWorkloadAdapter
 {
     private readonly Hmp1ClientOptions _options;
     private readonly string _localDisplayName;
@@ -48,6 +48,14 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     // consumers (e.g. WithHmp1Client's runCallback) don't get coupled to
     // user-handler duration. See WaitForDisconnectAsync.
     private readonly TaskCompletionSource _disconnectedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
+
+    // Completed once the handshake (ClientHello → Hello → StateSync) has
+    // succeeded. Surfaced via IConnectableWorkloadAdapter so multiplexing
+    // wrappers (PlaceholderWorkloadAdapter) can react without HMP1-specific
+    // coupling. Never faults — connect failures during ConnectAsync are
+    // surfaced through the usual exception channel and leave this task
+    // pending; callers then rely on DisconnectedTask for the disconnect path.
+    private readonly TaskCompletionSource _connectedTcs = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
     /// <summary>
     /// Creates a muxer workload adapter from the supplied options bag.
@@ -218,6 +226,19 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
     public Task DisconnectedTask => _disconnectedTcs.Task;
 
     /// <summary>
+    /// Completes when the HMP1 handshake (ClientHello → Hello → StateSync)
+    /// has succeeded and the read pump has been started. Implements
+    /// <see cref="IConnectableWorkloadAdapter.ConnectedTask"/>.
+    /// </summary>
+    public Task ConnectedTask => _connectedTcs.Task;
+
+    /// <summary>
+    /// True after the handshake completes and before the transport disconnects.
+    /// Implements <see cref="IConnectableWorkloadAdapter.IsConnected"/>.
+    /// </summary>
+    public bool IsConnected => _connectedTcs.Task.IsCompletedSuccessfully && !_disconnectedTcs.Task.IsCompleted;
+
+    /// <summary>
     /// Connects to the server, sends ClientHello, reads Hello and StateSync,
     /// and starts the background read pump.
     /// </summary>
@@ -290,6 +311,13 @@ public sealed class Hmp1WorkloadAdapter : IHex1bTerminalWorkloadAdapter, IHmp1Co
         // owned by DisposeAsync (and DisposeAsync alone) via _readCts.
         _readCts = new CancellationTokenSource();
         _readTask = Task.Run(() => ReadPumpAsync(_readCts.Token));
+
+        // Surface "handshake complete" to IConnectableWorkloadAdapter consumers
+        // (e.g. PlaceholderWorkloadAdapter) before invoking the user's
+        // OnConnected callback. This ordering matches DisconnectedTask, which
+        // also fires before the user's OnDisconnected callback so framework
+        // wrappers don't get coupled to user-handler duration.
+        _connectedTcs.TrySetResult();
 
         // Snapshot connected-state under the lock, raise the event without
         // holding it. Handlers run on the connecting thread and are
