@@ -21,6 +21,14 @@ public sealed class EffectPanelNode : Hex1bNode
     /// </summary>
     public Action<Surface>? Effect { get; set; }
 
+    /// <summary>
+    /// Gets or sets a context-aware effect callback that post-processes the child's
+    /// rendered surface and additionally receives the parent <see cref="Hex1bRenderContext"/>
+    /// (handy for reading <c>context.Theme.GetGlobalBackground()</c> when blending).
+    /// Invoked after <see cref="Effect"/>.
+    /// </summary>
+    public Action<Surface, Hex1bRenderContext>? EffectWithContext { get; set; }
+
     protected override Size MeasureCore(Constraints constraints)
     {
         if (Child is null)
@@ -38,7 +46,7 @@ public sealed class EffectPanelNode : Hex1bNode
     {
         if (Child is null) return;
 
-        if (Effect is null || context is not SurfaceRenderContext surfaceCtx)
+        if (Effect is null && EffectWithContext is null || context is not SurfaceRenderContext surfaceCtx)
         {
             // No effect or non-surface context: pass through unchanged
             context.RenderChild(Child);
@@ -71,8 +79,9 @@ public sealed class EffectPanelNode : Hex1bNode
             tempContext.SetCursorPosition(Child.Bounds.X, Child.Bounds.Y);
             tempContext.RenderChild(Child);
 
-            // 4. Apply effect
-            Effect(tempSurface);
+            // 4. Apply effect(s)
+            Effect?.Invoke(tempSurface);
+            EffectWithContext?.Invoke(tempSurface, context);
 
             // 5. Composite modified surface into parent, respecting clip region
             Rect? clipRect = null;
