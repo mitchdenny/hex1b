@@ -1,4 +1,6 @@
 using System.Text;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace Hex1b.Tests;
 
@@ -63,6 +65,19 @@ public class ConsolePresentationAdapterTests
     }
 
     [TestMethod]
+    public void WindowsConsoleDriver_ReadConsoleInputImport_UsesUnicodeEntryPoint()
+    {
+        var method = typeof(WindowsConsoleDriver).GetMethod(
+            "ReadConsoleInput",
+            BindingFlags.NonPublic | BindingFlags.Static);
+
+        var attribute = method?.GetCustomAttribute<DllImportAttribute>();
+
+        Assert.IsNotNull(attribute);
+        Assert.AreEqual("ReadConsoleInputW", attribute.EntryPoint);
+    }
+
+    [TestMethod]
     public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {
         // This test verifies the factory pattern works correctly
@@ -93,7 +108,7 @@ public class ConsolePresentationAdapterTests
             }
         }
     }
-    
+
     [TestMethod]
     public void UnixConsoleDriver_OnlyAvailableOnUnixPlatforms()
     {
@@ -190,6 +205,124 @@ public class ConsolePresentationAdapterTests
         Assert.IsTrue(adapter.Capabilities.SupportsKgp);
         Assert.AreEqual("abc", Encoding.ASCII.GetString(input.Span));
     }
+
+    [TestMethod]
+    public async Task ReadInputAsync_WhenConsoleInputEncodingIsLatin1_ConvertsInputBytesToUtf8()
+    {
+        using var driver = new FakeConsoleDriver([0xE9])
+        {
+            InputEncoding = Encoding.Latin1
+        };
+        await using var adapter = new ConsolePresentationAdapter(driver);
+
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("é", Encoding.UTF8.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task ReadInputAsync_WhenProbePreservesLatin1Input_ConvertsPrefetchedBytesToUtf8()
+    {
+        var probeResponse = Encoding.ASCII.GetBytes("\x1b_Gi=2147483647;OK\x1b\\");
+        var inputBytes = probeResponse.Concat(new byte[] { 0xE9 }).ToArray();
+        using var driver = new FakeConsoleDriver(inputBytes)
+        {
+            InputEncoding = Encoding.Latin1
+        };
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("é", Encoding.UTF8.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task ReadInputAsync_WhenProbePreservesSplitGb2312Input_ConvertsPrefetchedBytesWithNextRead()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var gb2312 = Encoding.GetEncoding(936);
+        var probeResponse = Encoding.ASCII.GetBytes("\x1b_Gi=2147483647;OK\x1b\\");
+        var firstRead = probeResponse.Concat(new byte[] { 0xB2 }).ToArray();
+        using var driver = FakeConsoleDriver.FromByteChunks(gb2312, firstRead, [0xE2, 0xCA, 0xD4]);
+        await using var adapter = new ConsolePresentationAdapter(
+            driver,
+            kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
+
+        await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("测试", Encoding.UTF8.GetString(input.Span));
+    }
+
+    [TestMethod]
+    public async Task ReadInputAsync_WhenConsoleInputEncodingIsGb2312AndReadSplitsCharacter_ConvertsInputBytesToUtf8()
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var gb2312 = Encoding.GetEncoding(936);
+        using var driver = FakeConsoleDriver.FromByteChunks(gb2312, [0xB2], [0xE2, 0xCA, 0xD4]);
+        await using var adapter = new ConsolePresentationAdapter(driver);
+
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        Assert.AreEqual("测试", Encoding.UTF8.GetString(input.Span));
+    }
+
+    [TestMethod]
+    [DataRow(936, "测试")]
+    [DataRow(932, "テスト")]
+    [DataRow(950, "測試")]
+    [DataRow(949, "테스트")]
+    [DataRow(1200, "測試")]
+    [DataRow(1201, "測試")]
+    public async Task ReadInputAsync_WhenConsoleInputEncodingIsMultibyteAndReadsSplitEveryByte_ConvertsInputBytesToUtf8(
+        int codePage,
+        string text)
+    {
+        Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+        var encoding = Encoding.GetEncoding(codePage);
+        using var driver = FakeConsoleDriver.FromByteChunks(
+            encoding,
+            SplitEveryByte(encoding.GetBytes(text)));
+        await using var adapter = new ConsolePresentationAdapter(driver);
+
+        var decoded = new StringBuilder();
+        while (driver.DataAvailable)
+        {
+            var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+            decoded.Append(Encoding.UTF8.GetString(input.Span));
+        }
+
+        Assert.AreEqual(text, decoded.ToString());
+    }
+
+    [TestMethod]
+    public async Task ReadInputAsync_WhenConsoleInputEncodingIsUtf8_KeepsInputBytesAsUtf8()
+    {
+        var expected = Encoding.UTF8.GetBytes("é");
+        using var driver = new FakeConsoleDriver(expected)
+        {
+            InputEncoding = Encoding.UTF8
+        };
+        await using var adapter = new ConsolePresentationAdapter(driver);
+
+        var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
+
+        CollectionAssert.AreEqual(expected, input.ToArray());
+    }
+
+    private static byte[][] SplitEveryByte(byte[] bytes)
+    {
+        var chunks = new byte[bytes.Length][];
+        for (var i = 0; i < bytes.Length; i++)
+        {
+            chunks[i] = [bytes[i]];
+        }
+
+        return chunks;
+    }
 }
 
 [TestClass]
@@ -272,11 +405,33 @@ internal sealed class FakeConsoleDriver : IConsoleDriver
         }
     }
 
+    public FakeConsoleDriver(byte[] readChunk)
+    {
+        _readChunks.Enqueue(readChunk);
+    }
+
+    public static FakeConsoleDriver FromByteChunks(Encoding inputEncoding, params byte[][] readChunks)
+    {
+        var driver = new FakeConsoleDriver
+        {
+            InputEncoding = inputEncoding
+        };
+
+        foreach (var chunk in readChunks)
+        {
+            driver._readChunks.Enqueue(chunk);
+        }
+
+        return driver;
+    }
+
     public bool DataAvailable => _readChunks.Count > 0;
 
     public int Width => 80;
 
     public int Height => 24;
+
+    public Encoding InputEncoding { get; init; } = Console.InputEncoding;
 
     public string WrittenText => Encoding.ASCII.GetString(_written.ToArray());
 
