@@ -175,6 +175,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     
     public int Width => GetWindowSize().width;
     public int Height => GetWindowSize().height;
+    public Encoding InputEncoding => Encoding.UTF8;
     
     public event Action<int, int>? Resized;
     
@@ -954,7 +955,7 @@ internal sealed class WindowsConsoleDriver : IConsoleDriver
     [DllImport("kernel32.dll", SetLastError = true)]
     private static extern uint WaitForSingleObject(nint hHandle, uint dwMilliseconds);
     
-    [DllImport("kernel32.dll", SetLastError = true)]
+    [DllImport("kernel32.dll", EntryPoint = "ReadConsoleInputW", SetLastError = true)]
     private static extern bool ReadConsoleInput(
         nint hConsoleInput,
         [Out] INPUT_RECORD[] lpBuffer,

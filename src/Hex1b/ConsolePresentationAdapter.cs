@@ -32,6 +32,8 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     private ITerminalReflowProvider _reflowStrategy;
     private TerminalCapabilities _capabilities;
     private byte[] _prefetchedInput = [];
+    private Encoding? _inputEncoding;
+    private Decoder? _inputDecoder;
     private bool _kgpProbeCompleted;
     private bool _backgroundProbeCompleted;
     private bool _reflowEnabled;
@@ -177,33 +179,90 @@ public sealed class ConsolePresentationAdapter : IHex1bTerminalPresentationAdapt
     {
         if (_disposed) return ReadOnlyMemory<byte>.Empty;
 
-        if (_prefetchedInput.Length > 0)
-        {
-            var prefetched = _prefetchedInput;
-            _prefetchedInput = [];
-            return prefetched;
-        }
-
         using var linkedCts = CancellationTokenSource.CreateLinkedTokenSource(ct, _disposeCts.Token);
         
         var buffer = new byte[256];
         
         try
         {
-            var bytesRead = await _driver.ReadAsync(buffer, linkedCts.Token);
-            
-            if (bytesRead == 0)
+            if (_prefetchedInput.Length > 0)
             {
-                // EOF or cancelled
-                return ReadOnlyMemory<byte>.Empty;
+                var prefetched = _prefetchedInput;
+                _prefetchedInput = [];
+                var result = NormalizeInputToUtf8(prefetched);
+                if (!result.IsEmpty)
+                {
+                    return result;
+                }
             }
-            
-            var result = buffer.AsMemory(0, bytesRead);
-            return result;
+
+            while (!linkedCts.Token.IsCancellationRequested)
+            {
+                var bytesRead = await _driver.ReadAsync(buffer, linkedCts.Token);
+
+                if (bytesRead == 0)
+                {
+                    // EOF or cancelled
+                    return ReadOnlyMemory<byte>.Empty;
+                }
+
+                var result = NormalizeInputToUtf8(buffer.AsSpan(0, bytesRead));
+                if (!result.IsEmpty)
+                {
+                    return result;
+                }
+            }
+
+            return ReadOnlyMemory<byte>.Empty;
         }
         catch (OperationCanceledException)
         {
             return ReadOnlyMemory<byte>.Empty;
+        }
+    }
+
+    private ReadOnlyMemory<byte> NormalizeInputToUtf8(ReadOnlySpan<byte> input)
+    {
+        var encoding = _driver.InputEncoding;
+        if (IsUtf8(encoding))
+        {
+            return input.ToArray();
+        }
+
+        if (_inputDecoder is null || !IsSameEncoding(_inputEncoding, encoding))
+        {
+            _inputEncoding = encoding;
+            _inputDecoder = encoding.GetDecoder();
+        }
+
+        var chars = new char[encoding.GetMaxCharCount(input.Length)];
+        var charCount = _inputDecoder.GetChars(input, chars, flush: false);
+        if (charCount == 0)
+        {
+            return ReadOnlyMemory<byte>.Empty;
+        }
+
+        return Encoding.UTF8.GetBytes(new string(chars, 0, charCount));
+    }
+
+    private static bool IsUtf8(Encoding encoding)
+        => encoding.CodePage == Encoding.UTF8.CodePage ||
+           string.Equals(GetBodyNameOrNull(encoding), Encoding.UTF8.BodyName, StringComparison.OrdinalIgnoreCase);
+
+    private static bool IsSameEncoding(Encoding? left, Encoding right)
+        => left is not null &&
+           left.CodePage == right.CodePage &&
+           string.Equals(GetBodyNameOrNull(left), GetBodyNameOrNull(right), StringComparison.OrdinalIgnoreCase);
+
+    private static string? GetBodyNameOrNull(Encoding encoding)
+    {
+        try
+        {
+            return encoding.BodyName;
+        }
+        catch (NotSupportedException)
+        {
+            return null;
         }
     }
 

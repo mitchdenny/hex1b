@@ -1,5 +1,6 @@
 using System.Runtime.InteropServices;
 using System.Runtime.Versioning;
+using System.Text;
 
 namespace Hex1b;
 
@@ -91,6 +92,7 @@ internal sealed class UnixConsoleDriver : IConsoleDriver
     
     public int Width => Console.WindowWidth;
     public int Height => Console.WindowHeight;
+    public Encoding InputEncoding => Console.InputEncoding;
     
     public event Action<int, int>? Resized;
     
