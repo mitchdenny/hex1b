@@ -306,16 +306,25 @@ public class MultiCursorPerformanceTests
         state.InsertText("W");
         state.DeleteBackward();
 
-        // Measure a single character insert
-        var sw = Stopwatch.StartNew();
-        state.InsertText("X");
-        sw.Stop();
+        // Measure single-character inserts. Take the minimum of N samples to filter
+        // out GC pauses and co-tenant noise on shared CI runners — single-sample
+        // timing at this resolution is too brittle (issue #323). The minimum
+        // represents the unperturbed steady-state cost; outliers are always slower.
+        const int iterations = 5;
+        var minMs = double.MaxValue;
+        for (int i = 0; i < iterations; i++)
+        {
+            var sw = Stopwatch.StartNew();
+            state.InsertText("X");
+            sw.Stop();
+            minMs = Math.Min(minMs, sw.Elapsed.TotalMilliseconds);
+        }
 
-        var ms = sw.Elapsed.TotalMilliseconds;
         // With lazy text + per-line reading, single keystroke avoids full text materialization
-        // Previously ~30-50ms with full RebuildCaches; now ~10-15ms (byte assembly + line starts scan)
-        Assert.True(ms < 50,
-            $"Single keystroke on 100K-line doc took {ms:F1}ms — expected <50ms.");
+        // Previously ~30-50ms with full RebuildCaches; now ~10-15ms (byte assembly + line starts scan).
+        // A regression to per-edit full materialization would push the minimum above 50ms.
+        Assert.True(minMs < 50,
+            $"Single keystroke on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
     }
 
     [Fact]
@@ -336,22 +345,27 @@ public class MultiCursorPerformanceTests
         state.InsertText("W");
         state.DeleteBackward();
 
-        // Measure: insert + read visible lines (simulating render path)
-        var sw = Stopwatch.StartNew();
-        state.InsertText("Y");
-
-        // Simulate render: read 40 visible lines (typical viewport) + OffsetToPosition
-        var pos = doc.OffsetToPosition(state.Cursor.Position);
-        for (int line = Math.Max(1, pos.Line - 20); line <= Math.Min(doc.LineCount, pos.Line + 20); line++)
+        // Best-of-N to filter CI noise (see SingleKeystroke_100KLineFile_CompletesUnderThreshold).
+        const int iterations = 5;
+        var minMs = double.MaxValue;
+        for (int i = 0; i < iterations; i++)
         {
-            _ = doc.GetLineText(line);
-        }
-        sw.Stop();
+            var sw = Stopwatch.StartNew();
+            state.InsertText("Y");
 
-        var ms = sw.Elapsed.TotalMilliseconds;
+            // Simulate render: read 40 visible lines (typical viewport) + OffsetToPosition
+            var pos = doc.OffsetToPosition(state.Cursor.Position);
+            for (int line = Math.Max(1, pos.Line - 20); line <= Math.Min(doc.LineCount, pos.Line + 20); line++)
+            {
+                _ = doc.GetLineText(line);
+            }
+            sw.Stop();
+            minMs = Math.Min(minMs, sw.Elapsed.TotalMilliseconds);
+        }
+
         // Edit + render of visible lines should be <50ms total
-        Assert.True(ms < 50,
-            $"Edit + render-visible-lines on 100K-line doc took {ms:F1}ms — expected <50ms.");
+        Assert.True(minMs < 50,
+            $"Edit + render-visible-lines on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
     }
 
     [Fact]
