@@ -256,17 +256,25 @@ public class RangeHighlightTests
 
         node.Render(context);
 
+        var expectedBg = ToCellColor(theme.Get(RangeHighlightTheme.DefaultBackground));
+        var editorBg = ToCellColor(theme.Get(EditorTheme.BackgroundColor));
+
+        // Wait for both lines to fully render — the terminal flushes writes
+        // asynchronously, so simply matching "abc" on line 0 can race with
+        // line 1's cells still being repainted with the highlight background.
         var pattern = new CellPatternSearcher().Find("abc");
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
-                TimeSpan.FromSeconds(2), "text rendered")
+            .WaitUntil(s =>
+            {
+                if (!s.SearchPattern(pattern).HasMatches) return false;
+                // Last line cell the test asserts on — ensures line 1 has been painted.
+                return ColorEquals(expectedBg, s.GetCell(0, 1).Background);
+            },
+                TimeSpan.FromSeconds(2), "multi-line highlight rendered")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var snapshot = terminal.CreateSnapshot();
-
-        var expectedBg = ToCellColor(theme.Get(RangeHighlightTheme.DefaultBackground));
-        var editorBg = ToCellColor(theme.Get(EditorTheme.BackgroundColor));
 
         // Line 0: 'a' no highlight, 'b' and 'c' highlighted
         Assert.True(ColorEquals(editorBg, snapshot.GetCell(0, 0).Background),
