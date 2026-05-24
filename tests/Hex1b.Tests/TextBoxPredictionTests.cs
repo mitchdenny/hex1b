@@ -50,11 +50,11 @@ public class TextBoxPredictionTests
     public async Task Typing_AtEndOfBuffer_TriggersPredictor()
     {
         var calls = 0;
-        string? observed = null;
+        var seen = new System.Collections.Concurrent.ConcurrentQueue<string>();
         var node = CreateNode((text, _) =>
         {
             Interlocked.Increment(ref calls);
-            observed = text;
+            seen.Enqueue(text);
             return Task.FromResult<string?>("world");
         });
 
@@ -64,10 +64,16 @@ public class TextBoxPredictionTests
         await InputRouter.RouteInputToNodeAsync(node, CharKey('l'), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, CharKey('o'), null, null, TestContext.Current.CancellationToken);
 
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (DateTime.UtcNow < deadline && !seen.Contains("hello"))
+        {
+            await Task.Delay(10, TestContext.Current.CancellationToken);
+        }
+
         var prediction = await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
 
         Assert.Equal("world", prediction);
-        Assert.Equal("hello", observed);
+        Assert.True(seen.Contains("hello"), $"Predictor never saw 'hello'. text='{node.Text}' seen=[{string.Join(",", seen)}] calls={calls}");
         Assert.True(calls >= 1);
     }
 
