@@ -19,10 +19,22 @@ public class CellPatternSearcherTests
             workload.Write(line + "\r\n");
         }
 
-        // Wait for content to be processed by the output pump - wait for last line to ensure all content is rendered
+        // Wait for content to be processed by the output pump. Check that the last
+        // line appears at its expected row position rather than anywhere in the
+        // buffer; the pump writes in order, so seeing the final line at the final
+        // row guarantees that all preceding rows have also been flushed. Using
+        // ContainsText here would race when intermediate rows share characters
+        // with the last line (e.g. lines = { "-", "A", "A", "A" } would be
+        // considered "ready" as soon as the first "A" lands on row 1, before
+        // rows 2 and 3 are written).
         var lastLine = lines.Length > 0 ? lines[^1] : "";
+        var lastLineIndex = lines.Length - 1;
         await new Hex1bTerminalInputSequenceBuilder()
-            .WaitUntil(s => string.IsNullOrEmpty(lastLine) || s.ContainsText(lastLine), TimeSpan.FromSeconds(5), "last line content")
+            .WaitUntil(
+                s => string.IsNullOrEmpty(lastLine)
+                     || s.GetLineTrimmed(lastLineIndex).Contains(lastLine, StringComparison.Ordinal),
+                TimeSpan.FromSeconds(5),
+                "last line content at expected row")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
