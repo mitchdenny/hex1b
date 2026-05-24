@@ -148,11 +148,11 @@ public class TerminalResizeTimingTests
             Assert.True(outputReceived, "Should have received output from the shell.");
             
             // Check that the buffer has content
-            var buffer = handle.GetScreenBuffer();
+            var (buffer, bufferWidth, bufferHeight) = handle.GetScreenBufferSnapshot();
             bool hasContent = false;
-            for (int y = 0; y < handle.Height && !hasContent; y++)
+            for (int y = 0; y < bufferHeight && !hasContent; y++)
             {
-                for (int x = 0; x < handle.Width && !hasContent; x++)
+                for (int x = 0; x < bufferWidth && !hasContent; x++)
                 {
                     if (!string.IsNullOrWhiteSpace(buffer[y, x].Character))
                     {
@@ -252,8 +252,7 @@ public class TerminalResizeTimingTests
             await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
             
             // Verify first terminal works
-            var buffer1 = handle1.GetScreenBuffer();
-            bool terminal1HasContent = HasNonEmptyContent(buffer1, handle1.Height, handle1.Width);
+            bool terminal1HasContent = HasNonEmptyContent(handle1);
             Assert.True(terminal1HasContent, "First terminal should have content");
             
             // Now switch to second terminal (simulates what reconciliation does)
@@ -274,8 +273,7 @@ public class TerminalResizeTimingTests
             await WaitForTerminalContentAsync(handle2, GetStartupTimeout(), TestContext.Current.CancellationToken);
             
             // Assert - Second terminal should have content
-            var buffer2 = handle2.GetScreenBuffer();
-            bool terminal2HasContent = HasNonEmptyContent(buffer2, handle2.Height, handle2.Width);
+            bool terminal2HasContent = HasNonEmptyContent(handle2);
             
             Assert.True(terminal2HasContent, 
                 $"Second terminal should have content. State={handle2.State}, Width={handle2.Width}, Height={handle2.Height}");
@@ -293,9 +291,17 @@ public class TerminalResizeTimingTests
     
     private static bool HasNonEmptyContent(TerminalCell[,] buffer, int height, int width)
     {
-        for (int y = 0; y < height; y++)
+        // Clamp to the buffer's actual bounds. A concurrent resize/reflow can change
+        // handle.Width/Height between the buffer snapshot and these calls being read,
+        // and indexing past the returned array would throw IndexOutOfRangeException.
+        var bufferHeight = buffer.GetLength(0);
+        var bufferWidth = buffer.GetLength(1);
+        var safeHeight = Math.Min(height, bufferHeight);
+        var safeWidth = Math.Min(width, bufferWidth);
+
+        for (int y = 0; y < safeHeight; y++)
         {
-            for (int x = 0; x < width; x++)
+            for (int x = 0; x < safeWidth; x++)
             {
                 if (!string.IsNullOrWhiteSpace(buffer[y, x].Character))
                 {
@@ -304,6 +310,14 @@ public class TerminalResizeTimingTests
             }
         }
         return false;
+    }
+
+    private static bool HasNonEmptyContent(TerminalWidgetHandle handle)
+    {
+        // Use the atomic snapshot API so the buffer and its dimensions can't drift
+        // apart across a concurrent resize.
+        var (buffer, width, height) = handle.GetScreenBufferSnapshot();
+        return HasNonEmptyContent(buffer, height, width);
     }
 
     private static Hex1bTerminalBuilder WithInteractiveShell(Hex1bTerminalBuilder builder)
@@ -370,7 +384,7 @@ public class TerminalResizeTimingTests
         TimeSpan timeout,
         CancellationToken cancellationToken)
     {
-        if (HasNonEmptyContent(handle.GetScreenBuffer(), handle.Height, handle.Width))
+        if (HasNonEmptyContent(handle))
         {
             return;
         }
@@ -379,7 +393,7 @@ public class TerminalResizeTimingTests
 
         void OnOutputReceived()
         {
-            if (HasNonEmptyContent(handle.GetScreenBuffer(), handle.Height, handle.Width))
+            if (HasNonEmptyContent(handle))
             {
                 contentReady.TrySetResult();
             }
@@ -547,8 +561,7 @@ public class TerminalResizeTimingTests
             // Verify first terminal has content from the shell
             var handle1 = terminals[0].handle;
             await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
-            var buffer1 = handle1.GetScreenBuffer();
-            bool terminal1HasContent = HasNonEmptyContent(buffer1, handle1.Height, handle1.Width);
+            bool terminal1HasContent = HasNonEmptyContent(handle1);
             Assert.True(terminal1HasContent, "First terminal should have content");
             
             // Create second terminal
@@ -563,8 +576,7 @@ public class TerminalResizeTimingTests
             // Verify second terminal has content from the shell
             var handle2 = terminals[1].handle;
             await WaitForTerminalContentAsync(handle2, GetStartupTimeout(), TestContext.Current.CancellationToken);
-            var buffer2 = handle2.GetScreenBuffer();
-            bool terminal2HasContent = HasNonEmptyContent(buffer2, handle2.Height, handle2.Width);
+            bool terminal2HasContent = HasNonEmptyContent(handle2);
             
             // Also check the handle's state
             TestContext.Current.SendDiagnosticMessage($"Terminal 2 state: {handle2.State}");
