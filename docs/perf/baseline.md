@@ -169,3 +169,25 @@ dotnet-trace collect --format speedscope --profile dotnet-sampled-thread-time \
 | `--busy-grid-cols N` | 12 | Dashboard grid columns |
 | `--width N` | 160 (busy) | Terminal width |
 | `--height N` | 50 (busy) | Terminal height |
+
+## Interactive repro: `samples/PerfStressDemo`
+
+`PerfDemo` measures with the output discarded. `PerfStressDemo` is the
+companion that runs as a *real* TUI so the regression is visible to the
+naked eye (and to a `dotnet-trace` run against the live process).
+
+```bash
+dotnet run -c Release --project samples/PerfStressDemo                # defaults: pool on, ~30 fps target
+dotnet run -c Release --project samples/PerfStressDemo -- --no-pool   # A/B: pool off
+```
+
+* `PgUp` / `PgDn` switch between stress pages, `Q` quits.
+* The status bar shows live FPS and accumulated GC counts (Gen0 / Gen1 /
+  Gen2), so the SurfacePool win is unmistakable: with the pool on Gen2
+  stays at 0; with `--no-pool` it climbs steadily.
+
+Pages currently shipped:
+
+1. **Ripple over noise** — full-screen white random ASCII inside an
+   `EffectPanel` painting a continuously expanding circular ripple. This
+   is the workload that originally motivated the perf investigation.
