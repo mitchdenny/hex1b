@@ -232,7 +232,9 @@ internal sealed record PerfOptions(
 
         var compare = HasFlag(args, "--compare");
         var enableCaching = HasFlag(args, "--cache");
-        var enablePooling = HasFlag(args, "--pool");
+        // Surface pooling is now ON by default in Hex1bAppOptions. Mirror that
+        // here, with --no-pool as the explicit opt-out for A/B measurements.
+        var enablePooling = !HasFlag(args, "--no-pool");
         var busy = HasFlag(args, "--busy");
         var perNode = HasFlag(args, "--per-node");
         var noSummary = HasFlag(args, "--no-summary");

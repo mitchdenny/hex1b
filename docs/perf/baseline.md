@@ -60,19 +60,21 @@ unrealistic for a real app.
 
 300-frame busy run, same machine, identical workload:
 
-| variant                | frame mean (ms) | bytes/frame | Gen0/Gen1/Gen2 |
-| ---------------------- | --------------: | ----------: | -------------: |
-| **defaults**           | 12.22           | 7,455,729   | 267 / 171 / 121 |
-| `EnableRenderCaching`  | 12.31           | 7,323,975   | 244 / 180 / 111 |
-| `EnableSurfacePooling` | **10.86**       | **3,495,117** | **125 / 39 / 0** |
+| variant                 | frame mean (ms) | bytes/frame | Gen0/Gen1/Gen2 |
+| ----------------------- | --------------: | ----------: | -------------: |
+| **new defaults (pool on)** | **10.72**    | **3,462,716** | **124 / 32 / 0** |
+| `--no-pool` (legacy default) | 12.16       | 7,436,100   | 279 / 192 / 138 |
+| `--cache` (caching on)  | 12.31           | 7,323,975   | 244 / 180 / 111 |
 
 ### What this means
 
-- **`EnableSurfacePooling` is a massive win on this workload** and ships
-  *off by default*:
+- **`EnableSurfacePooling` is now the default** as of this branch — the
+  full Hex1b test suite (7902 tests across 5 projects) passes unchanged,
+  and the original commit message only described it as "opt-in" with no
+  recorded correctness reason. Measured against the previous default:
   - **-53% allocations per frame**
-  - **121 → 0 Gen2 GCs**
-  - **-11% mean frame time**
+  - **138 → 0 Gen2 GCs** over 300 frames
+  - **-12% mean frame time**
 - `EnableRenderCaching` does nothing here because every visible widget
   changes every frame (the scrolling log). It's still useful in scenes
   with large static subtrees — `samples/PerfDemo` (non-busy mode) is the
@@ -115,8 +117,8 @@ for inspection in https://speedscope.app .
 
 | # | hypothesis | est. impact | risk |
 |---|------------|-------------|------|
-| 1 | **Flip `EnableSurfacePooling` default to `true`** (or document loudly). Measured: -53% allocations, -11% frame, 0 Gen2 GCs. Need to confirm there's no correctness issue keeping it off. | very high | low if the only reason it's off is "didn't get around to it"; investigate before flipping |
-| 2 | Cache / fast-path grapheme analysis for ASCII writes. `DisplayWidth.GetGraphemeAtIndex` + `TextSegmentationUtility.GetLengthOfFirstExtendedGraphemeCluster` are called for every cell — but the overwhelming majority of cells are ASCII (width 1, single byte). An ASCII fast path would skip the unicode segmentation entirely. | high | low |
+| 1 | ✅ **DONE — `EnableSurfacePooling` default flipped to `true`.** Full test suite still green (7902 tests, 0 failures). Measured -53% allocations, -12% frame, 0 Gen2 GCs vs previous default. | shipped | — |
+| 2 | ASCII fast path for any remaining hot grapheme calls (`DisplayWidth.GetGraphemeAtIndex` / `TextSegmentationUtility.GetLengthOfFirstExtendedGraphemeCluster` still appear in the busy trace despite an existing fast-path in `GetNextGrapheme` — likely a second call site). | high | low |
 | 3 | Reduce measure-pass amplification. ~4× per node on splitter-heavy trees. Likely two-pass measure inside `SplitterNode`; verify and short-circuit when constraints are tight. | medium | medium |
 | 4 | Pool / reuse the `ChangedCell` list and other per-frame collections inside `SurfaceComparer`. Currently allocates a fresh `List<ChangedCell>` and sorts it every frame. | medium | low |
 | 5 | Per-node `Render` allocations (Splitter / Border / VStack / ZStack). Investigate `string.Format`, `string` interpolation, and any `LINQ`/`ToList()` inside these — the inclusive-time signal is loud but cell-write cost may be the bulk. Need per-call allocation instrumentation. | medium | low |
@@ -142,7 +144,7 @@ dotnet run -c Release --project samples/PerfDemo --no-build -- \
 
 # Compare cache / pool variants
 dotnet run -c Release --project samples/PerfDemo --no-build -- --busy --cache
-dotnet run -c Release --project samples/PerfDemo --no-build -- --busy --pool
+dotnet run -c Release --project samples/PerfDemo --no-build -- --busy --no-pool
 
 # CPU profile (macOS / Linux compatible profile)
 dotnet-trace collect --format speedscope --profile dotnet-sampled-thread-time \
@@ -159,6 +161,8 @@ dotnet-trace collect --format speedscope --profile dotnet-sampled-thread-time \
 | `--busy` | off | Use the realistic "busy" widget tree instead of the static panel |
 | `--per-node` | off | Enable per-node histograms (extra meter instruments) |
 | `--no-summary` | summary on | Suppress the end-of-run metric summary |
+| `--no-pool` | pool on | Disable surface pooling (matches the pre-default-flip behaviour for A/B) |
+| `--cache` | off | Enable widget-tree render caching |
 | `--busy-sidebar N` | 20 | Sidebar item count |
 | `--busy-log N` | 20 | Scrolling log line count |
 | `--busy-grid-rows N` | 8 | Dashboard grid rows |

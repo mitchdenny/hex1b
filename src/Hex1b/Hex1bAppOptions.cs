@@ -161,9 +161,19 @@ public class Hex1bAppOptions
     /// <summary>
     /// Whether to enable pooling of temporary <see cref="Surfaces.Surface"/> instances during rendering.
     /// This primarily affects <see cref="Widgets.SurfaceWidget"/> layers and nodes like EffectPanel.
-    /// Default is false.
     /// </summary>
-    public bool EnableSurfacePooling { get; set; }
+    /// <remarks>
+    /// <para>
+    /// Enabled by default. On representative busy UIs this measures at roughly
+    /// -50% per-frame allocations and eliminates Gen2 collections that would
+    /// otherwise cause visible stutter (see <c>docs/perf/baseline.md</c>).
+    /// </para>
+    /// <para>
+    /// Set to <c>false</c> to opt out — for example, in environments where the
+    /// extra retained surfaces would matter more than allocation pressure.
+    /// </para>
+    /// </remarks>
+    public bool EnableSurfacePooling { get; set; } = true;
 
     /// <summary>
     /// Maximum number of pooled surfaces kept per (width, height, cell metrics) bucket.
