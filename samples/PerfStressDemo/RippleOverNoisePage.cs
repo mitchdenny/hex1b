@@ -99,7 +99,7 @@ internal sealed class RippleOverNoisePage : IStressPage
         const double aspect = 2.0;
 
         // Three concentric waves at different speeds keep the surface
-        // visually busy and ensure the colour at every cell changes
+        // visually busy and ensure the brightness at every cell changes
         // frequently (so the diff stays large).
         var wave1 = seconds * 6.0;
         var wave2 = seconds * 9.0;
@@ -119,35 +119,16 @@ internal sealed class RippleOverNoisePage : IStressPage
                 var combined = (s1 + s2 + s3) / 3.0; // -1..+1
                 var brightness = 0.5 + 0.5 * combined; // 0..1
 
-                // Smooth hue rotation around the wave so the ripple is
-                // unmistakable and exercises the full RGB colour output path.
-                var hue = (r * 0.04 - seconds * 0.25) % 1.0;
-                if (hue < 0) hue += 1.0;
-                var colour = HsvToColor(hue, 0.85, 0.35 + 0.65 * brightness);
+                // Stay in greyscale: just modulate the white intensity so
+                // the ripple reads as the original characters pulsing
+                // between dim and bright rather than cycling hue.
+                var level = (byte)(40 + 215 * brightness); // 40..255
+                var colour = Hex1bColor.FromRgb(level, level, level);
 
                 var cell = surface[x, y];
                 surface[x, y] = cell with { Foreground = colour };
             }
         }
-    }
-
-    internal static Hex1bColor HsvToColor(double h, double s, double v)
-    {
-        var i = (int)Math.Floor(h * 6.0) % 6;
-        var f = h * 6.0 - Math.Floor(h * 6.0);
-        var p = v * (1.0 - s);
-        var q = v * (1.0 - f * s);
-        var t = v * (1.0 - (1.0 - f) * s);
-        var (r, g, b) = i switch
-        {
-            0 => (v, t, p),
-            1 => (q, v, p),
-            2 => (p, v, t),
-            3 => (p, q, v),
-            4 => (t, p, v),
-            _ => (v, p, q),
-        };
-        return Hex1bColor.FromRgb((byte)(r * 255), (byte)(g * 255), (byte)(b * 255));
     }
 }
 
