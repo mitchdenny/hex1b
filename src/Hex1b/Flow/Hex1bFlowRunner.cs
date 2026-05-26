@@ -29,6 +29,29 @@ internal sealed class Hex1bFlowRunner
     /// </summary>
     private int _cursorRow;
 
+    /// <summary>
+    /// The row at which the very first tombstone (or the active step, if no
+    /// tombstones have been emitted yet) is anchored. Captured at flow start
+    /// from <see cref="_cursorRow"/> and decremented whenever a tombstone
+    /// emission triggers a pre-scroll (so the anchor tracks "where the top
+    /// of the flow's content currently lives in the viewport"). Combined
+    /// with the per-paragraph widths in <see cref="_emittedTombstones"/>,
+    /// this lets the resize handler compute where the active step should
+    /// land at any new width without round-tripping a CPR query.
+    /// </summary>
+    private int _initialRowOrigin;
+
+    /// <summary>
+    /// Per-tombstone records of paragraph widths (one inner list per
+    /// emitted tombstone, one int per CR+LF-terminated paragraph it
+    /// contained). The host terminal guarantees hard-newline-terminated
+    /// paragraphs are never reflowed across paragraph boundaries, so the
+    /// only thing we need to track to recompute on-screen layout at any
+    /// width is the widths themselves. Used by the soft-wrap settle-mode
+    /// resize handler.
+    /// </summary>
+    private readonly List<IReadOnlyList<int>> _emittedTombstones = new();
+
     // The currently active step, if any. Only one step may run at a time.
     private FlowStep? _activeStep;
 
@@ -118,6 +141,8 @@ internal sealed class Hex1bFlowRunner
         // synchronous cursor API (when available). Falls back to
         // InitialCursorRow or 0 when no live query is wired.
         _cursorRow = await QueryCursorRowAsync(ct) ?? _options.InitialCursorRow ?? 0;
+        _initialRowOrigin = _cursorRow;
+        _emittedTombstones.Clear();
 
         Trace($"RunAsync start: termSize={_parentAdapter.Width}x{_parentAdapter.Height} cursorRow={_cursorRow} useSoftWrap={_options.UseSoftWrapTombstones}");
 
@@ -315,28 +340,187 @@ internal sealed class Hex1bFlowRunner
 
             // Pump input from parent adapter to step adapter, with resize handling
             using var inputPumpCts = new CancellationTokenSource();
+
+            // Settle state for the new debounced resize path. Captured by
+            // both the per-event handler and the timer callback. The lock
+            // protects every write the resize machinery makes to the parent
+            // adapter so a settle timer firing on the threadpool cannot
+            // interleave with a track-and-clear pass running on the pump
+            // loop.
+            var settleSync = new object();
+            CancellationTokenSource? settleTimerCts = null;
+            (int Width, int Height)? settleOriginalDims = null;
+            (int Width, int Height) settleLatestDims = default;
+            var lastKnownWidth = _parentAdapter.Width;
+            var lastKnownHeight = _parentAdapter.Height;
+
             var inputPumpTask = PumpStepInputAsync(stepAdapter, inputPumpCts.Token,
                 onResize: (newWidth, newHeight) =>
                 {
                     var newStepHeight = FlowResizeMath.ComputeStepHeight(options?.MaxHeight, newHeight);
-                    Trace($"onResize: newSize={newWidth}x{newHeight} newStepH={newStepHeight} useSoftWrap={_options.UseSoftWrapTombstones}");
+                    Trace($"onResize: newSize={newWidth}x{newHeight} newStepH={newStepHeight} useSoftWrap={_options.UseSoftWrapTombstones} settleDelay={_options.ResizeSettleDelay}");
+
+                    var useSettle = _options.UseSoftWrapTombstones
+                        && _options.ResizeSettleDelay is { } _;
+
+                    if (useSettle)
+                    {
+                        // New "track-and-clear on every event, repaint on
+                        // settle" path. Each Hex1bResizeEvent recomputes
+                        // where the active step should land at the new
+                        // width (using the per-paragraph widths of every
+                        // emitted tombstone above it), moves the cursor
+                        // there, and erases the region below. The inner
+                        // Hex1bApp is NOT asked to repaint until the
+                        // terminal has been idle for ResizeSettleDelay; in
+                        // the meantime an optional ResizePlaceholder
+                        // renders into the cleared region.
+                        CancellationToken settleToken;
+                        lock (settleSync)
+                        {
+                            settleOriginalDims ??= (lastKnownWidth, lastKnownHeight);
+                            settleLatestDims = (newWidth, newHeight);
+
+                            // Track-and-clear pass (inline so we can mutate
+                            // the closure-captured rowOrigin/desiredHeight).
+                            var newRowOrigin = FlowResizeMath.ComputeRowOriginAtWidth(
+                                _initialRowOrigin, _emittedTombstones, newWidth);
+
+                            // Bottom-overflow handling: if the active step
+                            // would extend past the bottom of the viewport
+                            // at the new width/height, emit LFs at the
+                            // bottom row to scroll the whole viewport up
+                            // so the active region stays fully visible.
+                            var bottomOverflow = (newRowOrigin + newStepHeight) - newHeight;
+                            if (bottomOverflow > 0)
+                            {
+                                _parentAdapter.SetCursorPosition(0, newHeight - 1);
+                                for (var i = 0; i < bottomOverflow; i++)
+                                {
+                                    _parentAdapter.Write("\n");
+                                }
+                                _initialRowOrigin -= bottomOverflow;
+                                newRowOrigin -= bottomOverflow;
+                            }
+
+                            _parentAdapter.Write(SyncUpdateBegin);
+                            try
+                            {
+                                _parentAdapter.Write("\x1b[?25l"); // hide cursor
+                                _parentAdapter.Write("\x1b[?7l");  // DECAWM off (defensive)
+                                _parentAdapter.SetCursorPosition(0, newRowOrigin);
+                                _parentAdapter.Write("\x1b[J");    // erase to end of screen
+
+                                if (_options.ResizePlaceholder is { } placeholderBuilder)
+                                {
+                                    RenderPlaceholder(
+                                        placeholderBuilder,
+                                        newWidth, newStepHeight, newRowOrigin);
+                                }
+
+                                _parentAdapter.Write("\x1b[?7h");  // DECAWM on
+                                // Cursor stays hidden until settle.
+                            }
+                            finally
+                            {
+                                _parentAdapter.Write(SyncUpdateEnd);
+                            }
+
+                            rowOrigin = newRowOrigin;
+                            stepAdapter.RowOrigin = newRowOrigin;
+                            _cursorRow = newRowOrigin;
+                            desiredHeight = newStepHeight;
+                            step.StepHeight = newStepHeight;
+
+                            settleTimerCts?.Cancel();
+                            settleTimerCts = CancellationTokenSource.CreateLinkedTokenSource(inputPumpCts.Token);
+                            settleToken = settleTimerCts.Token;
+                            lastKnownWidth = newWidth;
+                            lastKnownHeight = newHeight;
+                        }
+
+                        var delay = _options.ResizeSettleDelay!.Value;
+                        _ = Task.Run(async () =>
+                        {
+                            try
+                            {
+                                await Task.Delay(delay, settleToken);
+                            }
+                            catch (OperationCanceledException)
+                            {
+                                return;
+                            }
+
+                            lock (settleSync)
+                            {
+                                if (settleToken.IsCancellationRequested) return;
+
+                                var original = settleOriginalDims ?? settleLatestDims;
+                                var dimsChanged = original != settleLatestDims;
+
+                                // Settle: optionally emit a resize-marker
+                                // tombstone above the active step, then ask
+                                // the inner Hex1bApp to repaint at the
+                                // settled dimensions. Its output flows
+                                // through the existing output pump and
+                                // lands in the region we cleared in the
+                                // last track-and-clear pass.
+                                if (dimsChanged && _options.ResizeMarker is { } markerBuilder)
+                                {
+                                    var markerSurface = RenderToSurface(
+                                        markerBuilder,
+                                        settleLatestDims.Width,
+                                        Math.Max(1, settleLatestDims.Height - desiredHeight - 1));
+                                    if (markerSurface is not null)
+                                    {
+                                        // Emit at the current active-step
+                                        // origin; EmitSoftWrapTombstone
+                                        // advances _cursorRow past the
+                                        // marker so the step lands below.
+                                        _parentAdapter.SetCursorPosition(0, rowOrigin);
+                                        EmitSoftWrapTombstone(markerSurface);
+                                        rowOrigin = _cursorRow;
+                                        stepAdapter.RowOrigin = rowOrigin;
+                                    }
+                                }
+
+                                _parentAdapter.Write(SyncUpdateBegin);
+                                try
+                                {
+                                    _parentAdapter.Write("\x1b[?7l");
+                                    _parentAdapter.SetCursorPosition(0, rowOrigin);
+                                    _parentAdapter.Write("\x1b[J");
+                                    _parentAdapter.Write("\x1b[?7h");
+                                    _parentAdapter.Write("\x1b[?25h"); // show cursor
+                                }
+                                finally
+                                {
+                                    _parentAdapter.Write(SyncUpdateEnd);
+                                }
+
+                                _ = stepAdapter.ResizeAsync(
+                                    settleLatestDims.Width, desiredHeight);
+
+                                settleOriginalDims = null;
+                                settleTimerCts = null;
+                            }
+                        });
+                        return;
+                    }
 
                     if (_options.UseSoftWrapTombstones)
                     {
-                        // Resize strategy: push everything currently visible
-                        // up off the top of the viewport into the host
-                        // terminal's scrollback (where it will appear
-                        // soft-wrapped because tombstones were emitted as
-                        // logical lines), then clear the viewport and
-                        // re-anchor the active step at row 0. This avoids
-                        // any visual mangling from cell-positioned step
-                        // content trying to coexist with reflowed
-                        // tombstones at unpredictable rows.
+                        // Eager soft-wrap path (no settle delay): preserve
+                        // the existing scroll-to-scrollback behaviour so
+                        // callers who haven't opted into settle keep the
+                        // same semantics they've always had.
                         ScrollViewportToScrollback(newHeight);
 
                         stepAdapter.RowOrigin = 0;
                         rowOrigin = 0;
                         _cursorRow = 0;
+                        _initialRowOrigin = 0;
+                        _emittedTombstones.Clear();
                         desiredHeight = newStepHeight;
                         step.StepHeight = newStepHeight;
                     }
@@ -357,6 +541,9 @@ internal sealed class Hex1bFlowRunner
                         desiredHeight = newStepHeight;
                         step.StepHeight = newStepHeight;
                     }
+
+                    lastKnownWidth = newWidth;
+                    lastKnownHeight = newHeight;
 
                     _ = stepAdapter.ResizeAsync(newWidth, newStepHeight);
                 });
@@ -730,13 +917,34 @@ internal sealed class Hex1bFlowRunner
                 _parentAdapter.Write("\n");
             }
             _cursorRow -= overflow;
-            Trace($"EmitSoftWrapTombstone[#{emitId}] pre-scroll: overflow={overflow} -> cursorRow={_cursorRow}");
+            // The viewport scrolled up by `overflow` rows, so every
+            // previously-emitted tombstone (and the initial anchor) moved up
+            // by the same amount on screen. Track that shift so
+            // ComputeRowOriginAtWidth keeps returning the correct on-screen
+            // row for the active step after a future resize.
+            _initialRowOrigin -= overflow;
+            Trace($"EmitSoftWrapTombstone[#{emitId}] pre-scroll: overflow={overflow} -> cursorRow={_cursorRow} initialRowOrigin={_initialRowOrigin}");
         }
 
         // Position the cursor at the row where the tombstone should land.
         _parentAdapter.SetCursorPosition(0, _cursorRow);
 
         SoftWrapEmitter.Emit(surface, _parentAdapter);
+
+        // Capture this tombstone's per-paragraph widths so the soft-wrap
+        // settle-mode resize handler can recompute the active step's
+        // row origin at any width. Each surface row corresponds to one
+        // CR+LF-terminated paragraph (the SoftWrapEmitter contract); the
+        // logical width is the column index of the last non-blank cell
+        // plus one. Empty rows count as zero-width paragraphs and still
+        // occupy one display row on reflow (the Math.Max(1, ...) in
+        // ComputeRowOriginAtWidth handles that).
+        var paragraphWidths = new int[height];
+        for (var row = 0; row < height; row++)
+        {
+            paragraphWidths[row] = MeasureSurfaceRowWidth(surface, row);
+        }
+        _emittedTombstones.Add(paragraphWidths);
 
         // The emitter terminates rows 0 .. height-2 with CR + LF (each
         // advances the cursor down one row, with no scrolling because we
@@ -752,6 +960,62 @@ internal sealed class Hex1bFlowRunner
         _cursorRow += height;
 
         Trace($"EmitSoftWrapTombstone[#{emitId}] exit: cursorRow={_cursorRow}");
+    }
+
+    /// <summary>
+    /// Renders the user-supplied <see cref="Hex1bFlowOptions.ResizePlaceholder"/>
+    /// directly into the cleared active-step region during a track-and-clear
+    /// pass. Bypasses the step adapter's output pump so the placeholder
+    /// appears immediately on every resize event without waiting for the
+    /// inner Hex1bApp's render loop.
+    /// </summary>
+    /// <remarks>
+    /// Uses <see cref="SoftWrapEmitter"/> so each row is terminated with
+    /// <c>CR + LF</c> just like a tombstone — the placeholder is rendered as
+    /// proper logical lines that survive any reflow until the next
+    /// track-and-clear pass overwrites them.
+    /// </remarks>
+    private void RenderPlaceholder(
+        Func<RootContext, Hex1bWidget> builder,
+        int width,
+        int heightCap,
+        int originRow)
+    {
+        var surface = RenderToSurface(builder, width, heightCap);
+        if (surface is null) return;
+
+        _parentAdapter.SetCursorPosition(0, originRow);
+        SoftWrapEmitter.Emit(surface, _parentAdapter);
+    }
+
+    /// <summary>
+    /// Returns the logical paragraph width of the given surface row — the
+    /// column index of the last non-blank cell plus one. Mirrors the
+    /// trailing-blank trimming that <see cref="SoftWrapEmitter"/> performs
+    /// when it emits the row, so the recorded paragraph width matches the
+    /// number of cells the host terminal will actually have to reflow.
+    /// </summary>
+    private static int MeasureSurfaceRowWidth(Surface surface, int row)
+    {
+        var width = surface.Width;
+        for (var x = width - 1; x >= 0; x--)
+        {
+            var cell = surface.GetCell(x, row);
+            if (cell.IsContinuation)
+            {
+                // A continuation cell means the wide glyph occupies (x-1, x);
+                // treat (x) as content because removing only the continuation
+                // would mis-report the wide character's footprint.
+                return x + 1;
+            }
+            if (cell.Character != " "
+                && cell.Character != string.Empty
+                && cell.Character != SurfaceCells.UnwrittenMarker)
+            {
+                return x + 1;
+            }
+        }
+        return 0;
     }
 
     /// <summary>
@@ -968,4 +1232,50 @@ public sealed class Hex1bFlowOptions
     /// </para>
     /// </remarks>
     public bool UseSoftWrapTombstones { get; set; }
+
+    /// <summary>
+    /// Quiet window required after the last <c>Hex1bResizeEvent</c> before
+    /// the runner re-renders the active step at the new size. When
+    /// <c>null</c> (the default), the runner repaints eagerly on every
+    /// resize event — today's behaviour. When set, the runner enters a
+    /// two-phase resize mode: every resize event performs a cheap
+    /// "track-and-clear" pass (recompute where the active step should
+    /// land at the new width, move the cursor there, and erase the region
+    /// below), and only after the terminal has been idle for the settle
+    /// delay does the inner step app re-render.
+    /// </summary>
+    /// <remarks>
+    /// Only takes effect when <see cref="UseSoftWrapTombstones"/> is also
+    /// <c>true</c>: the track-and-clear pass relies on tombstones above
+    /// the active step being hard-newline-terminated paragraphs that the
+    /// host terminal will not reflow across paragraph boundaries.
+    /// Recommended value: 50–100 ms.
+    /// </remarks>
+    public TimeSpan? ResizeSettleDelay { get; set; }
+
+    /// <summary>
+    /// Optional widget builder rendered into the active-step region
+    /// <em>during</em> the settle window, in place of the live step.
+    /// Designed to be safe to render repeatedly in a hostile,
+    /// actively-resizing environment — keep it cheap, layout-tolerant, and
+    /// free of input affordances. When <c>null</c> (the default), the
+    /// active region is simply erased during the drag.
+    /// </summary>
+    /// <remarks>
+    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
+    /// </remarks>
+    public Func<RootContext, Hex1bWidget>? ResizePlaceholder { get; set; }
+
+    /// <summary>
+    /// Optional widget builder emitted as a one-off hard-newline tombstone
+    /// <em>above</em> the repainted step after the resize has settled, but
+    /// only when the final dimensions differ from the dimensions at the
+    /// start of the settle window. Intended for a faint
+    /// "─── terminal resized ───" breadcrumb. When <c>null</c> (the
+    /// default), no marker is emitted.
+    /// </summary>
+    /// <remarks>
+    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
+    /// </remarks>
+    public Func<RootContext, Hex1bWidget>? ResizeMarker { get; set; }
 }

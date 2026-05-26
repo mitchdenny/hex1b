@@ -1,6 +1,7 @@
 using FancyFlowDemo.State;
 using FancyFlowDemo.Widgets;
 using Hex1b;
+using Hex1b.Theming;
 
 namespace FancyFlowDemo.Flow;
 
@@ -42,39 +43,117 @@ internal static class FancyFlowOrchestrator
                 .WithScrollback()
                 .WithHex1bFlow(async flow =>
                 {
-                    // Blank bar-only row above the first prompt to give the gutter
-                    // somewhere to "start" before any tombstone is emitted.
-                    await flow.ShowAsync(ctx => TombstoneFactory.BuildBarRow(ctx));
+                    // Opening "header" marker — anchors the start of the flow
+                    // and gives the gutter somewhere to begin.
+                    await flow.ShowAsync(ctx => TombstoneFactory.BuildHeader(ctx, "Create a new app"));
 
-                    await RunStepAsync(flow, ctx => ctx.LanguagePrompt(ctx, cancel, selections, Languages), Languages.Length + 9);
-                    cancel.ThrowIfCancelled();
+                    try
+                    {
+                        await RunStepAsync(flow, ctx => ctx.LanguagePrompt(ctx, cancel, selections, Languages), Languages.Length + 9);
+                        cancel.ThrowIfCancelled();
 
-                    await RunStepAsync(flow, ctx => ctx.TemplatePromptStep(ctx, cancel, selections, Templates), Templates.Length + 9);
-                    cancel.ThrowIfCancelled();
+                        await RunStepAsync(flow, ctx => ctx.TemplatePromptStep(ctx, cancel, selections, Templates), Templates.Length + 9);
+                        cancel.ThrowIfCancelled();
 
-                    await RunStepAsync(flow, ctx => ctx.FolderPrompt(ctx, cancel, selections), 11);
-                    cancel.ThrowIfCancelled();
+                        await RunStepAsync(flow, ctx => ctx.FolderPrompt(ctx, cancel, selections), 11);
+                        cancel.ThrowIfCancelled();
 
-                    await RunStepAsync(flow, ctx => ctx.HostnamePrompt(ctx, cancel, selections, HostnamePatterns), 9);
-                    cancel.ThrowIfCancelled();
+                        await RunStepAsync(flow, ctx => ctx.HostnamePrompt(ctx, cancel, selections, HostnamePatterns), 9);
+                        cancel.ThrowIfCancelled();
+
+                        // Simulated work between the final prompt and the success
+                        // outcome — keeps the flow feeling like a real scaffolder.
+                        await RunStepAsync(flow, ctx => ctx.ProcessingStep(ctx, cancel, selections), 9);
+                        cancel.ThrowIfCancelled();
+
+                        await flow.ShowAsync(ctx => TombstoneFactory.BuildOutcome(
+                            ctx,
+                            TombstoneFactory.SuccessMarker,
+                            TombstoneFactory.SuccessColor,
+                            "All set — your app is ready.",
+                            $"Language : {selections.Language}",
+                            $"Template : {selections.TemplateName} ({selections.TemplateId})",
+                            $"Folder   : {selections.Folder}",
+                            $"Hostname : {selections.HostnamePattern}"));
+                    }
+                    catch (OperationCanceledException) when (cancel.IsCancelled)
+                    {
+                        // Render the cancel outcome inline so it sits naturally
+                        // beneath whichever prompt the user bailed from, then
+                        // rethrow so the outer handler can short-circuit cleanly.
+                        await flow.ShowAsync(ctx => TombstoneFactory.BuildOutcome(
+                            ctx,
+                            TombstoneFactory.CancelMarker,
+                            TombstoneFactory.CancelColor,
+                            "Cancelled. No app was created."));
+                        throw;
+                    }
                 },
                 options =>
                 {
                     options.InitialCursorRow = cursorRow;
+
+                    // Hold the live step still during interactive drag-resize.
+                    // The runner track-and-clears the active region on every
+                    // Hex1bResizeEvent, paints the placeholder below in its
+                    // place, then debounces the real repaint until the user
+                    // stops dragging. If the final dimensions differ from where
+                    // the drag started, the marker is dropped as a one-off
+                    // tombstone above the repainted step so the scrollback
+                    // visibly records that a resize happened.
+                    options.ResizeSettleDelay = TimeSpan.FromMilliseconds(80);
+                    options.ResizePlaceholder = BuildResizePlaceholder;
+                    options.ResizeMarker = BuildResizeMarker;
                 })
                 .Build()
                 .RunAsync();
 
             cancel.ThrowIfCancelled();
-
-            PrintSummary(selections);
         }
         catch (OperationCanceledException) when (cancel.IsCancelled)
         {
-            Console.WriteLine();
-            Console.WriteLine("✗ Cancelled. Goodbye!");
+            // Cancel outcome was already rendered inside the flow; nothing
+            // more to do — the inline tombstone is the final word.
         }
     }
+
+    /// <summary>
+    /// Drawn into the active prompt's region on every resize event during a
+    /// drag — kept deliberately spartan since it re-renders many times in
+    /// quick succession and any chrome would just smear under a fast drag.
+    /// Preserves the flow's gutter bar so the visual rhythm survives the
+    /// drag, with a single muted "resizing…" line in place of the prompt.
+    /// </summary>
+    private static Hex1b.Widgets.Hex1bWidget BuildResizePlaceholder(RootContext ctx) =>
+        ctx.HStack(h =>
+        [
+            h.Text(" "),
+            h.ThemePanel(
+                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
+                h.Text(TemplatePromptWidget.BarChar)),
+            h.Text("  "),
+            h.ThemePanel(
+                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
+                h.Text("resizing…")),
+        ]);
+
+    /// <summary>
+    /// Dropped into scrollback as a one-off marker once a resize has settled
+    /// and the final dimensions actually differ from where the drag started.
+    /// Acts as a faint breadcrumb between the pre- and post-resize renders.
+    /// </summary>
+    private static Hex1b.Widgets.Hex1bWidget BuildResizeMarker(RootContext ctx) =>
+        ctx.HStack(h =>
+        [
+            h.Text(" "),
+            h.ThemePanel(
+                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
+                h.Text(TemplatePromptWidget.BarChar)),
+            h.Text("  "),
+            h.ThemePanel(
+                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
+                h.Text("─── terminal resized ───")),
+        ]);
 
     private static Task RunStepAsync(
         Hex1b.Flow.Hex1bFlowContext flow,
@@ -83,17 +162,5 @@ internal static class FancyFlowOrchestrator
     {
         var step = flow.Step(builder, opts => opts.MaxHeight = maxHeight);
         return step.WaitForCompletionAsync();
-    }
-
-    private static void PrintSummary(FancyFlowSelections selections)
-    {
-        Console.WriteLine();
-        Console.WriteLine("✨ All set! Here's what we'll create:");
-        Console.WriteLine();
-        Console.WriteLine($"   Language : {selections.Language}");
-        Console.WriteLine($"   Template : {selections.TemplateName} ({selections.TemplateId})");
-        Console.WriteLine($"   Folder   : {selections.Folder}");
-        Console.WriteLine($"   Hostname : {selections.HostnamePattern}");
-        Console.WriteLine();
     }
 }
