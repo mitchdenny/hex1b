@@ -81,6 +81,11 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
         appRef = app;
         options.EnableSurfacePooling = enablePool;
         options.EnableRenderCaching = enableCache;
+        // Enforce the target frame rate from the framework side. Without
+        // this the render loop will happily run as fast as the renderer
+        // can build a frame (300+ fps on a fast machine), wasting CPU
+        // and amplifying any per-frame allocations into Gen2 collections.
+        options.FrameRateLimitMs = redrawIntervalMs;
         return ctx => BuildRoot(ctx);
     })
     .Build();
@@ -131,7 +136,12 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section("PgUp/PgDn  Q quit"),
         }),
-    }).InputBindings(bindings =>
+    })
+    // Drive continuous animation from the root so the framework always
+    // knows when to wake up — this is independent of whatever the page's
+    // subtree does with its own RedrawDelay.
+    .RedrawAfter(redrawIntervalMs)
+    .InputBindings(bindings =>
     {
         bindings.Key(Hex1bKey.PageDown).Global().Action(_ =>
         {
