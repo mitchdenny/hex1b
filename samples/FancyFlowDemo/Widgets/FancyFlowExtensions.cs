@@ -50,4 +50,11 @@ internal static class FancyFlowExtensions
         FancyFlowSelections selections,
         IReadOnlyList<string> patterns) where T : Hex1bWidget
         => new(step, cancel, selections, patterns);
+
+    public static ProcessingStepWidget ProcessingStep<T>(
+        this WidgetContext<T> context,
+        FlowStepContext step,
+        FancyFlowCancellation cancel,
+        FancyFlowSelections selections) where T : Hex1bWidget
+        => new(step, cancel, selections);
 }

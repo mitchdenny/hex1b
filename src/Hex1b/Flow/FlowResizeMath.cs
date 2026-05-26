@@ -56,4 +56,59 @@ internal static class FlowResizeMath
         }
         return (0, terminalHeight);
     }
+
+    /// <summary>
+    /// Computes the display row where the active step's top will sit, given
+    /// the per-paragraph logical widths of every tombstone emitted above the
+    /// active step and the current terminal width.
+    /// </summary>
+    /// <param name="initialRowOrigin">The row at which the very first
+    /// tombstone (or active step, if none) starts. Captured at flow start
+    /// and never changes for the life of the flow.</param>
+    /// <param name="tombstoneParagraphWidths">For each tombstone, in
+    /// emission order, the logical width (in cells) of each CR+LF-terminated
+    /// paragraph it contains. Hard-newline-terminated paragraphs never merge
+    /// across resize on any surveyed emulator, so we only need their widths
+    /// to recompute reflow at any terminal width.</param>
+    /// <param name="terminalWidth">Current terminal width in cells. Must be
+    /// at least 1.</param>
+    /// <returns>The 0-based display row where the active step begins after
+    /// the host terminal reflows the tombstones above it at the given
+    /// width.</returns>
+    /// <remarks>
+    /// This is the core primitive the resize handler relies on: it lets the
+    /// runner answer "where should I move the cursor before erasing the
+    /// active-step region?" without round-tripping a CPR query to the
+    /// terminal. Its correctness is pinned by the feasibility tests in
+    /// <c>FlowResizeRowOriginFeasibilityTests</c>, which drive the same
+    /// inputs through a reference reflow simulator and assert agreement.
+    /// </remarks>
+    public static int ComputeRowOriginAtWidth(
+        int initialRowOrigin,
+        IReadOnlyList<IReadOnlyList<int>> tombstoneParagraphWidths,
+        int terminalWidth)
+    {
+        if (terminalWidth < 1)
+        {
+            throw new ArgumentOutOfRangeException(nameof(terminalWidth),
+                terminalWidth, "terminalWidth must be at least 1");
+        }
+
+        var rows = initialRowOrigin;
+        foreach (var tombstone in tombstoneParagraphWidths)
+        {
+            foreach (var paragraphWidth in tombstone)
+            {
+                if (paragraphWidth < 0)
+                {
+                    throw new ArgumentOutOfRangeException(
+                        nameof(tombstoneParagraphWidths), paragraphWidth,
+                        "paragraph widths must be non-negative");
+                }
+
+                rows += Math.Max(1, (paragraphWidth + terminalWidth - 1) / terminalWidth);
+            }
+        }
+        return rows;
+    }
 }
