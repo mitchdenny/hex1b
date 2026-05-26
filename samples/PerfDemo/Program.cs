@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.Threading.Channels;
 using Hex1b;
+using Hex1b.Diagnostics;
 using Hex1b.Input;
 using Hex1b.Theming;
 using Hex1b.Widgets;
+using PerfDemo;
 
 var options = PerfOptions.Parse(args);
 
@@ -30,7 +32,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
         .Set(GlobalTheme.BackgroundColor, Hex1bColor.DarkGray)
         .Lock();
 
-    var staticPanel = BuildStaticPanel(options.StaticLines);
+    var staticPanel = options.Busy ? null : BuildStaticPanel(options.StaticLines);
 
     var warmupFrames = options.WarmupFrames;
     var measureFrames = options.MeasureFrames;
@@ -52,6 +54,12 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
 
     using var adapter = new PerfWorkloadAdapter(options.Width, options.Height, TerminalCapabilities.Minimal);
 
+    using var metrics = new Hex1bMetrics(new Hex1bMetricsOptions
+    {
+        EnablePerNodeMetrics = options.EnablePerNodeMetrics
+    });
+    using var collector = new MetricsCollector();
+
     Hex1bApp? app = null;
     app = new Hex1bApp(ctx =>
     {
@@ -68,6 +76,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
             startGen1 = GC.CollectionCount(1);
             startGen2 = GC.CollectionCount(2);
             startTimestamp = Stopwatch.GetTimestamp();
+            collector.StartCapture();
         }
 
         if (frame == stopFrame)
@@ -77,21 +86,30 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
             endGen0 = GC.CollectionCount(0);
             endGen1 = GC.CollectionCount(1);
             endGen2 = GC.CollectionCount(2);
+            collector.StopCapture();
             app!.RequestStop();
             return new TextBlockWidget("Stopping...");
         }
 
-        var root = new VStackWidget(new Hex1bWidget[]
-        {
-            new TextBlockWidget($"Tick: {frame}"),
-            staticPanel
-        });
+        Hex1bWidget root = options.Busy
+            ? BusyScene.Build(
+                frame,
+                sidebarItems: options.BusySidebarItems,
+                logLines: options.BusyLogLines,
+                gridRows: options.BusyGridRows,
+                gridCols: options.BusyGridCols)
+            : new VStackWidget(new Hex1bWidget[]
+            {
+                new TextBlockWidget($"Tick: {frame}"),
+                staticPanel!
+            });
         renderedFrames++;
         return root;
     }, new Hex1bAppOptions
     {
         WorkloadAdapter = adapter,
         Theme = theme,
+        Metrics = metrics,
         EnableRenderCaching = enableCaching,
         EnableSurfacePooling = options.EnableSurfacePooling,
         EnableDefaultCtrlCExit = false,
@@ -116,7 +134,7 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
         : Stopwatch.GetElapsedTime(startTimestamp, endTimestamp);
     var allocatedBytes = endAllocated - startAllocated;
 
-    return new PerfResult
+    var result = new PerfResult
     {
         EnableCaching = enableCaching,
         EnableSurfacePooling = options.EnableSurfacePooling,
@@ -133,6 +151,13 @@ static async Task<PerfResult> RunOnceAsync(bool enableCaching, PerfOptions optio
         Gen1 = endGen1 - startGen1,
         Gen2 = endGen2 - startGen2
     };
+
+    if (options.PrintMetricsSummary)
+    {
+        collector.PrintSummary(Console.Out);
+    }
+
+    return result;
 }
 
 static Hex1bWidget BuildStaticPanel(int lines)
@@ -184,7 +209,14 @@ internal sealed record PerfOptions(
     int Height,
     int StaticLines,
     int WarmupFrames,
-    int MeasureFrames)
+    int MeasureFrames,
+    bool Busy,
+    int BusySidebarItems,
+    int BusyLogLines,
+    int BusyGridRows,
+    int BusyGridCols,
+    bool EnablePerNodeMetrics,
+    bool PrintMetricsSummary)
 {
     public static PerfOptions Parse(string[] args)
     {
@@ -201,12 +233,22 @@ internal sealed record PerfOptions(
         var compare = HasFlag(args, "--compare");
         var enableCaching = HasFlag(args, "--cache");
         var enablePooling = HasFlag(args, "--pool");
+        var busy = HasFlag(args, "--busy");
+        var perNode = HasFlag(args, "--per-node");
+        var noSummary = HasFlag(args, "--no-summary");
 
-        var width = ReadInt(args, "--width", 120);
-        var height = ReadInt(args, "--height", 40);
+        // The busy scene fills a larger frame by default so the render pipeline
+        // has meaningful work to do (more cells = more diff/encode work).
+        var width = ReadInt(args, "--width", busy ? 160 : 120);
+        var height = ReadInt(args, "--height", busy ? 50 : 40);
         var staticLines = ReadInt(args, "--lines", 200);
-        var warmup = ReadInt(args, "--warmup", 25);
-        var frames = ReadInt(args, "--frames", 200);
+        var warmup = ReadInt(args, "--warmup", 50);
+        var frames = ReadInt(args, "--frames", busy ? 500 : 200);
+
+        var sidebarItems = ReadInt(args, "--busy-sidebar", 20);
+        var logLines = ReadInt(args, "--busy-log", 20);
+        var gridRows = ReadInt(args, "--busy-grid-rows", 8);
+        var gridCols = ReadInt(args, "--busy-grid-cols", 12);
 
         return new PerfOptions(
             EnableCaching: enableCaching,
@@ -216,7 +258,14 @@ internal sealed record PerfOptions(
             Height: height,
             StaticLines: staticLines,
             WarmupFrames: warmup,
-            MeasureFrames: frames);
+            MeasureFrames: frames,
+            Busy: busy,
+            BusySidebarItems: sidebarItems,
+            BusyLogLines: logLines,
+            BusyGridRows: gridRows,
+            BusyGridCols: gridCols,
+            EnablePerNodeMetrics: perNode,
+            PrintMetricsSummary: !noSummary);
     }
 }
 
