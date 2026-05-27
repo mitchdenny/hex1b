@@ -466,6 +466,66 @@ internal sealed class Hex1bFlowRunner
                             // restores the cursor to its proper place.
                             _parentAdapter.Write("\x1b[H");
 
+                            // Render the placeholder (if any) into the
+                            // active rect. With the inner-app output
+                            // pump muted, the prompt would otherwise
+                            // stay frozen showing the pre-resize frame
+                            // (which is laid out for the OLD width and
+                            // would visibly clip/wrap on shrink). The
+                            // placeholder is a deliberately tiny widget
+                            // (typically a single short line) so it
+                            // fits inside even an aggressively shrunken
+                            // viewport.
+                            if (_options.ResizePlaceholder is { } placeholderBuilder)
+                            {
+                                var placeholderRowOrigin = settleOriginalRect?.RowOrigin
+                                    ?? rowOrigin;
+                                var placeholderHeight = settleOriginalRect?.Height
+                                    ?? step.StepHeight;
+
+                                // Use the most up-to-date width we have
+                                // (latest event in the burst). DECAWM
+                                // is off so any over-wide content
+                                // simply truncates at the right edge.
+                                var phSurface = RenderToSurface(
+                                    placeholderBuilder,
+                                    Math.Max(1, newWidth),
+                                    Math.Max(1, placeholderHeight));
+                                if (phSurface is not null)
+                                {
+                                    _parentAdapter.Write(SyncUpdateBegin);
+                                    try
+                                    {
+                                        // Wipe the rect first so we don't
+                                        // composite the placeholder onto
+                                        // the old prompt's leftovers.
+                                        for (var i = 0; i < placeholderHeight; i++)
+                                        {
+                                            var row = placeholderRowOrigin + i;
+                                            if (row < 0 || row >= newHeight) continue;
+                                            _parentAdapter.SetCursorPosition(0, row);
+                                            _parentAdapter.Write("\x1b[2K");
+                                        }
+                                        if (placeholderRowOrigin >= 0
+                                            && placeholderRowOrigin < newHeight)
+                                        {
+                                            _parentAdapter.SetCursorPosition(0, placeholderRowOrigin);
+                                            SoftWrapEmitter.Emit(phSurface, _parentAdapter);
+                                        }
+                                    }
+                                    finally
+                                    {
+                                        _parentAdapter.Write(SyncUpdateEnd);
+                                    }
+                                    // Park the cursor at home again so
+                                    // the placeholder emission (which
+                                    // leaves the cursor at the end of
+                                    // the last paragraph) cannot anchor
+                                    // a subsequent shrink-scroll.
+                                    _parentAdapter.Write("\x1b[H");
+                                }
+                            }
+
                             // Update internal state for the eventual
                             // settle. Note: we deliberately don't write
                             // anything to the parent here — the settle
@@ -1352,4 +1412,18 @@ public sealed class Hex1bFlowOptions
     /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
     /// </remarks>
     public Func<RootContext, Hex1bWidget>? ResizeMarker { get; set; }
+
+    /// <summary>
+    /// Optional widget builder rendered in place of the active step's
+    /// content during a drag-resize burst. The placeholder is drawn at
+    /// each per-event tick into the active rectangle and is then replaced
+    /// by the actual repainted step at settle. Use a deliberately tiny
+    /// widget (a single short line is ideal) so it fits inside even an
+    /// aggressively shrunken viewport. When <c>null</c> (the default),
+    /// the active rectangle simply stays cleared during the drag.
+    /// </summary>
+    /// <remarks>
+    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
+    /// </remarks>
+    public Func<RootContext, Hex1bWidget>? ResizePlaceholder { get; set; }
 }
