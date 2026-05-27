@@ -484,7 +484,13 @@ public class EditorNodeRenderingTests
 
         node.Render(context);
 
-        var pattern = new CellPatternSearcher().Find("L1");
+        // Wait for the LAST line ("L3") to be parsed, not the first.
+        // The render pipeline is asynchronous: node.Render() enqueues many
+        // ANSI fragments which are drained by a background pump. Waiting for
+        // "L1" (which is rendered first) can return before "L3" has been
+        // applied, leaving row 2 still blank when the snapshot is captured.
+        // Waiting for the last-rendered marker is the deterministic gate.
+        var pattern = new CellPatternSearcher().Find("L3");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.SearchPattern(pattern).HasMatches,
                 TimeSpan.FromSeconds(2), "first 3 lines visible")
