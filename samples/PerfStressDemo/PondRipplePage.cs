@@ -73,9 +73,11 @@ internal sealed class PondRipplePage : IStressPage
     private const float Damping = 0.985f;
 
     // Splash impulse amplitude. Negative = displaces water downward (the
-    // "finger pushes the surface down" mental model). Magnitude is in the
-    // same units as the field; the colour mapper rescales to brightness.
-    private const float SplashAmplitude = -8.0f;
+    // "finger pushes the surface down" mental model). Tuned so per-move
+    // impulses stay in the linear part of the brightness mapping; that
+    // way constructive interference reads as a brighter peak and
+    // destructive interference reads as a darker trough.
+    private const float SplashAmplitude = -3.0f;
 
     public Hex1bWidget Build(StressContext sc)
     {
@@ -91,19 +93,26 @@ internal sealed class PondRipplePage : IStressPage
                 // "dragging a finger" feel without needing a click.
                 var mx = layer.MouseX;
                 var my = layer.MouseY;
-                if (mx >= 0 && my >= 0 && mx < layer.Width && my < layer.Height)
+                var inPond = mx >= 0 && my >= 0 && mx < layer.Width && my < layer.Height;
+                var moved = inPond && (mx != _lastMouseX || my != _lastMouseY);
+
+                if (moved)
                 {
-                    // Splash on every "in-pond" frame so a steady hover
-                    // still injects a little energy; a moving cursor
-                    // injects across each cell of its path.
+                    // Splash along the Bresenham line from the last known
+                    // position so fast drags feel continuous instead of
+                    // dotty. If the last position was "absent" (-1),
+                    // SplashLine collapses to a single-point splash.
                     SplashLine(_lastMouseX, _lastMouseY, mx, my);
                     _lastMouseX = mx;
                     _lastMouseY = my;
                 }
                 else
                 {
-                    // Pointer left the pond — stop tracking but let the
-                    // existing waves continue to evolve.
+                    // No movement this frame — treat as if the mouse were
+                    // not present at all. Resetting last-known position
+                    // means the *next* movement starts a fresh trail
+                    // rather than drawing a stale line from wherever the
+                    // cursor was parked.
                     _lastMouseX = -1;
                     _lastMouseY = -1;
                 }
@@ -241,9 +250,13 @@ internal sealed class PondRipplePage : IStressPage
         var black = Hex1bColor.Black;
         var field = _current;
 
-        // Map field displacement (~ -10..+10) to brightness 0..1 via a
-        // soft compressor so big splashes don't clip immediately.
-        // mag/(mag+k) is a smooth tanh-like saturator in [0,1).
+        // Map signed displacement to brightness with a linear ramp clamped
+        // at ±maxDisplay. Peaks brighten, troughs ALSO brighten (we display
+        // |displacement|) so a wave reads as a band of brightness; what
+        // distinguishes constructive vs destructive interference is the
+        // *amplitude* of the resulting peak/trough — keep it linear here so
+        // those amplitude differences are visible instead of saturating.
+        const float MaxDisplay = 6.0f;
         for (var y = 0; y < h; y++)
         {
             var row = y * w;
@@ -252,7 +265,8 @@ internal sealed class PondRipplePage : IStressPage
                 var i = row + x;
                 var d = field[i];
                 var mag = d < 0 ? -d : d;
-                var t = mag / (mag + 4.0f);
+                var t = mag / MaxDisplay;
+                if (t > 1.0f) t = 1.0f;
                 var level = (byte)(40 + (215 * t));
                 var colour = Hex1bColor.FromRgb(level, level, level);
                 surface[x, y] = new SurfaceCell(_noise[i], colour, black);
