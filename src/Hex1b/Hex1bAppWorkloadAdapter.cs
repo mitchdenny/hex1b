@@ -46,6 +46,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     private bool _inTuiMode;
     private bool _dimensionsInitialized;
     private int _outputQueueDepth; // Manual tracking since unbounded channels don't support Count
+    private readonly int _maxQueuedOutputItems;
 
     /// <summary>
     /// Optional diagnostic tree provider for MCP diagnostics.
@@ -63,14 +64,27 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// Creates a new app workload adapter.
     /// </summary>
     /// <param name="capabilities">Terminal capabilities. If null, defaults with full support.</param>
+    /// <param name="maxQueuedOutputItems">
+    /// Maximum number of pending output items (frame buffers, control sequences, etc.) the
+    /// adapter will buffer before applying backpressure. <c>0</c> (default) means unbounded —
+    /// producers never block, at the cost of unbounded memory growth if a slow consumer falls
+    /// behind. A small positive value (e.g. <c>8</c>) caps memory and makes the render loop's
+    /// effective frame rate track the consumer's drain rate. Drop semantics are deliberately
+    /// not offered: each output item carries an incremental diff, so dropping a queued item
+    /// would desynchronise the host terminal's surface state.
+    /// </param>
     /// <remarks>
     /// Dimensions are set by the terminal via <see cref="ResizeAsync"/>.
     /// Initial dimensions default to 0x0 until the terminal notifies.
     /// </remarks>
-    public Hex1bAppWorkloadAdapter(TerminalCapabilities? capabilities = null)
+    public Hex1bAppWorkloadAdapter(TerminalCapabilities? capabilities = null, int maxQueuedOutputItems = 0)
     {
+        if (maxQueuedOutputItems < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+
         _width = 0;
         _height = 0;
+        _maxQueuedOutputItems = maxQueuedOutputItems;
         _staticCapabilities = capabilities ?? new TerminalCapabilities
         {
             SupportsMouse = true,
@@ -80,11 +94,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SupportsUnderlineColor = true,
         };
 
-        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false
-        });
+        _outputChannel = CreateOutputChannel(maxQueuedOutputItems);
 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
@@ -97,27 +107,51 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// Creates a new app workload adapter connected to a presentation adapter.
     /// </summary>
     /// <param name="presentationAdapter">The presentation adapter to delegate capabilities to.</param>
+    /// <param name="maxQueuedOutputItems">
+    /// See <see cref="Hex1bAppWorkloadAdapter(TerminalCapabilities?, int)"/>.
+    /// </param>
     /// <remarks>
     /// When a presentation adapter is provided, capabilities are read live from it,
     /// allowing updates to cell dimensions (e.g., after resize) to be reflected.
     /// </remarks>
-    public Hex1bAppWorkloadAdapter(IHex1bTerminalPresentationAdapter presentationAdapter)
+    public Hex1bAppWorkloadAdapter(IHex1bTerminalPresentationAdapter presentationAdapter, int maxQueuedOutputItems = 0)
     {
+        if (maxQueuedOutputItems < 0)
+            throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+
         _width = 0;
         _height = 0;
+        _maxQueuedOutputItems = maxQueuedOutputItems;
         _presentationAdapter = presentationAdapter;
         _staticCapabilities = null;
 
-        _outputChannel = Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
-        {
-            SingleReader = true,
-            SingleWriter = false
-        });
+        _outputChannel = CreateOutputChannel(maxQueuedOutputItems);
 
         _inputChannel = Channel.CreateUnbounded<Hex1bEvent>(new UnboundedChannelOptions
         {
             SingleReader = true,
             SingleWriter = true
+        });
+    }
+
+    private static Channel<WorkloadOutputItem> CreateOutputChannel(int maxQueuedOutputItems)
+    {
+        if (maxQueuedOutputItems > 0)
+        {
+            return Channel.CreateBounded<WorkloadOutputItem>(new BoundedChannelOptions(maxQueuedOutputItems)
+            {
+                FullMode = BoundedChannelFullMode.Wait,
+                SingleReader = true,
+                // SingleWriter intentionally false: clipboard/paste/exit paths may
+                // write from threads other than the render loop.
+                SingleWriter = false,
+            });
+        }
+
+        return Channel.CreateUnbounded<WorkloadOutputItem>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false,
         });
     }
 
@@ -132,10 +166,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (_disposed) return;
         var bytes = Encoding.UTF8.GetBytes(text);
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, Tokens: null)))
-        {
-            Interlocked.Increment(ref _outputQueueDepth);
-        }
+        EnqueueOutput(new WorkloadOutputItem(bytes, Tokens: null));
     }
 
     /// <summary>
@@ -144,24 +175,18 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public void Write(ReadOnlySpan<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data.ToArray(), Tokens: null)))
-        {
-            Interlocked.Increment(ref _outputQueueDepth);
-        }
+        EnqueueOutput(new WorkloadOutputItem(data.ToArray(), Tokens: null));
     }
-    
+
     /// <summary>
     /// Write raw bytes to the terminal without forcing a copy.
     /// </summary>
     public void Write(ReadOnlyMemory<byte> data)
     {
         if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(data, Tokens: null)))
-        {
-            Interlocked.Increment(ref _outputQueueDepth);
-        }
+        EnqueueOutput(new WorkloadOutputItem(data, Tokens: null));
     }
-    
+
     /// <summary>
     /// Writes output with an already-tokenized representation to avoid terminal-side UTF-8 decode + tokenization.
     /// </summary>
@@ -186,27 +211,70 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         List<AnsiToken>? pooledTokens = null,
         Action<List<AnsiToken>>? pooledTokensReturn = null)
     {
-        if (_disposed)
-        {
-            if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
-            if (pooledTokens is not null && pooledTokensReturn is not null) pooledTokensReturn(pooledTokens);
-            return;
-        }
         var item = new WorkloadOutputItem(bytes, tokens)
         {
             PooledBuffer = pooledBuffer,
             PooledTokens = pooledTokens,
             PooledTokensReturn = pooledTokensReturn,
         };
+        if (_disposed)
+        {
+            ReturnPooledResources(item);
+            return;
+        }
+        EnqueueOutput(item);
+    }
+
+    /// <summary>
+    /// Centralised enqueue for output items. Handles the bounded-channel
+    /// backpressure case (block the producer until a slot frees) and ensures
+    /// pooled resources carried by the item are returned to their pools on
+    /// any failure path so callers can't leak them.
+    /// </summary>
+    private void EnqueueOutput(WorkloadOutputItem item)
+    {
+        // Fast path: unbounded channel always accepts; bounded channel
+        // accepts when capacity is available.
         if (_outputChannel.Writer.TryWrite(item))
         {
             Interlocked.Increment(ref _outputQueueDepth);
+            return;
         }
-        else
+
+        // Slow path: bounded channel is full. Block the producer until a
+        // slot frees. This is the deliberate backpressure: if the consumer
+        // can't keep up, the producer's effective frame rate falls to match
+        // the consumer's drain rate, which is exactly what we want.
+        //
+        // sync-over-async is acceptable here: the producer is the render
+        // loop (or a control-sequence writer), already inside a Task-based
+        // async chain, and slowing it down is the goal.
+        try
         {
-            if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
-            if (pooledTokens is not null && pooledTokensReturn is not null) pooledTokensReturn(pooledTokens);
+            var writeTask = _outputChannel.Writer.WriteAsync(item);
+            if (!writeTask.IsCompletedSuccessfully)
+                writeTask.AsTask().GetAwaiter().GetResult();
+            Interlocked.Increment(ref _outputQueueDepth);
         }
+        catch (ChannelClosedException)
+        {
+            // Channel completed while we were waiting; return pooled
+            // resources so they aren't leaked.
+            ReturnPooledResources(item);
+        }
+        catch (InvalidOperationException)
+        {
+            // Same: channel may surface a writer-completed state as IOE.
+            ReturnPooledResources(item);
+        }
+    }
+
+    private static void ReturnPooledResources(WorkloadOutputItem item)
+    {
+        if (item.PooledBuffer is not null)
+            System.Buffers.ArrayPool<byte>.Shared.Return(item.PooledBuffer);
+        if (item.PooledTokens is not null && item.PooledTokensReturn is not null)
+            item.PooledTokensReturn(item.PooledTokens);
     }
 
     /// <summary>
