@@ -522,3 +522,4 @@ test-*.svg
 src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
 src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
 src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
+aspire.config.json

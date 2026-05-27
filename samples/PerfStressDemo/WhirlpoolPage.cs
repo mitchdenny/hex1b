@@ -77,29 +77,35 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float MaxStrength = 4.0f;
 
     // ----------------------------------------------------------------
-    // Surface bubbles. The depth field alone is rotationally
-    // symmetric, so it reads as a hole — not a whirlpool. Floating
-    // bubbles that get sucked inward AND tangentially around the
-    // drain, leaving fading foam streaks along their paths, sell the
-    // rotation. Bubbles are SoA-ish via Bubble[]; foam is a flat
-    // float grid the size of the depth grid that decays each frame
-    // and is blended over the water colour at render time.
+    // Surface bubbles. Modelled as PASSIVE tracers carried by the
+    // velocity field — no momentum, no orbits, no escape. Real
+    // surface particles in a fluid don't have inertia separate from
+    // the fluid itself; the mass of the water behind them keeps
+    // pushing them toward the sink. To simulate that we look up the
+    // local potential-flow velocity each frame and step by it.
     // ----------------------------------------------------------------
     private struct Bubble
     {
         public float X;   // sub-cell coords
         public float Y;
-        public float VX;
-        public float VY;
     }
     private Bubble[] _bubbles = Array.Empty<Bubble>();
     private float[] _foam = Array.Empty<float>();
     private const float FoamDecay = 0.84f;             // per frame
-    private const float BubbleDamping = 0.94f;         // when drain inactive
-    private const float BubbleMaxSpeed = 1.4f;         // sub-cells / frame
-    private const float DrainPullBase = 1.6f;          // accel scale, inward
-    private const float DrainSwirlBase = 1.05f;        // accel scale, tangential
+    private const float BubbleMaxSpeed = 2.5f;         // sub-cells / frame (anti-overshoot)
     private const float BubbleAbsorbRadius = 1.6f;     // sub-cells
+
+    // ----------------------------------------------------------------
+    // Potential-flow velocity field. A 2D sink at the drain has
+    // velocity v_r = -Q/r (inward); adding a free vortex of
+    // circulation Γ gives v_θ = Γ/r (tangential). Streamlines are
+    // logarithmic spirals at angle atan(Γ/Q) from the radial.
+    // VelocitySoftening avoids the 1/0 singularity at the drain
+    // centre and keeps the cell-skip rate manageable.
+    // ----------------------------------------------------------------
+    private const float SinkStrength = 9.0f;
+    private const float SwirlStrength = 18.0f;         // Γ ~ 2Q → ~63° spirals
+    private const float VelocitySoftening = 2.5f;
 
     // ----------------------------------------------------------------
     // Inlets — small periodically-spawned sources on the screen edge.
@@ -124,10 +130,10 @@ internal sealed class WhirlpoolPage : IStressPage
     // Physics constants.
     // ----------------------------------------------------------------
     private const float MaxDepth = 1.0f;
-    // Diffusion rate per neighbour per frame. With 4 neighbours, total
-    // outflow per step is 4 * DiffusionK. Keep < 0.25 for stability of
-    // the explicit scheme (CFL).
-    private const float DiffusionK = 0.18f;
+    // Diffusion rate per neighbour per frame. Kept small now that
+    // advection is the primary transport — too much diffusion blurs
+    // away the spiral contours that advection deliberately creates.
+    private const float DiffusionK = 0.045f;
     private const float DrainRadius = 6.5f;       // sub-cell units
     private const float DrainPerFrameBase = 0.28f; // strength multiplier
     private const int   InletCheckInterval = 12;   // frames between spawn attempts
@@ -239,8 +245,6 @@ internal sealed class WhirlpoolPage : IStressPage
             ref var b = ref _bubbles[i];
             b.X = NextFloat() * _dotWidth;
             b.Y = NextFloat() * _dotHeight;
-            b.VX = 0;
-            b.VY = 0;
         }
         _quiescent = true;
     }
@@ -256,6 +260,25 @@ internal sealed class WhirlpoolPage : IStressPage
         var dh = _dotHeight;
         var depth = _depth;
         var delta = _delta;
+
+        // ---- Pass 0: advection. When the drain is open, semi-
+        //      Lagrangian-advect the depth field by the analytic
+        //      potential-flow velocity. This is what makes spiral
+        //      contours appear: the radial-plus-tangential velocity
+        //      drags the depth dip created by the drain around in
+        //      logarithmic spirals. Without this step the depth
+        //      field would stay rotationally symmetric no matter
+        //      what.
+        if (_drainActive)
+        {
+            AdvectField(depth, delta, dw, dh);
+            // delta now holds the advected field. Swap so the rest
+            // of Step reads/writes the advected one.
+            (depth, delta) = (delta, depth);
+            _depth = depth;
+            _delta = delta;
+        }
+
         Array.Clear(delta, 0, delta.Length);
 
         // ---- Pass 1: diffusion. Flow between each cell and its right
@@ -263,6 +286,8 @@ internal sealed class WhirlpoolPage : IStressPage
         //      per cell visits every edge exactly once (every pair
         //      shares exactly one direction). Symmetric add/subtract
         //      makes the operation mass-conserving by construction.
+        //      Kept gentle so spiral contours from advection survive
+        //      a few frames before being smoothed out.
         var anyFlow = false;
         for (var y = 0; y < dh; y++)
         {
@@ -530,16 +555,17 @@ internal sealed class WhirlpoolPage : IStressPage
     }
 
     /// <summary>
-    /// Advances all surface bubbles one frame. When the drain is
-    /// active, each bubble feels an inward pull (~1/r) plus a
-    /// tangential swirl (~1/r), so bubbles spiral in and accelerate
-    /// as they approach the drain. Bubbles that reach the centre are
-    /// absorbed and respawned at a random screen edge. Each bubble
-    /// deposits foam along the line from its previous position to its
-    /// new position, so faster bubbles leave longer/brighter streaks.
+    /// Advances all surface bubbles one frame as PASSIVE TRACERS in
+    /// the potential-flow velocity field. There is no momentum: each
+    /// bubble's new position is simply its old position plus the
+    /// local velocity. This is physically right for a surface particle
+    /// floating on a draining fluid — it goes wherever the surface
+    /// goes, with the mass of water behind it continuously pushing.
+    /// Particles cannot escape orbit; they follow streamlines
+    /// (logarithmic spirals) inevitably into the drain.
     /// </summary>
-    /// <returns>true if any bubble has non-trivial velocity or any
-    /// foam is still visible — used by the quiescence check.</returns>
+    /// <returns>true if anything is moving or any foam remains —
+    /// used by the quiescence check.</returns>
     private bool StepBubbles(int dw, int dh)
     {
         // ---- foam decay pass (and "any foam left?" probe)
@@ -553,12 +579,19 @@ internal sealed class WhirlpoolPage : IStressPage
             foam[i] = f;
         }
 
+        if (!_drainActive)
+        {
+            // No drain → no flow → tracers are stationary. (Inlet
+            // flow is too localised to bother sampling here.)
+            return anyFoam;
+        }
+
         var cx = _drainX;
         var cy = _drainY * 2f + 0.5f;
-        var pullScale = DrainPullBase * _strength;
-        var swirlScale = DrainSwirlBase * _strength;
+        var Q = SinkStrength * _strength;
+        var G = SwirlStrength * _strength;
+        var soft = VelocitySoftening;
         var absorbR2 = BubbleAbsorbRadius * BubbleAbsorbRadius;
-        var moving = false;
 
         for (var i = 0; i < _bubbles.Length; i++)
         {
@@ -566,52 +599,29 @@ internal sealed class WhirlpoolPage : IStressPage
             var px = b.X;
             var py = b.Y;
 
-            if (_drainActive)
+            var ddx = cx - px;
+            var ddy = cy - py;
+            if (ddx * ddx + ddy * ddy < absorbR2)
             {
-                var ddx = cx - px;
-                var ddy = cy - py;
-                var d2 = ddx * ddx + ddy * ddy;
-                if (d2 < absorbR2)
-                {
-                    // Bubble swallowed — respawn at a random edge.
-                    RespawnBubbleAtEdge(ref b, dw, dh);
-                    continue;
-                }
-                var d = MathF.Sqrt(d2);
-                var inv = 1f / d;
-                // Soft 1/(d+1) falloff so close-in particles don't
-                // get infinite force.
-                var falloff = 1f / (d + 1.5f);
-                // Inward acceleration.
-                b.VX += pullScale * falloff * ddx * inv;
-                b.VY += pullScale * falloff * ddy * inv;
-                // Tangential (counter-clockwise) — perpendicular to
-                // the inward vector.
-                b.VX += swirlScale * falloff * (-ddy * inv);
-                b.VY += swirlScale * falloff * ( ddx * inv);
-            }
-            else
-            {
-                // Drain off → glide to a halt.
-                b.VX *= BubbleDamping;
-                b.VY *= BubbleDamping;
+                RespawnBubbleAtEdge(ref b, dw, dh);
+                continue;
             }
 
-            // Speed cap.
-            var vmag2 = b.VX * b.VX + b.VY * b.VY;
+            VelocityAt(px, py, cx, cy, Q, G, soft, out var vx, out var vy);
+
+            // Speed cap — guards against the centre singularity and
+            // keeps semi-Lagrangian / line rasterisation stable.
+            var vmag2 = vx * vx + vy * vy;
             if (vmag2 > BubbleMaxSpeed * BubbleMaxSpeed)
             {
                 var s = BubbleMaxSpeed / MathF.Sqrt(vmag2);
-                b.VX *= s;
-                b.VY *= s;
-                vmag2 = BubbleMaxSpeed * BubbleMaxSpeed;
+                vx *= s;
+                vy *= s;
             }
-            if (vmag2 > 0.0004f) moving = true;
 
-            var nx = px + b.VX;
-            var ny = py + b.VY;
+            var nx = px + vx;
+            var ny = py + vy;
 
-            // Out of bounds → respawn at a random edge.
             if (nx < 0f || nx >= dw || ny < 0f || ny >= dh)
             {
                 RespawnBubbleAtEdge(ref b, dw, dh);
@@ -623,7 +633,83 @@ internal sealed class WhirlpoolPage : IStressPage
             DepositFoamLine(foam, dw, dh, px, py, nx, ny);
         }
 
-        return moving || anyFoam;
+        return true; // drain active → always moving
+    }
+
+    /// <summary>
+    /// Computes the 2D potential-flow velocity at a sample point: a
+    /// sink (radial inflow) plus a free vortex (tangential swirl),
+    /// both with <c>1/(r + softening)</c> falloff. With Γ ≈ 2Q the
+    /// streamlines are tight logarithmic spirals at ≈63° from the
+    /// radial — visually a strong whirlpool.
+    /// </summary>
+    private static void VelocityAt(float x, float y, float cx, float cy,
+        float Q, float G, float soft, out float vx, out float vy)
+    {
+        var dx = x - cx;
+        var dy = y - cy;
+        var r2 = dx * dx + dy * dy;
+        var r = MathF.Sqrt(r2);
+        var inv = 1f / (r + 1e-4f);
+        var mag = 1f / (r + soft);
+        // Unit radial outward (rx, ry); tangential CCW is (-ry, rx).
+        var rx = dx * inv;
+        var ry = dy * inv;
+        // v = -Q * r_hat + G * t_hat
+        vx = -Q * mag * rx + G * mag * (-ry);
+        vy = -Q * mag * ry + G * mag *  rx;
+    }
+
+    /// <summary>
+    /// Semi-Lagrangian advection: for each destination cell, trace
+    /// the velocity field backwards by one step and sample the source
+    /// field (bilinearly) at that upstream position. Unconditionally
+    /// stable for any timestep — the price is some numerical
+    /// diffusion, but at our 1-frame dt and small velocities outside
+    /// the drain core, it's tolerable. Cells whose upstream sample
+    /// falls outside the grid clamp to MaxDepth, on the assumption
+    /// that "outside" is an effectively infinite ocean.
+    /// </summary>
+    private void AdvectField(float[] src, float[] dst, int dw, int dh)
+    {
+        var cx = _drainX;
+        var cy = _drainY * 2f + 0.5f;
+        var Q = SinkStrength * _strength;
+        var G = SwirlStrength * _strength;
+        var soft = VelocitySoftening;
+        for (var y = 0; y < dh; y++)
+        {
+            var row = y * dw;
+            for (var x = 0; x < dw; x++)
+            {
+                VelocityAt(x, y, cx, cy, Q, G, soft, out var vx, out var vy);
+                var sx = x - vx;
+                var sy = y - vy;
+                dst[row + x] = SampleBilinear(src, dw, dh, sx, sy);
+            }
+        }
+    }
+
+    private static float SampleBilinear(float[] field, int dw, int dh, float x, float y)
+    {
+        // Outside-grid samples treat the basin as surrounded by full
+        // ocean — this is what makes the basin try to "refill" itself
+        // along the streamlines that wrap in from the screen edges.
+        if (x < 0f || x > dw - 1f || y < 0f || y > dh - 1f)
+            return MaxDepth;
+        var x0 = (int)x;
+        var y0 = (int)y;
+        var x1 = Math.Min(x0 + 1, dw - 1);
+        var y1 = Math.Min(y0 + 1, dh - 1);
+        var fx = x - x0;
+        var fy = y - y0;
+        var a = field[y0 * dw + x0];
+        var b = field[y0 * dw + x1];
+        var c = field[y1 * dw + x0];
+        var d = field[y1 * dw + x1];
+        var top = a + (b - a) * fx;
+        var bot = c + (d - c) * fx;
+        return top + (bot - top) * fy;
     }
 
     /// <summary>
@@ -668,8 +754,6 @@ internal sealed class WhirlpoolPage : IStressPage
             case 2: b.X = 0f; b.Y = NextFloat() * dh; break;
             default: b.X = dw - 1f; b.Y = NextFloat() * dh; break;
         }
-        b.VX = 0f;
-        b.VY = 0f;
     }
 
     private static Hex1bColor DepthColour(float d)
