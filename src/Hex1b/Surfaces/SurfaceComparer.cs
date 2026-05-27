@@ -1,5 +1,6 @@
 using Hex1b.Theming;
 using Hex1b.Tokens;
+using System.Text;
 
 namespace Hex1b.Surfaces;
 
@@ -509,7 +510,7 @@ public static class SurfaceComparer
 
             if (needsSgr)
             {
-                var sgrParams = BuildSgrParameters(
+                var sgrBuilder = BuildSgrParameters(
                     change.Cell,
                     stateUnknown,
                     ref currentFg,
@@ -518,9 +519,9 @@ public static class SurfaceComparer
                     ref currentUnderlineStyle,
                     ref currentUnderlineColor);
                 
-                if (!string.IsNullOrEmpty(sgrParams))
+                if (sgrBuilder.Length > 0)
                 {
-                    tokens.Add(new SgrToken(sgrParams));
+                    tokens.Add(AnsiTokenCache.GetSgrToken(sgrBuilder));
                 }
                 stateUnknown = false;
             }
@@ -595,7 +596,7 @@ public static class SurfaceComparer
                 ? " " 
                 : change.Cell.Character;
             
-            tokens.Add(new TextToken(charToOutput));
+            tokens.Add(AnsiTokenCache.GetTextToken(charToOutput));
             
             // Cursor advances by display width
             cursorX += Math.Max(1, change.Cell.DisplayWidth);
@@ -802,7 +803,7 @@ public static class SurfaceComparer
                a.Value.AnsiIndex == b.Value.AnsiIndex;
     }
 
-    private static string BuildSgrParameters(
+    private static StringBuilder BuildSgrParameters(
         SurfaceCell targetCell,
         bool stateUnknown,
         ref Hex1bColor? currentFg,
@@ -811,7 +812,7 @@ public static class SurfaceComparer
         ref UnderlineStyle currentUnderlineStyle,
         ref Hex1bColor? currentUnderlineColor)
     {
-        var parts = new List<string>();
+        var sb = AnsiTokenCache.GetSgrBuilder();
 
         // Check if we need a reset first
         // Reset if: state is unknown, OR turning OFF any attributes, OR clearing colors
@@ -823,7 +824,7 @@ public static class SurfaceComparer
 
         if (needsReset)
         {
-            parts.Add("0"); // Reset to defaults
+            sb.Append('0'); // Reset to defaults
             currentAttrs = CellAttributes.None;
             currentFg = null;
             currentBg = null;
@@ -835,60 +836,45 @@ public static class SurfaceComparer
         var toTurnOn = targetCell.Attributes & ~currentAttrs;
 
         if ((toTurnOn & CellAttributes.Bold) != 0)
-            parts.Add("1");
+            AppendPart(sb, "1");
         if ((toTurnOn & CellAttributes.Dim) != 0)
-            parts.Add("2");
+            AppendPart(sb, "2");
         if ((toTurnOn & CellAttributes.Italic) != 0)
-            parts.Add("3");
+            AppendPart(sb, "3");
         if ((toTurnOn & CellAttributes.Underline) != 0)
         {
-            // Emit styled underline using colon sub-parameter syntax
-            var style = targetCell.UnderlineStyle;
-            parts.Add(style switch
-            {
-                UnderlineStyle.Double => "21",
-                UnderlineStyle.Curly => "4:3",
-                UnderlineStyle.Dotted => "4:4",
-                UnderlineStyle.Dashed => "4:5",
-                _ => "4", // Single or default
-            });
+            AppendPart(sb, UnderlineSgrCode(targetCell.UnderlineStyle));
         }
         else if ((currentAttrs & CellAttributes.Underline) != 0 &&
                  (targetCell.Attributes & CellAttributes.Underline) != 0 &&
                  targetCell.UnderlineStyle != currentUnderlineStyle)
         {
             // Underline is already on but style changed — re-emit with new style
-            var style = targetCell.UnderlineStyle;
-            parts.Add(style switch
-            {
-                UnderlineStyle.Double => "21",
-                UnderlineStyle.Curly => "4:3",
-                UnderlineStyle.Dotted => "4:4",
-                UnderlineStyle.Dashed => "4:5",
-                _ => "4",
-            });
+            AppendPart(sb, UnderlineSgrCode(targetCell.UnderlineStyle));
         }
         if ((toTurnOn & CellAttributes.Blink) != 0)
-            parts.Add("5");
+            AppendPart(sb, "5");
         if ((toTurnOn & CellAttributes.Reverse) != 0)
-            parts.Add("7");
+            AppendPart(sb, "7");
         if ((toTurnOn & CellAttributes.Hidden) != 0)
-            parts.Add("8");
+            AppendPart(sb, "8");
         if ((toTurnOn & CellAttributes.Strikethrough) != 0)
-            parts.Add("9");
+            AppendPart(sb, "9");
         if ((toTurnOn & CellAttributes.Overline) != 0)
-            parts.Add("53");
+            AppendPart(sb, "53");
 
         // Add foreground color if different
         if (!ColorsEqual(targetCell.Foreground, currentFg) && targetCell.Foreground is not null)
         {
-            parts.Add(BuildColorSgr(targetCell.Foreground.Value, isForeground: true));
+            AppendSeparator(sb);
+            AppendColorSgr(sb, targetCell.Foreground.Value, isForeground: true);
         }
 
         // Add background color if different
         if (!ColorsEqual(targetCell.Background, currentBg) && targetCell.Background is not null)
         {
-            parts.Add(BuildColorSgr(targetCell.Background.Value, isForeground: false));
+            AppendSeparator(sb);
+            AppendColorSgr(sb, targetCell.Background.Value, isForeground: false);
         }
 
         // Underline color (SGR 58;2;R;G;B)
@@ -897,11 +883,12 @@ public static class SurfaceComparer
             if (targetCell.UnderlineColor is not null)
             {
                 var ulc = targetCell.UnderlineColor.Value;
-                parts.Add($"58;2;{ulc.R};{ulc.G};{ulc.B}");
+                AppendSeparator(sb);
+                sb.Append("58;2;").Append(ulc.R).Append(';').Append(ulc.G).Append(';').Append(ulc.B);
             }
             else if (currentUnderlineColor is not null)
             {
-                parts.Add("59"); // Default underline color
+                AppendPart(sb, "59"); // Default underline color
             }
         }
 
@@ -912,18 +899,54 @@ public static class SurfaceComparer
         currentUnderlineStyle = targetCell.UnderlineStyle;
         currentUnderlineColor = targetCell.UnderlineColor;
 
-        return string.Join(";", parts);
+        return sb;
+    }
+
+    private static void AppendPart(StringBuilder sb, string part)
+    {
+        AppendSeparator(sb);
+        sb.Append(part);
+    }
+
+    private static void AppendSeparator(StringBuilder sb)
+    {
+        if (sb.Length > 0) sb.Append(';');
+    }
+
+    private static string UnderlineSgrCode(UnderlineStyle style) => style switch
+    {
+        UnderlineStyle.Double => "21",
+        UnderlineStyle.Curly => "4:3",
+        UnderlineStyle.Dotted => "4:4",
+        UnderlineStyle.Dashed => "4:5",
+        _ => "4",
+    };
+
+    private static void AppendColorSgr(StringBuilder sb, Hex1bColor color, bool isForeground)
+    {
+        switch (color.Kind)
+        {
+            case Hex1bColorKind.Standard:
+                sb.Append(isForeground ? 30 + color.AnsiIndex : 40 + color.AnsiIndex);
+                break;
+            case Hex1bColorKind.Bright:
+                sb.Append(isForeground ? 90 + color.AnsiIndex : 100 + color.AnsiIndex);
+                break;
+            case Hex1bColorKind.Indexed:
+                sb.Append(isForeground ? "38;5;" : "48;5;").Append(color.AnsiIndex);
+                break;
+            default:
+                sb.Append(isForeground ? "38;2;" : "48;2;")
+                  .Append(color.R).Append(';').Append(color.G).Append(';').Append(color.B);
+                break;
+        }
     }
 
     private static string BuildColorSgr(Hex1bColor color, bool isForeground)
     {
-        return color.Kind switch
-        {
-            Hex1bColorKind.Standard => (isForeground ? 30 + color.AnsiIndex : 40 + color.AnsiIndex).ToString(),
-            Hex1bColorKind.Bright => (isForeground ? 90 + color.AnsiIndex : 100 + color.AnsiIndex).ToString(),
-            Hex1bColorKind.Indexed => $"{(isForeground ? "38;5" : "48;5")};{color.AnsiIndex}",
-            _ => $"{(isForeground ? "38;2" : "48;2")};{color.R};{color.G};{color.B}"
-        };
+        var sb = new StringBuilder(16);
+        AppendColorSgr(sb, color, isForeground);
+        return sb.ToString();
     }
 
     #endregion
