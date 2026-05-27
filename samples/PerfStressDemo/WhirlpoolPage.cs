@@ -91,11 +91,11 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float MinStrength = 0.3f;
     private const float MaxStrength = 4.0f;
 
-    private const float DrainReachInitial   = 2.0f;
-    private const float DrainReachMax       = 18f;
-    private const int   DrainReachRampFrames = 300;
-    private const float DrainDiscRadiusMax  = 10f;
-    private const float DrainDensity        = 0.75f;
+    private const float DrainReachInitial   = 4.0f;
+    private const float DrainReachMax       = 22f;
+    private const int   DrainReachRampFrames = 90;
+    private const float DrainDiscRadiusMax  = 16f;
+    private const float DrainDensity        = 1.5f;
     private const float PullStrength        = 0.35f; // peak inward accel per frame at drain centre
     private const float SwirlStrength       = 0.60f; // peak tangential accel per frame
 
@@ -115,8 +115,8 @@ internal sealed class WhirlpoolPage : IStressPage
     private bool _inletActive;
     private int _inletCx;
     private int _inletCy;
-    private const int InletVoxelsPerFrame = 10;
-    private const float InletRadius  = 3f;
+    private const int InletVoxelsPerFrame = 60;
+    private const float InletRadius  = 5f;
 
     private bool _quiescent = true;
     public bool IsIdle => _quiescent;
