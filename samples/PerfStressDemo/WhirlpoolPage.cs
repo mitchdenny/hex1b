@@ -1,3 +1,4 @@
+using System.Numerics;
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Surfaces;
@@ -9,167 +10,128 @@ namespace PerfStressDemo;
 /// <summary>
 /// Page 3 — "Whirlpool".
 ///
-/// Top-down water simulated on a half-block grid (each terminal cell
-/// renders as <c>▀</c> with foreground = top sub-cell colour and
-/// background = bottom sub-cell colour, doubling the vertical
-/// simulation resolution). Two layered physics fields:
-/// <list type="bullet">
-///   <item><b>Baseline depth</b> — slow-evolving bulk water level in
-///         <c>[0, 1]</c>. Drain consumes it at the cursor; refill
-///         relaxes the edges back toward full when the drain is shut.
-///         Semi-Lagrangian-advected by a potential-flow velocity
-///         field while the drain is open, which spirals the radial
-///         depth dip into logarithmic-spiral contours.</item>
-///   <item><b>Wave field</b> — high-frequency signed displacement
-///         around zero, evolved by the same 2D wave-equation scheme
-///         as the pond page (ping-pong buffers, neighbour-average
-///         minus previous, damped). Sources of energy:
-///         a continuous negative impulse at the drain (turbulence at
-///         the hole), continuous positive impulses along the edges
-///         during refill (water rushing in), and a sprinkle of
-///         random small chop while anything is active (the ocean's
-///         own movement).</item>
+/// A voxel-column fluid simulation, viewed top-down.
+///
+/// The "tank" is the interior of the screen: a 1-cell-thick solid
+/// border surrounds a rectangular pool whose floor is at the bottom
+/// of every interior column. Each interior sub-cell stores a
+/// <c>uint</c> bitmap of up to <see cref="D"/> stacked water voxels,
+/// gravity-compacted to the low bits (the tank floor). The top-down
+/// renderer colours each sub-cell purely by its column's bit-count
+/// (popcount), so a deeper column is darker blue and an empty one
+/// shows the sandy floor.
+///
+/// Physics is three cellular-automaton rules over the column grid:
+/// <list type="number">
+///   <item><b>Drain</b> — when the user opens the hole, voxels are
+///         removed from random columns within a small disc each
+///         frame. The disc grows from a dimple to its full width
+///         over a few seconds so the whirlpool forms locally before
+///         pulling water from further out.</item>
+///   <item><b>Tangential rotation</b> — within the drain's reach,
+///         each column probabilistically donates a single voxel to
+///         the neighbour in its tangential direction (perpendicular
+///         to the radial vector from the drain), with probability
+///         falling off as a Gaussian of the radius. This is what
+///         spins the water into a visible whirlpool.</item>
+///   <item><b>Lateral pressure</b> — between every adjacent pair of
+///         columns, if the height difference exceeds 1 voxel, move
+///         a single voxel from the taller to the shorter. Done in
+///         two phases per axis (even/odd parity) for race-free
+///         transfer. This is the slow, granular "flow" you see
+///         carrying outer water toward the developing whirlpool.</item>
 /// </list>
 ///
-/// Display blends the two: each sub-cell renders
-/// <c>baseline + WaveDisplayScale * wave</c>, clamped to <c>[0, 1]</c>
-/// and lerped through the sand → shallow → deep colour ramp.
+/// When the drain is closed, a roaming inlet drips voxels into a
+/// random interior column, refilling the tank. When every column is
+/// full and nothing is moving, the page reports IsIdle so the
+/// framework can sleep.
 ///
-/// Controls:
-/// <list type="bullet">
-///   <item><b>Left click</b> — open the drain at the cursor. Water
-///         drains; if held long enough the basin empties completely.</item>
-///   <item><b>Right click</b> — close the drain. The basin refills
-///         from the edges; once full and the ripples die out, the
-///         page reports IsIdle and the framework sleeps.</item>
-///   <item><b>Scroll up/down</b> — adjust drain strength.</item>
-/// </list>
+/// Controls: left click opens the drain at the cursor (and resets
+/// the reach ramp), right click closes it, scroll up/down adjusts
+/// drain strength.
 /// </summary>
 internal sealed class WhirlpoolPage : IStressPage
 {
     public string Name => "Whirlpool";
 
     public string Description =>
-        "Layered baseline + wave-equation water. Left click drains; "
-        + "right click refills from the edges; scroll for drain strength.";
+        "Voxel-column fluid: each interior sub-cell stores up to "
+        + "16 stacked water voxels in a uint bitmap. Drain, tangential "
+        + "rotation, and lateral pressure all run as cellular rules.";
 
     // ----------------------------------------------------------------
-    // Baseline depth grid. _depth[y * dotWidth + x] holds the water
-    // depth in [0, MaxDepth] for sub-cell (x, y). _delta is a scratch
-    // buffer used both as the advection destination and as the
-    // diffusion delta accumulator.
+    // Voxel column geometry. D = max voxels per column, so a full
+    // column is FullColumn = (1u << D) - 1. Storing as uint keeps the
+    // entire grid SIMD-friendly for later (Vector<uint>.PopCount on
+    // .NET 8+).
     // ----------------------------------------------------------------
-    private float[] _depth = Array.Empty<float>();
-    private float[] _delta = Array.Empty<float>();
-    private int _surfaceWidth;
-    private int _surfaceHeight;
-    private int _dotWidth;
-    private int _dotHeight;
+    private const int D = 16;
+    private const uint FullColumn = (1u << D) - 1u;
+
+    private uint[] _columns = Array.Empty<uint>();
+    private int _screenW;     // surface width  (cells, including walls)
+    private int _screenH;     // surface height (cells, including walls)
+    private int _dw;          // interior width  in sub-cells (columns array X)
+    private int _dh;          // interior height in sub-cells (columns array Y)
+
+    // Wall thickness is 1 cell on each side of the screen — the
+    // "tank" pool is the inner rectangle. Sub-cell offsets place the
+    // interior columns into the right physical region of the screen.
+    private const int WallCells = 1;
 
     // ----------------------------------------------------------------
-    // Wave field — pond-style 2D wave equation with ping-pong
-    // buffers. _wave / _wavePrev oscillate around zero; the renderer
-    // adds a scaled fraction onto the baseline depth for the final
-    // sub-cell value.
-    // ----------------------------------------------------------------
-    private float[] _wave = Array.Empty<float>();
-    private float[] _wavePrev = Array.Empty<float>();
-
-    // ----------------------------------------------------------------
-    // Drain state. _drainActive gates consumption; placement (left
-    // click) and removal (right click) are independent.
+    // Drain state.
     // ----------------------------------------------------------------
     private bool _drainActive;
-    private float _drainX;
-    private float _drainY;
+    private int _drainCx;          // drain column (interior sub-cell coords)
+    private int _drainCy;
     private float _strength = 1.0f;
-    private int _frame;
-    private int _drainOpenFrames;  // resets to 0 every time drain re-opens; clamps growth of reach
+    private int _drainOpenFrames;
     private const float MinStrength = 0.3f;
     private const float MaxStrength = 4.0f;
 
-    // ----------------------------------------------------------------
-    // Physics constants — baseline.
-    // ----------------------------------------------------------------
-    private const float MaxDepth = 1.0f;
-    private const float DiffusionK = 0.045f;
-    private const float DrainRadius = 6.5f;        // sub-cells (max consumption disc radius)
-    private const float DrainPerFrameBase = 0.32f;
-    private const float DrainReachInitial = 2.5f;   // initial Gaussian sigma for advection window
-    private const float DrainReachMax     = 28f;    // peak Gaussian sigma for advection window
-    private const int   DrainReachRampFrames = 360; // ~6s @ 60fps to reach full whirlpool extent
-    private const float MaxDrainPerFrame  = 7f;     // total depth-units consumed across the disc per frame
-    // Refill (drain off): water enters through a single roaming
-    // inlet that fades in/out on the edge of the basin. Diffusion
-    // already moves water from high to low, so a localised source is
-    // enough — the fluid will visibly flow toward whatever cell has
-    // the least water.
-    private const float InletInjectRate = 0.32f;    // per-frame approach toward MaxDepth at jet head
-    private const float InletRadius     = 7.5f;     // sub-cells (deposit radius around jet head)
-    private const int   InletLifetime   = 160;      // frames of the fade-in/peak/fade-out envelope
-    private const int   InletGapMin     = 0;
-    private const int   InletGapMax     = 10;
-    private const float InletJetSpeed   = 1.4f;     // sub-cells per frame — jet head march speed
-    private const float InletWaveImpulse = 0.55f;   // splat at jet head per frame, scaled by envelope
-    private const int   InletChopPerFrame = 8;      // turbulent chop sites sprayed around jet head
-    private const float InletChopRadius = 12f;      // radius (sub-cells) of the chop spray cloud
-    private const float InletChopAmplitude = 0.18f; // per-impulse amplitude of jet-head chop
+    private const float DrainReachInitial = 2.0f;   // initial Gaussian sigma + drain disc radius
+    private const float DrainReachMax     = 18f;
+    private const int   DrainReachRampFrames = 360;
+    private const float DrainDiscRadiusMax = 11f;
+    private const float DrainDensity      = 0.5f;    // voxels removed per disc-area unit per frame
+    private const float TangentialBiasBase = 0.7f;   // peak probability of a tangential donation per column per frame
 
     // ----------------------------------------------------------------
-    // Physics constants — wave equation. Matches pond's "light"
-    // preset feel: lively but settles in reasonable time without
-    // continuous forcing.
+    // Lateral / pressure equalisation. Move at most 1 voxel per pair
+    // per frame whenever |dh| > LateralThreshold — keeps the flow
+    // visibly granular.
     // ----------------------------------------------------------------
-    private const float WaveDamping = 0.985f;
-    private const float WaveDisplayScale = 0.32f;   // how much wave modulates rendered depth
-    private const float WaveFloor = 0.005f;          // floor for "alive" tracking
-    private const float WaveDepthThreshold = 0.08f;  // suppress wave injection / display below this depth
-    private const float DrainImpulse = -0.18f;       // per frame, at drain centre
-    private const float ChopAmplitude = 0.06f;       // random impulse magnitude while active
-    private const int   ChopPerFrame = 4;            // random chop sites per frame while active
+    private const int LateralThreshold = 1;
 
     // ----------------------------------------------------------------
-    // Potential-flow velocity field for advection of the baseline:
-    //   v(r) = -Q/(r+s) r_hat + G/(r+s) theta_hat
-    // With G ≈ 2Q the streamlines are ~63° spirals. VelocitySoftening
-    // tames the 1/0 singularity at the drain centre.
+    // Refill — roaming inlet that drips voxels into one interior
+    // column at a time. No jet/wave splash here; the discrete voxel
+    // accumulation IS the visible motion.
     // ----------------------------------------------------------------
-    private const float SinkStrength = 9.0f;
-    private const float SwirlStrength = 18.0f;
-    private const float VelocitySoftening = 2.5f;
-
-    // ----------------------------------------------------------------
-    // Inlet — one localised refill source at a time. Picked at random
-    // on the basin edge, fades in over its lifetime, then a short
-    // gap, then a new inlet at a new location.
-    // ----------------------------------------------------------------
-    private float _inletX;       // inlet spawn point (sub-cell coords)
+    private float _inletX;
     private float _inletY;
-    private float _inletDirX;    // inward unit vector
-    private float _inletDirY;
-    private int _inletAge;       // frames since spawn, 0 if inactive
-    private int _inletGap;       // frames until next inlet spawns
-    private float _inletEnvelope; // 0..1 amplitude this frame
-    private float _jetX;         // current jet head position (sub-cell coords)
-    private float _jetY;
+    private int _inletAge;
+    private int _inletGap;
+    private const int InletLifetime = 80;
+    private const int InletGapMin = 0;
+    private const int InletGapMax = 10;
+    private const int InletVoxelsPerFrame = 8;
+    private const float InletRadius = 3f;
 
     // ----------------------------------------------------------------
-    // Activity tracking. _activity ramps to 1 whenever something is
-    // happening (drain open OR basin not full) and decays to 0 when
-    // everything settles. Used to gate wave-injection (chop / refill
-    // impulses) and IsIdle.
+    // Activity / idleness.
     // ----------------------------------------------------------------
-    private float _activity;
-    private const float ActivityDecay = 0.04f;       // per frame when no activity
-
     private bool _quiescent = true;
     public bool IsIdle => _quiescent;
 
-    // Status-bar accessors.
     public static float CurrentStrength { get; private set; } = 1.0f;
     public static bool DrainOpen { get; private set; }
 
-    // xorshift32 RNG — small, fast, deterministic seed.
+    // ----------------------------------------------------------------
+    // Fast deterministic RNG (xorshift32).
+    // ----------------------------------------------------------------
     private uint _rng = 0xDEADBEEFu;
     private uint NextRandom()
     {
@@ -180,39 +142,42 @@ internal sealed class WhirlpoolPage : IStressPage
     }
     private float NextFloat() => (NextRandom() & 0xFFFFFF) / (float)0x1000000;
 
-    // Colour stops. Pre-built as byte triples so the per-cell lerp
-    // doesn't allocate.
+    // ----------------------------------------------------------------
+    // Colour stops.
+    // ----------------------------------------------------------------
     private static readonly (byte R, byte G, byte B) SandColour    = (235, 215, 175);
     private static readonly (byte R, byte G, byte B) ShallowColour = (160, 220, 245);
     private static readonly (byte R, byte G, byte B) MidColour     = (40, 130, 200);
     private static readonly (byte R, byte G, byte B) DeepColour    = (8, 40, 100);
+    private static readonly Hex1bColor WallColour = Hex1bColor.FromRgb(70, 55, 40);
+    private static readonly Hex1bColor WallTrim   = Hex1bColor.FromRgb(40, 30, 22);
+    private static readonly Hex1bColor HoleColour = Hex1bColor.FromRgb(8, 8, 12);
 
     public Hex1bWidget Build(StressContext sc)
     {
-        // Surface alone doesn't route mouse events; Interactable does.
+        // Surface alone doesn't route mouse; Interactable does.
         var widget = sc.Root.Interactable(ic =>
             ic.Surface(layer =>
             {
                 EnsureField(layer.Width, layer.Height);
                 Step();
-                return new[] { layer.Layer(DrawWater) };
+                return new[] { layer.Layer(DrawTank) };
             }))
             .InputBindings(bindings =>
             {
                 bindings.Mouse(MouseButton.Left).Action(ctx =>
                 {
-                    if (ctx.MouseX < 0 || ctx.MouseY < 0) return;
-                    _drainX = ctx.MouseX;
-                    _drainY = ctx.MouseY;
-                    if (!_drainActive) _drainOpenFrames = 0; // ramp reach from scratch each open
+                    if (!TryMouseToInteriorColumn(ctx.MouseX, ctx.MouseY, out var icx, out var icy))
+                        return;
+                    _drainCx = icx;
+                    _drainCy = icy;
+                    if (!_drainActive) _drainOpenFrames = 0;
                     _drainActive = true;
-                    _activity = 1f;
                     _quiescent = false;
                 });
                 bindings.Mouse(MouseButton.Right).Action(_ =>
                 {
                     _drainActive = false;
-                    // Don't flip _quiescent — refill still has work to do.
                 });
                 bindings.Mouse(MouseButton.ScrollUp).Action(_ =>
                 {
@@ -227,562 +192,386 @@ internal sealed class WhirlpoolPage : IStressPage
         return _quiescent ? widget : widget.RedrawAfter(sc.RedrawIntervalMs);
     }
 
+    private bool TryMouseToInteriorColumn(int mouseX, int mouseY, out int icx, out int icy)
+    {
+        icx = mouseX - WallCells;
+        // Use the bottom sub-cell of the clicked cell as the drain
+        // centre so the hole's vertical position matches what the
+        // user sees their cursor over.
+        icy = (mouseY - WallCells) * 2 + 1;
+        if (mouseX < WallCells || mouseX >= _screenW - WallCells) return false;
+        if (mouseY < WallCells || mouseY >= _screenH - WallCells) return false;
+        if (icx < 0 || icx >= _dw || icy < 0 || icy >= _dh) return false;
+        return true;
+    }
+
     private void EnsureField(int w, int h)
     {
-        if (_surfaceWidth == w && _surfaceHeight == h && _depth.Length > 0)
-            return;
-        _surfaceWidth = w;
-        _surfaceHeight = h;
-        _dotWidth = w;
-        _dotHeight = h * 2;
-        var n = _dotWidth * _dotHeight;
-        _depth = new float[n];
-        _delta = new float[n];
-        _wave = new float[n];
-        _wavePrev = new float[n];
-        Array.Fill(_depth, MaxDepth);
-        _activity = 0f;
+        if (_screenW == w && _screenH == h && _columns.Length > 0) return;
+        _screenW = w;
+        _screenH = h;
+        var interiorW = Math.Max(0, w - 2 * WallCells);
+        var interiorH = Math.Max(0, h - 2 * WallCells);
+        _dw = interiorW;
+        _dh = interiorH * 2;
+        _columns = new uint[_dw * _dh];
+        Array.Fill(_columns, FullColumn);
         _quiescent = true;
+        _drainActive = false;
+        _drainOpenFrames = 0;
+        _inletAge = 0;
+        _inletGap = 0;
     }
 
     private void Step()
     {
-        if (_depth.Length == 0) return;
-        _frame++;
+        if (_columns.Length == 0) return;
         CurrentStrength = _strength;
         DrainOpen = _drainActive;
 
-        var dw = _dotWidth;
-        var dh = _dotHeight;
-        var depth = _depth;
-        var delta = _delta;
+        var changed = false;
 
-        // ---- Pass 0: advection of baseline when drain is open. Same
-        //      analytic potential-flow field that drives the spiral
-        //      look in the original whirlpool draft. Velocity is
-        //      windowed by a Gaussian centred on the drain whose
-        //      sigma ramps from DrainReachInitial to DrainReachMax
-        //      over DrainReachRampFrames — that gives the whirlpool
-        //      time to form locally before the outer water joins in.
         if (_drainActive)
         {
             _drainOpenFrames++;
-            AdvectField(depth, delta, dw, dh);
-            (depth, delta) = (delta, depth);
-            _depth = depth;
-            _delta = delta;
+            changed |= ApplyDrain();
+            changed |= ApplyTangential();
         }
 
-        Array.Clear(delta, 0, delta.Length);
+        changed |= ApplyLateralX();
+        changed |= ApplyLateralY();
 
-        // ---- Pass 1: gentle diffusion of baseline.
-        var anyFlow = false;
-        for (var y = 0; y < dh; y++)
+        var basinFull = IsBasinFull();
+        if (!_drainActive && !basinFull)
         {
-            var row = y * dw;
-            for (var x = 0; x < dw; x++)
-            {
-                var i = row + x;
-                var di = depth[i];
-                if (x + 1 < dw)
-                {
-                    var j = i + 1;
-                    var f = (di - depth[j]) * DiffusionK;
-                    if (f != 0f) anyFlow = true;
-                    delta[i] -= f;
-                    delta[j] += f;
-                }
-                if (y + 1 < dh)
-                {
-                    var j = i + dw;
-                    var f = (di - depth[j]) * DiffusionK;
-                    if (f != 0f) anyFlow = true;
-                    delta[i] -= f;
-                    delta[j] += f;
-                }
-            }
-        }
-
-        var changed = anyFlow;
-        for (var i = 0; i < depth.Length; i++)
-        {
-            var d = depth[i] + delta[i];
-            if (d < 0f) d = 0f;
-            else if (d > MaxDepth) d = MaxDepth;
-            depth[i] = d;
-        }
-
-        // ---- Pass 2: drain (consume baseline at cursor) or refill
-        //      (pull baseline back up toward MaxDepth from edges).
-        var basinFull = true;
-        if (_drainActive)
-        {
-            changed |= ApplyDrain(depth, dw, dh);
-            basinFull = false; // doesn't matter, _drainActive forces activity
+            changed |= ApplyRefill();
         }
         else
         {
-            changed |= ApplyRefill(depth, dw, dh, out basinFull);
+            _inletAge = 0;
+            _inletGap = 0;
         }
 
-        // ---- Pass 3: activity tracking. Wave injection, chop, and
-        //      idleness all key off this single scalar.
-        if (_drainActive || !basinFull)
-        {
-            _activity = 1f;
-        }
-        else
-        {
-            _activity = MathF.Max(0f, _activity - ActivityDecay);
-        }
-        var active = _activity > 0.05f;
-
-        // ---- Pass 4: inject impulses into the wave field, then run
-        //      the wave-equation step. Wave runs every frame so
-        //      energy injected last frame propagates immediately.
-        if (active)
-        {
-            InjectWaveImpulses(dw, dh);
-        }
-        var waveAlive = WaveStep(dw, dh);
-
-        _quiescent = !changed && !active && !waveAlive;
+        _quiescent = !changed && !_drainActive && basinFull;
     }
 
-    /// <summary>
-    /// Returns the current Gaussian sigma for the drain's influence
-    /// window, ramping smoothly from <see cref="DrainReachInitial"/>
-    /// to <see cref="DrainReachMax"/> over
-    /// <see cref="DrainReachRampFrames"/> frames since the drain was
-    /// opened. Used to size both the consumption disc and the
-    /// advection velocity window.
-    /// </summary>
+    // ----------------------------------------------------------------
+    // Column helpers — keep the bitmap representation consistent.
+    // Voxels stack from bit 0 (floor) upward, so a column of height h
+    // is (1 << h) - 1. PopCount gives the height in O(1) hardware op.
+    // ----------------------------------------------------------------
+    private static int Height(uint col) => BitOperations.PopCount(col);
+    private static uint MakeCol(int height)
+    {
+        if (height <= 0) return 0u;
+        if (height >= D) return FullColumn;
+        return (1u << height) - 1u;
+    }
+
     private float CurrentDrainReach()
     {
         var t = MathF.Min(1f, _drainOpenFrames / (float)DrainReachRampFrames);
-        var s = t * t * (3f - 2f * t); // smoothstep
+        var s = t * t * (3f - 2f * t);
         return DrainReachInitial + (DrainReachMax - DrainReachInitial) * s;
     }
 
-    private bool ApplyDrain(float[] depth, int dw, int dh)
+    // ----------------------------------------------------------------
+    // Drain — remove the top voxel from a random sample of columns
+    // within a disc around the drain centre. The disc starts as a
+    // dimple and grows with the drain's reach.
+    // ----------------------------------------------------------------
+    private bool ApplyDrain()
     {
-        var cx = _drainX;
-        var cy = _drainY * 2 + 0.5f;
-        // Disc radius grows with the reach but is capped at DrainRadius —
-        // the hole itself never exceeds the original physical drain.
         var reach = CurrentDrainReach();
-        var radius = MathF.Min(DrainRadius, reach);
-        var rate = DrainPerFrameBase * _strength;
-        var r2 = radius * radius;
-        var x0 = Math.Max(0, (int)(cx - radius));
-        var x1 = Math.Min(dw - 1, (int)(cx + radius + 0.5f));
-        var y0 = Math.Max(0, (int)(cy - radius * 2));
-        var y1 = Math.Min(dh - 1, (int)(cy + radius * 2 + 0.5f));
+        var discR = MathF.Min(DrainDiscRadiusMax, reach * 0.7f + 0.5f);
+        if (discR < 0.5f) discR = 0.5f;
+        var discR2 = discR * discR;
+        var discArea = MathF.PI * discR2;
+        var k = (int)MathF.Max(1f, discArea * DrainDensity * _strength);
+        var x0 = Math.Max(0, (int)(_drainCx - discR));
+        var x1 = Math.Min(_dw - 1, (int)(_drainCx + discR + 0.5f));
+        var y0 = Math.Max(0, (int)(_drainCy - discR));
+        var y1 = Math.Min(_dh - 1, (int)(_drainCy + discR + 0.5f));
+        var spanW = x1 - x0 + 1;
+        var spanH = y1 - y0 + 1;
+        if (spanW <= 0 || spanH <= 0) return false;
 
-        // First pass: gather raw per-cell consumption requests; cap
-        // total egress at MaxDrainPerFrame * strength so the drain
-        // can't slurp arbitrary amounts when sitting on full water.
-        Span<float> requests = stackalloc float[(x1 - x0 + 1) * (y1 - y0 + 1)];
-        var dw1 = x1 - x0 + 1;
-        var total = 0f;
-        for (var y = y0; y <= y1; y++)
-        {
-            var ry = (y - y0) * dw1;
-            for (var x = x0; x <= x1; x++)
-            {
-                var dx = x - cx;
-                var dy = (y - cy) * 0.5f;
-                var d2 = dx * dx + dy * dy;
-                if (d2 > r2) { requests[ry + (x - x0)] = 0f; continue; }
-                var falloff = 1f - MathF.Sqrt(d2) / radius;
-                var sub = rate * falloff;
-                var available = depth[y * dw + x];
-                if (sub > available) sub = available;
-                requests[ry + (x - x0)] = sub;
-                total += sub;
-            }
-        }
-
-        var cap = MaxDrainPerFrame * _strength;
-        var scale = (total > cap && total > 0f) ? cap / total : 1f;
         var changed = false;
-        for (var y = y0; y <= y1; y++)
+        for (var n = 0; n < k; n++)
         {
-            var ry = (y - y0) * dw1;
-            for (var x = x0; x <= x1; x++)
+            var rx = x0 + (int)(NextFloat() * spanW);
+            var ry = y0 + (int)(NextFloat() * spanH);
+            var dx = rx - _drainCx;
+            var dy = ry - _drainCy;
+            if (dx * dx + dy * dy > discR2) continue;
+            var i = ry * _dw + rx;
+            var col = _columns[i];
+            if (col == 0u) continue;
+            // Remove the top voxel (column height shrinks by one).
+            _columns[i] = MakeCol(Height(col) - 1);
+            changed = true;
+        }
+        return changed;
+    }
+
+    // ----------------------------------------------------------------
+    // Tangential rotation — for columns near the drain, with
+    // Gaussian-falloff probability donate one voxel to the neighbour
+    // in the tangential (perpendicular-to-radial) direction. This is
+    // what makes the water visibly spin into the hole.
+    // ----------------------------------------------------------------
+    private bool ApplyTangential()
+    {
+        var cx = (float)_drainCx;
+        var cy = (float)_drainCy;
+        var reach = CurrentDrainReach();
+        var twoReach2 = 2f * reach * reach;
+        var skip2 = (3f * reach) * (3f * reach);
+        var biasPeak = TangentialBiasBase * _strength;
+        var changed = false;
+
+        for (var y = 0; y < _dh; y++)
+        {
+            var dyc = y - cy;
+            var row = y * _dw;
+            for (var x = 0; x < _dw; x++)
             {
-                var sub = requests[ry + (x - x0)] * scale;
-                if (sub <= 0f) continue;
-                var i = y * dw + x;
-                var nv = depth[i] - sub;
-                if (nv < 0f) nv = 0f;
-                if (nv != depth[i]) { depth[i] = nv; changed = true; }
+                var dxc = x - cx;
+                var d2 = dxc * dxc + dyc * dyc;
+                if (d2 > skip2 || d2 < 0.5f) continue;
+                var prob = biasPeak * MathF.Exp(-d2 / twoReach2);
+                if (NextFloat() > prob) continue;
+
+                var r = MathF.Sqrt(d2);
+                // Tangential = perpendicular to radial (CCW): rotate
+                // (dxc/r, dyc/r) by 90°.
+                var tx = -dyc / r;
+                var ty = dxc / r;
+                var nx = x + (tx > 0.4f ? 1 : tx < -0.4f ? -1 : 0);
+                var ny = y + (ty > 0.4f ? 1 : ty < -0.4f ? -1 : 0);
+                if (nx == x && ny == y) continue;
+                if ((uint)nx >= (uint)_dw || (uint)ny >= (uint)_dh) continue;
+
+                var srcIdx = row + x;
+                var dstIdx = ny * _dw + nx;
+                var srcH = Height(_columns[srcIdx]);
+                var dstH = Height(_columns[dstIdx]);
+                if (srcH == 0 || dstH >= D) continue;
+                _columns[srcIdx] = MakeCol(srcH - 1);
+                _columns[dstIdx] = MakeCol(dstH + 1);
+                changed = true;
             }
         }
         return changed;
     }
 
-    /// <summary>
-    /// Drives baseline refill via a single localised inlet that
-    /// spawns at a random point on the basin edge, then marches a
-    /// "jet head" inward at <see cref="InletJetSpeed"/> sub-cells per
-    /// frame. Each frame we deposit water around the jet head and
-    /// raise the inlet's amplitude envelope (triangular over
-    /// <see cref="InletLifetime"/> frames). Diffusion does the rest
-    /// of the work — water flows from the freshly-injected region
-    /// toward whatever cells have the least depth. After the inlet
-    /// expires we wait <see cref="InletGapMin"/>..<see cref="InletGapMax"/>
-    /// frames and spawn a new one somewhere else.
-    /// <paramref name="basinFull"/> is set true if every cell ended
-    /// up within a small epsilon of MaxDepth — used by the activity
-    /// tracker so the page can eventually IsIdle.
-    /// </summary>
-    private bool ApplyRefill(float[] depth, int dw, int dh, out bool basinFull)
+    // ----------------------------------------------------------------
+    // Lateral pressure on the X axis. Two phases: process pairs
+    // starting at even x, then pairs starting at odd x. Race-free
+    // because no column appears in two pairs in the same phase.
+    // ----------------------------------------------------------------
+    private bool ApplyLateralX()
     {
-        // Snapshot fullness before deposition so the inlet keeps
-        // running until the basin is truly full.
-        basinFull = true;
-        var basMax = MaxDepth - 0.003f;
-        for (var i = 0; i < depth.Length; i++)
+        var changed = false;
+        for (var phase = 0; phase < 2; phase++)
         {
-            if (depth[i] < basMax) { basinFull = false; break; }
+            for (var y = 0; y < _dh; y++)
+            {
+                var row = y * _dw;
+                for (var x = phase; x + 1 < _dw; x += 2)
+                {
+                    var i = row + x;
+                    var j = i + 1;
+                    var ha = Height(_columns[i]);
+                    var hb = Height(_columns[j]);
+                    var diff = ha - hb;
+                    if (diff > LateralThreshold)
+                    {
+                        _columns[i] = MakeCol(ha - 1);
+                        _columns[j] = MakeCol(hb + 1);
+                        changed = true;
+                    }
+                    else if (diff < -LateralThreshold)
+                    {
+                        _columns[i] = MakeCol(ha + 1);
+                        _columns[j] = MakeCol(hb - 1);
+                        changed = true;
+                    }
+                }
+            }
         }
-        if (basinFull)
-        {
-            _inletAge = 0;
-            _inletEnvelope = 0f;
-            return false;
-        }
+        return changed;
+    }
 
-        // Inlet lifecycle.
+    private bool ApplyLateralY()
+    {
+        var changed = false;
+        for (var phase = 0; phase < 2; phase++)
+        {
+            for (var y = phase; y + 1 < _dh; y += 2)
+            {
+                var row = y * _dw;
+                var nextRow = row + _dw;
+                for (var x = 0; x < _dw; x++)
+                {
+                    var i = row + x;
+                    var j = nextRow + x;
+                    var ha = Height(_columns[i]);
+                    var hb = Height(_columns[j]);
+                    var diff = ha - hb;
+                    if (diff > LateralThreshold)
+                    {
+                        _columns[i] = MakeCol(ha - 1);
+                        _columns[j] = MakeCol(hb + 1);
+                        changed = true;
+                    }
+                    else if (diff < -LateralThreshold)
+                    {
+                        _columns[i] = MakeCol(ha + 1);
+                        _columns[j] = MakeCol(hb - 1);
+                        changed = true;
+                    }
+                }
+            }
+        }
+        return changed;
+    }
+
+    // ----------------------------------------------------------------
+    // Refill — drip InletVoxelsPerFrame voxels into a small disc
+    // around a roaming inlet point, picking a fresh point every
+    // InletLifetime frames with a short cooldown between.
+    // ----------------------------------------------------------------
+    private bool ApplyRefill()
+    {
         if (_inletAge == 0)
         {
-            if (_inletGap > 0) { _inletGap--; _inletEnvelope = 0f; return false; }
-            SpawnInlet(dw, dh);
+            if (_inletGap > 0) { _inletGap--; return false; }
+            // New inlet anywhere in the interior — gives a "rain
+            // dropping into the tank" feel rather than only edges.
+            _inletX = NextFloat() * _dw;
+            _inletY = NextFloat() * _dh;
         }
         _inletAge++;
         if (_inletAge >= InletLifetime)
         {
             _inletAge = 0;
-            _inletEnvelope = 0f;
-            _inletGap = InletGapMin + (int)(NextFloat() * (InletGapMax - InletGapMin));
+            _inletGap = InletGapMin + (int)(NextFloat() * (InletGapMax - InletGapMin + 1));
             return false;
         }
 
-        // Triangular envelope 0 → 1 → 0 over the inlet lifetime.
-        var t = _inletAge / (float)InletLifetime;
-        var env = 4f * t * (1f - t);
-        _inletEnvelope = env;
-
-        // March the jet head inward.
-        _jetX = _inletX + _inletDirX * InletJetSpeed * _inletAge;
-        _jetY = _inletY + _inletDirY * InletJetSpeed * _inletAge;
-
-        // Deposit baseline water at the jet head.
-        var rate = InletInjectRate * env;
         var r = InletRadius;
         var r2 = r * r;
-        var x0 = Math.Max(0, (int)(_jetX - r));
-        var x1 = Math.Min(dw - 1, (int)(_jetX + r + 0.5f));
-        var y0 = Math.Max(0, (int)(_jetY - r));
-        var y1 = Math.Min(dh - 1, (int)(_jetY + r + 0.5f));
+        var x0 = Math.Max(0, (int)(_inletX - r));
+        var x1 = Math.Min(_dw - 1, (int)(_inletX + r + 0.5f));
+        var y0 = Math.Max(0, (int)(_inletY - r));
+        var y1 = Math.Min(_dh - 1, (int)(_inletY + r + 0.5f));
+        var spanW = x1 - x0 + 1;
+        var spanH = y1 - y0 + 1;
+        if (spanW <= 0 || spanH <= 0) return false;
+
         var changed = false;
-        for (var y = y0; y <= y1; y++)
+        for (var n = 0; n < InletVoxelsPerFrame; n++)
         {
-            for (var x = x0; x <= x1; x++)
-            {
-                var dx = x - _jetX;
-                var dy = y - _jetY;
-                var d2 = dx * dx + dy * dy;
-                if (d2 > r2) continue;
-                var falloff = 1f - MathF.Sqrt(d2) / r;
-                var localRate = rate * falloff;
-                if (localRate <= 0f) continue;
-                var i = y * dw + x;
-                var d = depth[i];
-                var nv = d + (MaxDepth - d) * localRate;
-                if (nv > MaxDepth) nv = MaxDepth;
-                if (nv != d) { depth[i] = nv; changed = true; }
-            }
+            var rx = x0 + (int)(NextFloat() * spanW);
+            var ry = y0 + (int)(NextFloat() * spanH);
+            var dx = rx - _inletX;
+            var dy = ry - _inletY;
+            if (dx * dx + dy * dy > r2) continue;
+            var i = ry * _dw + rx;
+            var col = _columns[i];
+            var h = Height(col);
+            if (h >= D) continue;
+            _columns[i] = MakeCol(h + 1);
+            changed = true;
         }
         return changed;
     }
 
-    /// <summary>
-    /// Picks a random spot on one of the four edges of the basin,
-    /// records the inward-pointing unit vector from that spot to the
-    /// basin centre, and resets the inlet age.
-    /// </summary>
-    private void SpawnInlet(int dw, int dh)
+    private bool IsBasinFull()
     {
-        var edge = NextRandom() & 3;
-        switch (edge)
+        var cols = _columns;
+        for (var i = 0; i < cols.Length; i++)
         {
-            case 0: _inletX = NextFloat() * dw; _inletY = 0f; break;
-            case 1: _inletX = NextFloat() * dw; _inletY = dh - 1f; break;
-            case 2: _inletX = 0f; _inletY = NextFloat() * dh; break;
-            default: _inletX = dw - 1f; _inletY = NextFloat() * dh; break;
+            if (cols[i] != FullColumn) return false;
         }
-        var cx = dw * 0.5f;
-        var cy = dh * 0.5f;
-        var dx = cx - _inletX;
-        var dy = cy - _inletY;
-        var len = MathF.Sqrt(dx * dx + dy * dy);
-        if (len < 1e-4f) { _inletDirX = 0f; _inletDirY = 1f; }
-        else { _inletDirX = dx / len; _inletDirY = dy / len; }
-        _jetX = _inletX;
-        _jetY = _inletY;
+        return true;
     }
 
-    /// <summary>
-    /// Injects energy into the wave field. Three sources:
-    /// (1) a continuous negative impulse at the drain centre while
-    /// the drain is open (the suction is felt as turbulence);
-    /// (2) continuous positive impulses scattered along the screen
-    /// edges during refill (water rushing in splashes); (3) a few
-    /// small random impulses anywhere on the field while anything is
-    /// active, giving the ocean its own background chop.
-    /// </summary>
-    private void InjectWaveImpulses(int dw, int dh)
-    {
-        var wave = _wave;
-        var amp = _activity;
-
-        if (_drainActive)
-        {
-            var cx = (int)_drainX;
-            var cy = (int)(_drainY * 2 + 0.5f);
-            var imp = DrainImpulse * _strength * amp;
-            Splat(wave, dw, dh, cx, cy, imp);
-        }
-        else if (_inletEnvelope > 0f)
-        {
-            // Refill — splat a strong positive impulse at the jet
-            // head plus a lead impulse further inward, and spray a
-            // cloud of turbulent chop around the head. Together
-            // these give the inlet a violent, churning, advancing
-            // wavefront instead of a polite bloom.
-            var amp2 = _inletEnvelope * amp;
-            var jx = (int)_jetX;
-            var jy = (int)_jetY;
-            Splat(wave, dw, dh, jx, jy, InletWaveImpulse * amp2);
-            var leadX = (int)(_jetX + _inletDirX * 4f);
-            var leadY = (int)(_jetY + _inletDirY * 4f);
-            Splat(wave, dw, dh, leadX, leadY, InletWaveImpulse * 0.75f * amp2);
-            var lead2X = (int)(_jetX + _inletDirX * 8f);
-            var lead2Y = (int)(_jetY + _inletDirY * 8f);
-            Splat(wave, dw, dh, lead2X, lead2Y, InletWaveImpulse * 0.4f * amp2);
-
-            // Turbulent spray — random chop around the jet head, but
-            // only where there's enough water to support the ripple.
-            // Without this we leave visible wake lines across dry
-            // basin which look wrong.
-            for (var k = 0; k < InletChopPerFrame; k++)
-            {
-                var rx = (NextFloat() * 2f - 1f) * InletChopRadius;
-                var ry = (NextFloat() * 2f - 1f) * InletChopRadius;
-                var cx = (int)(_jetX + rx);
-                var cy = (int)(_jetY + ry);
-                if ((uint)cx >= (uint)dw || (uint)cy >= (uint)dh) continue;
-                var i = cy * dw + cx;
-                if (_depth[i] < WaveDepthThreshold) continue;
-                var sign = (NextRandom() & 1) == 0 ? 1f : -1f;
-                wave[i] += InletChopAmplitude * amp2 * sign;
-            }
-        }
-
-        // Background ocean chop — small scattered impulses, also
-        // suppressed where there's effectively no water.
-        for (var k = 0; k < ChopPerFrame; k++)
-        {
-            var cx = (int)(NextFloat() * dw);
-            var cy = (int)(NextFloat() * dh);
-            var sign = (NextRandom() & 1) == 0 ? 1f : -1f;
-            var i = cy * dw + cx;
-            if ((uint)i < (uint)wave.Length && _depth[i] >= WaveDepthThreshold)
-                wave[i] += ChopAmplitude * amp * sign;
-        }
-    }
-
-    /// <summary>3×3 soft splat of an impulse into the wave field.</summary>
-    private static void Splat(float[] wave, int dw, int dh, int cx, int cy, float amp)
-    {
-        for (var dy = -1; dy <= 1; dy++)
-        {
-            var y = cy + dy;
-            if ((uint)y >= (uint)dh) continue;
-            for (var dx = -1; dx <= 1; dx++)
-            {
-                var x = cx + dx;
-                if ((uint)x >= (uint)dw) continue;
-                var f = (dx == 0 && dy == 0) ? 1f : ((dx == 0 || dy == 0) ? 0.5f : 0.25f);
-                wave[y * dw + x] += amp * f;
-            }
-        }
-    }
-
-    /// <summary>
-    /// Pond-style discretised 2D wave-equation step:
-    /// <c>next = (sum of 4 neighbours)/2 - prev; next *= damping</c>.
-    /// Ping-pongs <see cref="_wave"/> and <see cref="_wavePrev"/>.
-    /// Returns true if any cell carries energy above the floor.
-    /// </summary>
-    private bool WaveStep(int dw, int dh)
-    {
-        var cur = _wave;
-        var prv = _wavePrev;
-        var anyAlive = false;
-        for (var y = 1; y < dh - 1; y++)
-        {
-            var row = y * dw;
-            for (var x = 1; x < dw - 1; x++)
-            {
-                var i = row + x;
-                var nb = cur[i - 1] + cur[i + 1] + cur[i - dw] + cur[i + dw];
-                var next = (nb * 0.5f) - prv[i];
-                next *= WaveDamping;
-                if (next > -WaveFloor && next < WaveFloor) next = 0f;
-                else anyAlive = true;
-                prv[i] = next;
-            }
-        }
-        (_wave, _wavePrev) = (prv, cur);
-        return anyAlive;
-    }
-
-    private static void VelocityAt(float x, float y, float cx, float cy,
-        float Q, float G, float soft, out float vx, out float vy)
-    {
-        var dx = x - cx;
-        var dy = y - cy;
-        var r = MathF.Sqrt(dx * dx + dy * dy);
-        var inv = 1f / (r + 1e-4f);
-        var mag = 1f / (r + soft);
-        var rx = dx * inv;
-        var ry = dy * inv;
-        vx = -Q * mag * rx + G * mag * (-ry);
-        vy = -Q * mag * ry + G * mag *  rx;
-    }
-
-    /// <summary>
-    /// Semi-Lagrangian advection of <paramref name="src"/> into
-    /// <paramref name="dst"/>. Out-of-grid samples return 0 so the
-    /// basin actually drains while the drain is open instead of
-    /// being topped up by a fictitious infinite ocean. The velocity
-    /// is gated by a Gaussian window centred on the drain whose
-    /// sigma is <see cref="CurrentDrainReach"/>: outside that radius
-    /// the velocity is effectively zero, so far-from-drain water
-    /// stays put until the whirlpool's influence has grown out to it.
-    /// Cells fully outside the window are copied through unchanged.
-    /// </summary>
-    private void AdvectField(float[] src, float[] dst, int dw, int dh)
-    {
-        var cx = _drainX;
-        var cy = _drainY * 2f + 0.5f;
-        var Q = SinkStrength * _strength;
-        var G = SwirlStrength * _strength;
-        var soft = VelocitySoftening;
-        var sigma = CurrentDrainReach();
-        var invTwoSigmaSq = 1f / (2f * sigma * sigma);
-        // Beyond ~3 sigma the Gaussian is < 0.012; skip advection
-        // entirely there so the field outside the whirlpool's reach
-        // stays exactly put (no creeping numerical drift).
-        var skip2 = (3f * sigma) * (3f * sigma);
-        for (var y = 0; y < dh; y++)
-        {
-            var row = y * dw;
-            var dyc = y - cy;
-            for (var x = 0; x < dw; x++)
-            {
-                var dxc = x - cx;
-                var d2 = dxc * dxc + dyc * dyc;
-                if (d2 > skip2)
-                {
-                    dst[row + x] = src[row + x];
-                    continue;
-                }
-                var window = MathF.Exp(-d2 * invTwoSigmaSq);
-                VelocityAt(x, y, cx, cy, Q, G, soft, out var vx, out var vy);
-                vx *= window;
-                vy *= window;
-                var sx = x - vx;
-                var sy = y - vy;
-                dst[row + x] = SampleBilinearOrZero(src, dw, dh, sx, sy);
-            }
-        }
-    }
-
-    private static float SampleBilinearOrZero(float[] field, int dw, int dh, float x, float y)
-    {
-        if (x < 0f || x > dw - 1f || y < 0f || y > dh - 1f) return 0f;
-        var x0 = (int)x;
-        var y0 = (int)y;
-        var x1 = Math.Min(x0 + 1, dw - 1);
-        var y1 = Math.Min(y0 + 1, dh - 1);
-        var fx = x - x0;
-        var fy = y - y0;
-        var a = field[y0 * dw + x0];
-        var b = field[y0 * dw + x1];
-        var c = field[y1 * dw + x0];
-        var d = field[y1 * dw + x1];
-        var top = a + (b - a) * fx;
-        var bot = c + (d - c) * fx;
-        return top + (bot - top) * fy;
-    }
-
-    private void DrawWater(Surface surface)
+    // ----------------------------------------------------------------
+    // Rendering — top-down. Walls drawn as a solid border, interior
+    // sub-cells coloured by column height. Open drain hole rendered
+    // as a dark dot on the floor at the drain cell.
+    // ----------------------------------------------------------------
+    private void DrawTank(Surface surface)
     {
         var w = surface.Width;
         var h = surface.Height;
-        var dw = _dotWidth;
-        var depth = _depth;
-        var wave = _wave;
 
-        for (var cy = 0; cy < h; cy++)
+        // Walls — top, bottom, left, right.
+        for (var x = 0; x < w; x++)
         {
-            var topRow = (cy * 2) * dw;
-            var botRow = (cy * 2 + 1) * dw;
-            for (var cx = 0; cx < w; cx++)
+            surface[x, 0] = new SurfaceCell("▄", WallColour, WallTrim);
+            surface[x, h - 1] = new SurfaceCell("▀", WallColour, WallTrim);
+        }
+        for (var y = 1; y < h - 1; y++)
+        {
+            surface[0, y] = new SurfaceCell("█", WallColour, WallColour);
+            surface[w - 1, y] = new SurfaceCell("█", WallColour, WallColour);
+        }
+
+        // Interior — half-block per cell from two stacked sub-cells.
+        var dw = _dw;
+        var cols = _columns;
+        for (var cy = WallCells; cy < h - WallCells; cy++)
+        {
+            var iy = cy - WallCells;
+            var topRow = (iy * 2) * dw;
+            var botRow = (iy * 2 + 1) * dw;
+            for (var cx = WallCells; cx < w - WallCells; cx++)
             {
-                var iTop = topRow + cx;
-                var iBot = botRow + cx;
-                var dTop = depth[iTop];
-                var dBot = depth[iBot];
-                // Mask wave contribution by local depth — no waves
-                // can ride on dry basin. Ramps 0..1 over the wave-
-                // depth threshold so the transition isn't a hard
-                // edge as a cell drains/fills past it.
-                var maskTop = dTop >= WaveDepthThreshold ? 1f : dTop / WaveDepthThreshold;
-                var maskBot = dBot >= WaveDepthThreshold ? 1f : dBot / WaveDepthThreshold;
-                var topV = dTop + WaveDisplayScale * wave[iTop] * maskTop;
-                var botV = dBot + WaveDisplayScale * wave[iBot] * maskBot;
-                if (topV < 0f) topV = 0f; else if (topV > 1f) topV = 1f;
-                if (botV < 0f) botV = 0f; else if (botV > 1f) botV = 1f;
+                var ix = cx - WallCells;
+                var hTop = Height(cols[topRow + ix]);
+                var hBot = Height(cols[botRow + ix]);
                 surface[cx, cy] = new SurfaceCell("▀",
-                    DepthColour(topV), DepthColour(botV));
+                    DepthColour(hTop), DepthColour(hBot));
             }
         }
 
+        // Drain hole — a dark dot on the tank floor at the drain
+        // location, visible when the drain is open. Sits on top of
+        // the half-block water so you can see it through whatever
+        // water depth remains.
         if (_drainActive)
         {
-            var mx = (int)_drainX;
-            var my = (int)_drainY;
-            if ((uint)mx < (uint)w && (uint)my < (uint)h)
+            var holeCx = _drainCx + WallCells;
+            var holeCy = _drainCy / 2 + WallCells;
+            if (holeCx >= WallCells && holeCx < w - WallCells
+                && holeCy >= WallCells && holeCy < h - WallCells)
             {
-                var bg = DepthColour(depth[(my * 2 + 1) * dw + mx]);
-                surface[mx, my] = new SurfaceCell("◉",
-                    Hex1bColor.FromRgb(255, 240, 200), bg);
+                var iy = holeCy - WallCells;
+                var topRow = (iy * 2) * dw;
+                var botRow = (iy * 2 + 1) * dw;
+                var ix = holeCx - WallCells;
+                var hTop = Height(cols[topRow + ix]);
+                var hBot = Height(cols[botRow + ix]);
+                surface[holeCx, holeCy] = new SurfaceCell("◉",
+                    HoleColour, DepthColour(hBot == 0 ? 0 : hBot));
+                // Suppress: keep DepthColour(hTop) ignored for the
+                // foreground because the glyph is the hole indicator.
+                _ = hTop;
             }
         }
     }
 
-    private static Hex1bColor DepthColour(float d)
+    private static Hex1bColor DepthColour(int h)
     {
-        if (d <= 0f) return Hex1bColor.FromRgb(SandColour.R, SandColour.G, SandColour.B);
-        if (d >= 1f) return Hex1bColor.FromRgb(DeepColour.R, DeepColour.G, DeepColour.B);
-        if (d < 0.2f) return Lerp(SandColour, ShallowColour, d / 0.2f);
-        if (d < 0.6f) return Lerp(ShallowColour, MidColour, (d - 0.2f) / 0.4f);
-        return Lerp(MidColour, DeepColour, (d - 0.6f) / 0.4f);
+        if (h <= 0) return Hex1bColor.FromRgb(SandColour.R, SandColour.G, SandColour.B);
+        if (h >= D) return Hex1bColor.FromRgb(DeepColour.R, DeepColour.G, DeepColour.B);
+        var t = h / (float)D;
+        if (t < 0.25f) return Lerp(SandColour, ShallowColour, t / 0.25f);
+        if (t < 0.65f) return Lerp(ShallowColour, MidColour, (t - 0.25f) / 0.4f);
+        return Lerp(MidColour, DeepColour, (t - 0.65f) / 0.35f);
     }
 
     private static Hex1bColor Lerp((byte R, byte G, byte B) a, (byte R, byte G, byte B) b, float t)
