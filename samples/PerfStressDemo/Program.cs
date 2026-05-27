@@ -60,7 +60,7 @@ for (var i = 0; i < args.Length; i++)
             Console.WriteLine("  PgUp / PgDn          Switch between stress pages");
             Console.WriteLine("  L                    Cycle ripple quantisation 256→16→8→4→2→256");
             Console.WriteLine("  V                    Cycle pond viscosity (water→light→medium→thick→glob)");
-            Console.WriteLine("  Click / Scroll       Whirlpool: click sets well, scroll adjusts strength");
+            Console.WriteLine("  Click / Scroll       Whirlpool: left=on/move, right=off, scroll=strength");
             Console.WriteLine("  Q                    Quit");
             return;
     }
@@ -149,7 +149,7 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section(perfLabel),
             s.Divider(" │ "),
-            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}  pond={PondRipplePage.PresetLabel}  whirl={WhirlpoolPage.CurrentStrength:0.0}"),
+            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}  pond={PondRipplePage.PresetLabel}  whirl={(WhirlpoolPage.WellActive ? "on" : "off")}@{WhirlpoolPage.CurrentStrength:0.0}"),
             s.Divider(" │ "),
             s.Section("PgUp/PgDn  L levels  V viscosity  Click/Scroll whirlpool  Q quit"),
         }),
