@@ -86,6 +86,7 @@ int baselineGen0 = GC.CollectionCount(0);
 Hex1bApp? appRef = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithMouse()
     .WithHex1bAppOptions(o =>
     {
         o.EnableSurfacePooling = enablePool;
