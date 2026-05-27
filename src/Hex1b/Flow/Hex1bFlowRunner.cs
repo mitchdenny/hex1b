@@ -334,9 +334,18 @@ internal sealed class Hex1bFlowRunner
                 appOptions.Theme = _options.Theme;
             }
 
-            // Pump output from step adapter to parent adapter
+            // Pump output from step adapter to parent adapter. The pump is
+            // muted for the duration of a resize burst (see resize handler
+            // below) — without it, the inner Hex1bApp's continuous frame
+            // emission (glow animations, focus blink, etc.) lands at the
+            // stale rowOrigin/oldHeight and scrolls the buffer up via the
+            // CR+LF row terminators inside each frame.
             using var outputPumpCts = new CancellationTokenSource();
-            var outputPumpTask = PumpStepOutputAsync(stepAdapter, outputPumpCts.Token);
+            var outputMuteGate = new System.Runtime.CompilerServices.StrongBox<bool>(false);
+            var outputPumpTask = PumpStepOutputAsync(
+                stepAdapter,
+                outputPumpCts.Token,
+                isMuted: () => System.Threading.Volatile.Read(ref outputMuteGate.Value));
 
             // Pump input from parent adapter to step adapter, with resize handling
             using var inputPumpCts = new CancellationTokenSource();
@@ -406,6 +415,21 @@ internal sealed class Hex1bFlowRunner
                             // settle pass re-enables DECAWM as its last
                             // act before showing the cursor.
                             _parentAdapter.Write("\x1b[?7l");
+
+                            // Mute the inner-app output pump for the
+                            // duration of the drag. DECAWM-off protects
+                            // against right-edge wrap, but the inner
+                            // app's frames also contain explicit CR+LF
+                            // row separators (UseSoftWrapEmission =
+                            // true). Those CR+LFs advance the cursor
+                            // unconditionally — if the cursor lands at
+                            // the bottom row of the now-shrunken
+                            // terminal, the buffer scrolls and the
+                            // tombstones above slide off-screen. Muting
+                            // the pump lets the inner app keep rendering
+                            // into the channel without those frames ever
+                            // reaching the parent terminal.
+                            System.Threading.Volatile.Write(ref outputMuteGate.Value, true);
 
                             // Update internal state for the eventual
                             // settle. Note: we deliberately don't write
@@ -520,6 +544,14 @@ internal sealed class Hex1bFlowRunner
                                 }
 
                                 _ = stepAdapter.ResizeAsync(settledWidth, settledStepHeight);
+
+                                // Unmute the output pump. From this point
+                                // the inner Hex1bApp's frames flow back
+                                // through to the parent — its very next
+                                // frame is rendered at the settled
+                                // dimensions so it lands in the cleared
+                                // active rectangle cleanly.
+                                System.Threading.Volatile.Write(ref outputMuteGate.Value, false);
 
                                 settleOriginalDims = null;
                                 settleTimerCts = null;
@@ -1080,7 +1112,10 @@ internal sealed class Hex1bFlowRunner
     /// <summary>
     /// Pumps output from a step adapter to the parent adapter.
     /// </summary>
-    private async Task PumpStepOutputAsync(InlineStepAdapter stepAdapter, CancellationToken ct)
+    private async Task PumpStepOutputAsync(
+        InlineStepAdapter stepAdapter,
+        CancellationToken ct,
+        Func<bool>? isMuted = null)
     {
         try
         {
@@ -1088,6 +1123,11 @@ internal sealed class Hex1bFlowRunner
             {
                 var data = await stepAdapter.ReadOutputAsync(ct);
                 if (data.IsEmpty) continue;
+                // Drop frames while the runner has the pump muted (e.g.
+                // during a resize burst). Forwarding them would replay
+                // stale-sized content at the stale rowOrigin, which is
+                // the dominant cause of buffer-scroll during a drag.
+                if (isMuted?.Invoke() == true) continue;
                 _parentAdapter.Write(Encoding.UTF8.GetString(data.Span));
             }
         }
