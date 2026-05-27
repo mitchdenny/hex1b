@@ -99,13 +99,16 @@ internal sealed class WhirlpoolPage : IStressPage
     // already moves water from high to low, so a localised source is
     // enough — the fluid will visibly flow toward whatever cell has
     // the least water.
-    private const float InletInjectRate = 0.10f;    // per-frame approach toward MaxDepth at jet head
-    private const float InletRadius     = 5.0f;     // sub-cells (deposit radius around jet head)
-    private const int   InletLifetime   = 220;      // frames of the fade-in/peak/fade-out envelope
-    private const int   InletGapMin     = 20;
-    private const int   InletGapMax     = 70;
-    private const float InletJetSpeed   = 0.45f;    // sub-cells per frame — jet head march speed
-    private const float InletWaveImpulse = 0.18f;   // splat at jet head per frame, scaled by envelope
+    private const float InletInjectRate = 0.32f;    // per-frame approach toward MaxDepth at jet head
+    private const float InletRadius     = 7.5f;     // sub-cells (deposit radius around jet head)
+    private const int   InletLifetime   = 160;      // frames of the fade-in/peak/fade-out envelope
+    private const int   InletGapMin     = 0;
+    private const int   InletGapMax     = 10;
+    private const float InletJetSpeed   = 1.4f;     // sub-cells per frame — jet head march speed
+    private const float InletWaveImpulse = 0.55f;   // splat at jet head per frame, scaled by envelope
+    private const int   InletChopPerFrame = 8;      // turbulent chop sites sprayed around jet head
+    private const float InletChopRadius = 12f;      // radius (sub-cells) of the chop spray cloud
+    private const float InletChopAmplitude = 0.18f; // per-impulse amplitude of jet-head chop
 
     // ----------------------------------------------------------------
     // Physics constants — wave equation. Matches pond's "light"
@@ -500,17 +503,33 @@ internal sealed class WhirlpoolPage : IStressPage
         }
         else if (_inletEnvelope > 0f)
         {
-            // Refill — splat a positive impulse at the jet head and
-            // a smaller one offset further inward, producing a
-            // visible wave front that runs ahead of the deposit and
-            // sells the "water has velocity" feel.
+            // Refill — splat a strong positive impulse at the jet
+            // head plus a lead impulse further inward, and spray a
+            // cloud of turbulent chop around the head. Together
+            // these give the inlet a violent, churning, advancing
+            // wavefront instead of a polite bloom.
             var amp2 = _inletEnvelope * amp;
             var jx = (int)_jetX;
             var jy = (int)_jetY;
             Splat(wave, dw, dh, jx, jy, InletWaveImpulse * amp2);
-            var leadX = (int)(_jetX + _inletDirX * 3f);
-            var leadY = (int)(_jetY + _inletDirY * 3f);
-            Splat(wave, dw, dh, leadX, leadY, InletWaveImpulse * 0.6f * amp2);
+            var leadX = (int)(_jetX + _inletDirX * 4f);
+            var leadY = (int)(_jetY + _inletDirY * 4f);
+            Splat(wave, dw, dh, leadX, leadY, InletWaveImpulse * 0.75f * amp2);
+            var lead2X = (int)(_jetX + _inletDirX * 8f);
+            var lead2Y = (int)(_jetY + _inletDirY * 8f);
+            Splat(wave, dw, dh, lead2X, lead2Y, InletWaveImpulse * 0.4f * amp2);
+
+            // Turbulent spray — random chop around the jet head.
+            for (var k = 0; k < InletChopPerFrame; k++)
+            {
+                var rx = (NextFloat() * 2f - 1f) * InletChopRadius;
+                var ry = (NextFloat() * 2f - 1f) * InletChopRadius;
+                var cx = (int)(_jetX + rx);
+                var cy = (int)(_jetY + ry);
+                if ((uint)cx >= (uint)dw || (uint)cy >= (uint)dh) continue;
+                var sign = (NextRandom() & 1) == 0 ? 1f : -1f;
+                wave[cy * dw + cx] += InletChopAmplitude * amp2 * sign;
+            }
         }
 
         // Background ocean chop — small scattered impulses.
