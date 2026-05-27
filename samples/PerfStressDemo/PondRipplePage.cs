@@ -78,6 +78,12 @@ internal sealed class PondRipplePage : IStressPage
     // line from a stale position.
     private int _trailX = -1;
     private int _trailY = -1;
+    // True when both wave buffers are fully zero and there's no mouse-driven
+    // input pending. Lets the page tell the framework to stop redrawing.
+    // Starts true (pond is calm at construction); flipped false whenever a
+    // splash is injected, flipped back to true at the end of any Step() that
+    // floored every cell to zero.
+    private bool _quiescent = true;
 
     /// <summary>
     /// One viscosity preset — combines damping, step rate, and splash
@@ -135,7 +141,7 @@ internal sealed class PondRipplePage : IStressPage
 
     public Hex1bWidget Build(StressContext sc)
     {
-        return sc.Root
+        var widget = sc.Root
             .Surface(layer =>
             {
                 EnsureFieldSize(layer.Width, layer.Height);
@@ -187,11 +193,22 @@ internal sealed class PondRipplePage : IStressPage
                 }
 
                 return new[] { layer.Layer(DrawPond) };
-            })
-            // Keep stepping the simulation every frame even with no input
-            // so waves dampen naturally to stillness.
-            .RedrawAfter(sc.RedrawIntervalMs);
+            });
+
+        // Only schedule continuous redraws while the simulation has energy
+        // to dissipate. Once the pond fully settles, drop RedrawAfter so
+        // the framework idles until a mouse event wakes it back up.
+        return _quiescent ? widget : widget.RedrawAfter(sc.RedrawIntervalMs);
     }
+
+    /// <summary>
+    /// True when the wave field is fully settled and the page has nothing
+    /// to animate. Program.cs queries this after <see cref="Build"/> to
+    /// decide whether the root tree needs a RedrawAfter — when both this
+    /// page and the root are content to idle, the framework sleeps until
+    /// real input arrives.
+    /// </summary>
+    public bool IsIdle => _quiescent;
 
     private void EnsureNoise(int w, int h)
     {
@@ -218,6 +235,7 @@ internal sealed class PondRipplePage : IStressPage
         _observedMouseY = int.MinValue;
         _trailX = -1;
         _trailY = -1;
+        _quiescent = true;
     }
 
     /// <summary>
@@ -272,6 +290,8 @@ internal sealed class PondRipplePage : IStressPage
                 _current[y * w + x] += Presets[PresetIndex].SplashAmplitude * falloff;
             }
         }
+        // Injecting energy wakes the simulation back up.
+        _quiescent = false;
     }
 
     /// <summary>
@@ -288,6 +308,7 @@ internal sealed class PondRipplePage : IStressPage
         var cur = _current;
         var prv = _previous;
         var damping = Presets[PresetIndex].Damping;
+        var anyAlive = false;
 
         // Update interior cells. Edge cells stay at 0 (solid boundary).
         for (var y = 1; y < h - 1; y++)
@@ -308,12 +329,17 @@ internal sealed class PondRipplePage : IStressPage
                 // re-injects energy. 0.01 is well below visible brightness
                 // (level 40.4 vs 40 at MaxDisplay=6) so killing it is free.
                 if (next > -0.01f && next < 0.01f) next = 0f;
+                else anyAlive = true;
                 prv[i] = next;
             }
         }
 
         // Swap buffers: prv now holds the next state.
         (_current, _previous) = (prv, cur);
+        // If every interior cell floored to zero, the pond is fully settled
+        // — flip the flag so the page reports IsIdle and the framework can
+        // stop scheduling frames until input wakes us back up.
+        if (!anyAlive) _quiescent = true;
     }
 
     private void DrawPond(Surface surface)

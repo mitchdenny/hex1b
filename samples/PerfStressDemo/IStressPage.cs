@@ -16,12 +16,20 @@ internal interface IStressPage
     string Description { get; }
 
     /// <summary>
-    /// Build the page's widget tree. Called every frame. The implementation
-    /// should call <c>RedrawAfter</c> (or otherwise schedule continuous
-    /// invalidation) on any animated subtree so the frame rate is driven by
-    /// the page rather than by external input.
+    /// Build the page's widget tree. Called every frame <b>only while this
+    /// page is the active one</b>. Inactive pages never have <c>Build</c>
+    /// invoked, so their simulations are naturally paused.
     /// </summary>
     Hex1bWidget Build(StressContext ctx);
+
+    /// <summary>
+    /// True when this page has fully settled and has nothing to animate.
+    /// The root checks this <i>after</i> calling <see cref="Build"/> to
+    /// decide whether to schedule another redraw — when the active page is
+    /// idle, the framework sleeps until a real input event (mouse move,
+    /// key press) arrives, dropping CPU to ~zero.
+    /// </summary>
+    bool IsIdle => false;
 }
 
 /// <summary>

@@ -135,7 +135,7 @@ Hex1bWidget BuildRoot(RootContext root)
     var poolLabel = enablePool ? "pool=on" : "pool=OFF";
     var cacheLabel = enableCache ? "cache=on" : "cache=OFF";
 
-    return root.VStack(v => new Hex1bWidget[]
+    var rootWidget = root.VStack(v => new Hex1bWidget[]
     {
         // The page itself fills all remaining vertical space.
         pageWidget.Fill(),
@@ -151,11 +151,18 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section("PgUp/PgDn  L levels  V viscosity  Q quit"),
         }),
-    })
-    // Drive continuous animation from the root so the framework always
-    // knows when to wake up — this is independent of whatever the page's
-    // subtree does with its own RedrawDelay.
-    .RedrawAfter(redrawIntervalMs)
+    });
+
+    // Only drive continuous animation when the active page has something
+    // to animate. When the page reports IsIdle (e.g. pond fully settled,
+    // no mouse activity), drop RedrawAfter so the framework sleeps until
+    // a real input event arrives — this is what actually drops CPU to
+    // ~zero between interactions, not pausing the inactive page (which is
+    // already paused — its Build isn't called when it's not selected).
+    if (!page.IsIdle)
+        rootWidget = rootWidget.RedrawAfter(redrawIntervalMs);
+
+    return rootWidget
     .InputBindings(bindings =>
     {
         bindings.Key(Hex1bKey.PageDown).Global().Action(_ =>
