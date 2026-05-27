@@ -111,6 +111,19 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float VelocityFloor = 0.003f;
 
     // ----------------------------------------------------------------
+    // Surface tension / film thickness.
+    //
+    // Real fluids have cohesion: a thin film of water sits put against
+    // a surface until enough volume accumulates above it to overflow.
+    // We model that with a single threshold — water at or below
+    // FilmThickness voxels is considered a "skin" with no internal
+    // pressure gradient and no advective flux. Only the excess above
+    // the threshold drives flow. Drain forces likewise only attract
+    // cells that have water depth above the skin.
+    // ----------------------------------------------------------------
+    private const float FilmThickness = 1.5f;
+
+    // ----------------------------------------------------------------
     // Refill — fixed inlet placed by right click, drips voxels into a
     // small interior disc until the user clears or relocates it.
     // ----------------------------------------------------------------
@@ -373,12 +386,21 @@ internal sealed class WhirlpoolPage : IStressPage
                 int hR = (x + 1 < dw && !solid[i + 1])  ? h[i + 1]  : hi;
                 int hU = (y > 0     && !solid[i - dw]) ? h[i - dw] : hi;
                 int hD = (y + 1 < dh && !solid[i + dw]) ? h[i + dw] : hi;
-                var gradX = (hR - hL) * 0.5f;
-                var gradY = (hD - hU) * 0.5f;
+                // Surface tension: only the depth above FilmThickness contributes
+                // to the pressure gradient. A thin film has no net force on it.
+                var eL = MathF.Max(0f, hL - FilmThickness);
+                var eR = MathF.Max(0f, hR - FilmThickness);
+                var eU = MathF.Max(0f, hU - FilmThickness);
+                var eD = MathF.Max(0f, hD - FilmThickness);
+                var gradX = (eR - eL) * 0.5f;
+                var gradY = (eD - eU) * 0.5f;
                 vx[i] -= gradX * PressureGain;
                 vy[i] -= gradY * PressureGain;
 
-                if (drainOn)
+                // Drain only attracts cells that actually hold water above the
+                // film threshold — a dry cell on the other side of the screen
+                // doesn't feel the drain until water reaches it.
+                if (drainOn && hi > FilmThickness)
                 {
                     var dxc = x - cx;
                     var dyc = y - cy;
@@ -451,7 +473,8 @@ internal sealed class WhirlpoolPage : IStressPage
                 var acc = ax[i];
                 if (v == 0f && acc == 0f) continue;
                 var hUp = v >= 0f ? h[i] : h[j];
-                acc += v * hUp;
+                var eUp = MathF.Max(0f, hUp - FilmThickness);
+                acc += v * eUp;
                 while (acc >= 1f)
                 {
                     if (h[i] > 0 && h[j] < DShort)
@@ -489,7 +512,8 @@ internal sealed class WhirlpoolPage : IStressPage
                 var acc = ay[i];
                 if (v == 0f && acc == 0f) continue;
                 var hUp = v >= 0f ? h[i] : h[j];
-                acc += v * hUp;
+                var eUp = MathF.Max(0f, hUp - FilmThickness);
+                acc += v * eUp;
                 while (acc >= 1f)
                 {
                     if (h[i] > 0 && h[j] < DShort)
