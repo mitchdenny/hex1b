@@ -94,13 +94,18 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float DiffusionK = 0.045f;
     private const float DrainRadius = 6.5f;        // sub-cells
     private const float DrainPerFrameBase = 0.32f;
-    // Refill (drain off): pull baseline toward MaxDepth at an edge-
-    // weighted rate so water visibly "flows in" from outside. Edge
-    // cells fill in ~1s, interior fills via diffusion + the small
-    // base rate over a few more seconds.
-    private const float RefillEdgeRate = 0.045f;
-    private const float RefillBaseRate = 0.004f;
-    private const int   RefillReachCells = 8;       // edge boost falls off over this many sub-cells
+    // Refill (drain off): water enters through a single roaming
+    // inlet that fades in/out on the edge of the basin. Diffusion
+    // already moves water from high to low, so a localised source is
+    // enough — the fluid will visibly flow toward whatever cell has
+    // the least water.
+    private const float InletInjectRate = 0.10f;    // per-frame approach toward MaxDepth at jet head
+    private const float InletRadius     = 5.0f;     // sub-cells (deposit radius around jet head)
+    private const int   InletLifetime   = 220;      // frames of the fade-in/peak/fade-out envelope
+    private const int   InletGapMin     = 20;
+    private const int   InletGapMax     = 70;
+    private const float InletJetSpeed   = 0.45f;    // sub-cells per frame — jet head march speed
+    private const float InletWaveImpulse = 0.18f;   // splat at jet head per frame, scaled by envelope
 
     // ----------------------------------------------------------------
     // Physics constants — wave equation. Matches pond's "light"
@@ -111,7 +116,6 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float WaveDisplayScale = 0.32f;   // how much wave modulates rendered depth
     private const float WaveFloor = 0.005f;          // floor for "alive" tracking
     private const float DrainImpulse = -0.18f;       // per frame, at drain centre
-    private const float RefillImpulse = 0.12f;       // per frame, per active edge cell during refill
     private const float ChopAmplitude = 0.06f;       // random impulse magnitude while active
     private const int   ChopPerFrame = 4;            // random chop sites per frame while active
 
@@ -124,6 +128,21 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float SinkStrength = 9.0f;
     private const float SwirlStrength = 18.0f;
     private const float VelocitySoftening = 2.5f;
+
+    // ----------------------------------------------------------------
+    // Inlet — one localised refill source at a time. Picked at random
+    // on the basin edge, fades in over its lifetime, then a short
+    // gap, then a new inlet at a new location.
+    // ----------------------------------------------------------------
+    private float _inletX;       // inlet spawn point (sub-cell coords)
+    private float _inletY;
+    private float _inletDirX;    // inward unit vector
+    private float _inletDirY;
+    private int _inletAge;       // frames since spawn, 0 if inactive
+    private int _inletGap;       // frames until next inlet spawns
+    private float _inletEnvelope; // 0..1 amplitude this frame
+    private float _jetX;         // current jet head position (sub-cell coords)
+    private float _jetY;
 
     // ----------------------------------------------------------------
     // Activity tracking. _activity ramps to 1 whenever something is
@@ -347,39 +366,115 @@ internal sealed class WhirlpoolPage : IStressPage
     }
 
     /// <summary>
-    /// Pulls the baseline back toward <see cref="MaxDepth"/> at a
-    /// rate that decays from the screen edge toward the interior.
-    /// Edge cells refill in roughly a second; interior cells rely on
-    /// diffusion (and a tiny base rate) to top up. <paramref name="basinFull"/>
-    /// is set true if every cell ended up within a small epsilon of
-    /// MaxDepth this frame — used by the activity tracker.
+    /// Drives baseline refill via a single localised inlet that
+    /// spawns at a random point on the basin edge, then marches a
+    /// "jet head" inward at <see cref="InletJetSpeed"/> sub-cells per
+    /// frame. Each frame we deposit water around the jet head and
+    /// raise the inlet's amplitude envelope (triangular over
+    /// <see cref="InletLifetime"/> frames). Diffusion does the rest
+    /// of the work — water flows from the freshly-injected region
+    /// toward whatever cells have the least depth. After the inlet
+    /// expires we wait <see cref="InletGapMin"/>..<see cref="InletGapMax"/>
+    /// frames and spawn a new one somewhere else.
+    /// <paramref name="basinFull"/> is set true if every cell ended
+    /// up within a small epsilon of MaxDepth — used by the activity
+    /// tracker so the page can eventually IsIdle.
     /// </summary>
     private bool ApplyRefill(float[] depth, int dw, int dh, out bool basinFull)
     {
-        var changed = false;
+        // Snapshot fullness before deposition so the inlet keeps
+        // running until the basin is truly full.
         basinFull = true;
-        var reach = RefillReachCells;
-        var edgeBoost = RefillEdgeRate - RefillBaseRate;
         var basMax = MaxDepth - 0.003f;
-        for (var y = 0; y < dh; y++)
+        for (var i = 0; i < depth.Length; i++)
         {
-            var rowBaseY = y * dw;
-            var ed_y = Math.Min(y, dh - 1 - y);
-            for (var x = 0; x < dw; x++)
+            if (depth[i] < basMax) { basinFull = false; break; }
+        }
+        if (basinFull)
+        {
+            _inletAge = 0;
+            _inletEnvelope = 0f;
+            return false;
+        }
+
+        // Inlet lifecycle.
+        if (_inletAge == 0)
+        {
+            if (_inletGap > 0) { _inletGap--; _inletEnvelope = 0f; return false; }
+            SpawnInlet(dw, dh);
+        }
+        _inletAge++;
+        if (_inletAge >= InletLifetime)
+        {
+            _inletAge = 0;
+            _inletEnvelope = 0f;
+            _inletGap = InletGapMin + (int)(NextFloat() * (InletGapMax - InletGapMin));
+            return false;
+        }
+
+        // Triangular envelope 0 → 1 → 0 over the inlet lifetime.
+        var t = _inletAge / (float)InletLifetime;
+        var env = 4f * t * (1f - t);
+        _inletEnvelope = env;
+
+        // March the jet head inward.
+        _jetX = _inletX + _inletDirX * InletJetSpeed * _inletAge;
+        _jetY = _inletY + _inletDirY * InletJetSpeed * _inletAge;
+
+        // Deposit baseline water at the jet head.
+        var rate = InletInjectRate * env;
+        var r = InletRadius;
+        var r2 = r * r;
+        var x0 = Math.Max(0, (int)(_jetX - r));
+        var x1 = Math.Min(dw - 1, (int)(_jetX + r + 0.5f));
+        var y0 = Math.Max(0, (int)(_jetY - r));
+        var y1 = Math.Min(dh - 1, (int)(_jetY + r + 0.5f));
+        var changed = false;
+        for (var y = y0; y <= y1; y++)
+        {
+            for (var x = x0; x <= x1; x++)
             {
-                var i = rowBaseY + x;
+                var dx = x - _jetX;
+                var dy = y - _jetY;
+                var d2 = dx * dx + dy * dy;
+                if (d2 > r2) continue;
+                var falloff = 1f - MathF.Sqrt(d2) / r;
+                var localRate = rate * falloff;
+                if (localRate <= 0f) continue;
+                var i = y * dw + x;
                 var d = depth[i];
-                if (d < basMax) basinFull = false;
-                var ed_x = Math.Min(x, dw - 1 - x);
-                var edgeDist = Math.Min(ed_x, ed_y);
-                var edgeFactor = edgeDist >= reach ? 0f : 1f - edgeDist / (float)reach;
-                var rate = RefillBaseRate + edgeBoost * edgeFactor;
-                var nv = d + (MaxDepth - d) * rate;
+                var nv = d + (MaxDepth - d) * localRate;
                 if (nv > MaxDepth) nv = MaxDepth;
                 if (nv != d) { depth[i] = nv; changed = true; }
             }
         }
         return changed;
+    }
+
+    /// <summary>
+    /// Picks a random spot on one of the four edges of the basin,
+    /// records the inward-pointing unit vector from that spot to the
+    /// basin centre, and resets the inlet age.
+    /// </summary>
+    private void SpawnInlet(int dw, int dh)
+    {
+        var edge = NextRandom() & 3;
+        switch (edge)
+        {
+            case 0: _inletX = NextFloat() * dw; _inletY = 0f; break;
+            case 1: _inletX = NextFloat() * dw; _inletY = dh - 1f; break;
+            case 2: _inletX = 0f; _inletY = NextFloat() * dh; break;
+            default: _inletX = dw - 1f; _inletY = NextFloat() * dh; break;
+        }
+        var cx = dw * 0.5f;
+        var cy = dh * 0.5f;
+        var dx = cx - _inletX;
+        var dy = cy - _inletY;
+        var len = MathF.Sqrt(dx * dx + dy * dy);
+        if (len < 1e-4f) { _inletDirX = 0f; _inletDirY = 1f; }
+        else { _inletDirX = dx / len; _inletDirY = dy / len; }
+        _jetX = _inletX;
+        _jetY = _inletY;
     }
 
     /// <summary>
@@ -403,24 +498,19 @@ internal sealed class WhirlpoolPage : IStressPage
             var imp = DrainImpulse * _strength * amp;
             Splat(wave, dw, dh, cx, cy, imp);
         }
-        else
+        else if (_inletEnvelope > 0f)
         {
-            // Refill — drop a few positive splashes along whichever
-            // edge the RNG picks each frame. Read as bubbling springs
-            // running inward.
-            for (var k = 0; k < 3; k++)
-            {
-                var edge = NextRandom() & 3;
-                int ex, ey;
-                switch (edge)
-                {
-                    case 0: ex = (int)(NextFloat() * dw); ey = 0; break;
-                    case 1: ex = (int)(NextFloat() * dw); ey = dh - 1; break;
-                    case 2: ex = 0; ey = (int)(NextFloat() * dh); break;
-                    default: ex = dw - 1; ey = (int)(NextFloat() * dh); break;
-                }
-                Splat(wave, dw, dh, ex, ey, RefillImpulse * amp);
-            }
+            // Refill — splat a positive impulse at the jet head and
+            // a smaller one offset further inward, producing a
+            // visible wave front that runs ahead of the deposit and
+            // sells the "water has velocity" feel.
+            var amp2 = _inletEnvelope * amp;
+            var jx = (int)_jetX;
+            var jy = (int)_jetY;
+            Splat(wave, dw, dh, jx, jy, InletWaveImpulse * amp2);
+            var leadX = (int)(_jetX + _inletDirX * 3f);
+            var leadY = (int)(_jetY + _inletDirY * 3f);
+            Splat(wave, dw, dh, leadX, leadY, InletWaveImpulse * 0.6f * amp2);
         }
 
         // Background ocean chop — small scattered impulses.
