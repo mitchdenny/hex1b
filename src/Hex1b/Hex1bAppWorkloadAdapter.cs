@@ -173,20 +173,39 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// processing the item. If the write fails (channel closed), the buffer is returned here so
     /// callers don't have to worry about double-free.
     /// </param>
-    internal void WriteTokensWithBytes(IReadOnlyList<AnsiToken> tokens, ReadOnlyMemory<byte> bytes, byte[]? pooledBuffer = null)
+    /// <param name="pooledTokens">
+    /// Optional list backing <paramref name="tokens"/> that should be returned to a pool after
+    /// the consumer has finished with it. <paramref name="pooledTokensReturn"/> is the callback
+    /// the consumer invokes to return it. Both must be supplied together or both null.
+    /// </param>
+    /// <param name="pooledTokensReturn">See <paramref name="pooledTokens"/>.</param>
+    internal void WriteTokensWithBytes(
+        IReadOnlyList<AnsiToken> tokens,
+        ReadOnlyMemory<byte> bytes,
+        byte[]? pooledBuffer = null,
+        List<AnsiToken>? pooledTokens = null,
+        Action<List<AnsiToken>>? pooledTokensReturn = null)
     {
         if (_disposed)
         {
             if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
+            if (pooledTokens is not null && pooledTokensReturn is not null) pooledTokensReturn(pooledTokens);
             return;
         }
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens) { PooledBuffer = pooledBuffer }))
+        var item = new WorkloadOutputItem(bytes, tokens)
+        {
+            PooledBuffer = pooledBuffer,
+            PooledTokens = pooledTokens,
+            PooledTokensReturn = pooledTokensReturn,
+        };
+        if (_outputChannel.Writer.TryWrite(item))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
-        else if (pooledBuffer is not null)
+        else
         {
-            System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
+            if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
+            if (pooledTokens is not null && pooledTokensReturn is not null) pooledTokensReturn(pooledTokens);
         }
     }
 

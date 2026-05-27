@@ -30,9 +30,28 @@ public static class SurfaceComparer
         ArgumentNullException.ThrowIfNull(previous);
         ArgumentNullException.ThrowIfNull(current);
 
+        var diff = new SurfaceDiff();
+        CompareInto(previous, current, diff);
+        return diff;
+    }
+
+    /// <summary>
+    /// Reusable variant of <see cref="Compare(Surface, Surface)"/> that populates the
+    /// supplied <see cref="SurfaceDiff"/> in place. The renderer hot path uses this to
+    /// avoid allocating a fresh diff and backing list every frame.
+    /// </summary>
+    internal static void CompareInto(Surface previous, Surface current, SurfaceDiff dest)
+    {
+        ArgumentNullException.ThrowIfNull(previous);
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(dest);
+
+        var changed = dest.MutableCells;
+        changed.Clear();
+
         // Fast path: same instance means no changes
         if (ReferenceEquals(previous, current))
-            return SurfaceDiff.Empty;
+            return;
 
         if (previous.Width != current.Width || previous.Height != current.Height)
         {
@@ -44,8 +63,6 @@ public static class SurfaceComparer
         var height = current.Height;
         var prevCells = previous.CellsUnsafe;
         var currCells = current.CellsUnsafe;
-        
-        var changedCells = new List<ChangedCell>();
 
         for (var y = 0; y < height; y++)
         {
@@ -58,12 +75,12 @@ public static class SurfaceComparer
 
                 if (!CellsEqual(prevCell, currCell))
                 {
-                    changedCells.Add(new ChangedCell(x, y, currCell));
+                    changed.Add(new ChangedCell(x, y, currCell));
                 }
             }
         }
 
-        return new SurfaceDiff(changedCells);
+        dest.SortChanges();
     }
 
     /// <summary>
@@ -79,12 +96,27 @@ public static class SurfaceComparer
     {
         ArgumentNullException.ThrowIfNull(surface);
 
+        var diff = new SurfaceDiff();
+        CompareToEmptyInto(surface, diff);
+        return diff;
+    }
+
+    /// <summary>
+    /// Reusable variant of <see cref="CompareToEmpty(Surface)"/> that populates the
+    /// supplied <see cref="SurfaceDiff"/> in place.
+    /// </summary>
+    internal static void CompareToEmptyInto(Surface surface, SurfaceDiff dest)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ArgumentNullException.ThrowIfNull(dest);
+
+        var changed = dest.MutableCells;
+        changed.Clear();
+
         var width = surface.Width;
         var height = surface.Height;
         var cells = surface.CellsUnsafe;
         var empty = SurfaceCells.Empty;
-        
-        var changedCells = new List<ChangedCell>();
 
         for (var y = 0; y < height; y++)
         {
@@ -95,12 +127,12 @@ public static class SurfaceComparer
 
                 if (!CellsEqual(cell, empty))
                 {
-                    changedCells.Add(new ChangedCell(x, y, cell));
+                    changed.Add(new ChangedCell(x, y, cell));
                 }
             }
         }
 
-        return new SurfaceDiff(changedCells);
+        dest.SortChanges();
     }
 
     /// <summary>
@@ -145,11 +177,29 @@ public static class SurfaceComparer
     public static IReadOnlyList<AnsiToken> ToTokens(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface, bool skipKgpEmission = false)
     {
         ArgumentNullException.ThrowIfNull(diff);
+        if (diff.IsEmpty) return Array.Empty<AnsiToken>();
 
-        if (diff.IsEmpty)
-            return Array.Empty<AnsiToken>();
+        var output = new List<AnsiToken>();
+        ToTokensInto(diff, currentSurface, previousSurface, skipKgpEmission, output);
+        return output.Count == 0 ? Array.Empty<AnsiToken>() : output;
+    }
 
-        var tokens = new List<AnsiToken>();
+    /// <summary>
+    /// Reusable variant of <see cref="ToTokens(SurfaceDiff, Surface?, Surface?, bool)"/> that
+    /// appends to the supplied <paramref name="output"/> list. The renderer hot path uses
+    /// this with a list it owns across frames to avoid per-frame token-list allocations.
+    /// The list is cleared before population.
+    /// </summary>
+    internal static void ToTokensInto(SurfaceDiff diff, Surface? currentSurface, Surface? previousSurface, bool skipKgpEmission, List<AnsiToken> output)
+    {
+        ArgumentNullException.ThrowIfNull(diff);
+        ArgumentNullException.ThrowIfNull(output);
+
+        output.Clear();
+
+        if (diff.IsEmpty) return;
+
+        var tokens = output;
         
         // Emit KGP delete commands for images that were in the previous surface but have
         // moved or been removed. KGP placements persist in the terminal until explicitly
@@ -567,8 +617,6 @@ public static class SurfaceComparer
                 EmitKgpTokens(tokens, data);
             }
         }
-
-        return tokens;
     }
     
     /// <summary>

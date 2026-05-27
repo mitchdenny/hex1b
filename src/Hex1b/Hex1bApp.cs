@@ -159,6 +159,36 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     // Surface rendering double-buffer
     private Surface? _currentSurface;
     private Surface? _previousSurface;
+    // Renderer hot-path pools — reused across frames so SurfaceComparer doesn't
+    // allocate a fresh diff/list of changed cells or a fresh token list every frame.
+    private readonly Surfaces.SurfaceDiff _frameDiff = new();
+    // Token lists are rotated through a small pool so that a list shipped to the
+    // terminal-side consumer (via the workload channel) can continue to be enumerated
+    // even after the producer starts building the next frame. Without this, the
+    // producer would mutate the list while the consumer iterates it. The consumer
+    // returns the list via WorkloadOutputItem.PooledTokens once it's done.
+    private readonly System.Collections.Concurrent.ConcurrentStack<List<Tokens.AnsiToken>> _tokenListPool = new();
+    private List<Tokens.AnsiToken>? _frameTokens;
+    // Used only when KGP placements need to be interleaved with text tokens; reused to
+    // avoid a per-frame scratch allocation when KGP is active. Not shipped across the
+    // channel — only used to assemble the merged list — so single-buffering is safe.
+    private readonly List<Tokens.AnsiToken> _frameKgpScratchTokens = new();
+
+    private List<Tokens.AnsiToken> RentTokenList()
+    {
+        if (_tokenListPool.TryPop(out var list))
+        {
+            list.Clear();
+            return list;
+        }
+        return new List<Tokens.AnsiToken>();
+    }
+
+    internal void ReturnTokenList(List<Tokens.AnsiToken> list)
+    {
+        list.Clear();
+        _tokenListPool.Push(list);
+    }
     
     // KGP placement lifecycle tracker (persists across frames)
     private readonly Kgp.KgpPlacementTracker _kgpTracker = new();
@@ -1190,11 +1220,18 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             return true;
         }
 
-        // Diff current vs previous and emit changes
+        // Diff current vs previous and emit changes. _frameDiff is a pooled
+        // SurfaceDiff reused every frame to avoid the List<ChangedCell> growth cost.
         var diffStart = Stopwatch.GetTimestamp();
-        var diff = _isFirstFrame || _previousSurface == null
-            ? SurfaceComparer.CompareToEmpty(_currentSurface)
-            : SurfaceComparer.Compare(_previousSurface, _currentSurface);
+        if (_isFirstFrame || _previousSurface == null)
+        {
+            SurfaceComparer.CompareToEmptyInto(_currentSurface, _frameDiff);
+        }
+        else
+        {
+            SurfaceComparer.CompareInto(_previousSurface, _currentSurface, _frameDiff);
+        }
+        var diff = _frameDiff;
         _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
         
         _metrics.OutputCellsChanged.Record(diff.Count);
@@ -1241,25 +1278,29 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         if (wroteOutput)
         {
             // Generate text/sixel tokens (KGP emission skipped — handled by tracker above)
+            // Generate text/sixel tokens (KGP emission skipped — handled by tracker above).
+            // Rent a token list from the per-frame pool; the consumer returns it once it
+            // has finished forwarding the bytes/applying tokens, so the producer never
+            // mutates a list that's still being read on the consumer thread.
             var tokensStart = Stopwatch.GetTimestamp();
-            var textTokens = diff.IsEmpty
-                ? Array.Empty<Tokens.AnsiToken>()
-                : SurfaceComparer.ToTokens(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp);
-            _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
-            
-            // Merge: KGP before-text + text tokens + KGP after-text
-            List<Tokens.AnsiToken> tokens;
+            _frameTokens = RentTokenList();
             if (hasKgpChanges)
             {
-                tokens = new List<Tokens.AnsiToken>(kgpBefore.Count + textTokens.Count + kgpAfter.Count);
-                tokens.AddRange(kgpBefore);
-                tokens.AddRange(textTokens);
-                tokens.AddRange(kgpAfter);
+                _frameTokens.AddRange(kgpBefore);
+                if (!diff.IsEmpty)
+                {
+                    var scratch = _frameKgpScratchTokens;
+                    SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: true, scratch);
+                    _frameTokens.AddRange(scratch);
+                }
+                _frameTokens.AddRange(kgpAfter);
             }
-            else
+            else if (!diff.IsEmpty)
             {
-                tokens = textTokens is List<Tokens.AnsiToken> list ? list : new List<Tokens.AnsiToken>(textTokens);
+                SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp, _frameTokens);
             }
+            var tokens = _frameTokens;
+            _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
             
             var serializeStart = Stopwatch.GetTimestamp();
             // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
@@ -1279,11 +1320,26 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
 
             if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
             {
-                workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput, pooledOutput);
+                // Transfer ownership of the pooled token list to the consumer; null out
+                // _frameTokens so the next frame rents a fresh one.
+                var ownedTokens = _frameTokens;
+                _frameTokens = null;
+                workloadAdapter.WriteTokensWithBytes(
+                    tokens,
+                    ansiOutput,
+                    pooledOutput,
+                    ownedTokens,
+                    ReturnTokenList);
             }
             else
             {
                 _adapter.Write(ansiOutput);
+                // No consumer to hand off to: return the token list now.
+                if (_frameTokens is { } own)
+                {
+                    _frameTokens = null;
+                    ReturnTokenList(own);
+                }
             }
             
             _metrics.OutputTokens.Record(tokens.Count);

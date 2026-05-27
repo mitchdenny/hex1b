@@ -1313,6 +1313,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 ReadOnlyMemory<byte> data;
                 IReadOnlyList<AnsiToken>? preTokenizedTokens = null;
                 byte[]? pooledItemBuffer = null;
+                List<AnsiToken>? pooledItemTokens = null;
+                Action<List<AnsiToken>>? pooledItemTokensReturn = null;
 
                 if (_workload is IHex1bTerminalTokenWorkloadAdapter tokenWorkload)
                 {
@@ -1320,6 +1322,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                     data = item.Bytes;
                     preTokenizedTokens = item.Tokens;
                     pooledItemBuffer = item.PooledBuffer;
+                    pooledItemTokens = item.PooledTokens;
+                    pooledItemTokensReturn = item.PooledTokensReturn;
                 }
                 else
                 {
@@ -1330,6 +1334,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
+                    if (pooledItemTokens is not null && pooledItemTokensReturn is not null)
+                        pooledItemTokensReturn(pooledItemTokens);
 
                     // Channel empty - this is a frame boundary
                     await NotifyWorkloadFiltersFrameCompleteAsync();
@@ -1443,6 +1449,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 {
                     if (pooledItemBuffer is not null)
                         System.Buffers.ArrayPool<byte>.Shared.Return(pooledItemBuffer);
+                    if (pooledItemTokens is not null && pooledItemTokensReturn is not null)
+                        pooledItemTokensReturn(pooledItemTokens);
                 }
             }
         }

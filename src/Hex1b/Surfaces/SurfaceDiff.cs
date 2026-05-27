@@ -40,9 +40,34 @@ public sealed class SurfaceDiff
     internal SurfaceDiff(List<ChangedCell> changedCells)
     {
         _changedCells = changedCells;
-        
-        // Sort by Y, then X for optimal cursor movement
-        _changedCells.Sort((a, b) =>
+        SortChanges();
+    }
+
+    /// <summary>
+    /// Creates an empty, reusable diff. Used by the renderer hot path with
+    /// <see cref="MutableCells"/> + <see cref="SortChanges"/> to avoid allocating a
+    /// fresh diff per frame.
+    /// </summary>
+    internal SurfaceDiff()
+    {
+        _changedCells = new List<ChangedCell>();
+    }
+
+    /// <summary>
+    /// Mutable access to the backing list for the renderer's reusable diff. After
+    /// mutation, the caller must invoke <see cref="SortChanges"/> to restore the
+    /// row-major ordering contract.
+    /// </summary>
+    internal List<ChangedCell> MutableCells => _changedCells;
+
+    /// <summary>
+    /// Sorts the backing list into row-major order (Y, then X). The comparer used is a
+    /// static, capture-free lambda, so the JIT caches it and no delegate is allocated
+    /// per call.
+    /// </summary>
+    internal void SortChanges()
+    {
+        _changedCells.Sort(static (a, b) =>
         {
             var yCompare = a.Y.CompareTo(b.Y);
             return yCompare != 0 ? yCompare : a.X.CompareTo(b.X);
