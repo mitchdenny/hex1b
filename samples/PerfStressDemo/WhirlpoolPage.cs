@@ -49,8 +49,10 @@ namespace PerfStressDemo;
 /// as a dark dot at the cursor while it's open.
 ///
 /// Controls: left click places the outlet (drain) at the cursor;
-/// right click places the inlet (refill source); R clears both and
-/// refills the basin to full; scroll up/down adjusts drain strength.
+/// right click places the inlet (refill source); shift+left or
+/// shift+right click clears the outlet or inlet respectively;
+/// R clears both and empties the basin; scroll up/down adjusts
+/// strength (drain consumption and inlet flow).
 /// </summary>
 internal sealed class WhirlpoolPage : IStressPage
 {
@@ -179,6 +181,16 @@ internal sealed class WhirlpoolPage : IStressPage
                 {
                     _strength = MathF.Max(MinStrength, _strength * 0.83f);
                 });
+                bindings.Mouse(MouseButton.Left).Shift().Action(_ =>
+                {
+                    _drainActive = false;
+                    _quiescent = false;
+                });
+                bindings.Mouse(MouseButton.Right).Shift().Action(_ =>
+                {
+                    _inletActive = false;
+                    _quiescent = false;
+                });
                 bindings.Key(Hex1bKey.R).Action(_ => ResetBasin(), "Reset");
             });
 
@@ -200,7 +212,7 @@ internal sealed class WhirlpoolPage : IStressPage
         var n = _height.Length;
         for (var i = 0; i < n; i++)
         {
-            _height[i] = DShort;
+            _height[i] = 0;
             _vx[i] = 0f;
             _vy[i] = 0f;
             _flowAccX[i] = 0f;
@@ -226,7 +238,7 @@ internal sealed class WhirlpoolPage : IStressPage
         _vy = new float[n];
         _flowAccX = new float[n];
         _flowAccY = new float[n];
-        for (var i = 0; i < n; i++) _height[i] = DShort;
+        for (var i = 0; i < n; i++) _height[i] = 0;
         _quiescent = true;
         _drainActive = false;
         _drainOpenFrames = 0;
