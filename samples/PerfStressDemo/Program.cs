@@ -21,6 +21,9 @@ using PerfStressDemo;
 //     --no-pool         Disable the surface pool (A/B against default).
 //     --target-fps <N>  Redraw cadence in frames per second (default 30).
 //     --no-cache        Disable render caching.
+//     --ripple-levels <N>  Quantise the ripple gradient into N greyscale
+//                          bands (default 256 = smooth true-color). Lower
+//                          values dramatically reduce bytes/frame.
 // ─────────────────────────────────────────────────────────────────────────
 
 bool enablePool = true;
@@ -42,6 +45,10 @@ for (var i = 0; i < args.Length; i++)
             targetFps = fps;
             i++;
             break;
+        case "--ripple-levels" when i + 1 < args.Length && int.TryParse(args[i + 1], out var lvl) && lvl > 0:
+            RippleOverNoisePage.Levels = lvl;
+            i++;
+            break;
         case "-h":
         case "--help":
             Console.WriteLine("PerfStressDemo — multi-page TUI render stress harness");
@@ -49,7 +56,9 @@ for (var i = 0; i < args.Length; i++)
             Console.WriteLine("  --no-pool            Disable surface pooling");
             Console.WriteLine("  --no-cache           Disable render caching");
             Console.WriteLine("  --target-fps <N>     Target frame rate (default 30)");
+            Console.WriteLine("  --ripple-levels <N>  Quantise ripple to N greyscale bands (default 256)");
             Console.WriteLine("  PgUp / PgDn          Switch between stress pages");
+            Console.WriteLine("  L                    Cycle ripple quantisation 256→16→8→4→2→256");
             Console.WriteLine("  Q                    Quit");
             return;
     }
@@ -135,9 +144,9 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section(perfLabel),
             s.Divider(" │ "),
-            s.Section($"{poolLabel}  {cacheLabel}"),
+            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}"),
             s.Divider(" │ "),
-            s.Section("PgUp/PgDn  Q quit"),
+            s.Section("PgUp/PgDn  L levels  Q quit"),
         }),
     })
     // Drive continuous animation from the root so the framework always
@@ -157,5 +166,18 @@ Hex1bWidget BuildRoot(RootContext root)
         }, "Previous page");
 
         bindings.Key(Hex1bKey.Q).Global().Action(_ => appRef?.RequestStop(), "Quit");
+
+        bindings.Key(Hex1bKey.L).Global().Action(_ =>
+        {
+            // Cycle: 256 (smooth) → 16 → 8 → 4 → 2 → 256
+            RippleOverNoisePage.Levels = RippleOverNoisePage.Levels switch
+            {
+                >= 256 => 16,
+                16 => 8,
+                8 => 4,
+                4 => 2,
+                _ => 256,
+            };
+        }, "Cycle ripple levels");
     });
 }

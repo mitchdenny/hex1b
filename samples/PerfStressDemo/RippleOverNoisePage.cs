@@ -23,6 +23,24 @@ internal sealed class RippleOverNoisePage : IStressPage
         "Full-screen white random ASCII + continuous ripple EffectPanel. "
         + "The original 'tanks the machine' workload.";
 
+    /// <summary>
+    /// Number of distinct greyscale shades the ripple modulates the foreground
+    /// across. 256 = true-color smooth gradient (worst case — every cell tends
+    /// to a unique colour, so SGR run-collapsing in the surface comparer can't
+    /// help and the per-frame byte count to the host terminal is maximised).
+    /// Lower values quantise the gradient into bands so neighbouring cells
+    /// often share the same SGR — fewer bytes/frame, easier for slow terminal
+    /// emulators to keep up. 0 is a sentinel meaning "no quantisation".
+    /// </summary>
+    public static int Levels { get; set; } = 256;
+
+    /// <summary>
+    /// Human-readable label for the current <see cref="Levels"/> value, used
+    /// by the status bar.
+    /// </summary>
+    public static string LevelsLabel =>
+        Levels >= 256 ? "smooth (256)" : Levels.ToString();
+
     // Cached noise surface. Regenerated only when the terminal is resized.
     // Without this, generating a fresh 160×50 random char field every frame
     // would allocate 8000 strings/frame (240k/sec at 30 fps) which would
@@ -123,6 +141,18 @@ internal sealed class RippleOverNoisePage : IStressPage
                 var s3 = Math.Sin(r * 0.85 - wave3);
                 var combined = (s1 + s2 + s3) / 3.0; // -1..+1
                 var brightness = 0.5 + 0.5 * combined; // 0..1
+
+                // Optionally quantise into N bands so neighbouring cells share
+                // a value, which lets the SurfaceComparer's SGR state tracking
+                // collapse long runs of cells into a single SGR. Massive
+                // bytes/frame reduction on slow host terminals.
+                var levels = Levels;
+                if (levels > 0 && levels < 256)
+                {
+                    var bucket = (int)(brightness * levels);
+                    if (bucket >= levels) bucket = levels - 1;
+                    brightness = bucket / (double)(levels - 1);
+                }
 
                 // Stay in greyscale: just modulate the white intensity so
                 // the ripple reads as the original characters pulsing
