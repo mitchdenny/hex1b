@@ -117,13 +117,19 @@ internal sealed class WhirlpoolPage : IStressPage
 
     public Hex1bWidget Build(StressContext sc)
     {
-        return sc.Root
-            .Surface(layer =>
+        // The Surface widget on its own doesn't participate in mouse-event
+        // routing — wrap it in an Interactable so left/right click and
+        // scroll wheel events get delivered to our bindings. (The Pond
+        // page can get away without this because it samples mouse *position*
+        // every frame from SurfaceLayerContext, which goes through a
+        // different path; click/scroll *events* need explicit routing.)
+        return sc.Root.Interactable(ic =>
+            ic.Surface(layer =>
             {
                 EnsureField(layer.Width, layer.Height);
                 Step();
                 return new[] { layer.Layer(DrawParticles) };
-            })
+            }))
             .InputBindings(bindings =>
             {
                 // Left click: position the well at the cursor and activate
