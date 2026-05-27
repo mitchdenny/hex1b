@@ -368,62 +368,36 @@ internal sealed class Hex1bFlowRunner
                         // "Track cursor on every event, repaint on settle".
                         //
                         // Per-event we do NOT touch the screen at all — no
-                        // ESC[J, no placeholder draw. Touching the screen
-                        // mid-drag risks clobbering the tombstones above
-                        // the active step if our computed origin is even
-                        // one row off (e.g. the terminal scrolled in a way
-                        // we didn't track). Instead we just hide the
-                        // cursor (so the user doesn't see it dancing around
-                        // the reflow garbage) and update our internal
-                        // bookkeeping; the host terminal owns reflow of
-                        // every byte we've emitted so the tombstones above
-                        // stay put.
+                        // ESC[J, no placeholder draw, no bottom-overflow
+                        // LFs. The host terminal already owns reflow of
+                        // every byte we've emitted, so its own scrolling
+                        // (if any) keeps the tombstones above naturally
+                        // anchored. We only update internal bookkeeping
+                        // so the settle-time repaint knows where to land.
                         //
                         // When events go quiet for ResizeSettleDelay, we
-                        // clear ONLY the active-step rectangle (using ESC[K
-                        // per row, never ESC[J), optionally drop a resize
-                        // marker tombstone above it, then ask the inner
-                        // Hex1bApp to repaint into the cleared region.
+                        // do any necessary bottom-overflow scroll, clear
+                        // ONLY the active-step rectangle (per-row ESC[2K,
+                        // never ESC[J), optionally drop a resize-marker
+                        // tombstone above it, then ask the inner Hex1bApp
+                        // to repaint into the cleared region.
                         CancellationToken settleToken;
                         lock (settleSync)
                         {
                             settleOriginalDims ??= (lastKnownWidth, lastKnownHeight);
                             settleLatestDims = (newWidth, newHeight);
 
-                            // Recompute where the active step lands at the
-                            // new width — purely internal bookkeeping, no
-                            // writes to the parent terminal.
-                            var newRowOrigin = FlowResizeMath.ComputeRowOriginAtWidth(
-                                _initialRowOrigin, _emittedTombstones, newWidth);
-
-                            // Bottom-overflow handling: if the active step
-                            // would extend past the bottom of the viewport
-                            // at the new height, emit LFs at the bottom
-                            // row to scroll the whole viewport up so the
-                            // active region stays fully visible. This is a
-                            // necessary screen mutation — without it the
-                            // step would render off the bottom — but it
-                            // only touches the bottom row, never the
-                            // tombstones above.
-                            var bottomOverflow = (newRowOrigin + newStepHeight) - newHeight;
-                            if (bottomOverflow > 0)
-                            {
-                                _parentAdapter.SetCursorPosition(0, newHeight - 1);
-                                for (var i = 0; i < bottomOverflow; i++)
-                                {
-                                    _parentAdapter.Write("\n");
-                                }
-                                _initialRowOrigin -= bottomOverflow;
-                                newRowOrigin -= bottomOverflow;
-                            }
-
                             // Hide the cursor for the duration of the drag
                             // so it doesn't visibly chase the reflow.
                             _parentAdapter.Write("\x1b[?25l");
 
-                            rowOrigin = newRowOrigin;
-                            stepAdapter.RowOrigin = newRowOrigin;
-                            _cursorRow = newRowOrigin;
+                            // Update internal state for the eventual
+                            // settle. Note: we deliberately don't write
+                            // anything to the parent here — the settle
+                            // pass below recomputes the origin against
+                            // whatever the LATEST dimensions ended up
+                            // being and does the scroll/clear/repaint as
+                            // a single atomic pass.
                             desiredHeight = newStepHeight;
                             step.StepHeight = newStepHeight;
 
@@ -453,6 +427,39 @@ internal sealed class Hex1bFlowRunner
                                 var original = settleOriginalDims ?? settleLatestDims;
                                 var dimsChanged = original != settleLatestDims;
 
+                                var settledWidth = settleLatestDims.Width;
+                                var settledHeight = settleLatestDims.Height;
+                                var settledStepHeight = FlowResizeMath.ComputeStepHeight(
+                                    options?.MaxHeight, settledHeight);
+
+                                // Compute where the active step lands at
+                                // the FINAL settled width.
+                                var settledRowOrigin = FlowResizeMath.ComputeRowOriginAtWidth(
+                                    _initialRowOrigin, _emittedTombstones, settledWidth);
+
+                                // Bottom-overflow scroll — applied ONCE,
+                                // at settle time, against the final
+                                // dimensions. Without this the active
+                                // region would render off the bottom of
+                                // a shrunken terminal.
+                                var bottomOverflow = (settledRowOrigin + settledStepHeight) - settledHeight;
+                                if (bottomOverflow > 0)
+                                {
+                                    _parentAdapter.SetCursorPosition(0, settledHeight - 1);
+                                    for (var i = 0; i < bottomOverflow; i++)
+                                    {
+                                        _parentAdapter.Write("\n");
+                                    }
+                                    _initialRowOrigin -= bottomOverflow;
+                                    settledRowOrigin -= bottomOverflow;
+                                }
+
+                                rowOrigin = settledRowOrigin;
+                                stepAdapter.RowOrigin = settledRowOrigin;
+                                _cursorRow = settledRowOrigin;
+                                desiredHeight = settledStepHeight;
+                                step.StepHeight = settledStepHeight;
+
                                 // Optional one-off marker tombstone above
                                 // the active step. EmitSoftWrapTombstone
                                 // advances _cursorRow past the marker so
@@ -461,8 +468,8 @@ internal sealed class Hex1bFlowRunner
                                 {
                                     var markerSurface = RenderToSurface(
                                         markerBuilder,
-                                        settleLatestDims.Width,
-                                        Math.Max(1, settleLatestDims.Height - desiredHeight - 1));
+                                        settledWidth,
+                                        Math.Max(1, settledHeight - settledStepHeight - 1));
                                     if (markerSurface is not null)
                                     {
                                         _parentAdapter.SetCursorPosition(0, rowOrigin);
@@ -480,10 +487,10 @@ internal sealed class Hex1bFlowRunner
                                 try
                                 {
                                     _parentAdapter.Write("\x1b[?7l");
-                                    for (var i = 0; i < desiredHeight; i++)
+                                    for (var i = 0; i < settledStepHeight; i++)
                                     {
                                         var row = rowOrigin + i;
-                                        if (row < 0 || row >= settleLatestDims.Height) continue;
+                                        if (row < 0 || row >= settledHeight) continue;
                                         _parentAdapter.SetCursorPosition(0, row);
                                         _parentAdapter.Write("\x1b[2K");
                                     }
@@ -496,8 +503,7 @@ internal sealed class Hex1bFlowRunner
                                     _parentAdapter.Write(SyncUpdateEnd);
                                 }
 
-                                _ = stepAdapter.ResizeAsync(
-                                    settleLatestDims.Width, desiredHeight);
+                                _ = stepAdapter.ResizeAsync(settledWidth, settledStepHeight);
 
                                 settleOriginalDims = null;
                                 settleTimerCts = null;
