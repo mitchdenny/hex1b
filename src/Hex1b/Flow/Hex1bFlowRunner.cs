@@ -391,6 +391,22 @@ internal sealed class Hex1bFlowRunner
                             // so it doesn't visibly chase the reflow.
                             _parentAdapter.Write("\x1b[?25l");
 
+                            // Disable line wrap (DECAWM) for the duration
+                            // of the drag. The inner Hex1bApp keeps
+                            // rendering at the OLD width via the output
+                            // pump (glow animations, focus blink, etc.);
+                            // when the terminal is shrunk, that stale
+                            // wide content would wrap at the new right
+                            // edge and — if any wrap lands on the bottom
+                            // row — scroll the buffer up, pushing the
+                            // tombstones above off-screen. With DECAWM
+                            // off the host terminal truncates instead of
+                            // wrapping, so the stale content lands on
+                            // the active region but never scrolls. The
+                            // settle pass re-enables DECAWM as its last
+                            // act before showing the cursor.
+                            _parentAdapter.Write("\x1b[?7l");
+
                             // Update internal state for the eventual
                             // settle. Note: we deliberately don't write
                             // anything to the parent here — the settle
