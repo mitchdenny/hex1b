@@ -299,10 +299,15 @@ internal sealed class PondRipplePage : IStressPage
                 var neighbours = cur[i - 1] + cur[i + 1] + cur[i - w] + cur[i + w];
                 var next = (neighbours * 0.5f) - prv[i];
                 next *= damping;
-                // Floor extremely small values to 0 so settled pond doesn't
-                // keep emitting micro-differences forever (lets the renderer
-                // fast-path engage).
-                if (next > -0.001f && next < 0.001f) next = 0f;
+                // Floor small values to 0. The scheme is at CFL=1 (the 2D
+                // stability boundary) so the Nyquist mode is non-dissipative
+                // and only the damping multiplier decays it — without a
+                // generous floor, tiny residual oscillations can sit just
+                // above the cutoff for thousands of steps, and the hard
+                // boundary between floored and not-quite-floored cells
+                // re-injects energy. 0.01 is well below visible brightness
+                // (level 40.4 vs 40 at MaxDisplay=6) so killing it is free.
+                if (next > -0.01f && next < 0.01f) next = 0f;
                 prv[i] = next;
             }
         }
@@ -313,12 +318,13 @@ internal sealed class PondRipplePage : IStressPage
 
     private void DrawPond(Surface surface)
     {
-        if (_current is null || _noise is null) return;
+        if (_current is null || _previous is null || _noise is null) return;
 
         var w = surface.Width;
         var h = surface.Height;
         var black = Hex1bColor.Black;
         var field = _current;
+        var prev = _previous;
 
         // Map signed displacement to brightness with a linear ramp clamped
         // at ±maxDisplay. Peaks brighten, troughs ALSO brighten (we display
@@ -326,6 +332,13 @@ internal sealed class PondRipplePage : IStressPage
         // distinguishes constructive vs destructive interference is the
         // *amplitude* of the resulting peak/trough — keep it linear here so
         // those amplitude differences are visible instead of saturating.
+        //
+        // We display max(|cur|, |prv|) per cell rather than just |cur|.
+        // For a propagating sinusoid the instantaneous magnitude swings
+        // through zero at every half-period, which would show up as a
+        // strobing pattern at the cell level even when the wave itself is
+        // smooth. The envelope across two adjacent timesteps captures the
+        // local amplitude and reads as a steady band of brightness.
         const float MaxDisplay = 6.0f;
         for (var y = 0; y < h; y++)
         {
@@ -333,8 +346,11 @@ internal sealed class PondRipplePage : IStressPage
             for (var x = 0; x < w; x++)
             {
                 var i = row + x;
-                var d = field[i];
-                var mag = d < 0 ? -d : d;
+                var c = field[i];
+                var p = prev[i];
+                var mc = c < 0 ? -c : c;
+                var mp = p < 0 ? -p : p;
+                var mag = mc > mp ? mc : mp;
                 var t = mag / MaxDisplay;
                 if (t > 1.0f) t = 1.0f;
                 var level = (byte)(40 + (215 * t));
