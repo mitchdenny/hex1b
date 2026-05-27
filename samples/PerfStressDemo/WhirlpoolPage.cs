@@ -15,11 +15,12 @@ namespace PerfStressDemo;
 /// <list type="bullet">
 ///   <item><b>Pressure gradient</b> — water accelerates away from
 ///         high-water cells toward low-water cells (<c>∂v/∂t ∝ -∇h</c>).</item>
-///   <item><b>Drain attraction + swirl</b> — when the drain is open,
-///         each cell within reach gains a radially-inward and
-///         tangential acceleration, weighted by a Gaussian on
-///         distance to the drain. This is what spins the visible
-///         whirlpool.</item>
+///   <item><b>Drain attraction</b> — when the drain is open, each
+///         cell within reach receives a radially-inward acceleration
+///         weighted by a Gaussian on distance to the drain centre.
+///         The vortex shape emerges naturally from this radial pull
+///         plus the pressure gradient and the obstacle field, with
+///         no artificial tangential swirl.</item>
 ///   <item><b>Damping</b> — multiplicative per-frame velocity decay
 ///         plus a hard cap; the system loses energy over time so it
 ///         eventually settles.</item>
@@ -61,7 +62,7 @@ internal sealed class WhirlpoolPage : IStressPage
 
     public string Description =>
         "Shallow-water voxel fluid: per-cell height + 2D velocity, "
-        + "pressure-gradient acceleration, drain attraction + swirl, "
+        + "pressure-gradient acceleration, radial drain attraction, "
         + "integer voxel flux transfers. Water sloshes back elastically "
         + "when the drain closes.";
 
@@ -99,7 +100,6 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float DrainDiscRadiusMax  = 3.0f;
     private const float DrainDensity        = 2.0f;
     private const float PullStrength        = 0.35f; // peak inward accel per frame at drain centre
-    private const float SwirlStrength       = 0.60f; // peak tangential accel per frame
 
     // ----------------------------------------------------------------
     // Shallow-water dynamics. Tune for visible momentum / sloshing
@@ -354,7 +354,7 @@ internal sealed class WhirlpoolPage : IStressPage
     /// <summary>
     /// Per-cell acceleration: pressure gradient pushes velocity from
     /// high water toward low water; while the drain is open each
-    /// cell within reach also receives a radial-inward + tangential
+    /// cell within reach also receives a radial-inward
     /// acceleration weighted by a Gaussian on its distance to the
     /// drain centre. Boundaries reflect by mirroring the centre
     /// height into the off-grid neighbour — so the wall pushes back
@@ -372,7 +372,6 @@ internal sealed class WhirlpoolPage : IStressPage
         var twoR2 = 2f * reach * reach;
         var skip2 = (3f * reach) * (3f * reach);
         var pull = PullStrength * _strength;
-        var swirl = SwirlStrength * _strength;
 
         for (var y = 0; y < dh; y++)
         {
@@ -417,10 +416,8 @@ internal sealed class WhirlpoolPage : IStressPage
                     var invR = 1f / MathF.Sqrt(d2);
                     var inX = -dxc * invR;
                     var inY = -dyc * invR;
-                    var tX = -dyc * invR; // CCW tangential
-                    var tY =  dxc * invR;
-                    vx[i] += (pull * inX + swirl * tX) * w;
-                    vy[i] += (pull * inY + swirl * tY) * w;
+                    vx[i] += pull * inX * w;
+                    vy[i] += pull * inY * w;
                 }
             }
         }
