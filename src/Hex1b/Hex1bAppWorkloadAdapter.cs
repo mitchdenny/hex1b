@@ -180,7 +180,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
             return;
         }
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens, pooledBuffer)))
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens) { PooledBuffer = pooledBuffer }))
         {
             Interlocked.Increment(ref _outputQueueDepth);
         }
