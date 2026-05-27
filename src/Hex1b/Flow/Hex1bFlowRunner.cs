@@ -365,32 +365,46 @@ internal sealed class Hex1bFlowRunner
 
                     if (useSettle)
                     {
-                        // New "track-and-clear on every event, repaint on
-                        // settle" path. Each Hex1bResizeEvent recomputes
-                        // where the active step should land at the new
-                        // width (using the per-paragraph widths of every
-                        // emitted tombstone above it), moves the cursor
-                        // there, and erases the region below. The inner
-                        // Hex1bApp is NOT asked to repaint until the
-                        // terminal has been idle for ResizeSettleDelay; in
-                        // the meantime an optional ResizePlaceholder
-                        // renders into the cleared region.
+                        // "Track cursor on every event, repaint on settle".
+                        //
+                        // Per-event we do NOT touch the screen at all — no
+                        // ESC[J, no placeholder draw. Touching the screen
+                        // mid-drag risks clobbering the tombstones above
+                        // the active step if our computed origin is even
+                        // one row off (e.g. the terminal scrolled in a way
+                        // we didn't track). Instead we just hide the
+                        // cursor (so the user doesn't see it dancing around
+                        // the reflow garbage) and update our internal
+                        // bookkeeping; the host terminal owns reflow of
+                        // every byte we've emitted so the tombstones above
+                        // stay put.
+                        //
+                        // When events go quiet for ResizeSettleDelay, we
+                        // clear ONLY the active-step rectangle (using ESC[K
+                        // per row, never ESC[J), optionally drop a resize
+                        // marker tombstone above it, then ask the inner
+                        // Hex1bApp to repaint into the cleared region.
                         CancellationToken settleToken;
                         lock (settleSync)
                         {
                             settleOriginalDims ??= (lastKnownWidth, lastKnownHeight);
                             settleLatestDims = (newWidth, newHeight);
 
-                            // Track-and-clear pass (inline so we can mutate
-                            // the closure-captured rowOrigin/desiredHeight).
+                            // Recompute where the active step lands at the
+                            // new width — purely internal bookkeeping, no
+                            // writes to the parent terminal.
                             var newRowOrigin = FlowResizeMath.ComputeRowOriginAtWidth(
                                 _initialRowOrigin, _emittedTombstones, newWidth);
 
                             // Bottom-overflow handling: if the active step
                             // would extend past the bottom of the viewport
-                            // at the new width/height, emit LFs at the
-                            // bottom row to scroll the whole viewport up
-                            // so the active region stays fully visible.
+                            // at the new height, emit LFs at the bottom
+                            // row to scroll the whole viewport up so the
+                            // active region stays fully visible. This is a
+                            // necessary screen mutation — without it the
+                            // step would render off the bottom — but it
+                            // only touches the bottom row, never the
+                            // tombstones above.
                             var bottomOverflow = (newRowOrigin + newStepHeight) - newHeight;
                             if (bottomOverflow > 0)
                             {
@@ -403,28 +417,9 @@ internal sealed class Hex1bFlowRunner
                                 newRowOrigin -= bottomOverflow;
                             }
 
-                            _parentAdapter.Write(SyncUpdateBegin);
-                            try
-                            {
-                                _parentAdapter.Write("\x1b[?25l"); // hide cursor
-                                _parentAdapter.Write("\x1b[?7l");  // DECAWM off (defensive)
-                                _parentAdapter.SetCursorPosition(0, newRowOrigin);
-                                _parentAdapter.Write("\x1b[J");    // erase to end of screen
-
-                                if (_options.ResizePlaceholder is { } placeholderBuilder)
-                                {
-                                    RenderPlaceholder(
-                                        placeholderBuilder,
-                                        newWidth, newStepHeight, newRowOrigin);
-                                }
-
-                                _parentAdapter.Write("\x1b[?7h");  // DECAWM on
-                                // Cursor stays hidden until settle.
-                            }
-                            finally
-                            {
-                                _parentAdapter.Write(SyncUpdateEnd);
-                            }
+                            // Hide the cursor for the duration of the drag
+                            // so it doesn't visibly chase the reflow.
+                            _parentAdapter.Write("\x1b[?25l");
 
                             rowOrigin = newRowOrigin;
                             stepAdapter.RowOrigin = newRowOrigin;
@@ -458,13 +453,10 @@ internal sealed class Hex1bFlowRunner
                                 var original = settleOriginalDims ?? settleLatestDims;
                                 var dimsChanged = original != settleLatestDims;
 
-                                // Settle: optionally emit a resize-marker
-                                // tombstone above the active step, then ask
-                                // the inner Hex1bApp to repaint at the
-                                // settled dimensions. Its output flows
-                                // through the existing output pump and
-                                // lands in the region we cleared in the
-                                // last track-and-clear pass.
+                                // Optional one-off marker tombstone above
+                                // the active step. EmitSoftWrapTombstone
+                                // advances _cursorRow past the marker so
+                                // the step lands cleanly below it.
                                 if (dimsChanged && _options.ResizeMarker is { } markerBuilder)
                                 {
                                     var markerSurface = RenderToSurface(
@@ -473,10 +465,6 @@ internal sealed class Hex1bFlowRunner
                                         Math.Max(1, settleLatestDims.Height - desiredHeight - 1));
                                     if (markerSurface is not null)
                                     {
-                                        // Emit at the current active-step
-                                        // origin; EmitSoftWrapTombstone
-                                        // advances _cursorRow past the
-                                        // marker so the step lands below.
                                         _parentAdapter.SetCursorPosition(0, rowOrigin);
                                         EmitSoftWrapTombstone(markerSurface);
                                         rowOrigin = _cursorRow;
@@ -484,12 +472,22 @@ internal sealed class Hex1bFlowRunner
                                     }
                                 }
 
+                                // Clear ONLY the active-step rectangle —
+                                // row by row with ESC[K, never ESC[J — so
+                                // we cannot accidentally erase a tombstone
+                                // above if our computed origin is off.
                                 _parentAdapter.Write(SyncUpdateBegin);
                                 try
                                 {
                                     _parentAdapter.Write("\x1b[?7l");
+                                    for (var i = 0; i < desiredHeight; i++)
+                                    {
+                                        var row = rowOrigin + i;
+                                        if (row < 0 || row >= settleLatestDims.Height) continue;
+                                        _parentAdapter.SetCursorPosition(0, row);
+                                        _parentAdapter.Write("\x1b[2K");
+                                    }
                                     _parentAdapter.SetCursorPosition(0, rowOrigin);
-                                    _parentAdapter.Write("\x1b[J");
                                     _parentAdapter.Write("\x1b[?7h");
                                     _parentAdapter.Write("\x1b[?25h"); // show cursor
                                 }
@@ -963,32 +961,6 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Renders the user-supplied <see cref="Hex1bFlowOptions.ResizePlaceholder"/>
-    /// directly into the cleared active-step region during a track-and-clear
-    /// pass. Bypasses the step adapter's output pump so the placeholder
-    /// appears immediately on every resize event without waiting for the
-    /// inner Hex1bApp's render loop.
-    /// </summary>
-    /// <remarks>
-    /// Uses <see cref="SoftWrapEmitter"/> so each row is terminated with
-    /// <c>CR + LF</c> just like a tombstone — the placeholder is rendered as
-    /// proper logical lines that survive any reflow until the next
-    /// track-and-clear pass overwrites them.
-    /// </remarks>
-    private void RenderPlaceholder(
-        Func<RootContext, Hex1bWidget> builder,
-        int width,
-        int heightCap,
-        int originRow)
-    {
-        var surface = RenderToSurface(builder, width, heightCap);
-        if (surface is null) return;
-
-        _parentAdapter.SetCursorPosition(0, originRow);
-        SoftWrapEmitter.Emit(surface, _parentAdapter);
-    }
-
-    /// <summary>
     /// Returns the logical paragraph width of the given surface row — the
     /// column index of the last non-blank cell plus one. Mirrors the
     /// trailing-blank trimming that <see cref="SoftWrapEmitter"/> performs
@@ -1252,19 +1224,6 @@ public sealed class Hex1bFlowOptions
     /// Recommended value: 50–100 ms.
     /// </remarks>
     public TimeSpan? ResizeSettleDelay { get; set; }
-
-    /// <summary>
-    /// Optional widget builder rendered into the active-step region
-    /// <em>during</em> the settle window, in place of the live step.
-    /// Designed to be safe to render repeatedly in a hostile,
-    /// actively-resizing environment — keep it cheap, layout-tolerant, and
-    /// free of input affordances. When <c>null</c> (the default), the
-    /// active region is simply erased during the drag.
-    /// </summary>
-    /// <remarks>
-    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
-    /// </remarks>
-    public Func<RootContext, Hex1bWidget>? ResizePlaceholder { get; set; }
 
     /// <summary>
     /// Optional widget builder emitted as a one-off hard-newline tombstone
