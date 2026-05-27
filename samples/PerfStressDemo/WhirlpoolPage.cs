@@ -102,8 +102,8 @@ internal sealed class WhirlpoolPage : IStressPage
     // outflow per step is 4 * DiffusionK. Keep < 0.25 for stability of
     // the explicit scheme (CFL).
     private const float DiffusionK = 0.18f;
-    private const float DrainRadius = 4.0f;       // sub-cell units
-    private const float DrainPerFrameBase = 0.05f; // strength multiplier
+    private const float DrainRadius = 6.5f;       // sub-cell units
+    private const float DrainPerFrameBase = 0.28f; // strength multiplier
     private const int   InletCheckInterval = 12;   // frames between spawn attempts
     private const int   InletMaxConcurrent = 6;
     private const int   InletLifetimeMin = 90;
@@ -141,8 +141,9 @@ internal sealed class WhirlpoolPage : IStressPage
     // values so we avoid allocating new ones in the hot render loop
     // by lerping bytes and constructing the colour once per cell.
     private static readonly (byte R, byte G, byte B) SandColour = (235, 215, 175); // warm beach
-    private static readonly (byte R, byte G, byte B) ShallowColour = (140, 210, 240); // pale aqua
-    private static readonly (byte R, byte G, byte B) DeepColour = (8, 60, 130);       // deep ocean
+    private static readonly (byte R, byte G, byte B) ShallowColour = (160, 220, 245); // pale aqua
+    private static readonly (byte R, byte G, byte B) MidColour = (40, 130, 200);      // mid teal-blue
+    private static readonly (byte R, byte G, byte B) DeepColour = (8, 40, 100);       // deep ocean
 
     public Hex1bWidget Build(StressContext sc)
     {
@@ -470,21 +471,22 @@ internal sealed class WhirlpoolPage : IStressPage
 
     private static Hex1bColor DepthColour(float d)
     {
-        // Two-segment lerp: empty (0) → sand → shallow (0.25) → deep (1).
-        // The sand→shallow band is short so a barely-wet sub-cell
-        // already reads as "water" rather than damp sand.
+        // Three-segment lerp tuned so the full [0, 1] depth range is
+        // visually distinguishable: a partially-drained cell at 0.7
+        // must read clearly differently from the surrounding 1.0
+        // ocean, otherwise the whirlpool's gradient is invisible.
+        // Bands: sand → shallow (0..0.2) → mid (0.2..0.6) → deep (0.6..1).
         if (d <= 0f) return Hex1bColor.FromRgb(SandColour.R, SandColour.G, SandColour.B);
         if (d >= 1f) return Hex1bColor.FromRgb(DeepColour.R, DeepColour.G, DeepColour.B);
-        if (d < 0.25f)
+        if (d < 0.2f)
         {
-            var t = d / 0.25f;
-            return Lerp(SandColour, ShallowColour, t);
+            return Lerp(SandColour, ShallowColour, d / 0.2f);
         }
-        else
+        if (d < 0.6f)
         {
-            var t = (d - 0.25f) / 0.75f;
-            return Lerp(ShallowColour, DeepColour, t);
+            return Lerp(ShallowColour, MidColour, (d - 0.2f) / 0.4f);
         }
+        return Lerp(MidColour, DeepColour, (d - 0.6f) / 0.4f);
     }
 
     private static Hex1bColor Lerp((byte R, byte G, byte B) a, (byte R, byte G, byte B) b, float t)
