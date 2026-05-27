@@ -231,13 +231,18 @@ internal sealed partial class InlineStepAdapter : IHex1bAppTerminalWorkloadAdapt
 
     public ValueTask ResizeAsync(int width, int height, CancellationToken ct = default)
     {
-        var changed = _width != width || _height != height;
+        // Always push a resize event, even if the dimensions didn't change.
+        // The inner Hex1bApp treats a resize event as a re-render trigger,
+        // and the flow runner clears the active rectangle on every settle
+        // before calling ResizeAsync — if we suppress the event here, the
+        // cleared rectangle stays blank until something else invalidates
+        // the inner app. (Example: a vertical-only terminal resize where
+        // the step height is clamped by MaxHeight ends up with the same
+        // width and same step height, but the flow runner has already
+        // wiped the prior frame.)
         _width = width;
         _height = height;
-        if (changed)
-        {
-            _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(width, height));
-        }
+        _inputChannel.Writer.TryWrite(new Hex1bResizeEvent(width, height));
         return ValueTask.CompletedTask;
     }
 
