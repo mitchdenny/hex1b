@@ -99,7 +99,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private const int   DrainReachRampFrames = 90;
     private const float DrainDiscRadiusMax  = 3.0f;
     private const float DrainDensity        = 2.0f;
-    private const float PullStrength        = 0.35f; // peak inward accel per frame at drain centre
+    private const float PullStrength        = 0.15f; // peak inward accel per frame at drain centre
 
     // ----------------------------------------------------------------
     // Shallow-water dynamics. Tune for visible momentum / sloshing
@@ -107,7 +107,7 @@ internal sealed class WhirlpoolPage : IStressPage
     // ----------------------------------------------------------------
     private const float PressureGain = 0.07f;
     private const float Damping      = 0.92f;
-    private const float MaxSpeed     = 1.1f;
+    private const float MaxSpeed     = 0.6f;
     private const float VelocityFloor = 0.015f;
 
     // ----------------------------------------------------------------
