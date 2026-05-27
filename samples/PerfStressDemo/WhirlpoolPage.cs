@@ -175,6 +175,7 @@ internal sealed class WhirlpoolPage : IStressPage
                 {
                     _strength = MathF.Max(MinStrength, _strength * 0.83f);
                 });
+                bindings.Key(Hex1bKey.R).Action(_ => ResetBasin(), "Reset");
             });
 
         return _quiescent ? widget : widget.RedrawAfter(sc.RedrawIntervalMs);
@@ -188,6 +189,25 @@ internal sealed class WhirlpoolPage : IStressPage
         if (mouseY < WallCells || mouseY >= _screenH - WallCells) return false;
         if (icx < 0 || icx >= _dw || icy < 0 || icy >= _dh) return false;
         return true;
+    }
+
+    private void ResetBasin()
+    {
+        var n = _height.Length;
+        for (var i = 0; i < n; i++)
+        {
+            _height[i] = DShort;
+            _vx[i] = 0f;
+            _vy[i] = 0f;
+            _flowAccX[i] = 0f;
+            _flowAccY[i] = 0f;
+        }
+        _drainActive = false;
+        _drainOpenFrames = 0;
+        _inletAge = 0;
+        _inletGap = 0;
+        _strength = 1f;
+        _quiescent = false;
     }
 
     private void EnsureField(int w, int h)
