@@ -67,6 +67,7 @@ for (var i = 0; i < args.Length; i++)
 var pages = new IStressPage[]
 {
     new RippleOverNoisePage(),
+    new PondRipplePage(),
 };
 
 int currentPageIndex = 0;
