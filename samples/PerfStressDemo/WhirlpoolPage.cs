@@ -90,8 +90,8 @@ internal sealed class WhirlpoolPage : IStressPage
     private int _drainCy;
     private float _strength = 1.0f;
     private int _drainOpenFrames;
-    private const float MinStrength = 0.3f;
-    private const float MaxStrength = 4.0f;
+    private const float MinStrength = 0.2f;
+    private const float MaxStrength = 8.0f;
 
     private const float DrainReachInitial   = 2.0f;
     private const float DrainReachMax       = 22f;
@@ -191,11 +191,11 @@ internal sealed class WhirlpoolPage : IStressPage
                 });
                 bindings.Mouse(MouseButton.ScrollUp).Action(_ =>
                 {
-                    _strength = MathF.Min(MaxStrength, _strength * 1.2f);
+                    _strength = MathF.Min(MaxStrength, _strength * 1.4f);
                 });
                 bindings.Mouse(MouseButton.ScrollDown).Action(_ =>
                 {
-                    _strength = MathF.Max(MinStrength, _strength * 0.83f);
+                    _strength = MathF.Max(MinStrength, _strength * 0.71f);
                 });
                 bindings.Mouse(MouseButton.Left).Ctrl().Action(_ =>
                 {
