@@ -359,6 +359,13 @@ internal sealed class Hex1bFlowRunner
             var settleSync = new object();
             CancellationTokenSource? settleTimerCts = null;
             (int Width, int Height)? settleOriginalDims = null;
+            // Snapshot of where the active step's render region *was* when
+            // the current burst started. Used at settle time to clear the
+            // pre-burst rectangle in addition to the post-settle one — so
+            // a stale frame the inner Hex1bApp emitted just before the
+            // mute gate closed cannot leave artifacts above or below the
+            // new render.
+            (int RowOrigin, int Height)? settleOriginalRect = null;
             (int Width, int Height) settleLatestDims = default;
             var lastKnownWidth = _parentAdapter.Width;
             var lastKnownHeight = _parentAdapter.Height;
@@ -393,7 +400,15 @@ internal sealed class Hex1bFlowRunner
                         CancellationToken settleToken;
                         lock (settleSync)
                         {
-                            settleOriginalDims ??= (lastKnownWidth, lastKnownHeight);
+                            // First event of a burst: snapshot the pre-burst
+                            // rect so we can clear it at settle (the inner
+                            // Hex1bApp may have left a frame painted at the
+                            // old origin/height before the mute gate closed).
+                            if (settleOriginalDims is null)
+                            {
+                                settleOriginalDims = (lastKnownWidth, lastKnownHeight);
+                                settleOriginalRect = (rowOrigin, step.StepHeight);
+                            }
                             settleLatestDims = (newWidth, newHeight);
 
                             // Hide the cursor for the duration of the drag
@@ -539,17 +554,34 @@ internal sealed class Hex1bFlowRunner
                                     }
                                 }
 
-                                // Clear ONLY the active-step rectangle —
-                                // row by row with ESC[K, never ESC[J — so
-                                // we cannot accidentally erase a tombstone
-                                // above if our computed origin is off.
+                                // Clear the union of the pre-burst rect
+                                // and the post-settle rect. Per-event we
+                                // mute the inner Hex1bApp's output pump,
+                                // but the very first frame of a burst may
+                                // already have been written to the parent
+                                // before the mute gate flipped — leaving a
+                                // partial render at the OLD origin/height.
+                                // If settledRowOrigin or settledStepHeight
+                                // moved, that stale fragment can sit above
+                                // or below the new render unless we wipe
+                                // the old rect too. Row-by-row ESC[2K
+                                // (never ESC[J) so a wrong computation
+                                // can't erase tombstones above.
                                 _parentAdapter.Write(SyncUpdateBegin);
                                 try
                                 {
                                     _parentAdapter.Write("\x1b[?7l");
-                                    for (var i = 0; i < settledStepHeight; i++)
+
+                                    var clearTop = rowOrigin;
+                                    var clearBottom = rowOrigin + settledStepHeight - 1;
+                                    if (settleOriginalRect is { } origRect)
                                     {
-                                        var row = rowOrigin + i;
+                                        clearTop = Math.Min(clearTop, origRect.RowOrigin);
+                                        clearBottom = Math.Max(
+                                            clearBottom, origRect.RowOrigin + origRect.Height - 1);
+                                    }
+                                    for (var row = clearTop; row <= clearBottom; row++)
+                                    {
                                         if (row < 0 || row >= settledHeight) continue;
                                         _parentAdapter.SetCursorPosition(0, row);
                                         _parentAdapter.Write("\x1b[2K");
@@ -574,6 +606,7 @@ internal sealed class Hex1bFlowRunner
                                 System.Threading.Volatile.Write(ref outputMuteGate.Value, false);
 
                                 settleOriginalDims = null;
+                                settleOriginalRect = null;
                                 settleTimerCts = null;
                             }
                         });
