@@ -81,7 +81,9 @@ public static class SurfaceComparer
             }
         }
 
-        dest.SortChanges();
+        // No SortChanges call: we add in row-major order (Y outer, X inner),
+        // which is exactly the order SortChanges produces. Skipping the sort
+        // saves an O(N log N) pass on every frame.
     }
 
     /// <summary>
@@ -133,7 +135,7 @@ public static class SurfaceComparer
             }
         }
 
-        dest.SortChanges();
+        // No SortChanges call: see CompareInto - same row-major add order.
     }
 
     /// <summary>
@@ -748,7 +750,9 @@ public static class SurfaceComparer
             !ColorsEqual(a.Foreground, b.Foreground) ||
             !ColorsEqual(a.Background, b.Background) ||
             a.Attributes != b.Attributes ||
-            a.DisplayWidth != b.DisplayWidth)
+            a.DisplayWidth != b.DisplayWidth ||
+            a.UnderlineStyle != b.UnderlineStyle ||
+            !ColorsEqual(a.UnderlineColor, b.UnderlineColor))
         {
             return false;
         }
