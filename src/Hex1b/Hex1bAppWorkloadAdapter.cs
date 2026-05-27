@@ -204,6 +204,16 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// the consumer invokes to return it. Both must be supplied together or both null.
     /// </param>
     /// <param name="pooledTokensReturn">See <paramref name="pooledTokens"/>.</param>
+    /// <remarks>
+    /// <para>
+    /// This sync overload uses sync-over-async when backpressure forces the bounded channel to
+    /// wait, which is safe only when the producer is on a thread that is not the channel's
+    /// reader thread (the standard arrangement, since the reader runs on its own
+    /// <c>Task.Run</c>). Callers hosted under a single-threaded
+    /// <see cref="System.Threading.SynchronizationContext"/> (some UI frameworks) should prefer
+    /// <see cref="WriteTokensWithBytesAsync"/> to avoid potential deadlock.
+    /// </para>
+    /// </remarks>
     internal void WriteTokensWithBytes(
         IReadOnlyList<AnsiToken> tokens,
         ReadOnlyMemory<byte> bytes,
@@ -223,6 +233,38 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             return;
         }
         EnqueueOutput(item);
+    }
+
+    /// <summary>
+    /// Async variant of <see cref="WriteTokensWithBytes"/>. Producers on async render loops
+    /// should prefer this overload — when the bounded channel is full the returned
+    /// <see cref="ValueTask"/> awaits a slot freeing up without blocking the producer thread,
+    /// avoiding the sync-over-async hazard documented on the sync overload.
+    /// </summary>
+    /// <returns>
+    /// A completed <see cref="ValueTask"/> when the item was enqueued without contention;
+    /// otherwise a task that completes once backpressure has cleared.
+    /// </returns>
+    internal ValueTask WriteTokensWithBytesAsync(
+        IReadOnlyList<AnsiToken> tokens,
+        ReadOnlyMemory<byte> bytes,
+        byte[]? pooledBuffer = null,
+        List<AnsiToken>? pooledTokens = null,
+        Action<List<AnsiToken>>? pooledTokensReturn = null,
+        CancellationToken cancellationToken = default)
+    {
+        var item = new WorkloadOutputItem(bytes, tokens)
+        {
+            PooledBuffer = pooledBuffer,
+            PooledTokens = pooledTokens,
+            PooledTokensReturn = pooledTokensReturn,
+        };
+        if (_disposed)
+        {
+            ReturnPooledResources(item);
+            return ValueTask.CompletedTask;
+        }
+        return EnqueueOutputAsync(item, cancellationToken);
     }
 
     /// <summary>
@@ -275,6 +317,40 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             System.Buffers.ArrayPool<byte>.Shared.Return(item.PooledBuffer);
         if (item.PooledTokens is not null && item.PooledTokensReturn is not null)
             item.PooledTokensReturn(item.PooledTokens);
+    }
+
+    /// <summary>
+    /// Async counterpart of <see cref="EnqueueOutput"/>. Awaits a slot instead of
+    /// blocking the producer thread when the bounded channel is full — required by
+    /// callers hosted under single-threaded sync contexts where sync-over-async would
+    /// deadlock.
+    /// </summary>
+    private async ValueTask EnqueueOutputAsync(WorkloadOutputItem item, CancellationToken cancellationToken)
+    {
+        if (_outputChannel.Writer.TryWrite(item))
+        {
+            Interlocked.Increment(ref _outputQueueDepth);
+            return;
+        }
+
+        try
+        {
+            await _outputChannel.Writer.WriteAsync(item, cancellationToken).ConfigureAwait(false);
+            Interlocked.Increment(ref _outputQueueDepth);
+        }
+        catch (ChannelClosedException)
+        {
+            ReturnPooledResources(item);
+        }
+        catch (InvalidOperationException)
+        {
+            ReturnPooledResources(item);
+        }
+        catch (OperationCanceledException)
+        {
+            ReturnPooledResources(item);
+            throw;
+        }
     }
 
     /// <summary>

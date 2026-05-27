@@ -102,6 +102,14 @@ public sealed class Hex1bMetrics : IDisposable
     /// <summary>Time to diff previous vs current surface.</summary>
     public Histogram<double> SurfaceDiffDuration { get; }
 
+    /// <summary>Number of surface diffs that took the simple 4-field fast path. Compare against
+    /// <see cref="SurfaceDiffSlowPathCount"/> to see how often complex content forces the slow path.</summary>
+    public Counter<long> SurfaceDiffFastPathCount { get; }
+
+    /// <summary>Number of surface diffs that took the full per-cell slow path because at least
+    /// one cell on either side had wide width, underline, a multi-codepoint grapheme, or a tracked ref.</summary>
+    public Counter<long> SurfaceDiffSlowPathCount { get; }
+
     /// <summary>Time to convert surface diff to ANSI tokens.</summary>
     public Histogram<double> SurfaceTokensDuration { get; }
 
@@ -158,6 +166,8 @@ public sealed class Hex1bMetrics : IDisposable
 
         // Surface pipeline (always-on)
         SurfaceDiffDuration = Meter.CreateHistogram<double>("hex1b.surface.diff.duration", "ms", "Surface diff duration");
+        SurfaceDiffFastPathCount = Meter.CreateCounter<long>("hex1b.surface.diff.fast_path", "{diff}", "Surface diffs that took the 4-field fast path");
+        SurfaceDiffSlowPathCount = Meter.CreateCounter<long>("hex1b.surface.diff.slow_path", "{diff}", "Surface diffs that took the full per-cell slow path");
         SurfaceTokensDuration = Meter.CreateHistogram<double>("hex1b.surface.tokens.duration", "ms", "Diff to ANSI tokens duration");
         SurfaceSerializeDuration = Meter.CreateHistogram<double>("hex1b.surface.serialize.duration", "ms", "Token serialization duration");
 

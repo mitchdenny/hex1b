@@ -41,7 +41,13 @@ public static class SurfaceComparer
     /// supplied <see cref="SurfaceDiff"/> in place. The renderer hot path uses this to
     /// avoid allocating a fresh diff and backing list every frame.
     /// </summary>
-    internal static void CompareInto(Surface previous, Surface current, SurfaceDiff dest)
+    /// <returns>
+    /// <see langword="true"/> if the simple 4-field fast path was used (both surfaces report
+    /// <see cref="Surface.IsFastPathEligible"/>), otherwise <see langword="false"/> for the
+    /// full per-cell slow path. Used by the renderer to record fast/slow-path engagement
+    /// metrics.
+    /// </returns>
+    internal static bool CompareInto(Surface previous, Surface current, SurfaceDiff dest)
     {
         ArgumentNullException.ThrowIfNull(previous);
         ArgumentNullException.ThrowIfNull(current);
@@ -52,7 +58,7 @@ public static class SurfaceComparer
 
         // Fast path: same instance means no changes
         if (ReferenceEquals(previous, current))
-            return;
+            return true;
 
         if (previous.Width != current.Width || previous.Height != current.Height)
         {
@@ -87,7 +93,7 @@ public static class SurfaceComparer
                 }
             }
 
-            return;
+            return true;
         }
 
         for (var y = 0; y < height; y++)
@@ -109,6 +115,7 @@ public static class SurfaceComparer
         // No SortChanges call: we add in row-major order (Y outer, X inner),
         // which is exactly the order SortChanges produces. Skipping the sort
         // saves an O(N log N) pass on every frame.
+        return false;
     }
 
     /// <summary>
@@ -133,7 +140,11 @@ public static class SurfaceComparer
     /// Reusable variant of <see cref="CompareToEmpty(Surface)"/> that populates the
     /// supplied <see cref="SurfaceDiff"/> in place.
     /// </summary>
-    internal static void CompareToEmptyInto(Surface surface, SurfaceDiff dest)
+    /// <returns>
+    /// <see langword="true"/> when the simple 4-field fast path was used (the surface
+    /// is <see cref="Surface.IsFastPathEligible"/>); otherwise <see langword="false"/>.
+    /// </returns>
+    internal static bool CompareToEmptyInto(Surface surface, SurfaceDiff dest)
     {
         ArgumentNullException.ThrowIfNull(surface);
         ArgumentNullException.ThrowIfNull(dest);
@@ -164,7 +175,7 @@ public static class SurfaceComparer
                 }
             }
 
-            return;
+            return true;
         }
 
         for (var y = 0; y < height; y++)
@@ -182,6 +193,7 @@ public static class SurfaceComparer
         }
 
         // No SortChanges call: see CompareInto - same row-major add order.
+        return false;
     }
 
     /// <summary>

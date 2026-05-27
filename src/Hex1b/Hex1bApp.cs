@@ -1033,7 +1033,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     long renderFrameStart = Stopwatch.GetTimestamp();
                     
-                    wroteOutput = RenderFrameWithSurface(frameWidth, frameHeight, frameCapabilities);
+                    wroteOutput = await RenderFrameWithSurfaceAsync(frameWidth, frameHeight, frameCapabilities, cancellationToken).ConfigureAwait(false);
                     
                     renderTicks = Stopwatch.GetTimestamp() - renderFrameStart;
                     if (_diagnosticTimingEnabled) _diagRenderTicks = renderTicks;
@@ -1096,8 +1096,29 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     /// Callers use this to know whether the hardware cursor may have been moved by
     /// the emitted tokens.
     /// </returns>
+    private async ValueTask<bool> RenderFrameWithSurfaceAsync(int width, int height, TerminalCapabilities caps, CancellationToken cancellationToken)
+    {
+        var result = RenderFrameWithSurfaceCore(width, height, caps, out var asyncWriteWork);
+        if (asyncWriteWork != null)
+            await asyncWriteWork(cancellationToken).ConfigureAwait(false);
+        return result;
+    }
+
     private bool RenderFrameWithSurface(int width, int height, TerminalCapabilities caps)
     {
+        // Sync wrapper retained for non-async call sites (e.g. tests). The async
+        // write-work continuation should never be produced in this path because
+        // bounded backpressure is not used outside the live render loop, but if
+        // it is, we synchronously wait — the same sync-over-async hazard
+        // documented on WriteTokensWithBytes applies.
+        var result = RenderFrameWithSurfaceCore(width, height, caps, out var asyncWriteWork);
+        asyncWriteWork?.Invoke(CancellationToken.None).AsTask().GetAwaiter().GetResult();
+        return result;
+    }
+
+    private bool RenderFrameWithSurfaceCore(int width, int height, TerminalCapabilities caps, out Func<CancellationToken, ValueTask>? asyncWriteWork)
+    {
+        asyncWriteWork = null;
         _surfacePool?.NextFrame();
         
         // Get cell metrics from terminal capabilities
@@ -1223,16 +1244,21 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Diff current vs previous and emit changes. _frameDiff is a pooled
         // SurfaceDiff reused every frame to avoid the List<ChangedCell> growth cost.
         var diffStart = Stopwatch.GetTimestamp();
+        bool fastPathTaken;
         if (_isFirstFrame || _previousSurface == null)
         {
-            SurfaceComparer.CompareToEmptyInto(_currentSurface, _frameDiff);
+            fastPathTaken = SurfaceComparer.CompareToEmptyInto(_currentSurface, _frameDiff);
         }
         else
         {
-            SurfaceComparer.CompareInto(_previousSurface, _currentSurface, _frameDiff);
+            fastPathTaken = SurfaceComparer.CompareInto(_previousSurface, _currentSurface, _frameDiff);
         }
         var diff = _frameDiff;
         _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
+        if (fastPathTaken)
+            _metrics.SurfaceDiffFastPathCount.Add(1);
+        else
+            _metrics.SurfaceDiffSlowPathCount.Add(1);
         
         _metrics.OutputCellsChanged.Record(diff.Count);
         
@@ -1277,73 +1303,111 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         
         if (wroteOutput)
         {
-            // Generate text/sixel tokens (KGP emission skipped — handled by tracker above)
-            // Generate text/sixel tokens (KGP emission skipped — handled by tracker above).
-            // Rent a token list from the per-frame pool; the consumer returns it once it
-            // has finished forwarding the bytes/applying tokens, so the producer never
-            // mutates a list that's still being read on the consumer thread.
+            // Token-list pool ownership protocol:
+            //   1. Rent a list from _tokenListPool.
+            //   2. Fill it via ToTokensInto.
+            //   3. On the happy path, transfer ownership to the consumer via
+            //      WriteTokensWithBytes(Async); the consumer returns it once
+            //      it has finished iterating.
+            //   4. On any throw before step 3 completes, the finally below
+            //      returns the list and any rented ANSI buffer to their pools
+            //      so we don't slowly bleed pool capacity on error paths.
+            //
+            // The pooled output buffer is similarly owned by this scope until
+            // it crosses into the WorkloadOutputItem; we then null both locals
+            // so the finally is a no-op on the success path.
             var tokensStart = Stopwatch.GetTimestamp();
             _frameTokens = RentTokenList();
-            if (hasKgpChanges)
-            {
-                _frameTokens.AddRange(kgpBefore);
-                if (!diff.IsEmpty)
-                {
-                    var scratch = _frameKgpScratchTokens;
-                    SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: true, scratch);
-                    _frameTokens.AddRange(scratch);
-                }
-                _frameTokens.AddRange(kgpAfter);
-            }
-            else if (!diff.IsEmpty)
-            {
-                SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp, _frameTokens);
-            }
-            var tokens = _frameTokens;
-            _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
-            
-            var serializeStart = Stopwatch.GetTimestamp();
-            // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
-            // well over the 85 KB LOH threshold for fullscreen renders) is rented from
-            // ArrayPool rather than allocated fresh on the LOH every frame.
             byte[]? pooledOutput = null;
-            ReadOnlyMemory<byte> ansiOutput;
-            if (_adapter is Hex1bAppWorkloadAdapter)
+            var ownershipTransferred = false;
+            try
             {
-                ansiOutput = Tokens.AnsiTokenUtf8Serializer.SerializeRented(tokens, out pooledOutput);
-            }
-            else
-            {
-                ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
-            }
-            _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
-
-            if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
-            {
-                // Transfer ownership of the pooled token list to the consumer; null out
-                // _frameTokens so the next frame rents a fresh one.
-                var ownedTokens = _frameTokens;
-                _frameTokens = null;
-                workloadAdapter.WriteTokensWithBytes(
-                    tokens,
-                    ansiOutput,
-                    pooledOutput,
-                    ownedTokens,
-                    ReturnTokenList);
-            }
-            else
-            {
-                _adapter.Write(ansiOutput);
-                // No consumer to hand off to: return the token list now.
-                if (_frameTokens is { } own)
+                if (hasKgpChanges)
                 {
+                    _frameTokens.AddRange(kgpBefore);
+                    if (!diff.IsEmpty)
+                    {
+                        var scratch = _frameKgpScratchTokens;
+                        SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: true, scratch);
+                        _frameTokens.AddRange(scratch);
+                    }
+                    _frameTokens.AddRange(kgpAfter);
+                }
+                else if (!diff.IsEmpty)
+                {
+                    SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp, _frameTokens);
+                }
+                var tokens = _frameTokens;
+                _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
+
+                var serializeStart = Stopwatch.GetTimestamp();
+                // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
+                // well over the 85 KB LOH threshold for fullscreen renders) is rented from
+                // ArrayPool rather than allocated fresh on the LOH every frame.
+                ReadOnlyMemory<byte> ansiOutput;
+                if (_adapter is Hex1bAppWorkloadAdapter)
+                {
+                    ansiOutput = Tokens.AnsiTokenUtf8Serializer.SerializeRented(tokens, out pooledOutput);
+                }
+                else
+                {
+                    ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+                }
+                _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+
+                if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
+                {
+                    // Transfer ownership of the pooled token list AND the rented
+                    // byte buffer to the consumer; capture them into locals so the
+                    // async continuation can reference them, and null the field /
+                    // local so the finally below treats this as a successful handoff.
+                    var ownedTokens = _frameTokens;
+                    var ownedPooledOutput = pooledOutput;
                     _frameTokens = null;
-                    ReturnTokenList(own);
+                    pooledOutput = null;
+                    ownershipTransferred = true;
+
+                    asyncWriteWork = ct => workloadAdapter.WriteTokensWithBytesAsync(
+                        tokens,
+                        ansiOutput,
+                        ownedPooledOutput,
+                        ownedTokens,
+                        ReturnTokenList,
+                        ct);
+                }
+                else
+                {
+                    _adapter.Write(ansiOutput);
+                    // No workload-channel consumer: return the rented list here.
+                    if (_frameTokens is { } own)
+                    {
+                        _frameTokens = null;
+                        ReturnTokenList(own);
+                    }
+                    ownershipTransferred = true;
+                }
+
+                _metrics.OutputTokens.Record(tokens.Count);
+                _metrics.OutputBytes.Record(ansiOutput.Length);
+            }
+            finally
+            {
+                if (!ownershipTransferred)
+                {
+                    // Some step between rent and handoff threw. Return everything we
+                    // still own so the pools don't slowly bleed capacity.
+                    if (_frameTokens is { } orphaned)
+                    {
+                        _frameTokens = null;
+                        ReturnTokenList(orphaned);
+                    }
+                    if (pooledOutput is not null)
+                    {
+                        System.Buffers.ArrayPool<byte>.Shared.Return(pooledOutput);
+                        pooledOutput = null;
+                    }
                 }
             }
-            
-            _metrics.OutputTokens.Record(tokens.Count);
-            _metrics.OutputBytes.Record(ansiOutput.Length);
         }
         
         _isFirstFrame = false;
