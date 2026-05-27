@@ -59,6 +59,7 @@ for (var i = 0; i < args.Length; i++)
             Console.WriteLine("  --ripple-levels <N>  Quantise ripple to N greyscale bands (default 256)");
             Console.WriteLine("  PgUp / PgDn          Switch between stress pages");
             Console.WriteLine("  L                    Cycle ripple quantisation 256→16→8→4→2→256");
+            Console.WriteLine("  V                    Cycle pond viscosity (water→light→medium→thick→glob)");
             Console.WriteLine("  Q                    Quit");
             return;
     }
@@ -146,9 +147,9 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section(perfLabel),
             s.Divider(" │ "),
-            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}"),
+            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}  pond={PondRipplePage.PresetLabel}"),
             s.Divider(" │ "),
-            s.Section("PgUp/PgDn  L levels  Q quit"),
+            s.Section("PgUp/PgDn  L levels  V viscosity  Q quit"),
         }),
     })
     // Drive continuous animation from the root so the framework always
@@ -181,5 +182,10 @@ Hex1bWidget BuildRoot(RootContext root)
                 _ => 256,
             };
         }, "Cycle ripple levels");
+
+        bindings.Key(Hex1bKey.V).Global().Action(_ =>
+        {
+            PondRipplePage.CyclePreset();
+        }, "Cycle pond viscosity");
     });
 }

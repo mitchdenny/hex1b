@@ -65,19 +65,73 @@ internal sealed class PondRipplePage : IStressPage
     private float[]? _previous;
     private int _fieldWidth;
     private int _fieldHeight;
-    private int _lastMouseX = -1;
-    private int _lastMouseY = -1;
+    // Last MouseX/Y values *observed* from the layer context, used purely
+    // to detect whether the mouse actually moved between frames. Distinct
+    // from the splash trail head below: the observed position persists
+    // across stationary frames, the trail head does not.
+    private int _observedMouseX = int.MinValue;
+    private int _observedMouseY = int.MinValue;
+    // Position of the last splash (head of the current drag trail), or -1
+    // when the trail is "broken" (mouse outside the pond, or stationary
+    // for a frame). Reset to -1 ends the trail so the next movement
+    // starts a fresh single-point splash instead of drawing a Bresenham
+    // line from a stale position.
+    private int _trailX = -1;
+    private int _trailY = -1;
 
-    // Damping per step. 1.0 = lossless (waves never settle), 0.99 ≈ a few
-    // seconds to settle, 0.95 = quick decay. Tuned for visual taste.
-    private const float Damping = 0.985f;
+    /// <summary>
+    /// One viscosity preset — combines damping, step rate, and splash
+    /// amplitude so each preset reads as a coherent fluid feel rather
+    /// than independent knobs.
+    /// </summary>
+    /// <param name="Name">Short label shown in the status bar.</param>
+    /// <param name="Damping">
+    /// Per-step amplitude multiplier. 1.0 = lossless; values below 1
+    /// dissipate energy over time. Lower = more viscous (waves die
+    /// faster).
+    /// </param>
+    /// <param name="StepEveryNFrames">
+    /// Run a physics step every Nth frame. Higher = slower wavefront
+    /// propagation (acts as time dilation on the fluid). 1 = fast water,
+    /// 3+ = slow glob.
+    /// </param>
+    /// <param name="SplashAmplitude">
+    /// Magnitude of the splash impulse, scaled to keep single moves
+    /// visible against the chosen damping.
+    /// </param>
+    internal readonly record struct ViscosityPreset(
+        string Name,
+        float Damping,
+        int StepEveryNFrames,
+        float SplashAmplitude);
 
-    // Splash impulse amplitude. Negative = displaces water downward (the
-    // "finger pushes the surface down" mental model). Tuned so per-move
-    // impulses stay in the linear part of the brightness mapping; that
-    // way constructive interference reads as a brighter peak and
-    // destructive interference reads as a darker trough.
-    private const float SplashAmplitude = -3.0f;
+    /// <summary>
+    /// Cyclable viscosity presets, ordered thin → thick. Press V to
+    /// advance through them.
+    /// </summary>
+    internal static readonly ViscosityPreset[] Presets = new[]
+    {
+        new ViscosityPreset("water",  0.995f, 1, -2.5f),
+        new ViscosityPreset("light",  0.98f,  1, -3.5f),
+        new ViscosityPreset("medium", 0.96f,  1, -4.5f),
+        new ViscosityPreset("thick",  0.94f,  2, -5.5f),
+        new ViscosityPreset("glob",   0.92f,  3, -6.5f),
+    };
+
+    /// <summary>
+    /// Index into <see cref="Presets"/> for the current fluid feel.
+    /// Mutated by the V key binding in Program.cs.
+    /// </summary>
+    public static int PresetIndex { get; set; } = 1; // "light" by default
+
+    /// <summary>Human-readable preset name for the status bar.</summary>
+    public static string PresetLabel => Presets[PresetIndex].Name;
+
+    /// <summary>Advances to the next preset (wrapping).</summary>
+    public static void CyclePreset()
+        => PresetIndex = (PresetIndex + 1) % Presets.Length;
+
+    private int _stepCounter;
 
     public Hex1bWidget Build(StressContext sc)
     {
@@ -94,30 +148,43 @@ internal sealed class PondRipplePage : IStressPage
                 var mx = layer.MouseX;
                 var my = layer.MouseY;
                 var inPond = mx >= 0 && my >= 0 && mx < layer.Width && my < layer.Height;
-                var moved = inPond && (mx != _lastMouseX || my != _lastMouseY);
+                // "Moved this frame" = the layer's mouse coords differ from
+                // what we observed last frame. layer.MouseX/Y holds the
+                // last reported value, so a stationary mouse reports the
+                // same coords frame after frame.
+                var movedThisFrame = inPond
+                    && (mx != _observedMouseX || my != _observedMouseY);
+                _observedMouseX = mx;
+                _observedMouseY = my;
 
-                if (moved)
+                if (movedThisFrame)
                 {
-                    // Splash along the Bresenham line from the last known
-                    // position so fast drags feel continuous instead of
-                    // dotty. If the last position was "absent" (-1),
-                    // SplashLine collapses to a single-point splash.
-                    SplashLine(_lastMouseX, _lastMouseY, mx, my);
-                    _lastMouseX = mx;
-                    _lastMouseY = my;
+                    // If the trail head is valid, draw a Bresenham splash
+                    // line from it to the new position (continuous drag).
+                    // If the trail was broken (pause or just entered the
+                    // pond), splash only at the new position so we don't
+                    // yank a wave across the screen.
+                    SplashLine(_trailX, _trailY, mx, my);
+                    _trailX = mx;
+                    _trailY = my;
                 }
                 else
                 {
-                    // No movement this frame — treat as if the mouse were
-                    // not present at all. Resetting last-known position
-                    // means the *next* movement starts a fresh trail
-                    // rather than drawing a stale line from wherever the
-                    // cursor was parked.
-                    _lastMouseX = -1;
-                    _lastMouseY = -1;
+                    // No movement this frame (or mouse not in pond): break
+                    // the trail so the next movement starts fresh.
+                    _trailX = -1;
+                    _trailY = -1;
                 }
 
-                Step();
+                // Sub-step: only advance the simulation every Nth frame so
+                // wavefronts propagate at a fraction of cell-per-frame
+                // speed. Combined with damping this gives the chosen
+                // viscosity preset its characteristic fluid feel.
+                if (++_stepCounter >= Presets[PresetIndex].StepEveryNFrames)
+                {
+                    _stepCounter = 0;
+                    Step();
+                }
 
                 return new[] { layer.Layer(DrawPond) };
             })
@@ -147,8 +214,10 @@ internal sealed class PondRipplePage : IStressPage
         _fieldHeight = h;
         _current = new float[w * h];
         _previous = new float[w * h];
-        _lastMouseX = -1;
-        _lastMouseY = -1;
+        _observedMouseX = int.MinValue;
+        _observedMouseY = int.MinValue;
+        _trailX = -1;
+        _trailY = -1;
     }
 
     /// <summary>
@@ -200,7 +269,7 @@ internal sealed class PondRipplePage : IStressPage
                 var x = cx + dx;
                 if ((uint)x >= (uint)w) continue;
                 var falloff = (dx == 0 && dy == 0) ? 1.0f : ((dx == 0 || dy == 0) ? 0.5f : 0.25f);
-                _current[y * w + x] += SplashAmplitude * falloff;
+                _current[y * w + x] += Presets[PresetIndex].SplashAmplitude * falloff;
             }
         }
     }
@@ -218,6 +287,7 @@ internal sealed class PondRipplePage : IStressPage
         var h = _fieldHeight;
         var cur = _current;
         var prv = _previous;
+        var damping = Presets[PresetIndex].Damping;
 
         // Update interior cells. Edge cells stay at 0 (solid boundary).
         for (var y = 1; y < h - 1; y++)
@@ -228,7 +298,7 @@ internal sealed class PondRipplePage : IStressPage
                 var i = row + x;
                 var neighbours = cur[i - 1] + cur[i + 1] + cur[i - w] + cur[i + w];
                 var next = (neighbours * 0.5f) - prv[i];
-                next *= Damping;
+                next *= damping;
                 // Floor extremely small values to 0 so settled pond doesn't
                 // keep emitting micro-differences forever (lets the renderer
                 // fast-path engage).
