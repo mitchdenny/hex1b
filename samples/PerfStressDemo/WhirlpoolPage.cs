@@ -105,7 +105,7 @@ internal sealed class WhirlpoolPage : IStressPage
     // Shallow-water dynamics. Tune for visible momentum / sloshing
     // without runaway oscillation.
     // ----------------------------------------------------------------
-    private const float PressureGain = 0.06f;
+    private const float PressureGain = 0.10f;
     private const float Damping      = 0.965f;
     private const float MaxSpeed     = 1.1f;
     private const float VelocityFloor = 0.003f;
@@ -399,7 +399,10 @@ internal sealed class WhirlpoolPage : IStressPage
 
                 // Drain only attracts cells that actually hold water above the
                 // film threshold — a dry cell on the other side of the screen
-                // doesn't feel the drain until water reaches it.
+                // doesn't feel the drain until water reaches it. The
+                // attraction is also scaled down as a cell approaches full
+                // depth, so water can't "climb" into a mound around the
+                // drain that's deeper than the surrounding basin.
                 if (drainOn && hi > FilmThickness)
                 {
                     var dxc = x - cx;
@@ -407,13 +410,17 @@ internal sealed class WhirlpoolPage : IStressPage
                     var d2 = dxc * dxc + dyc * dyc;
                     if (d2 > skip2 || d2 < 0.1f) continue;
                     var falloff = MathF.Exp(-d2 / twoR2);
+                    var capacity = MathF.Max(0f, 1f - hi / (float)D);
+                    capacity *= capacity; // sharper rolloff as the cell nears full
+                    var w = falloff * capacity;
+                    if (w <= 0f) continue;
                     var invR = 1f / MathF.Sqrt(d2);
                     var inX = -dxc * invR;
                     var inY = -dyc * invR;
                     var tX = -dyc * invR; // CCW tangential
                     var tY =  dxc * invR;
-                    vx[i] += (pull * inX + swirl * tX) * falloff;
-                    vy[i] += (pull * inY + swirl * tY) * falloff;
+                    vx[i] += (pull * inX + swirl * tX) * w;
+                    vy[i] += (pull * inY + swirl * tY) * w;
                 }
             }
         }
