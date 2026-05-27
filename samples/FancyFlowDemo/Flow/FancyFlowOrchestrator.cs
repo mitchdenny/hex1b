@@ -93,6 +93,15 @@ internal static class FancyFlowOrchestrator
                 {
                     options.InitialCursorRow = cursorRow;
 
+                    // Emit completed steps as soft-wrap tombstones (proper
+                    // logical lines that the host terminal reflows) and
+                    // turn on the track-and-clear settle-based resize
+                    // pipeline. Without this flag the runner falls back
+                    // to the legacy eager-repaint resize path which
+                    // re-emits the active step on every resize event —
+                    // catastrophic during a drag-resize burst.
+                    options.UseSoftWrapTombstones = true;
+
                     // Hold the live step still during interactive drag-resize.
                     // The runner tracks cursor position internally on every
                     // resize event but does not mutate the screen — letting
