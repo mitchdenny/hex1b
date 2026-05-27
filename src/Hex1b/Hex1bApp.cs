@@ -187,6 +187,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     
     // Animation timer for RedrawAfter() support
     private readonly AnimationTimer _animationTimer;
+
+    // Minimum interval between rendered frames (paces the render loop, not just Schedule()).
+    private readonly TimeSpan _frameRateLimit;
+    // Timestamp of the last frame actually rendered. Used by the render loop
+    // to enforce _frameRateLimit so invalidations triggered faster than the
+    // configured cadence get coalesced into a single render.
+    private long _lastRenderTimestamp;
     
     // Window manager registry for accessing WindowManagers from anywhere
     private readonly WindowManagerRegistry _windowManagerRegistry = new();
@@ -227,6 +234,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         // Create animation timer with configured frame rate limit
         var frameRateLimitMs = Math.Max(1, options.FrameRateLimitMs);
         _animationTimer = new AnimationTimer(TimeSpan.FromMilliseconds(frameRateLimitMs));
+        _frameRateLimit = TimeSpan.FromMilliseconds(frameRateLimitMs);
         
         // Check if mouse is enabled in options
         _mouseEnabled = options.EnableMouse;
@@ -557,7 +565,9 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 }
 
                 // Re-render after handling input or invalidation (state may have changed)
+                await PaceFrameAsync(cancellationToken);
                 await RenderFrameAsync(cancellationToken);
+                _lastRenderTimestamp = Stopwatch.GetTimestamp();
                 
                 // IMPORTANT: Handle race condition where output arrived during render.
                 // If invalidation was signaled while we were rendering, we need to re-render
@@ -568,6 +578,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 
                 while (_invalidateChannel.Reader.TryRead(out _) && extraRenders < maxExtraRenders)
                 {
+                    // If we're already inside the frame budget, defer remaining invalidations
+                    // to the next outer iteration so the render loop honors FrameRateLimitMs.
+                    var elapsedSinceLastRender = TimeSpan.FromSeconds(
+                        (Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
+                    if (elapsedSinceLastRender < _frameRateLimit)
+                        break;
+
                     // ALWAYS process pending input before each re-render to prevent starvation
                     while (_adapter.InputEvents.TryRead(out var pendingEvent))
                     {
@@ -583,6 +600,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     _animationTimer.FireDue();
                         
                     await RenderFrameAsync(cancellationToken);
+                    _lastRenderTimestamp = Stopwatch.GetTimestamp();
                     extraRenders++;
                 }
                 
@@ -794,6 +812,30 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         _metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", eventType));
         _metrics.InputDuration.Record(
             (Stopwatch.GetTimestamp() - inputStart) * 1000.0 / Stopwatch.Frequency);
+    }
+
+    /// <summary>
+    /// Sleeps until the configured per-frame minimum interval has elapsed since
+    /// the last rendered frame, so invalidations triggered faster than
+    /// <see cref="Hex1bAppOptions.FrameRateLimitMs"/> are coalesced.
+    /// </summary>
+    private async Task PaceFrameAsync(CancellationToken cancellationToken)
+    {
+        if (_lastRenderTimestamp == 0)
+            return;
+        var elapsed = TimeSpan.FromSeconds((Stopwatch.GetTimestamp() - _lastRenderTimestamp) / (double)Stopwatch.Frequency);
+        var remaining = _frameRateLimit - elapsed;
+        if (remaining > TimeSpan.Zero)
+        {
+            try
+            {
+                await Task.Delay(remaining, cancellationToken);
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                // Caller handles cancellation
+            }
+        }
     }
 
     private async Task RenderFrameAsync(CancellationToken cancellationToken)
