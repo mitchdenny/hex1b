@@ -76,16 +76,19 @@ int baselineGen0 = GC.CollectionCount(0);
 Hex1bApp? appRef = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bAppOptions(o =>
+    {
+        o.EnableSurfacePooling = enablePool;
+        o.EnableRenderCaching = enableCache;
+        // Enforce the target frame rate at the framework's animation timer
+        // level. This MUST be set before Hex1bApp construction (the timer's
+        // minimum interval is captured in the ctor), so we set it via
+        // WithHex1bAppOptions which runs before WithHex1bApp's configure.
+        o.FrameRateLimitMs = redrawIntervalMs;
+    })
     .WithHex1bApp((app, options) =>
     {
         appRef = app;
-        options.EnableSurfacePooling = enablePool;
-        options.EnableRenderCaching = enableCache;
-        // Enforce the target frame rate from the framework side. Without
-        // this the render loop will happily run as fast as the renderer
-        // can build a frame (300+ fps on a fast machine), wasting CPU
-        // and amplifying any per-frame allocations into Gen2 collections.
-        options.FrameRateLimitMs = redrawIntervalMs;
         return ctx => BuildRoot(ctx);
     })
     .Build();

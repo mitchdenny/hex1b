@@ -53,6 +53,7 @@ public sealed class Hex1bTerminalBuilder
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
+    private Action<Hex1bAppOptions>? _appOptionsConfigurator;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -132,6 +133,13 @@ public sealed class Hex1bTerminalBuilder
                 Metrics = ResolveMetrics()
             };
 
+            // Apply user-supplied option configuration BEFORE constructing the
+            // Hex1bApp so settings like FrameRateLimitMs (which is captured
+            // into the AnimationTimer at construction time) actually take
+            // effect. The configure callback runs lazily on first build, so
+            // anything it mutates on options is read too late.
+            _appOptionsConfigurator?.Invoke(options);
+
             // Create the run callback - app is created here so user can capture it
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -202,6 +210,10 @@ public sealed class Hex1bTerminalBuilder
                 EnableMouse = enableMouse,
                 Metrics = ResolveMetrics()
             };
+
+            // Apply user-supplied option configuration BEFORE constructing
+            // the Hex1bApp (see comment on the sync overload).
+            _appOptionsConfigurator?.Invoke(options);
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -754,6 +766,57 @@ public sealed class Hex1bTerminalBuilder
     public Hex1bTerminalBuilder WithMouse(bool enable = true)
     {
         _enableMouse = enable;
+        return this;
+    }
+
+    /// <summary>
+    /// Registers a callback that configures the <see cref="Hex1bAppOptions"/> used
+    /// when a subsequent call to <see cref="WithHex1bApp(Func{Hex1bApp, Hex1bAppOptions, Func{RootContext, Hex1bWidget}})"/>
+    /// (or its async overload) constructs the <see cref="Hex1bApp"/>.
+    /// </summary>
+    /// <param name="configure">Callback that mutates the options instance.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <remarks>
+    /// <para>
+    /// Use this when you need to set options that are captured during
+    /// <c>Hex1bApp</c> construction — most notably
+    /// <see cref="Hex1bAppOptions.FrameRateLimitMs"/>, which is baked into the
+    /// internal animation timer at construction time. Settings made inside the
+    /// <c>WithHex1bApp</c> configure callback would otherwise be read too late.
+    /// </para>
+    /// <para>
+    /// Multiple calls compose: each callback is invoked in registration order
+    /// against the same options instance.
+    /// </para>
+    /// </remarks>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHex1bAppOptions(o =>
+    ///     {
+    ///         o.FrameRateLimitMs = 33;          // cap at ~30 fps
+    ///         o.EnableSurfacePooling = false;   // opt out of pooling
+    ///     })
+    ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithHex1bAppOptions(Action<Hex1bAppOptions> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        if (_appOptionsConfigurator is null)
+        {
+            _appOptionsConfigurator = configure;
+        }
+        else
+        {
+            var existing = _appOptionsConfigurator;
+            _appOptionsConfigurator = options =>
+            {
+                existing(options);
+                configure(options);
+            };
+        }
         return this;
     }
 
