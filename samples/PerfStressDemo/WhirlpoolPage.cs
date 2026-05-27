@@ -48,9 +48,9 @@ namespace PerfStressDemo;
 /// border is drawn around the perimeter, with the drain hole appearing
 /// as a dark dot at the cursor while it's open.
 ///
-/// Controls: left click opens the drain at the cursor and resets the
-/// reach ramp; right click closes it; scroll up/down adjusts drain
-/// strength.
+/// Controls: left click places the outlet (drain) at the cursor;
+/// right click places the inlet (refill source); R clears both and
+/// refills the basin to full; scroll up/down adjusts drain strength.
 /// </summary>
 internal sealed class WhirlpoolPage : IStressPage
 {
@@ -107,15 +107,12 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float VelocityFloor = 0.003f;
 
     // ----------------------------------------------------------------
-    // Refill — roaming inlet drips voxels into a small interior disc.
+    // Refill — fixed inlet placed by right click, drips voxels into a
+    // small interior disc until the user clears or relocates it.
     // ----------------------------------------------------------------
-    private float _inletX;
-    private float _inletY;
-    private int _inletAge;
-    private int _inletGap;
-    private const int InletLifetime  = 80;
-    private const int InletGapMin    = 0;
-    private const int InletGapMax    = 10;
+    private bool _inletActive;
+    private int _inletCx;
+    private int _inletCy;
     private const int InletVoxelsPerFrame = 10;
     private const float InletRadius  = 3f;
 
@@ -124,6 +121,7 @@ internal sealed class WhirlpoolPage : IStressPage
 
     public static float CurrentStrength { get; private set; } = 1f;
     public static bool DrainOpen { get; private set; }
+    public static bool InletOpen { get; private set; }
 
     // xorshift32 RNG
     private uint _rng = 0xDEADBEEFu;
@@ -141,6 +139,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private static readonly Hex1bColor WallColour = Hex1bColor.FromRgb(70, 55, 40);
     private static readonly Hex1bColor WallTrim   = Hex1bColor.FromRgb(40, 30, 22);
     private static readonly Hex1bColor HoleColour = Hex1bColor.FromRgb(8, 8, 12);
+    private static readonly Hex1bColor InletColour = Hex1bColor.FromRgb(240, 240, 255);
 
     public Hex1bWidget Build(StressContext sc)
     {
@@ -163,9 +162,14 @@ internal sealed class WhirlpoolPage : IStressPage
                     _drainActive = true;
                     _quiescent = false;
                 });
-                bindings.Mouse(MouseButton.Right).Action(_ =>
+                bindings.Mouse(MouseButton.Right).Action(ctx =>
                 {
-                    _drainActive = false;
+                    if (!TryMouseToInteriorColumn(ctx.MouseX, ctx.MouseY, out var icx, out var icy))
+                        return;
+                    _inletCx = icx;
+                    _inletCy = icy;
+                    _inletActive = true;
+                    _quiescent = false;
                 });
                 bindings.Mouse(MouseButton.ScrollUp).Action(_ =>
                 {
@@ -204,8 +208,7 @@ internal sealed class WhirlpoolPage : IStressPage
         }
         _drainActive = false;
         _drainOpenFrames = 0;
-        _inletAge = 0;
-        _inletGap = 0;
+        _inletActive = false;
         _strength = 1f;
         _quiescent = false;
     }
@@ -227,8 +230,7 @@ internal sealed class WhirlpoolPage : IStressPage
         _quiescent = true;
         _drainActive = false;
         _drainOpenFrames = 0;
-        _inletAge = 0;
-        _inletGap = 0;
+        _inletActive = false;
     }
 
     private void Step()
@@ -236,6 +238,7 @@ internal sealed class WhirlpoolPage : IStressPage
         if (_height.Length == 0) return;
         CurrentStrength = _strength;
         DrainOpen = _drainActive;
+        InletOpen = _inletActive;
 
         ApplyForces();
         ApplyDamping();
@@ -248,20 +251,14 @@ internal sealed class WhirlpoolPage : IStressPage
             consumed = ApplyDrain();
         }
 
-        var basinFull = IsBasinFull();
         var refilled = false;
-        if (!_drainActive && !basinFull)
+        if (_inletActive)
         {
             refilled = ApplyRefill();
         }
-        else
-        {
-            _inletAge = 0;
-            _inletGap = 0;
-        }
 
         _quiescent = !_drainActive
-                     && basinFull
+                     && !_inletActive
                      && !moved
                      && !consumed
                      && !refilled
@@ -495,36 +492,24 @@ internal sealed class WhirlpoolPage : IStressPage
 
     private bool ApplyRefill()
     {
-        if (_inletAge == 0)
-        {
-            if (_inletGap > 0) { _inletGap--; return false; }
-            _inletX = NextFloat() * _dw;
-            _inletY = NextFloat() * _dh;
-        }
-        _inletAge++;
-        if (_inletAge >= InletLifetime)
-        {
-            _inletAge = 0;
-            _inletGap = InletGapMin + (int)(NextFloat() * (InletGapMax - InletGapMin + 1));
-            return false;
-        }
         var r = InletRadius;
         var r2 = r * r;
-        var x0 = Math.Max(0, (int)(_inletX - r));
-        var x1 = Math.Min(_dw - 1, (int)(_inletX + r + 0.5f));
-        var y0 = Math.Max(0, (int)(_inletY - r));
-        var y1 = Math.Min(_dh - 1, (int)(_inletY + r + 0.5f));
+        var x0 = Math.Max(0, (int)(_inletCx - r));
+        var x1 = Math.Min(_dw - 1, (int)(_inletCx + r + 0.5f));
+        var y0 = Math.Max(0, (int)(_inletCy - r));
+        var y1 = Math.Min(_dh - 1, (int)(_inletCy + r + 0.5f));
         var spanW = x1 - x0 + 1;
         var spanH = y1 - y0 + 1;
         if (spanW <= 0 || spanH <= 0) return false;
 
         var changed = false;
-        for (var n = 0; n < InletVoxelsPerFrame; n++)
+        var per = (int)MathF.Max(1f, InletVoxelsPerFrame * _strength);
+        for (var n = 0; n < per; n++)
         {
             var rx = x0 + (int)(NextFloat() * spanW);
             var ry = y0 + (int)(NextFloat() * spanH);
-            var dx = rx - _inletX;
-            var dy = ry - _inletY;
+            var dx = rx - _inletCx;
+            var dy = ry - _inletCy;
             if (dx * dx + dy * dy > r2) continue;
             var i = ry * _dw + rx;
             if (_height[i] < DShort)
@@ -534,16 +519,6 @@ internal sealed class WhirlpoolPage : IStressPage
             }
         }
         return changed;
-    }
-
-    private bool IsBasinFull()
-    {
-        var h = _height;
-        for (var i = 0; i < h.Length; i++)
-        {
-            if (h[i] != DShort) return false;
-        }
-        return true;
     }
 
     private void DrawTank(Surface surface)
@@ -575,6 +550,21 @@ internal sealed class WhirlpoolPage : IStressPage
                 surface[cx, cy] = new SurfaceCell("▀",
                     DepthColour(heights[topRow + ix]),
                     DepthColour(heights[botRow + ix]));
+            }
+        }
+
+        if (_inletActive)
+        {
+            var inCx = _inletCx + WallCells;
+            var inCy = _inletCy / 2 + WallCells;
+            if (inCx >= WallCells && inCx < w - WallCells
+                && inCy >= WallCells && inCy < hsz - WallCells)
+            {
+                var iy = inCy - WallCells;
+                var botRow = (iy * 2 + 1) * dw;
+                var ix = inCx - WallCells;
+                surface[inCx, inCy] = new SurfaceCell("◎",
+                    InletColour, DepthColour(heights[botRow + ix]));
             }
         }
 
