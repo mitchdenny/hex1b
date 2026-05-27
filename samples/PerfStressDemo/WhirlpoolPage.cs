@@ -84,6 +84,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private float _drainY;
     private float _strength = 1.0f;
     private int _frame;
+    private int _drainOpenFrames;  // resets to 0 every time drain re-opens; clamps growth of reach
     private const float MinStrength = 0.3f;
     private const float MaxStrength = 4.0f;
 
@@ -92,8 +93,12 @@ internal sealed class WhirlpoolPage : IStressPage
     // ----------------------------------------------------------------
     private const float MaxDepth = 1.0f;
     private const float DiffusionK = 0.045f;
-    private const float DrainRadius = 6.5f;        // sub-cells
+    private const float DrainRadius = 6.5f;        // sub-cells (max consumption disc radius)
     private const float DrainPerFrameBase = 0.32f;
+    private const float DrainReachInitial = 2.5f;   // initial Gaussian sigma for advection window
+    private const float DrainReachMax     = 28f;    // peak Gaussian sigma for advection window
+    private const int   DrainReachRampFrames = 360; // ~6s @ 60fps to reach full whirlpool extent
+    private const float MaxDrainPerFrame  = 7f;     // total depth-units consumed across the disc per frame
     // Refill (drain off): water enters through a single roaming
     // inlet that fades in/out on the edge of the basin. Diffusion
     // already moves water from high to low, so a localised source is
@@ -118,6 +123,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float WaveDamping = 0.985f;
     private const float WaveDisplayScale = 0.32f;   // how much wave modulates rendered depth
     private const float WaveFloor = 0.005f;          // floor for "alive" tracking
+    private const float WaveDepthThreshold = 0.08f;  // suppress wave injection / display below this depth
     private const float DrainImpulse = -0.18f;       // per frame, at drain centre
     private const float ChopAmplitude = 0.06f;       // random impulse magnitude while active
     private const int   ChopPerFrame = 4;            // random chop sites per frame while active
@@ -198,6 +204,7 @@ internal sealed class WhirlpoolPage : IStressPage
                     if (ctx.MouseX < 0 || ctx.MouseY < 0) return;
                     _drainX = ctx.MouseX;
                     _drainY = ctx.MouseY;
+                    if (!_drainActive) _drainOpenFrames = 0; // ramp reach from scratch each open
                     _drainActive = true;
                     _activity = 1f;
                     _quiescent = false;
@@ -252,9 +259,14 @@ internal sealed class WhirlpoolPage : IStressPage
 
         // ---- Pass 0: advection of baseline when drain is open. Same
         //      analytic potential-flow field that drives the spiral
-        //      look in the original whirlpool draft.
+        //      look in the original whirlpool draft. Velocity is
+        //      windowed by a Gaussian centred on the drain whose
+        //      sigma ramps from DrainReachInitial to DrainReachMax
+        //      over DrainReachRampFrames — that gives the whirlpool
+        //      time to form locally before the outer water joins in.
         if (_drainActive)
         {
+            _drainOpenFrames++;
             AdvectField(depth, delta, dw, dh);
             (depth, delta) = (delta, depth);
             _depth = depth;
@@ -337,27 +349,69 @@ internal sealed class WhirlpoolPage : IStressPage
         _quiescent = !changed && !active && !waveAlive;
     }
 
+    /// <summary>
+    /// Returns the current Gaussian sigma for the drain's influence
+    /// window, ramping smoothly from <see cref="DrainReachInitial"/>
+    /// to <see cref="DrainReachMax"/> over
+    /// <see cref="DrainReachRampFrames"/> frames since the drain was
+    /// opened. Used to size both the consumption disc and the
+    /// advection velocity window.
+    /// </summary>
+    private float CurrentDrainReach()
+    {
+        var t = MathF.Min(1f, _drainOpenFrames / (float)DrainReachRampFrames);
+        var s = t * t * (3f - 2f * t); // smoothstep
+        return DrainReachInitial + (DrainReachMax - DrainReachInitial) * s;
+    }
+
     private bool ApplyDrain(float[] depth, int dw, int dh)
     {
         var cx = _drainX;
         var cy = _drainY * 2 + 0.5f;
+        // Disc radius grows with the reach but is capped at DrainRadius —
+        // the hole itself never exceeds the original physical drain.
+        var reach = CurrentDrainReach();
+        var radius = MathF.Min(DrainRadius, reach);
         var rate = DrainPerFrameBase * _strength;
-        var r2 = DrainRadius * DrainRadius;
-        var x0 = Math.Max(0, (int)(cx - DrainRadius));
-        var x1 = Math.Min(dw - 1, (int)(cx + DrainRadius + 0.5f));
-        var y0 = Math.Max(0, (int)(cy - DrainRadius * 2));
-        var y1 = Math.Min(dh - 1, (int)(cy + DrainRadius * 2 + 0.5f));
-        var changed = false;
+        var r2 = radius * radius;
+        var x0 = Math.Max(0, (int)(cx - radius));
+        var x1 = Math.Min(dw - 1, (int)(cx + radius + 0.5f));
+        var y0 = Math.Max(0, (int)(cy - radius * 2));
+        var y1 = Math.Min(dh - 1, (int)(cy + radius * 2 + 0.5f));
+
+        // First pass: gather raw per-cell consumption requests; cap
+        // total egress at MaxDrainPerFrame * strength so the drain
+        // can't slurp arbitrary amounts when sitting on full water.
+        Span<float> requests = stackalloc float[(x1 - x0 + 1) * (y1 - y0 + 1)];
+        var dw1 = x1 - x0 + 1;
+        var total = 0f;
         for (var y = y0; y <= y1; y++)
         {
+            var ry = (y - y0) * dw1;
             for (var x = x0; x <= x1; x++)
             {
                 var dx = x - cx;
                 var dy = (y - cy) * 0.5f;
                 var d2 = dx * dx + dy * dy;
-                if (d2 > r2) continue;
-                var falloff = 1f - MathF.Sqrt(d2) / DrainRadius;
+                if (d2 > r2) { requests[ry + (x - x0)] = 0f; continue; }
+                var falloff = 1f - MathF.Sqrt(d2) / radius;
                 var sub = rate * falloff;
+                var available = depth[y * dw + x];
+                if (sub > available) sub = available;
+                requests[ry + (x - x0)] = sub;
+                total += sub;
+            }
+        }
+
+        var cap = MaxDrainPerFrame * _strength;
+        var scale = (total > cap && total > 0f) ? cap / total : 1f;
+        var changed = false;
+        for (var y = y0; y <= y1; y++)
+        {
+            var ry = (y - y0) * dw1;
+            for (var x = x0; x <= x1; x++)
+            {
+                var sub = requests[ry + (x - x0)] * scale;
                 if (sub <= 0f) continue;
                 var i = y * dw + x;
                 var nv = depth[i] - sub;
@@ -519,7 +573,10 @@ internal sealed class WhirlpoolPage : IStressPage
             var lead2Y = (int)(_jetY + _inletDirY * 8f);
             Splat(wave, dw, dh, lead2X, lead2Y, InletWaveImpulse * 0.4f * amp2);
 
-            // Turbulent spray — random chop around the jet head.
+            // Turbulent spray — random chop around the jet head, but
+            // only where there's enough water to support the ripple.
+            // Without this we leave visible wake lines across dry
+            // basin which look wrong.
             for (var k = 0; k < InletChopPerFrame; k++)
             {
                 var rx = (NextFloat() * 2f - 1f) * InletChopRadius;
@@ -527,19 +584,22 @@ internal sealed class WhirlpoolPage : IStressPage
                 var cx = (int)(_jetX + rx);
                 var cy = (int)(_jetY + ry);
                 if ((uint)cx >= (uint)dw || (uint)cy >= (uint)dh) continue;
+                var i = cy * dw + cx;
+                if (_depth[i] < WaveDepthThreshold) continue;
                 var sign = (NextRandom() & 1) == 0 ? 1f : -1f;
-                wave[cy * dw + cx] += InletChopAmplitude * amp2 * sign;
+                wave[i] += InletChopAmplitude * amp2 * sign;
             }
         }
 
-        // Background ocean chop — small scattered impulses.
+        // Background ocean chop — small scattered impulses, also
+        // suppressed where there's effectively no water.
         for (var k = 0; k < ChopPerFrame; k++)
         {
             var cx = (int)(NextFloat() * dw);
             var cy = (int)(NextFloat() * dh);
             var sign = (NextRandom() & 1) == 0 ? 1f : -1f;
             var i = cy * dw + cx;
-            if ((uint)i < (uint)wave.Length)
+            if ((uint)i < (uint)wave.Length && _depth[i] >= WaveDepthThreshold)
                 wave[i] += ChopAmplitude * amp * sign;
         }
     }
@@ -608,7 +668,12 @@ internal sealed class WhirlpoolPage : IStressPage
     /// Semi-Lagrangian advection of <paramref name="src"/> into
     /// <paramref name="dst"/>. Out-of-grid samples return 0 so the
     /// basin actually drains while the drain is open instead of
-    /// being topped up by a fictitious infinite ocean.
+    /// being topped up by a fictitious infinite ocean. The velocity
+    /// is gated by a Gaussian window centred on the drain whose
+    /// sigma is <see cref="CurrentDrainReach"/>: outside that radius
+    /// the velocity is effectively zero, so far-from-drain water
+    /// stays put until the whirlpool's influence has grown out to it.
+    /// Cells fully outside the window are copied through unchanged.
     /// </summary>
     private void AdvectField(float[] src, float[] dst, int dw, int dh)
     {
@@ -617,12 +682,29 @@ internal sealed class WhirlpoolPage : IStressPage
         var Q = SinkStrength * _strength;
         var G = SwirlStrength * _strength;
         var soft = VelocitySoftening;
+        var sigma = CurrentDrainReach();
+        var invTwoSigmaSq = 1f / (2f * sigma * sigma);
+        // Beyond ~3 sigma the Gaussian is < 0.012; skip advection
+        // entirely there so the field outside the whirlpool's reach
+        // stays exactly put (no creeping numerical drift).
+        var skip2 = (3f * sigma) * (3f * sigma);
         for (var y = 0; y < dh; y++)
         {
             var row = y * dw;
+            var dyc = y - cy;
             for (var x = 0; x < dw; x++)
             {
+                var dxc = x - cx;
+                var d2 = dxc * dxc + dyc * dyc;
+                if (d2 > skip2)
+                {
+                    dst[row + x] = src[row + x];
+                    continue;
+                }
+                var window = MathF.Exp(-d2 * invTwoSigmaSq);
                 VelocityAt(x, y, cx, cy, Q, G, soft, out var vx, out var vy);
+                vx *= window;
+                vy *= window;
                 var sx = x - vx;
                 var sy = y - vy;
                 dst[row + x] = SampleBilinearOrZero(src, dw, dh, sx, sy);
@@ -664,8 +746,16 @@ internal sealed class WhirlpoolPage : IStressPage
             {
                 var iTop = topRow + cx;
                 var iBot = botRow + cx;
-                var topV = depth[iTop] + WaveDisplayScale * wave[iTop];
-                var botV = depth[iBot] + WaveDisplayScale * wave[iBot];
+                var dTop = depth[iTop];
+                var dBot = depth[iBot];
+                // Mask wave contribution by local depth — no waves
+                // can ride on dry basin. Ramps 0..1 over the wave-
+                // depth threshold so the transition isn't a hard
+                // edge as a cell drains/fills past it.
+                var maskTop = dTop >= WaveDepthThreshold ? 1f : dTop / WaveDepthThreshold;
+                var maskBot = dBot >= WaveDepthThreshold ? 1f : dBot / WaveDepthThreshold;
+                var topV = dTop + WaveDisplayScale * wave[iTop] * maskTop;
+                var botV = dBot + WaveDisplayScale * wave[iBot] * maskBot;
                 if (topV < 0f) topV = 0f; else if (topV > 1f) topV = 1f;
                 if (botV < 0f) botV = 0f; else if (botV > 1f) botV = 1f;
                 surface[cx, cy] = new SurfaceCell("▀",
