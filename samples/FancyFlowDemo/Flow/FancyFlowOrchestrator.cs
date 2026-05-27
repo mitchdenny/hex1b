@@ -107,12 +107,8 @@ internal static class FancyFlowOrchestrator
                     // resize event but does not mutate the screen — letting
                     // the host terminal's own reflow keep the tombstones
                     // above the active step intact. The actual repaint of
-                    // the live step is debounced until events settle, and
-                    // if the final dimensions differ from where the drag
-                    // started a one-off ResizeMarker tombstone is dropped
-                    // above the repainted step.
+                    // the live step is debounced until events settle.
                     options.ResizeSettleDelay = TimeSpan.FromMilliseconds(80);
-                    options.ResizeMarker = BuildResizeMarker;
                 })
                 .Build()
                 .RunAsync();
@@ -126,23 +122,6 @@ internal static class FancyFlowOrchestrator
         }
     }
 
-    /// <summary>
-    /// Dropped into scrollback as a one-off marker once a resize has settled
-    /// and the final dimensions actually differ from where the drag started.
-    /// Acts as a faint breadcrumb between the pre- and post-resize renders.
-    /// </summary>
-    private static Hex1b.Widgets.Hex1bWidget BuildResizeMarker(RootContext ctx) =>
-        ctx.HStack(h =>
-        [
-            h.Text(" "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
-                h.Text(TemplatePromptWidget.BarChar)),
-            h.Text("  "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
-                h.Text("─── terminal resized ───")),
-        ]);
 
     private static Task RunStepAsync(
         Hex1b.Flow.Hex1bFlowContext flow,
