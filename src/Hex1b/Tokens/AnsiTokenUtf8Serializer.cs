@@ -99,7 +99,16 @@ public static class AnsiTokenUtf8Serializer
 
             case SgrToken sgr:
                 WriteEscLeftBracket(writer);
-                WriteUtf8(writer, sgr.Parameters);
+                if (sgr.PreformattedBytes is { } sgrBytes)
+                {
+                    var dst = writer.GetSpan(sgrBytes.Length);
+                    sgrBytes.AsSpan().CopyTo(dst);
+                    writer.Advance(sgrBytes.Length);
+                }
+                else
+                {
+                    WriteUtf8(writer, sgr.Parameters);
+                }
                 WriteByte(writer, (byte)'m');
                 return;
 

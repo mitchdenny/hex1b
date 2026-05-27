@@ -32,6 +32,7 @@ internal static class AnsiTokenCache
 {
     [ThreadStatic] private static StringBuilder? t_sgrBuilder;
     [ThreadStatic] private static Dictionary<ulong, SgrEntry>? t_sgrCache;
+    [ThreadStatic] private static Dictionary<ulong, SgrEntry>? t_sgrBytesCache;
 
     private static readonly ConcurrentDictionary<string, TextToken> s_textCache = new();
 
@@ -120,6 +121,59 @@ internal static class AnsiTokenCache
             hash *= fnvPrime;
         }
         return hash;
+    }
+
+    /// <summary>
+    /// Returns a cached <see cref="SgrToken"/> whose <see cref="SgrToken.PreformattedBytes"/>
+    /// is the wire-ready UTF-8 representation of the SGR parameters (without the
+    /// surrounding <c>ESC[</c> ... <c>m</c>). Lookup is keyed by an FNV-1a hash
+    /// over <paramref name="parameterBytes"/> with a span-vs-array equality verify
+    /// on lookup, so cache hits allocate nothing.
+    /// </summary>
+    /// <remarks>
+    /// On miss this copies the bytes into a heap byte[] and materialises an ASCII
+    /// string for <see cref="SgrToken.Parameters"/> (one-time cost; cache hits skip
+    /// both). SGR parameters are pure ASCII (digits, semicolons, colons), so ASCII
+    /// decode is exact.
+    /// </remarks>
+    public static SgrToken GetSgrTokenFromBytes(ReadOnlySpan<byte> parameterBytes)
+    {
+        if (parameterBytes.Length == 0)
+            return SgrToken.Reset;
+
+        var cache = t_sgrBytesCache ??= new Dictionary<ulong, SgrEntry>(capacity: 256);
+        var hash = HashBytes(parameterBytes);
+
+        if (cache.TryGetValue(hash, out var entry) && BytesEqualsBytes(parameterBytes, entry.Token.PreformattedBytes))
+            return entry.Token;
+
+        // Cache miss — materialise the wire bytes + the parameter string.
+        var bytes = parameterBytes.ToArray();
+        var parameters = System.Text.Encoding.ASCII.GetString(bytes);
+        var token = new SgrToken(parameters) { PreformattedBytes = bytes };
+        if (cache.Count < MaxSgrCache)
+            cache[hash] = new SgrEntry(parameters, token);
+        return token;
+    }
+
+    // FNV-1a 64-bit hash over a byte span.
+    private static ulong HashBytes(ReadOnlySpan<byte> data)
+    {
+        const ulong fnvOffset = 14695981039346656037UL;
+        const ulong fnvPrime = 1099511628211UL;
+        ulong hash = fnvOffset;
+        for (var i = 0; i < data.Length; i++)
+        {
+            hash ^= data[i];
+            hash *= fnvPrime;
+        }
+        return hash;
+    }
+
+    private static bool BytesEqualsBytes(ReadOnlySpan<byte> a, byte[]? b)
+    {
+        if (b is null) return false;
+        return a.SequenceEqual(b);
     }
 
     private static bool BuilderEqualsString(StringBuilder builder, string s)

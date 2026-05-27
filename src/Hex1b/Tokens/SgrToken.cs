@@ -30,4 +30,23 @@ public sealed record SgrToken(string Parameters) : AnsiToken
 {
     /// <summary>SGR reset - clears all attributes and colors.</summary>
     public static readonly SgrToken Reset = new("");
+
+    /// <summary>
+    /// Optional pre-formatted UTF-8 representation of <see cref="Parameters"/>
+    /// (without the surrounding <c>ESC[</c> ... <c>m</c>). When the renderer hot
+    /// path emits an SGR via the byte-formatting fast path it stores the wire
+    /// bytes here so <see cref="AnsiTokenUtf8Serializer"/> can <c>memcpy</c>
+    /// them instead of re-encoding the string.
+    /// </summary>
+    /// <remarks>
+    /// This is a cache and MUST NOT participate in value equality — two
+    /// <see cref="SgrToken"/> instances with the same <see cref="Parameters"/>
+    /// are equal regardless of whether one carries pre-formatted bytes.
+    /// </remarks>
+    internal byte[]? PreformattedBytes { get; init; }
+
+    public bool Equals(SgrToken? other) =>
+        other is not null && Parameters == other.Parameters;
+
+    public override int GetHashCode() => Parameters?.GetHashCode() ?? 0;
 }

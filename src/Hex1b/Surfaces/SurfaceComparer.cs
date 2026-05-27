@@ -503,6 +503,11 @@ public static class SurfaceComparer
         bool stateUnknown = true;
         TrackedObject<HyperlinkData>? currentHyperlink = null;
 
+        // Reused across all changed cells; passed by ref to BuildSgrParametersBytes.
+        // SGR parameter strings cap out well below 96 bytes even with reset+attrs+RGB
+        // foreground+RGB background+RGB underline colour, e.g. "0;1;3;38;2;255;255;255;48;2;255;255;255;58;2;255;255;255" is 56 bytes.
+        Span<byte> sgrBuf = stackalloc byte[96];
+
         foreach (var change in diff.ChangedCells)
         {
             // Skip continuation cells - they're handled by the wide character before them
@@ -558,7 +563,8 @@ public static class SurfaceComparer
 
             if (needsSgr)
             {
-                var sgrBuilder = BuildSgrParameters(
+                var written = BuildSgrParametersBytes(
+                    sgrBuf,
                     change.Cell,
                     stateUnknown,
                     ref currentFg,
@@ -566,10 +572,10 @@ public static class SurfaceComparer
                     ref currentAttrs,
                     ref currentUnderlineStyle,
                     ref currentUnderlineColor);
-                
-                if (sgrBuilder.Length > 0)
+
+                if (written > 0)
                 {
-                    tokens.Add(AnsiTokenCache.GetSgrToken(sgrBuilder));
+                    tokens.Add(AnsiTokenCache.GetSgrTokenFromBytes(sgrBuf.Slice(0, written)));
                 }
                 stateUnknown = false;
             }
@@ -975,6 +981,172 @@ public static class SurfaceComparer
     private static void AppendSeparator(StringBuilder sb)
     {
         if (sb.Length > 0) sb.Append(';');
+    }
+
+    // -----------------------------------------------------------------------
+    // Fast byte-formatting SGR builder. Writes directly into a stackalloc'd
+    // Span<byte> via Utf8Formatter.TryFormat — bypasses StringBuilder rent +
+    // char Append + ToString + GetHashCode-over-chars + string-keyed dict
+    // lookup that the legacy BuildSgrParameters path goes through. The output
+    // span is fed to AnsiTokenCache.GetSgrTokenFromBytes which uses a
+    // byte-keyed cache and stores the wire-ready bytes on SgrToken for the
+    // serializer to memcpy.
+    //
+    // Mirror of BuildSgrParameters; keep the two in lockstep. Any new SGR
+    // emit case must be ported to both until BuildSgrParameters is retired.
+    // -----------------------------------------------------------------------
+    private static int BuildSgrParametersBytes(
+        Span<byte> dest,
+        SurfaceCell targetCell,
+        bool stateUnknown,
+        ref Hex1bColor? currentFg,
+        ref Hex1bColor? currentBg,
+        ref CellAttributes currentAttrs,
+        ref UnderlineStyle currentUnderlineStyle,
+        ref Hex1bColor? currentUnderlineColor)
+    {
+        int pos = 0;
+
+        var turnedOff = currentAttrs & ~targetCell.Attributes;
+        bool needsReset = stateUnknown ||
+                         turnedOff != CellAttributes.None ||
+                         (currentFg is not null && targetCell.Foreground is null) ||
+                         (currentBg is not null && targetCell.Background is null);
+
+        if (needsReset)
+        {
+            dest[pos++] = (byte)'0';
+            currentAttrs = CellAttributes.None;
+            currentFg = null;
+            currentBg = null;
+            currentUnderlineStyle = UnderlineStyle.None;
+            currentUnderlineColor = null;
+        }
+
+        var toTurnOn = targetCell.Attributes & ~currentAttrs;
+
+        if ((toTurnOn & CellAttributes.Bold) != 0) AppendPartBytes(dest, ref pos, "1"u8);
+        if ((toTurnOn & CellAttributes.Dim) != 0) AppendPartBytes(dest, ref pos, "2"u8);
+        if ((toTurnOn & CellAttributes.Italic) != 0) AppendPartBytes(dest, ref pos, "3"u8);
+        if ((toTurnOn & CellAttributes.Underline) != 0)
+        {
+            AppendPartBytes(dest, ref pos, UnderlineSgrCodeBytes(targetCell.UnderlineStyle));
+        }
+        else if ((currentAttrs & CellAttributes.Underline) != 0 &&
+                 (targetCell.Attributes & CellAttributes.Underline) != 0 &&
+                 targetCell.UnderlineStyle != currentUnderlineStyle)
+        {
+            AppendPartBytes(dest, ref pos, UnderlineSgrCodeBytes(targetCell.UnderlineStyle));
+        }
+        if ((toTurnOn & CellAttributes.Blink) != 0) AppendPartBytes(dest, ref pos, "5"u8);
+        if ((toTurnOn & CellAttributes.Reverse) != 0) AppendPartBytes(dest, ref pos, "7"u8);
+        if ((toTurnOn & CellAttributes.Hidden) != 0) AppendPartBytes(dest, ref pos, "8"u8);
+        if ((toTurnOn & CellAttributes.Strikethrough) != 0) AppendPartBytes(dest, ref pos, "9"u8);
+        if ((toTurnOn & CellAttributes.Overline) != 0) AppendPartBytes(dest, ref pos, "53"u8);
+
+        if (!ColorsEqual(targetCell.Foreground, currentFg) && targetCell.Foreground is not null)
+        {
+            AppendSeparatorByte(dest, ref pos);
+            AppendColorSgrBytes(dest, ref pos, targetCell.Foreground.Value, isForeground: true);
+        }
+
+        if (!ColorsEqual(targetCell.Background, currentBg) && targetCell.Background is not null)
+        {
+            AppendSeparatorByte(dest, ref pos);
+            AppendColorSgrBytes(dest, ref pos, targetCell.Background.Value, isForeground: false);
+        }
+
+        if (!ColorsEqual(targetCell.UnderlineColor, currentUnderlineColor))
+        {
+            if (targetCell.UnderlineColor is not null)
+            {
+                var ulc = targetCell.UnderlineColor.Value;
+                AppendSeparatorByte(dest, ref pos);
+                AppendBytes(dest, ref pos, "58;2;"u8);
+                AppendByteAsAscii(dest, ref pos, ulc.R);
+                dest[pos++] = (byte)';';
+                AppendByteAsAscii(dest, ref pos, ulc.G);
+                dest[pos++] = (byte)';';
+                AppendByteAsAscii(dest, ref pos, ulc.B);
+            }
+            else if (currentUnderlineColor is not null)
+            {
+                AppendPartBytes(dest, ref pos, "59"u8);
+            }
+        }
+
+        currentAttrs = targetCell.Attributes;
+        currentFg = targetCell.Foreground;
+        currentBg = targetCell.Background;
+        currentUnderlineStyle = targetCell.UnderlineStyle;
+        currentUnderlineColor = targetCell.UnderlineColor;
+
+        return pos;
+    }
+
+    private static void AppendPartBytes(Span<byte> dest, ref int pos, ReadOnlySpan<byte> part)
+    {
+        AppendSeparatorByte(dest, ref pos);
+        AppendBytes(dest, ref pos, part);
+    }
+
+    private static void AppendSeparatorByte(Span<byte> dest, ref int pos)
+    {
+        if (pos > 0) dest[pos++] = (byte)';';
+    }
+
+    private static void AppendBytes(Span<byte> dest, ref int pos, ReadOnlySpan<byte> src)
+    {
+        src.CopyTo(dest.Slice(pos));
+        pos += src.Length;
+    }
+
+    private static void AppendIntAsAscii(Span<byte> dest, ref int pos, int value)
+    {
+        if (!System.Buffers.Text.Utf8Formatter.TryFormat(value, dest.Slice(pos), out var written))
+            throw new InvalidOperationException("SGR int formatting buffer overflow.");
+        pos += written;
+    }
+
+    private static void AppendByteAsAscii(Span<byte> dest, ref int pos, byte value)
+    {
+        if (!System.Buffers.Text.Utf8Formatter.TryFormat(value, dest.Slice(pos), out var written))
+            throw new InvalidOperationException("SGR byte formatting buffer overflow.");
+        pos += written;
+    }
+
+    private static ReadOnlySpan<byte> UnderlineSgrCodeBytes(UnderlineStyle style) => style switch
+    {
+        UnderlineStyle.Double => "21"u8,
+        UnderlineStyle.Curly => "4:3"u8,
+        UnderlineStyle.Dotted => "4:4"u8,
+        UnderlineStyle.Dashed => "4:5"u8,
+        _ => "4"u8,
+    };
+
+    private static void AppendColorSgrBytes(Span<byte> dest, ref int pos, Hex1bColor color, bool isForeground)
+    {
+        switch (color.Kind)
+        {
+            case Hex1bColorKind.Standard:
+                AppendIntAsAscii(dest, ref pos, isForeground ? 30 + color.AnsiIndex : 40 + color.AnsiIndex);
+                break;
+            case Hex1bColorKind.Bright:
+                AppendIntAsAscii(dest, ref pos, isForeground ? 90 + color.AnsiIndex : 100 + color.AnsiIndex);
+                break;
+            case Hex1bColorKind.Indexed:
+                AppendBytes(dest, ref pos, isForeground ? "38;5;"u8 : "48;5;"u8);
+                AppendByteAsAscii(dest, ref pos, color.AnsiIndex);
+                break;
+            default:
+                AppendBytes(dest, ref pos, isForeground ? "38;2;"u8 : "48;2;"u8);
+                AppendByteAsAscii(dest, ref pos, color.R);
+                dest[pos++] = (byte)';';
+                AppendByteAsAscii(dest, ref pos, color.G);
+                dest[pos++] = (byte)';';
+                AppendByteAsAscii(dest, ref pos, color.B);
+                break;
+        }
     }
 
     private static string UnderlineSgrCode(UnderlineStyle style) => style switch
