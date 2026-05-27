@@ -45,8 +45,9 @@ namespace PerfStressDemo;
 /// is straightforward.
 ///
 /// The tank is the interior of the screen: a 1-cell-thick solid
-/// border is drawn around the perimeter, with the drain hole appearing
-/// as a dark dot at the cursor while it's open.
+/// border is drawn around the perimeter, with a scatter of random
+/// solid disc obstacles inside that the water has to flow around.
+/// The drain hole appears as a dark dot at the cursor while it's open.
 ///
 /// Controls: left click places the outlet (drain) at the cursor;
 /// right click places the inlet (refill source); shift+left or
@@ -75,6 +76,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private float[] _vy = Array.Empty<float>();
     private float[] _flowAccX = Array.Empty<float>();
     private float[] _flowAccY = Array.Empty<float>();
+    private bool[] _solid = Array.Empty<bool>();
 
     private int _screenW, _screenH;
     private int _dw, _dh;
@@ -142,6 +144,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private static readonly Hex1bColor WallTrim   = Hex1bColor.FromRgb(40, 30, 22);
     private static readonly Hex1bColor HoleColour = Hex1bColor.FromRgb(8, 8, 12);
     private static readonly Hex1bColor InletColour = Hex1bColor.FromRgb(240, 240, 255);
+    private static readonly Hex1bColor RockColour = Hex1bColor.FromRgb(95, 85, 75);
 
     public Hex1bWidget Build(StressContext sc)
     {
@@ -238,11 +241,51 @@ internal sealed class WhirlpoolPage : IStressPage
         _vy = new float[n];
         _flowAccX = new float[n];
         _flowAccY = new float[n];
+        _solid = new bool[n];
+        GenerateObstacles();
         for (var i = 0; i < n; i++) _height[i] = 0;
         _quiescent = true;
         _drainActive = false;
         _drainOpenFrames = 0;
         _inletActive = false;
+    }
+
+    /// <summary>
+    /// Scatters a handful of random solid disc obstacles inside the
+    /// tank interior, leaving a margin from the perimeter walls so
+    /// every cell on the border remains traversable.
+    /// </summary>
+    private void GenerateObstacles()
+    {
+        var n = _solid.Length;
+        for (var i = 0; i < n; i++) _solid[i] = false;
+        if (_dw < 8 || _dh < 8) return;
+
+        var area = _dw * _dh;
+        var count = Math.Max(4, area / 600); // ~ a couple of dozen on a typical screen
+        var margin = 2;
+
+        for (var k = 0; k < count; k++)
+        {
+            var cx = margin + (int)(NextFloat() * (_dw - 2 * margin));
+            var cy = margin + (int)(NextFloat() * (_dh - 2 * margin));
+            var r = 1.5f + NextFloat() * 3.5f;
+            var r2 = r * r;
+            var x0 = Math.Max(0, (int)(cx - r));
+            var x1 = Math.Min(_dw - 1, (int)(cx + r + 0.5f));
+            var y0 = Math.Max(0, (int)(cy - r));
+            var y1 = Math.Min(_dh - 1, (int)(cy + r + 0.5f));
+            for (var y = y0; y <= y1; y++)
+            {
+                var row = y * _dw;
+                for (var x = x0; x <= x1; x++)
+                {
+                    var dx = x - cx;
+                    var dy = y - cy;
+                    if (dx * dx + dy * dy <= r2) _solid[row + x] = true;
+                }
+            }
+        }
     }
 
     private void Step()
@@ -308,6 +351,7 @@ internal sealed class WhirlpoolPage : IStressPage
     {
         var dw = _dw; var dh = _dh;
         var h = _height; var vx = _vx; var vy = _vy;
+        var solid = _solid;
         var drainOn = _drainActive;
         var cx = (float)_drainCx;
         var cy = (float)_drainCy;
@@ -323,11 +367,12 @@ internal sealed class WhirlpoolPage : IStressPage
             for (var x = 0; x < dw; x++)
             {
                 var i = row + x;
+                if (solid[i]) { vx[i] = 0f; vy[i] = 0f; continue; }
                 var hi = h[i];
-                int hL = x > 0 ? h[i - 1] : hi;
-                int hR = x + 1 < dw ? h[i + 1] : hi;
-                int hU = y > 0 ? h[i - dw] : hi;
-                int hD = y + 1 < dh ? h[i + dw] : hi;
+                int hL = (x > 0     && !solid[i - 1])  ? h[i - 1]  : hi;
+                int hR = (x + 1 < dw && !solid[i + 1])  ? h[i + 1]  : hi;
+                int hU = (y > 0     && !solid[i - dw]) ? h[i - dw] : hi;
+                int hD = (y + 1 < dh && !solid[i + dw]) ? h[i + dw] : hi;
                 var gradX = (hR - hL) * 0.5f;
                 var gradY = (hD - hU) * 0.5f;
                 vx[i] -= gradX * PressureGain;
@@ -390,6 +435,7 @@ internal sealed class WhirlpoolPage : IStressPage
         var dw = _dw; var dh = _dh;
         var h = _height; var vx = _vx; var vy = _vy;
         var ax = _flowAccX; var ay = _flowAccY;
+        var solid = _solid;
         var moved = false;
 
         // X edges within each row.
@@ -400,6 +446,7 @@ internal sealed class WhirlpoolPage : IStressPage
             {
                 var i = row + x;
                 var j = i + 1;
+                if (solid[i] || solid[j]) { ax[i] = 0f; continue; }
                 var v = (vx[i] + vx[j]) * 0.5f;
                 var acc = ax[i];
                 if (v == 0f && acc == 0f) continue;
@@ -437,6 +484,7 @@ internal sealed class WhirlpoolPage : IStressPage
             {
                 var i = row + x;
                 var j = i + dw;
+                if (solid[i] || solid[j]) { ay[i] = 0f; continue; }
                 var v = (vy[i] + vy[j]) * 0.5f;
                 var acc = ay[i];
                 if (v == 0f && acc == 0f) continue;
@@ -493,6 +541,7 @@ internal sealed class WhirlpoolPage : IStressPage
             var dy = ry - _drainCy;
             if (dx * dx + dy * dy > discR2) continue;
             var i = ry * _dw + rx;
+            if (_solid[i]) continue;
             if (_height[i] > 0)
             {
                 _height[i]--;
@@ -524,6 +573,7 @@ internal sealed class WhirlpoolPage : IStressPage
             var dy = ry - _inletCy;
             if (dx * dx + dy * dy > r2) continue;
             var i = ry * _dw + rx;
+            if (_solid[i]) continue;
             if (_height[i] < DShort)
             {
                 _height[i]++;
@@ -551,6 +601,7 @@ internal sealed class WhirlpoolPage : IStressPage
 
         var dw = _dw;
         var heights = _height;
+        var solid = _solid;
         for (var cy = WallCells; cy < hsz - WallCells; cy++)
         {
             var iy = cy - WallCells;
@@ -559,9 +610,11 @@ internal sealed class WhirlpoolPage : IStressPage
             for (var cx = WallCells; cx < w - WallCells; cx++)
             {
                 var ix = cx - WallCells;
-                surface[cx, cy] = new SurfaceCell("▀",
-                    DepthColour(heights[topRow + ix]),
-                    DepthColour(heights[botRow + ix]));
+                var topI = topRow + ix;
+                var botI = botRow + ix;
+                var topCol = solid[topI] ? RockColour : DepthColour(heights[topI]);
+                var botCol = solid[botI] ? RockColour : DepthColour(heights[botI]);
+                surface[cx, cy] = new SurfaceCell("▀", topCol, botCol);
             }
         }
 
