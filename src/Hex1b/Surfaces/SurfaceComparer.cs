@@ -65,6 +65,31 @@ public static class SurfaceComparer
         var prevCells = previous.CellsUnsafe;
         var currCells = current.CellsUnsafe;
 
+        // Fast path: when neither surface contains wide cells, underline state,
+        // multi-codepoint graphemes, or tracked refs (sixel/kgp/hyperlink), we can
+        // skip the per-cell branches for those fields entirely. This is a 4-field
+        // compare instead of ~10, and the helper is small enough to inline.
+        if (previous.IsFastPathEligible && current.IsFastPathEligible)
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var rowOffset = y * width;
+                for (var x = 0; x < width; x++)
+                {
+                    var index = rowOffset + x;
+                    ref readonly var prevCell = ref prevCells[index];
+                    ref readonly var currCell = ref currCells[index];
+
+                    if (!CellsEqualFast(in prevCell, in currCell))
+                    {
+                        changed.Add(new ChangedCell(x, y, currCell));
+                    }
+                }
+            }
+
+            return;
+        }
+
         for (var y = 0; y < height; y++)
         {
             var rowOffset = y * width;
@@ -120,6 +145,27 @@ public static class SurfaceComparer
         var height = surface.Height;
         var cells = surface.CellsUnsafe;
         var empty = SurfaceCells.Empty;
+
+        // Fast path: see CompareInto. Empty is itself a "simple" cell, so when the
+        // surface is fast-eligible we can compare against it with the 4-field equal.
+        if (surface.IsFastPathEligible)
+        {
+            for (var y = 0; y < height; y++)
+            {
+                var rowOffset = y * width;
+                for (var x = 0; x < width; x++)
+                {
+                    ref readonly var cell = ref cells[rowOffset + x];
+
+                    if (!CellsEqualFast(in cell, in empty))
+                    {
+                        changed.Add(new ChangedCell(x, y, cell));
+                    }
+                }
+            }
+
+            return;
+        }
 
         for (var y = 0; y < height; y++)
         {
@@ -742,6 +788,20 @@ public static class SurfaceComparer
     }
 
     #region Private Helpers
+
+    /// <summary>
+    /// Slim 4-field equality used by the fast diff path. Only safe to call when
+    /// both cells are known not to carry tracked refs, underline state, multi-
+    /// codepoint graphemes, or a non-default display width — i.e. when both
+    /// owning surfaces report <see cref="Surface.IsFastPathEligible"/>.
+    /// </summary>
+    private static bool CellsEqualFast(in SurfaceCell a, in SurfaceCell b)
+    {
+        return a.Character == b.Character
+            && a.Attributes == b.Attributes
+            && ColorsEqual(a.Foreground, b.Foreground)
+            && ColorsEqual(a.Background, b.Background);
+    }
 
     private static bool CellsEqual(SurfaceCell a, SurfaceCell b)
     {

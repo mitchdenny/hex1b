@@ -42,6 +42,19 @@ public sealed class Surface : ISurfaceSource
     private int _contentMinX;
     private int _contentMaxY = -1;
     private int _contentMinY;
+
+    // Latched flag indicating that at least one cell on this surface has a value
+    // that the fast diff path cannot safely ignore: wide/continuation cells,
+    // multi-codepoint graphemes, underline state, or tracked refs (sixel/kgp/hyperlink).
+    // When false, SurfaceComparer can use a slimmer per-cell equality that skips
+    // those checks entirely.
+    //
+    // The flag is intentionally permissive (latched-on-write, only reset by Clear/
+    // ClearAndReleaseTrackedObjects). A surface that briefly held complex content
+    // and then had it overwritten with simple content will keep the flag set until
+    // the next Clear — that just falls back to the slow path, never produces wrong
+    // diffs.
+    private bool _hasComplexContent;
     
     /// <summary>
     /// Gets the width of the surface in columns.
@@ -161,7 +174,9 @@ public sealed class Surface : ISurfaceSource
             // Track content bounding box
             if (value != SurfaceCells.Empty)
                 ExpandContentBounds(x, y);
-            
+
+            MarkComplexIfNeeded(value);
+
             _cells[index] = value;
         }
     }
@@ -222,7 +237,9 @@ public sealed class Surface : ISurfaceSource
             // Track content bounding box
             if (cell != SurfaceCells.Empty)
                 ExpandContentBounds(x, y);
-            
+
+            MarkComplexIfNeeded(cell);
+
             _cells[index] = cell;
             return true;
         }
@@ -246,6 +263,7 @@ public sealed class Surface : ISurfaceSource
         Array.Fill(_cells, SurfaceCells.Empty);
         _sixelCount = 0;
         _kgpCount = 0;
+        _hasComplexContent = false;
         ResetContentBounds();
     }
 
@@ -270,6 +288,7 @@ public sealed class Surface : ISurfaceSource
 
         _sixelCount = 0;
         _kgpCount = 0;
+        _hasComplexContent = false;
         ResetContentBounds();
     }
 
@@ -282,6 +301,7 @@ public sealed class Surface : ISurfaceSource
         Array.Fill(_cells, cell);
         _sixelCount = cell.HasSixel ? CellCount : 0;
         _kgpCount = cell.HasKgp ? CellCount : 0;
+        _hasComplexContent = IsCellComplex(cell);
         if (cell != SurfaceCells.Empty && Width > 0 && Height > 0)
             SetContentBoundsToFull();
         else
@@ -307,6 +327,9 @@ public sealed class Surface : ISurfaceSource
             ExpandContentBounds(startX, startY);
             ExpandContentBounds(endX - 1, endY - 1);
         }
+
+        if (startX < endX && startY < endY)
+            MarkComplexIfNeeded(cell);
 
         for (var y = startY; y < endY; y++)
         {
@@ -403,6 +426,7 @@ public sealed class Surface : ISurfaceSource
             var cell = new SurfaceCell(grapheme, foreground, background, attributes, graphemeWidth);
             if (startX < 0) startX = currentX;
             _cells[y * Width + currentX] = cell;
+            MarkComplexIfNeeded(cell);
             currentX++;
             columnsWritten++;
 
@@ -411,7 +435,9 @@ public sealed class Surface : ISurfaceSource
             {
                 if (currentX < Width)
                 {
-                    _cells[y * Width + currentX] = SurfaceCell.CreateContinuation(background);
+                    var continuation = SurfaceCell.CreateContinuation(background);
+                    _cells[y * Width + currentX] = continuation;
+                    MarkComplexIfNeeded(continuation);
                     currentX++;
                     columnsWritten++;
                 }
@@ -623,6 +649,7 @@ public sealed class Surface : ISurfaceSource
                     _kgpCount++;
 
                 _cells[index] = srcCell;
+                MarkComplexIfNeeded(srcCell);
                 ExpandContentBounds(destX, destY);
             }
         }
@@ -844,6 +871,44 @@ public sealed class Surface : ISurfaceSource
     /// (e.g., in async contexts). Use with caution - no bounds checking.
     /// </remarks>
     internal SurfaceCell[] CellsUnsafe => _cells;
+
+    /// <summary>
+    /// Gets whether this surface contains only cells that the diff fast path can
+    /// safely treat as 4-field (Character/Foreground/Background/Attributes) cells.
+    /// </summary>
+    /// <remarks>
+    /// False when at least one cell was written with a wide/continuation display width,
+    /// a multi-codepoint grapheme, an underline style/colour, or a tracked sixel/KGP/
+    /// hyperlink reference. The flag is permissive: once set it stays set until the
+    /// next <see cref="Clear()"/> or <see cref="ClearAndReleaseTrackedObjects"/>.
+    /// A false negative just falls back to the slow path; it can never produce a
+    /// wrong diff.
+    /// </remarks>
+    internal bool IsFastPathEligible => !_hasComplexContent;
+
+    /// <summary>
+    /// True if <paramref name="cell"/> has any property that the fast diff path
+    /// cannot ignore: a non-default display width, a multi-codepoint grapheme,
+    /// an underline style or colour, or any tracked reference.
+    /// </summary>
+    private static bool IsCellComplex(in SurfaceCell cell)
+    {
+        if (cell.DisplayWidth != 1) return true;
+        if (cell.UnderlineStyle != UnderlineStyle.None) return true;
+        if (cell.UnderlineColor.HasValue) return true;
+        if (cell.Sixel is not null) return true;
+        if (cell.Kgp is not null) return true;
+        if (cell.Hyperlink is not null) return true;
+        var character = cell.Character;
+        if (character is not null && character.Length > 1) return true;
+        return false;
+    }
+
+    private void MarkComplexIfNeeded(in SurfaceCell cell)
+    {
+        if (!_hasComplexContent && IsCellComplex(cell))
+            _hasComplexContent = true;
+    }
 
     private void ValidateBounds(int x, int y)
     {
