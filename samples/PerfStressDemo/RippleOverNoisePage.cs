@@ -50,8 +50,13 @@ internal sealed class RippleOverNoisePage : IStressPage
 
     public Hex1bWidget Build(StressContext sc)
     {
-        // The noise itself is static. We only rebuild it on a resize.
-        var noise = sc.Root.Surface(layer => GetOrBuildNoiseLayer(layer));
+        // The noise itself is static. We only rebuild it on a resize, and we mark
+        // the SurfaceWidget as cacheable so the framework doesn't reallocate a
+        // ~64-bytes-per-cell child surface every reconcile (any reasonably sized
+        // terminal puts that surface on the LOH → straight to Gen2).
+        var noise = sc.Root
+            .Surface(layer => GetOrBuildNoiseLayer(layer))
+            .Cached(static _ => true);
 
         // Wrap the noise in an EffectPanel that overlays a circular ripple
         // expanding from the center, animated by elapsed time.

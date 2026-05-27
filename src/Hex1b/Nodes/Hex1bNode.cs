@@ -199,6 +199,15 @@ public abstract class Hex1bNode
     /// Returning <c>false</c> forces a cache miss for this subtree.
     /// </summary>
     internal Func<RenderCacheContext, bool>? CachePredicate { get; set; }
+
+    /// <summary>
+    /// A retained child surface that survives <see cref="InvalidateCache"/> so the
+    /// next render miss can reuse the same backing array instead of allocating a
+    /// fresh (often LOH-sized, 64-bytes-per-cell) surface every frame. Cleared
+    /// when the node's bounds change or the buffer dimensions otherwise no longer
+    /// match what the renderer needs.
+    /// </summary>
+    internal Surface? RenderBuffer { get; set; }
      
     /// <summary>
     /// When set to a non-default color, RenderChild will fill all transparent backgrounds
@@ -256,6 +265,11 @@ public abstract class Hex1bNode
     /// </summary>
     internal void InvalidateCache()
     {
+        // Retain the previously cached surface as a reusable render buffer so the
+        // next cache miss can render into it without allocating a fresh surface
+        // (which for any reasonably sized node lives on the LOH).
+        if (CachedSurface is not null)
+            RenderBuffer = CachedSurface;
         CachedSurface = null;
         CachedSubtreeRenderVersion = -1;
     }

@@ -65,9 +65,16 @@ public record SurfaceWidget(
     {
         var node = existingNode as SurfaceNode ?? new SurfaceNode();
 
-        // Always mark dirty since layers may have changed content
-        // (we can't easily compare layer contents)
-        node.MarkDirty();
+        // If the user has not opted into per-widget cache control via .Cached(...),
+        // we conservatively mark the node dirty every reconcile because we can't
+        // cheaply diff layer contents. When a CachePredicate IS present, the user
+        // is taking responsibility for declaring when the rendered surface needs
+        // to be regenerated — invalidating here would force a new (often LOH)
+        // Surface allocation per frame and defeat the cache entirely.
+        if (CachePredicate is null)
+        {
+            node.MarkDirty();
+        }
 
         node.LayerBuilder = LayerBuilder;
         // HeightHint and WidthHint are set by ReconcileContext from the base Hex1bWidget properties.

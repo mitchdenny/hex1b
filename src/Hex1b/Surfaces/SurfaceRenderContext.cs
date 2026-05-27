@@ -795,7 +795,35 @@ public class SurfaceRenderContext : Hex1bRenderContext
             // Clamp dimensions to prevent overflow with unconstrained children
             var clampedWidth = Math.Min(child.Bounds.Width, MaxSurfaceDimension);
             var clampedHeight = Math.Min(child.Bounds.Height, MaxSurfaceDimension);
-            var childSurface = new Surface(clampedWidth, clampedHeight, CellMetrics);
+
+            // Reuse the previously cached buffer in place when its dimensions still match.
+            // CachedSurface for non-trivial sizes lands on the Large Object Heap (~64
+            // bytes/cell), so reallocating per cache miss produces a steady stream of
+            // Gen2 garbage. Only fall back to a fresh allocation (or pool rent) when
+            // the buffer is missing or differently sized.
+            Surface childSurface;
+            var existingBuffer = child.CachedSurface ?? child.RenderBuffer;
+            if (existingBuffer is not null
+                && existingBuffer.Width == clampedWidth
+                && existingBuffer.Height == clampedHeight
+                && existingBuffer.CellMetrics == CellMetrics)
+            {
+                childSurface = existingBuffer;
+                childSurface.ClearAndReleaseTrackedObjects();
+                child.RenderBuffer = null;
+            }
+            else
+            {
+                var pool = SurfacePool;
+                // The retained buffer no longer fits — surrender it to the pool
+                // (or let GC collect it) before allocating a new one.
+                if (pool != null && child.RenderBuffer is { } retired)
+                    pool.Return(retired);
+                child.RenderBuffer = null;
+                childSurface = pool != null
+                    ? pool.Rent(clampedWidth, clampedHeight, CellMetrics)
+                    : new Surface(clampedWidth, clampedHeight, CellMetrics);
+            }
             var subtreeVersionBeforeRender = child.SubtreeRenderVersion;
             
             // Create context with offset so child's absolute coordinates map to surface (0,0)
