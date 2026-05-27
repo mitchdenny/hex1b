@@ -105,10 +105,10 @@ internal sealed class WhirlpoolPage : IStressPage
     // Shallow-water dynamics. Tune for visible momentum / sloshing
     // without runaway oscillation.
     // ----------------------------------------------------------------
-    private const float PressureGain = 0.10f;
-    private const float Damping      = 0.965f;
+    private const float PressureGain = 0.07f;
+    private const float Damping      = 0.92f;
     private const float MaxSpeed     = 1.1f;
-    private const float VelocityFloor = 0.003f;
+    private const float VelocityFloor = 0.015f;
 
     // ----------------------------------------------------------------
     // Surface tension / film thickness.
