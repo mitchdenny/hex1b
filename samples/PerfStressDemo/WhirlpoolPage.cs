@@ -72,8 +72,34 @@ internal sealed class WhirlpoolPage : IStressPage
     private float _drainX;
     private float _drainY;
     private float _strength = 1.0f;
+    private int _frame;
     private const float MinStrength = 0.3f;
     private const float MaxStrength = 4.0f;
+
+    // ----------------------------------------------------------------
+    // Surface bubbles. The depth field alone is rotationally
+    // symmetric, so it reads as a hole — not a whirlpool. Floating
+    // bubbles that get sucked inward AND tangentially around the
+    // drain, leaving fading foam streaks along their paths, sell the
+    // rotation. Bubbles are SoA-ish via Bubble[]; foam is a flat
+    // float grid the size of the depth grid that decays each frame
+    // and is blended over the water colour at render time.
+    // ----------------------------------------------------------------
+    private struct Bubble
+    {
+        public float X;   // sub-cell coords
+        public float Y;
+        public float VX;
+        public float VY;
+    }
+    private Bubble[] _bubbles = Array.Empty<Bubble>();
+    private float[] _foam = Array.Empty<float>();
+    private const float FoamDecay = 0.84f;             // per frame
+    private const float BubbleDamping = 0.94f;         // when drain inactive
+    private const float BubbleMaxSpeed = 1.4f;         // sub-cells / frame
+    private const float DrainPullBase = 1.6f;          // accel scale, inward
+    private const float DrainSwirlBase = 1.05f;        // accel scale, tangential
+    private const float BubbleAbsorbRadius = 1.6f;     // sub-cells
 
     // ----------------------------------------------------------------
     // Inlets — small periodically-spawned sources on the screen edge.
@@ -200,15 +226,29 @@ internal sealed class WhirlpoolPage : IStressPage
         var n = _dotWidth * _dotHeight;
         _depth = new float[n];
         _delta = new float[n];
+        _foam = new float[n];
         // Start full — deep ocean everywhere.
         Array.Fill(_depth, MaxDepth);
         _inlets.Clear();
+        // Bubble count scales with surface area but is bounded so a
+        // very large terminal doesn't degenerate into a foam wash.
+        var bubbleCount = Math.Clamp(n / 70, 80, 600);
+        _bubbles = new Bubble[bubbleCount];
+        for (var i = 0; i < bubbleCount; i++)
+        {
+            ref var b = ref _bubbles[i];
+            b.X = NextFloat() * _dotWidth;
+            b.Y = NextFloat() * _dotHeight;
+            b.VX = 0;
+            b.VY = 0;
+        }
         _quiescent = true;
     }
 
     private void Step()
     {
         if (_depth.Length == 0) return;
+        _frame++;
         CurrentStrength = _strength;
         DrainOpen = _drainActive;
 
@@ -275,7 +315,12 @@ internal sealed class WhirlpoolPage : IStressPage
             changed |= TickInlets(depth, dw, dh);
         }
 
-        _quiescent = !changed && _inlets.Count == 0;
+        // Surface bubbles run every frame: they need to keep coasting
+        // (and decaying foam) after the drain closes so the basin
+        // smoothly settles back to glassy water.
+        var bubblesMoving = StepBubbles(dw, dh);
+
+        _quiescent = !changed && _inlets.Count == 0 && !_drainActive && !bubblesMoving;
     }
 
     /// <summary>
@@ -436,6 +481,8 @@ internal sealed class WhirlpoolPage : IStressPage
         var h = surface.Height;
         var dw = _dotWidth;
         var depth = _depth;
+        var foam = _foam;
+
         for (var cy = 0; cy < h; cy++)
         {
             var topRow = (cy * 2) * dw;
@@ -446,27 +493,183 @@ internal sealed class WhirlpoolPage : IStressPage
                 var botD = depth[botRow + cx];
                 var topCol = DepthColour(topD);
                 var botCol = DepthColour(botD);
+
+                // Foam blend: bubbles deposit foam along their path
+                // and it decays each frame, so fast-moving bubbles
+                // leave bright streaks that read as stretching as they
+                // accelerate toward the drain.
+                var topFoam = foam[topRow + cx];
+                var botFoam = foam[botRow + cx];
+                if (topFoam > 0f) topCol = BlendFoam(topCol, topFoam);
+                if (botFoam > 0f) botCol = BlendFoam(botCol, botFoam);
+
                 surface[cx, cy] = new SurfaceCell("▀", topCol, botCol);
             }
         }
 
-        // Stamp drain marker last so it sits on top. Use the rendered
-        // cell's existing background colour so the marker doesn't
-        // create a visible black square around itself when the
-        // surrounding water is mid-tone.
         if (_drainActive)
         {
             var mx = (int)_drainX;
             var my = (int)_drainY;
             if ((uint)mx < (uint)w && (uint)my < (uint)h)
             {
-                // The bottom sub-cell of the cell at (mx, my) is the
-                // closest drain sample; use that as our backdrop.
                 var bg = DepthColour(depth[(my * 2 + 1) * dw + mx]);
                 surface[mx, my] = new SurfaceCell("◉",
                     Hex1bColor.FromRgb(255, 240, 200), bg);
             }
         }
+    }
+
+    private static Hex1bColor BlendFoam(Hex1bColor col, float intensity)
+    {
+        if (intensity > 1f) intensity = 1f;
+        var r = (byte)(col.R + (255 - col.R) * intensity);
+        var g = (byte)(col.G + (255 - col.G) * intensity);
+        var b = (byte)(col.B + (255 - col.B) * intensity);
+        return Hex1bColor.FromRgb(r, g, b);
+    }
+
+    /// <summary>
+    /// Advances all surface bubbles one frame. When the drain is
+    /// active, each bubble feels an inward pull (~1/r) plus a
+    /// tangential swirl (~1/r), so bubbles spiral in and accelerate
+    /// as they approach the drain. Bubbles that reach the centre are
+    /// absorbed and respawned at a random screen edge. Each bubble
+    /// deposits foam along the line from its previous position to its
+    /// new position, so faster bubbles leave longer/brighter streaks.
+    /// </summary>
+    /// <returns>true if any bubble has non-trivial velocity or any
+    /// foam is still visible — used by the quiescence check.</returns>
+    private bool StepBubbles(int dw, int dh)
+    {
+        // ---- foam decay pass (and "any foam left?" probe)
+        var foam = _foam;
+        var anyFoam = false;
+        for (var i = 0; i < foam.Length; i++)
+        {
+            var f = foam[i] * FoamDecay;
+            if (f < 0.005f) f = 0f;
+            else anyFoam = true;
+            foam[i] = f;
+        }
+
+        var cx = _drainX;
+        var cy = _drainY * 2f + 0.5f;
+        var pullScale = DrainPullBase * _strength;
+        var swirlScale = DrainSwirlBase * _strength;
+        var absorbR2 = BubbleAbsorbRadius * BubbleAbsorbRadius;
+        var moving = false;
+
+        for (var i = 0; i < _bubbles.Length; i++)
+        {
+            ref var b = ref _bubbles[i];
+            var px = b.X;
+            var py = b.Y;
+
+            if (_drainActive)
+            {
+                var ddx = cx - px;
+                var ddy = cy - py;
+                var d2 = ddx * ddx + ddy * ddy;
+                if (d2 < absorbR2)
+                {
+                    // Bubble swallowed — respawn at a random edge.
+                    RespawnBubbleAtEdge(ref b, dw, dh);
+                    continue;
+                }
+                var d = MathF.Sqrt(d2);
+                var inv = 1f / d;
+                // Soft 1/(d+1) falloff so close-in particles don't
+                // get infinite force.
+                var falloff = 1f / (d + 1.5f);
+                // Inward acceleration.
+                b.VX += pullScale * falloff * ddx * inv;
+                b.VY += pullScale * falloff * ddy * inv;
+                // Tangential (counter-clockwise) — perpendicular to
+                // the inward vector.
+                b.VX += swirlScale * falloff * (-ddy * inv);
+                b.VY += swirlScale * falloff * ( ddx * inv);
+            }
+            else
+            {
+                // Drain off → glide to a halt.
+                b.VX *= BubbleDamping;
+                b.VY *= BubbleDamping;
+            }
+
+            // Speed cap.
+            var vmag2 = b.VX * b.VX + b.VY * b.VY;
+            if (vmag2 > BubbleMaxSpeed * BubbleMaxSpeed)
+            {
+                var s = BubbleMaxSpeed / MathF.Sqrt(vmag2);
+                b.VX *= s;
+                b.VY *= s;
+                vmag2 = BubbleMaxSpeed * BubbleMaxSpeed;
+            }
+            if (vmag2 > 0.0004f) moving = true;
+
+            var nx = px + b.VX;
+            var ny = py + b.VY;
+
+            // Out of bounds → respawn at a random edge.
+            if (nx < 0f || nx >= dw || ny < 0f || ny >= dh)
+            {
+                RespawnBubbleAtEdge(ref b, dw, dh);
+                continue;
+            }
+
+            b.X = nx;
+            b.Y = ny;
+            DepositFoamLine(foam, dw, dh, px, py, nx, ny);
+        }
+
+        return moving || anyFoam;
+    }
+
+    /// <summary>
+    /// Rasterises a line from (x0,y0) to (x1,y1) into the foam grid,
+    /// accumulating intensity at each integer sub-cell. Brightness
+    /// scales with segment length so the streak fades to invisible
+    /// for stationary bubbles and pops for fast ones.
+    /// </summary>
+    private static void DepositFoamLine(float[] foam, int dw, int dh,
+        float x0, float y0, float x1, float y1)
+    {
+        var dx = x1 - x0;
+        var dy = y1 - y0;
+        var len = MathF.Sqrt(dx * dx + dy * dy);
+        var steps = Math.Max(1, (int)MathF.Ceiling(len));
+        var invSteps = 1f / steps;
+        var stepX = dx * invSteps;
+        var stepY = dy * invSteps;
+        // Base brightness + speed boost. Drifting bubbles add a faint
+        // sheen; fast in-rushing ones add bright streaks.
+        var intensity = MathF.Min(1f, 0.35f + len * 0.4f);
+        for (var s = 0; s <= steps; s++)
+        {
+            var fx = (int)(x0 + stepX * s);
+            var fy = (int)(y0 + stepY * s);
+            if ((uint)fx >= (uint)dw || (uint)fy >= (uint)dh) continue;
+            var idx = fy * dw + fx;
+            var existing = foam[idx];
+            // Saturating add — foam approaches 1 but never overshoots.
+            var v = existing + intensity * (1f - existing);
+            foam[idx] = v;
+        }
+    }
+
+    private void RespawnBubbleAtEdge(ref Bubble b, int dw, int dh)
+    {
+        var edge = NextRandom() & 3;
+        switch (edge)
+        {
+            case 0: b.X = NextFloat() * dw; b.Y = 0f; break;
+            case 1: b.X = NextFloat() * dw; b.Y = dh - 1f; break;
+            case 2: b.X = 0f; b.Y = NextFloat() * dh; break;
+            default: b.X = dw - 1f; b.Y = NextFloat() * dh; break;
+        }
+        b.VX = 0f;
+        b.VY = 0f;
     }
 
     private static Hex1bColor DepthColour(float d)
