@@ -431,6 +431,26 @@ internal sealed class Hex1bFlowRunner
                             // reaching the parent terminal.
                             System.Threading.Volatile.Write(ref outputMuteGate.Value, true);
 
+                            // Park the cursor at the home position
+                            // (1,1). The host terminal scrolls the
+                            // primary buffer on shrink to keep the
+                            // cursor visible — and the cursor is
+                            // wherever the inner Hex1bApp last left it
+                            // (typically the textbox row near the
+                            // bottom of the active step). If we don't
+                            // intervene, every subsequent shrink event
+                            // in the burst pushes another row off the
+                            // top. With the cursor parked at the home
+                            // position, the host has no reason to
+                            // scroll on subsequent shrink events. The
+                            // very first event of a burst still loses
+                            // a row or two (the host has already
+                            // scrolled by the time our event handler
+                            // runs), but all later events in the same
+                            // drag are anchored. The settle pass
+                            // restores the cursor to its proper place.
+                            _parentAdapter.Write("\x1b[H");
+
                             // Update internal state for the eventual
                             // settle. Note: we deliberately don't write
                             // anything to the parent here — the settle
