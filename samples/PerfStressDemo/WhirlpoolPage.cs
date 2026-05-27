@@ -105,10 +105,10 @@ internal sealed class WhirlpoolPage : IStressPage
     // Shallow-water dynamics. Tune for visible momentum / sloshing
     // without runaway oscillation.
     // ----------------------------------------------------------------
-    private const float PressureGain = 0.07f;
-    private const float Damping      = 0.92f;
+    private const float PressureGain = 0.05f;
+    private const float Damping      = 0.85f;
     private const float MaxSpeed     = 0.6f;
-    private const float VelocityFloor = 0.015f;
+    private const float VelocityFloor = 0.04f;
 
     // ----------------------------------------------------------------
     // Surface tension / film thickness.
@@ -481,7 +481,11 @@ internal sealed class WhirlpoolPage : IStressPage
                 acc += v * eUp;
                 while (acc >= 1f)
                 {
-                    if (h[i] > 0 && h[j] < DShort)
+                    // Hysteresis: only transfer i->j when i is at least 2 voxels
+                    // higher. Without this, neighbouring cells perpetually
+                    // ping-pong a single voxel back and forth as the
+                    // gradient flips after each transfer.
+                    if (h[i] - h[j] >= 2 && h[i] > 0 && h[j] < DShort)
                     {
                         h[i]--; h[j]++;
                         acc -= 1f;
@@ -491,7 +495,7 @@ internal sealed class WhirlpoolPage : IStressPage
                 }
                 while (acc <= -1f)
                 {
-                    if (h[j] > 0 && h[i] < DShort)
+                    if (h[j] - h[i] >= 2 && h[j] > 0 && h[i] < DShort)
                     {
                         h[j]--; h[i]++;
                         acc += 1f;
@@ -520,7 +524,7 @@ internal sealed class WhirlpoolPage : IStressPage
                 acc += v * eUp;
                 while (acc >= 1f)
                 {
-                    if (h[i] > 0 && h[j] < DShort)
+                    if (h[i] - h[j] >= 2 && h[i] > 0 && h[j] < DShort)
                     {
                         h[i]--; h[j]++;
                         acc -= 1f;
@@ -530,7 +534,7 @@ internal sealed class WhirlpoolPage : IStressPage
                 }
                 while (acc <= -1f)
                 {
-                    if (h[j] > 0 && h[i] < DShort)
+                    if (h[j] - h[i] >= 2 && h[j] > 0 && h[i] < DShort)
                     {
                         h[j]--; h[i]++;
                         acc += 1f;
