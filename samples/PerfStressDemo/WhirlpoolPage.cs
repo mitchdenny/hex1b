@@ -50,8 +50,8 @@ namespace PerfStressDemo;
 /// The drain hole appears as a dark dot at the cursor while it's open.
 ///
 /// Controls: left click places the outlet (drain) at the cursor;
-/// right click places the inlet (refill source); shift+left or
-/// shift+right click clears the outlet or inlet respectively;
+/// right click places the inlet (refill source); ctrl+left or
+/// ctrl+right click clears the outlet or inlet respectively;
 /// R clears both and empties the basin; scroll up/down adjusts
 /// strength (drain consumption and inlet flow).
 /// </summary>
@@ -197,12 +197,12 @@ internal sealed class WhirlpoolPage : IStressPage
                 {
                     _strength = MathF.Max(MinStrength, _strength * 0.83f);
                 });
-                bindings.Mouse(MouseButton.Left).Shift().Action(_ =>
+                bindings.Mouse(MouseButton.Left).Ctrl().Action(_ =>
                 {
                     _drainActive = false;
                     _quiescent = false;
                 });
-                bindings.Mouse(MouseButton.Right).Shift().Action(_ =>
+                bindings.Mouse(MouseButton.Right).Ctrl().Action(_ =>
                 {
                     _inletActive = false;
                     _quiescent = false;

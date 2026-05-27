@@ -60,7 +60,7 @@ for (var i = 0; i < args.Length; i++)
             Console.WriteLine("  PgUp / PgDn          Switch between stress pages");
             Console.WriteLine("  L                    Cycle ripple quantisation 256→16→8→4→2→256");
             Console.WriteLine("  V                    Cycle pond viscosity (water→light→medium→thick→glob)");
-            Console.WriteLine("  Click / Scroll       Whirlpool: L=outlet, R=inlet, Shift+L/R clears, R-key resets");
+            Console.WriteLine("  Click / Scroll       Whirlpool: L=outlet, R=inlet, Ctrl+L/R clears, R-key resets");
             Console.WriteLine("  Q                    Quit");
             return;
     }
