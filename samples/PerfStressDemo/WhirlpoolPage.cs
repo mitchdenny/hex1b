@@ -61,22 +61,23 @@ internal sealed class WhirlpoolPage : IStressPage
     public string Name => "Whirlpool";
 
     public string Description =>
-        "Shallow-water voxel fluid: per-cell height + 2D velocity, "
+        "Shallow-water fluid: per-cell continuous height + 2D velocity, "
         + "pressure-gradient acceleration, radial drain attraction, "
-        + "integer voxel flux transfers. Water sloshes back elastically "
-        + "when the drain closes.";
+        + "fractional volumetric flux transfers. Water sloshes back "
+        + "elastically when the drain closes.";
 
     // ----------------------------------------------------------------
-    // Geometry — voxels are unit-height, columns top out at D voxels.
+    // Geometry — heights are continuous, columns top out at D units.
+    // The integer ceiling exists only for rendering buckets; the
+    // underlying physics is fractional so gravity can level a surface
+    // to its true equilibrium instead of getting stuck on a slope-1
+    // staircase that a pure integer field would consider "settled".
     // ----------------------------------------------------------------
-    private const int D = 16;
-    private const short DShort = (short)D;
+    private const float D = 16f;
 
-    private short[] _height = Array.Empty<short>();
+    private float[] _height = Array.Empty<float>();
     private float[] _vx = Array.Empty<float>();
     private float[] _vy = Array.Empty<float>();
-    private float[] _flowAccX = Array.Empty<float>();
-    private float[] _flowAccY = Array.Empty<float>();
     private bool[] _solid = Array.Empty<bool>();
 
     private int _screenW, _screenH;
@@ -98,17 +99,20 @@ internal sealed class WhirlpoolPage : IStressPage
     private const float DrainReachMax       = 22f;
     private const int   DrainReachRampFrames = 90;
     private const float DrainDiscRadiusMax  = 3.0f;
-    private const float DrainDensity        = 2.0f;
+    private const float DrainDensity        = 4.0f;
     private const float PullStrength        = 0.15f; // peak inward accel per frame at drain centre
 
     // ----------------------------------------------------------------
     // Shallow-water dynamics. Tune for visible momentum / sloshing
     // without runaway oscillation.
     // ----------------------------------------------------------------
-    private const float PressureGain = 0.05f;
-    private const float Damping      = 0.85f;
+    private const float PressureGain = 0.06f;
+    private const float Damping      = 0.92f;
     private const float MaxSpeed     = 0.6f;
-    private const float VelocityFloor = 0.04f;
+    private const float VelocityFloor = 0.01f;
+    // Fraction of the per-edge volumetric flux applied per frame.
+    // Lower = more viscous / stable; higher = sloshier.
+    private const float AdvectionRate = 0.5f;
 
     // ----------------------------------------------------------------
     // Surface tension / film thickness.
@@ -130,7 +134,7 @@ internal sealed class WhirlpoolPage : IStressPage
     private bool _inletActive;
     private int _inletCx;
     private int _inletCy;
-    private const int InletVoxelsPerFrame = 60;
+    private const float InletFlowPerFrame = 120f;
     private const float InletRadius  = 5f;
 
     private bool _quiescent = true;
@@ -228,11 +232,9 @@ internal sealed class WhirlpoolPage : IStressPage
         var n = _height.Length;
         for (var i = 0; i < n; i++)
         {
-            _height[i] = 0;
+            _height[i] = 0f;
             _vx[i] = 0f;
             _vy[i] = 0f;
-            _flowAccX[i] = 0f;
-            _flowAccY[i] = 0f;
         }
         _drainActive = false;
         _drainOpenFrames = 0;
@@ -249,14 +251,12 @@ internal sealed class WhirlpoolPage : IStressPage
         _dw = Math.Max(0, w - 2 * WallCells);
         _dh = Math.Max(0, h - 2 * WallCells) * 2;
         var n = _dw * _dh;
-        _height = new short[n];
+        _height = new float[n];
         _vx = new float[n];
         _vy = new float[n];
-        _flowAccX = new float[n];
-        _flowAccY = new float[n];
         _solid = new bool[n];
         GenerateObstacles();
-        for (var i = 0; i < n; i++) _height[i] = 0;
+        for (var i = 0; i < n; i++) _height[i] = 0f;
         _quiescent = true;
         _drainActive = false;
         _drainOpenFrames = 0;
@@ -381,10 +381,10 @@ internal sealed class WhirlpoolPage : IStressPage
                 var i = row + x;
                 if (solid[i]) { vx[i] = 0f; vy[i] = 0f; continue; }
                 var hi = h[i];
-                int hL = (x > 0     && !solid[i - 1])  ? h[i - 1]  : hi;
-                int hR = (x + 1 < dw && !solid[i + 1])  ? h[i + 1]  : hi;
-                int hU = (y > 0     && !solid[i - dw]) ? h[i - dw] : hi;
-                int hD = (y + 1 < dh && !solid[i + dw]) ? h[i + dw] : hi;
+                var hL = (x > 0     && !solid[i - 1])  ? h[i - 1]  : hi;
+                var hR = (x + 1 < dw && !solid[i + 1])  ? h[i + 1]  : hi;
+                var hU = (y > 0     && !solid[i - dw]) ? h[i - dw] : hi;
+                var hD = (y + 1 < dh && !solid[i + dw]) ? h[i + dw] : hi;
                 // Surface tension: only the depth above FilmThickness contributes
                 // to the pressure gradient. A thin film has no net force on it.
                 var eL = MathF.Max(0f, hL - FilmThickness);
@@ -449,18 +449,25 @@ internal sealed class WhirlpoolPage : IStressPage
     }
 
     /// <summary>
-    /// Integer-voxel flux advection. For each X edge (between cells
+    /// Continuous-flux advection. For each X edge (between cells
     /// i and i+1 in the same row) and each Y edge (between cells i
-    /// and i+_dw in the same column) we compute the volumetric flux
-    /// as <c>avg(velocity) × upwind(height)</c>, accumulate it on a
-    /// per-edge float, and transfer one voxel whenever the
-    /// accumulator crosses ±1. Returns true if any voxel moved.
+    /// and i+_dw in the same column) we compute volumetric flux as
+    /// <c>avg(velocity) × upwind(effective height)</c> and apply a
+    /// fraction (<see cref="AdvectionRate"/>) of it directly to the
+    /// height field — no integer accumulator, no per-edge state.
+    ///
+    /// With float heights, gravity can drive water to its true
+    /// equilibrium (flat surface) instead of getting stuck on a
+    /// slope-1 integer staircase, and the pressure gradient never
+    /// re-pumps the velocity to swap a voxel back the way it came.
+    /// Mass is conserved exactly (clamped flux is symmetric across
+    /// the edge), and the only remaining source of perpetual motion
+    /// is the small floor on velocity, which damping kills quickly.
     /// </summary>
     private bool ApplyAdvection()
     {
         var dw = _dw; var dh = _dh;
         var h = _height; var vx = _vx; var vy = _vy;
-        var ax = _flowAccX; var ay = _flowAccY;
         var solid = _solid;
         var moved = false;
 
@@ -472,38 +479,35 @@ internal sealed class WhirlpoolPage : IStressPage
             {
                 var i = row + x;
                 var j = i + 1;
-                if (solid[i] || solid[j]) { ax[i] = 0f; continue; }
+                if (solid[i] || solid[j]) continue;
                 var v = (vx[i] + vx[j]) * 0.5f;
-                var acc = ax[i];
-                if (v == 0f && acc == 0f) continue;
+                if (v == 0f) continue;
                 var hUp = v >= 0f ? h[i] : h[j];
-                var eUp = MathF.Max(0f, hUp - FilmThickness);
-                acc += v * eUp;
-                while (acc >= 1f)
+                var eUp = hUp - FilmThickness;
+                if (eUp <= 0f) continue;
+                var flux = v * eUp * AdvectionRate;
+                // Cap by available water at the source and free space
+                // at the sink so the field stays within [0, D].
+                if (flux > 0f)
                 {
-                    // Hysteresis: only transfer i->j when i is at least 2 voxels
-                    // higher. Without this, neighbouring cells perpetually
-                    // ping-pong a single voxel back and forth as the
-                    // gradient flips after each transfer.
-                    if (h[i] - h[j] >= 2 && h[i] > 0 && h[j] < DShort)
-                    {
-                        h[i]--; h[j]++;
-                        acc -= 1f;
-                        moved = true;
-                    }
-                    else { acc = 0f; break; }
+                    var room = D - h[j];
+                    if (flux > h[i]) flux = h[i];
+                    if (flux > room) flux = room;
+                    if (flux <= 0f) continue;
                 }
-                while (acc <= -1f)
+                else
                 {
-                    if (h[j] - h[i] >= 2 && h[j] > 0 && h[i] < DShort)
-                    {
-                        h[j]--; h[i]++;
-                        acc += 1f;
-                        moved = true;
-                    }
-                    else { acc = 0f; break; }
+                    var avail = h[j];
+                    var room = D - h[i];
+                    var neg = -flux;
+                    if (neg > avail) neg = avail;
+                    if (neg > room)  neg = room;
+                    if (neg <= 0f) continue;
+                    flux = -neg;
                 }
-                ax[i] = acc;
+                h[i] -= flux;
+                h[j] += flux;
+                moved = true;
             }
         }
 
@@ -515,34 +519,33 @@ internal sealed class WhirlpoolPage : IStressPage
             {
                 var i = row + x;
                 var j = i + dw;
-                if (solid[i] || solid[j]) { ay[i] = 0f; continue; }
+                if (solid[i] || solid[j]) continue;
                 var v = (vy[i] + vy[j]) * 0.5f;
-                var acc = ay[i];
-                if (v == 0f && acc == 0f) continue;
+                if (v == 0f) continue;
                 var hUp = v >= 0f ? h[i] : h[j];
-                var eUp = MathF.Max(0f, hUp - FilmThickness);
-                acc += v * eUp;
-                while (acc >= 1f)
+                var eUp = hUp - FilmThickness;
+                if (eUp <= 0f) continue;
+                var flux = v * eUp * AdvectionRate;
+                if (flux > 0f)
                 {
-                    if (h[i] - h[j] >= 2 && h[i] > 0 && h[j] < DShort)
-                    {
-                        h[i]--; h[j]++;
-                        acc -= 1f;
-                        moved = true;
-                    }
-                    else { acc = 0f; break; }
+                    var room = D - h[j];
+                    if (flux > h[i]) flux = h[i];
+                    if (flux > room) flux = room;
+                    if (flux <= 0f) continue;
                 }
-                while (acc <= -1f)
+                else
                 {
-                    if (h[j] - h[i] >= 2 && h[j] > 0 && h[i] < DShort)
-                    {
-                        h[j]--; h[i]++;
-                        acc += 1f;
-                        moved = true;
-                    }
-                    else { acc = 0f; break; }
+                    var avail = h[j];
+                    var room = D - h[i];
+                    var neg = -flux;
+                    if (neg > avail) neg = avail;
+                    if (neg > room)  neg = room;
+                    if (neg <= 0f) continue;
+                    flux = -neg;
                 }
-                ay[i] = acc;
+                h[i] -= flux;
+                h[j] += flux;
+                moved = true;
             }
         }
         return moved;
@@ -574,9 +577,10 @@ internal sealed class WhirlpoolPage : IStressPage
             if (dx * dx + dy * dy > discR2) continue;
             var i = ry * _dw + rx;
             if (_solid[i]) continue;
-            if (_height[i] > 0)
+            if (_height[i] > 0f)
             {
-                _height[i]--;
+                var take = MathF.Min(0.5f, _height[i]);
+                _height[i] -= take;
                 changed = true;
             }
         }
@@ -596,7 +600,7 @@ internal sealed class WhirlpoolPage : IStressPage
         if (spanW <= 0 || spanH <= 0) return false;
 
         var changed = false;
-        var per = (int)MathF.Max(1f, InletVoxelsPerFrame * _strength);
+        var per = (int)MathF.Max(1f, InletFlowPerFrame * _strength);
         for (var n = 0; n < per; n++)
         {
             var rx = x0 + (int)(NextFloat() * spanW);
@@ -606,9 +610,11 @@ internal sealed class WhirlpoolPage : IStressPage
             if (dx * dx + dy * dy > r2) continue;
             var i = ry * _dw + rx;
             if (_solid[i]) continue;
-            if (_height[i] < DShort)
+            if (_height[i] < D)
             {
-                _height[i]++;
+                var room = D - _height[i];
+                var add = MathF.Min(0.5f, room);
+                _height[i] += add;
                 changed = true;
             }
         }
@@ -681,11 +687,11 @@ internal sealed class WhirlpoolPage : IStressPage
         }
     }
 
-    private static Hex1bColor DepthColour(int h)
+    private static Hex1bColor DepthColour(float h)
     {
-        if (h <= 0) return Hex1bColor.FromRgb(SandColour.R, SandColour.G, SandColour.B);
+        if (h <= 0f) return Hex1bColor.FromRgb(SandColour.R, SandColour.G, SandColour.B);
         if (h >= D) return Hex1bColor.FromRgb(DeepColour.R, DeepColour.G, DeepColour.B);
-        var t = h / (float)D;
+        var t = h / D;
         if (t < 0.25f) return Lerp(SandColour, ShallowColour, t / 0.25f);
         if (t < 0.65f) return Lerp(ShallowColour, MidColour, (t - 0.25f) / 0.4f);
         return Lerp(MidColour, DeepColour, (t - 0.65f) / 0.35f);
