@@ -94,15 +94,15 @@ internal static class FancyFlowOrchestrator
                     options.InitialCursorRow = cursorRow;
 
                     // Hold the live step still during interactive drag-resize.
-                    // The runner track-and-clears the active region on every
-                    // Hex1bResizeEvent, paints the placeholder below in its
-                    // place, then debounces the real repaint until the user
-                    // stops dragging. If the final dimensions differ from where
-                    // the drag started, the marker is dropped as a one-off
-                    // tombstone above the repainted step so the scrollback
-                    // visibly records that a resize happened.
+                    // The runner tracks cursor position internally on every
+                    // resize event but does not mutate the screen — letting
+                    // the host terminal's own reflow keep the tombstones
+                    // above the active step intact. The actual repaint of
+                    // the live step is debounced until events settle, and
+                    // if the final dimensions differ from where the drag
+                    // started a one-off ResizeMarker tombstone is dropped
+                    // above the repainted step.
                     options.ResizeSettleDelay = TimeSpan.FromMilliseconds(80);
-                    options.ResizePlaceholder = BuildResizePlaceholder;
                     options.ResizeMarker = BuildResizeMarker;
                 })
                 .Build()
@@ -116,26 +116,6 @@ internal static class FancyFlowOrchestrator
             // more to do — the inline tombstone is the final word.
         }
     }
-
-    /// <summary>
-    /// Drawn into the active prompt's region on every resize event during a
-    /// drag — kept deliberately spartan since it re-renders many times in
-    /// quick succession and any chrome would just smear under a fast drag.
-    /// Preserves the flow's gutter bar so the visual rhythm survives the
-    /// drag, with a single muted "resizing…" line in place of the prompt.
-    /// </summary>
-    private static Hex1b.Widgets.Hex1bWidget BuildResizePlaceholder(RootContext ctx) =>
-        ctx.HStack(h =>
-        [
-            h.Text(" "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
-                h.Text(TemplatePromptWidget.BarChar)),
-            h.Text("  "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
-                h.Text("resizing…")),
-        ]);
 
     /// <summary>
     /// Dropped into scrollback as a one-off marker once a resize has settled
