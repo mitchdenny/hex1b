@@ -149,7 +149,7 @@ Hex1bWidget BuildRoot(RootContext root)
             s.Divider(" │ "),
             s.Section(perfLabel),
             s.Divider(" │ "),
-            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}  pond={PondRipplePage.PresetLabel}  whirl={(WhirlpoolPage.WellActive ? "on" : "off")}@{WhirlpoolPage.CurrentStrength:0.0}"),
+            s.Section($"{poolLabel}  {cacheLabel}  ripple={RippleOverNoisePage.LevelsLabel}  pond={PondRipplePage.PresetLabel}  whirl={(WhirlpoolPage.DrainOpen ? "drain" : "fill")}@{WhirlpoolPage.CurrentStrength:0.0}"),
             s.Divider(" │ "),
             s.Section("PgUp/PgDn  L levels  V viscosity  Click/Scroll whirlpool  Q quit"),
         }),
