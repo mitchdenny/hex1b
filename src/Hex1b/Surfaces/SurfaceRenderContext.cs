@@ -838,6 +838,7 @@ public class SurfaceRenderContext : Hex1bRenderContext
                 MouseY = MouseY,
                 CellMetrics = CellMetrics,  // Propagate cell metrics for sixel sizing
                 Metrics = Metrics,
+                SurfacePool = SurfacePool, // Propagate the pool so descendants (EffectPanel temp surfaces, nested RenderChild surfaces) reuse buffers instead of falling back to `new Surface`.
                 _capabilities = _capabilities,
                 _kgpRegistry = _kgpRegistry,
                 _kgpLayer = _kgpLayer,

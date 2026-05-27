@@ -32,6 +32,48 @@ public static class AnsiTokenUtf8Serializer
     }
 
     /// <summary>
+    /// Serializes a list of tokens into a UTF-8 byte buffer backed by an array rented from
+    /// <see cref="ArrayPool{T}.Shared"/>. The caller MUST return <paramref name="pooledBuffer"/>
+    /// to the pool when done with the bytes (typically after writing them to the wire).
+    /// This avoids per-frame Large Object Heap allocations for busy fullscreen renders where
+    /// the serialised output routinely exceeds the LOH threshold (~85 KB).
+    /// </summary>
+    /// <param name="tokens">The tokens to serialise.</param>
+    /// <param name="pooledBuffer">
+    /// Receives the rented array. Pass to <see cref="ArrayPool{T}.Return"/> when finished.
+    /// Will be <see langword="null"/> only if <paramref name="tokens"/> contains no bytes.
+    /// </param>
+    /// <returns>
+    /// A memory window over the first N bytes of <paramref name="pooledBuffer"/>, where N is
+    /// the serialised length. The memory becomes invalid once the buffer is returned to the pool.
+    /// </returns>
+    public static ReadOnlyMemory<byte> SerializeRented(IEnumerable<AnsiToken> tokens, out byte[] pooledBuffer)
+    {
+        ArgumentNullException.ThrowIfNull(tokens);
+
+        var initialCapacity = tokens is IReadOnlyCollection<AnsiToken> c
+            ? Math.Clamp(c.Count * 4, 256, 128 * 1024)
+            : 1024;
+
+        var writer = new PooledArrayBufferWriter(initialCapacity);
+        try
+        {
+            foreach (var token in tokens)
+            {
+                WriteToken(writer, token);
+            }
+        }
+        catch
+        {
+            writer.ReturnToPool();
+            throw;
+        }
+
+        pooledBuffer = writer.DetachBuffer(out var length);
+        return new ReadOnlyMemory<byte>(pooledBuffer, 0, length);
+    }
+
+    /// <summary>
     /// Serializes a single token into a UTF-8 byte buffer.
     /// </summary>
     public static ReadOnlyMemory<byte> Serialize(AnsiToken token)
@@ -43,7 +85,7 @@ public static class AnsiTokenUtf8Serializer
         return writer.WrittenMemory;
     }
 
-    private static void WriteToken(ArrayBufferWriter<byte> writer, AnsiToken token)
+    private static void WriteToken(IBufferWriter<byte> writer, AnsiToken token)
     {
         switch (token)
         {
@@ -314,7 +356,7 @@ public static class AnsiTokenUtf8Serializer
         }
     }
 
-    private static void WriteCursorPosition(ArrayBufferWriter<byte> writer, CursorPositionToken token)
+    private static void WriteCursorPosition(IBufferWriter<byte> writer, CursorPositionToken token)
     {
         // Mirror AnsiTokenSerializer.SerializeCursorPosition() exactly, including OriginalParams.
         if (token.OriginalParams is not null)
@@ -350,7 +392,7 @@ public static class AnsiTokenUtf8Serializer
         WriteByte(writer, (byte)'H');
     }
 
-    private static void WriteCursorMove(ArrayBufferWriter<byte> writer, CursorMoveToken token)
+    private static void WriteCursorMove(IBufferWriter<byte> writer, CursorMoveToken token)
     {
         WriteEscLeftBracket(writer);
 
@@ -371,7 +413,7 @@ public static class AnsiTokenUtf8Serializer
         WriteByte(writer, command);
     }
 
-    private static void WriteOsc(ArrayBufferWriter<byte> writer, OscToken token)
+    private static void WriteOsc(IBufferWriter<byte> writer, OscToken token)
     {
         // Preserve original terminator style (ESC \ vs BEL)
         // Mirror AnsiTokenSerializer.SerializeOsc() exactly.
@@ -403,7 +445,7 @@ public static class AnsiTokenUtf8Serializer
         WriteOscTerminator(writer, token.UseEscBackslash);
     }
 
-    private static void WriteOscTerminator(ArrayBufferWriter<byte> writer, bool useEscBackslash)
+    private static void WriteOscTerminator(IBufferWriter<byte> writer, bool useEscBackslash)
     {
         if (useEscBackslash)
         {
@@ -416,7 +458,7 @@ public static class AnsiTokenUtf8Serializer
         }
     }
 
-    private static void WriteControlCharacter(ArrayBufferWriter<byte> writer, ControlCharacterToken token)
+    private static void WriteControlCharacter(IBufferWriter<byte> writer, ControlCharacterToken token)
     {
         switch (token.Character)
         {
@@ -431,7 +473,7 @@ public static class AnsiTokenUtf8Serializer
         }
     }
 
-    private static void WriteEscLeftBracket(ArrayBufferWriter<byte> writer)
+    private static void WriteEscLeftBracket(IBufferWriter<byte> writer)
     {
         var span = writer.GetSpan(2);
         span[0] = 0x1b;
@@ -439,14 +481,14 @@ public static class AnsiTokenUtf8Serializer
         writer.Advance(2);
     }
 
-    private static void WriteByte(ArrayBufferWriter<byte> writer, byte value)
+    private static void WriteByte(IBufferWriter<byte> writer, byte value)
     {
         var span = writer.GetSpan(1);
         span[0] = value;
         writer.Advance(1);
     }
 
-    private static void WriteInt(ArrayBufferWriter<byte> writer, int value)
+    private static void WriteInt(IBufferWriter<byte> writer, int value)
     {
         var span = writer.GetSpan(11); // int32 max length
         if (!Utf8Formatter.TryFormat(value, span, out var written))
@@ -454,7 +496,7 @@ public static class AnsiTokenUtf8Serializer
         writer.Advance(written);
     }
 
-    private static void WriteUtf8(ArrayBufferWriter<byte> writer, string text)
+    private static void WriteUtf8(IBufferWriter<byte> writer, string text)
     {
         if (string.IsNullOrEmpty(text))
             return;
@@ -478,7 +520,7 @@ public static class AnsiTokenUtf8Serializer
         writer.Advance(text.Length);
     }
 
-    private static void WriteCharUtf8(ArrayBufferWriter<byte> writer, char ch)
+    private static void WriteCharUtf8(IBufferWriter<byte> writer, char ch)
     {
         Span<char> chars = stackalloc char[1];
         chars[0] = ch;
@@ -488,7 +530,7 @@ public static class AnsiTokenUtf8Serializer
         writer.Advance(written);
     }
 
-    private static void WriteUtf8Slow(ArrayBufferWriter<byte> writer, ReadOnlySpan<char> text)
+    private static void WriteUtf8Slow(IBufferWriter<byte> writer, ReadOnlySpan<char> text)
     {
         if (text.IsEmpty)
             return;

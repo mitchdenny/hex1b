@@ -22,5 +22,15 @@ namespace Hex1b;
 /// Optional pre-tokenized representation of <paramref name="Bytes"/>. When provided, it should
 /// represent the same output as <paramref name="Bytes"/>.
 /// </param>
-public readonly record struct WorkloadOutputItem(ReadOnlyMemory<byte> Bytes, IReadOnlyList<AnsiToken>? Tokens);
+/// <param name="PooledBuffer">
+/// Optional pooled array backing <paramref name="Bytes"/>. When non-null, the consumer should
+/// call <see cref="System.Buffers.ArrayPool{T}.Return(T[], bool)"/> on
+/// <see cref="System.Buffers.ArrayPool{T}.Shared"/> with this array after the bytes have been
+/// fully consumed. This is the runtime's mechanism to avoid per-frame LOH allocations for
+/// large ANSI output buffers (a busy fullscreen frame is well over the 85KB LOH threshold).
+/// </param>
+public readonly record struct WorkloadOutputItem(
+    ReadOnlyMemory<byte> Bytes,
+    IReadOnlyList<AnsiToken>? Tokens,
+    byte[]? PooledBuffer = null);
 

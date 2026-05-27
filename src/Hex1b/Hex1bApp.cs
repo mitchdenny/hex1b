@@ -1262,12 +1262,24 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             }
             
             var serializeStart = Stopwatch.GetTimestamp();
-            var ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+            // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
+            // well over the 85 KB LOH threshold for fullscreen renders) is rented from
+            // ArrayPool rather than allocated fresh on the LOH every frame.
+            byte[]? pooledOutput = null;
+            ReadOnlyMemory<byte> ansiOutput;
+            if (_adapter is Hex1bAppWorkloadAdapter)
+            {
+                ansiOutput = Tokens.AnsiTokenUtf8Serializer.SerializeRented(tokens, out pooledOutput);
+            }
+            else
+            {
+                ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
+            }
             _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
-            
+
             if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
             {
-                workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput);
+                workloadAdapter.WriteTokensWithBytes(tokens, ansiOutput, pooledOutput);
             }
             else
             {

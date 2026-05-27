@@ -165,12 +165,28 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// <summary>
     /// Writes output with an already-tokenized representation to avoid terminal-side UTF-8 decode + tokenization.
     /// </summary>
-    internal void WriteTokensWithBytes(IReadOnlyList<AnsiToken> tokens, ReadOnlyMemory<byte> bytes)
+    /// <param name="tokens">The tokens to ship to the consumer.</param>
+    /// <param name="bytes">The serialised bytes of <paramref name="tokens"/>.</param>
+    /// <param name="pooledBuffer">
+    /// Optional array rented from <see cref="System.Buffers.ArrayPool{T}.Shared"/> that backs
+    /// <paramref name="bytes"/>. When provided, the consumer side returns it to the pool after
+    /// processing the item. If the write fails (channel closed), the buffer is returned here so
+    /// callers don't have to worry about double-free.
+    /// </param>
+    internal void WriteTokensWithBytes(IReadOnlyList<AnsiToken> tokens, ReadOnlyMemory<byte> bytes, byte[]? pooledBuffer = null)
     {
-        if (_disposed) return;
-        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens)))
+        if (_disposed)
+        {
+            if (pooledBuffer is not null) System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
+            return;
+        }
+        if (_outputChannel.Writer.TryWrite(new WorkloadOutputItem(bytes, tokens, pooledBuffer)))
         {
             Interlocked.Increment(ref _outputQueueDepth);
+        }
+        else if (pooledBuffer is not null)
+        {
+            System.Buffers.ArrayPool<byte>.Shared.Return(pooledBuffer);
         }
     }
 
