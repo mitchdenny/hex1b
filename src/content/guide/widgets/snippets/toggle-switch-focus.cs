@@ -1,7 +1,7 @@
 using Hex1b;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(ctx => ctx.VStack(v => [
         v.Text("Unfocused:"),
         v.ToggleSwitch(["Off", "On"], selectedIndex: 1),
         v.Text(""),

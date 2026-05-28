@@ -39,15 +39,16 @@ var statusMessage = "Use File menu to open windows";
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("KgpDemo", forceEnable: true)
     .WithMouse()
-    .WithHex1bApp((app, options) =>
-    {
-        options.OnRescue = args =>
+    .WithHex1bApp(
+        options =>
         {
-            File.AppendAllText("/tmp/kgp-demo-errors.log",
-                $"[{DateTime.Now:HH:mm:ss.fff}] RESCUE: phase={args.Phase} error={args.Exception}\n");
-        };
-
-        return ctx =>
+            options.OnRescue = args =>
+            {
+                File.AppendAllText("/tmp/kgp-demo-errors.log",
+                    $"[{DateTime.Now:HH:mm:ss.fff}] RESCUE: phase={args.Phase} error={args.Exception}\n");
+            };
+        },
+        ctx =>
         {
         return ctx.VStack(outer =>
         [
@@ -99,7 +100,6 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
                 "Ctrl+C", "Exit"
             ])
         ]);
-        };
     })
     .Build();
 

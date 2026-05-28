@@ -246,26 +246,26 @@ public class Hex1bTerminalBuilderTests
     [Fact]
     public async Task WithHex1bApp_NullConfigure_ThrowsArgumentNullException()
     {
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>>? nullConfigure = null;
+        Func<RootContext, Hex1bWidget>? nullBuilder = null;
         
         Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
     }
 
     [Fact]
     public async Task WithHex1bApp_AsyncNullConfigure_ThrowsArgumentNullException()
     {
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>>? nullConfigure = null;
+        Func<RootContext, Task<Hex1bWidget>>? nullBuilder = null;
         
         Assert.Throws<ArgumentNullException>(() =>
-            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullConfigure!));
+            Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
     }
 
     [Fact]
     public async Task WithHex1bApp_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"));
+            .WithHex1bApp(ctx => ctx.Text("Hello"));
         
         Assert.IsType<Hex1bTerminalBuilder>(result);
     }
@@ -275,7 +275,7 @@ public class Hex1bTerminalBuilderTests
     {
         // Should not throw - uses explicit presentation
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
             .WithPresentation(new TestPresentationAdapter());
         
         using var terminal = builder.Build();
@@ -289,7 +289,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => async ctx =>
+            .WithHex1bApp(async ctx =>
             {
                 builderCalled = true;
                 await Task.Yield();
@@ -313,7 +313,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx =>
+            .WithHex1bApp(ctx =>
             {
                 builderCalled = true;
                 return ctx.Text("Hello");
@@ -343,7 +343,7 @@ public class Hex1bTerminalBuilderTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(1));
         
         var builder = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+            .WithHex1bApp(ctx => ctx.Text("Hello"))
             .WithMouse(true)
             .WithDimensions(100, 40)
             .AddWorkloadFilter(filter)
@@ -364,7 +364,9 @@ public class Hex1bTerminalBuilderTests
         var pattern = new CellPatternSearcher().Find("Hello from captured app");
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 capturedApp = app;
                 return ctx => ctx.Text("Hello from captured app");
@@ -392,12 +394,9 @@ public class Hex1bTerminalBuilderTests
         var pattern = new CellPatternSearcher().Find("Themed content");
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                // Setting Theme should work (it's not a restricted property)
-                options.Theme = new Hex1b.Theming.Hex1bTheme("TestTheme");
-                return ctx => ctx.Text("Themed content");
-            })
+            .WithHex1bApp(
+                options => options.Theme = new Hex1b.Theming.Hex1bTheme("TestTheme"),
+                ctx => ctx.Text("Themed content"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -420,7 +419,9 @@ public class Hex1bTerminalBuilderTests
         var pattern = new CellPatternSearcher().Find("Async Hello World");
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 capturedApp = app;
                 return async ctx =>
@@ -979,7 +980,7 @@ public class Hex1bTerminalBuilderTests
         try
         {
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile);
 
             Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1012,7 +1013,7 @@ public class Hex1bTerminalBuilderTests
         {
             AsciinemaRecorder? capturedRecorder = null;
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile, r => capturedRecorder = r);
 
             Assert.IsType<Hex1bTerminalBuilder>(result);
@@ -1041,7 +1042,7 @@ public class Hex1bTerminalBuilderTests
             var pattern = new CellPatternSearcher().Find("Recorded");
 
             await using (var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) => ctx => ctx.Text("Recorded"))
+                .WithHex1bApp(ctx => ctx.Text("Recorded"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Test Recording",
@@ -1086,7 +1087,7 @@ public class Hex1bTerminalBuilderTests
             AsciinemaRecorder? recorder = null;
 
             var result = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
+                .WithHex1bApp(ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Custom Title",
@@ -1118,7 +1119,7 @@ public class Hex1bTerminalBuilderTests
             var pattern = new CellPatternSearcher().Find("Full chain");
 
             await using var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) => ctx => ctx.Text("Full chain"))
+                .WithHex1bApp(ctx => ctx.Text("Full chain"))
                 .WithAsciinemaRecording(tempFile, r => recorder = r, new AsciinemaRecorderOptions
                 {
                     Title = "Chain Test",

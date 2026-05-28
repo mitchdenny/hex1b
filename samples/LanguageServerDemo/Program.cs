@@ -808,7 +808,9 @@ _ = Task.Run(async () =>
 // ── Build the terminal UI ────────────────────────────────────────────────────
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) =>
+    .WithHex1bApp(
+        _ => { },
+        app =>
     {
         displayApp = app;
         return ctx =>

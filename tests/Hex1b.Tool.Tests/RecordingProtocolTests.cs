@@ -12,7 +12,7 @@ public class RecordingProtocolTests
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(80, 24)
             .WithHeadless()
-            .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
             .WithDiagnostics(appName: "RecordTest", forceEnable: true)
             .Build();
 
@@ -70,7 +70,7 @@ public class RecordingProtocolTests
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(80, 24)
             .WithHeadless()
-            .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
             .WithDiagnostics(appName: "RecordTest2", forceEnable: true)
             .Build();
 
@@ -107,7 +107,7 @@ public class RecordingProtocolTests
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithDimensions(80, 24)
             .WithHeadless()
-            .WithHex1bApp((app, options) => ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new Hex1b.Widgets.TextBlockWidget("Hello"))
             .WithDiagnostics(appName: "RecordTest3", forceEnable: true)
             .Build();
 

@@ -15,7 +15,7 @@ var customUrl = "";
 var quietZone = 1;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     ctx.VStack(main => [
         // Title
         main.Border(

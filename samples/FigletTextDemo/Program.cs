@@ -33,7 +33,7 @@ var effectIdx = 0;
 var clock = Stopwatch.StartNew();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var font = FigletFont.LoadBundled(fontNames[selectedFontIdx]);
         var preview = ctx.FigletText(sampleText)

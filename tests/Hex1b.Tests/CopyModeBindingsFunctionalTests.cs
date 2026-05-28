@@ -49,7 +49,9 @@ public class CopyModeBindingsFunctionalTests
             CopyModeTestContext? capturedContext = null;
 
             var builder = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) =>
+                .WithHex1bApp(
+                    _ => { },
+                    app =>
                 {
                     if (capturedContext != null)
                         capturedContext.App = app;

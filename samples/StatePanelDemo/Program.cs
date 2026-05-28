@@ -27,7 +27,9 @@ string statusMessage = "S=shuffle  A=add  D=delete last  Q=quit";
 int nextId = 1;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((a, options) =>
+    .WithHex1bApp(
+        _ => { },
+        a =>
     {
         app = a;
         return ctx =>

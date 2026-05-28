@@ -16,7 +16,7 @@ var blue = 192.0;
 var temperature = 22.0;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(ctx => ctx.VStack(v => [
         v.Text("Slider Demo"),
         v.Separator(),
         v.Text(""),

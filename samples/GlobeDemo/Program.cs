@@ -97,7 +97,7 @@ var pois = new List<PointOfInterest>
 };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
         ctx.ZStack(z => [
             // Layer 1: Globe surface with interaction (bottom)
             z.Interactable(ic =>

@@ -56,7 +56,7 @@ public static class GlobeRunner
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithPresentation(adapter)
-            .WithHex1bApp((app, options) => ctx =>
+            .WithHex1bApp(ctx =>
                 ctx.ZStack(z => [
                     z.Interactable((Func<InteractableContext, Hex1bWidget>)(ic =>
                         ic.Surface(s =>

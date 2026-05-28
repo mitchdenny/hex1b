@@ -19,7 +19,7 @@ var submissionCount = 0;
 var stats = new Stats();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(ctx => ctx.VStack(v => [
         v.Text("Predictive Text Demo"),
         v.Separator(),
         v.Text(""),

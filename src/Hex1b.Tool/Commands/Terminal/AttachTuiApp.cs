@@ -150,7 +150,9 @@ internal sealed class AttachTuiApp : IAsyncDisposable
         await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             .WithMouse()
             .AddPresentationFilter(new ResizeFilter(this))
-            .WithHex1bApp((app, options) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 _app = app;
                 return ctx => BuildWidget(ctx, handle);

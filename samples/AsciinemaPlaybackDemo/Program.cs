@@ -225,7 +225,9 @@ Hex1bWidget BuildUI(RootContext ctx)
 using var appCts = new CancellationTokenSource();
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((a, options) =>
+    .WithHex1bApp(
+        _ => { },
+        a =>
     {
         app = a;
         return ctx => BuildUI(ctx);

@@ -152,7 +152,9 @@ void RunStressTest(MenuItemActivatedEventArgs args)
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(
+        _ => { },
+        app => ctx =>
     {
         return ctx.VStack(v =>
         [

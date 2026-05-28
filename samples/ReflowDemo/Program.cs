@@ -45,7 +45,7 @@ void Resize(int delta)
 
 // Build the display application
 await using var display = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v => [
             v.Text($"  Terminal Reflow Demo \u2014 Width: {currentWidth}"),

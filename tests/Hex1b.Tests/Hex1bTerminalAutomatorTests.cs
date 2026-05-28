@@ -13,7 +13,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task WaitUntilTextAsync_WaitsForText()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello World"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello World"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -34,7 +34,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task WaitUntilTextAsync_Timeout_ThrowsHex1bAutomationException()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -214,7 +214,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task WaitUntilAsync_WithCustomPredicate_Works()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Count: 42"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Count: 42"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -347,7 +347,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task CompletedSteps_TracksCallerInfo()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Test"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Test"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -371,7 +371,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task AutomationException_TotalElapsed_SumsAllSteps()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -398,7 +398,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task CreateSnapshot_ReturnsCurrentState()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Snapshot Test"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Snapshot Test"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -419,7 +419,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task WaitUntilAsync_WithPredicateExpression_CapturesExpression()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -474,7 +474,7 @@ public class Hex1bTerminalAutomatorTests
     public async Task WaitAsync_PausesForDuration()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Test"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Test"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();

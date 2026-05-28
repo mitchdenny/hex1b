@@ -82,7 +82,9 @@ _ = Task.Run(async () =>
 });
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, _) =>
+    .WithHex1bApp(
+        _ => { },
+        app =>
     {
         theApp = app;
         return ctx =>

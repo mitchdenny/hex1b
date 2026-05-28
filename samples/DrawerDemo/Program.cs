@@ -26,7 +26,7 @@ _ = Task.Run(async () =>
 });
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     // Wrap in ZStack for popup support (required for overlay mode)
     ctx.ZStack(z => [
         z.VStack(outer => [

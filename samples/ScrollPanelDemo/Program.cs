@@ -38,7 +38,7 @@ var items = Enumerable.Range(1, 60)
     .ToList();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var status = panelNode is null
             ? "Status: (scroll the panel once — any arrow or PageUp/Dn — to enable imperative buttons)"

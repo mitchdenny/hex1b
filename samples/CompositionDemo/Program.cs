@@ -24,7 +24,9 @@ using Hex1b.Widgets;
 Hex1bApp? app = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((a, options) =>
+    .WithHex1bApp(
+        _ => { },
+        a =>
     {
         app = a;
         return ctx => ctx.AppShell(InvalidateApp, RequestStopApp);

@@ -71,7 +71,7 @@ WasmPresentationAdapter.Instance = adapter;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithPresentation(adapter)
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
         ctx.ZStack(z => [
             // Layer 1: Globe surface with interaction (bottom)
             z.Interactable(ic =>

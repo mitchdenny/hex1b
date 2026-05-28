@@ -127,7 +127,7 @@ CellCompute BuildEffect(int effectIndex, double progress, int width, int height)
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var progress = GetProgress();
 

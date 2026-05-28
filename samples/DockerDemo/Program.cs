@@ -271,7 +271,9 @@ CellPatternSearcher BuildMarkerSearcher(string marker)
 // Build the TUI app
 await using var app = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((appRef, options) =>
+    .WithHex1bApp(
+        _ => { },
+        appRef =>
     {
         displayApp = appRef;
 

@@ -495,7 +495,7 @@ Hex1bWidget BuildNoDataScenario<TParent>(WidgetContext<TParent> ctx) where TPare
 using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
     .WithDiagnostics("TableDemo", forceEnable: true)
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v => [
             new SplitterWidget(

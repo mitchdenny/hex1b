@@ -32,8 +32,7 @@ var allItems = new[]
 try
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp((app, options) =>
-            ctx => ctx.ThemePanel(
+        .WithHex1bApp(ctx => ctx.ThemePanel(
             theme => theme.Set(GlobalTheme.BackgroundColor, Hex1bColor.FromRgb(40, 40, 40)),
             ctx.VStack(main => [
                 // Menu bar - buttons use PushAnchored for positioned menus

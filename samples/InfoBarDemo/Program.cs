@@ -25,7 +25,7 @@ var patterns = new[]
 var selectedPattern = 0;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v => [
             // Header

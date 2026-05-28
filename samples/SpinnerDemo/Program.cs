@@ -14,7 +14,7 @@ var themeConfigs = new (string Name, Action<Hex1bTheme> Configure)[]
 int selectedThemeIndex = 0;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var currentThemeConfig = themeConfigs[selectedThemeIndex];
 

@@ -135,7 +135,7 @@ var regionData = new[]
 
 var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
         ctx.TabPanel(tp => [
             tp.Tab("Simple Columns", t => [
                 t.ColumnChart(monthlySales)

@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Widgets;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
         ctx.VStack(outer => [
             outer.Text(" DragBarPanel Demo").FixedHeight(1),
             outer.Text("─────────────────────────────────────────────────").FixedHeight(1),

@@ -23,7 +23,9 @@ internal sealed class SessionManagerApp
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithMouse()
-            .WithHex1bApp((app, _) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 _app = app;
                 return ctx =>

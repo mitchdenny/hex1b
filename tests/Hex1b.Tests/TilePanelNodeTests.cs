@@ -312,7 +312,7 @@ public class TilePanelIntegrationTests
         var ds = new TestTileDataSource();
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
+            .WithHex1bApp(ctx => ctx.VStack(v =>
             [
                 v.Text($"Camera: ({cameraX:F1}, {cameraY:F1})"),
                 v.TilePanel(ds, cameraX, cameraY, zoomLevel)
@@ -356,7 +356,7 @@ public class TilePanelIntegrationTests
         var ds = new TestTileDataSource();
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.VStack(v =>
+            .WithHex1bApp(ctx => ctx.VStack(v =>
             [
                 v.Text($"Zoom: {zoomLevel}"),
                 v.TilePanel(ds, 0, 0, zoomLevel)

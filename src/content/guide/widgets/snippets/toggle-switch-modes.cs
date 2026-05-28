@@ -3,7 +3,7 @@ using Hex1b;
 string mode = "Auto";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(ctx => ctx.VStack(v => [
         v.Text("Mode Selection Example"),
         v.Text(""),
         v.HStack(h => [

@@ -287,7 +287,9 @@ public class DiagnosticShellIntegrationTests
             
             // Create the outer terminal (runs the Hex1bApp with TerminalWidget)
             var outerTerminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) =>
+                .WithHex1bApp(
+                    _ => { },
+                    app =>
                 {
                     // Capture the app for test access
                     if (capturedContext != null)

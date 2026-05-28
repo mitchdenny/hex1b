@@ -37,12 +37,15 @@ _ = Task.Run(async () =>
 
 // Run the TUI alongside the host
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) =>
+    .WithHex1bApp(
+        options =>
+        {
+            options.Theme = new Hex1bTheme("LoggerPanelDemo")
+                .Set(DrawerTheme.BackgroundColor, Hex1bColor.Black)
+                .Set(TableTheme.BackgroundColor, Hex1bColor.Black);
+        },
+        app =>
     {
-        options.Theme = new Hex1bTheme("LoggerPanelDemo")
-            .Set(DrawerTheme.BackgroundColor, Hex1bColor.Black)
-            .Set(TableTheme.BackgroundColor, Hex1bColor.Black);
-        
         return ctx =>
     {
         return ctx.VStack(outer => [

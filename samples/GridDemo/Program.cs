@@ -1,7 +1,7 @@
 using Hex1b;
 
 await using var terminal = Hex1b.Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.Grid(g =>
         {

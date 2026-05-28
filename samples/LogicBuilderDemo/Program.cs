@@ -4,7 +4,9 @@ using LogicBuilderDemo.Models;
 var state = new AppState();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) =>
+    .WithHex1bApp(
+        _ => { },
+        app =>
     {
         state.App = app;
         return ctx => LogicBuilderApp.Build(ctx, state);

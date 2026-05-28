@@ -229,7 +229,7 @@ var rootEntry = FileEntry.ScanDirectory(workspaceDir, workspaceDir);
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v =>
         [

@@ -95,7 +95,9 @@ string lastCopySummary = "no copies yet";
 IReadOnlyList<SelectionPanelSelectedNode> lastSelectedNodes = Array.Empty<SelectionPanelSelectedNode>();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(
+        _ => { },
+        app => ctx =>
     {
         return ctx.VStack(v =>
         [

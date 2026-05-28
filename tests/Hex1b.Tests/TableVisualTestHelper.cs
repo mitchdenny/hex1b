@@ -101,7 +101,7 @@ public static class TableVisualTestHelper
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithHeadless()
             .WithDimensions(testCase.Width, testCase.Height)
-            .WithHex1bApp((app, options) => ctx => BuildTableWidget(ctx, testCase, data))
+            .WithHex1bApp(ctx => BuildTableWidget(ctx, testCase, data))
             .Build();
         
         // Start terminal/app

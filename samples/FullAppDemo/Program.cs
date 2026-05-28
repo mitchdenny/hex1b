@@ -59,7 +59,7 @@ var autoSaveIndex = 0;
 var statusMessage = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     ctx.ZStack(z => [
         z.VStack(outer => [
             // ─────────────────────────────────────────────────────────────────

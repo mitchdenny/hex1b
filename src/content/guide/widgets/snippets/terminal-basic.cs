@@ -11,7 +11,7 @@ _ = terminal.RunAsync();
 
 // Use the widget in your Hex1bApp
 await using var app = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => 
+    .WithHex1bApp(ctx => 
         ctx.Border(
             ctx.Terminal(bashHandle)
         ).Title("Embedded Terminal"))

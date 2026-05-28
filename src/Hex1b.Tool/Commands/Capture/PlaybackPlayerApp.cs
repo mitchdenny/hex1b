@@ -43,7 +43,9 @@ internal sealed class PlaybackPlayerApp
         // Build the display TUI
         await using var displayTerminal = Hex1bTerminal.CreateBuilder()
             .WithMouse()
-            .WithHex1bApp((app, options) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 _app = app;
                 return ctx => BuildWidget(ctx);

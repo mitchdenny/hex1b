@@ -16,7 +16,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_SingleSection_RendersText()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar("Ready"))
+            .WithHex1bApp(ctx => ctx.InfoBar("Ready"))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -39,7 +39,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_MultipleSections_RendersAll()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section("Mode: Insert"),
                 s.Divider(" | "),
                 s.Section("UTF-8"),
@@ -72,7 +72,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_Divider_InsertsDividersBetweenSections()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section("A"),
                 s.Section("B"),
                 s.Section("C")
@@ -106,7 +106,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_WithSpacer_PushesContentApart()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section("Left"),
                 s.Spacer(),
                 s.Section("Right")
@@ -143,11 +143,9 @@ public class InfoBarWidgetTests
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Black);
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.Theme = theme;
-                return ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Inverted"))], InvertColors: true);
-            })
+            .WithHex1bApp(
+                options => options.Theme = theme,
+                ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Inverted"))], InvertColors: true))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -176,11 +174,9 @@ public class InfoBarWidgetTests
             .Set(GlobalTheme.BackgroundColor, Hex1bColor.Blue);
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.Theme = theme;
-                return ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Normal"))], InvertColors: false);
-            })
+            .WithHex1bApp(
+                options => options.Theme = theme,
+                ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Normal"))], InvertColors: false))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -208,7 +204,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_SectionWithTheme_AppliesCustomColors()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section("Normal"),
                 s.Section("Error").Theme(t => t
                     .Set(GlobalTheme.ForegroundColor, Hex1bColor.Red)
@@ -245,7 +241,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_InVStack_PositionedCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+            .WithHex1bApp(ctx => ctx.VStack(v => [
                 v.Text("Main Content"),
                 v.InfoBar("Status Bar")
             ]))
@@ -276,7 +272,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_VariousTerminalSizes_RendersCorrectly(int width, int height)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section("Mode"),
                 s.Spacer(),
                 s.Section("Ready")
@@ -313,11 +309,9 @@ public class InfoBarWidgetTests
             .Set(InfoBarTheme.BackgroundColor, Hex1bColor.DarkGray);
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.Theme = theme;
-                return ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Themed"))], InvertColors: false);
-            })
+            .WithHex1bApp(
+                options => options.Theme = theme,
+                ctx => new InfoBarWidget([new InfoBarSectionWidget(new TextBlockWidget("Themed"))], InvertColors: false))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -344,7 +338,7 @@ public class InfoBarWidgetTests
     public async Task InfoBar_SectionWithWidgetContent_RendersWidget()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.InfoBar(s => [
+            .WithHex1bApp(ctx => ctx.InfoBar(s => [
                 s.Section(x => x.HStack(h => [
                     h.Text("Status: "),
                     h.Text("OK")

@@ -242,7 +242,7 @@ async Task CleanupTerminalInstanceAsync(Hex1bTerminal terminalToDispose, Cancell
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithDiagnostics("WindowingDemo", forceEnable: true)
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         // Update fireflies each frame
         FirefliesDemo.Update(fireflies, demoRandom);

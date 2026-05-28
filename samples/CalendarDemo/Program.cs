@@ -9,7 +9,7 @@ var pickerDate = "None";
 
 await using var terminal = Hex1b.Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v =>
         {

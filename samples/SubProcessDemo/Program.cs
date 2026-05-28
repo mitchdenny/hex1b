@@ -26,7 +26,9 @@ while (true)
     
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, appOptions) =>
+            .WithHex1bApp(
+                _ => { },
+                app =>
             {
                 return ctx => ctx
                     .ZStack(z =>

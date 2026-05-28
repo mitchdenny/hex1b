@@ -21,7 +21,7 @@ var sampleMarkdown = """
 
     ```csharp
     var app = Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp((app, options) => ctx =>
+        .WithHex1bApp(ctx =>
             ctx.Markdown("# Hello World"))
         .Build();
     await app.RunAsync();
@@ -127,29 +127,25 @@ static MarkdownImageData CreateGradientImage(int width, int height)
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) =>
-    {
-        Func<RootContext, Hex1bWidget> builder = ctx =>
-            ctx.HSplitter(
-                // Left pane: Editor
-                ctx.Editor(editorState).LineNumbers(),
-                // Right pane: Markdown preview in scroll panel with focusable links
-                ctx.VScrollPanel(
-                    ctx.Markdown(document)
-                        .Focusable(children: true)
-                        .OnImageLoad((uri, alt) =>
-                            Task.FromResult<MarkdownImageData?>(CreateGradientImage(120, 60)))
-                        .OnLinkActivated(args =>
-                        {
-                            // Log link activation to the status bar
-                            // For external links, the default handler opens the browser
-                            // Set args.Handled = true to suppress default behavior
-                        })
-                ),
-                leftWidth: 45
-            );
-        return builder;
-    })
+    .WithHex1bApp(ctx =>
+        ctx.HSplitter(
+            // Left pane: Editor
+            ctx.Editor(editorState).LineNumbers(),
+            // Right pane: Markdown preview in scroll panel with focusable links
+            ctx.VScrollPanel(
+                ctx.Markdown(document)
+                    .Focusable(children: true)
+                    .OnImageLoad((uri, alt) =>
+                        Task.FromResult<MarkdownImageData?>(CreateGradientImage(120, 60)))
+                    .OnLinkActivated(args =>
+                    {
+                        // Log link activation to the status bar
+                        // For external links, the default handler opens the browser
+                        // Set args.Handled = true to suppress default behavior
+                    })
+            ),
+            leftWidth: 45
+        ))
     .WithMouse()
     .Build();
 

@@ -25,7 +25,9 @@ static string FormatCount(long n) => n switch
 };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(
+        _ => { },
+        app => ctx =>
     {
         var elapsed = stopwatch.IsRunning ? stopwatch.Elapsed : TimeSpan.Zero;
         var spinner = spinnerFrames[(int)(elapsed.TotalMilliseconds / 80) % spinnerFrames.Length];

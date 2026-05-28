@@ -1302,7 +1302,7 @@ public class MenuBarIntegrationTests
     {
         // Arrange
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true))
+            .WithHex1bApp(ctx => CreateTestMenuBar(ctx, _ => { }, includeSubmenus: true))
             .WithHeadless()
             .WithDimensions(80, 24)
             .Build();

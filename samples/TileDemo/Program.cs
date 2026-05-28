@@ -15,7 +15,7 @@ var pois = CreateLandmarks(camera);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var (cx, cy) = camera.CharCenter;
         return ctx.VStack(v =>

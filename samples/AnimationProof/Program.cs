@@ -17,7 +17,9 @@ var serverLoading = false;
 var serverChildren = new List<TreeItemWidget>();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(
+        _ => { },
+        app => ctx => ctx.VStack(v => [
         v.Text("🧪 Animation & Tree API Proof-of-Concept"),
         v.Text(""),
         

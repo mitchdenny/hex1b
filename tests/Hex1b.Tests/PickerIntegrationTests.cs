@@ -15,7 +15,7 @@ public class PickerIntegrationTests
     {
         // Arrange & Act
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
             ]))
             .WithHeadless()
@@ -45,7 +45,7 @@ public class PickerIntegrationTests
         var selectedText = "";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
                     .OnSelectionChanged(e => { selectedText = e.SelectedText; })
             ]))
@@ -81,7 +81,7 @@ public class PickerIntegrationTests
         var selectionChangedCount = 0;
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
                     .OnSelectionChanged(e => { selectionChangedCount++; })
             ]))
@@ -117,15 +117,13 @@ public class PickerIntegrationTests
         var selectionChangedCount = 0;
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.EnableMouse = true;
-                return ctx => new VStackWidget([
+            .WithHex1bApp(
+                options => options.EnableMouse = true,
+                ctx => new VStackWidget([
                     new TextBlockWidget("Click here to dismiss"),
                     new PickerWidget(["Apple", "Banana", "Cherry"])
                         .OnSelectionChanged(e => { selectionChangedCount++; })
-                ]);
-            })
+                ]))
             .WithHeadless()
             .WithDimensions(80, 24)
             .Build();
@@ -156,13 +154,11 @@ public class PickerIntegrationTests
     {
         // Arrange
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.EnableMouse = true;
-                return ctx => new VStackWidget([
+            .WithHex1bApp(
+                options => options.EnableMouse = true,
+                ctx => new VStackWidget([
                     new PickerWidget(["Apple", "Banana", "Cherry"])
-                ]);
-            })
+                ]))
             .WithHeadless()
             .WithDimensions(80, 24)
             .Build();
@@ -226,7 +222,7 @@ public class PickerIntegrationTests
         var selectedText = "";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
                     .OnSelectionChanged(e => { selectedText = e.SelectedText; })
             ]))
@@ -258,7 +254,7 @@ public class PickerIntegrationTests
         var selectedText = "";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"]) { InitialSelectedIndex = 2 }
                     .OnSelectionChanged(e => { selectedText = e.SelectedText; })
             ]))
@@ -288,7 +284,7 @@ public class PickerIntegrationTests
     {
         // Arrange & Act
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
             ]))
             .WithHeadless()
@@ -318,7 +314,7 @@ public class PickerIntegrationTests
     {
         // Arrange & Act
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"])
             ]))
             .WithHeadless()
@@ -354,7 +350,7 @@ public class PickerIntegrationTests
         var selectedColor = "Red";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new HStackWidget([
                     new TextBlockWidget("Fruit: "),
                     new PickerWidget(["Apple", "Banana", "Cherry"])
@@ -419,7 +415,7 @@ public class PickerIntegrationTests
         // bounding box stays painted by the dropdown's BackgroundPanel, even
         // after the selected row moves away.
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new PickerWidget(["Apple", "Banana", "Cherry"]),
                 new TextBlockWidget(""),
                 new TextBlockWidget(""),

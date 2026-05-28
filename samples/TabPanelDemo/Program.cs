@@ -37,13 +37,13 @@ public class {{className}}
     public static async Task Main(string[] args)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => BuildUI(app))
+            .WithHex1bApp(ctx => BuildUI())
             .Build();
 
         await terminal.RunAsync();
     }
 
-    private static Hex1bWidget BuildUI(Hex1bApp app)
+    private static Hex1bWidget BuildUI()
     {
         return new VStackWidget([
             new TextBlockWidget("Hello from {{className}}!"),
@@ -282,7 +282,7 @@ var statusMessage = "Ready";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     ctx.VStack(main => [
         // ─────────────────────────────────────────────────────────────────
         // MENU BAR

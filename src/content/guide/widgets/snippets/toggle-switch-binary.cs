@@ -3,7 +3,7 @@ using Hex1b;
 string power = "Off";
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+    .WithHex1bApp(ctx => ctx.VStack(v => [
         v.Text("Binary Toggle Example"),
         v.Text(""),
         v.HStack(h => [

@@ -31,7 +31,7 @@ var showDragSource = true;
 var rainbowTimer = System.Diagnostics.Stopwatch.StartNew();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         return ctx.VStack(v => [
             // Header

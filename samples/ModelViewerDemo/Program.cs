@@ -51,7 +51,9 @@ void SwitchLod(int newLod)
 }
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(
+        _ => { },
+        app => ctx =>
         ctx.Interactable(ic =>
             ic.Surface(s =>
             {

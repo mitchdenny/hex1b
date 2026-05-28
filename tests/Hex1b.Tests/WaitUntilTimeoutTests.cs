@@ -13,7 +13,7 @@ public class WaitUntilTimeoutTests
     public async Task WaitUntil_Timeout_ThrowsWaitUntilTimeoutException()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -34,7 +34,7 @@ public class WaitUntilTimeoutTests
     public async Task WaitUntil_Timeout_MessageContainsPredicateExpression()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -56,7 +56,7 @@ public class WaitUntilTimeoutTests
     public async Task WaitUntil_Timeout_MessageContainsExplicitDescription()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -78,7 +78,7 @@ public class WaitUntilTimeoutTests
     public async Task WaitUntil_Timeout_MessageContainsCallerLocation()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -191,7 +191,7 @@ public class WaitUntilTimeoutTests
     public async Task WaitUntil_Timeout_MessageContainsTimeoutDuration()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TextBlockWidget("Hello"))
+            .WithHex1bApp(ctx => new TextBlockWidget("Hello"))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();

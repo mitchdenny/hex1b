@@ -60,7 +60,9 @@ public class TerminalWidgetIntegrationTests
             
             // Create the terminal using the builder pattern (proper lifecycle)
             var terminal = Hex1bTerminal.CreateBuilder()
-                .WithHex1bApp((app, options) =>
+                .WithHex1bApp(
+                    _ => { },
+                    app =>
                 {
                     // Capture the app for test access
                     if (capturedContext != null)

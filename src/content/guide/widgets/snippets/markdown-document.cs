@@ -5,7 +5,7 @@ var document = new Hex1bDocument("# Hello\n\nInitial content.");
 var editorState = new EditorState(document);
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
         ctx.HSplitter(
             ctx.Editor(editorState),
             ctx.VScrollPanel(ctx.Markdown(document)),

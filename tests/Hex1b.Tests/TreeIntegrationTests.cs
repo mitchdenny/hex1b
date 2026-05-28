@@ -91,7 +91,7 @@ public class TreeIntegrationTests
     public async Task Tree_RendersWithCorrectStructure()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateSimpleTree())
+            .WithHex1bApp(ctx => CreateSimpleTree())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -119,7 +119,7 @@ public class TreeIntegrationTests
     public async Task Tree_RendersGuideLines_Unicode()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateMultiRootTree())
+            .WithHex1bApp(ctx => CreateMultiRootTree())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -142,7 +142,7 @@ public class TreeIntegrationTests
     public async Task Tree_RendersGuideLines_Ascii()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.ThemePanel(
+            .WithHex1bApp(ctx => ctx.ThemePanel(
                 theme => theme
                     .Set(Theming.TreeTheme.Branch, "+- ")
                     .Set(Theming.TreeTheme.LastBranch, "\\- ")
@@ -171,7 +171,7 @@ public class TreeIntegrationTests
     public async Task Tree_CollapsedItem_HidesChildren()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Root").Children(  // Not expanded
                     new TreeItemWidget("Hidden Child")
                 )
@@ -202,7 +202,7 @@ public class TreeIntegrationTests
     public async Task Tree_DownArrow_MovesToNextItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateMultiRootTree())
+            .WithHex1bApp(ctx => CreateMultiRootTree())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -226,7 +226,7 @@ public class TreeIntegrationTests
     public async Task Tree_UpArrow_MovesToPreviousItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateMultiRootTree())
+            .WithHex1bApp(ctx => CreateMultiRootTree())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -255,7 +255,7 @@ public class TreeIntegrationTests
     public async Task Tree_DownArrow_WrapsToFirst()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2"),
                 new TreeItemWidget("Item 3")
@@ -284,7 +284,7 @@ public class TreeIntegrationTests
     public async Task Tree_UpArrow_WrapsToLast()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2"),
                 new TreeItemWidget("Item 3")
@@ -379,7 +379,7 @@ public class TreeIntegrationTests
     public async Task Tree_RightArrow_OnExpandedItem_MovesToFirstChild()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("First Child"),
                     new TreeItemWidget("Second Child")
@@ -407,7 +407,7 @@ public class TreeIntegrationTests
     public async Task Tree_LeftArrow_OnChild_MovesToParent()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Parent").Expanded().Children(
                     new TreeItemWidget("Child")
                 )
@@ -437,7 +437,7 @@ public class TreeIntegrationTests
         var activatedLabel = "";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Item 1"),
                 new TreeItemWidget("Item 2")
             ]).OnItemActivated(e => { activatedLabel = e.Item.Label; }))
@@ -540,7 +540,7 @@ public class TreeIntegrationTests
     public async Task Tree_MultiSelect_RendersCheckboxes()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Unchecked Item"),
                 new TreeItemWidget("Checked Item").Selected()
             ]).MultiSelect())
@@ -569,15 +569,13 @@ public class TreeIntegrationTests
     public async Task Tree_MouseClick_SelectsItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) =>
-            {
-                options.EnableMouse = true;
-                return ctx => new TreeWidget([
+            .WithHex1bApp(
+                options => options.EnableMouse = true,
+                ctx => new TreeWidget([
                     new TreeItemWidget("Item 1"),
                     new TreeItemWidget("Item 2"),
                     new TreeItemWidget("Item 3")
-                ]);
-            })
+                ]))
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -606,7 +604,7 @@ public class TreeIntegrationTests
     public async Task Tree_InBorder_RendersCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+            .WithHex1bApp(ctx => ctx.Border(b => [
                 b.Tree(
                     new TreeItemWidget("Root").Expanded().Children(
                         new TreeItemWidget("Child 1"),
@@ -642,7 +640,7 @@ public class TreeIntegrationTests
     public async Task Tree_InBorder_BorderCornersAtCorrectPositions()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+            .WithHex1bApp(ctx => ctx.Border(b => [
                 b.Tree(
                     new TreeItemWidget("Item 1"),
                     new TreeItemWidget("Item 2")
@@ -679,7 +677,7 @@ public class TreeIntegrationTests
     public async Task Tree_InNestedBorders_RendersCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+            .WithHex1bApp(ctx => ctx.Border(b => [
                 b.Border(inner => [
                     inner.Tree(
                         new TreeItemWidget("Deep Item")
@@ -715,7 +713,7 @@ public class TreeIntegrationTests
         var longLabel = "This is a very long label that should be clipped when rendered in a narrow container";
         
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+            .WithHex1bApp(ctx => ctx.Border(b => [
                 b.Tree(
                     new TreeItemWidget(longLabel)
                 )
@@ -743,7 +741,7 @@ public class TreeIntegrationTests
     public async Task Tree_Clipping_ContentStaysWithinBorder()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.HStack(h => [
+            .WithHex1bApp(ctx => ctx.HStack(h => [
                 h.Border(b => [
                     b.Tree(
                         new TreeItemWidget("Left Tree Item")
@@ -788,7 +786,7 @@ public class TreeIntegrationTests
     public async Task Tree_TabNavigatesBetweenMultipleTrees()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.HStack(h => [
+            .WithHex1bApp(ctx => ctx.HStack(h => [
                 h.Border(b => [
                     b.Tree(
                         new TreeItemWidget("Left Item 1"),
@@ -842,7 +840,7 @@ public class TreeIntegrationTests
     public async Task Tree_DeepNavigation_TraversesAllLevels()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => CreateDeepTree())
+            .WithHex1bApp(ctx => CreateDeepTree())
             .WithHeadless()
             .WithDimensions(60, 20)
             .Build();
@@ -914,7 +912,7 @@ public class TreeIntegrationTests
         string expectedBranch, string expectedLastBranch)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.ThemePanel(
+            .WithHex1bApp(ctx => ctx.ThemePanel(
                 theme => theme
                     .Set(Theming.TreeTheme.Branch, branch)
                     .Set(Theming.TreeTheme.LastBranch, lastBranch)
@@ -1068,7 +1066,7 @@ public class TreeIntegrationTests
     public async Task Tree_FirstItemFocusedOnRender()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("First"),
                 new TreeItemWidget("Second"),
                 new TreeItemWidget("Third")
@@ -1094,7 +1092,7 @@ public class TreeIntegrationTests
     public async Task Tree_PreExpandedItems_ShowChildren()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new TreeWidget([
+            .WithHex1bApp(ctx => new TreeWidget([
                 new TreeItemWidget("Root").Expanded().Children(
                     new TreeItemWidget("Visible Child")
                 )

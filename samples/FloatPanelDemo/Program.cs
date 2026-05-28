@@ -9,7 +9,9 @@ var state = new BouncingState();
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((app, options) =>
+    .WithHex1bApp(
+        _ => { },
+        app =>
     {
         state.App = app;
         state.Start();

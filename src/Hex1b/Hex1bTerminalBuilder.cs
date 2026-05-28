@@ -17,7 +17,7 @@ namespace Hex1b;
 /// <para>Simple Hex1bApp:</para>
 /// <code>
 /// await using var terminal = Hex1bTerminal.CreateBuilder()
-///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello, World!"))
+///     .WithHex1bApp(ctx => ctx.Text("Hello, World!"))
 ///     .Build();
 /// 
 /// await terminal.RunAsync();
@@ -53,7 +53,6 @@ public sealed class Hex1bTerminalBuilder
     private Action<ScrollbackRowEventArgs>? _scrollbackCallback;
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
-    private Action<Hex1bAppOptions>? _appOptionsConfigurator;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -63,69 +62,135 @@ public sealed class Hex1bTerminalBuilder
     }
 
     /// <summary>
-    /// Configures the terminal to run a Hex1bApp with the specified widget builder.
+    /// Configures the terminal to run a Hex1bApp that renders the widget tree
+    /// produced by <paramref name="widgetBuilder"/>.
     /// </summary>
-    /// <param name="configure">
-    /// A configuration function that receives the <see cref="Hex1bApp"/> instance and 
-    /// <see cref="Hex1bAppOptions"/> for customization, and returns the widget builder function.
+    /// <param name="widgetBuilder">Builds the root widget for each render frame.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    /// <example>
+    /// <code>
+    /// await using var terminal = Hex1bTerminal.CreateBuilder()
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello, World!"))
+    ///     .Build();
+    /// </code>
+    /// </example>
+    public Hex1bTerminalBuilder WithHex1bApp(Func<RootContext, Hex1bWidget> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithHex1bAppCore(
+            configureOptions: null,
+            configureApp: _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a Hex1bApp with the given async widget builder.
+    /// </summary>
+    /// <param name="widgetBuilder">Builds the root widget asynchronously for each render frame.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    public Hex1bTerminalBuilder WithHex1bApp(Func<RootContext, Task<Hex1bWidget>> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithHex1bAppCoreAsync(
+            configureOptions: null,
+            configureApp: _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a Hex1bApp with eager option configuration
+    /// followed by a synchronous widget builder.
+    /// </summary>
+    /// <param name="configureOptions">
+    /// Callback that mutates the <see cref="Hex1bAppOptions"/>. Runs eagerly,
+    /// before <see cref="Hex1bApp"/> is constructed, so settings the constructor
+    /// snapshots (e.g. <see cref="Hex1bAppOptions.FrameRateLimitMs"/>) take
+    /// effect.
+    /// </param>
+    /// <param name="widgetBuilder">Builds the root widget for each render frame.</param>
+    /// <returns>This builder instance for fluent chaining.</returns>
+    public Hex1bTerminalBuilder WithHex1bApp(
+        Action<Hex1bAppOptions> configureOptions,
+        Func<RootContext, Hex1bWidget> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithHex1bAppCore(configureOptions, _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a Hex1bApp with eager option configuration
+    /// followed by an asynchronous widget builder.
+    /// </summary>
+    public Hex1bTerminalBuilder WithHex1bApp(
+        Action<Hex1bAppOptions> configureOptions,
+        Func<RootContext, Task<Hex1bWidget>> widgetBuilder)
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(widgetBuilder);
+        return WithHex1bAppCoreAsync(configureOptions, _ => widgetBuilder);
+    }
+
+    /// <summary>
+    /// Configures the terminal to run a Hex1bApp with full control: eager option
+    /// configuration plus access to the <see cref="Hex1bApp"/> instance when
+    /// building the widget tree.
+    /// </summary>
+    /// <param name="configureOptions">
+    /// Callback that mutates the <see cref="Hex1bAppOptions"/>. Runs eagerly,
+    /// before <see cref="Hex1bApp"/> is constructed.
+    /// </param>
+    /// <param name="configureApp">
+    /// Callback that receives the constructed <see cref="Hex1bApp"/> and returns
+    /// the widget builder. Runs lazily on the first widget build, so the
+    /// <see cref="Hex1bApp"/> instance is fully constructed and safe to capture.
     /// </param>
     /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// The configure function provides access to the <see cref="Hex1bApp"/> instance
-    /// for external control (e.g., calling <c>RequestStop()</c> or <c>Invalidate()</c>),
-    /// and <see cref="Hex1bAppOptions"/> for setting theme and other options.
-    /// </para>
-    /// <para>
-    /// For simple cases where you don't need app capture or options, you can ignore them:
-    /// <c>.WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))</c>
-    /// </para>
-    /// <para>
-    /// The <see cref="Hex1bAppOptions.WorkloadAdapter"/> and <see cref="Hex1bAppOptions.EnableMouse"/>
-    /// properties are managed by the builder. Use <see cref="WithMouse"/> to enable mouse support.
-    /// </para>
-    /// </remarks>
     /// <example>
-    /// <para>Simple usage:</para>
-    /// <code>
-    /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello, World!"))
-    ///     .Build();
-    /// 
-    /// await terminal.RunAsync();
-    /// </code>
-    /// <para>With app capture and theming:</para>
     /// <code>
     /// Hex1bApp? capturedApp = null;
-    /// 
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithHex1bApp((app, options) =>
-    ///     {
-    ///         capturedApp = app;
-    ///         options.Theme = MyCustomTheme;
-    ///         return ctx => ctx.Text("Hello");
-    ///     })
+    ///     .WithHex1bApp(
+    ///         options => options.FrameRateLimitMs = 16,
+    ///         app =>
+    ///         {
+    ///             capturedApp = app;
+    ///             return ctx => ctx.Text("Hello");
+    ///         })
     ///     .Build();
-    /// 
-    /// await terminal.RunAsync();
     /// </code>
     /// </example>
     public Hex1bTerminalBuilder WithHex1bApp(
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
+        Action<Hex1bAppOptions> configureOptions,
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configureApp)
     {
-        ArgumentNullException.ThrowIfNull(configure);
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(configureApp);
+        return WithHex1bAppCore(configureOptions, configureApp);
+    }
 
+    /// <summary>
+    /// Async counterpart of <see cref="WithHex1bApp(Action{Hex1bAppOptions}, Func{Hex1bApp, Func{RootContext, Hex1bWidget}})"/>.
+    /// </summary>
+    public Hex1bTerminalBuilder WithHex1bApp(
+        Action<Hex1bAppOptions> configureOptions,
+        Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>> configureApp)
+    {
+        ArgumentNullException.ThrowIfNull(configureOptions);
+        ArgumentNullException.ThrowIfNull(configureApp);
+        return WithHex1bAppCoreAsync(configureOptions, configureApp);
+    }
+
+    private Hex1bTerminalBuilder WithHex1bAppCore(
+        Action<Hex1bAppOptions>? configureOptions,
+        Func<Hex1bApp, Func<RootContext, Hex1bWidget>> configureApp)
+    {
         SetWorkloadFactory(presentation =>
         {
-            // If presentation adapter is available, use it for live capabilities
-            // Otherwise fall back to static capabilities
             var workloadAdapter = presentation != null
                 ? new Hex1bAppWorkloadAdapter(presentation)
                 : new Hex1bAppWorkloadAdapter();
             workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
 
-            // Create options with managed properties already set
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
@@ -133,28 +198,24 @@ public sealed class Hex1bTerminalBuilder
                 Metrics = ResolveMetrics()
             };
 
-            // Apply user-supplied option configuration BEFORE constructing the
-            // Hex1bApp so settings like FrameRateLimitMs (which is captured
-            // into the AnimationTimer at construction time) actually take
-            // effect. The configure callback runs lazily on first build, so
-            // anything it mutates on options is read too late.
-            _appOptionsConfigurator?.Invoke(options);
+            // Apply user-supplied option configuration eagerly, BEFORE constructing
+            // the Hex1bApp, so settings the constructor snapshots (e.g.
+            // FrameRateLimitMs which the AnimationTimer captures) actually take
+            // effect.
+            configureOptions?.Invoke(options);
 
-            // Create the run callback - app is created here so user can capture it
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
                 Hex1bApp? app = null;
                 Func<RootContext, Hex1bWidget>? widgetBuilder = null;
                 bool configureInvoked = false;
 
-                // Widget builder that wraps the user's builder
                 Func<RootContext, Hex1bWidget> wrappedBuilder = ctx =>
                 {
-                    // On first call, invoke configure to get the real builder
                     if (!configureInvoked)
                     {
                         configureInvoked = true;
-                        widgetBuilder = configure(app!, options);
+                        widgetBuilder = configureApp(app!);
                     }
                     return widgetBuilder!(ctx);
                 };
@@ -173,37 +234,18 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
-    /// <summary>
-    /// Configures the terminal to run a Hex1bApp with full control over options, app capture,
-    /// and async widget building.
-    /// </summary>
-    /// <param name="configure">
-    /// A configuration function that receives the <see cref="Hex1bApp"/> instance and 
-    /// <see cref="Hex1bAppOptions"/> for customization, and returns an async widget builder function.
-    /// </param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// This overload provides full control over the Hex1bApp configuration and allows
-    /// capturing the app instance for external control, with async widget building support.
-    /// </para>
-    /// </remarks>
-    public Hex1bTerminalBuilder WithHex1bApp(
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>> configure)
+    private Hex1bTerminalBuilder WithHex1bAppCoreAsync(
+        Action<Hex1bAppOptions>? configureOptions,
+        Func<Hex1bApp, Func<RootContext, Task<Hex1bWidget>>> configureApp)
     {
-        ArgumentNullException.ThrowIfNull(configure);
-
         SetWorkloadFactory(presentation =>
         {
-            // If presentation adapter is available, use it for live capabilities
-            // Otherwise fall back to static capabilities
-            var workloadAdapter = presentation != null 
+            var workloadAdapter = presentation != null
                 ? new Hex1bAppWorkloadAdapter(presentation)
                 : new Hex1bAppWorkloadAdapter();
             workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
-            
-            // Create options with managed properties already set
+
             var options = new Hex1bAppOptions
             {
                 WorkloadAdapter = workloadAdapter,
@@ -211,9 +253,8 @@ public sealed class Hex1bTerminalBuilder
                 Metrics = ResolveMetrics()
             };
 
-            // Apply user-supplied option configuration BEFORE constructing
-            // the Hex1bApp (see comment on the sync overload).
-            _appOptionsConfigurator?.Invoke(options);
+            // See sync overload comment — eager option configuration.
+            configureOptions?.Invoke(options);
 
             Func<CancellationToken, Task<int>> runCallback = async ct =>
             {
@@ -226,7 +267,7 @@ public sealed class Hex1bTerminalBuilder
                     if (!configureInvoked)
                     {
                         configureInvoked = true;
-                        widgetBuilder = configure(app!, options);
+                        widgetBuilder = configureApp(app!);
                     }
                     return await widgetBuilder!(ctx);
                 };
@@ -769,57 +810,6 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
-    /// <summary>
-    /// Registers a callback that configures the <see cref="Hex1bAppOptions"/> used
-    /// when a subsequent call to <see cref="WithHex1bApp(Func{Hex1bApp, Hex1bAppOptions, Func{RootContext, Hex1bWidget}})"/>
-    /// (or its async overload) constructs the <see cref="Hex1bApp"/>.
-    /// </summary>
-    /// <param name="configure">Callback that mutates the options instance.</param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// <para>
-    /// Use this when you need to set options that are captured during
-    /// <c>Hex1bApp</c> construction — most notably
-    /// <see cref="Hex1bAppOptions.FrameRateLimitMs"/>, which is baked into the
-    /// internal animation timer at construction time. Settings made inside the
-    /// <c>WithHex1bApp</c> configure callback would otherwise be read too late.
-    /// </para>
-    /// <para>
-    /// Multiple calls compose: each callback is invoked in registration order
-    /// against the same options instance.
-    /// </para>
-    /// </remarks>
-    /// <example>
-    /// <code>
-    /// await using var terminal = Hex1bTerminal.CreateBuilder()
-    ///     .WithHex1bAppOptions(o =>
-    ///     {
-    ///         o.FrameRateLimitMs = 33;          // cap at ~30 fps
-    ///         o.EnableSurfacePooling = false;   // opt out of pooling
-    ///     })
-    ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello"))
-    ///     .Build();
-    /// </code>
-    /// </example>
-    public Hex1bTerminalBuilder WithHex1bAppOptions(Action<Hex1bAppOptions> configure)
-    {
-        ArgumentNullException.ThrowIfNull(configure);
-        if (_appOptionsConfigurator is null)
-        {
-            _appOptionsConfigurator = configure;
-        }
-        else
-        {
-            var existing = _appOptionsConfigurator;
-            _appOptionsConfigurator = options =>
-            {
-                existing(options);
-                configure(options);
-            };
-        }
-        return this;
-    }
-
     // === Recording and Optimization ===
 
     /// <summary>
@@ -1122,7 +1112,7 @@ public sealed class Hex1bTerminalBuilder
     /// <code>
     /// await using var terminal = Hex1bTerminal.CreateBuilder()
     ///     .WithDiagnostics()
-    ///     .WithHex1bApp((app, options) => ctx => ctx.Text("Hello!"))
+    ///     .WithHex1bApp(ctx => ctx.Text("Hello!"))
     ///     .Build();
     /// 
     /// await terminal.RunAsync();

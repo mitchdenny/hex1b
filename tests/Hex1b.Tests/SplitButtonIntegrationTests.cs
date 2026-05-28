@@ -51,7 +51,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_InitialRender_ShowsPrimaryLabelAndDropdownArrow()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([BuildButton()]))
+            .WithHex1bApp(ctx => new VStackWidget([BuildButton()]))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -85,7 +85,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_Focused_PaintsFocusedChipBackground()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([BuildButton()]))
+            .WithHex1bApp(ctx => new VStackWidget([BuildButton()]))
             .WithHeadless()
             .WithDimensions(40, 5)
             .Build();
@@ -123,7 +123,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_Unfocused_PaintsRestingChipBackground()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new ButtonWidget("Decoy"),
                 BuildButton(),
             ]))
@@ -163,7 +163,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_DownArrow_OpensDropdownWithBothOptionsVisible()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([BuildButton()]))
+            .WithHex1bApp(ctx => new VStackWidget([BuildButton()]))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -198,7 +198,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_DropdownOpen_DownArrow_MovesSelectionToOptionB()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([BuildButton()]))
+            .WithHex1bApp(ctx => new VStackWidget([BuildButton()]))
             .WithHeadless()
             .WithDimensions(40, 10)
             .Build();
@@ -232,7 +232,7 @@ public class SplitButtonIntegrationTests
         var primaryCount = 0;
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 BuildButton(
                     onPrimary: () => primaryCount++,
                     onOptionA: _ => optionACount++,
@@ -272,7 +272,7 @@ public class SplitButtonIntegrationTests
         SplitButtonClickedEventArgs? optionBArgs = null;
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 BuildButton(
                     onPrimary: () => primaryCount++,
                     onOptionA: _ => optionACount++,
@@ -312,7 +312,7 @@ public class SplitButtonIntegrationTests
         var primaryCount = 0;
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 BuildButton(
                     onPrimary: () => primaryCount++,
                     onOptionA: _ => optionACount++,
@@ -344,7 +344,7 @@ public class SplitButtonIntegrationTests
         var primaryCount = 0;
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 BuildButton(
                     onPrimary: () => primaryCount++,
                     onOptionA: _ => optionACount++,
@@ -407,7 +407,7 @@ public class SplitButtonIntegrationTests
         SplitButtonClickedEventArgs? optionBArgs = null;
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 BuildButton(
                     onPrimary: () => primaryCount++,
                     onOptionA: _ => optionACount++,
@@ -489,7 +489,7 @@ public class SplitButtonIntegrationTests
     public async Task SplitButton_NoSecondaryActions_RendersUniformChipWithoutDivider()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 new SplitButtonWidget().PrimaryAction("Action", _ => { })
             ]))
             .WithHeadless()
@@ -551,7 +551,7 @@ public class SplitButtonIntegrationTests
             .SecondaryAction("Choice Y", _ => { });
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+            .WithHex1bApp(ctx => new VStackWidget([
                 topButton,
                 new TextBlockWidget(""),
                 new TextBlockWidget(""),

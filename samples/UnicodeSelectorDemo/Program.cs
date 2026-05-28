@@ -89,7 +89,7 @@ string GetCategoryShortName(UnicodeCategory category) => category switch
 };
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
-    .WithHex1bApp((app, options) => ctx =>
+    .WithHex1bApp(ctx =>
     {
         var currentBlock = unicodeBlocks[selectedBlockIndex];
         var characters = GetBlockCharacters(selectedBlockIndex);

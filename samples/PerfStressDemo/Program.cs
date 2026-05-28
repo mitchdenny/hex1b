@@ -90,17 +90,18 @@ Hex1bApp? appRef = null;
 
 await using var terminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bAppOptions(o =>
-    {
-        o.EnableSurfacePooling = enablePool;
-        o.EnableRenderCaching = enableCache;
-        // Enforce the target frame rate at the framework's animation timer
-        // level. This MUST be set before Hex1bApp construction (the timer's
-        // minimum interval is captured in the ctor), so we set it via
-        // WithHex1bAppOptions which runs before WithHex1bApp's configure.
-        o.FrameRateLimitMs = redrawIntervalMs;
-    })
-    .WithHex1bApp((app, options) =>
+    .WithHex1bApp(
+        o =>
+        {
+            o.EnableSurfacePooling = enablePool;
+            o.EnableRenderCaching = enableCache;
+            // Enforce the target frame rate at the framework's animation timer
+            // level. This MUST be set before Hex1bApp construction (the timer's
+            // minimum interval is captured in the ctor), so we set it via the
+            // options callback which runs before the app callback.
+            o.FrameRateLimitMs = redrawIntervalMs;
+        },
+        app =>
     {
         appRef = app;
         return ctx => BuildRoot(ctx);

@@ -300,7 +300,7 @@ public class AccordionIntegrationTests
     public async Task Accordion_BasicRender_ShowsSectionTitles()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Accordion(a => [
+            .WithHex1bApp(ctx => ctx.Accordion(a => [
                 a.Section(s => [s.Text("Content 1")]).Title("Section A"),
                 a.Section(s => [s.Text("Content 2")]).Title("Section B"),
             ]))
@@ -330,7 +330,7 @@ public class AccordionKeyboardTests
     public async Task Accordion_EnterKey_TogglesSections()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.Accordion(a => [
+            .WithHex1bApp(ctx => ctx.Accordion(a => [
                 a.Section(s => [s.Text("Content A")]).Title("First"),
                 a.Section(s => [s.Text("Content B")]).Title("Second"),
             ]))
@@ -370,7 +370,7 @@ public class AccordionLayoutTests
         // Regression: VStack measures children with maxHeight=int.MaxValue,
         // which caused accordion to freeze trying to distribute infinite space.
         await using var terminal = Hex1bTerminal.CreateBuilder()
-            .WithHex1bApp((app, options) => ctx => ctx.VStack(v => [
+            .WithHex1bApp(ctx => ctx.VStack(v => [
                 v.Text("Title"),
                 v.Separator(),
                 v.HStack(h => [

@@ -98,7 +98,9 @@ Hex1bWidget Build(RootContext ctx)
 // Create the display terminal
 await using var displayTerminal = Hex1bTerminal.CreateBuilder()
     .WithMouse()
-    .WithHex1bApp((a, options) =>
+    .WithHex1bApp(
+        _ => { },
+        a =>
     {
         app = a;
         return ctx => Build(ctx);

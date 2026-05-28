@@ -26,7 +26,7 @@ async Task RunConsoleMode()
 
     await using var terminal = Hex1bTerminal.CreateBuilder()
         .WithMouse()
-        .WithHex1bApp((app, options) => ctx =>
+        .WithHex1bApp(ctx =>
         {
             if (selectedDemo == 0)
                 FirefliesDemo.Update(fireflies, random);
@@ -101,7 +101,7 @@ async Task RunWebMode(string[] args)
 
         await using var terminal = Hex1bTerminal.CreateBuilder()
             .WithPresentation(presentation)
-            .WithHex1bApp((app, options) => ctx =>
+            .WithHex1bApp(ctx =>
             {
                 if (selectedDemo == 0)
                     FirefliesDemo.Update(fireflies, random);

@@ -232,7 +232,7 @@ void RegisterTestBindings(InputBindingsBuilder b)
 try
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp((app, options) => ctx =>
+        .WithHex1bApp(ctx =>
         {
             bool isDone = currentIndex >= bindings.Count;
             int totalPass = status.Count(s => s == PASS);
