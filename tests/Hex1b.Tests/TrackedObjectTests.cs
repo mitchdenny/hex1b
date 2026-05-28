@@ -102,7 +102,7 @@ public class TrackedObjectTests
         };
 
         var bytes = AnsiTokenUtf8Serializer.Serialize(tokens);
-        workload.WriteTokensWithBytes(tokens, bytes);
+        await workload.WriteTokensWithBytesAsync(tokens, bytes);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => s.ContainsSixelData(), TimeSpan.FromSeconds(5))

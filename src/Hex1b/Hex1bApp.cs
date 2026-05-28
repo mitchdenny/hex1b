@@ -1104,18 +1104,6 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         return result;
     }
 
-    private bool RenderFrameWithSurface(int width, int height, TerminalCapabilities caps)
-    {
-        // Sync wrapper retained for non-async call sites (e.g. tests). The async
-        // write-work continuation should never be produced in this path because
-        // bounded backpressure is not used outside the live render loop, but if
-        // it is, we synchronously wait — the same sync-over-async hazard
-        // documented on WriteTokensWithBytes applies.
-        var result = RenderFrameWithSurfaceCore(width, height, caps, out var asyncWriteWork);
-        asyncWriteWork?.Invoke(CancellationToken.None).AsTask().GetAwaiter().GetResult();
-        return result;
-    }
-
     private bool RenderFrameWithSurfaceCore(int width, int height, TerminalCapabilities caps, out Func<CancellationToken, ValueTask>? asyncWriteWork)
     {
         asyncWriteWork = null;
@@ -1307,7 +1295,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             //   1. Rent a list from _tokenListPool.
             //   2. Fill it via ToTokensInto.
             //   3. On the happy path, transfer ownership to the consumer via
-            //      WriteTokensWithBytes(Async); the consumer returns it once
+            //      WriteTokensWithBytesAsync; the consumer returns it once
             //      it has finished iterating.
             //   4. On any throw before step 3 completes, the finally below
             //      returns the list and any rented ANSI buffer to their pools

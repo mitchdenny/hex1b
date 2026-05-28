@@ -204,46 +204,11 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     /// the consumer invokes to return it. Both must be supplied together or both null.
     /// </param>
     /// <param name="pooledTokensReturn">See <paramref name="pooledTokens"/>.</param>
-    /// <remarks>
-    /// <para>
-    /// This sync overload uses sync-over-async when backpressure forces the bounded channel to
-    /// wait, which is safe only when the producer is on a thread that is not the channel's
-    /// reader thread (the standard arrangement, since the reader runs on its own
-    /// <c>Task.Run</c>). Callers hosted under a single-threaded
-    /// <see cref="System.Threading.SynchronizationContext"/> (some UI frameworks) should prefer
-    /// <see cref="WriteTokensWithBytesAsync"/> to avoid potential deadlock.
-    /// </para>
-    /// </remarks>
-    internal void WriteTokensWithBytes(
-        IReadOnlyList<AnsiToken> tokens,
-        ReadOnlyMemory<byte> bytes,
-        byte[]? pooledBuffer = null,
-        List<AnsiToken>? pooledTokens = null,
-        Action<List<AnsiToken>>? pooledTokensReturn = null)
-    {
-        var item = new WorkloadOutputItem(bytes, tokens)
-        {
-            PooledBuffer = pooledBuffer,
-            PooledTokens = pooledTokens,
-            PooledTokensReturn = pooledTokensReturn,
-        };
-        if (_disposed)
-        {
-            ReturnPooledResources(item);
-            return;
-        }
-        EnqueueOutput(item);
-    }
-
-    /// <summary>
-    /// Async variant of <see cref="WriteTokensWithBytes"/>. Producers on async render loops
-    /// should prefer this overload — when the bounded channel is full the returned
-    /// <see cref="ValueTask"/> awaits a slot freeing up without blocking the producer thread,
-    /// avoiding the sync-over-async hazard documented on the sync overload.
-    /// </summary>
+    /// <param name="cancellationToken">Cancellation token for awaiting backpressure.</param>
     /// <returns>
     /// A completed <see cref="ValueTask"/> when the item was enqueued without contention;
-    /// otherwise a task that completes once backpressure has cleared.
+    /// otherwise a task that completes once backpressure has cleared. The hot path
+    /// (unbounded channel or bounded channel with capacity) allocates no async state machine.
     /// </returns>
     internal ValueTask WriteTokensWithBytesAsync(
         IReadOnlyList<AnsiToken> tokens,
