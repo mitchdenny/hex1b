@@ -54,7 +54,6 @@ public sealed class Hex1bTerminalBuilder
     private Reflow.ITerminalReflowProvider? _reflowStrategy;
     private bool _reflowEnabled;
     private Action<Hex1bAppOptions>? _appOptionsConfigurator;
-    private int _maxQueuedOutputItems;
 
     /// <summary>
     /// Creates a new terminal builder.
@@ -121,8 +120,8 @@ public sealed class Hex1bTerminalBuilder
             // If presentation adapter is available, use it for live capabilities
             // Otherwise fall back to static capabilities
             var workloadAdapter = presentation != null
-                ? new Hex1bAppWorkloadAdapter(presentation, _maxQueuedOutputItems)
-                : new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: _maxQueuedOutputItems);
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
 
@@ -199,8 +198,8 @@ public sealed class Hex1bTerminalBuilder
             // If presentation adapter is available, use it for live capabilities
             // Otherwise fall back to static capabilities
             var workloadAdapter = presentation != null 
-                ? new Hex1bAppWorkloadAdapter(presentation, _maxQueuedOutputItems)
-                : new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: _maxQueuedOutputItems);
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
             workloadAdapter.DiagnosticTimingEnabled = _diagnosticsEnabled;
             var enableMouse = _enableMouse;
             
@@ -821,35 +820,6 @@ public sealed class Hex1bTerminalBuilder
         return this;
     }
 
-    /// <summary>
-    /// Caps the number of pending output items the app-to-terminal channel will
-    /// buffer. When the channel is full, the render-loop producer blocks until
-    /// the consumer drains a slot — its effective frame rate then tracks the
-    /// consumer's drain rate instead of racing ahead.
-    /// </summary>
-    /// <param name="maxItems">
-    /// Maximum queued items. <c>0</c> (default) means unbounded — producers
-    /// never block, but memory can grow without limit if the consumer is slow.
-    /// A small positive value (e.g. <c>8</c>) gives natural backpressure on
-    /// slow host terminals (iTerm, Terminal.app under heavy true-color
-    /// workloads) at the cost of capping perceived frame rate to what the host
-    /// can drain. Drop semantics are deliberately not offered: each item
-    /// carries an incremental diff, so dropping one would desynchronise the
-    /// host terminal's surface state.
-    /// </param>
-    /// <returns>This builder instance for fluent chaining.</returns>
-    /// <remarks>
-    /// Must be called before <c>WithHex1bApp</c> — the bound is captured into
-    /// the workload adapter at construction time.
-    /// </remarks>
-    public Hex1bTerminalBuilder WithMaxQueuedOutputItems(int maxItems)
-    {
-        if (maxItems < 0)
-            throw new ArgumentOutOfRangeException(nameof(maxItems), "Must be >= 0.");
-        _maxQueuedOutputItems = maxItems;
-        return this;
-    }
-
     // === Recording and Optimization ===
 
     /// <summary>
@@ -965,8 +935,8 @@ public sealed class Hex1bTerminalBuilder
         SetWorkloadFactory(presentation =>
         {
             var workloadAdapter = presentation != null
-                ? new Hex1bAppWorkloadAdapter(presentation, _maxQueuedOutputItems)
-                : new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: _maxQueuedOutputItems);
+                ? new Hex1bAppWorkloadAdapter(presentation)
+                : new Hex1bAppWorkloadAdapter();
 
             var options = new Flow.Hex1bFlowOptions();
             configureOptions?.Invoke(options);
