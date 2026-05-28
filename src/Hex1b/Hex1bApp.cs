@@ -565,7 +565,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                         await ProcessInputEventAsync(inputEvent, cancellationToken);
                     }
                     
-                    // Input coalescing: batch rapid inputs together before rendering
+                    // Input coalescing: batch rapid inputs together before rendering.
                     if (_enableInputCoalescing)
                     {
                         var outputBacklog = _adapter.OutputQueueDepth;
@@ -573,7 +573,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                             _inputCoalescingInitialDelayMs + (outputBacklog * 10), 
                             _inputCoalescingMaxDelayMs);
                         await Task.Delay(coalescingDelayMs, cancellationToken);
-                    
+
                         while (_adapter.InputEvents.TryRead(out var delayedInput))
                         {
                             await ProcessInputEventAsync(delayedInput, cancellationToken);
@@ -594,8 +594,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     }
                 }
 
-                // Re-render after handling input or invalidation (state may have changed)
-                await PaceFrameAsync(cancellationToken);
+                // Re-render after handling input or invalidation (state may have changed).
+                // Skip the frame-rate pace whenever input was processed - inputs are user-driven
+                // and shouldn't be rate-limited (would starve a fast typist at one keystroke
+                // per FrameRateLimitMs). Pacing applies only to timer/invalidation-driven frames.
+                if (!inputReady)
+                {
+                    await PaceFrameAsync(cancellationToken);
+                }
                 await RenderFrameAsync(cancellationToken);
                 _lastRenderTimestamp = Stopwatch.GetTimestamp();
                 
