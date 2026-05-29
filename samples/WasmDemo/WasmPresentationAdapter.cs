@@ -102,7 +102,13 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
             try
             {
                 using var reg = ct.Register(static state => ((TaskCompletionSource)state!).TrySetCanceled(), tcs);
-                await tcs.Task;
+                // Race the signal against a 50ms poll fallback. When SignalInputAvailable
+                // is wired via [JSExport] (the f1 fast path), tcs.Task wins and we get
+                // sub-millisecond wake-up. When the JS-side wiring fails for any reason,
+                // Task.Delay wins and we degrade to the original 50ms poll behaviour
+                // instead of blocking ReadInputAsync forever.
+                await Task.WhenAny(tcs.Task, Task.Delay(50, ct));
+                Interlocked.CompareExchange(ref s_inputSignal, null, tcs);
             }
             catch (OperationCanceledException)
             {
