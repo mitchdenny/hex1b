@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
 
 namespace BlazorDemo;
@@ -39,10 +38,7 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
 
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
     {
-        // See WasmPresentationAdapter for the MemoryView rationale: skip the
-        // per-frame data.ToArray() copy by passing a span over WASM memory.
-        if (!data.IsEmpty)
-            PostOutput(MemoryMarshal.AsMemory(data).Span);
+        PostOutput(data.ToArray());
         return ValueTask.CompletedTask;
     }
 
@@ -114,7 +110,7 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
     }
 
     [JSImport("globalThis.termInterop.postOutput")]
-    internal static partial void PostOutput([JSMarshalAs<JSType.MemoryView>] Span<byte> data);
+    internal static partial void PostOutput(byte[] data);
 
     [JSImport("globalThis.termInterop.pollAllInput")]
     internal static partial byte[]? PollAllInput();

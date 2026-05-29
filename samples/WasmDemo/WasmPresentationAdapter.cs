@@ -1,4 +1,3 @@
-using System.Runtime.InteropServices;
 using System.Runtime.InteropServices.JavaScript;
 
 namespace GlobeDemoWasm;
@@ -44,14 +43,7 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
 
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
     {
-        // Pass a span over WASM memory directly to JS via JSType.MemoryView so we
-        // skip the per-frame data.ToArray() copy. PostOutput is synchronous (JS
-        // copies the bytes into its own Uint8Array before returning), so the
-        // view's lifetime restriction (valid only for the duration of the call)
-        // is satisfied. MemoryMarshal.AsMemory is safe here because PostOutput
-        // only reads the buffer.
-        if (!data.IsEmpty)
-            PostOutput(MemoryMarshal.AsMemory(data).Span);
+        PostOutput(data.ToArray());
         return ValueTask.CompletedTask;
     }
 
@@ -134,7 +126,7 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
     }
 
     [JSImport("postTerminalOutput", "main.js")]
-    internal static partial void PostOutput([JSMarshalAs<JSType.MemoryView>] Span<byte> data);
+    internal static partial void PostOutput(byte[] data);
 
     [JSImport("notifyReady", "main.js")]
     internal static partial void NotifyReady(int cols, int rows);
