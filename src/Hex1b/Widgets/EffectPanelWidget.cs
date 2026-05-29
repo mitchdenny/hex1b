@@ -26,12 +26,6 @@ public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
     internal Action<Surface>? EffectCallback { get; init; }
 
     /// <summary>
-    /// Gets the context-aware effect callback that post-processes the rendered surface
-    /// and additionally receives the parent <see cref="Hex1bRenderContext"/>.
-    /// </summary>
-    internal Action<Surface, Hex1bRenderContext>? EffectWithContextCallback { get; init; }
-
-    /// <summary>
     /// Sets the effect callback that post-processes the child's rendered surface.
     /// </summary>
     /// <param name="effect">A callback that receives the rendered <see cref="Surface"/> for in-place modification.</param>
@@ -39,22 +33,11 @@ public sealed record EffectPanelWidget(Hex1bWidget Child) : Hex1bWidget
     public EffectPanelWidget Effect(Action<Surface> effect)
         => this with { EffectCallback = effect };
 
-    /// <summary>
-    /// Sets a context-aware effect callback that receives both the rendered <see cref="Surface"/>
-    /// and the parent <see cref="Hex1bRenderContext"/> (use <c>context.Theme.GetGlobalBackground()</c>
-    /// when blending toward the terminal's effective background).
-    /// </summary>
-    /// <param name="effect">A callback that receives the rendered surface and render context.</param>
-    /// <returns>A new <see cref="EffectPanelWidget"/> with the effect applied.</returns>
-    public EffectPanelWidget Effect(Action<Surface, Hex1bRenderContext> effect)
-        => this with { EffectWithContextCallback = effect };
-
     internal override async Task<Hex1bNode> ReconcileAsync(Hex1bNode? existingNode, ReconcileContext context)
     {
         var node = existingNode as EffectPanelNode ?? new EffectPanelNode();
 
         node.Effect = EffectCallback;
-        node.EffectWithContext = EffectWithContextCallback;
 
         // Reconcile the child widget
         node.Child = await context.ReconcileChildAsync(node.Child, Child, node);

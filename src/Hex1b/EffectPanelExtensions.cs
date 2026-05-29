@@ -10,7 +10,7 @@ public static class EffectPanelExtensions
 {
     /// <summary>
     /// Creates an effect panel that wraps the given child widget.
-    /// Use <see cref="EffectPanelWidget.Effect(Action{Surface})"/> to apply a post-processing effect.
+    /// Use <see cref="EffectPanelWidget.Effect"/> to apply a post-processing effect.
     /// </summary>
     /// <typeparam name="TParent">The parent widget type.</typeparam>
     /// <param name="context">The widget context.</param>
@@ -36,22 +36,4 @@ public static class EffectPanelExtensions
         Action<Surface> effect)
         where TParent : Hex1bWidget
         => new(child) { EffectCallback = effect };
-
-    /// <summary>
-    /// Creates an effect panel that wraps the given child widget with a context-aware
-    /// effect applied. The callback receives both the rendered surface and the parent
-    /// <see cref="Hex1bRenderContext"/> (useful for reading the global background colour
-    /// when blending).
-    /// </summary>
-    /// <typeparam name="TParent">The parent widget type.</typeparam>
-    /// <param name="context">The widget context.</param>
-    /// <param name="child">The child widget to wrap.</param>
-    /// <param name="effect">A callback that receives the rendered <see cref="Surface"/> and render context.</param>
-    /// <returns>An <see cref="EffectPanelWidget"/> with the effect applied.</returns>
-    public static EffectPanelWidget EffectPanel<TParent>(
-        this WidgetContext<TParent> context,
-        Hex1bWidget child,
-        Action<Surface, Hex1bRenderContext> effect)
-        where TParent : Hex1bWidget
-        => new(child) { EffectWithContextCallback = effect };
 }
