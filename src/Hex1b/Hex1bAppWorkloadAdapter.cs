@@ -81,6 +81,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (maxQueuedOutputItems < 0)
             throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+        ThrowIfBoundedChannelOnBrowser(maxQueuedOutputItems);
 
         _width = 0;
         _height = 0;
@@ -118,6 +119,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     {
         if (maxQueuedOutputItems < 0)
             throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+        ThrowIfBoundedChannelOnBrowser(maxQueuedOutputItems);
 
         _width = 0;
         _height = 0;
@@ -153,6 +155,26 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
             SingleReader = true,
             SingleWriter = false,
         });
+    }
+
+    /// <summary>
+    /// Single-threaded WebAssembly cannot recover from the bounded-channel
+    /// backpressure path in <see cref="EnqueueOutput"/>: that path blocks the
+    /// producer with <c>writeTask.AsTask().GetAwaiter().GetResult()</c>, and the
+    /// only thread that could drain the channel is the same one that's being
+    /// blocked, so it deadlocks. Surface this as a clear construction-time error
+    /// on browser hosts instead of an opaque hang at runtime.
+    /// </summary>
+    private static void ThrowIfBoundedChannelOnBrowser(int maxQueuedOutputItems)
+    {
+        if (maxQueuedOutputItems > 0 && OperatingSystem.IsBrowser())
+        {
+            throw new PlatformNotSupportedException(
+                "Hex1bAppWorkloadAdapter does not support a bounded output channel " +
+                "(maxQueuedOutputItems > 0) on browser/WebAssembly hosts. The bounded " +
+                "backpressure path performs a sync-over-async wait that deadlocks " +
+                "single-threaded WASM. Use the default (0, unbounded) on browser.");
+        }
     }
 
     // ========================================
