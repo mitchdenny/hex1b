@@ -20,8 +20,10 @@
         }
 
         // Wire the C# [JSExport] SignalInputAvailable into interop.js so input
-        // events wake ReadInputAsync immediately instead of waiting on a 50ms poll.
-        await JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorDemo");
+        // events wake ReadInputAsync immediately. Fire-and-forget: if the
+        // Blazor runtime's getAssemblyExports surface behaves unexpectedly,
+        // we must not stall startup. attachSignal catches its own errors.
+        _ = JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorDemo").AsTask();
 
         Console.WriteLine($"[blazor] Starting globe ({cols}x{rows}), threading={Environment.ProcessorCount > 1}");
 
