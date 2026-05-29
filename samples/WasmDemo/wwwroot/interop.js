@@ -8,12 +8,23 @@ let _burstStart = 0;
 let _burstCount = 0;
 let _lastTime = 0;
 
+// m-input-latency: time from the first un-served input event to the next
+// postOutput. Reset on each measurement. Logged so we can compare f1 (event
+// driven) vs the original 50ms poll loop.
+let _pendingInputTimestamp = null;
+
 export function postTerminalOutput(data) {
     const now = performance.now();
     _frameCount++;
     const gap = now - _lastTime;
     _lastTime = now;
-    
+
+    if (_pendingInputTimestamp !== null) {
+        const latency = now - _pendingInputTimestamp;
+        _pendingInputTimestamp = null;
+        console.log(`[perf] input->frame latency: ${latency.toFixed(1)}ms`);
+    }
+
     if (gap > 30) {
         // End of a gap — report the previous burst and the gap
         if (_burstCount > 0) {
@@ -25,7 +36,12 @@ export function postTerminalOutput(data) {
     } else {
         _burstCount++;
     }
-    
+
+    // data is a Uint8Array view over WASM memory (JSType.MemoryView marshaling).
+    // We MUST copy to a fresh Uint8Array before postMessage: structured-cloning
+    // the view would clone the entire underlying WASM heap ArrayBuffer, not
+    // just the view's range. Copying explicitly also lets us transfer ownership
+    // of the small buffer instead of cloning it cross-thread.
     const copy = new Uint8Array(data.length);
     copy.set(data);
     self.postMessage({ type: 'output', data: copy.buffer }, [copy.buffer]);
@@ -61,6 +77,7 @@ function handleMessage(msg) {
     if (msg.type === 'input') {
         const bytes = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
         inputChunks.push(bytes);
+        if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
         // Wake ReadInputAsync immediately instead of letting it poll on a timer.
         // The export is undefined until worker.js finishes hooking it up post-create;
         // the .NET-side poll fallback handles the brief startup window.

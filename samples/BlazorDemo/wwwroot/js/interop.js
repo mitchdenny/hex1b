@@ -12,6 +12,9 @@
     let _burstCount = 0;
     let _lastTime = 0;
 
+    // m-input-latency: time from the first un-served input to the next postOutput.
+    let _pendingInputTimestamp = null;
+
     window.termInterop = {
         // Initialize xterm.js — called from Blazor component
         init: function () {
@@ -48,6 +51,7 @@
                 }
                 const bytes = new TextEncoder().encode(data);
                 inputChunks.push(bytes);
+                if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
                 // Wake .NET's ReadInputAsync immediately (set by App.razor once exports load).
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
@@ -56,6 +60,7 @@
                 const bytes = new Uint8Array(data.length);
                 for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
                 inputChunks.push(bytes);
+                if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
 
@@ -84,6 +89,13 @@
             _frameCount++;
             const gap = now - _lastTime;
             _lastTime = now;
+
+            if (_pendingInputTimestamp !== null) {
+                const latency = now - _pendingInputTimestamp;
+                _pendingInputTimestamp = null;
+                console.log(`[perf] input->frame latency: ${latency.toFixed(1)}ms`);
+            }
+
             if (gap > 30) {
                 if (_burstCount > 0) {
                     const burstDuration = (now - gap) - _burstStart;
@@ -95,6 +107,10 @@
                 _burstCount++;
             }
 
+            // data is a Uint8Array view over WASM memory (JSType.MemoryView).
+            // Copy bounded to the view's range — never clone the underlying
+            // WASM heap by passing the view directly to consumers that hold on
+            // to it past the synchronous call.
             const copy = new Uint8Array(data.length);
             copy.set(data);
             term.write(copy);
