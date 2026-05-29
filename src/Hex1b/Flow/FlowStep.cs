@@ -3,8 +3,8 @@ using Hex1b.Widgets;
 namespace Hex1b.Flow;
 
 /// <summary>
-/// Handle returned by <see cref="Hex1bFlowContext.Step"/> that controls a running
-/// inline step. Use <see cref="Invalidate"/> to trigger re-renders from background
+/// Handle returned by <see cref="Hex1bFlowContext.Step(Func{FlowStepContext, Task{Hex1bWidget}}, Action{Hex1bFlowStepOptions}?)"/>
+/// that controls a running inline step. Use <see cref="Invalidate"/> to trigger re-renders from background
 /// work, and <see cref="Complete()"/> or <see cref="CompleteAsync(CancellationToken)"/> to finish the step.
 /// </summary>
 public sealed class FlowStep
@@ -21,10 +21,12 @@ public sealed class FlowStep
     }
 
     /// <summary>
-    /// Gets the completed builder set by <see cref="Complete(Func{RootContext, Hex1bWidget})"/>,
-    /// or null if the step exited without one.
+    /// Gets the completed builder set by <see cref="Complete(Func{RootContext, Hex1bWidget})"/>
+    /// or its async overloads, or null if the step exited without one.
+    /// Always stored as an async builder; sync overloads wrap with
+    /// <see cref="Task.FromResult{TResult}(TResult)"/> before assigning.
     /// </summary>
-    internal Func<RootContext, Hex1bWidget>? CompletedBuilder { get; private set; }
+    internal Func<RootContext, Task<Hex1bWidget>>? CompletedBuilder { get; private set; }
 
     /// <summary>
     /// Width of the terminal in columns.
@@ -85,17 +87,28 @@ public sealed class FlowStep
     /// </summary>
     /// <remarks>
     /// This is a fire-and-forget call suitable for use in event handlers.
-    /// Use <see cref="CompleteAsync(Func{RootContext, Hex1bWidget}, CancellationToken)"/> from the
-    /// flow callback to also wait for cleanup to finish.
+    /// Use <see cref="CompleteAsync(Func{RootContext, Task{Hex1bWidget}}, CancellationToken)"/> from
+    /// the flow callback to also wait for cleanup to finish.
     /// </remarks>
-    /// <param name="builder">Widget builder for the frozen output.</param>
-    public void Complete(Func<RootContext, Hex1bWidget> builder)
+    /// <param name="builder">Async widget builder for the frozen output.</param>
+    public void Complete(Func<RootContext, Task<Hex1bWidget>> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
         if (Interlocked.CompareExchange(ref _completed, 1, 0) != 0)
             return;
         CompletedBuilder = builder;
         _app?.RequestStop();
+    }
+
+    /// <summary>
+    /// Sync overload of <see cref="Complete(Func{RootContext, Task{Hex1bWidget}})"/>.
+    /// Wraps the sync builder with <see cref="Task.FromResult{TResult}(TResult)"/>.
+    /// </summary>
+    /// <param name="builder">Sync widget builder for the frozen output.</param>
+    public void Complete(Func<RootContext, Hex1bWidget> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        Complete(ctx => Task.FromResult(builder(ctx)));
     }
 
     /// <summary>
@@ -114,7 +127,20 @@ public sealed class FlowStep
     /// Completes the step with frozen output and waits for cleanup
     /// (yield widget rendering, cursor advancement) to finish.
     /// </summary>
-    /// <param name="builder">Widget builder for the frozen output.</param>
+    /// <param name="builder">Async widget builder for the frozen output.</param>
+    /// <param name="cancellationToken">Optional token to cancel the wait.</param>
+    /// <returns>A task that completes when the step is fully cleaned up.</returns>
+    public Task CompleteAsync(Func<RootContext, Task<Hex1bWidget>> builder, CancellationToken cancellationToken = default)
+    {
+        Complete(builder);
+        return WaitForCompletionAsync(cancellationToken);
+    }
+
+    /// <summary>
+    /// Sync overload of <see cref="CompleteAsync(Func{RootContext, Task{Hex1bWidget}}, CancellationToken)"/>.
+    /// Wraps the sync builder with <see cref="Task.FromResult{TResult}(TResult)"/>.
+    /// </summary>
+    /// <param name="builder">Sync widget builder for the frozen output.</param>
     /// <param name="cancellationToken">Optional token to cancel the wait.</param>
     /// <returns>A task that completes when the step is fully cleaned up.</returns>
     public Task CompleteAsync(Func<RootContext, Hex1bWidget> builder, CancellationToken cancellationToken = default)

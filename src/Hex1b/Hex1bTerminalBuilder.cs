@@ -911,8 +911,8 @@ public sealed class Hex1bTerminalBuilder
     /// and optional full-screen TUI applications in the normal terminal buffer.
     /// </summary>
     /// <param name="flowCallback">
-    /// Async callback that defines the flow steps. Use the flow context's <see cref="Flow.Hex1bFlowContext.Step"/>
-    /// for inline micro-TUIs and <see cref="Flow.Hex1bFlowContext.FullScreenStepAsync"/> for full-screen apps.
+    /// Async callback that defines the flow steps. Use the flow context's <see cref="Flow.Hex1bFlowContext.Step(Func{Flow.FlowStepContext, Task{Widgets.Hex1bWidget}}, Action{Flow.Hex1bFlowStepOptions}?)"/>
+    /// for inline micro-TUIs and <see cref="Flow.Hex1bFlowContext.FullScreenStepAsync(Func{Hex1bApp, Hex1bAppOptions, Func{RootContext, Task{Widgets.Hex1bWidget}}})"/> for full-screen apps.
     /// </param>
     /// <param name="configureOptions">Optional callback to configure flow options (theme, etc.).</param>
     /// <returns>This builder for chaining.</returns>

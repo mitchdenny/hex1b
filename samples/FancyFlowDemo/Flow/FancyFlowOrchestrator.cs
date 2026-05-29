@@ -129,18 +129,19 @@ internal static class FancyFlowOrchestrator
     /// muted-grey line keeps the visible footprint minimal and fits
     /// inside even an aggressively shrunken terminal.
     /// </summary>
-    private static Hex1b.Widgets.Hex1bWidget BuildResizePlaceholder(RootContext ctx) =>
-        ctx.HStack(h =>
-        [
-            h.Text(" "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
-                h.Text(TemplatePromptWidget.BarChar)),
-            h.Text("  "),
-            h.ThemePanel(
-                t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
-                h.Text("Resizing…")),
-        ]);
+    private static Task<Hex1b.Widgets.Hex1bWidget> BuildResizePlaceholder(RootContext ctx) =>
+        Task.FromResult<Hex1b.Widgets.Hex1bWidget>(
+            ctx.HStack(h =>
+            [
+                h.Text(" "),
+                h.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.BarColor),
+                    h.Text(TemplatePromptWidget.BarChar)),
+                h.Text("  "),
+                h.ThemePanel(
+                    t => t.Set(GlobalTheme.ForegroundColor, TemplatePromptWidget.MutedColor),
+                    h.Text("Resizing…")),
+            ]));
 
 
     private static Task RunStepAsync(

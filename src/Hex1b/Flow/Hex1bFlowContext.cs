@@ -67,14 +67,30 @@ public sealed class Hex1bFlowContext
     /// step handle without needing a separate variable.
     /// </para>
     /// </remarks>
-    /// <param name="builder">Widget builder for the interactive TUI content.</param>
+    /// <param name="builder">Async widget builder for the interactive TUI content.</param>
+    /// <param name="options">Optional callback to configure step options.</param>
+    /// <returns>A <see cref="FlowStep"/> handle for controlling the running step.</returns>
+    public FlowStep Step(
+        Func<FlowStepContext, Task<Hex1bWidget>> builder,
+        Action<Hex1bFlowStepOptions>? options = null)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return _runner.StartStep(builder, BuildOptions(options));
+    }
+
+    /// <summary>
+    /// Sync overload of <see cref="Step(Func{FlowStepContext, Task{Hex1bWidget}}, Action{Hex1bFlowStepOptions}?)"/>.
+    /// Wraps the sync builder with <see cref="Task.FromResult{TResult}(TResult)"/>.
+    /// </summary>
+    /// <param name="builder">Sync widget builder for the interactive TUI content.</param>
     /// <param name="options">Optional callback to configure step options.</param>
     /// <returns>A <see cref="FlowStep"/> handle for controlling the running step.</returns>
     public FlowStep Step(
         Func<FlowStepContext, Hex1bWidget> builder,
         Action<Hex1bFlowStepOptions>? options = null)
     {
-        return _runner.StartStep(builder, BuildOptions(options));
+        ArgumentNullException.ThrowIfNull(builder);
+        return Step(ctx => Task.FromResult(builder(ctx)), options);
     }
 
     /// <summary>
@@ -83,12 +99,24 @@ public sealed class Hex1bFlowContext
     /// need interactivity. The widget is rendered once and scrolls naturally into
     /// the scrollback buffer.
     /// </summary>
-    /// <param name="builder">Widget builder for the static content.</param>
+    /// <param name="builder">Async widget builder for the static content.</param>
+    /// <returns>A task that completes when the content has been rendered.</returns>
+    public Task ShowAsync(Func<RootContext, Task<Hex1bWidget>> builder)
+    {
+        ArgumentNullException.ThrowIfNull(builder);
+        return _runner.RenderStaticAsync(builder);
+    }
+
+    /// <summary>
+    /// Sync overload of <see cref="ShowAsync(Func{RootContext, Task{Hex1bWidget}})"/>.
+    /// Wraps the sync builder with <see cref="Task.FromResult{TResult}(TResult)"/>.
+    /// </summary>
+    /// <param name="builder">Sync widget builder for the static content.</param>
     /// <returns>A task that completes when the content has been rendered.</returns>
     public Task ShowAsync(Func<RootContext, Hex1bWidget> builder)
     {
         ArgumentNullException.ThrowIfNull(builder);
-        return _runner.RenderStaticAsync(builder);
+        return ShowAsync(ctx => Task.FromResult(builder(ctx)));
     }
 
     /// <summary>
@@ -96,13 +124,32 @@ public sealed class Hex1bFlowContext
     /// Inline state is saved before entering and restored after exiting.
     /// </summary>
     /// <param name="configure">
-    /// Configuration callback that receives the app and options, returning the widget builder.
+    /// Configuration callback that receives the app and options, returning the async widget builder.
     /// Same pattern as the builder's WithHex1bApp method.
+    /// </param>
+    public Task FullScreenStepAsync(
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>> configure)
+    {
+        ArgumentNullException.ThrowIfNull(configure);
+        return _runner.RunFullScreenStepAsync(configure);
+    }
+
+    /// <summary>
+    /// Sync overload of <see cref="FullScreenStepAsync(Func{Hex1bApp, Hex1bAppOptions, Func{RootContext, Task{Hex1bWidget}}})"/>.
+    /// Wraps the inner sync builder with <see cref="Task.FromResult{TResult}(TResult)"/>.
+    /// </summary>
+    /// <param name="configure">
+    /// Configuration callback that receives the app and options, returning the sync widget builder.
     /// </param>
     public Task FullScreenStepAsync(
         Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
     {
-        return _runner.RunFullScreenStepAsync(configure);
+        ArgumentNullException.ThrowIfNull(configure);
+        return FullScreenStepAsync((app, opts) =>
+        {
+            var syncBuilder = configure(app, opts);
+            return ctx => Task.FromResult(syncBuilder(ctx));
+        });
     }
 }
 

@@ -160,13 +160,13 @@ internal sealed class Hex1bFlowRunner
     /// Renders a static widget as frozen terminal output and advances the cursor.
     /// No interactive step is created — this is a fire-and-forget render.
     /// </summary>
-    internal async Task RenderStaticAsync(Func<RootContext, Hex1bWidget> builder)
+    internal async Task RenderStaticAsync(Func<RootContext, Task<Hex1bWidget>> builder)
     {
         var terminalWidth = _parentAdapter.Width;
         var terminalHeight = _parentAdapter.Height;
 
         // Measure the content to determine how much space it needs
-        var contentHeight = MeasureYieldHeight(builder, terminalWidth, terminalHeight);
+        var contentHeight = await MeasureYieldHeightAsync(builder, terminalWidth, terminalHeight);
         if (contentHeight < 1) contentHeight = 1;
 
         // Scroll if needed to make room
@@ -188,7 +188,7 @@ internal sealed class Hex1bFlowRunner
             // Render the static content into a surface and emit it as
             // soft-wrap-friendly logical lines so the host terminal owns
             // the reflow/scroll behaviour for the lifetime of the flow.
-            var surface = RenderToSurface(builder, terminalWidth, contentHeight);
+            var surface = await RenderToSurfaceAsync(builder, terminalWidth, contentHeight);
             if (surface is not null)
             {
                 EmitSoftWrapTombstone(surface);
@@ -207,7 +207,7 @@ internal sealed class Hex1bFlowRunner
     /// invalidate, complete, and await the step.
     /// </summary>
     internal FlowStep StartStep(
-        Func<FlowStepContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Task<Hex1bWidget>> builder,
         Hex1bFlowStepOptions? options)
     {
         if (_activeStep != null)
@@ -240,7 +240,7 @@ internal sealed class Hex1bFlowRunner
     /// the widget without rendering it.
     /// </summary>
     private int MeasureStepContent(
-        Func<FlowStepContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Task<Hex1bWidget>> builder,
         FlowStep step,
         int width,
         int maxHeight)
@@ -248,7 +248,11 @@ internal sealed class Hex1bFlowRunner
         try
         {
             var stepCtx = new FlowStepContext(step);
-            var widget = builder(stepCtx);
+            var widgetTask = builder(stepCtx);
+            // Synchronous fallback for the measurement pass — see the
+            // RenderToSurface invariant for the rationale.
+            if (!widgetTask.IsCompletedSuccessfully) return maxHeight;
+            var widget = widgetTask.Result;
             if (widget == null) return maxHeight;
 
             // Reconcile the widget into a node tree and measure it
@@ -274,7 +278,7 @@ internal sealed class Hex1bFlowRunner
 
     private async Task RunStepLifecycleAsync(
         FlowStep step,
-        Func<FlowStepContext, Hex1bWidget> builder,
+        Func<FlowStepContext, Task<Hex1bWidget>> builder,
         Hex1bFlowStepOptions? options,
         int desiredHeight)
     {
@@ -777,7 +781,7 @@ internal sealed class Hex1bFlowRunner
     /// Runs a full-screen TUI application in the alternate screen buffer.
     /// </summary>
     internal async Task RunFullScreenStepAsync(
-        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Hex1bWidget>> configure)
+        Func<Hex1bApp, Hex1bAppOptions, Func<RootContext, Task<Hex1bWidget>>> configure)
     {
         // The parent adapter handles alt-buffer transitions naturally
         // We create a standard Hex1bApp with the parent adapter
@@ -793,10 +797,10 @@ internal sealed class Hex1bFlowRunner
         }
 
         Hex1bApp? app = null;
-        Func<RootContext, Hex1bWidget>? widgetBuilder = null;
+        Func<RootContext, Task<Hex1bWidget>>? widgetBuilder = null;
         bool configureInvoked = false;
 
-        Func<RootContext, Hex1bWidget> wrappedBuilder = ctx =>
+        Func<RootContext, Task<Hex1bWidget>> wrappedBuilder = ctx =>
         {
             if (!configureInvoked)
             {
@@ -822,12 +826,12 @@ internal sealed class Hex1bFlowRunner
     /// pages with the terminal scrolling between each page so no content is lost.
     /// </summary>
     private async Task<int> RenderYieldWidgetAsync(
-        Func<RootContext, Hex1bWidget> yieldBuilder,
+        Func<RootContext, Task<Hex1bWidget>> yieldBuilder,
         int width,
         int maxHeight)
     {
         // First, measure the yield widget to determine its natural height.
-        var measuredHeight = MeasureYieldHeight(yieldBuilder, width, maxHeight * 10);
+        var measuredHeight = await MeasureYieldHeightAsync(yieldBuilder, width, maxHeight * 10);
         if (measuredHeight < 1) measuredHeight = 1;
 
         // If it fits in one screen, render in place
@@ -863,10 +867,10 @@ internal sealed class Hex1bFlowRunner
 
             // Render a step of the yield content at the current offset
             int offset = totalRendered;
-            await RenderYieldPageAsync(ctx =>
+            await RenderYieldPageAsync(async ctx =>
             {
                 // Build a wrapper that skips the first 'offset' rows and takes 'pageHeight'
-                var fullWidget = yieldBuilder(ctx);
+                var fullWidget = await yieldBuilder(ctx);
                 return fullWidget;
             }, width, pageHeight, offset);
 
@@ -879,21 +883,19 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Measures the natural height of a yield widget tree.
+    /// Measures the natural height of a yield widget tree. Async sibling that awaits the builder
+    /// properly; falls back to height 1 if the builder or reconciliation isn't synchronous.
     /// </summary>
-    private int MeasureYieldHeight(Func<RootContext, Hex1bWidget> yieldBuilder, int width, int maxHeight)
+    private async Task<int> MeasureYieldHeightAsync(Func<RootContext, Task<Hex1bWidget>> yieldBuilder, int width, int maxHeight)
     {
         try
         {
             var rootCtx = new RootContext();
-            var widget = yieldBuilder(rootCtx);
+            var widget = await yieldBuilder(rootCtx);
             if (widget == null) return 1;
 
             var reconcileCtx = ReconcileContext.CreateRoot();
-            var nodeTask = widget.ReconcileAsync(null, reconcileCtx);
-            if (!nodeTask.IsCompleted) return 1;
-
-            var node = nodeTask.Result;
+            var node = await widget.ReconcileAsync(null, reconcileCtx);
             if (node == null) return 1;
 
             var constraints = new Constraints(0, width, 0, maxHeight);
@@ -910,17 +912,17 @@ internal sealed class Hex1bFlowRunner
     /// Renders a yield widget page at the current cursor position.
     /// </summary>
     private async Task RenderYieldPageAsync(
-        Func<RootContext, Hex1bWidget> yieldBuilder,
+        Func<RootContext, Task<Hex1bWidget>> yieldBuilder,
         int width,
         int height,
         int skipRows = 0)
     {
-        Func<RootContext, Hex1bWidget> actualBuilder;
+        Func<RootContext, Task<Hex1bWidget>> actualBuilder;
         if (skipRows > 0)
         {
-            actualBuilder = ctx =>
+            actualBuilder = async ctx =>
             {
-                var widget = yieldBuilder(ctx);
+                var widget = await yieldBuilder(ctx);
                 if (widget is VStackWidget vstack && skipRows < vstack.Children.Count)
                 {
                     var remaining = vstack.Children.Skip(skipRows).Take(height).ToArray();
@@ -958,7 +960,7 @@ internal sealed class Hex1bFlowRunner
 
             yieldApp = new Hex1bApp(ctx =>
             {
-                var widget = actualBuilder(ctx);
+                var widgetTask = actualBuilder(ctx);
                 if (!rendered)
                 {
                     rendered = true;
@@ -968,7 +970,7 @@ internal sealed class Hex1bFlowRunner
                         yieldApp?.RequestStop();
                     });
                 }
-                return widget;
+                return widgetTask;
             }, yieldOptions);
 
             await using (yieldApp)
@@ -998,27 +1000,41 @@ internal sealed class Hex1bFlowRunner
     }
 
     /// <summary>
-    /// Renders a yield builder into a freshly-allocated <see cref="Surface"/>.
-    /// Returns <c>null</c> if reconciliation, measurement, or rendering fails
-    /// — callers should fall back to the legacy emission path in that case.
+    /// Renders an async widget builder into a freshly-allocated <see cref="Surface"/>
+    /// synchronously. Returns <c>null</c> if the builder Task hasn't already completed,
+    /// if reconciliation needs to go async, or if anything throws — callers should
+    /// fall back to the legacy emission path in that case.
     /// </summary>
     /// <remarks>
+    /// <para>
+    /// Used by call sites that can't await (the per-event resize-burst handler and
+    /// the settle-task body, both of which run inside <c>lock(settleSync)</c>).
+    /// The "must already be completed" invariant mirrors the existing constraint
+    /// on <see cref="Hex1bWidget.ReconcileAsync"/>: flow tombstones build widgets
+    /// from pre-resolved state and wrap them with <see cref="Task.FromResult{TResult}(TResult)"/>,
+    /// so the Task is completed inline on the caller's thread. Truly-async builders
+    /// (network IO etc.) simply skip a resize frame and the next event re-triggers.
+    /// </para>
+    /// <para>
     /// Used only on the soft-wrap tombstone path
-    /// (<see cref="Hex1bFlowOptions.UseSoftWrapTombstones"/>). The surface is
-    /// sized to <paramref name="width"/> by the widget's measured height
-    /// (clamped to <paramref name="maxHeight"/> × 10 to bound page-by-page
-    /// content). The surface is then arranged and rendered using the standard
-    /// rendering pipeline so any widget that works on screen will work here.
+    /// (<see cref="Hex1bFlowOptions.UseSoftWrapTombstones"/>). The surface is sized
+    /// to <paramref name="width"/> by the widget's measured height (clamped to
+    /// <paramref name="maxHeight"/> × 10 to bound page-by-page content). The surface
+    /// is then arranged and rendered using the standard rendering pipeline so any
+    /// widget that works on screen will work here.
+    /// </para>
     /// </remarks>
     private Surface? RenderToSurface(
-        Func<RootContext, Hex1bWidget> builder,
+        Func<RootContext, Task<Hex1bWidget>> builder,
         int width,
         int maxHeight)
     {
         try
         {
             var rootCtx = new RootContext();
-            var widget = builder(rootCtx);
+            var widgetTask = builder(rootCtx);
+            if (!widgetTask.IsCompletedSuccessfully) return null;
+            var widget = widgetTask.Result;
             if (widget == null) return null;
 
             var reconcileCtx = ReconcileContext.CreateRoot();
@@ -1031,27 +1047,61 @@ internal sealed class Hex1bFlowRunner
             var node = nodeTask.Result;
             if (node == null) return null;
 
-            // Measure with a generous height bound so multi-line tombstones
-            // get their full height, then clamp to a safety ceiling so a
-            // misbehaving widget can't allocate an unbounded surface.
-            var measureMax = Math.Max(maxHeight * 10, maxHeight);
-            var constraints = new Constraints(0, width, 0, measureMax);
-            var measured = node.Measure(constraints);
-            var height = Math.Max(1, Math.Min(measured.Height, measureMax));
-
-            var surface = new Surface(width, height);
-            node.Arrange(new Rect(0, 0, width, height));
-
-            var renderCtx = new SurfaceRenderContext(surface, _options.Theme);
-            renderCtx.SetCapabilities(_parentAdapter.Capabilities);
-            node.Render(renderCtx);
-
-            return surface;
+            return MaterializeSurface(node, width, maxHeight);
         }
         catch
         {
             return null;
         }
+    }
+
+    /// <summary>
+    /// Async sibling of <see cref="RenderToSurface(Func{RootContext, Task{Hex1bWidget}}, int, int)"/>
+    /// for callers that can <c>await</c> the builder (and reconciliation) properly.
+    /// Used by the static/yield/completed-tombstone paths that already run in
+    /// <c>async Task</c> methods.
+    /// </summary>
+    private async Task<Surface?> RenderToSurfaceAsync(
+        Func<RootContext, Task<Hex1bWidget>> builder,
+        int width,
+        int maxHeight)
+    {
+        try
+        {
+            var rootCtx = new RootContext();
+            var widget = await builder(rootCtx);
+            if (widget == null) return null;
+
+            var reconcileCtx = ReconcileContext.CreateRoot();
+            var node = await widget.ReconcileAsync(null, reconcileCtx);
+            if (node == null) return null;
+
+            return MaterializeSurface(node, width, maxHeight);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private Surface? MaterializeSurface(Hex1bNode node, int width, int maxHeight)
+    {
+        // Measure with a generous height bound so multi-line tombstones
+        // get their full height, then clamp to a safety ceiling so a
+        // misbehaving widget can't allocate an unbounded surface.
+        var measureMax = Math.Max(maxHeight * 10, maxHeight);
+        var constraints = new Constraints(0, width, 0, measureMax);
+        var measured = node.Measure(constraints);
+        var height = Math.Max(1, Math.Min(measured.Height, measureMax));
+
+        var surface = new Surface(width, height);
+        node.Arrange(new Rect(0, 0, width, height));
+
+        var renderCtx = new SurfaceRenderContext(surface, _options.Theme);
+        renderCtx.SetCapabilities(_parentAdapter.Capabilities);
+        node.Render(renderCtx);
+
+        return surface;
     }
 
     /// <summary>
@@ -1401,7 +1451,7 @@ public sealed class Hex1bFlowOptions
     public TimeSpan? ResizeSettleDelay { get; set; }
 
     /// <summary>
-    /// Optional widget builder emitted as a one-off hard-newline tombstone
+    /// Optional async widget builder emitted as a one-off hard-newline tombstone
     /// <em>above</em> the repainted step after the resize has settled, but
     /// only when the final dimensions differ from the dimensions at the
     /// start of the settle window. Intended for a faint
@@ -1409,12 +1459,20 @@ public sealed class Hex1bFlowOptions
     /// default), no marker is emitted.
     /// </summary>
     /// <remarks>
-    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
+    /// <para>Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.</para>
+    /// <para>
+    /// Async-only because properties cannot be overloaded. For purely-sync builders
+    /// wrap with <see cref="Task.FromResult{TResult}(TResult)"/>:
+    /// <c>options.ResizeMarker = ctx =&gt; Task.FromResult&lt;Hex1bWidget&gt;(ctx.Text("resized"));</c>.
+    /// The Task is expected to complete synchronously (the runner invokes the
+    /// builder from a render-time critical section); truly-async builders simply
+    /// skip a single resize frame and the next event re-triggers.
+    /// </para>
     /// </remarks>
-    public Func<RootContext, Hex1bWidget>? ResizeMarker { get; set; }
+    public Func<RootContext, Task<Hex1bWidget>>? ResizeMarker { get; set; }
 
     /// <summary>
-    /// Optional widget builder rendered in place of the active step's
+    /// Optional async widget builder rendered in place of the active step's
     /// content during a drag-resize burst. The placeholder is drawn at
     /// each per-event tick into the active rectangle and is then replaced
     /// by the actual repainted step at settle. Use a deliberately tiny
@@ -1423,7 +1481,15 @@ public sealed class Hex1bFlowOptions
     /// the active rectangle simply stays cleared during the drag.
     /// </summary>
     /// <remarks>
-    /// Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.
+    /// <para>Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.</para>
+    /// <para>
+    /// Async-only because properties cannot be overloaded. For purely-sync builders
+    /// wrap with <see cref="Task.FromResult{TResult}(TResult)"/>:
+    /// <c>options.ResizePlaceholder = ctx =&gt; Task.FromResult&lt;Hex1bWidget&gt;(ctx.Text("resizing"));</c>.
+    /// The Task is expected to complete synchronously (the runner invokes the
+    /// builder per resize event); truly-async builders simply skip a single
+    /// frame and the next event re-triggers.
+    /// </para>
     /// </remarks>
-    public Func<RootContext, Hex1bWidget>? ResizePlaceholder { get; set; }
+    public Func<RootContext, Task<Hex1bWidget>>? ResizePlaceholder { get; set; }
 }
