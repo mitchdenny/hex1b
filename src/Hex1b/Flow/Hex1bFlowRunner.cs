@@ -999,6 +999,12 @@ internal sealed class Hex1bFlowRunner
         _parentAdapter.Write(sb.ToString());
     }
 
+    private Surface? RenderToSurface(
+        Func<RootContext, Hex1bWidget> builder,
+        int width,
+        int maxHeight)
+        => RenderToSurface(ctx => Task.FromResult(builder(ctx)), width, maxHeight);
+
     /// <summary>
     /// Renders an async widget builder into a freshly-allocated <see cref="Surface"/>
     /// synchronously. Returns <c>null</c> if the builder Task hasn't already completed,
@@ -1451,7 +1457,7 @@ public sealed class Hex1bFlowOptions
     public TimeSpan? ResizeSettleDelay { get; set; }
 
     /// <summary>
-    /// Optional async widget builder emitted as a one-off hard-newline tombstone
+    /// Optional widget builder emitted as a one-off hard-newline tombstone
     /// <em>above</em> the repainted step after the resize has settled, but
     /// only when the final dimensions differ from the dimensions at the
     /// start of the settle window. Intended for a faint
@@ -1461,18 +1467,16 @@ public sealed class Hex1bFlowOptions
     /// <remarks>
     /// <para>Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.</para>
     /// <para>
-    /// Async-only because properties cannot be overloaded. For purely-sync builders
-    /// wrap with <see cref="Task.FromResult{TResult}(TResult)"/>:
-    /// <c>options.ResizeMarker = ctx =&gt; Task.FromResult&lt;Hex1bWidget&gt;(ctx.Text("resized"));</c>.
-    /// The Task is expected to complete synchronously (the runner invokes the
-    /// builder from a render-time critical section); truly-async builders simply
-    /// skip a single resize frame and the next event re-triggers.
+    /// Sync-only by design: the runner invokes this builder from a render-time
+    /// critical section that cannot <c>await</c>. Build the widget from
+    /// already-resolved state and rely on the rest of the flow API's async
+    /// surface for IO-bearing work.
     /// </para>
     /// </remarks>
-    public Func<RootContext, Task<Hex1bWidget>>? ResizeMarker { get; set; }
+    public Func<RootContext, Hex1bWidget>? ResizeMarker { get; set; }
 
     /// <summary>
-    /// Optional async widget builder rendered in place of the active step's
+    /// Optional widget builder rendered in place of the active step's
     /// content during a drag-resize burst. The placeholder is drawn at
     /// each per-event tick into the active rectangle and is then replaced
     /// by the actual repainted step at settle. Use a deliberately tiny
@@ -1483,13 +1487,11 @@ public sealed class Hex1bFlowOptions
     /// <remarks>
     /// <para>Has no effect when <see cref="ResizeSettleDelay"/> is <c>null</c>.</para>
     /// <para>
-    /// Async-only because properties cannot be overloaded. For purely-sync builders
-    /// wrap with <see cref="Task.FromResult{TResult}(TResult)"/>:
-    /// <c>options.ResizePlaceholder = ctx =&gt; Task.FromResult&lt;Hex1bWidget&gt;(ctx.Text("resizing"));</c>.
-    /// The Task is expected to complete synchronously (the runner invokes the
-    /// builder per resize event); truly-async builders simply skip a single
-    /// frame and the next event re-triggers.
+    /// Sync-only by design: the runner invokes this builder per resize event
+    /// from a critical section that cannot <c>await</c>. Build the widget
+    /// from already-resolved state and rely on the rest of the flow API's
+    /// async surface for IO-bearing work.
     /// </para>
     /// </remarks>
-    public Func<RootContext, Task<Hex1bWidget>>? ResizePlaceholder { get; set; }
+    public Func<RootContext, Hex1bWidget>? ResizePlaceholder { get; set; }
 }
