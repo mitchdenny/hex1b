@@ -11,6 +11,9 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
     private int _width;
     private int _height;
 
+    // Event-driven input signal — see WasmPresentationAdapter for rationale.
+    private static TaskCompletionSource? s_inputSignal;
+
     public BlazorPresentationAdapter(int initialCols = 80, int initialRows = 24)
     {
         _width = initialCols;
@@ -64,9 +67,26 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
                 return new ReadOnlyMemory<byte>(allInput);
             }
 
+            // Install a signal and recheck to close the race between drain and registration.
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Interlocked.Exchange(ref s_inputSignal, tcs);
+
+            var lateInput = PollAllInput();
+            var lateResize = PollResize();
+            if ((lateInput != null && lateInput.Length > 0) || !string.IsNullOrEmpty(lateResize))
+            {
+                Interlocked.CompareExchange(ref s_inputSignal, null, tcs);
+                if (lateInput != null && lateInput.Length > 0)
+                {
+                    return new ReadOnlyMemory<byte>(lateInput);
+                }
+                continue;
+            }
+
             try
             {
-                await Task.Delay(50, ct);
+                using var reg = ct.Register(static state => ((TaskCompletionSource)state!).TrySetCanceled(), tcs);
+                await tcs.Task;
             }
             catch (OperationCanceledException)
             {
@@ -97,4 +117,16 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
 
     [JSImport("globalThis.termInterop.pollResize")]
     internal static partial string PollResize();
+
+    /// <summary>
+    /// Called from interop.js whenever new input or a resize has been enqueued.
+    /// Wakes any pending <see cref="ReadInputAsync"/> call immediately so input
+    /// latency does not depend on a poll interval.
+    /// </summary>
+    [JSExport]
+    internal static void SignalInputAvailable()
+    {
+        var tcs = Interlocked.Exchange(ref s_inputSignal, null);
+        tcs?.TrySetResult();
+    }
 }

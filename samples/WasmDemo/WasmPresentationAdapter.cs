@@ -13,6 +13,12 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
     private int _width;
     private int _height;
 
+    // Event-driven input signal — replaces the previous 50ms poll loop.
+    // JS calls SignalInputAvailable() via [JSExport] whenever new input or a
+    // resize arrives; ReadInputAsync drains the JS queues, and if nothing is
+    // available, awaits this TCS instead of sleeping.
+    private static TaskCompletionSource? s_inputSignal;
+
     public WasmPresentationAdapter(int initialCols = 80, int initialRows = 24)
     {
         _width = initialCols;
@@ -71,11 +77,32 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
                 return new ReadOnlyMemory<byte>(allInput);
             }
 
-            // Yield to JS event loop — longer delay reduces frame rate
-            // so each frame has visible rotation delta in the braille grid
+            // Nothing pending — install a fresh signal and wait for JS to ping us.
+            // Re-check the JS queues after publishing the TCS to close the race
+            // where input arrived between our drain and registration.
+            var tcs = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            Interlocked.Exchange(ref s_inputSignal, tcs);
+
+            var lateInput = PollAllInput();
+            var lateResize = PollResize();
+            if ((lateInput != null && lateInput.Length > 0) || !string.IsNullOrEmpty(lateResize))
+            {
+                // Consume the signal we just installed so a future Signal call
+                // doesn't fire against a stale TCS.
+                Interlocked.CompareExchange(ref s_inputSignal, null, tcs);
+                if (lateInput != null && lateInput.Length > 0)
+                {
+                    return new ReadOnlyMemory<byte>(lateInput);
+                }
+                // We had a resize but no input bytes — loop so we process the resize
+                // through the normal path above (which fires Resized and re-polls).
+                continue;
+            }
+
             try
             {
-                await Task.Delay(50, ct);
+                using var reg = ct.Register(static state => ((TaskCompletionSource)state!).TrySetCanceled(), tcs);
+                await tcs.Task;
             }
             catch (OperationCanceledException)
             {
@@ -109,6 +136,18 @@ public sealed partial class WasmPresentationAdapter : Hex1b.IHex1bTerminalPresen
 
     [JSImport("pollResize", "main.js")]
     internal static partial string PollResize();
+
+    /// <summary>
+    /// Called from JS (worker's interop.js) whenever new input or a resize
+    /// has been enqueued. Wakes any pending <see cref="ReadInputAsync"/> call
+    /// immediately so input latency does not depend on a poll interval.
+    /// </summary>
+    [JSExport]
+    internal static void SignalInputAvailable()
+    {
+        var tcs = Interlocked.Exchange(ref s_inputSignal, null);
+        tcs?.TrySetResult();
+    }
 
     internal static WasmPresentationAdapter? Instance { get; set; }
 }

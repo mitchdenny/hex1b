@@ -48,12 +48,15 @@
                 }
                 const bytes = new TextEncoder().encode(data);
                 inputChunks.push(bytes);
+                // Wake .NET's ReadInputAsync immediately (set by App.razor once exports load).
+                if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
 
             term.onBinary(function (data) {
                 const bytes = new Uint8Array(data.length);
                 for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
                 inputChunks.push(bytes);
+                if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
 
             // Debounced resize
@@ -63,6 +66,7 @@
                 if (resizeTimer) clearTimeout(resizeTimer);
                 resizeTimer = setTimeout(() => {
                     pendingResize = size.cols + ',' + size.rows;
+                    if (window.__hex1bSignalInput) window.__hex1bSignalInput();
                     resizeTimer = null;
                 }, 100);
             });
@@ -116,6 +120,29 @@
             const r = pendingResize;
             pendingResize = '';
             return r;
+        },
+
+        // Looks up the C# [JSExport] SignalInputAvailable on the running .NET
+        // runtime and stashes a callable reference so the input/resize handlers
+        // can wake ReadInputAsync immediately. Falls back to a no-op if the
+        // runtime API isn't available (e.g. older Blazor build); the .NET-side
+        // poll fallback covers that case at the cost of 50ms latency.
+        attachSignal: async function (assemblyName) {
+            try {
+                const runtime = globalThis.getDotnetRuntime ? globalThis.getDotnetRuntime(0) : null;
+                if (!runtime || !runtime.getAssemblyExports) {
+                    console.warn('[blazor] dotnet runtime API unavailable; staying on poll fallback');
+                    return;
+                }
+                const exports = await runtime.getAssemblyExports(assemblyName);
+                window.__hex1bSignalInput =
+                    exports?.[assemblyName]?.BlazorPresentationAdapter?.SignalInputAvailable;
+                if (!window.__hex1bSignalInput) {
+                    console.warn('[blazor] SignalInputAvailable export not found');
+                }
+            } catch (e) {
+                console.warn('[blazor] attachSignal failed:', e);
+            }
         }
     };
 })();

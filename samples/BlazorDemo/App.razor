@@ -19,6 +19,10 @@
             }
         }
 
+        // Wire the C# [JSExport] SignalInputAvailable into interop.js so input
+        // events wake ReadInputAsync immediately instead of waiting on a 50ms poll.
+        await JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorDemo");
+
         Console.WriteLine($"[blazor] Starting globe ({cols}x{rows}), threading={Environment.ProcessorCount > 1}");
 
         // Run globe on the main thread — [JSImport] calls are fast and synchronous here.

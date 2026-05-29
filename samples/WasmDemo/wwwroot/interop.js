@@ -61,8 +61,13 @@ function handleMessage(msg) {
     if (msg.type === 'input') {
         const bytes = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
         inputChunks.push(bytes);
+        // Wake ReadInputAsync immediately instead of letting it poll on a timer.
+        // The export is undefined until worker.js finishes hooking it up post-create;
+        // the .NET-side poll fallback handles the brief startup window.
+        if (self.__hex1bSignalInput) self.__hex1bSignalInput();
     } else if (msg.type === 'resize') {
         pendingResize = msg.cols + ',' + msg.rows;
+        if (self.__hex1bSignalInput) self.__hex1bSignalInput();
     }
 }
 
