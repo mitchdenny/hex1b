@@ -52,6 +52,7 @@
                 const bytes = new TextEncoder().encode(data);
                 inputChunks.push(bytes);
                 if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
+                console.log(`[diag] onData ${bytes.length}B, q=${inputChunks.length}, sample=${JSON.stringify(data.slice(0, 24))}`);
                 // Wake .NET's ReadInputAsync immediately (set by App.razor once exports load).
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
@@ -61,6 +62,7 @@
                 for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
                 inputChunks.push(bytes);
                 if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
+                console.log(`[diag] onBinary ${bytes.length}B, q=${inputChunks.length}`);
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
 
@@ -128,6 +130,7 @@
                 offset += chunk.length;
             }
             inputChunks.length = 0;
+            console.log(`[diag] pollAllInput drained ${totalLen}B`);
             return result;
         },
 

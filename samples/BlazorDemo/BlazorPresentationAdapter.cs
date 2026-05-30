@@ -61,9 +61,11 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
                 }
             }
 
+            // Drain all queued input at once for responsiveness
             var allInput = PollAllInput();
             if (allInput != null && allInput.Length > 0)
             {
+                Console.WriteLine($"[diag] ReadInputAsync returning {allInput.Length}B (fast path)");
                 return new ReadOnlyMemory<byte>(allInput);
             }
 
@@ -78,6 +80,7 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
                 Interlocked.CompareExchange(ref s_inputSignal, null, tcs);
                 if (lateInput != null && lateInput.Length > 0)
                 {
+                    Console.WriteLine($"[diag] ReadInputAsync returning {lateInput.Length}B (late-drain path)");
                     return new ReadOnlyMemory<byte>(lateInput);
                 }
                 continue;
