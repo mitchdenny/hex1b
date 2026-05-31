@@ -80,7 +80,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public Hex1bAppWorkloadAdapter(TerminalCapabilities? capabilities = null, int maxQueuedOutputItems = 0)
     {
         if (maxQueuedOutputItems < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+        }
         ThrowIfBoundedChannelOnBrowser(maxQueuedOutputItems);
 
         _width = 0;
@@ -118,7 +120,9 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     public Hex1bAppWorkloadAdapter(IHex1bTerminalPresentationAdapter presentationAdapter, int maxQueuedOutputItems = 0)
     {
         if (maxQueuedOutputItems < 0)
+        {
             throw new ArgumentOutOfRangeException(nameof(maxQueuedOutputItems), "Must be >= 0.");
+        }
         ThrowIfBoundedChannelOnBrowser(maxQueuedOutputItems);
 
         _width = 0;
