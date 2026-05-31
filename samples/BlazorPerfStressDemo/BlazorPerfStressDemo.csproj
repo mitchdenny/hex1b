@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk.BlazorWebAssembly">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
+    <WasmInitialHeapSize>134217728</WasmInitialHeapSize>
+    <EmccMaximumHeapSize>536870912</EmccMaximumHeapSize>
+    <RootNamespace>BlazorPerfStressDemo</RootNamespace>
+  </PropertyGroup>
+
+  <!--
+    AOT-compile the Mono IL to WebAssembly when publishing in Release.
+    See ../BlazorDemo/BlazorDemo.csproj for the rationale.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.2" />
+    <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.2" PrivateAssets="all" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+  <!--
+    Link the page sources directly from PerfStressDemo so this project tracks
+    any future changes without duplicating code. Only the first two stress
+    pages are included; the whirlpool page depends on mouse-input details
+    that the BlazorPresentationAdapter doesn't currently model uniformly.
+  -->
+  <ItemGroup>
+    <Compile Include="..\PerfStressDemo\IStressPage.cs" Link="Pages\IStressPage.cs" />
+    <Compile Include="..\PerfStressDemo\RippleOverNoisePage.cs" Link="Pages\RippleOverNoisePage.cs" />
+    <Compile Include="..\PerfStressDemo\PondRipplePage.cs" Link="Pages\PondRipplePage.cs" />
+  </ItemGroup>
+
+</Project>
