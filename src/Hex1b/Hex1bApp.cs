@@ -564,16 +564,32 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     {
                         await ProcessInputEventAsync(inputEvent, cancellationToken);
                     }
-                    
+
                     // Input coalescing: batch rapid inputs together before rendering.
-                    if (_enableInputCoalescing)
+                    // On browser (single-threaded WASM), Task.Delay's minimum resolution is
+                    // tied to the event-loop tick (~4-16ms+), so a 5ms coalescing delay can
+                    // balloon to 50ms+ under drag load and translates directly into per-event
+                    // latency. The event loop already provides natural batching (all queued
+                    // events drain in one turn), so on browser we drain synchronously without
+                    // an artificial delay.
+                    if (_enableInputCoalescing && !OperatingSystem.IsBrowser())
                     {
                         var outputBacklog = _adapter.OutputQueueDepth;
                         var coalescingDelayMs = Math.Min(
-                            _inputCoalescingInitialDelayMs + (outputBacklog * 10), 
+                            _inputCoalescingInitialDelayMs + (outputBacklog * 10),
                             _inputCoalescingMaxDelayMs);
                         await Task.Delay(coalescingDelayMs, cancellationToken);
 
+                        while (_adapter.InputEvents.TryRead(out var delayedInput))
+                        {
+                            await ProcessInputEventAsync(delayedInput, cancellationToken);
+                            if (_stopRequested || cancellationToken.IsCancellationRequested)
+                                break;
+                        }
+                    }
+                    else if (_enableInputCoalescing)
+                    {
+                        // Browser path: drain all already-queued events without delay.
                         while (_adapter.InputEvents.TryRead(out var delayedInput))
                         {
                             await ProcessInputEventAsync(delayedInput, cancellationToken);
