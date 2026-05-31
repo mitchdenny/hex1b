@@ -97,15 +97,31 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
 
-    // The Mono *interpreter* on browser-wasm has a bug where the streaming
-    // Decoder API combined with Span<char> + `new string(char[])` silently
-    // produces an empty string for valid ASCII input. Mono AOT on wasm is
-    // unaffected, as is the desktop runtime. Rather than gating on
-    // OperatingSystem.IsBrowser() — which would also penalise AOT'd browser
-    // builds — we probe the actual Decoder once at startup. The probe is
-    // cheap (decode "test") and the result is cached for the process lifetime.
-    // Tracking issue: https://github.com/mitchdenny/hex1b/issues/353
-    // (covers reducing to a minimal repro and filing upstream on dotnet/runtime).
+    // Symptom (observed empirically during the WASM hosting bring-up, not
+    // confirmed against a known dotnet/runtime issue): under Blazor WASM
+    // `dotnet run` — which always uses the Mono interpreter — feeding
+    // terminal input bytes through the streaming `Decoder` API combined
+    // with `Span<char>` + `new string(char[], 0, count)` produces an empty
+    // string for valid ASCII input, even though `GetCharCount` and
+    // `GetChars` both report the correct count. Switching to
+    // `Encoding.UTF8.GetString(span)` round-trips correctly, and the
+    // streaming path also works under AOT (`dotnet publish -c Release`
+    // with `RunAOTCompilation=true`) and on every desktop runtime we test
+    // on. We don't yet know whether the cause is a Mono interpreter bug,
+    // a marshalling quirk in our [JSImport] input path, or something
+    // about how we construct the buffer — only that this codepath is the
+    // load-bearing one.
+    //
+    // Rather than gating on OperatingSystem.IsBrowser() — which would
+    // also penalise AOT'd browser builds, where the streaming path is
+    // fine — we probe the actual Decoder once at startup. The probe is
+    // cheap (decode "test") and the result is cached for the process
+    // lifetime. If the probe shows the symptom we use the GetString
+    // fallback; otherwise the streaming Decoder stays in use.
+    //
+    // Tracking issue (covers minimising the repro and filing upstream
+    // once we can show it's a runtime bug rather than a usage error):
+    // https://github.com/mitchdenny/hex1b/issues/353
     private static readonly bool s_inputDecoderIsBroken = DetectBrokenInputDecoder();
 
     private static bool DetectBrokenInputDecoder()
