@@ -96,6 +96,35 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
+
+    // The Mono *interpreter* on browser-wasm has a bug where the streaming
+    // Decoder API combined with Span<char> + `new string(char[])` silently
+    // produces an empty string for valid ASCII input. Mono AOT on wasm is
+    // unaffected, as is the desktop runtime. Rather than gating on
+    // OperatingSystem.IsBrowser() — which would also penalise AOT'd browser
+    // builds — we probe the actual Decoder once at startup. The probe is
+    // cheap (decode "test") and the result is cached for the process lifetime.
+    private static readonly bool s_inputDecoderIsBroken = DetectBrokenInputDecoder();
+
+    private static bool DetectBrokenInputDecoder()
+    {
+        try
+        {
+            var decoder = Encoding.UTF8.GetDecoder();
+            ReadOnlySpan<byte> probe = "test"u8;
+            var charCount = decoder.GetCharCount(probe, flush: false);
+            var chars = new char[charCount];
+            var charsWritten = decoder.GetChars(probe, chars, flush: false);
+            var result = new string(chars, 0, charsWritten);
+            return result != "test";
+        }
+        catch
+        {
+            // If the probe itself throws, assume the path is broken and use
+            // the workaround rather than risk live input being silently lost.
+            return true;
+        }
+    }
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
     private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
     
@@ -677,14 +706,14 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // we tokenize each chunk independently, the leading ESC becomes a
                 // spurious Escape key event and can close focused windows.
                 string decodedText;
-                if (OperatingSystem.IsBrowser())
+                if (s_inputDecoderIsBroken)
                 {
-                    // Mono WASM has a bug where the streaming Decoder API combined with
-                    // Span<char> + new string(char[]) silently produces an empty string
-                    // for valid ASCII input. Bypass the streaming Decoder entirely on the
-                    // browser — terminal input from xterm-style sources never splits
-                    // multi-byte UTF-8 codepoints across reads (escape sequences are
-                    // pure ASCII), so the stateful Decoder is not required.
+                    // Mono interpreter on browser-wasm: the streaming Decoder
+                    // path silently produces an empty string for valid ASCII.
+                    // Fall back to the one-shot Encoding.UTF8.GetString — safe
+                    // here because xterm-style terminal input never splits a
+                    // multi-byte UTF-8 codepoint across reads (escape sequences
+                    // are pure ASCII). See DetectBrokenInputDecoder above.
                     decodedText = Encoding.UTF8.GetString(data.Span);
                 }
                 else
