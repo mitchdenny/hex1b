@@ -10,6 +10,21 @@
     <EmccMaximumHeapSize>536870912</EmccMaximumHeapSize>
   </PropertyGroup>
 
+  <!--
+    AOT-compile the Mono IL to WebAssembly when publishing in Release.
+    Without this the published site still ships the interpreter, which makes
+    the globe paint loop ~50x slower than necessary. AOT adds several minutes
+    to `dotnet publish`, so we only enable it for Release publishes — `dotnet
+    run` still uses the fast-iteration interpreter path.
+
+    Use `samples/BlazorDemo/run-aot.sh` to publish + serve the AOT build
+    locally for perf testing.
+  -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <RunAOTCompilation>true</RunAOTCompilation>
+    <WasmStripILAfterAOT>true</WasmStripILAfterAOT>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly" Version="10.0.2" />
     <PackageReference Include="Microsoft.AspNetCore.Components.WebAssembly.DevServer" Version="10.0.2" PrivateAssets="all" />

@@ -152,6 +152,59 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
     private readonly int _inputCoalescingInitialDelayMs;
     private readonly int _inputCoalescingMaxDelayMs;
 
+    // Browser-only perf counters (printed once per second).
+    private long _browserPerfWindowStartTicks;
+    private int _browserPerfFrameCount;
+    private int _browserPerfRenderedFrames;
+    private long _browserPerfBuildTicks;
+    private long _browserPerfReconcileTicks;
+    private long _browserPerfRenderTicks;
+    private long _browserPerfTotalTicks;
+    private long _browserPerfRenderTreeTicks;
+    private long _browserPerfDiffTicks;
+    private long _browserPerfTokensTicks;
+    private long _browserPerfSerializeTicks;
+    private int _browserPerfDiffCells;
+    private int _browserPerfTokenCount;
+    private int _browserPerfAnsiBytes;
+
+    private void EmitBrowserFramePerfIfDue(long buildTicks, long reconcileTicks, long renderTicks, long totalTicks, bool needsRender, double freq)
+    {
+        _browserPerfFrameCount++;
+        if (needsRender) _browserPerfRenderedFrames++;
+        _browserPerfBuildTicks += buildTicks;
+        _browserPerfReconcileTicks += reconcileTicks;
+        _browserPerfRenderTicks += renderTicks;
+        _browserPerfTotalTicks += totalTicks;
+
+        var nowTicks = Stopwatch.GetTimestamp();
+        if (_browserPerfWindowStartTicks == 0) { _browserPerfWindowStartTicks = nowTicks; return; }
+        var elapsedMs = (nowTicks - _browserPerfWindowStartTicks) * 1000.0 / freq;
+        if (elapsedMs >= 1000.0)
+        {
+            Console.WriteLine($"[perf] last 1s: frames={_browserPerfFrameCount} rendered={_browserPerfRenderedFrames} " +
+                $"build={_browserPerfBuildTicks * 1000.0 / freq:F0}ms reconcile={_browserPerfReconcileTicks * 1000.0 / freq:F0}ms " +
+                $"render={_browserPerfRenderTicks * 1000.0 / freq:F0}ms total={_browserPerfTotalTicks * 1000.0 / freq:F0}ms " +
+                $"[tree={_browserPerfRenderTreeTicks * 1000.0 / freq:F0} diff={_browserPerfDiffTicks * 1000.0 / freq:F0} " +
+                $"tokens={_browserPerfTokensTicks * 1000.0 / freq:F0} serialize={_browserPerfSerializeTicks * 1000.0 / freq:F0}] " +
+                $"cells={_browserPerfDiffCells} tok={_browserPerfTokenCount} ansiB={_browserPerfAnsiBytes}");
+            _browserPerfWindowStartTicks = nowTicks;
+            _browserPerfFrameCount = 0;
+            _browserPerfRenderedFrames = 0;
+            _browserPerfBuildTicks = 0;
+            _browserPerfReconcileTicks = 0;
+            _browserPerfRenderTicks = 0;
+            _browserPerfTotalTicks = 0;
+            _browserPerfRenderTreeTicks = 0;
+            _browserPerfDiffTicks = 0;
+            _browserPerfTokensTicks = 0;
+            _browserPerfSerializeTicks = 0;
+            _browserPerfDiffCells = 0;
+            _browserPerfTokenCount = 0;
+            _browserPerfAnsiBytes = 0;
+        }
+    }
+
     // Surface RenderChild caching (opt-in).
     private readonly bool _enableRenderCaching;
     private readonly bool _useSoftWrapEmission;
@@ -1090,8 +1143,14 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             {
                 _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
             }
-            _metrics.FrameDuration.Record((Stopwatch.GetTimestamp() - frameStart) * 1000.0 / freq);
+            var totalTicks = Stopwatch.GetTimestamp() - frameStart;
+            _metrics.FrameDuration.Record(totalTicks * 1000.0 / freq);
             _metrics.FrameCount.Add(1);
+
+            if (OperatingSystem.IsBrowser())
+            {
+                EmitBrowserFramePerfIfDue(buildTicks, reconcileTicks, renderTicks, totalTicks, needsRender, freq);
+            }
             
             // Render hardware cursor - for focused TerminalNode uses child's cursor,
             // otherwise uses mouse position if mouse cursor is enabled. When inside
@@ -1212,9 +1271,16 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         };
         surfaceContext.SetCapabilities(caps);
         
+        long renderTreeTicks = 0;
         if (_rootNode != null)
         {
+            var rttStart = Stopwatch.GetTimestamp();
             RenderTreeToSurface(_rootNode, surfaceContext);
+            renderTreeTicks = Stopwatch.GetTimestamp() - rttStart;
+        }
+        if (OperatingSystem.IsBrowser())
+        {
+            _browserPerfRenderTreeTicks += renderTreeTicks;
         }
 
         if (_kgpRegistry.Images.Count > 0 || _currentSurface.HasKgp)
@@ -1264,7 +1330,13 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             fastPathTaken = SurfaceComparer.CompareInto(_previousSurface, _currentSurface, _frameDiff);
         }
         var diff = _frameDiff;
-        _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
+        var diffTicks = Stopwatch.GetTimestamp() - diffStart;
+        _metrics.SurfaceDiffDuration.Record(diffTicks * 1000.0 / (double)Stopwatch.Frequency);
+        if (OperatingSystem.IsBrowser())
+        {
+            _browserPerfDiffTicks += diffTicks;
+            _browserPerfDiffCells += diff.Count;
+        }
         if (fastPathTaken)
             _metrics.SurfaceDiffFastPathCount.Add(1);
         else
@@ -1348,7 +1420,8 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp, _frameTokens);
                 }
                 var tokens = _frameTokens;
-                _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
+                var tokensTicks = Stopwatch.GetTimestamp() - tokensStart;
+                _metrics.SurfaceTokensDuration.Record(tokensTicks * 1000.0 / (double)Stopwatch.Frequency);
 
                 var serializeStart = Stopwatch.GetTimestamp();
                 // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
@@ -1363,7 +1436,15 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
                 }
-                _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
+                var serializeTicks = Stopwatch.GetTimestamp() - serializeStart;
+                _metrics.SurfaceSerializeDuration.Record(serializeTicks * 1000.0 / (double)Stopwatch.Frequency);
+                if (OperatingSystem.IsBrowser())
+                {
+                    _browserPerfTokensTicks += tokensTicks;
+                    _browserPerfSerializeTicks += serializeTicks;
+                    _browserPerfTokenCount += tokens.Count;
+                    _browserPerfAnsiBytes += ansiOutput.Length;
+                }
 
                 if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
                 {
