@@ -36,26 +36,9 @@ public sealed partial class BlazorPresentationAdapter : Hex1b.IHex1bTerminalPres
     public event Action<int, int>? Resized;
     public event Action? Disconnected;
 
-    // Lightweight perf counters (printed once per second from WriteOutputAsync).
-    private static long s_perfWindowStartTicks;
-    private static int s_perfWriteCount;
-    private static long s_perfByteCount;
-
     public ValueTask WriteOutputAsync(ReadOnlyMemory<byte> data, CancellationToken ct)
     {
         PostOutput(data.ToArray());
-
-        var now = Environment.TickCount64;
-        if (s_perfWindowStartTicks == 0) s_perfWindowStartTicks = now;
-        s_perfWriteCount++;
-        s_perfByteCount += data.Length;
-        if (now - s_perfWindowStartTicks >= 1000)
-        {
-            Console.WriteLine($"[perf] last 1s: writes={s_perfWriteCount} bytes={s_perfByteCount}");
-            s_perfWindowStartTicks = now;
-            s_perfWriteCount = 0;
-            s_perfByteCount = 0;
-        }
         return ValueTask.CompletedTask;
     }
 

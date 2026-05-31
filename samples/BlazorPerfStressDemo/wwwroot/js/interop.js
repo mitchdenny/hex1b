@@ -6,15 +6,6 @@
     const inputChunks = [];
     let pendingResize = '';
 
-    // Burst timing instrumentation
-    let _frameCount = 0;
-    let _burstStart = 0;
-    let _burstCount = 0;
-    let _lastTime = 0;
-
-    // m-input-latency: time from the first un-served input to the next postOutput.
-    let _pendingInputTimestamp = null;
-
     window.termInterop = {
         // Initialize xterm.js — called from Blazor component
         init: function () {
@@ -51,7 +42,6 @@
                 }
                 const bytes = new TextEncoder().encode(data);
                 inputChunks.push(bytes);
-                if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
                 // Wake .NET's ReadInputAsync immediately (set by App.razor once exports load).
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
@@ -60,7 +50,6 @@
                 const bytes = new Uint8Array(data.length);
                 for (let i = 0; i < data.length; i++) bytes[i] = data.charCodeAt(i);
                 inputChunks.push(bytes);
-                if (_pendingInputTimestamp === null) _pendingInputTimestamp = performance.now();
                 if (window.__hex1bSignalInput) window.__hex1bSignalInput();
             });
 
@@ -83,29 +72,6 @@
         // [JSImport] target — write output bytes directly to xterm
         postOutput: function (data) {
             if (!term) return;
-
-            // Burst timing
-            const now = performance.now();
-            _frameCount++;
-            const gap = now - _lastTime;
-            _lastTime = now;
-
-            if (_pendingInputTimestamp !== null) {
-                const latency = now - _pendingInputTimestamp;
-                _pendingInputTimestamp = null;
-                console.log(`[perf] input->frame latency: ${latency.toFixed(1)}ms`);
-            }
-
-            if (gap > 30) {
-                if (_burstCount > 0) {
-                    const burstDuration = (now - gap) - _burstStart;
-                    console.log(`[perf] burst: ${_burstCount} writes in ${burstDuration.toFixed(0)}ms, then ${gap.toFixed(0)}ms idle (total frames: ${_frameCount})`);
-                }
-                _burstStart = now;
-                _burstCount = 1;
-            } else {
-                _burstCount++;
-            }
 
             // data is a Uint8Array view over WASM memory (JSType.MemoryView).
             // Copy bounded to the view's range — never clone the underlying

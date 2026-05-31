@@ -20,8 +20,6 @@
 
         _ = JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorPerfStressDemo").AsTask();
 
-        Console.WriteLine($"[blazor] Starting perf stress ({cols}x{rows})");
-
         try
         {
             await PerfStressRunner.RunAsync(cols, rows);

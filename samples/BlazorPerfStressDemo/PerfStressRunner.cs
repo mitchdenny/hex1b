@@ -61,7 +61,6 @@ public static class PerfStressRunner
                 })
             .Build();
 
-        Console.WriteLine("[blazor] Perf stress terminal built, starting RunAsync");
         await terminal.RunAsync();
         return;
 

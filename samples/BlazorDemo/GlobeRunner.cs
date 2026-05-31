@@ -150,7 +150,6 @@ public static class GlobeRunner
             .WithMouse()
             .Build();
 
-        Console.WriteLine("[blazor] Terminal built, starting RunAsync");
         await terminal.RunAsync();
     }
 

@@ -25,8 +25,6 @@
         // we must not stall startup. attachSignal catches its own errors.
         _ = JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorDemo").AsTask();
 
-        Console.WriteLine($"[blazor] Starting globe ({cols}x{rows}), threading={Environment.ProcessorCount > 1}");
-
         // Run globe on the main thread — [JSImport] calls are fast and synchronous here.
         // With WasmEnableThreads, Hex1b's internal async/await and Task.Run 
         // can dispatch to real background threads via the thread pool.
