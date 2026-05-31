@@ -610,7 +610,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 var data = await _presentation.ReadInputAsync(ct);
                 if (data.IsEmpty)
+                {
                     break;
+                }
                 _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(data));
             }
         }
@@ -674,10 +676,24 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // responses (APC: ESC _ G ... ST) may be split across reads; if
                 // we tokenize each chunk independently, the leading ESC becomes a
                 // spurious Escape key event and can close focused windows.
-                var charCount = _inputUtf8Decoder.GetCharCount(data.Span, flush: false);
-                var chars = new char[charCount];
-                _inputUtf8Decoder.GetChars(data.Span, chars, flush: false);
-                var decodedText = new string(chars);
+                string decodedText;
+                if (OperatingSystem.IsBrowser())
+                {
+                    // Mono WASM has a bug where the streaming Decoder API combined with
+                    // Span<char> + new string(char[]) silently produces an empty string
+                    // for valid ASCII input. Bypass the streaming Decoder entirely on the
+                    // browser — terminal input from xterm-style sources never splits
+                    // multi-byte UTF-8 codepoints across reads (escape sequences are
+                    // pure ASCII), so the stateful Decoder is not required.
+                    decodedText = Encoding.UTF8.GetString(data.Span);
+                }
+                else
+                {
+                    var charCount = _inputUtf8Decoder.GetCharCount(data.Span, flush: false);
+                    var chars = new char[charCount];
+                    var charsWritten = _inputUtf8Decoder.GetChars(data.Span, chars, flush: false);
+                    decodedText = new string(chars, 0, charsWritten);
+                }
 
                 var text = _incompleteInputSequenceBuffer + decodedText;
                 _incompleteInputSequenceBuffer = "";
@@ -711,7 +727,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             ReportPumpFault("presentation input pump", ex);
         }
     }
-
+    
     /// <summary>
     /// Tokenizes complete input text and dispatches it to the appropriate workload.
     /// </summary>
