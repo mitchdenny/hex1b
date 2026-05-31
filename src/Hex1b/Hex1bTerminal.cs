@@ -97,52 +97,33 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
 
-    // Symptom (observed empirically during the WASM hosting bring-up, not
-    // confirmed against a known dotnet/runtime issue): under Blazor WASM
-    // `dotnet run` — which always uses the Mono interpreter — feeding
-    // terminal input bytes through the streaming `Decoder` API combined
-    // with `Span<char>` + `new string(char[], 0, count)` produces an empty
-    // string for valid ASCII input, even though `GetCharCount` and
-    // `GetChars` both report the correct count. Switching to
-    // `Encoding.UTF8.GetString(span)` round-trips correctly, and the
-    // streaming path also works under AOT (`dotnet publish -c Release`
-    // with `RunAOTCompilation=true`) and on every desktop runtime we test
-    // on. We don't yet know whether the cause is a Mono interpreter bug,
-    // a marshalling quirk in our [JSImport] input path, or something
-    // about how we construct the buffer — only that this codepath is the
-    // load-bearing one.
+    // On browser-wasm (specifically with the Mono interpreter that
+    // `dotnet run` uses, and possibly with [JSImport]-returned byte
+    // buffers more generally) the streaming Decoder + Span<char> +
+    // `new string(char[], 0, count)` path silently produces an empty
+    // string for valid ASCII input — even though GetCharCount and
+    // GetChars both report the correct count. Switching that one call
+    // site to `Encoding.UTF8.GetString(span)` round-trips correctly,
+    // and the streaming path is fine on every desktop runtime we test
+    // on. We don't yet know whether the cause is a Mono interpreter
+    // bug, a marshalling quirk in our [JSImport] input path, or
+    // something about how we construct the buffer.
     //
-    // Rather than gating on OperatingSystem.IsBrowser() — which would
-    // also penalise AOT'd browser builds, where the streaming path is
-    // fine — we probe the actual Decoder once at startup. The probe is
-    // cheap (decode "test") and the result is cached for the process
-    // lifetime. If the probe shows the symptom we use the GetString
-    // fallback; otherwise the streaming Decoder stays in use.
+    // We previously tried to scope this to "interpreter only" via a
+    // startup probe that decoded a managed `"test"u8` literal through
+    // a fresh Decoder. The probe does NOT reproduce the failure — most
+    // likely because the symptom only manifests on byte buffers that
+    // came across the [JSImport] boundary, not on managed UTF8 spans —
+    // so it under-reports broken=true and the input path silently
+    // swallows real keystrokes. Until we have a probe that actually
+    // triggers the bug (which also requires understanding the root
+    // cause), gate on the platform: any browser build, interpreter
+    // or AOT, takes the safe one-shot decode path.
     //
     // Tracking issue (covers minimising the repro and filing upstream
     // once we can show it's a runtime bug rather than a usage error):
     // https://github.com/mitchdenny/hex1b/issues/353
-    private static readonly bool s_inputDecoderIsBroken = DetectBrokenInputDecoder();
-
-    private static bool DetectBrokenInputDecoder()
-    {
-        try
-        {
-            var decoder = Encoding.UTF8.GetDecoder();
-            ReadOnlySpan<byte> probe = "test"u8;
-            var charCount = decoder.GetCharCount(probe, flush: false);
-            var chars = new char[charCount];
-            var charsWritten = decoder.GetChars(probe, chars, flush: false);
-            var result = new string(chars, 0, charsWritten);
-            return result != "test";
-        }
-        catch
-        {
-            // If the probe itself throws, assume the path is broken and use
-            // the workaround rather than risk live input being silently lost.
-            return true;
-        }
-    }
+    private static readonly bool s_inputDecoderIsBroken = OperatingSystem.IsBrowser();
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
     private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
     
