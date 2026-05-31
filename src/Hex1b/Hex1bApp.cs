@@ -1090,8 +1090,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             {
                 _metrics.FrameRenderDuration.Record(renderTicks * 1000.0 / freq);
             }
-            var totalTicks = Stopwatch.GetTimestamp() - frameStart;
-            _metrics.FrameDuration.Record(totalTicks * 1000.0 / freq);
+            _metrics.FrameDuration.Record((Stopwatch.GetTimestamp() - frameStart) * 1000.0 / freq);
             _metrics.FrameCount.Add(1);
             
             // Render hardware cursor - for focused TerminalNode uses child's cursor,
@@ -1265,8 +1264,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
             fastPathTaken = SurfaceComparer.CompareInto(_previousSurface, _currentSurface, _frameDiff);
         }
         var diff = _frameDiff;
-        var diffTicks = Stopwatch.GetTimestamp() - diffStart;
-        _metrics.SurfaceDiffDuration.Record(diffTicks * 1000.0 / (double)Stopwatch.Frequency);
+        _metrics.SurfaceDiffDuration.Record(Stopwatch.GetElapsedTime(diffStart).TotalMilliseconds);
         if (fastPathTaken)
             _metrics.SurfaceDiffFastPathCount.Add(1);
         else
@@ -1350,8 +1348,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                     SurfaceComparer.ToTokensInto(diff, _currentSurface, _previousSurface, skipKgpEmission: hasKgp, _frameTokens);
                 }
                 var tokens = _frameTokens;
-                var tokensTicks = Stopwatch.GetTimestamp() - tokensStart;
-                _metrics.SurfaceTokensDuration.Record(tokensTicks * 1000.0 / (double)Stopwatch.Frequency);
+                _metrics.SurfaceTokensDuration.Record(Stopwatch.GetElapsedTime(tokensStart).TotalMilliseconds);
 
                 var serializeStart = Stopwatch.GetTimestamp();
                 // Use the pool-backed serializer so the per-frame ANSI byte buffer (often
@@ -1366,8 +1363,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 {
                     ansiOutput = Tokens.AnsiTokenUtf8Serializer.Serialize(tokens);
                 }
-                var serializeTicks = Stopwatch.GetTimestamp() - serializeStart;
-                _metrics.SurfaceSerializeDuration.Record(serializeTicks * 1000.0 / (double)Stopwatch.Frequency);
+                _metrics.SurfaceSerializeDuration.Record(Stopwatch.GetElapsedTime(serializeStart).TotalMilliseconds);
 
                 if (_adapter is Hex1bAppWorkloadAdapter workloadAdapter)
                 {
