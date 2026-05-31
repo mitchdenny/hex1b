@@ -104,6 +104,8 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     // OperatingSystem.IsBrowser() — which would also penalise AOT'd browser
     // builds — we probe the actual Decoder once at startup. The probe is
     // cheap (decode "test") and the result is cached for the process lifetime.
+    // Tracking issue: https://github.com/mitchdenny/hex1b/issues/353
+    // (covers reducing to a minimal repro and filing upstream on dotnet/runtime).
     private static readonly bool s_inputDecoderIsBroken = DetectBrokenInputDecoder();
 
     private static bool DetectBrokenInputDecoder()
