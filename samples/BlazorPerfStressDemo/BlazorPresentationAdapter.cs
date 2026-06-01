@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices.JavaScript;
 
-namespace BlazorDemo;
+namespace BlazorPerfStressDemo;
 
 /// <summary>
 /// IHex1bTerminalPresentationAdapter for Blazor WASM using [JSImport] for fast interop.

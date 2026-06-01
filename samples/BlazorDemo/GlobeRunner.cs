@@ -45,9 +45,11 @@ public static class GlobeRunner
             Poi("Undervault",         1.4,   103.8,  "3.8M",  "Echo Stone",       "Drilling Rigs",    "40°C / 28°C", "Deepkin 45%, Ashborn 35%, Terran 20%"),
         };
 
-        // Cached arrays for GC pressure reduction
-        bool[,]? cachedBrailleGrid = null;
-        double[,]? cachedDotAlt = null;
+        // Cached arrays for GC pressure reduction. Flat 1D arrays — interpreted
+        // Mono WASM accesses T[] ~10x faster than T[,] in the hot painting loop.
+        // Index convention: idx = x * dotH + y.
+        bool[]? cachedBrailleGrid = null;
+        double[]? cachedDotAlt = null;
         int cachedDotW = 0, cachedDotH = 0;
         var cachedProjectedPois = new List<(int cx, int cy, double distToCenter, string name, double z, int poiIdx)>();
         var cachedOccupiedRows = new Dictionary<int, List<(int start, int end)>>();
@@ -148,7 +150,6 @@ public static class GlobeRunner
             .WithMouse()
             .Build();
 
-        Console.WriteLine("[blazor] Terminal built, starting RunAsync");
         await terminal.RunAsync();
     }
 
@@ -158,7 +159,7 @@ public static class GlobeRunner
         Quaternion rotQ, double zoom,
         List<PointOfInterest> pois,
         List<(string name, int cx, int cy, int poiIndex)> poiScreenOut,
-        ref bool[,]? cachedBrailleGrid, ref double[,]? cachedDotAlt,
+        ref bool[]? cachedBrailleGrid, ref double[]? cachedDotAlt,
         ref int cachedDotW, ref int cachedDotH,
         List<(int cx, int cy, double distToCenter, string name, double z, int poiIdx)> cachedProjectedPois,
         Dictionary<int, List<(int start, int end)>> cachedOccupiedRows)
@@ -172,8 +173,8 @@ public static class GlobeRunner
 
         if (cachedBrailleGrid == null || cachedDotW != dotW || cachedDotH != dotH)
         {
-            cachedBrailleGrid = new bool[dotW, dotH];
-            cachedDotAlt = new double[dotW, dotH];
+            cachedBrailleGrid = new bool[dotW * dotH];
+            cachedDotAlt = new double[dotW * dotH];
             cachedDotW = dotW;
             cachedDotH = dotH;
         }
@@ -219,18 +220,24 @@ public static class GlobeRunner
                 int bx = cx * 2;
                 int by = cy * 4;
 
-                // Terrain pass
+                // Terrain pass. dotW = cellW*2 and dotH = cellH*4 by construction,
+                // so every (bx+{0,1}, by+{0..3}) probe is in bounds — no per-cell
+                // bounds checking required.
+                int col0 = bx * dotH;
+                int col1 = (bx + 1) * dotH;
+
                 int pattern = 0;
                 double bestAlt = 0;
 
-                if (bx >= 0 && bx < dotW && by >= 0 && by < dotH && brailleGrid[bx, by]) { pattern |= 0x01; bestAlt = dotAlt[bx, by]; }
-                if (bx >= 0 && bx < dotW && by+1 >= 0 && by+1 < dotH && brailleGrid[bx, by+1]) { pattern |= 0x02; bestAlt = dotAlt[bx, by+1]; }
-                if (bx >= 0 && bx < dotW && by+2 >= 0 && by+2 < dotH && brailleGrid[bx, by+2]) { pattern |= 0x04; bestAlt = dotAlt[bx, by+2]; }
-                if (bx+1 >= 0 && bx+1 < dotW && by >= 0 && by < dotH && brailleGrid[bx+1, by]) { pattern |= 0x08; bestAlt = dotAlt[bx+1, by]; }
-                if (bx+1 >= 0 && bx+1 < dotW && by+1 >= 0 && by+1 < dotH && brailleGrid[bx+1, by+1]) { pattern |= 0x10; bestAlt = dotAlt[bx+1, by+1]; }
-                if (bx+1 >= 0 && bx+1 < dotW && by+2 >= 0 && by+2 < dotH && brailleGrid[bx+1, by+2]) { pattern |= 0x20; bestAlt = dotAlt[bx+1, by+2]; }
-                if (bx >= 0 && bx < dotW && by+3 >= 0 && by+3 < dotH && brailleGrid[bx, by+3]) { pattern |= 0x40; bestAlt = dotAlt[bx, by+3]; }
-                if (bx+1 >= 0 && bx+1 < dotW && by+3 >= 0 && by+3 < dotH && brailleGrid[bx+1, by+3]) { pattern |= 0x80; bestAlt = dotAlt[bx+1, by+3]; }
+                int idx;
+                idx = col0 + by;     if (brailleGrid[idx])     { pattern |= 0x01; bestAlt = dotAlt[idx]; }
+                idx = col0 + by + 1; if (brailleGrid[idx])     { pattern |= 0x02; bestAlt = dotAlt[idx]; }
+                idx = col0 + by + 2; if (brailleGrid[idx])     { pattern |= 0x04; bestAlt = dotAlt[idx]; }
+                idx = col1 + by;     if (brailleGrid[idx])     { pattern |= 0x08; bestAlt = dotAlt[idx]; }
+                idx = col1 + by + 1; if (brailleGrid[idx])     { pattern |= 0x10; bestAlt = dotAlt[idx]; }
+                idx = col1 + by + 2; if (brailleGrid[idx])     { pattern |= 0x20; bestAlt = dotAlt[idx]; }
+                idx = col0 + by + 3; if (brailleGrid[idx])     { pattern |= 0x40; bestAlt = dotAlt[idx]; }
+                idx = col1 + by + 3; if (brailleGrid[idx])     { pattern |= 0x80; bestAlt = dotAlt[idx]; }
 
                 if (pattern != 0)
                 {
@@ -353,7 +360,7 @@ public static class GlobeRunner
         }
     }
 
-    static void DrawLineWithAlt(bool[,] grid, double[,] altGrid,
+    static void DrawLineWithAlt(bool[] grid, double[] altGrid,
         int w, int h, int x0, int y0, int x1, int y1, double alt)
     {
         int dx = Math.Abs(x1 - x0), sx = x0 < x1 ? 1 : -1;
@@ -362,10 +369,11 @@ public static class GlobeRunner
 
         while (true)
         {
-            if (x0 >= 0 && x0 < w && y0 >= 0 && y0 < h)
+            if ((uint)x0 < (uint)w && (uint)y0 < (uint)h)
             {
-                grid[x0, y0] = true;
-                altGrid[x0, y0] = alt;
+                int idx = x0 * h + y0;
+                grid[idx] = true;
+                altGrid[idx] = alt;
             }
             if (x0 == x1 && y0 == y1) break;
             int e2 = 2 * err;

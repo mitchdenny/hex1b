@@ -3,29 +3,12 @@
 
 const inputChunks = [];
 
-let _frameCount = 0;
-let _burstStart = 0;
-let _burstCount = 0;
-let _lastTime = 0;
-
 export function postTerminalOutput(data) {
-    const now = performance.now();
-    _frameCount++;
-    const gap = now - _lastTime;
-    _lastTime = now;
-    
-    if (gap > 30) {
-        // End of a gap — report the previous burst and the gap
-        if (_burstCount > 0) {
-            const burstDuration = (now - gap) - _burstStart;
-            console.log(`[perf] burst: ${_burstCount} writes in ${burstDuration.toFixed(0)}ms, then ${gap.toFixed(0)}ms idle (total frames: ${_frameCount})`);
-        }
-        _burstStart = now;
-        _burstCount = 1;
-    } else {
-        _burstCount++;
-    }
-    
+    // data is a Uint8Array view over WASM memory (JSType.MemoryView marshaling).
+    // We MUST copy to a fresh Uint8Array before postMessage: structured-cloning
+    // the view would clone the entire underlying WASM heap ArrayBuffer, not
+    // just the view's range. Copying explicitly also lets us transfer ownership
+    // of the small buffer instead of cloning it cross-thread.
     const copy = new Uint8Array(data.length);
     copy.set(data);
     self.postMessage({ type: 'output', data: copy.buffer }, [copy.buffer]);
@@ -61,8 +44,13 @@ function handleMessage(msg) {
     if (msg.type === 'input') {
         const bytes = Uint8Array.from(atob(msg.data), c => c.charCodeAt(0));
         inputChunks.push(bytes);
+        // Wake ReadInputAsync immediately instead of letting it poll on a timer.
+        // The export is undefined until worker.js finishes hooking it up post-create;
+        // the .NET-side poll fallback handles the brief startup window.
+        if (self.__hex1bSignalInput) self.__hex1bSignalInput();
     } else if (msg.type === 'resize') {
         pendingResize = msg.cols + ',' + msg.rows;
+        if (self.__hex1bSignalInput) self.__hex1bSignalInput();
     }
 }
 

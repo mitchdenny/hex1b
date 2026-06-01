@@ -8,17 +8,12 @@
     <OverrideHtmlAssetPlaceholders>true</OverrideHtmlAssetPlaceholders>
     <WasmInitialHeapSize>134217728</WasmInitialHeapSize>
     <EmccMaximumHeapSize>536870912</EmccMaximumHeapSize>
+    <RootNamespace>BlazorPerfStressDemo</RootNamespace>
   </PropertyGroup>
 
   <!--
     AOT-compile the Mono IL to WebAssembly when publishing in Release.
-    Without this the published site still ships the interpreter, which makes
-    the globe paint loop ~50x slower than necessary. AOT adds several minutes
-    to `dotnet publish`, so we only enable it for Release publishes — `dotnet
-    run` still uses the fast-iteration interpreter path.
-
-    Use `samples/BlazorDemo/run-aot.sh` to publish + serve the AOT build
-    locally for perf testing.
+    See ../BlazorDemo/BlazorDemo.csproj for the rationale.
   -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <RunAOTCompilation>true</RunAOTCompilation>
@@ -32,6 +27,18 @@
 
   <ItemGroup>
     <ProjectReference Include="../../src/Hex1b/Hex1b.csproj" />
+  </ItemGroup>
+
+  <!--
+    Link the page sources directly from PerfStressDemo so this project tracks
+    any future changes without duplicating code. Only the first two stress
+    pages are included; the whirlpool page depends on mouse-input details
+    that the BlazorPresentationAdapter doesn't currently model uniformly.
+  -->
+  <ItemGroup>
+    <Compile Include="..\PerfStressDemo\IStressPage.cs" Link="Pages\IStressPage.cs" />
+    <Compile Include="..\PerfStressDemo\RippleOverNoisePage.cs" Link="Pages\RippleOverNoisePage.cs" />
+    <Compile Include="..\PerfStressDemo\PondRipplePage.cs" Link="Pages\PondRipplePage.cs" />
   </ItemGroup>
 
 </Project>

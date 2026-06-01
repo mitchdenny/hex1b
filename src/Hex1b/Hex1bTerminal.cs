@@ -96,6 +96,34 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
     private bool _savedCursorProtected; // Saved protection state for DECSC/DECRC
     private readonly Decoder _utf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across workload output reads
     private readonly Decoder _inputUtf8Decoder = Encoding.UTF8.GetDecoder(); // Handles incomplete UTF-8 sequences across presentation input reads
+
+    // On browser-wasm (specifically with the Mono interpreter that
+    // `dotnet run` uses, and possibly with [JSImport]-returned byte
+    // buffers more generally) the streaming Decoder + Span<char> +
+    // `new string(char[], 0, count)` path silently produces an empty
+    // string for valid ASCII input — even though GetCharCount and
+    // GetChars both report the correct count. Switching that one call
+    // site to `Encoding.UTF8.GetString(span)` round-trips correctly,
+    // and the streaming path is fine on every desktop runtime we test
+    // on. We don't yet know whether the cause is a Mono interpreter
+    // bug, a marshalling quirk in our [JSImport] input path, or
+    // something about how we construct the buffer.
+    //
+    // We previously tried to scope this to "interpreter only" via a
+    // startup probe that decoded a managed `"test"u8` literal through
+    // a fresh Decoder. The probe does NOT reproduce the failure — most
+    // likely because the symptom only manifests on byte buffers that
+    // came across the [JSImport] boundary, not on managed UTF8 spans —
+    // so it under-reports broken=true and the input path silently
+    // swallows real keystrokes. Until we have a probe that actually
+    // triggers the bug (which also requires understanding the root
+    // cause), gate on the platform: any browser build, interpreter
+    // or AOT, takes the safe one-shot decode path.
+    //
+    // Tracking issue (covers minimising the repro and filing upstream
+    // once we can show it's a runtime bug rather than a usage error):
+    // https://github.com/mitchdenny/hex1b/issues/353
+    private static readonly bool s_inputDecoderIsBroken = OperatingSystem.IsBrowser();
     private string _incompleteSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across workload output reads
     private string _incompleteInputSequenceBuffer = ""; // Buffers incomplete ANSI escape sequences across presentation input reads
     
@@ -610,7 +638,9 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             {
                 var data = await _presentation.ReadInputAsync(ct);
                 if (data.IsEmpty)
+                {
                     break;
+                }
                 _presentationInputChannel.Writer.TryWrite(PresentationInputEvent.FromData(data));
             }
         }
@@ -674,10 +704,24 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
                 // responses (APC: ESC _ G ... ST) may be split across reads; if
                 // we tokenize each chunk independently, the leading ESC becomes a
                 // spurious Escape key event and can close focused windows.
-                var charCount = _inputUtf8Decoder.GetCharCount(data.Span, flush: false);
-                var chars = new char[charCount];
-                _inputUtf8Decoder.GetChars(data.Span, chars, flush: false);
-                var decodedText = new string(chars);
+                string decodedText;
+                if (s_inputDecoderIsBroken)
+                {
+                    // Mono interpreter on browser-wasm: the streaming Decoder
+                    // path silently produces an empty string for valid ASCII.
+                    // Fall back to the one-shot Encoding.UTF8.GetString — safe
+                    // here because xterm-style terminal input never splits a
+                    // multi-byte UTF-8 codepoint across reads (escape sequences
+                    // are pure ASCII). See DetectBrokenInputDecoder above.
+                    decodedText = Encoding.UTF8.GetString(data.Span);
+                }
+                else
+                {
+                    var charCount = _inputUtf8Decoder.GetCharCount(data.Span, flush: false);
+                    var chars = new char[charCount];
+                    var charsWritten = _inputUtf8Decoder.GetChars(data.Span, chars, flush: false);
+                    decodedText = new string(chars, 0, charsWritten);
+                }
 
                 var text = _incompleteInputSequenceBuffer + decodedText;
                 _incompleteInputSequenceBuffer = "";
@@ -711,7 +755,7 @@ public sealed partial class Hex1bTerminal : IDisposable, IAsyncDisposable
             ReportPumpFault("presentation input pump", ex);
         }
     }
-
+    
     /// <summary>
     /// Tokenizes complete input text and dispatches it to the appropriate workload.
     /// </summary>

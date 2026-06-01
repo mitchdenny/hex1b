@@ -19,7 +19,11 @@
             }
         }
 
-        Console.WriteLine($"[blazor] Starting globe ({cols}x{rows}), threading={Environment.ProcessorCount > 1}");
+        // Wire the C# [JSExport] SignalInputAvailable into interop.js so input
+        // events wake ReadInputAsync immediately. Fire-and-forget: if the
+        // Blazor runtime's getAssemblyExports surface behaves unexpectedly,
+        // we must not stall startup. attachSignal catches its own errors.
+        _ = JS.InvokeVoidAsync("termInterop.attachSignal", "BlazorDemo").AsTask();
 
         // Run globe on the main thread — [JSImport] calls are fast and synchronous here.
         // With WasmEnableThreads, Hex1b's internal async/await and Task.Run 
