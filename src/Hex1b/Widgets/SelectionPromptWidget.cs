@@ -158,7 +158,9 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
         [
             h.Text(marker + before),
             h.ThemePanel(
-                theme => theme.Set(GlobalTheme.ForegroundColor, Hex1bColor.Yellow),
+                theme => theme
+                    .Set(GlobalTheme.ForegroundColor, Hex1bColor.Yellow)
+                    .Set(GlobalTheme.BackgroundColor, Hex1bColor.Cyan),
                 h.Text(match)),
             h.Text(after),
         ]);
@@ -170,9 +172,12 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
         foreach (var item in items)
         {
             var rendered = selector(item);
-            if (rendered.StartsWith(text, StringComparison.OrdinalIgnoreCase))
+            if (rendered.Length > text.Length
+                && rendered.StartsWith(text, StringComparison.OrdinalIgnoreCase))
             {
-                return rendered;
+                // Return only the suffix the user hasn't typed yet — the
+                // textbox appends this verbatim when Right Arrow is pressed.
+                return rendered[text.Length..];
             }
         }
         return null;
