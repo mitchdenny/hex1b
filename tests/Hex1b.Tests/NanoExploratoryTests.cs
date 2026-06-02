@@ -4,7 +4,7 @@ using System.Diagnostics;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Custom xUnit Fact attribute that skips Unix PTY exploratory tests on Windows
+/// Custom TestMethod attribute that skips Unix PTY exploratory tests on Windows
 /// or when the required shell/tool is unavailable.
 /// </summary>
 public sealed class UnixPtyFactAttribute : TestMethodAttribute

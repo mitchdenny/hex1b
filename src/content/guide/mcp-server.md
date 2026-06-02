@@ -116,7 +116,7 @@ The MCP server maintains a pool of terminal sessions:
 Let AI agents help with development tasks:
 
 ```
-"Set up a new .NET project with xUnit tests"
+"Set up a new .NET project with MSTest tests"
 "Run the build and fix any errors you find"
 "Deploy this to the staging environment"
 ```

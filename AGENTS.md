@@ -181,7 +181,7 @@ public void Measure_WithConstraints_ReturnsExpectedSize()
 }
 ```
 
-Test projects use `MSTest.Sdk` with `OutputType=Exe` and Microsoft.Testing.Platform (MTP). Use `[TestMethod]` for facts, `[TestMethod] [DataRow(...)]` for theories, `[TestInitialize]`/`[TestCleanup]` for setup/teardown, and `[DoNotParallelize]` instead of xUnit collections. For collection-equality, single-element, and type-cast assertions, prefer the `TestSeq` helpers in `eng/TestSeq.cs` (auto-imported via `Hex1b.Testing`):
+Test projects use `MSTest.Sdk` with `OutputType=Exe` and Microsoft.Testing.Platform (MTP). Use `[TestMethod]` for facts, `[TestMethod] [DataRow(...)]` for theories, `[TestInitialize]`/`[TestCleanup]` for setup/teardown, and `[DoNotParallelize]` on a class to opt out of parallel execution. For collection-equality, single-element, and type-cast assertions, prefer the `TestSeq` helpers in `tests/Shared/TestSeq.cs` (auto-imported via `Hex1b.Testing`):
 
 ```csharp
 TestSeq.AreEqual(expected, actual);   // deep collection equality

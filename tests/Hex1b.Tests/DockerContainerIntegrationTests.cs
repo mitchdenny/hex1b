@@ -3,7 +3,7 @@ using Hex1b.Automation;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Custom xUnit Fact attribute that skips the test when Docker with Linux containers is not available.
+/// Custom TestMethod attribute that marks a test inconclusive when Docker with Linux containers is not available.
 /// </summary>
 public sealed class DockerAvailableFactAttribute : TestMethodAttribute
 {

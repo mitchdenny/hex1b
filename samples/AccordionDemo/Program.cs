@@ -105,34 +105,35 @@ var sampleFiles = new Dictionary<string, string>
         }
         """,
     ["tests/ProgramTests.cs"] = """
-        using Xunit;
+        using Microsoft.VisualStudio.TestTools.UnitTesting;
         using MyProject;
 
+        [TestClass]
         public class ProgramTests
         {
-            [Fact]
+            [TestMethod]
             public void Greet_ReturnsExpected()
             {
-                Assert.Equal("Hello, Alice!", Utils.Greet("Alice"));
+                Assert.AreEqual("Hello, Alice!", Utils.Greet("Alice"));
             }
 
-            [Fact]
+            [TestMethod]
             public void Add_ReturnsSum()
             {
-                Assert.Equal(5, Utils.Add(2, 3));
+                Assert.AreEqual(5, Utils.Add(2, 3));
             }
 
-            [Fact]
+            [TestMethod]
             public void FormatDate_ReturnsIso()
             {
                 var date = new DateTime(2025, 1, 15, 10, 30, 0);
-                Assert.Equal("2025-01-15 10:30:00", Utils.FormatDate(date));
+                Assert.AreEqual("2025-01-15 10:30:00", Utils.FormatDate(date));
             }
 
-            [Fact]
+            [TestMethod]
             public void IsValidEmail_ValidEmail_ReturnsTrue()
             {
-                Assert.True(Utils.IsValidEmail("test@example.com"));
+                Assert.IsTrue(Utils.IsValidEmail("test@example.com"));
             }
         }
         """,
@@ -144,7 +145,7 @@ var sampleFiles = new Dictionary<string, string>
         1. **Program** — entry point
         2. **Models** — data records (User, Product)
         3. **Utils** — shared helper methods
-        4. **Tests** — xUnit test suite
+        4. **Tests** — MSTest test suite
 
         ## Data Flow
 
@@ -154,7 +155,7 @@ var sampleFiles = new Dictionary<string, string>
 
         - Records for immutable data models
         - Static utility class for shared logic
-        - xUnit for testing
+        - MSTest for testing
         """,
     [".gitignore"] = "bin/\nobj/\n*.user\n.vs/\n*.swp\n",
 };

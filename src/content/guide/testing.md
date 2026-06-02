@@ -7,7 +7,7 @@ title: Testing
 Hex1b provides first-class testing support through its virtual terminal and input sequence builder. You can write automated tests that simulate user interactions and verify your application's behavior.
 
 ::: info Framework Agnostic
-Hex1b's testing APIs work with any .NET testing framework. This guide uses **xUnit** as an example, but the same patterns apply to NUnit, MSTest, or any other framework.
+Hex1b's testing APIs work with any .NET testing framework. This guide uses **MSTest** as an example, but the same patterns apply to xUnit, NUnit, or any other framework.
 :::
 
 ## Overview
@@ -31,7 +31,7 @@ var sequence = new Hex1bInputSequenceBuilder()
 
 await sequence.ApplyAsync(terminal);
 
-Assert.Contains("Hello", terminal.GetScreenText());
+StringAssert.Contains(terminal.GetScreenText(, "Hello"));
 ```
 
 ## A Sample Application
@@ -69,23 +69,30 @@ public static class CounterApp
 Add the Hex1b package to your test project:
 
 ```xml
-<ItemGroup>
-  <PackageReference Include="Hex1b" Version="*" />
-  <PackageReference Include="xunit" Version="2.9.0" />
-  <PackageReference Include="xunit.runner.visualstudio" Version="2.8.2" />
-</ItemGroup>
+<Project Sdk="MSTest.Sdk/3.6.4">
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Hex1b" Version="*" />
+  </ItemGroup>
+</Project>
 ```
+
+The `MSTest.Sdk` meta-package pulls in MSTest itself plus the Microsoft.Testing.Platform runner, so no separate test-runner package is needed.
 
 ## Writing Your First Test
 
 ```csharp
 using Hex1b;
 using Hex1b.Widgets;
-using Xunit;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+[TestClass]
 public class CounterAppTests
 {
-    [Fact]
+    [TestMethod]
     public async Task InitialState_ShowsZero()
     {
         // Arrange
@@ -105,7 +112,7 @@ public class CounterAppTests
         await runTask;
 
         // Assert
-        Assert.Contains("Count: 0", terminal.GetScreenText());
+        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
     }
 }
 ```
@@ -124,7 +131,7 @@ public class CounterAppTests
 Use `Hex1bInputSequenceBuilder` to simulate user input:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task ClickIncrement_IncreasesCount()
 {
     using var terminal = new Hex1bTerminal(80, 24);
@@ -155,7 +162,7 @@ public async Task ClickIncrement_IncreasesCount()
     await runTask;
 
     // Assert
-    Assert.Contains("Count: 3", terminal.GetScreenText());
+    StringAssert.Contains(terminal.GetScreenText(, "Count: 3"));
 }
 ```
 
@@ -244,7 +251,7 @@ var sequence = new Hex1bInputSequenceBuilder()
 ## Testing Keyboard Navigation
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task TabNavigation_MovesBetweenButtons()
 {
     using var terminal = new Hex1bTerminal(80, 24);
@@ -271,14 +278,14 @@ public async Task TabNavigation_MovesBetweenButtons()
     cts.Cancel();
     await runTask;
 
-    Assert.Contains("Count: -1", terminal.GetScreenText());
+    StringAssert.Contains(terminal.GetScreenText(, "Count: -1"));
 }
 ```
 
 ## Testing Text Input
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task TextBox_CapturesInput()
 {
     using var terminal = new Hex1bTerminal(80, 24);
@@ -312,14 +319,14 @@ public async Task TextBox_CapturesInput()
     cts.Cancel();
     await runTask;
 
-    Assert.Equal("Hello, Hex1b!", capturedText);
+    Assert.AreEqual("Hello, Hex1b!", capturedText);
 }
 ```
 
 ## Testing Keyboard Shortcuts
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task CtrlS_TriggersSave()
 {
     using var terminal = new Hex1bTerminal(80, 24);
@@ -356,7 +363,7 @@ public async Task CtrlS_TriggersSave()
     cts.Cancel();
     await runTask;
 
-    Assert.True(saveTriggered);
+    Assert.IsTrue(saveTriggered);
 }
 ```
 
@@ -436,11 +443,11 @@ await runTask;  // Ensure clean shutdown
 
 ```csharp
 // ✅ Focused test
-[Fact]
+[TestMethod]
 public async Task Increment_WhenClicked_IncreasesCountByOne()
 
 // ❌ Too broad
-[Fact]
+[TestMethod]
 public async Task Counter_WorksCorrectly()
 ```
 
@@ -473,7 +480,7 @@ using Hex1b.Automation;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
-[Fact]
+[TestMethod]
 public async Task MenuItem_NavigatesToNextItem()
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -679,8 +686,9 @@ Here's a full test class for the counter app:
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Widgets;
-using Xunit;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+[TestClass]
 public class CounterAppTests
 {
     private static Hex1bApp CreateApp(Hex1bTerminal terminal)
@@ -691,7 +699,7 @@ public class CounterAppTests
         );
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InitialRender_DisplaysZero()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -705,10 +713,10 @@ public class CounterAppTests
             .ApplyAsync(terminal);
         await runTask;
 
-        Assert.Contains("Count: 0", terminal.GetScreenText());
+        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Increment_IncreasesCount()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -728,10 +736,10 @@ public class CounterAppTests
         cts.Cancel();
         await runTask;
 
-        Assert.Contains("Count: 1", terminal.GetScreenText());
+        StringAssert.Contains(terminal.GetScreenText(, "Count: 1"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decrement_DecreasesCount()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -752,10 +760,10 @@ public class CounterAppTests
         cts.Cancel();
         await runTask;
 
-        Assert.Contains("Count: -1", terminal.GetScreenText());
+        StringAssert.Contains(terminal.GetScreenText(, "Count: -1"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reset_SetsCountToZero()
     {
         using var terminal = new Hex1bTerminal(80, 24);
@@ -778,7 +786,7 @@ public class CounterAppTests
         cts.Cancel();
         await runTask;
 
-        Assert.Contains("Count: 0", terminal.GetScreenText());
+        StringAssert.Contains(terminal.GetScreenText(, "Count: 0"));
     }
 }
 ```

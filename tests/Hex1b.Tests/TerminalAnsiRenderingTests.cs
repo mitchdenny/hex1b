@@ -299,7 +299,7 @@ public class TerminalAnsiRenderingTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        // Assert - verify the files were created (xUnit context attachments)
+        // Assert - verify the files were created (MSTest result-file attachments)
         // The actual file creation is verified by the Capture() call not throwing
         Assert.IsTrue(true);
     }

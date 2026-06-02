@@ -18,31 +18,31 @@
     diagnostic for test projects so they can keep using these APIs without
     forcing every call site to <SuppressMessage> them.
 
-    CS8602/CS8604 suppression mirrors the previous xUnit1031/xUnit1051 suppression
-    posture: nuisance warnings in test code (TestContext.Current dereferences,
-    nullable string args to Assert.Contains) that xUnit's annotated overloads
-    didn't generate but MSTest 4's stricter annotations do.
+    CS8602/CS8604 suppression covers nuisance nullable warnings in test code
+    (TestContext.Current dereferences, nullable string args to Assert.Contains)
+    that MSTest 4's stricter annotations surface.
   -->
   <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
     <!--
       MSTESTEXP: opt-in to experimental TestContext.Current / Assert.ThrowsExactly APIs.
       CS8602/CS8604: nullable nuisance warnings around TestContext.Current dereferences.
-      MSTEST0014: DataRow arg type mismatch (xUnit InlineData was looser; int<->byte etc.).
-      MSTEST0030: "missing [TestClass]" — fires on attribute-only classes (custom Fact-derived).
+      MSTEST0014: DataRow arg type mismatch (int<->byte etc. tolerated by some legacy tests).
+      MSTEST0030: "missing [TestClass]" — fires on attribute-only classes (custom skip-fact subclasses).
       MSTEST0032: "condition known to be always true" — fires on Assert.IsNotNull after capture.
       MSTEST0057: requires CallerFilePath/LineNumber on custom TestMethodAttribute subclasses;
-                  not actionable while preserving xUnit-style constructor signatures.
+                  not actionable while preserving the existing constructor signatures.
     -->
     <NoWarn>$(NoWarn);MSTESTEXP;CS8602;CS8604;MSTEST0014;MSTEST0030;MSTEST0032;MSTEST0057</NoWarn>
   </PropertyGroup>
 
   <!--
-    Link the shared TestSeq helper into every test project. TestSeq bridges
-    xUnit-style Assert.Equal(collection, collection) semantics to MSTest's
-    CollectionAssert + ToList() materialisation. See eng/TestSeq.cs.
+    Link the shared TestSeq helper into every test project. TestSeq materialises
+    both sides of a sequence-equality comparison via ToList() and delegates to
+    CollectionAssert, since MSTest's Assert.AreEqual on IEnumerable<T> collapses
+    to reference equality. See tests/Shared/TestSeq.cs.
   -->
   <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
-    <Compile Include="$(MSBuildThisFileDirectory)eng\TestSeq.cs" Link="eng\TestSeq.cs" />
+    <Compile Include="$(MSBuildThisFileDirectory)tests\Shared\TestSeq.cs" Link="Shared\TestSeq.cs" />
     <Using Include="Hex1b.Testing" />
   </ItemGroup>
 

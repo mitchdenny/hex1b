@@ -49,7 +49,7 @@ hex1b/
 │   └── IHex1bTerminal.cs   # Terminal interface for testing
 ├── samples/                # Example applications
 │   └── Cancellation/       # Master-detail contact editor sample
-├── tests/Hex1b.Tests/      # Unit tests (xUnit)
+├── tests/Hex1b.Tests/      # Unit tests (MSTest)
 └── apphost.cs              # Aspire app host
 ```
 
@@ -102,14 +102,14 @@ dotnet test --filter "FullyQualifiedName~ButtonNodeTests"
 
 ### Writing Tests
 
-- Tests use xUnit framework
+- Tests use the MSTest framework (`MSTest.Sdk` 4.x with Microsoft.Testing.Platform)
 - Test files are in `tests/Hex1b.Tests/`
 - Use `IHex1bTerminal` interface for mocking terminal interactions
 - Follow the naming convention: `MethodName_Scenario_ExpectedBehavior`
 
 Example:
 ```csharp
-[Fact]
+[TestMethod]
 public void HandleInput_EnterKey_TriggersClickAction()
 {
     var clicked = false;
@@ -121,8 +121,8 @@ public void HandleInput_EnterKey_TriggersClickAction()
     
     var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
     
-    Assert.Equal(InputResult.Handled, result);
-    Assert.True(clicked);
+    Assert.AreEqual(InputResult.Handled, result);
+    Assert.IsTrue(clicked);
 }
 ```
 
@@ -231,7 +231,8 @@ dotnet run --project apphost.cs
 
 - [.NET Console APIs](https://learn.microsoft.com/dotnet/api/system.console)
 - [ANSI Escape Codes](https://en.wikipedia.org/wiki/ANSI_escape_code)
-- [xUnit Documentation](https://xunit.net/docs/getting-started/netcore/cmdline)
+- [MSTest Documentation](https://learn.microsoft.com/dotnet/core/testing/unit-testing-mstest-intro)
+- [Microsoft.Testing.Platform](https://learn.microsoft.com/dotnet/core/testing/microsoft-testing-platform-intro)
 - [.NET Aspire](https://learn.microsoft.com/dotnet/aspire/)
 
 ## ❓ Questions?

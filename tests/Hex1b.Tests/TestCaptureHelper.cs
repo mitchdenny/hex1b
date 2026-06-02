@@ -130,7 +130,7 @@ public static class TestCaptureHelper
 
     /// <summary>
     /// Attaches an SVG string to the test context as a proper test attachment.
-    /// In xUnit v3, attachments are recorded in test results XML/JSON.
+    /// MSTest stores attachments as test result files alongside the test run output.
     /// Also writes to disk for easy viewing.
     /// </summary>
     /// <param name="name">The filename for the SVG (should include .svg extension). Must be unique within a test.</param>
@@ -148,7 +148,7 @@ public static class TestCaptureHelper
     /// <param name="content">The file content.</param>
     public static void AttachFile(string name, string content)
     {
-        // Attach to xUnit test context - will throw if name is duplicate
+        // Attach to MSTest test context - will throw if name is duplicate
         { var __tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name); System.IO.File.WriteAllText(__tmp, content); TestContext.Current?.AddResultFile(__tmp); }
 
         // Build path: TestResults/{type}/{TestClass}_{TestName}_{attachment}

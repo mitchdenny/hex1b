@@ -16,8 +16,8 @@ var sampleFiles = new Dictionary<string, string>
     ["src/Program.cs"] = "using System;\n\nnamespace MyProject;\n\nclass Program\n{\n    static void Main(string[] args)\n    {\n        Console.WriteLine(\"Hello, World!\");\n    }\n}",
     ["src/Config.json"] = "{\n  \"name\": \"my-project\",\n  \"version\": \"1.0.0\",\n  \"settings\": {\n    \"theme\": \"dark\",\n    \"fontSize\": 14,\n    \"tabSize\": 4\n  }\n}",
     ["src/Utils.cs"] = "namespace MyProject;\n\npublic static class Utils\n{\n    public static string Greet(string name)\n        => $\"Hello, {name}!\";\n\n    public static int Add(int a, int b) => a + b;\n}",
-    ["tests/ProgramTests.cs"] = "using Xunit;\nusing MyProject;\n\npublic class ProgramTests\n{\n    [Fact]\n    public void Greet_ReturnsExpected()\n    {\n        Assert.Equal(\"Hello, Alice!\", Utils.Greet(\"Alice\"));\n    }\n\n    [Fact]\n    public void Add_ReturnsSum()\n    {\n        Assert.Equal(5, Utils.Add(2, 3));\n    }\n}",
-    ["docs/ARCHITECTURE.md"] = "# Architecture\n\nThis project follows a simple layered architecture:\n\n1. **Program** — entry point\n2. **Utils** — shared helpers\n3. **Tests** — xUnit test suite\n\n## Data Flow\n\nInput → Program → Utils → Output",
+    ["tests/ProgramTests.cs"] = "using Microsoft.VisualStudio.TestTools.UnitTesting;\nusing MyProject;\n\n[TestClass]\npublic class ProgramTests\n{\n    [TestMethod]\n    public void Greet_ReturnsExpected()\n    {\n        Assert.AreEqual(\"Hello, Alice!\", Utils.Greet(\"Alice\"));\n    }\n\n    [TestMethod]\n    public void Add_ReturnsSum()\n    {\n        Assert.AreEqual(5, Utils.Add(2, 3));\n    }\n}",
+    ["docs/ARCHITECTURE.md"] = "# Architecture\n\nThis project follows a simple layered architecture:\n\n1. **Program** — entry point\n2. **Utils** — shared helpers\n3. **Tests** — MSTest test suite\n\n## Data Flow\n\nInput → Program → Utils → Output",
     [".gitignore"] = "bin/\nobj/\n*.user\n.vs/\n*.swp",
 };
 
