@@ -321,6 +321,22 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
     }
     
     /// <summary>
+    /// Handles RIS (Reset to Initial State, ESC c) — clears terminal state that
+    /// influences input forwarding. Mirrors the contract of the underlying terminal:
+    /// after RIS no DECSET modes from the previous workload are still in effect.
+    /// Without this, a placeholder workload that enabled mouse tracking (or alt-screen)
+    /// would leave those flags latched even after a swap that prepends RIS.
+    /// </summary>
+    private void HandleRisToken()
+    {
+        _mouseTrackingEnabled = false;
+        _sgrMouseModeEnabled = false;
+        _inAlternateScreen = false;
+        _cursorVisible = true;
+        _cursorShape = CursorShape.Default;
+    }
+    
+    /// <summary>
     /// Handles private mode tokens to track mouse and cursor state changes.
     /// </summary>
     private void HandlePrivateModeToken(PrivateModeToken pm)
@@ -601,6 +617,8 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                 {
                     if (applied.Token is PrivateModeToken pm)
                         HandlePrivateModeToken(pm);
+                    else if (applied.Token is RisToken)
+                        HandleRisToken();
                     else if (applied.Token is CursorShapeToken cst)
                         HandleCursorShapeToken(cst);
                     else if (applied.Token is OscToken osc)
@@ -626,6 +644,10 @@ public sealed class TerminalWidgetHandle : ICellImpactAwarePresentationAdapter, 
                 if (applied.Token is PrivateModeToken pm)
                 {
                     HandlePrivateModeToken(pm);
+                }
+                else if (applied.Token is RisToken)
+                {
+                    HandleRisToken();
                 }
                 else if (applied.Token is CursorShapeToken cst)
                 {

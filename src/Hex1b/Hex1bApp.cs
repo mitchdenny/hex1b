@@ -280,13 +280,23 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             // Default: create console terminal using new architecture
             var presentation = new ConsolePresentationAdapter(enableMouse: _mouseEnabled);
-            var workload = new Hex1bAppWorkloadAdapter(presentation);
+            var workload = new Hex1bAppWorkloadAdapter(presentation) { EnableMouse = _mouseEnabled };
             _ownedTerminal = new Hex1bTerminal(new Hex1bTerminalOptions
             {
                 PresentationAdapter = presentation,
                 WorkloadAdapter = workload
             });
             _adapter = workload;
+        }
+
+        // Propagate the app's mouse-enabled option into a pre-built Hex1bAppWorkloadAdapter
+        // so it doesn't emit DECSET 1003h/1006h in EnterTuiMode unless this app actually
+        // wants mouse input. Important for embedded scenarios (e.g. placeholder inside a
+        // TerminalWidget) where those bytes would otherwise flip the host's mouse-tracking
+        // flag and persist after the placeholder is swapped out.
+        if (_adapter is Hex1bAppWorkloadAdapter appAdapter)
+        {
+            appAdapter.EnableMouse = _mouseEnabled;
         }
         
         var initialTheme = options.ThemeProvider?.Invoke() ?? options.Theme;

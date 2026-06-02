@@ -79,6 +79,22 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
     internal bool DiagnosticTimingEnabled { get; set; }
 
     /// <summary>
+    /// When true, <see cref="EnterTuiMode"/> emits the DECSET sequences to enable mouse
+    /// tracking (1003) and SGR coordinates (1006), and <see cref="ExitTuiMode"/> emits
+    /// the matching DECRST sequences. When false (default) the mouse-enable bytes are
+    /// suppressed even if <see cref="TerminalCapabilities.SupportsMouse"/> is true.
+    /// <para>
+    /// This is important when the adapter is composed inside a host terminal
+    /// (for example, as the placeholder inside a <c>TerminalWidget</c>) — unconditional
+    /// mouse-enable would flip the host's mouse-tracking flag, which would then forward
+    /// host mouse events into the embedded workload even after a later swap that has
+    /// no opportunity to emit a DECRST.
+    /// </para>
+    /// Set by <see cref="Hex1bApp"/> from its <see cref="Hex1bAppOptions.EnableMouse"/>.
+    /// </summary>
+    public bool EnableMouse { get; set; }
+
+    /// <summary>
     /// Creates a new app workload adapter.
     /// </summary>
     /// <param name="capabilities">Terminal capabilities. If null, defaults with full support.</param>
@@ -410,7 +426,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         var sb = new StringBuilder();
         sb.Append("\x1b[?1049h");  // Enter alternate screen
         sb.Append("\x1b[?25l");    // Hide cursor
-        if (Capabilities.SupportsMouse)
+        if (EnableMouse && Capabilities.SupportsMouse)
         {
             sb.Append("\x1b[?1003h");  // Enable mouse tracking
             sb.Append("\x1b[?1006h");  // SGR mouse mode
@@ -435,7 +451,7 @@ public sealed class Hex1bAppWorkloadAdapter : IHex1bAppTerminalWorkloadAdapter, 
         {
             sb.Append("\x1b[?2004l");  // Disable bracketed paste mode
         }
-        if (Capabilities.SupportsMouse)
+        if (EnableMouse && Capabilities.SupportsMouse)
         {
             sb.Append("\x1b[?1006l");  // Disable SGR mouse mode
             sb.Append("\x1b[?1003l");  // Disable mouse tracking
