@@ -170,7 +170,7 @@ static async Task<int> RunClientAsync(string sockPath)
 
     // Outer TUI: a thin frame around the embedded terminal.
     await using var outer = Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp(_ => { }, app =>
+        .WithHex1bApp(o => o.EnableMouse = true, app =>
         {
             outerApp = app;
             return ctx =>
@@ -179,6 +179,7 @@ static async Task<int> RunClientAsync(string sockPath)
                 .Title($"PlaceholderDemo · {sockPath}")
                 .Fill();
         })
+        .WithMouse()
         .Build();
 
     try
