@@ -30,6 +30,15 @@ public record TypedListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     public int InitialSelectedIndex { get; init; } = 0;
 
     /// <summary>
+    /// When set, drives the selected index on every reconciliation rather than only
+    /// at creation time. Use this to build "controlled" lists whose selection lives
+    /// in an owning composite's state (e.g. a search-filtered selection prompt where
+    /// the textbox forwards Up/Down to the list). Out-of-range values are clamped to
+    /// the current item range.
+    /// </summary>
+    public int? ControlledSelectedIndex { get; init; }
+
+    /// <summary>
     /// The fixed row height in terminal rows for each item. Defaults to 1.
     /// Templates with content shorter than this are padded; taller content is clipped.
     /// </summary>
@@ -96,6 +105,13 @@ public record TypedListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
         else if (Items.Count == 0)
         {
             node.SelectedIndex = 0;
+        }
+
+        // Controlled selection wins after the clamp pass so the owning composite
+        // can override the node's persisted choice on every frame.
+        if (ControlledSelectedIndex is int controlled && Items.Count > 0)
+        {
+            node.SelectedIndex = Math.Clamp(controlled, 0, Items.Count - 1);
         }
 
         if (SelectionChangedHandler is { } selChanged)

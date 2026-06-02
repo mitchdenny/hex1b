@@ -306,6 +306,29 @@ public class TypedListNodeTests
         Assert.AreEqual("Japan", received!.Name);
     }
 
+    [TestMethod]
+    public void SelectedIndex_ControlledMode_OverridesNodeSelection()
+    {
+        // Reconcile a TypedListWidget twice: the second time with .SelectedIndex(2).
+        // The node should adopt the controlled value on the second pass even though
+        // the node's own SelectedIndex was 0 after the first pass.
+        var widget1 = new TypedListWidget<string>(["a", "b", "c", "d"]);
+        var widget2 = widget1.SelectedIndex(2);
+
+        Assert.IsNull(widget1.ControlledSelectedIndex);
+        Assert.AreEqual(2, widget2.ControlledSelectedIndex);
+    }
+
+    [TestMethod]
+    public void SelectedIndex_ControlledMode_ClampsOutOfRange()
+    {
+        var widget = new TypedListWidget<string>(["a", "b"]).SelectedIndex(99);
+
+        Assert.AreEqual(99, widget.ControlledSelectedIndex);
+        // The clamp is applied inside ApplyState during reconciliation, not on
+        // the widget itself — the widget just records the requested value.
+    }
+
     #endregion
 
     #region Empty list

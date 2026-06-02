@@ -56,6 +56,16 @@ public static class TypedListExtensions
         => widget with { InitialSelectedIndex = index };
 
     /// <summary>
+    /// Drives the list's selected index on every reconciliation. Use this when
+    /// the selection lives in an owning composite's state (e.g. a search-filtered
+    /// selection prompt where a focused textbox forwards Up/Down to the list).
+    /// </summary>
+    public static TypedListWidget<T> SelectedIndex<T>(
+        this TypedListWidget<T> widget,
+        int index)
+        => widget with { ControlledSelectedIndex = index };
+
+    /// <summary>
     /// Sets a synchronous handler invoked when the selection changes.
     /// </summary>
     public static TypedListWidget<T> OnSelectionChanged<T>(
