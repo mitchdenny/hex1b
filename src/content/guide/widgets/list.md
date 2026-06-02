@@ -4,6 +4,7 @@
   - selectionCode → src/Hex1b.Website/Examples/ListSelectionExample.cs
   - activateCode  → src/Hex1b.Website/Examples/ListActivateExample.cs
   - longListCode  → src/Hex1b.Website/Examples/ListLongExample.cs
+  - templateCode  → src/Hex1b.Website/Examples/ListItemTemplateExample.cs
   When updating code here, update the corresponding Example file and vice versa.
 -->
 <script setup>
@@ -112,6 +113,37 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
     .Build();
 
 await terminal.RunAsync();`
+
+const templateCode = `using Hex1b;
+
+var countries = new[]
+{
+    new Country("Australia", "Canberra", "🇦🇺"),
+    new Country("Brazil", "Brasilia", "🇧🇷"),
+    new Country("Japan", "Tokyo", "🇯🇵"),
+    new Country("Norway", "Oslo", "🇳🇴"),
+    new Country("Portugal", "Lisbon", "🇵🇹"),
+};
+
+await using var terminal = Hex1bTerminal.CreateBuilder()
+    .WithHex1bApp((app, options) => ctx => ctx.Border(b => [
+        b.TypedList(countries)
+            .ItemHeight(2)
+            .ItemKey(c => c.Name)
+            .ItemTemplate(context =>
+            {
+                var prefix = context.IsSelected ? "▶ " : "  ";
+                return context.VStack(v => [
+                    v.Text($"{prefix}{context.Item.Flag}  {context.Item.Name}"),
+                    v.Text($"     {context.Item.Capital}")
+                ]);
+            })
+    ], title: "Pick a Country"))
+    .Build();
+
+await terminal.RunAsync();
+
+record Country(string Name, string Capital, string Flag);`
 </script>
 
 # ListWidget
@@ -286,6 +318,56 @@ Lists preserve their selection state across reconciliation. The selected index i
 When the items list changes, the selection is automatically clamped to valid bounds:
 - If the selected index is beyond the new list length, it moves to the last item
 - If the list becomes empty, the selection resets to index 0
+
+## Typed Lists and Item Templates
+
+For Spectre-style selection prompts and other cases where each row needs a
+custom multi-line layout, use `TypedList<T>` with `ItemTemplate`. The list
+items can be any type (records, classes, primitives), and each row is rendered
+as a widget tree returned by your template.
+
+<CodeBlock lang="csharp" :code="templateCode" command="dotnet run" example="list-item-template" exampleTitle="List Widget - Item Template" />
+
+`TypedList<T>(items)` returns a `TypedListWidget<T>` that supports the same
+keyboard navigation, mouse handling, and selection model as `List`, plus:
+
+| Method | Purpose |
+|--------|---------|
+| `.ItemTemplate(context => …)` | Custom per-row widget tree. The list draws no selector or background — the template owns all chrome. |
+| `.ItemHeight(rows)` | Fixed row height in terminal rows. Required when the template is multi-line. Defaults to 1. |
+| `.ItemKey(item => …)` | Stable key per item so template subtrees survive reorder/filter. Recommended whenever items can move. |
+| `.InitialSelectedIndex(n)` | Index selected when the list is first created. |
+| `.OnSelectionChanged(args => …)` | Fires when the user navigates to a different row. `args.SelectedItem` is typed as `T`. |
+| `.OnItemActivated(args => …)` | Fires on Enter/Space/Click. `args.ActivatedItem` is typed as `T`. |
+
+Inside the template callback, the `context` parameter exposes:
+
+| Member | Description |
+|--------|-------------|
+| `Item` | The typed item value (`T`). |
+| `Index` | The item's zero-based position. |
+| `IsSelected` | `true` for the currently selected row. |
+| `IsFocused` | `true` when the list itself has focus. |
+| `IsHovered` | `true` for the row currently under the mouse cursor. |
+
+Because `ListItemContext<T>` derives from `WidgetContext<TypedListWidget<T>>`,
+you can call any widget extension (`context.Text(...)`, `context.VStack(...)`,
+`context.Border(...)`, etc.) from inside the template.
+
+::: tip Default rendering
+If you don't set `ItemTemplate`, `TypedList<T>` renders each row as a single
+line of `item?.ToString()` — visually identical to the basic `List` widget.
+This means you can switch any `List(strings)` callsite to
+`TypedList(myObjects)` without writing a template, and override
+`object.ToString()` (or use `record` types) to control the row text.
+:::
+
+::: warning Focusable widgets inside templates
+In the current release, interactive widgets placed inside an item template
+(buttons, text boxes, nested lists) are rendered but do not receive focus —
+the list itself is the only focusable surface. Use `OnItemActivated` to drive
+per-row actions.
+:::
 
 ## Related Widgets
 

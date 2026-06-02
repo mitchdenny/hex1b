@@ -66,7 +66,6 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
         var node = existingNode as ListNode ?? new ListNode();
         var isNewNode = existingNode == null;
         node.Items = Items;
-        node.SourceWidget = this;
         
         // Apply initial selection for new nodes
         if (isNewNode && Items.Count > 0)

@@ -506,6 +506,17 @@ public abstract class Hex1bNode
     public virtual bool IsHovered { get => false; set { } }
 
     /// <summary>
+    /// Called whenever the mouse moves while this node is the hovered (hit-tested) node,
+    /// even if <see cref="IsHovered"/> doesn't change. Nodes that style themselves
+    /// based on the mouse's position within their bounds (e.g. a list highlighting
+    /// the row under the cursor) override this and mark themselves dirty when the
+    /// derived state changes. Coordinates are absolute (screen-space), not local.
+    /// </summary>
+    /// <param name="mouseX">Absolute X coordinate of the cursor.</param>
+    /// <param name="mouseY">Absolute Y coordinate of the cursor.</param>
+    public virtual void OnHoverMove(int mouseX, int mouseY) { }
+
+    /// <summary>
     /// Syncs internal focus tracking to match the current IsFocused state of child nodes.
     /// Called after externally setting focus on a child node.
     /// Container nodes should override this to update their internal focus index.

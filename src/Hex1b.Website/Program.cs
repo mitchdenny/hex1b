@@ -89,6 +89,7 @@ builder.Services.AddSingleton<IGalleryExample, ListBasicExample>();
 builder.Services.AddSingleton<IGalleryExample, ListSelectionExample>();
 builder.Services.AddSingleton<IGalleryExample, ListActivateExample>();
 builder.Services.AddSingleton<IGalleryExample, ListLongExample>();
+builder.Services.AddSingleton<IGalleryExample, ListItemTemplateExample>();
 
 // Register Picker widget documentation examples
 builder.Services.AddSingleton<IGalleryExample, PickerBasicExample>();

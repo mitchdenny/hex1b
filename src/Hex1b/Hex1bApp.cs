@@ -800,6 +800,7 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
                 
                 // Update hover state on any mouse event
                 UpdateHoverState(mouseEvent.X, mouseEvent.Y);
+                NotifyHoverMove(mouseEvent.X, mouseEvent.Y);
                 
                 // If a drag is active, route all events to the drag handler.
                 // EXCEPTION: scroll-wheel events fall through to ancestor
@@ -2310,6 +2311,17 @@ public class Hex1bApp : IDisposable, IAsyncDisposable, IDiagnosticTreeProvider
         {
             _hoveredNode.IsHovered = true;
         }
+    }
+
+    /// <summary>
+    /// Notifies the hovered node of the current mouse position even when the
+    /// hovered node itself has not changed. Some nodes (e.g. lists with templated
+    /// rows) style sub-regions based on the cursor's position within their bounds
+    /// and need a chance to invalidate themselves on intra-node movement.
+    /// </summary>
+    private void NotifyHoverMove(int mouseX, int mouseY)
+    {
+        _hoveredNode?.OnHoverMove(mouseX, mouseY);
     }
 
     /// <summary>
