@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Comprehensive tests for DrawerNode layout, rendering, state transitions, and focus handling.
 /// Tests cover all combinations of: direction (4), mode (2), state (2), and container (2).
 /// </summary>
+[TestClass]
 public class DrawerNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
@@ -19,7 +20,7 @@ public class DrawerNodeTests
 
     #region Direction Auto-Detection Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_InHStack_FirstChild_DirectionIsRight()
     {
         // Arrange
@@ -49,7 +50,7 @@ public class DrawerNodeTests
         // Direction is auto-detected as Right (expands right)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_InHStack_LastChild_DirectionIsLeft()
     {
         // Arrange
@@ -80,10 +81,10 @@ public class DrawerNodeTests
         var line = snapshot.GetLineTrimmed(0);
         var mainIdx = line.IndexOf("Main Content", StringComparison.Ordinal);
         var drawerIdx = line.IndexOf("«", StringComparison.Ordinal);
-        Assert.True(drawerIdx > mainIdx, $"Expected drawer (at {drawerIdx}) to be after main content (at {mainIdx})");
+        Assert.IsTrue(drawerIdx > mainIdx, $"Expected drawer (at {drawerIdx}) to be after main content (at {mainIdx})");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_InVStack_FirstChild_DirectionIsDown()
     {
         // Arrange
@@ -115,7 +116,7 @@ public class DrawerNodeTests
         Assert.Contains("Main Content", snapshot.GetLineTrimmed(1));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_InVStack_LastChild_DirectionIsUp()
     {
         // Arrange
@@ -151,7 +152,7 @@ public class DrawerNodeTests
 
     #region Collapsed State Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Collapsed_ShowsCollapsedContent()
     {
         // Arrange
@@ -179,11 +180,11 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(snapshot.ContainsText("[COLLAPSED]"), "Collapsed content should be visible");
-        Assert.False(snapshot.ContainsText("[EXPANDED]"), "Expanded content should NOT be visible");
+        Assert.IsTrue(snapshot.ContainsText("[COLLAPSED]"), "Collapsed content should be visible");
+        Assert.IsFalse(snapshot.ContainsText("[EXPANDED]"), "Expanded content should NOT be visible");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Collapsed_NoContent_IsInvisible()
     {
         // Arrange
@@ -219,7 +220,7 @@ public class DrawerNodeTests
 
     #region Expanded Inline State Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_ExpandedInline_ShowsExpandedContent()
     {
         // Arrange
@@ -248,11 +249,11 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(snapshot.ContainsText("[EXPANDED]"), "Expanded content should be visible");
-        Assert.False(snapshot.ContainsText("[COLLAPSED]"), "Collapsed content should NOT be visible");
+        Assert.IsTrue(snapshot.ContainsText("[EXPANDED]"), "Expanded content should be visible");
+        Assert.IsFalse(snapshot.ContainsText("[COLLAPSED]"), "Collapsed content should NOT be visible");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_ExpandedInline_PushesMainContent()
     {
         // Arrange
@@ -284,14 +285,14 @@ public class DrawerNodeTests
         var line = snapshot.GetLineTrimmed(0);
         var expandedIdx = line.IndexOf("ExpandedPane", StringComparison.Ordinal);
         var mainIdx = line.IndexOf("MainContent", StringComparison.Ordinal);
-        Assert.True(expandedIdx < mainIdx, $"Expanded pane (at {expandedIdx}) should be before main content (at {mainIdx})");
+        Assert.IsTrue(expandedIdx < mainIdx, $"Expanded pane (at {expandedIdx}) should be before main content (at {mainIdx})");
     }
 
     #endregion
 
     #region Expanded Overlay State Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Overlay_Collapsed_IsFocusable()
     {
         // Arrange
@@ -324,10 +325,10 @@ public class DrawerNodeTests
         await runTask;
 
         // The drawer should be focusable in overlay mode when collapsed
-        Assert.True(snapshot.ContainsText("▼ Console"));
+        Assert.IsTrue(snapshot.ContainsText("▼ Console"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Overlay_EnterKey_OpensPopup()
     {
         // Arrange
@@ -361,10 +362,10 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(snapshot.ContainsText("POPUP_CONTENT"), "Popup content should be visible");
+        Assert.IsTrue(snapshot.ContainsText("POPUP_CONTENT"), "Popup content should be visible");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Overlay_SpaceKey_OpensPopup()
     {
         // Arrange
@@ -398,14 +399,14 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(snapshot.ContainsText("POPUP_SPACE"));
+        Assert.IsTrue(snapshot.ContainsText("POPUP_SPACE"));
     }
 
     #endregion
 
     #region Event Callback Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_OnExpanded_CallbackFires()
     {
         // Arrange
@@ -440,10 +441,10 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(expandedCalled, "OnExpanded callback should have been invoked");
+        Assert.IsTrue(expandedCalled, "OnExpanded callback should have been invoked");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_OnCollapsed_CallbackFires()
     {
         // Arrange
@@ -486,40 +487,40 @@ public class DrawerNodeTests
         await runTask;
 
         // Assert
-        Assert.True(collapsedCalled, "OnCollapsed callback should have been invoked");
+        Assert.IsTrue(collapsedCalled, "OnCollapsed callback should have been invoked");
     }
 
     #endregion
 
     #region Focus Management Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Inline_NotFocusable()
     {
         // Inline mode drawers should not be focusable themselves
         var node = new DrawerNode { Mode = DrawerMode.Inline, IsExpanded = false };
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Overlay_Collapsed_IsFocusableProperty()
     {
         var node = new DrawerNode { Mode = DrawerMode.Overlay, IsExpanded = false };
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drawer_Overlay_Expanded_NotFocusableProperty()
     {
         var node = new DrawerNode { Mode = DrawerMode.Overlay, IsExpanded = true };
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
     #endregion
 
     #region Measure and Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public void Drawer_Collapsed_WithContent_MeasuresContentSize()
     {
         var collapsedContent = new TextBlockNode { Text = "»" };
@@ -527,22 +528,22 @@ public class DrawerNodeTests
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(1, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Drawer_Collapsed_NoContent_MeasuresZero()
     {
         var node = new DrawerNode { Content = null };
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Drawer_Arrange_PassesBoundsToContent()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -551,7 +552,7 @@ public class DrawerNodeTests
         
         node.Arrange(bounds);
         
-        Assert.Equal(bounds, content.Bounds);
+        Assert.AreEqual(bounds, content.Bounds);
     }
 
     #endregion

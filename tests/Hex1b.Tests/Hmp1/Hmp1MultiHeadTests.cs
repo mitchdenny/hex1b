@@ -9,26 +9,27 @@ namespace Hex1b.Tests.Hmp1;
 /// <see cref="Hmp1PresentationAdapter"/> via real <see cref="Hmp1WorkloadAdapter"/>
 /// clients; asserts state transitions are observed correctly across all peers.
 /// </summary>
+[TestClass]
 public class Hmp1MultiHeadTests
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
-    [Fact]
+    [TestMethod]
     public async Task FirstPeer_AttachesAsSecondary_NoPrimary()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
         var (handle, client) = await ConnectAsync(server, displayName: "first");
 
-        Assert.False(client.IsPrimary);
-        Assert.Null(client.PrimaryPeerId);
-        Assert.Null(server.PrimaryPeerId);
-        Assert.NotEmpty(client.PeerId);
+        Assert.IsFalse(client.IsPrimary);
+        Assert.IsNull(client.PrimaryPeerId);
+        Assert.IsNull(server.PrimaryPeerId);
+        Assert.IsNotEmpty(client.PeerId);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SecondaryResize_IsDropped_PtyUnchanged()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -42,15 +43,15 @@ public class Hmp1MultiHeadTests
         // Give the producer a moment to (not) act on it.
         await Task.Delay(150);
 
-        Assert.False(resized, "Producer must not fire Resized for a non-primary peer's Resize.");
-        Assert.Equal(80, server.Width);
-        Assert.Equal(24, server.Height);
+        Assert.IsFalse(resized, "Producer must not fire Resized for a non-primary peer's Resize.");
+        Assert.AreEqual(80, server.Width);
+        Assert.AreEqual(24, server.Height);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RequestPrimary_MakesCallerPrimary_ResizesPty()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -61,19 +62,19 @@ public class Hmp1MultiHeadTests
 
         await client.RequestPrimaryAsync(120, 40);
         var ok = await client.WaitForRoleAsync(primary: true, TestTimeout, CancellationToken.None);
-        Assert.True(ok, "Expected to become primary within timeout.");
+        Assert.IsTrue(ok, "Expected to become primary within timeout.");
 
         var (w, h) = await resizeTcs.Task.WaitAsync(TestTimeout);
-        Assert.Equal(120, w);
-        Assert.Equal(40, h);
-        Assert.Equal(client.PeerId, server.PrimaryPeerId);
-        Assert.True(client.IsPrimary);
+        Assert.AreEqual(120, w);
+        Assert.AreEqual(40, h);
+        Assert.AreEqual(client.PeerId, server.PrimaryPeerId);
+        Assert.IsTrue(client.IsPrimary);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SecondPeer_Joins_FirstPrimarySeesPeerJoin()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -87,14 +88,14 @@ public class Hmp1MultiHeadTests
         var (handle2, client2) = await ConnectAsync(server, displayName: "beta");
 
         var join = await joinTcs.Task.WaitAsync(TestTimeout);
-        Assert.Equal(client2.PeerId, join.PeerId);
-        Assert.Equal("beta", join.DisplayName);
+        Assert.AreEqual(client2.PeerId, join.PeerId);
+        Assert.AreEqual("beta", join.DisplayName);
 
         // The newcomer sees the existing primary in its initial Hello roster + state.
-        Assert.Equal(client1.PeerId, client2.PrimaryPeerId);
-        Assert.False(client2.IsPrimary);
-        Assert.Single(client2.Peers);
-        Assert.Equal(client1.PeerId, client2.Peers[0].PeerId);
+        Assert.AreEqual(client1.PeerId, client2.PrimaryPeerId);
+        Assert.IsFalse(client2.IsPrimary);
+        TestSeq.Single(client2.Peers);
+        Assert.AreEqual(client1.PeerId, client2.Peers[0].PeerId);
 
         await handle1.DisposeAsync();
         await handle2.DisposeAsync();
@@ -102,7 +103,7 @@ public class Hmp1MultiHeadTests
         await client2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SecondPeer_RequestsPrimary_RoleTransfersAcrossBothPeers()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -122,20 +123,20 @@ public class Hmp1MultiHeadTests
         var r1 = await role1Tcs.Task.WaitAsync(TestTimeout);
         var r2 = await role2Tcs.Task.WaitAsync(TestTimeout);
 
-        Assert.Equal(client2.PeerId, r1.PrimaryPeerId);
-        Assert.Equal(client2.PeerId, r2.PrimaryPeerId);
-        Assert.Equal(140, r1.Width);
-        Assert.Equal(50, r1.Height);
-        Assert.True(r1.PreviouslyPrimary);
-        Assert.False(r1.NowPrimary);
-        Assert.False(r2.PreviouslyPrimary);
-        Assert.True(r2.NowPrimary);
+        Assert.AreEqual(client2.PeerId, r1.PrimaryPeerId);
+        Assert.AreEqual(client2.PeerId, r2.PrimaryPeerId);
+        Assert.AreEqual(140, r1.Width);
+        Assert.AreEqual(50, r1.Height);
+        Assert.IsTrue(r1.PreviouslyPrimary);
+        Assert.IsFalse(r1.NowPrimary);
+        Assert.IsFalse(r2.PreviouslyPrimary);
+        Assert.IsTrue(r2.NowPrimary);
 
-        Assert.False(client1.IsPrimary);
-        Assert.True(client2.IsPrimary);
-        Assert.Equal(client2.PeerId, server.PrimaryPeerId);
-        Assert.Equal(140, server.Width);
-        Assert.Equal(50, server.Height);
+        Assert.IsFalse(client1.IsPrimary);
+        Assert.IsTrue(client2.IsPrimary);
+        Assert.AreEqual(client2.PeerId, server.PrimaryPeerId);
+        Assert.AreEqual(140, server.Width);
+        Assert.AreEqual(50, server.Height);
 
         await handle1.DisposeAsync();
         await handle2.DisposeAsync();
@@ -143,7 +144,7 @@ public class Hmp1MultiHeadTests
         await client2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PrimaryDisconnect_BroadcastsRoleChangeNullNoAutoPromotion()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -164,21 +165,21 @@ public class Hmp1MultiHeadTests
         var roleChange = await roleChangedTcs.Task.WaitAsync(TestTimeout);
         var leave = await leaveTcs.Task.WaitAsync(TestTimeout);
 
-        Assert.Null(roleChange.PrimaryPeerId);
-        Assert.Equal("PrimaryDisconnected", roleChange.Reason);
-        Assert.Equal(client1.PeerId, leave.PeerId);
+        Assert.IsNull(roleChange.PrimaryPeerId);
+        Assert.AreEqual("PrimaryDisconnected", roleChange.Reason);
+        Assert.AreEqual(client1.PeerId, leave.PeerId);
 
-        Assert.Null(server.PrimaryPeerId);
-        Assert.False(client2.IsPrimary);
+        Assert.IsNull(server.PrimaryPeerId);
+        Assert.IsFalse(client2.IsPrimary);
         // PTY size remains at last-known (no auto-promotion).
-        Assert.Equal(100, server.Width);
-        Assert.Equal(30, server.Height);
+        Assert.AreEqual(100, server.Width);
+        Assert.AreEqual(30, server.Height);
 
         await handle2.DisposeAsync();
         await client2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SecondaryDisconnect_NoRoleChange_OtherPeersUnaffected()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -197,19 +198,19 @@ public class Hmp1MultiHeadTests
         await client2.DisposeAsync();
 
         var leave = await leaveTcs.Task.WaitAsync(TestTimeout);
-        Assert.Equal(client2.PeerId, leave.PeerId);
+        Assert.AreEqual(client2.PeerId, leave.PeerId);
 
         // Give events a moment to settle then verify no role change.
         await Task.Delay(100);
-        Assert.False(roleChanged, "Primary role change must not fire on secondary disconnect.");
-        Assert.True(client1.IsPrimary);
-        Assert.Equal(client1.PeerId, server.PrimaryPeerId);
+        Assert.IsFalse(roleChanged, "Primary role change must not fire on secondary disconnect.");
+        Assert.IsTrue(client1.IsPrimary);
+        Assert.AreEqual(client1.PeerId, server.PrimaryPeerId);
 
         await handle1.DisposeAsync();
         await client1.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RequestPrimary_WithZeroDims_FallsBackToLastKnownSize()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -220,14 +221,14 @@ public class Hmp1MultiHeadTests
         await client.RequestPrimaryAsync(0, 0);
         await client.WaitForRoleAsync(primary: true, TestTimeout, CancellationToken.None);
 
-        Assert.Equal(80, server.Width);
-        Assert.Equal(24, server.Height);
+        Assert.AreEqual(80, server.Width);
+        Assert.AreEqual(24, server.Height);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PrimaryResize_BroadcastsAndUpdatesPty()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -243,10 +244,10 @@ public class Hmp1MultiHeadTests
         await client1.ResizeAsync(160, 50);
 
         var (w, h) = await resizeTcs.Task.WaitAsync(TestTimeout);
-        Assert.Equal(160, w);
-        Assert.Equal(50, h);
-        Assert.Equal(160, server.Width);
-        Assert.Equal(50, server.Height);
+        Assert.AreEqual(160, w);
+        Assert.AreEqual(50, h);
+        Assert.AreEqual(160, server.Width);
+        Assert.AreEqual(50, server.Height);
 
         await handle1.DisposeAsync();
         await handle2.DisposeAsync();

@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for gutter decorations — icons/markers in the editor margin
 /// via <see cref="DecorationGutterProvider"/>.
 /// </summary>
+[TestClass]
 public class GutterDecorationTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -39,7 +40,7 @@ public class GutterDecorationTests
 
     // ── State management tests ────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void PushGutterDecorations_StoresOnSession()
     {
         var doc = new Hex1bDocument("abc\ndef");
@@ -52,10 +53,10 @@ public class GutterDecorationTests
             new GutterDecoration(2, '⚠', GutterDecorationKind.Warning)
         ]);
 
-        Assert.Equal(2, session.ActiveGutterDecorations.Count);
+        Assert.AreEqual(2, session.ActiveGutterDecorations.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearGutterDecorations_RemovesAll()
     {
         var doc = new Hex1bDocument("test");
@@ -66,12 +67,12 @@ public class GutterDecorationTests
         session.PushGutterDecorations([new GutterDecoration(1, 'X')]);
         session.ClearGutterDecorations();
 
-        Assert.Empty(session.ActiveGutterDecorations);
+        Assert.IsEmpty(session.ActiveGutterDecorations);
     }
 
     // ── Visual rendering tests ────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_GutterDecoration_ShowsIconAtCorrectLine()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc\ndef\nghi", 20, 5);
@@ -98,22 +99,22 @@ public class GutterDecorationTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0 (doc line 1): no decoration → space in gutter
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("a", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(1, 0).Character);
 
         // Line 1 (doc line 2): '*' decoration
-        Assert.Equal("*", snapshot.GetCell(0, 1).Character);
-        Assert.Equal("d", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("*", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("d", snapshot.GetCell(1, 1).Character);
 
         // Line 2 (doc line 3): no decoration → space
-        Assert.Equal(" ", snapshot.GetCell(0, 2).Character);
-        Assert.Equal("g", snapshot.GetCell(1, 2).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 2).Character);
+        Assert.AreEqual("g", snapshot.GetCell(1, 2).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ErrorDecoration_UsesThemeErrorColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc", 20, 3);
@@ -138,15 +139,14 @@ public class GutterDecorationTests
 
         var expectedFg = ToCellColor(theme.Get(GutterDecorationTheme.ErrorIconColor));
         var cell = snapshot.GetCell(0, 0);
-        Assert.Equal("E", cell.Character);
-        Assert.True(ColorEquals(expectedFg, cell.Foreground),
-            $"Expected error color {expectedFg}, got {cell.Foreground}");
+        Assert.AreEqual("E", cell.Character);
+        Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Expected error color {expectedFg}, got {cell.Foreground}");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CustomForeground_OverridesKindDefault()
     {
         var customColor = Hex1bColor.FromRgb(0, 255, 0);
@@ -172,14 +172,13 @@ public class GutterDecorationTests
 
         var expectedFg = ToCellColor(customColor);
         var cell = snapshot.GetCell(0, 0);
-        Assert.True(ColorEquals(expectedFg, cell.Foreground),
-            $"Expected custom fg {expectedFg}, got {cell.Foreground}");
+        Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Expected custom fg {expectedFg}, got {cell.Foreground}");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithLineNumbers_DecorationsAppearBeforeLineNumbers()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc\ndef", 20, 3, showLineNumbers: true);
@@ -205,21 +204,21 @@ public class GutterDecorationTests
         var snapshot = terminal.CreateSnapshot();
 
         // Col 0: decoration icon '*'
-        Assert.Equal("*", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("*", snapshot.GetCell(0, 0).Character);
         // Col 1: line number padding ' '
-        Assert.Equal(" ", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(1, 0).Character);
         // Col 2: line number '1'
-        Assert.Equal("1", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("1", snapshot.GetCell(2, 0).Character);
         // Col 3: separator ' '
-        Assert.Equal(" ", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(3, 0).Character);
         // Col 4: content 'a'
-        Assert.Equal("a", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(4, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NoDecorations_NoGutterColumn()
     {
         // Without decorations, the DecorationGutterProvider should have width 0
@@ -237,7 +236,7 @@ public class GutterDecorationTests
         var snapshot = terminal.CreateSnapshot();
 
         // Content starts at column 0 (no gutter)
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();

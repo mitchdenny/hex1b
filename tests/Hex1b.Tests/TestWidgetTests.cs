@@ -4,13 +4,13 @@ using System.Threading;
 using System.Threading.Tasks;
 using Hex1b;
 using Hex1b.Widgets;
-using Xunit;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class TestWidgetTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Test_FluentCallbacks_WorkWithHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -65,9 +65,9 @@ public class TestWidgetTests
         // With render optimization:
         // - First cycle: new node → dirty → rendered
         // - Second cycle: same node reused → not dirty → NOT rendered (optimization skips clean nodes)
-        Assert.NotNull(initialNode);
-        Assert.Equal([1, 1], reconcileCounts); // Two cycles, each widget starts at count 1
-        Assert.Same(initialNode, lastExistingNode); // Second reconcile receives the node from first cycle
-        Assert.Equal([1], renderCounts); // With render optimization, clean nodes don't re-render
+        Assert.IsNotNull(initialNode);
+        TestSeq.AreEqual([1, 1], reconcileCounts); // Two cycles, each widget starts at count 1
+        Assert.AreSame(initialNode, lastExistingNode); // Second reconcile receives the node from first cycle
+        TestSeq.AreEqual([1], renderCounts); // With render optimization, clean nodes don't re-render
     }
 }

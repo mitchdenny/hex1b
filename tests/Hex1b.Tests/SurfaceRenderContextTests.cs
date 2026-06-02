@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="SurfaceRenderContext"/>.
 /// </summary>
+[TestClass]
 public class SurfaceRenderContextTests
 {
     #region Basic Writing
 
-    [Fact]
+    [TestMethod]
     public void Write_PlainText_WritesAtCursorPosition()
     {
         var surface = new Surface(80, 24);
@@ -22,14 +23,14 @@ public class SurfaceRenderContextTests
         context.SetCursorPosition(5, 10);
         context.Write("Hello");
         
-        Assert.Equal("H", surface[5, 10].Character);
-        Assert.Equal("e", surface[6, 10].Character);
-        Assert.Equal("l", surface[7, 10].Character);
-        Assert.Equal("l", surface[8, 10].Character);
-        Assert.Equal("o", surface[9, 10].Character);
+        Assert.AreEqual("H", surface[5, 10].Character);
+        Assert.AreEqual("e", surface[6, 10].Character);
+        Assert.AreEqual("l", surface[7, 10].Character);
+        Assert.AreEqual("l", surface[8, 10].Character);
+        Assert.AreEqual("o", surface[9, 10].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_AdvancesCursor()
     {
         var surface = new Surface(80, 24);
@@ -39,11 +40,11 @@ public class SurfaceRenderContextTests
         context.Write("ABC");
         context.Write("DEF");
         
-        Assert.Equal("A", surface[0, 0].Character);
-        Assert.Equal("D", surface[3, 0].Character);
+        Assert.AreEqual("A", surface[0, 0].Character);
+        Assert.AreEqual("D", surface[3, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteClipped_PlainText_WritesAtSpecifiedPosition()
     {
         var surface = new Surface(80, 24);
@@ -51,18 +52,18 @@ public class SurfaceRenderContextTests
         
         context.WriteClipped(10, 5, "World");
         
-        Assert.Equal("W", surface[10, 5].Character);
-        Assert.Equal("o", surface[11, 5].Character);
-        Assert.Equal("r", surface[12, 5].Character);
-        Assert.Equal("l", surface[13, 5].Character);
-        Assert.Equal("d", surface[14, 5].Character);
+        Assert.AreEqual("W", surface[10, 5].Character);
+        Assert.AreEqual("o", surface[11, 5].Character);
+        Assert.AreEqual("r", surface[12, 5].Character);
+        Assert.AreEqual("l", surface[13, 5].Character);
+        Assert.AreEqual("d", surface[14, 5].Character);
     }
 
     #endregion
 
     #region ANSI Parsing - Colors
 
-    [Fact]
+    [TestMethod]
     public void Write_WithForegroundColor_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -73,14 +74,14 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[38;2;255;0;0mRed");
         
         var cell = surface[0, 0];
-        Assert.Equal("R", cell.Character);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(255, cell.Foreground.Value.R);
-        Assert.Equal(0, cell.Foreground.Value.G);
-        Assert.Equal(0, cell.Foreground.Value.B);
+        Assert.AreEqual("R", cell.Character);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(255, cell.Foreground.Value.R);
+        Assert.AreEqual(0, cell.Foreground.Value.G);
+        Assert.AreEqual(0, cell.Foreground.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_WithBackgroundColor_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -91,14 +92,14 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[48;2;0;0;255mBlue");
         
         var cell = surface[0, 0];
-        Assert.Equal("B", cell.Character);
-        Assert.NotNull(cell.Background);
-        Assert.Equal(0, cell.Background.Value.R);
-        Assert.Equal(0, cell.Background.Value.G);
-        Assert.Equal(255, cell.Background.Value.B);
+        Assert.AreEqual("B", cell.Character);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(0, cell.Background.Value.R);
+        Assert.AreEqual(0, cell.Background.Value.G);
+        Assert.AreEqual(255, cell.Background.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_WithReset_ClearsColors()
     {
         var surface = new Surface(80, 24);
@@ -108,13 +109,13 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[38;2;255;0;0mR\x1b[0mN");
         
         // First character has red foreground
-        Assert.NotNull(surface[0, 0].Foreground);
+        Assert.IsNotNull(surface[0, 0].Foreground);
         
         // Second character should have no foreground (reset)
-        Assert.Null(surface[1, 0].Foreground);
+        Assert.IsNull(surface[1, 0].Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_256Color_ParsesCorrectly()
     {
         var surface = new Surface(80, 24);
@@ -125,14 +126,14 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[38;5;2mG");
         
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
+        Assert.IsNotNull(cell.Foreground);
         // Basic green from 16-color palette
-        Assert.Equal(0, cell.Foreground.Value.R);
-        Assert.Equal(128, cell.Foreground.Value.G);
-        Assert.Equal(0, cell.Foreground.Value.B);
+        Assert.AreEqual(0, cell.Foreground.Value.R);
+        Assert.AreEqual(128, cell.Foreground.Value.G);
+        Assert.AreEqual(0, cell.Foreground.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_BasicColors_ParsesCorrectly()
     {
         var surface = new Surface(80, 24);
@@ -143,11 +144,11 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[31mR");
         
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(128, cell.Foreground.Value.R); // Basic red
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(128, cell.Foreground.Value.R); // Basic red
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_BrightColors_ParsesCorrectly()
     {
         var surface = new Surface(80, 24);
@@ -158,15 +159,15 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[91mR");
         
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(255, cell.Foreground.Value.R); // Bright red
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(255, cell.Foreground.Value.R); // Bright red
     }
 
     #endregion
 
     #region ANSI Parsing - Attributes
 
-    [Fact]
+    [TestMethod]
     public void Write_BoldAttribute_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -176,10 +177,10 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[1mBold");
         
         var cell = surface[0, 0];
-        Assert.True((cell.Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Bold) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_ItalicAttribute_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -189,10 +190,10 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[3mItalic");
         
         var cell = surface[0, 0];
-        Assert.True((cell.Attributes & CellAttributes.Italic) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Italic) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_UnderlineAttribute_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -202,10 +203,10 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[4mUnderline");
         
         var cell = surface[0, 0];
-        Assert.True((cell.Attributes & CellAttributes.Underline) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Underline) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_MultipleAttributes_ParsesAndApplies()
     {
         var surface = new Surface(80, 24);
@@ -216,12 +217,12 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[1;3;4mStyled");
         
         var cell = surface[0, 0];
-        Assert.True((cell.Attributes & CellAttributes.Bold) != 0);
-        Assert.True((cell.Attributes & CellAttributes.Italic) != 0);
-        Assert.True((cell.Attributes & CellAttributes.Underline) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Italic) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Underline) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_AttributeReset_ClearsAttributes()
     {
         var surface = new Surface(80, 24);
@@ -231,17 +232,17 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[1mB\x1b[0mN");
         
         // First character is bold
-        Assert.True((surface[0, 0].Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((surface[0, 0].Attributes & CellAttributes.Bold) != 0);
         
         // Second character is not bold
-        Assert.Equal(CellAttributes.None, surface[1, 0].Attributes);
+        Assert.AreEqual(CellAttributes.None, surface[1, 0].Attributes);
     }
 
     #endregion
 
     #region Wide Characters
 
-    [Fact]
+    [TestMethod]
     public void Write_WideCharacter_OccupiesTwoCells()
     {
         var surface = new Surface(80, 24);
@@ -251,22 +252,22 @@ public class SurfaceRenderContextTests
         context.Write("你好");
         
         // First character
-        Assert.Equal("你", surface[0, 0].Character);
-        Assert.Equal(2, surface[0, 0].DisplayWidth);
+        Assert.AreEqual("你", surface[0, 0].Character);
+        Assert.AreEqual(2, surface[0, 0].DisplayWidth);
         
         // Continuation cell
-        Assert.Equal(0, surface[1, 0].DisplayWidth);
+        Assert.AreEqual(0, surface[1, 0].DisplayWidth);
         
         // Second character
-        Assert.Equal("好", surface[2, 0].Character);
-        Assert.Equal(2, surface[2, 0].DisplayWidth);
+        Assert.AreEqual("好", surface[2, 0].Character);
+        Assert.AreEqual(2, surface[2, 0].DisplayWidth);
     }
 
     #endregion
 
     #region Clear Operations
 
-    [Fact]
+    [TestMethod]
     public void Clear_FillsSurfaceWithSpaces()
     {
         var surface = new Surface(10, 5);
@@ -283,12 +284,12 @@ public class SurfaceRenderContextTests
         {
             for (var x = 0; x < 10; x++)
             {
-                Assert.Equal(" ", surface[x, y].Character);
+                Assert.AreEqual(" ", surface[x, y].Character);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearRegion_FillsRectWithSpaces()
     {
         var surface = new Surface(20, 10);
@@ -305,20 +306,20 @@ public class SurfaceRenderContextTests
         {
             for (var x = 5; x < 10; x++)
             {
-                Assert.Equal(" ", surface[x, y].Character);
+                Assert.AreEqual(" ", surface[x, y].Character);
             }
         }
         
         // Outside region should still be X
-        Assert.Equal("X", surface[0, 0].Character);
-        Assert.Equal("X", surface[15, 8].Character);
+        Assert.AreEqual("X", surface[0, 0].Character);
+        Assert.AreEqual("X", surface[15, 8].Character);
     }
 
     #endregion
 
     #region Complex Sequences
 
-    [Fact]
+    [TestMethod]
     public void Write_ColorAndText_MixedSequence()
     {
         var surface = new Surface(80, 24);
@@ -329,19 +330,19 @@ public class SurfaceRenderContextTests
         context.Write("\x1b[38;2;255;0;0mHello\x1b[0m \x1b[38;2;0;0;255mWorld\x1b[0m");
         
         // "Hello" should be red
-        Assert.Equal("H", surface[0, 0].Character);
-        Assert.Equal(255, surface[0, 0].Foreground!.Value.R);
+        Assert.AreEqual("H", surface[0, 0].Character);
+        Assert.AreEqual(255, surface[0, 0].Foreground!.Value.R);
         
         // Space should have no color
-        Assert.Equal(" ", surface[5, 0].Character);
-        Assert.Null(surface[5, 0].Foreground);
+        Assert.AreEqual(" ", surface[5, 0].Character);
+        Assert.IsNull(surface[5, 0].Foreground);
         
         // "World" should be blue
-        Assert.Equal("W", surface[6, 0].Character);
-        Assert.Equal(255, surface[6, 0].Foreground!.Value.B);
+        Assert.AreEqual("W", surface[6, 0].Character);
+        Assert.AreEqual(255, surface[6, 0].Foreground!.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_SkipsOscSequences()
     {
         var surface = new Surface(80, 24);
@@ -352,13 +353,13 @@ public class SurfaceRenderContextTests
         context.Write("\x1b]8;;http://example.com\x1b\\Link\x1b]8;;\x1b\\");
         
         // Should see "Link" without the OSC sequences
-        Assert.Equal("L", surface[0, 0].Character);
-        Assert.Equal("i", surface[1, 0].Character);
-        Assert.Equal("n", surface[2, 0].Character);
-        Assert.Equal("k", surface[3, 0].Character);
+        Assert.AreEqual("L", surface[0, 0].Character);
+        Assert.AreEqual("i", surface[1, 0].Character);
+        Assert.AreEqual("n", surface[2, 0].Character);
+        Assert.AreEqual("k", surface[3, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Write_SkipsFrameMarkers()
     {
         var surface = new Surface(80, 24);
@@ -368,14 +369,14 @@ public class SurfaceRenderContextTests
         context.SetCursorPosition(0, 0);
         context.Write("\x1b_HEX1BAPP:FRAME:BEGIN\x1b\\Hello");
         
-        Assert.Equal("H", surface[0, 0].Character);
+        Assert.AreEqual("H", surface[0, 0].Character);
     }
 
     #endregion
 
     #region Clipping
 
-    [Fact]
+    [TestMethod]
     public void WriteClipped_WithLayoutProvider_RespectsClipping()
     {
         var surface = new Surface(80, 24);
@@ -392,7 +393,7 @@ public class SurfaceRenderContextTests
         // Text should be clipped to start at x=5
         // This depends on the ClipString implementation
         // For now, verify the call was made with clipping context set
-        Assert.NotNull(context.CurrentLayoutProvider);
+        Assert.IsNotNull(context.CurrentLayoutProvider);
     }
 
     private class TestLayoutProvider : ILayoutProvider
@@ -431,41 +432,41 @@ public class SurfaceRenderContextTests
 
     #region Properties
 
-    [Fact]
+    [TestMethod]
     public void Width_ReturnsSurfaceWidth()
     {
         var surface = new Surface(100, 50);
         var context = new SurfaceRenderContext(surface);
         
-        Assert.Equal(100, context.Width);
+        Assert.AreEqual(100, context.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Height_ReturnsSurfaceHeight()
     {
         var surface = new Surface(100, 50);
         var context = new SurfaceRenderContext(surface);
         
-        Assert.Equal(50, context.Height);
+        Assert.AreEqual(50, context.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Theme_DefaultsToDefaultTheme()
     {
         var surface = new Surface(80, 24);
         var context = new SurfaceRenderContext(surface);
         
-        Assert.NotNull(context.Theme);
+        Assert.IsNotNull(context.Theme);
     }
 
-    [Fact]
+    [TestMethod]
     public void Theme_CanBeSet()
     {
         var surface = new Surface(80, 24);
         var customTheme = Hex1bThemes.Ocean;
         var context = new SurfaceRenderContext(surface, customTheme);
         
-        Assert.Same(customTheme, context.Theme);
+        Assert.AreSame(customTheme, context.Theme);
     }
 
     #endregion

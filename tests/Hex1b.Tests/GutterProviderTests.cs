@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for the extensible gutter system: <see cref="IGutterProvider"/>,
 /// <see cref="LineNumberGutterProvider"/>, and composable gutter rendering.
 /// </summary>
+[TestClass]
 public class GutterProviderTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -65,17 +66,17 @@ public class GutterProviderTests
 
     // ── LineNumberGutterProvider tests ─────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void LineNumberProvider_GetWidth_ReturnsDigitsPlusSeparator()
     {
         var doc = new Hex1bDocument("line1\nline2\nline3");
         var width = LineNumberGutterProvider.Instance.GetWidth(doc);
 
         // 3 lines → 1 digit → min 2 digits + 1 separator = 3
-        Assert.Equal(3, width);
+        Assert.AreEqual(3, width);
     }
 
-    [Fact]
+    [TestMethod]
     public void LineNumberProvider_GetWidth_ScalesWithLineCount()
     {
         var lines = string.Join("\n", Enumerable.Range(1, 100).Select(i => $"line{i}"));
@@ -83,20 +84,20 @@ public class GutterProviderTests
         var width = LineNumberGutterProvider.Instance.GetWidth(doc);
 
         // 100 lines → 3 digits + 1 separator = 4
-        Assert.Equal(4, width);
+        Assert.AreEqual(4, width);
     }
 
-    [Fact]
+    [TestMethod]
     public void LineNumberProvider_GetWidth_Minimum2Digits()
     {
         var doc = new Hex1bDocument("single line");
         var width = LineNumberGutterProvider.Instance.GetWidth(doc);
 
         // 1 line → min 2 digits + 1 separator = 3
-        Assert.Equal(3, width);
+        Assert.AreEqual(3, width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShowLineNumbers_RendersIdenticallyAfterRefactor()
     {
         // Original API: ShowLineNumbers = true should render line numbers via the provider
@@ -116,24 +117,24 @@ public class GutterProviderTests
 
         // Gutter width = 3 (min 2 digits + 1 separator)
         // Line 1: " 1 abc"
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character); // padding
-        Assert.Equal("1", snapshot.GetCell(1, 0).Character); // digit
-        Assert.Equal(" ", snapshot.GetCell(2, 0).Character); // separator
-        Assert.Equal("a", snapshot.GetCell(3, 0).Character); // content starts
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character); // padding
+        Assert.AreEqual("1", snapshot.GetCell(1, 0).Character); // digit
+        Assert.AreEqual(" ", snapshot.GetCell(2, 0).Character); // separator
+        Assert.AreEqual("a", snapshot.GetCell(3, 0).Character); // content starts
 
         // Line 2: " 2 def"
-        Assert.Equal("2", snapshot.GetCell(1, 1).Character);
-        Assert.Equal("d", snapshot.GetCell(3, 1).Character);
+        Assert.AreEqual("2", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("d", snapshot.GetCell(3, 1).Character);
 
         // Line 3: " 3 ghi"
-        Assert.Equal("3", snapshot.GetCell(1, 2).Character);
-        Assert.Equal("g", snapshot.GetCell(3, 2).Character);
+        Assert.AreEqual("3", snapshot.GetCell(1, 2).Character);
+        Assert.AreEqual("g", snapshot.GetCell(3, 2).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShowLineNumbers_GutterUsesThemeColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc", 20, 3, showLineNumbers: true);
@@ -152,8 +153,7 @@ public class GutterProviderTests
         // Line number should use GutterTheme.LineNumberForegroundColor
         var expectedFg = ToCellColor(theme.Get(GutterTheme.LineNumberForegroundColor));
         var cell = snapshot.GetCell(1, 0); // the "1" digit
-        Assert.True(ColorEquals(expectedFg, cell.Foreground),
-            $"Expected gutter fg {expectedFg}, got {cell.Foreground}");
+        Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Expected gutter fg {expectedFg}, got {cell.Foreground}");
 
         workload.Dispose();
         terminal.Dispose();
@@ -161,7 +161,7 @@ public class GutterProviderTests
 
     // ── Custom gutter provider tests ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task CustomGutterProvider_RendersAtCorrectPosition()
     {
         var provider = new FixedCharGutterProvider('*');
@@ -179,16 +179,16 @@ public class GutterProviderTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("*", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("a", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("*", snapshot.GetCell(0, 1).Character);
-        Assert.Equal("d", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("*", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("*", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("d", snapshot.GetCell(1, 1).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultipleProviders_RenderLeftToRight()
     {
         var provider1 = new FixedCharGutterProvider('A');
@@ -207,15 +207,15 @@ public class GutterProviderTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("B", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("x", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("B", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("x", snapshot.GetCell(2, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GutterProvider_PastEndOfDocument_RendersBlank()
     {
         var provider = new FixedCharGutterProvider('*');
@@ -234,16 +234,16 @@ public class GutterProviderTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0: '*' (docLine > 0)
-        Assert.Equal("*", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("*", snapshot.GetCell(0, 0).Character);
         // Lines 1-2: ' ' (docLine == 0, past end of document)
-        Assert.Equal(" ", snapshot.GetCell(0, 1).Character);
-        Assert.Equal(" ", snapshot.GetCell(0, 2).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 2).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GutterProvider_ReducesViewportColumns()
     {
         // With a 2-wide gutter provider, content area should be reduced
@@ -263,16 +263,16 @@ public class GutterProviderTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("X", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("a", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(3, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NoGutterProviders_NoShowLineNumbers_NoGutter()
     {
         // No providers and ShowLineNumbers=false → no gutter, content starts at col 0
@@ -289,13 +289,13 @@ public class GutterProviderTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("h", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("h", snapshot.GetCell(0, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExplicitGutterProvider_OverridesShowLineNumbers()
     {
         // When explicit providers are set, they take priority over ShowLineNumbers
@@ -315,14 +315,14 @@ public class GutterProviderTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("#", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("a", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("#", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(1, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public void WidgetGutterApi_AccumulatesProviders()
     {
         var provider1 = new FixedCharGutterProvider('A');
@@ -332,7 +332,7 @@ public class GutterProviderTests
 
         var widget = new EditorWidget(state).Gutter(provider1).Gutter(provider2);
 
-        Assert.NotNull(widget.GutterProvidersValue);
-        Assert.Equal(2, widget.GutterProvidersValue!.Count);
+        Assert.IsNotNull(widget.GutterProvidersValue);
+        Assert.AreEqual(2, widget.GutterProvidersValue!.Count);
     }
 }

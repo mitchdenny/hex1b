@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for ScrollbarNode and ScrollbarWidget.
 /// </summary>
+[TestClass]
 public class ScrollbarNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
@@ -18,20 +19,20 @@ public class ScrollbarNodeTests
 
     #region Basic State Tests
 
-    [Fact]
+    [TestMethod]
     public void ScrollbarNode_InitialState_HasDefaultValues()
     {
         var node = new ScrollbarNode();
 
-        Assert.Equal(ScrollOrientation.Vertical, node.Orientation);
-        Assert.Equal(100, node.ContentSize);
-        Assert.Equal(50, node.ViewportSize);
-        Assert.Equal(0, node.Offset);
-        Assert.True(node.IsScrollable);
-        Assert.Equal(50, node.MaxOffset);
+        Assert.AreEqual(ScrollOrientation.Vertical, node.Orientation);
+        Assert.AreEqual(100, node.ContentSize);
+        Assert.AreEqual(50, node.ViewportSize);
+        Assert.AreEqual(0, node.Offset);
+        Assert.IsTrue(node.IsScrollable);
+        Assert.AreEqual(50, node.MaxOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollbarNode_IsScrollable_FalseWhenViewportExceedsContent()
     {
         var node = new ScrollbarNode
@@ -40,51 +41,51 @@ public class ScrollbarNodeTests
             ViewportSize = 20
         };
 
-        Assert.False(node.IsScrollable);
-        Assert.Equal(0, node.MaxOffset);
+        Assert.IsFalse(node.IsScrollable);
+        Assert.AreEqual(0, node.MaxOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollbarNode_IsFocusable_OnlyWhenScrollable()
     {
         var scrollable = new ScrollbarNode { ContentSize = 100, ViewportSize = 50 };
         var notScrollable = new ScrollbarNode { ContentSize = 10, ViewportSize = 50 };
 
-        Assert.True(scrollable.IsFocusable);
-        Assert.False(notScrollable.IsFocusable);
+        Assert.IsTrue(scrollable.IsFocusable);
+        Assert.IsFalse(notScrollable.IsFocusable);
     }
 
     #endregion
 
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_VerticalScrollbar_Returns1Width()
     {
         var node = new ScrollbarNode { Orientation = ScrollOrientation.Vertical };
 
         var size = node.Measure(new Constraints(0, 100, 0, 50));
 
-        Assert.Equal(1, size.Width);
-        Assert.Equal(50, size.Height);
+        Assert.AreEqual(1, size.Width);
+        Assert.AreEqual(50, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_HorizontalScrollbar_Returns1Height()
     {
         var node = new ScrollbarNode { Orientation = ScrollOrientation.Horizontal };
 
         var size = node.Measure(new Constraints(0, 50, 0, 100));
 
-        Assert.Equal(50, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(50, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
     #endregion
 
     #region Widget Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_Reconcile_CreatesScrollbarNode()
     {
         var widget = new ScrollbarWidget(ScrollOrientation.Vertical, 200, 50, 25);
@@ -92,15 +93,15 @@ public class ScrollbarNodeTests
 
         var node = await widget.ReconcileAsync(null, context);
 
-        Assert.IsType<ScrollbarNode>(node);
+        TestSeq.IsType<ScrollbarNode>(node);
         var scrollbar = (ScrollbarNode)node;
-        Assert.Equal(ScrollOrientation.Vertical, scrollbar.Orientation);
-        Assert.Equal(200, scrollbar.ContentSize);
-        Assert.Equal(50, scrollbar.ViewportSize);
-        Assert.Equal(25, scrollbar.Offset);
+        Assert.AreEqual(ScrollOrientation.Vertical, scrollbar.Orientation);
+        Assert.AreEqual(200, scrollbar.ContentSize);
+        Assert.AreEqual(50, scrollbar.ViewportSize);
+        Assert.AreEqual(25, scrollbar.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_Reconcile_UpdatesExistingNode()
     {
         var widget = new ScrollbarWidget(ScrollOrientation.Horizontal, 300, 100, 50);
@@ -109,14 +110,14 @@ public class ScrollbarNodeTests
 
         var node = await widget.ReconcileAsync(existing, context);
 
-        Assert.Same(existing, node);
-        Assert.Equal(ScrollOrientation.Horizontal, existing.Orientation);
-        Assert.Equal(300, existing.ContentSize);
-        Assert.Equal(100, existing.ViewportSize);
-        Assert.Equal(50, existing.Offset);
+        Assert.AreSame(existing, node);
+        Assert.AreEqual(ScrollOrientation.Horizontal, existing.Orientation);
+        Assert.AreEqual(300, existing.ContentSize);
+        Assert.AreEqual(100, existing.ViewportSize);
+        Assert.AreEqual(50, existing.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_OnScroll_HandlerIsCalled()
     {
         var receivedOffset = -1;
@@ -126,45 +127,45 @@ public class ScrollbarNodeTests
 
         var node = (ScrollbarNode)await widget.ReconcileAsync(null, context);
         
-        Assert.NotNull(node.ScrollHandler);
+        Assert.IsNotNull(node.ScrollHandler);
         await node.ScrollHandler(25);
         
-        Assert.Equal(25, receivedOffset);
+        Assert.AreEqual(25, receivedOffset);
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void VScrollbar_CreatesVerticalScrollbar()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.VScrollbar(200, 50, 10);
 
-        Assert.Equal(ScrollOrientation.Vertical, widget.Orientation);
-        Assert.Equal(200, widget.ContentSize);
-        Assert.Equal(50, widget.ViewportSize);
-        Assert.Equal(10, widget.Offset);
+        Assert.AreEqual(ScrollOrientation.Vertical, widget.Orientation);
+        Assert.AreEqual(200, widget.ContentSize);
+        Assert.AreEqual(50, widget.ViewportSize);
+        Assert.AreEqual(10, widget.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public void HScrollbar_CreatesHorizontalScrollbar()
     {
         var ctx = new WidgetContext<HStackWidget>();
         var widget = ctx.HScrollbar(300, 100, 25);
 
-        Assert.Equal(ScrollOrientation.Horizontal, widget.Orientation);
-        Assert.Equal(300, widget.ContentSize);
-        Assert.Equal(100, widget.ViewportSize);
-        Assert.Equal(25, widget.Offset);
+        Assert.AreEqual(ScrollOrientation.Horizontal, widget.Orientation);
+        Assert.AreEqual(300, widget.ContentSize);
+        Assert.AreEqual(100, widget.ViewportSize);
+        Assert.AreEqual(25, widget.Offset);
     }
 
     #endregion
 
     #region Render Tests
 
-    [Fact]
+    [TestMethod]
     public void Render_VerticalScrollbar_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -183,11 +184,11 @@ public class ScrollbarNodeTests
         node.Arrange(new Rect(0, 0, 1, 10));
         
         // Should not throw
-        var ex = Record.Exception(() => node.Render(context));
-        Assert.Null(ex);
+        var ex = TestSeq.RecordException(() => node.Render(context));
+        Assert.IsNull(ex);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_HorizontalScrollbar_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -206,11 +207,11 @@ public class ScrollbarNodeTests
         node.Arrange(new Rect(0, 0, 10, 1));
         
         // Should not throw
-        var ex = Record.Exception(() => node.Render(context));
-        Assert.Null(ex);
+        var ex = TestSeq.RecordException(() => node.Render(context));
+        Assert.IsNull(ex);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_NotScrollable_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -227,8 +228,8 @@ public class ScrollbarNodeTests
         node.Arrange(new Rect(0, 0, 1, 10));
         
         // Should not throw even when not scrollable
-        var ex = Record.Exception(() => node.Render(context));
-        Assert.Null(ex);
+        var ex = TestSeq.RecordException(() => node.Render(context));
+        Assert.IsNull(ex);
     }
 
     #endregion

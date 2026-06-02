@@ -2,9 +2,10 @@ using Hex1b.Tool.Infrastructure;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class OutputFormatterTests
 {
-    [Fact]
+    [TestMethod]
     public void WriteTable_CalculatesColumnWidths()
     {
         var formatter = new OutputFormatter();
@@ -19,7 +20,7 @@ public class OutputFormatterTests
         });
 
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(3, lines.Length); // header + 2 rows
+        Assert.AreEqual(3, lines.Length); // header + 2 rows
 
         // Header columns should be padded to widest value
         Assert.Contains("NAME", lines[0]);
@@ -28,10 +29,10 @@ public class OutputFormatterTests
         // Values should be aligned with header
         var nameStartInHeader = lines[0].IndexOf("NAME", StringComparison.Ordinal);
         var nameStartInRow = lines[2].IndexOf("a-longer-name", StringComparison.Ordinal);
-        Assert.Equal(nameStartInHeader, nameStartInRow);
+        Assert.AreEqual(nameStartInHeader, nameStartInRow);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteTable_JsonMode_ProducesNoOutput()
     {
         var formatter = new OutputFormatter { JsonMode = true };
@@ -42,10 +43,10 @@ public class OutputFormatterTests
                 [["1"]]);
         });
 
-        Assert.Empty(output.Trim());
+        Assert.IsEmpty(output.Trim());
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteJson_ProducesFormattedJson()
     {
         var formatter = new OutputFormatter { JsonMode = true };
@@ -58,7 +59,7 @@ public class OutputFormatterTests
         Assert.Contains("\"count\": 42", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteLine_NormalMode_WritesOutput()
     {
         var formatter = new OutputFormatter();
@@ -67,10 +68,10 @@ public class OutputFormatterTests
             formatter.WriteLine("hello world");
         });
 
-        Assert.Equal("hello world", output.Trim());
+        Assert.AreEqual("hello world", output.Trim());
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteLine_JsonMode_SuppressesOutput()
     {
         var formatter = new OutputFormatter { JsonMode = true };
@@ -79,10 +80,10 @@ public class OutputFormatterTests
             formatter.WriteLine("hello world");
         });
 
-        Assert.Empty(output.Trim());
+        Assert.IsEmpty(output.Trim());
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteError_AlwaysWritesToStdErr()
     {
         var formatter = new OutputFormatter { JsonMode = true };
@@ -91,10 +92,10 @@ public class OutputFormatterTests
             formatter.WriteError("something went wrong");
         });
 
-        Assert.Equal("something went wrong", errorOutput.Trim());
+        Assert.AreEqual("something went wrong", errorOutput.Trim());
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteTable_EmptyRows_WritesHeaderOnly()
     {
         var formatter = new OutputFormatter();
@@ -104,11 +105,11 @@ public class OutputFormatterTests
         });
 
         var lines = output.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Single(lines);
+        Assert.HasCount(1, lines);
         Assert.Contains("COL1", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteTable_ColumnsAligned_WithTwoSpaceSeparator()
     {
         var formatter = new OutputFormatter();

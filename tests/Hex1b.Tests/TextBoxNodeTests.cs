@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for TextBoxNode rendering and input handling.
 /// </summary>
+[TestClass]
 public class TextBoxNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectSize()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -21,11 +22,11 @@ public class TextBoxNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Bracketless inline render: "hello" = 5 chars
-        Assert.Equal(5, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyText_HasMinWidth()
     {
         var node = new TextBoxNode { Text = "" };
@@ -33,10 +34,10 @@ public class TextBoxNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Empty text still measures 1 so the cursor cell is visible.
-        Assert.Equal(1, size.Width);
+        Assert.AreEqual(1, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_LongText_MeasuresFullWidth()
     {
         var node = new TextBoxNode { Text = "This is a very long text input" };
@@ -44,21 +45,21 @@ public class TextBoxNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // 30 chars
-        Assert.Equal(30, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(30, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new TextBoxNode { Text = "Long text here" };
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
-        Assert.Equal(10, size.Width);
+        Assert.AreEqual(10, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithEmoji_CalculatesDisplayWidth()
     {
         // "😀" is 2 cells wide
@@ -67,10 +68,10 @@ public class TextBoxNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // 2 display width for emoji
-        Assert.Equal(2, size.Width);
+        Assert.AreEqual(2, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithCJK_CalculatesDisplayWidth()
     {
         // "中文" is 4 cells wide (2 + 2)
@@ -79,10 +80,10 @@ public class TextBoxNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // 4 display width
-        Assert.Equal(4, size.Width);
+        Assert.AreEqual(4, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_MixedAsciiAndEmoji_CalculatesDisplayWidth()
     {
         // "Hi😀" = 2 + 2 = 4 cells
@@ -90,10 +91,10 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(4, size.Width);
+        Assert.AreEqual(4, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_FamilyEmoji_TreatedAsTwoColumns()
     {
         // "👨‍👩‍👧" is a ZWJ sequence but displays as one emoji (2 cells)
@@ -101,14 +102,14 @@ public class TextBoxNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(2, size.Width);
+        Assert.AreEqual(2, size.Width);
     }
 
     #endregion
 
     #region Rendering Tests - Unfocused State
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_ShowsBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -134,7 +135,7 @@ public class TextBoxNodeTests
         Assert.DoesNotContain("[test]", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_EmptyText_ShowsEmptyBrackets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -160,7 +161,7 @@ public class TextBoxNodeTests
         Assert.DoesNotContain("]", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_LongText_RendersCompletely()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -188,7 +189,7 @@ public class TextBoxNodeTests
 
     #region Rendering Tests - Focused State with Cursor
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_ShowsCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -217,10 +218,10 @@ public class TextBoxNodeTests
         Assert.Contains("b", snapshot.GetLineTrimmed(0));
         Assert.Contains("c", snapshot.GetLineTrimmed(0));
         // ScreenCursorX should be set to the display width of text before cursor (1 char + bracket)
-        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
+        Assert.IsTrue(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_CursorAtStart_HighlightsFirstChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -245,10 +246,10 @@ public class TextBoxNodeTests
         
         // Line caret: text renders normally, native cursor is at position 0
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
-        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
+        Assert.IsTrue(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_CursorAtEnd_ShowsCursorSpace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -272,10 +273,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Line caret: native cursor should be positioned after "test"
-        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret at end");
+        Assert.IsTrue(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret at end");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_EmptyText_ShowsCursorSpace()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -301,14 +302,14 @@ public class TextBoxNodeTests
 
         Assert.DoesNotContain("[", snapshot.GetLineTrimmed(0));
         Assert.DoesNotContain("]", snapshot.GetLineTrimmed(0));
-        Assert.True(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret in empty text box");
+        Assert.IsTrue(node.ScreenCursorX >= 0, "ScreenCursorX should be set for line caret in empty text box");
     }
 
     #endregion
 
     #region Rendering Tests - Selection
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithSelection_HighlightsSelectedText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -330,13 +331,13 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should have ANSI codes for selection highlighting
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.IsTrue(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         // The text should still be present
         Assert.Contains("hello", snapshot.GetLineTrimmed(0));
         Assert.Contains("world", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithSelection_InMiddle_HighlightsCorrectPortion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -359,14 +360,14 @@ public class TextBoxNodeTests
         // Should contain the full text
         Assert.Contains("abcdefgh", snapshot.GetLineTrimmed(0));
         // Should have selection ANSI codes
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.IsTrue(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WhenFocused_UpdatesState()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -374,22 +375,22 @@ public class TextBoxNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("helloX", node.Text);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("helloX", node.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WhenNotFocused_DoesNotHandle()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = false };
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal("hello", node.Text);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual("hello", node.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Backspace_DeletesCharacter()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -397,11 +398,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("hell", node.Text);
-        Assert.Equal(4, node.State.CursorPosition);
+        Assert.AreEqual("hell", node.Text);
+        Assert.AreEqual(4, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Delete_DeletesCharacterAhead()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -409,11 +410,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("ello", node.Text);
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual("ello", node.Text);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_MovesCursorLeft()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -421,10 +422,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, node.State.CursorPosition);
+        Assert.AreEqual(2, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_MovesCursorRight()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -432,10 +433,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(4, node.State.CursorPosition);
+        Assert.AreEqual(4, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Home_MovesCursorToStart()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -443,10 +444,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_End_MovesCursorToEnd()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -454,10 +455,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, node.State.CursorPosition);
+        Assert.AreEqual(5, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlLeftArrow_MovesToPreviousWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -465,10 +466,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+        Assert.AreEqual(6, node.State.CursorPosition); // Start of "world"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlRightArrow_MovesToNextWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -476,10 +477,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+        Assert.AreEqual(6, node.State.CursorPosition); // Start of "world"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlLeftArrow_AtStart_StaysAtStart()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -487,10 +488,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlRightArrow_AtEnd_StaysAtEnd()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -498,10 +499,10 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(11, node.State.CursorPosition);
+        Assert.AreEqual(11, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlLeftArrow_ClearsSelectionFirst()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -510,11 +511,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.False(node.State.HasSelection);
-        Assert.Equal(0, node.State.CursorPosition); // Moved to start of "hello" (from selection start)
+        Assert.IsFalse(node.State.HasSelection);
+        Assert.AreEqual(0, node.State.CursorPosition); // Moved to start of "hello" (from selection start)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlShiftLeftArrow_SelectsToPreviousWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -522,12 +523,12 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(node.State.HasSelection);
-        Assert.Equal(11, node.State.SelectionAnchor);
-        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+        Assert.IsTrue(node.State.HasSelection);
+        Assert.AreEqual(11, node.State.SelectionAnchor);
+        Assert.AreEqual(6, node.State.CursorPosition); // Start of "world"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlShiftRightArrow_SelectsToNextWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -535,12 +536,12 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(node.State.HasSelection);
-        Assert.Equal(0, node.State.SelectionAnchor);
-        Assert.Equal(6, node.State.CursorPosition); // Start of "world"
+        Assert.IsTrue(node.State.HasSelection);
+        Assert.AreEqual(0, node.State.SelectionAnchor);
+        Assert.AreEqual(6, node.State.CursorPosition); // Start of "world"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlShiftLeftArrow_ExtendsExistingSelection()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -550,12 +551,12 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(node.State.HasSelection);
-        Assert.Equal(11, node.State.SelectionAnchor); // anchor unchanged
-        Assert.Equal(6, node.State.CursorPosition);   // jumped to previous word boundary
+        Assert.IsTrue(node.State.HasSelection);
+        Assert.AreEqual(11, node.State.SelectionAnchor); // anchor unchanged
+        Assert.AreEqual(6, node.State.CursorPosition);   // jumped to previous word boundary
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlShiftLeftArrow_AtStart_StaysAtStart()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -563,12 +564,12 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual(0, node.State.CursorPosition);
         // Anchor was set on entry (at position 0); selection range is empty.
-        Assert.False(node.State.HasSelection);
+        Assert.IsFalse(node.State.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlShiftRightArrow_AtEnd_StaysAtEnd()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -576,11 +577,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Control | Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(11, node.State.CursorPosition);
-        Assert.False(node.State.HasSelection);
+        Assert.AreEqual(11, node.State.CursorPosition);
+        Assert.IsFalse(node.State.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_RegistersSelectWordActions()
     {
         // The rebinding contract requires that SelectWordLeft/SelectWordRight
@@ -590,11 +591,11 @@ public class TextBoxNodeTests
         var bindings = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(bindings);
 
-        Assert.NotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordLeft));
-        Assert.NotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordRight));
+        Assert.IsNotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordLeft));
+        Assert.IsNotEmpty(bindings.GetBindings(TextBoxWidget.SelectWordRight));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlBackspace_DeletesPreviousWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -602,11 +603,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("hello ", node.Text);
-        Assert.Equal(6, node.State.CursorPosition);
+        Assert.AreEqual("hello ", node.Text);
+        Assert.AreEqual(6, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlDelete_DeletesNextWord()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -614,11 +615,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("world", node.Text);
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual("world", node.Text);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlBackspace_AtStart_DoesNothing()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -626,11 +627,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("hello", node.Text);
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual("hello", node.Text);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlDelete_AtEnd_DoesNothing()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -638,11 +639,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("hello", node.Text);
-        Assert.Equal(5, node.State.CursorPosition);
+        Assert.AreEqual("hello", node.Text);
+        Assert.AreEqual(5, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlBackspace_WithSelection_DeletesSelection()
     {
         var node = new TextBoxNode { Text = "hello world", IsFocused = true };
@@ -651,11 +652,11 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\0', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("hello ", node.Text);
-        Assert.False(node.State.HasSelection);
+        Assert.AreEqual("hello ", node.Text);
+        Assert.IsFalse(node.State.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_ShiftLeftArrow_CreatesSelection()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -663,12 +664,12 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, node.State.CursorPosition);
-        Assert.True(node.State.HasSelection);
-        Assert.Equal(3, node.State.SelectionAnchor);
+        Assert.AreEqual(2, node.State.CursorPosition);
+        Assert.IsTrue(node.State.HasSelection);
+        Assert.AreEqual(3, node.State.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlA_SelectsAll()
     {
         var node = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -676,28 +677,28 @@ public class TextBoxNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(node.State.HasSelection);
-        Assert.Equal(0, node.State.SelectionAnchor);
-        Assert.Equal(5, node.State.CursorPosition);
+        Assert.IsTrue(node.State.HasSelection);
+        Assert.AreEqual(0, node.State.SelectionAnchor);
+        Assert.AreEqual(5, node.State.CursorPosition);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new TextBoxNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
     #endregion
 
     #region Mouse Click Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_PositionsCursorAtClickLocation()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -709,11 +710,11 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(3, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(3, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_AtStart_PositionsCursorAtZero()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -724,11 +725,11 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_AtEnd_PositionsCursorAtEnd()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -739,11 +740,11 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 6, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(6, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(5, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(5, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_OnBracket_PositionsCursorAtStart()
     {
         // Brackets are gone — this test now just confirms clicking at column 0
@@ -755,11 +756,11 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_ClearsSelection()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -767,16 +768,16 @@ public class TextBoxNodeTests
         node.IsFocused = true;
         node.Arrange(new Rect(0, 0, 10, 1));
 
-        Assert.True(node.State.HasSelection);
+        Assert.IsTrue(node.State.HasSelection);
 
         // Click anywhere - should clear selection
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         node.HandleMouseClick(3, 0, mouseEvent);
 
-        Assert.False(node.State.HasSelection);
+        Assert.IsFalse(node.State.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_DoubleClick_NotHandledByHandleMouseClick()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -787,10 +788,10 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 2);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_RightClick_NotHandled()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -801,10 +802,10 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Right, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_WithEmoji_PositionsCorrectly()
     {
         // "😀ab" - emoji is 2 cells wide
@@ -818,11 +819,11 @@ public class TextBoxNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 3, 0, Hex1bModifiers.None, ClickCount: 1);
         var result = node.HandleMouseClick(3, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(3, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(3, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_OnWideChar_PositionsBasedOnMidpoint()
     {
         // Click on first half of emoji should position before it
@@ -833,19 +834,19 @@ public class TextBoxNodeTests
         // Click at localX=0 (first half of emoji)
         var mouseEvent1 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1);
         node.HandleMouseClick(0, 0, mouseEvent1);
-        Assert.Equal(0, node.State.CursorPosition); // Before emoji
+        Assert.AreEqual(0, node.State.CursorPosition); // Before emoji
 
         // Click at localX=1 (second half of emoji) — past the midpoint
         var mouseEvent2 = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None, ClickCount: 1);
         node.HandleMouseClick(1, 0, mouseEvent2);
-        Assert.Equal(2, node.State.CursorPosition); // After emoji (emoji is 2 chars in string)
+        Assert.AreEqual(2, node.State.CursorPosition); // After emoji (emoji is 2 chars in string)
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new TextBoxNode { Text = "test" };
@@ -853,14 +854,14 @@ public class TextBoxNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -890,10 +891,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Initial Text"));
+        Assert.IsTrue(snapshot.ContainsText("Initial Text"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_ReceivesInput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -921,10 +922,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hello", capturedText);
+        Assert.AreEqual("Hello", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_InNarrowTerminal_StillWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -953,10 +954,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("ShortX", capturedText);
+        Assert.AreEqual("ShortX", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_TabBetweenMultiple()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -989,11 +990,11 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("AB", text1);
-        Assert.Equal("XY", text2);
+        Assert.AreEqual("AB", text1);
+        Assert.AreEqual("XY", text2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_BackspaceWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1023,10 +1024,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("te", text);
+        Assert.AreEqual("te", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_CursorNavigationWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1057,10 +1058,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("aXbc", text);
+        Assert.AreEqual("aXbc", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_SpecialCharactersWork()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1088,10 +1089,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("@!#", text);
+        Assert.AreEqual("@!#", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_LongTextInNarrowTerminal_ScrollsToShowCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1125,14 +1126,14 @@ public class TextBoxNodeTests
         await runTask;
 
         // With viewport scrolling, the end of the text is visible with cursor
-        Assert.True(snapshot.ContainsText("extHere"));
+        Assert.IsTrue(snapshot.ContainsText("extHere"));
     }
 
     #endregion
 
     #region Uncontrolled Mode Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_UncontrolledMode_PreservesStateAcrossRerenders()
     {
         // Regression test: TextBox with no state argument should preserve typed content
@@ -1168,10 +1169,10 @@ public class TextBoxNodeTests
         await runTask;
 
         // The typed text should be visible in the terminal output
-        Assert.True(snapshot.ContainsText("Hello"));
+        Assert.IsTrue(snapshot.ContainsText("Hello"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_UncontrolledMode_MultipleTextBoxes_IndependentState()
     {
         // Each uncontrolled TextBox should have its own independent state
@@ -1209,11 +1210,11 @@ public class TextBoxNodeTests
         await runTask;
 
         // Both texts should be visible
-        Assert.True(snapshot.ContainsText("AA"));
-        Assert.True(snapshot.ContainsText("BB"));
+        Assert.IsTrue(snapshot.ContainsText("AA"));
+        Assert.IsTrue(snapshot.ContainsText("BB"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBox_ControlledMode_StillWorks()
     {
         // Controlled mode with onTextChanged callback
@@ -1244,14 +1245,14 @@ public class TextBoxNodeTests
         await runTask;
 
         // The external state should be updated
-        Assert.Equal("InitialX", text);
+        Assert.AreEqual("InitialX", text);
     }
 
     #endregion
 
     #region Run-First Pattern Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_Button_RendersAndExits()
     {
         // Test with Button (also focusable) to isolate the issue
@@ -1280,10 +1281,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Click Me"));
+        Assert.IsTrue(snapshot.ContainsText("Click Me"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TextBox_RendersWithoutInput()
     {
         // Simplest case: TextBox renders, no input, just Ctrl+C to exit
@@ -1314,10 +1315,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Initial"));
+        Assert.IsTrue(snapshot.ContainsText("Initial"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TextBox_SingleCharacterInput()
     {
         // One character typed into TextBox
@@ -1344,10 +1345,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("a", capturedText);
+        Assert.AreEqual("a", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TextBox_TypeMultipleChars()
     {
         // Type multiple chars using Type() method
@@ -1374,10 +1375,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hello", capturedText);
+        Assert.AreEqual("Hello", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_ButtonThenTextBox_TabToTextBox()
     {
         // Button has initial focus, then Tab to TextBox
@@ -1409,10 +1410,10 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("x", capturedText);
+        Assert.AreEqual("x", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TwoButtons_TabBetweenThem()
     {
         // Two buttons, Tab between them, no TextBox involved
@@ -1443,11 +1444,11 @@ public class TextBoxNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(button1Clicked);
-        Assert.True(button2Clicked);
+        Assert.IsFalse(button1Clicked);
+        Assert.IsTrue(button2Clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_ButtonThenTextBox_JustTabThenExit()
     {
         // Button first, Tab to TextBox, but don't type - just exit
@@ -1479,10 +1480,10 @@ public class TextBoxNodeTests
         await runTask;
 
         // Use captured snapshot
-        Assert.True(snapshot.ContainsText("pre-filled"));
+        Assert.IsTrue(snapshot.ContainsText("pre-filled"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TextBoxInVStack_NoFocusChange()
     {
         // TextBox in VStack, has initial focus, just exit without any interaction
@@ -1514,10 +1515,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("test-value"));
+        Assert.IsTrue(snapshot.ContainsText("test-value"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_ButtonInVStack_Works()
     {
         // Button in VStack, has initial focus
@@ -1548,10 +1549,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Click Me"));
+        Assert.IsTrue(snapshot.ContainsText("Click Me"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunFirst_TextBoxInVStack_RendersAndExits()
     {
         // TextBox in VStack, verify it renders and Ctrl+C exits properly
@@ -1582,14 +1583,14 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("test"));
+        Assert.IsTrue(snapshot.ContainsText("test"));
     }
 
     #endregion
 
     #region Viewport Scrolling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Viewport_CursorAtEnd_ShowsTailOfText()
     {
         // Terminal width 15 → bracket viewport = 13 chars
@@ -1618,10 +1619,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("ijklmnopqrst"));
+        Assert.IsTrue(snapshot.ContainsText("ijklmnopqrst"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Viewport_HomeKey_ScrollsToStart()
     {
         // Type long text, then press Home — should scroll to show start
@@ -1650,10 +1651,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("abcdefghijklmno"));
+        Assert.IsTrue(snapshot.ContainsText("abcdefghijklmno"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Viewport_ShortText_NoScrolling()
     {
         // Text fits in viewport — no scrolling needed
@@ -1679,10 +1680,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("hello"));
+        Assert.IsTrue(snapshot.ContainsText("hello"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Viewport_TypePastEnd_ScrollsRight()
     {
         // Start with empty textbox in narrow terminal, type characters past the viewport width
@@ -1711,360 +1712,360 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("ijkl"));
+        Assert.IsTrue(snapshot.ContainsText("ijkl"));
     }
 
     #endregion
 
     #region Multiline State Tests
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineCount_SingleLine()
     {
         var state = new TextBoxState { Text = "hello world" };
-        Assert.Equal(1, state.GetLineCount());
+        Assert.AreEqual(1, state.GetLineCount());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineCount_MultipleLines()
     {
         var state = new TextBoxState { Text = "line1\nline2\nline3" };
-        Assert.Equal(3, state.GetLineCount());
+        Assert.AreEqual(3, state.GetLineCount());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineCount_EmptyString()
     {
         var state = new TextBoxState { Text = "" };
-        Assert.Equal(1, state.GetLineCount());
+        Assert.AreEqual(1, state.GetLineCount());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineCount_TrailingNewline()
     {
         var state = new TextBoxState { Text = "line1\n" };
-        Assert.Equal(2, state.GetLineCount());
+        Assert.AreEqual(2, state.GetLineCount());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineStartOffset_FirstLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
-        Assert.Equal(0, state.GetLineStartOffset(0));
+        Assert.AreEqual(0, state.GetLineStartOffset(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineStartOffset_SecondLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
-        Assert.Equal(4, state.GetLineStartOffset(1));
+        Assert.AreEqual(4, state.GetLineStartOffset(1));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineStartOffset_ThirdLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
-        Assert.Equal(8, state.GetLineStartOffset(2));
+        Assert.AreEqual(8, state.GetLineStartOffset(2));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineLength_MiddleLine()
     {
         var state = new TextBoxState { Text = "abc\ndefg\nhi" };
-        Assert.Equal(4, state.GetLineLength(1)); // "defg"
+        Assert.AreEqual(4, state.GetLineLength(1)); // "defg"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineLength_LastLine()
     {
         var state = new TextBoxState { Text = "abc\ndefg\nhi" };
-        Assert.Equal(2, state.GetLineLength(2)); // "hi"
+        Assert.AreEqual(2, state.GetLineLength(2)); // "hi"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_OffsetToLineColumn_FirstLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
-        Assert.Equal((0, 2), state.OffsetToLineColumn(2)); // 'c'
+        Assert.AreEqual((0, 2), state.OffsetToLineColumn(2)); // 'c'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_OffsetToLineColumn_SecondLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
-        Assert.Equal((1, 1), state.OffsetToLineColumn(5)); // 'e'
+        Assert.AreEqual((1, 1), state.OffsetToLineColumn(5)); // 'e'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_OffsetToLineColumn_AtNewline()
     {
         var state = new TextBoxState { Text = "abc\ndef" };
-        Assert.Equal((0, 3), state.OffsetToLineColumn(3)); // just before '\n'
+        Assert.AreEqual((0, 3), state.OffsetToLineColumn(3)); // just before '\n'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_OffsetToLineColumn_AfterNewline()
     {
         var state = new TextBoxState { Text = "abc\ndef" };
-        Assert.Equal((1, 0), state.OffsetToLineColumn(4)); // start of "def"
+        Assert.AreEqual((1, 0), state.OffsetToLineColumn(4)); // start of "def"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_LineColumnToOffset_Roundtrip()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi" };
         var (line, col) = state.OffsetToLineColumn(5);
-        Assert.Equal(5, state.LineColumnToOffset(line, col));
+        Assert.AreEqual(5, state.LineColumnToOffset(line, col));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_LineColumnToOffset_ClampsColumn()
     {
         var state = new TextBoxState { Text = "abc\nd" };
         // Column 10 on line 1 ("d") should clamp to offset 5 (end of "d")
-        Assert.Equal(5, state.LineColumnToOffset(1, 10));
+        Assert.AreEqual(5, state.LineColumnToOffset(1, 10));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_GetLineText()
     {
         var state = new TextBoxState { Text = "abc\ndefg\nhi" };
-        Assert.Equal("defg", state.GetLineText(1));
+        Assert.AreEqual("defg", state.GetLineText(1));
     }
 
     #endregion
 
     #region Multiline Vertical Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveUp_MovesToPreviousLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 5; // 'e' on line 1
         state.MoveUp();
-        Assert.Equal((0, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'b' on line 0
+        Assert.AreEqual((0, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'b' on line 0
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveDown_MovesToNextLine()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 1; // 'b' on line 0
         state.MoveDown();
-        Assert.Equal((1, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'e' on line 1
+        Assert.AreEqual((1, 1), state.OffsetToLineColumn(state.CursorPosition)); // 'e' on line 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveUp_OnFirstLine_StaysOnFirstLine()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
         state.CursorPosition = 2;
         state.MoveUp();
-        Assert.Equal(2, state.CursorPosition);
+        Assert.AreEqual(2, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveDown_OnLastLine_StaysOnLastLine()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
         state.CursorPosition = 5;
         state.MoveDown();
-        Assert.Equal(5, state.CursorPosition);
+        Assert.AreEqual(5, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveUp_ClampsToShorterLine()
     {
         var state = new TextBoxState { Text = "ab\nabcdef\ngh", IsMultiline = true };
         state.CursorPosition = 8; // 'e' (col 5) on "abcdef"
         state.MoveUp();
         // Line 0 "ab" has length 2, so column clamps to 2 (end of "ab")
-        Assert.Equal(2, state.CursorPosition);
+        Assert.AreEqual(2, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveDown_PreservesPreferredColumn()
     {
         var state = new TextBoxState { Text = "abcdef\nab\nabcdef", IsMultiline = true };
         state.CursorPosition = 5; // col 5 on "abcdef"
         state.MoveDown(); // moves to "ab", clamped to col 2
-        Assert.Equal((1, 2), state.OffsetToLineColumn(state.CursorPosition));
+        Assert.AreEqual((1, 2), state.OffsetToLineColumn(state.CursorPosition));
         state.MoveDown(); // moves to "abcdef", restores to col 5
-        Assert.Equal((2, 5), state.OffsetToLineColumn(state.CursorPosition));
+        Assert.AreEqual((2, 5), state.OffsetToLineColumn(state.CursorPosition));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_MoveUp_WithShift_CreatesSelection()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
         state.CursorPosition = 5; // 'e' on line 1
         state.MoveUp(extend: true);
-        Assert.True(state.HasSelection);
-        Assert.Equal(5, state.SelectionAnchor);
-        Assert.Equal(1, state.CursorPosition); // 'b' on line 0
+        Assert.IsTrue(state.HasSelection);
+        Assert.AreEqual(5, state.SelectionAnchor);
+        Assert.AreEqual(1, state.CursorPosition); // 'b' on line 0
     }
 
     #endregion
 
     #region Multiline Enter Key Tests
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_InsertsAtCursor()
     {
         var state = new TextBoxState { Text = "abcdef", IsMultiline = true };
         state.CursorPosition = 3;
         state.InsertNewline();
-        Assert.Equal("abc\ndef", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.AreEqual("abc\ndef", state.Text);
+        Assert.AreEqual(4, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_AtStart()
     {
         var state = new TextBoxState { Text = "abc", IsMultiline = true };
         state.CursorPosition = 0;
         state.InsertNewline();
-        Assert.Equal("\nabc", state.Text);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual("\nabc", state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_AtEnd()
     {
         var state = new TextBoxState { Text = "abc", IsMultiline = true };
         state.CursorPosition = 3;
         state.InsertNewline();
-        Assert.Equal("abc\n", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.AreEqual("abc\n", state.Text);
+        Assert.AreEqual(4, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_DeletesSelection()
     {
         var state = new TextBoxState { Text = "abcdef", IsMultiline = true };
         state.SelectionAnchor = 1;
         state.CursorPosition = 4;
         state.InsertNewline();
-        Assert.Equal("a\nef", state.Text);
-        Assert.Equal(2, state.CursorPosition);
+        Assert.AreEqual("a\nef", state.Text);
+        Assert.AreEqual(2, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_InMultilineMode_InsertsNewline()
     {
         var state = new TextBoxState { Text = "abc", IsMultiline = true };
         state.CursorPosition = 3;
         var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
-        Assert.True(handled);
-        Assert.Equal("abc\n", state.Text);
+        Assert.IsTrue(handled);
+        Assert.AreEqual("abc\n", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_InSingleLineMode_NotHandled()
     {
         var state = new TextBoxState { Text = "abc", IsMultiline = false };
         state.CursorPosition = 3;
         var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
-        Assert.False(handled);
-        Assert.Equal("abc", state.Text);
+        Assert.IsFalse(handled);
+        Assert.AreEqual("abc", state.Text);
     }
 
     #endregion
 
     #region Multiline Home/End Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Home_MultilineMode_GoesToLineStart()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 6; // 'f' on line 1
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
-        Assert.Equal(4, state.CursorPosition); // start of "def"
+        Assert.AreEqual(4, state.CursorPosition); // start of "def"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_End_MultilineMode_GoesToLineEnd()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 4; // 'd' on line 1
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None));
-        Assert.Equal(7, state.CursorPosition); // end of "def"
+        Assert.AreEqual(7, state.CursorPosition); // end of "def"
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlHome_MultilineMode_GoesToDocumentStart()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 9; // 'h' on line 2
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.Control));
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_CtrlEnd_MultilineMode_GoesToDocumentEnd()
     {
         var state = new TextBoxState { Text = "abc\ndef\nghi", IsMultiline = true };
         state.CursorPosition = 0;
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Control));
-        Assert.Equal(11, state.CursorPosition);
+        Assert.AreEqual(11, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Home_SingleLineMode_GoesToDocumentStart()
     {
         var state = new TextBoxState { Text = "hello", IsMultiline = false };
         state.CursorPosition = 3;
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None));
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
     #endregion
 
     #region Multiline Up/Down Arrow Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_MultilineMode_MovesUp()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
         state.CursorPosition = 5; // 'e'
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
-        Assert.Equal(1, state.CursorPosition); // 'b'
+        Assert.AreEqual(1, state.CursorPosition); // 'b'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_MultilineMode_MovesDown()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true };
         state.CursorPosition = 1; // 'b'
         state.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        Assert.Equal(5, state.CursorPosition); // 'e'
+        Assert.AreEqual(5, state.CursorPosition); // 'e'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_SingleLineMode_NotHandled()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = false };
         state.CursorPosition = 5;
         var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None));
-        Assert.False(handled);
-        Assert.Equal(5, state.CursorPosition);
+        Assert.IsFalse(handled);
+        Assert.AreEqual(5, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_SingleLineMode_NotHandled()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = false };
         state.CursorPosition = 1;
         var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None));
-        Assert.False(handled);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.IsFalse(handled);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
     #endregion
 
     #region Multiline Node Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_EnterInsertsNewline()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2091,10 +2092,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("hello\nworld", capturedText);
+        Assert.AreEqual("hello\nworld", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_RendersMultipleLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2121,12 +2122,12 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("line1"));
-        Assert.True(snapshot.ContainsText("line2"));
-        Assert.True(snapshot.ContainsText("line3"));
+        Assert.IsTrue(snapshot.ContainsText("line1"));
+        Assert.IsTrue(snapshot.ContainsText("line2"));
+        Assert.IsTrue(snapshot.ContainsText("line3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_UpDownArrowNavigation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2153,10 +2154,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("abcX\ndef", capturedText);
+        Assert.AreEqual("abcX\ndef", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_WordWrap_WrapsLongLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2189,11 +2190,11 @@ public class TextBoxNodeTests
         await runTask;
 
         // Both parts of the wrapped text should be visible
-        Assert.True(snapshot.ContainsText("hello"));
-        Assert.True(snapshot.ContainsText("sentence"));
+        Assert.IsTrue(snapshot.ContainsText("hello"));
+        Assert.IsTrue(snapshot.ContainsText("sentence"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_DefaultTextBox_StillSingleLine()
     {
         // Verify that a default TextBox (no Multiline()) still works as single-line
@@ -2222,10 +2223,10 @@ public class TextBoxNodeTests
         await runTask;
 
         // Should still have brackets for single-line
-        Assert.True(snapshot.ContainsText("hello"));
+        Assert.IsTrue(snapshot.ContainsText("hello"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_VerticalScrolling()
     {
         // Test vertical scrolling when content exceeds visible height
@@ -2254,66 +2255,66 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("line7"));
+        Assert.IsTrue(snapshot.ContainsText("line7"));
         // line1 should NOT be visible (it's scrolled off)
-        Assert.False(snapshot.ContainsText("line1"));
+        Assert.IsFalse(snapshot.ContainsText("line1"));
     }
 
     #endregion
 
     #region MaxLines Tests
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_RespectsMaxLines()
     {
         var state = new TextBoxState { Text = "abc\ndef", IsMultiline = true, MaxLines = 2 };
         state.CursorPosition = 3;
         state.InsertNewline();
         // Should not insert — already at 2 lines
-        Assert.Equal("abc\ndef", state.Text);
-        Assert.Equal(3, state.CursorPosition);
+        Assert.AreEqual("abc\ndef", state.Text);
+        Assert.AreEqual(3, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_AllowedBelowMaxLines()
     {
         var state = new TextBoxState { Text = "abc", IsMultiline = true, MaxLines = 3 };
         state.CursorPosition = 3;
         state.InsertNewline();
-        Assert.Equal("abc\n", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.AreEqual("abc\n", state.Text);
+        Assert.AreEqual(4, state.CursorPosition);
         // Now at 2 lines, can still add one more
         state.InsertNewline();
-        Assert.Equal("abc\n\n", state.Text);
+        Assert.AreEqual("abc\n\n", state.Text);
         // Now at 3 lines, should block further
         state.InsertNewline();
-        Assert.Equal("abc\n\n", state.Text);
+        Assert.AreEqual("abc\n\n", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task State_InsertNewline_NoLimit_WhenMaxLinesNull()
     {
         var state = new TextBoxState { Text = "a\nb\nc", IsMultiline = true, MaxLines = null };
         state.CursorPosition = 5;
         state.InsertNewline();
-        Assert.Equal("a\nb\nc\n", state.Text);
+        Assert.AreEqual("a\nb\nc\n", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_RespectsMaxLines()
     {
         var state = new TextBoxState { Text = "line1\nline2\nline3", IsMultiline = true, MaxLines = 3 };
         state.CursorPosition = 5;
         var handled = state.HandleInput(new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None));
-        Assert.True(handled); // Input is consumed even if newline is blocked
-        Assert.Equal("line1\nline2\nline3", state.Text); // No change
+        Assert.IsTrue(handled); // Input is consumed even if newline is blocked
+        Assert.AreEqual("line1\nline2\nline3", state.Text); // No change
     }
 
     #endregion
 
     #region MoveDown/MoveUp Creates New Line Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MoveDown_OnLastLine_CreatesNewLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2340,10 +2341,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("hello\n", capturedText);
+        Assert.AreEqual("hello\n", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MoveDown_OnLastLine_WithMaxLines_Blocked()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2370,10 +2371,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("line1\nline2", capturedText);
+        Assert.AreEqual("line1\nline2", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MoveDown_NotOnLastLine_NavigatesNormally()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2406,10 +2407,10 @@ public class TextBoxNodeTests
         await runTask;
 
         // Text should have X inserted on line 1, no new lines created
-        Assert.Equal("abc\nXdef\nghi", capturedText);
+        Assert.AreEqual("abc\nXdef\nghi", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MoveUp_OnFirstLine_IsNoOp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2440,7 +2441,7 @@ public class TextBoxNodeTests
         Assert.DoesNotContain("\n", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MaxLines_BlocksEnterAtLimit()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -2472,7 +2473,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("a\nb\ncd", capturedText);
+        Assert.AreEqual("a\nb\ncd", capturedText);
     }
 
     #endregion
@@ -2492,7 +2493,7 @@ public class TextBoxNodeTests
     //     and does NOT use per-line horizontal scrolling
     // ────────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_LongLinesTruncatedToViewportWidth()
     {
         // A multiline text box (no word wrap) in a narrow terminal should
@@ -2526,14 +2527,14 @@ public class TextBoxNodeTests
         await runTask;
 
         // "short" fits within viewport — should be fully visible
-        Assert.True(snapshot.ContainsText("short"));
+        Assert.IsTrue(snapshot.ContainsText("short"));
         // The long line starts with "abcdefghijklmno" (15 chars) — that prefix should be visible
-        Assert.True(snapshot.ContainsText("abcdefghijklmno"));
+        Assert.IsTrue(snapshot.ContainsText("abcdefghijklmno"));
         // Characters beyond the viewport (e.g. "pqrstuvwxyz") should NOT appear
-        Assert.False(snapshot.ContainsText("qrstuvwxyz"));
+        Assert.IsFalse(snapshot.ContainsText("qrstuvwxyz"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_CursorLineScrollsHorizontally()
     {
         // When the cursor is on a long line and moved to the end, the viewport
@@ -2570,10 +2571,10 @@ public class TextBoxNodeTests
 
         // The cursor line should have scrolled to show the end of the alphabet.
         // The tail "xyz" must be visible because the cursor is at the end.
-        Assert.True(snapshot.ContainsText("xyz"));
+        Assert.IsTrue(snapshot.ContainsText("xyz"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_NonCursorLineSnapsToStart()
     {
         // When the cursor moves away from a long line to a different line,
@@ -2613,14 +2614,14 @@ public class TextBoxNodeTests
         await runTask;
 
         // Line 0 ("short") should be visible since the cursor is there now
-        Assert.True(snapshot.ContainsText("short"));
+        Assert.IsTrue(snapshot.ContainsText("short"));
         // Line 1 should have snapped back to start — "abcdef" prefix visible
-        Assert.True(snapshot.ContainsText("abcdef"));
+        Assert.IsTrue(snapshot.ContainsText("abcdef"));
         // The tail of line 1 should NOT be visible anymore since cursor left that line
-        Assert.False(snapshot.ContainsText("xyz"));
+        Assert.IsFalse(snapshot.ContainsText("xyz"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_EachLineHasIndependentViewport()
     {
         // With multiple long lines, only the cursor line scrolls. Other lines
@@ -2658,12 +2659,12 @@ public class TextBoxNodeTests
         await runTask;
 
         // Line 0 (A line): cursor not here → shows from start "AAAAAAAAAAAAAAA" (15 As)
-        Assert.True(snapshot.ContainsText("AAAAAAAAAAAAAAA"));
+        Assert.IsTrue(snapshot.ContainsText("AAAAAAAAAAAAAAA"));
         // Line 2 (C line): cursor not here → shows from start "CCCCCCCCCCCCCCC" (15 Cs)
-        Assert.True(snapshot.ContainsText("CCCCCCCCCCCCCCC"));
+        Assert.IsTrue(snapshot.ContainsText("CCCCCCCCCCCCCCC"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_ShortLinesUnaffected()
     {
         // Lines that fit entirely within the viewport width should be rendered
@@ -2694,12 +2695,12 @@ public class TextBoxNodeTests
         await runTask;
 
         // All short lines should be fully visible regardless of cursor position
-        Assert.True(snapshot.ContainsText("hi"));
-        Assert.True(snapshot.ContainsText("there"));
-        Assert.True(snapshot.ContainsText("world"));
+        Assert.IsTrue(snapshot.ContainsText("hi"));
+        Assert.IsTrue(snapshot.ContainsText("there"));
+        Assert.IsTrue(snapshot.ContainsText("world"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineNoWrap_TypingScrollsCursorLineOnly()
     {
         // When typing at the end of a long line, the cursor line should scroll
@@ -2733,13 +2734,13 @@ public class TextBoxNodeTests
         await runTask;
 
         // Line 0 "top" is short and cursor isn't there → fully visible
-        Assert.True(snapshot.ContainsText("top"));
+        Assert.IsTrue(snapshot.ContainsText("top"));
         // Line 1 cursor is at end after typing Xs → should show the end portion
         // The beginning "bottom" should have scrolled off if the line is long enough
-        Assert.True(snapshot.ContainsText("XXXX")); // end of the typed text visible
+        Assert.IsTrue(snapshot.ContainsText("XXXX")); // end of the typed text visible
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultilineWithWrap_NotAffectedByPerLineViewport()
     {
         // Word-wrapped multiline mode should NOT use per-line horizontal scrolling.
@@ -2771,16 +2772,16 @@ public class TextBoxNodeTests
 
         // With word wrap, all text should be visible across multiple visual lines.
         // The words wrap at boundaries so all content appears on screen.
-        Assert.True(snapshot.ContainsText("hello"));
-        Assert.True(snapshot.ContainsText("overflow"));
-        Assert.True(snapshot.ContainsText("here"));
+        Assert.IsTrue(snapshot.ContainsText("hello"));
+        Assert.IsTrue(snapshot.ContainsText("overflow"));
+        Assert.IsTrue(snapshot.ContainsText("here"));
     }
 
     #endregion
 
     #region Multiline Preferred Column Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_UpDown_PreservesColumnAcrossShortLine()
     {
         // When navigating up/down between long lines via a short intermediate line,
@@ -2834,10 +2835,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hello World!\nShort\nAnother Log!", capturedText);
+        Assert.AreEqual("Hello World!\nShort\nAnother Log!", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_LeftArrowClearsPreferredColumn()
     {
         // After pressing Left/Right, the preferred column should be reset so that
@@ -2888,10 +2889,10 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("ABCEFGHIJ\nabcdefghij", capturedText);
+        Assert.AreEqual("ABCEFGHIJ\nabcdefghij", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Multiline_TypingClearsPreferredColumn()
     {
         // After typing a character, the preferred column should be reset so that
@@ -2943,7 +2944,7 @@ public class TextBoxNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("ACDEF\nXabcdef", capturedText);
+        Assert.AreEqual("ACDEF\nXabcdef", capturedText);
     }
 
     #endregion

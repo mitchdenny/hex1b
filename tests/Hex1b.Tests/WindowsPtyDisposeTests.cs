@@ -18,27 +18,26 @@ namespace Hex1b.Tests;
 /// of ReadThreadProc/WriteThreadProc. The cached copy remains valid and correctly
 /// reflects cancellation even after the source is disposed.
 /// </summary>
+[TestClass]
 public class WindowsPtyDisposeTests
 {
     private static string ResolveShimPath()
     {
-        Assert.True(
-            WindowsPtyShimLocator.TryResolve(out var path),
-            "Expected PTY shim to be resolvable via WindowsPtyShimLocator");
+        Assert.IsTrue(WindowsPtyShimLocator.TryResolve(out var path), "Expected PTY shim to be resolvable via WindowsPtyShimLocator");
         return path;
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowsPtyShimLocator_WithExplicitPath_ResolvesOverride()
     {
         using var workspace = TestWorkspace.Create("pty_shim_locator");
         var shimFile = workspace.CreateFile("hex1bpty.exe", string.Empty);
 
-        Assert.True(WindowsPtyShimLocator.TryResolve(shimFile.FullName, out var resolvedPath));
-        Assert.Equal(shimFile.FullName, resolvedPath, ignoreCase: true);
+        Assert.IsTrue(WindowsPtyShimLocator.TryResolve(shimFile.FullName, out var resolvedPath));
+        Assert.AreEqual(shimFile.FullName, resolvedPath, ignoreCase: true);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowsPtyShimLocator_WithPackagedRuntimePath_ResolvesShim()
     {
         using var workspace = TestWorkspace.Create("pty_shim_locator_packaged");
@@ -49,11 +48,11 @@ public class WindowsPtyDisposeTests
         var shimPath = Path.Combine(runtimeDirectory, "hex1bpty.exe");
         File.WriteAllText(shimPath, string.Empty);
 
-        Assert.True(WindowsPtyShimLocator.TryResolveFromBaseDirectory(baseDirectory, explicitPath: null, out var resolvedPath));
-        Assert.Equal(shimPath, resolvedPath, ignoreCase: true);
+        Assert.IsTrue(WindowsPtyShimLocator.TryResolveFromBaseDirectory(baseDirectory, explicitPath: null, out var resolvedPath));
+        Assert.AreEqual(shimPath, resolvedPath, ignoreCase: true);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowsPtySocketPaths_CreateSocketPath_UsesPrivateSocketDirectory()
     {
         using var workspace = TestWorkspace.Create("pty_socket_dir");
@@ -69,7 +68,7 @@ public class WindowsPtyDisposeTests
 
             Assert.StartsWith(overrideDirectory, socketPath, StringComparison.OrdinalIgnoreCase);
             Assert.EndsWith(".socket", socketPath, StringComparison.OrdinalIgnoreCase);
-            Assert.True(Directory.Exists(overrideDirectory));
+            Assert.IsTrue(Directory.Exists(overrideDirectory));
         }
         finally
         {
@@ -78,23 +77,23 @@ public class WindowsPtyDisposeTests
         }
     }
 
-    [Theory]
-    [InlineData("cmd.exe", new[] { "/c", "echo hi" }, false)]
-    [InlineData("cmd.exe", new[] { "/k", "echo hi" }, true)]
-    [InlineData("powershell.exe", new[] { "-NoLogo", "-NoProfile" }, true)]
-    [InlineData("powershell.exe", new[] { "-NoLogo", "-Command", "Write-Output hi" }, false)]
-    [InlineData("pwsh.exe", new[] { "-NoExit", "-Command", "Write-Output hi" }, true)]
+    [TestMethod]
+    [DataRow("cmd.exe", new[] { "/c", "echo hi" }, false)]
+    [DataRow("cmd.exe", new[] { "/k", "echo hi" }, true)]
+    [DataRow("powershell.exe", new[] { "-NoLogo", "-NoProfile" }, true)]
+    [DataRow("powershell.exe", new[] { "-NoLogo", "-Command", "Write-Output hi" }, false)]
+    [DataRow("pwsh.exe", new[] { "-NoExit", "-Command", "Write-Output hi" }, true)]
     public void WindowsPtyShellHeuristics_RecognizesInteractiveWarmupScenarios(
         string fileName,
         string[] arguments,
         bool expected)
     {
         var actual = WindowsPtyShellHeuristics.RequiresPromptWarmup(fileName, arguments);
-        Assert.Equal(expected, actual);
+        Assert.AreEqual(expected, actual);
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task WithPtyProcess_WhenShimBinaryAvailable_UsesWindowsPtyShim()
     {
         if (!OperatingSystem.IsWindows())
@@ -120,11 +119,11 @@ public class WindowsPtyDisposeTests
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
-        Assert.Equal(17, exitCode);
+        Assert.AreEqual(17, exitCode);
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task WithPtyProcess_WhenShimAvailable_StreamsOutputInputAndResize()
     {
         if (!OperatingSystem.IsWindows())
@@ -145,7 +144,7 @@ public class WindowsPtyDisposeTests
                 shimPath));
 
         await process.StartAsync(TestContext.Current.CancellationToken);
-        Assert.Equal("WindowsShimPtyHandle", GetActivePtyHandleTypeName(process));
+        Assert.AreEqual("WindowsShimPtyHandle", GetActivePtyHandleTypeName(process));
 
         var startup = await ReadUntilContainsAsync(
             process,
@@ -176,11 +175,11 @@ public class WindowsPtyDisposeTests
 
         await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\r\n"), TestContext.Current.CancellationToken);
         var exitCode = await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task DirectPtyProcess_DisposeAsync_TerminatesChildProcess()
     {
         if (!OperatingSystem.IsWindows())
@@ -198,7 +197,7 @@ public class WindowsPtyDisposeTests
 
         await process.StartAsync(TestContext.Current.CancellationToken);
         var pid = process.ProcessId;
-        Assert.True(pid > 0, "Expected the PTY child process to start.");
+        Assert.IsTrue(pid > 0, "Expected the PTY child process to start.");
 
         await process.DisposeAsync();
 
@@ -208,11 +207,11 @@ public class WindowsPtyDisposeTests
             await Task.Delay(50, timeoutCts.Token);
         }
 
-        Assert.False(IsProcessRunning(pid), $"Process {pid} should have terminated after dispose.");
+        Assert.IsFalse(IsProcessRunning(pid), $"Process {pid} should have terminated after dispose.");
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task Hex1bPtyHost_MismatchedLaunchToken_IsRejectedAndLogged()
     {
         if (!OperatingSystem.IsWindows())
@@ -243,7 +242,7 @@ public class WindowsPtyDisposeTests
             process.StartInfo.ArgumentList.Add("--logfile");
             process.StartInfo.ArgumentList.Add(logPath);
 
-            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.IsTrue(process.Start(), "Failed to launch hex1bpty.exe.");
 
             using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             await ConnectWithRetriesAsync(
@@ -269,15 +268,15 @@ public class WindowsPtyDisposeTests
                 TestContext.Current.CancellationToken);
 
             var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-            Assert.NotNull(frame);
-            Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+            Assert.IsNotNull(frame);
+            Assert.AreEqual(WindowsPtyShimFrameType.Error, frame.Value.Type);
 
             var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
             Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
 
             await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(1, process.ExitCode);
-            Assert.True(File.Exists(logPath));
+            Assert.AreEqual(1, process.ExitCode);
+            Assert.IsTrue(File.Exists(logPath));
 
             var logContents = await ReadAllTextSharedAsync(logPath, TestContext.Current.CancellationToken);
             Assert.Contains("Rejected PTY launch request", logContents, StringComparison.OrdinalIgnoreCase);
@@ -288,8 +287,8 @@ public class WindowsPtyDisposeTests
         }
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task Hex1bPtyHost_InvalidLogfilePath_DoesNotPreventStartup()
     {
         if (!OperatingSystem.IsWindows())
@@ -320,7 +319,7 @@ public class WindowsPtyDisposeTests
             process.StartInfo.ArgumentList.Add("--logfile");
             process.StartInfo.ArgumentList.Add(invalidLogPath);
 
-            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.IsTrue(process.Start(), "Failed to launch hex1bpty.exe.");
 
             using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             await ConnectWithRetriesAsync(
@@ -346,14 +345,14 @@ public class WindowsPtyDisposeTests
                 TestContext.Current.CancellationToken);
 
             var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-            Assert.NotNull(frame);
-            Assert.Equal(WindowsPtyShimFrameType.Error, frame.Value.Type);
+            Assert.IsNotNull(frame);
+            Assert.AreEqual(WindowsPtyShimFrameType.Error, frame.Value.Type);
 
             var error = WindowsPtyShimProtocol.ReadJson<WindowsPtyShimErrorResponse>(frame.Value.Payload);
             Assert.Contains("token", error.Message, StringComparison.OrdinalIgnoreCase);
 
             await process.WaitForExitAsync(TestContext.Current.CancellationToken);
-            Assert.Equal(1, process.ExitCode);
+            Assert.AreEqual(1, process.ExitCode);
         }
         finally
         {
@@ -361,8 +360,8 @@ public class WindowsPtyDisposeTests
         }
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task Hex1bPtyHost_ClientDisconnect_ShutsDownHelperProcess()
     {
         if (!OperatingSystem.IsWindows())
@@ -390,7 +389,7 @@ public class WindowsPtyDisposeTests
             process.StartInfo.ArgumentList.Add("--token");
             process.StartInfo.ArgumentList.Add("expected-launch-token");
 
-            Assert.True(process.Start(), "Failed to launch hex1bpty.exe.");
+            Assert.IsTrue(process.Start(), "Failed to launch hex1bpty.exe.");
 
             using var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
             await ConnectWithRetriesAsync(
@@ -417,8 +416,8 @@ public class WindowsPtyDisposeTests
                     TestContext.Current.CancellationToken);
 
                 var frame = await WindowsPtyShimProtocol.ReadFrameAsync(stream, TestContext.Current.CancellationToken);
-                Assert.NotNull(frame);
-                Assert.Equal(WindowsPtyShimFrameType.Started, frame.Value.Type);
+                Assert.IsNotNull(frame);
+                Assert.AreEqual(WindowsPtyShimFrameType.Started, frame.Value.Type);
 
                 socket.Shutdown(SocketShutdown.Both);
             }
@@ -426,7 +425,7 @@ public class WindowsPtyDisposeTests
             await process.WaitForExitAsync(TestContext.Current.CancellationToken)
                 .WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
 
-            Assert.True(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
+            Assert.IsTrue(process.HasExited, "hex1bpty.exe should exit when its client disconnects.");
         }
         finally
         {
@@ -438,8 +437,8 @@ public class WindowsPtyDisposeTests
     /// Rapidly disposing a PTY terminal while the child process is still running
     /// must not throw ObjectDisposedException on background threads.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task DisposeAsync_WhileProcessRunning_DoesNotThrowObjectDisposedException()
     {
         if (!OperatingSystem.IsWindows())
@@ -489,7 +488,7 @@ public class WindowsPtyDisposeTests
                 .Where(ex => ex is ObjectDisposedException)
                 .ToList();
 
-            Assert.Empty(odeExceptions);
+            Assert.IsEmpty(odeExceptions);
         }
         finally
         {
@@ -611,8 +610,8 @@ public class WindowsPtyDisposeTests
     /// Disposing a PTY terminal after the child process has exited naturally
     /// should complete without exceptions.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task DisposeAsync_AfterProcessExit_CompletesCleanly()
     {
         if (!OperatingSystem.IsWindows())
@@ -634,18 +633,18 @@ public class WindowsPtyDisposeTests
             await Task.Delay(100, cts.Token);
 
         // Dispose after process has exited — should not throw
-        var exception = await Record.ExceptionAsync(async () =>
+        var exception = await TestSeq.RecordExceptionAsync(async () =>
             await terminal.DisposeAsync());
 
-        Assert.Null(exception);
+        Assert.IsNull(exception);
     }
 
     /// <summary>
     /// Rapidly creating and disposing PTY terminals in sequence must not
     /// leak unhandled exceptions from thread cleanup.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task RapidCreateDispose_DoesNotLeakExceptions()
     {
         if (!OperatingSystem.IsWindows())
@@ -679,7 +678,7 @@ public class WindowsPtyDisposeTests
             // Wait for any lingering thread exceptions
             await Task.Delay(500);
 
-            Assert.Empty(unhandledExceptions);
+            Assert.IsEmpty(unhandledExceptions);
         }
         finally
         {
@@ -691,8 +690,8 @@ public class WindowsPtyDisposeTests
     /// Direct mode should continue to use the in-process WindowsPtyHandle even when
     /// a proxy path is configured but unavailable.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task WithPtyProcess_DirectMode_UsesInProcessPty_WhenShimPathIsMissing()
     {
         if (!OperatingSystem.IsWindows())
@@ -718,11 +717,11 @@ public class WindowsPtyDisposeTests
 
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var exitCode = await runTask.WaitAsync(TimeSpan.FromSeconds(20), TestContext.Current.CancellationToken);
-        Assert.Equal(23, exitCode);
+        Assert.AreEqual(23, exitCode);
     }
 
-    [Fact]
-    [Trait("Category", "Windows")]
+    [TestMethod]
+    [TestCategory("Windows")]
     public async Task WithPtyProcess_MissingRequiredShim_ThrowsInsteadOfFallingBack()
     {
         if (!OperatingSystem.IsWindows())
@@ -742,8 +741,7 @@ public class WindowsPtyDisposeTests
                 WindowsPtyMode.RequireProxy,
                 missingShimPath));
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => process.StartAsync(TestContext.Current.CancellationToken));
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => process.StartAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("required", ex.Message, StringComparison.OrdinalIgnoreCase);
     }

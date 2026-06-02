@@ -7,27 +7,28 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for TreeWidget cascade selection functionality.
 /// </summary>
+[TestClass]
 public class TreeCascadeSelectionTests
 {
     #region ComputeSelectionState Tests
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_LeafNode_ReturnsSelectedWhenSelected()
     {
         var node = new TreeItemNode { Label = "Leaf", IsSelected = true };
         
-        Assert.Equal(TreeSelectionState.Selected, node.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Selected, node.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_LeafNode_ReturnsNoneWhenNotSelected()
     {
         var node = new TreeItemNode { Label = "Leaf", IsSelected = false };
         
-        Assert.Equal(TreeSelectionState.None, node.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.None, node.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_ParentWithAllChildrenSelected_ReturnsSelected()
     {
         var parent = new TreeItemNode
@@ -39,10 +40,10 @@ public class TreeCascadeSelectionTests
             ]
         };
         
-        Assert.Equal(TreeSelectionState.Selected, parent.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Selected, parent.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_ParentWithNoChildrenSelected_ReturnsNone()
     {
         var parent = new TreeItemNode
@@ -54,10 +55,10 @@ public class TreeCascadeSelectionTests
             ]
         };
         
-        Assert.Equal(TreeSelectionState.None, parent.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.None, parent.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_ParentWithSomeChildrenSelected_ReturnsIndeterminate()
     {
         var parent = new TreeItemNode
@@ -69,10 +70,10 @@ public class TreeCascadeSelectionTests
             ]
         };
         
-        Assert.Equal(TreeSelectionState.Indeterminate, parent.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Indeterminate, parent.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_GrandparentWithIndeterminateChild_ReturnsIndeterminate()
     {
         var grandparent = new TreeItemNode
@@ -90,10 +91,10 @@ public class TreeCascadeSelectionTests
             ]
         };
         
-        Assert.Equal(TreeSelectionState.Indeterminate, grandparent.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Indeterminate, grandparent.ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeSelectionState_DeepTree_AllSelected_ReturnsSelected()
     {
         var root = new TreeItemNode
@@ -116,14 +117,14 @@ public class TreeCascadeSelectionTests
             ]
         };
         
-        Assert.Equal(TreeSelectionState.Selected, root.ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Selected, root.ComputeSelectionState());
     }
 
     #endregion
 
     #region SetSelectionCascade Tests
 
-    [Fact]
+    [TestMethod]
     public void SetSelectionCascade_SelectsAllDescendants()
     {
         var parent = new TreeItemNode
@@ -145,13 +146,13 @@ public class TreeCascadeSelectionTests
         
         parent.SetSelectionCascade(true);
         
-        Assert.True(parent.IsSelected);
-        Assert.True(parent.Children[0].IsSelected);
-        Assert.True(parent.Children[0].Children[0].IsSelected);
-        Assert.True(parent.Children[1].IsSelected);
+        Assert.IsTrue(parent.IsSelected);
+        Assert.IsTrue(parent.Children[0].IsSelected);
+        Assert.IsTrue(parent.Children[0].Children[0].IsSelected);
+        Assert.IsTrue(parent.Children[1].IsSelected);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetSelectionCascade_DeselectsAllDescendants()
     {
         var parent = new TreeItemNode
@@ -173,17 +174,17 @@ public class TreeCascadeSelectionTests
         
         parent.SetSelectionCascade(false);
         
-        Assert.False(parent.IsSelected);
-        Assert.False(parent.Children[0].IsSelected);
-        Assert.False(parent.Children[0].Children[0].IsSelected);
-        Assert.False(parent.Children[1].IsSelected);
+        Assert.IsFalse(parent.IsSelected);
+        Assert.IsFalse(parent.Children[0].IsSelected);
+        Assert.IsFalse(parent.Children[0].Children[0].IsSelected);
+        Assert.IsFalse(parent.Children[1].IsSelected);
     }
 
     #endregion
 
     #region ToggleSelectionAsync Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ToggleSelectionAsync_WithCascade_SelectsAllChildren()
     {
         var widget = new TreeWidget([
@@ -197,7 +198,7 @@ public class TreeCascadeSelectionTests
         var node = await widget.ReconcileAsync(null, context) as TreeNode;
         
         // Initially nothing selected
-        Assert.Equal(TreeSelectionState.None, node!.Items[0].ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.None, node!.Items[0].ComputeSelectionState());
         
         // Toggle selection on parent
         var focusRing = new FocusRing();
@@ -205,13 +206,13 @@ public class TreeCascadeSelectionTests
         await node.ToggleSelectionAsync(node.Items[0], ctx);
         
         // All should be selected
-        Assert.True(node.Items[0].IsSelected);
-        Assert.True(node.Items[0].Children[0].IsSelected);
-        Assert.True(node.Items[0].Children[1].IsSelected);
-        Assert.Equal(TreeSelectionState.Selected, node.Items[0].ComputeSelectionState());
+        Assert.IsTrue(node.Items[0].IsSelected);
+        Assert.IsTrue(node.Items[0].Children[0].IsSelected);
+        Assert.IsTrue(node.Items[0].Children[1].IsSelected);
+        Assert.AreEqual(TreeSelectionState.Selected, node.Items[0].ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ToggleSelectionAsync_WithCascade_DeselectingChildMakesParentIndeterminate()
     {
         var widget = new TreeWidget([
@@ -229,20 +230,20 @@ public class TreeCascadeSelectionTests
         var ctx = new InputBindingActionContext(focusRing, null, default);
         await node!.ToggleSelectionAsync(node.Items[0], ctx);
         
-        Assert.Equal(TreeSelectionState.Selected, node.Items[0].ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Selected, node.Items[0].ComputeSelectionState());
         
         // Now deselect one child
         await node.ToggleSelectionAsync(node.Items[0].Children[0], ctx);
         
         // Child 1 should be deselected
-        Assert.False(node.Items[0].Children[0].IsSelected);
+        Assert.IsFalse(node.Items[0].Children[0].IsSelected);
         // Child 2 should still be selected
-        Assert.True(node.Items[0].Children[1].IsSelected);
+        Assert.IsTrue(node.Items[0].Children[1].IsSelected);
         // Parent should show indeterminate
-        Assert.Equal(TreeSelectionState.Indeterminate, node.Items[0].ComputeSelectionState());
+        Assert.AreEqual(TreeSelectionState.Indeterminate, node.Items[0].ComputeSelectionState());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ToggleSelectionAsync_CascadesSelection()
     {
         var widget = new TreeWidget([
@@ -261,28 +262,28 @@ public class TreeCascadeSelectionTests
         await node!.ToggleSelectionAsync(node.Items[0], ctx);
         
         // Parent and all children should be selected (cascade)
-        Assert.True(node.Items[0].IsSelected);
-        Assert.True(node.Items[0].Children[0].IsSelected);
-        Assert.True(node.Items[0].Children[1].IsSelected);
+        Assert.IsTrue(node.Items[0].IsSelected);
+        Assert.IsTrue(node.Items[0].Children[0].IsSelected);
+        Assert.IsTrue(node.Items[0].Children[1].IsSelected);
     }
 
     #endregion
 
     #region Widget API Tests
 
-    [Fact]
+    [TestMethod]
     public void MultiSelect_EnablesMultiSelectAndCascade()
     {
         var widget = new TreeWidget([]).MultiSelect();
         
-        Assert.True(widget.IsMultiSelect);
+        Assert.IsTrue(widget.IsMultiSelect);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_CascadeSelection_RendersIndeterminateCheckbox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -313,17 +314,14 @@ public class TreeCascadeSelectionTests
         await runTask;
 
         // Parent should show indeterminate checkbox ▤
-        Assert.True(snapshot.ContainsText("▤"), 
-            $"Should show indeterminate checkbox. Output:\n{snapshot.GetDisplayText()}");
+        Assert.IsTrue(snapshot.ContainsText("▤"), $"Should show indeterminate checkbox. Output:\n{snapshot.GetDisplayText()}");
         // Child 1 should show checked ▣
-        Assert.True(snapshot.ContainsText("▣"), 
-            "Should show checked checkbox for selected child");
+        Assert.IsTrue(snapshot.ContainsText("▣"), "Should show checked checkbox for selected child");
         // Child 2 should show unchecked ▢
-        Assert.True(snapshot.ContainsText("▢"), 
-            "Should show unchecked checkbox for unselected child");
+        Assert.IsTrue(snapshot.ContainsText("▢"), "Should show unchecked checkbox for unselected child");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_CascadeSelection_SpaceSelectsAllChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -357,10 +355,10 @@ public class TreeCascadeSelectionTests
         // All items should show checked ▣ - count occurrences
         var text = snapshot.GetDisplayText();
         var checkedCount = text.Split("▣").Length - 1;
-        Assert.Equal(3, checkedCount); // Parent + 2 children
+        Assert.AreEqual(3, checkedCount); // Parent + 2 children
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MouseClick_OnCheckbox_TogglesSelection()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -396,7 +394,7 @@ public class TreeCascadeSelectionTests
         Assert.Contains("▣", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MouseClick_OutsideCheckbox_DoesNotToggleSelection()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -430,10 +428,10 @@ public class TreeCascadeSelectionTests
         // No items should be selected (checkboxes still all unchecked)
         var text = snapshot.GetDisplayText();
         var checkedCount = text.Split("▣").Length - 1;
-        Assert.Equal(0, checkedCount);
+        Assert.AreEqual(0, checkedCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MouseClick_OnExpandIndicator_TogglesExpand()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -464,7 +462,7 @@ public class TreeCascadeSelectionTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(beforeSnapshot.ContainsText("Child 1"), "Children should be visible initially");
+        Assert.IsTrue(beforeSnapshot.ContainsText("Child 1"), "Children should be visible initially");
         
         // Click on the expand indicator (x=0-1 for root item, where ▼ is)
         var afterSnapshot = await new Hex1bTerminalInputSequenceBuilder()
@@ -477,8 +475,8 @@ public class TreeCascadeSelectionTests
         await runTask;
 
         // Children should now be hidden (collapsed)
-        Assert.True(afterSnapshot.ContainsText("Parent"), "Parent should still be visible");
-        Assert.False(afterSnapshot.ContainsText("Child 1"), "Children should be hidden after clicking expand indicator");
+        Assert.IsTrue(afterSnapshot.ContainsText("Parent"), "Parent should still be visible");
+        Assert.IsFalse(afterSnapshot.ContainsText("Child 1"), "Children should be hidden after clicking expand indicator");
     }
 
     #endregion

@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// NOTE: These tests depend on the EditHistory coalescing implementation and may
 /// need updates if coalescing rules change.
 /// </summary>
+[TestClass]
 public class EditorStateUndoRedoTests
 {
     private static EditorState CreateState(string text)
@@ -18,7 +19,7 @@ public class EditorStateUndoRedoTests
 
     // ── Basic undo/redo ─────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_RevertsInsert()
     {
         var state = CreateState("");
@@ -26,10 +27,10 @@ public class EditorStateUndoRedoTests
 
         state.Undo();
 
-        Assert.Equal("", state.Document.GetText());
+        Assert.AreEqual("", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_RevertsSingleCharInserts_Coalesced()
     {
         var state = CreateState("");
@@ -41,10 +42,10 @@ public class EditorStateUndoRedoTests
         // Single chars should be coalesced into one undo group
         state.Undo();
 
-        Assert.Equal("", state.Document.GetText());
+        Assert.AreEqual("", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Redo_ReappliesInsert()
     {
         var state = CreateState("");
@@ -53,10 +54,10 @@ public class EditorStateUndoRedoTests
         state.Undo();
         state.Redo();
 
-        Assert.Equal("Hello", state.Document.GetText());
+        Assert.AreEqual("Hello", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_RevertsDelete()
     {
         var state = CreateState("Hello");
@@ -64,48 +65,48 @@ public class EditorStateUndoRedoTests
 
         state.DeleteBackward();
 
-        Assert.Equal("Hell", state.Document.GetText());
+        Assert.AreEqual("Hell", state.Document.GetText());
 
         state.Undo();
 
-        Assert.Equal("Hello", state.Document.GetText());
+        Assert.AreEqual("Hello", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_Redo_Undo_Roundtrip()
     {
         var state = CreateState("abc");
         state.Cursor.Position = new DocumentOffset(3);
         state.InsertText("d");
 
-        Assert.Equal("abcd", state.Document.GetText());
+        Assert.AreEqual("abcd", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("abc", state.Document.GetText());
+        Assert.AreEqual("abc", state.Document.GetText());
 
         state.Redo();
-        Assert.Equal("abcd", state.Document.GetText());
+        Assert.AreEqual("abcd", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("abc", state.Document.GetText());
+        Assert.AreEqual("abc", state.Document.GetText());
     }
 
     // ── Cursor restoration ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_RestoresCursorPosition()
     {
         var state = CreateState("Hello");
         state.Cursor.Position = new DocumentOffset(5); // End
 
         state.InsertText(" World");
-        Assert.Equal(11, state.Cursor.Position.Value);
+        Assert.AreEqual(11, state.Cursor.Position.Value);
 
         state.Undo();
-        Assert.Equal(5, state.Cursor.Position.Value); // Restored
+        Assert.AreEqual(5, state.Cursor.Position.Value); // Restored
     }
 
-    [Fact]
+    [TestMethod]
     public void Redo_RestoresCursorPosition()
     {
         var state = CreateState("Hello");
@@ -115,12 +116,12 @@ public class EditorStateUndoRedoTests
         state.Undo();
         state.Redo();
 
-        Assert.Equal(11, state.Cursor.Position.Value);
+        Assert.AreEqual(11, state.Cursor.Position.Value);
     }
 
     // ── Multi-operation undo ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_MultipleEdits_UndoesInOrder()
     {
         var state = CreateState("");
@@ -129,52 +130,52 @@ public class EditorStateUndoRedoTests
         state.InsertText("\n"); // Newline breaks coalescing (not single-char coalescable)
 
         state.Undo(); // Undo the newline
-        Assert.Equal("First", state.Document.GetText());
+        Assert.AreEqual("First", state.Document.GetText());
 
         state.Undo(); // Undo "First" (may be coalesced into one group)
-        Assert.Equal("", state.Document.GetText());
+        Assert.AreEqual("", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_DeleteBackward_RestoresText()
     {
         var state = CreateState("abcdef");
         state.Cursor.Position = new DocumentOffset(3);
 
         state.DeleteBackward(); // Delete 'c'
-        Assert.Equal("abdef", state.Document.GetText());
+        Assert.AreEqual("abdef", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("abcdef", state.Document.GetText());
+        Assert.AreEqual("abcdef", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_DeleteForward_RestoresText()
     {
         var state = CreateState("abcdef");
         state.Cursor.Position = new DocumentOffset(3);
 
         state.DeleteForward(); // Delete 'd'
-        Assert.Equal("abcef", state.Document.GetText());
+        Assert.AreEqual("abcef", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("abcdef", state.Document.GetText());
+        Assert.AreEqual("abcdef", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_DeleteWordBackward_RestoresWord()
     {
         var state = CreateState("hello world");
         state.Cursor.Position = new DocumentOffset(5); // after "hello"
 
         state.DeleteWordBackward();
-        Assert.Equal(" world", state.Document.GetText());
+        Assert.AreEqual(" world", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("hello world", state.Document.GetText());
+        Assert.AreEqual("hello world", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Undo_DeleteLine_RestoresLine()
     {
         var state = CreateState("line1\nline2\nline3");
@@ -183,47 +184,47 @@ public class EditorStateUndoRedoTests
         state.DeleteLine();
 
         state.Undo();
-        Assert.Equal("line1\nline2\nline3", state.Document.GetText());
+        Assert.AreEqual("line1\nline2\nline3", state.Document.GetText());
     }
 
     // ── New edit after undo clears redo ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void NewEdit_AfterUndo_ClearsRedo()
     {
         var state = CreateState("");
         state.InsertText("Hello");
         state.Undo();
 
-        Assert.True(state.History.CanRedo);
+        Assert.IsTrue(state.History.CanRedo);
 
         state.InsertText("World");
 
-        Assert.False(state.History.CanRedo);
-        Assert.Equal("World", state.Document.GetText());
+        Assert.IsFalse(state.History.CanRedo);
+        Assert.AreEqual("World", state.Document.GetText());
     }
 
     // ── Undo with no history ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_WithNoHistory_DoesNothing()
     {
         var state = CreateState("Hello");
         state.Undo(); // Should not throw
-        Assert.Equal("Hello", state.Document.GetText());
+        Assert.AreEqual("Hello", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Redo_WithNoHistory_DoesNothing()
     {
         var state = CreateState("Hello");
         state.Redo(); // Should not throw
-        Assert.Equal("Hello", state.Document.GetText());
+        Assert.AreEqual("Hello", state.Document.GetText());
     }
 
     // ── Selection + undo ────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_ReplaceSelection_RestoresOriginalText()
     {
         var state = CreateState("Hello World");
@@ -231,15 +232,15 @@ public class EditorStateUndoRedoTests
         state.Cursor.Position = new DocumentOffset(11); // Select "World"
 
         state.InsertText("Hex1b"); // Replace selection
-        Assert.Equal("Hello Hex1b", state.Document.GetText());
+        Assert.AreEqual("Hello Hex1b", state.Document.GetText());
 
         state.Undo();
-        Assert.Equal("Hello World", state.Document.GetText());
+        Assert.AreEqual("Hello World", state.Document.GetText());
     }
 
     // ── Read-only ───────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ReadOnly_DoesNotAddToHistory()
     {
         var state = CreateState("Hello");
@@ -247,13 +248,13 @@ public class EditorStateUndoRedoTests
 
         state.InsertText("X");
 
-        Assert.False(state.History.CanUndo);
-        Assert.Equal("Hello", state.Document.GetText());
+        Assert.IsFalse(state.History.CanUndo);
+        Assert.AreEqual("Hello", state.Document.GetText());
     }
 
     // ── Cross-view undo ─────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Undo_AffectsSharedDocument()
     {
         var doc = new Hex1bDocument("Hello");
@@ -263,19 +264,19 @@ public class EditorStateUndoRedoTests
         // Edit through state1
         state1.Cursor.Position = new DocumentOffset(5);
         state1.InsertText(" World");
-        Assert.Equal("Hello World", doc.GetText());
+        Assert.AreEqual("Hello World", doc.GetText());
 
         // Undo through state1 — document should revert
         state1.Undo();
-        Assert.Equal("Hello", doc.GetText());
+        Assert.AreEqual("Hello", doc.GetText());
 
         // state2 sees the same document
-        Assert.Equal("Hello", state2.Document.GetText());
+        Assert.AreEqual("Hello", state2.Document.GetText());
     }
 
     // ── Stress: many undo/redo ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Stress_ManyUndoRedo_MaintainsConsistency()
     {
         var state = CreateState("");
@@ -294,7 +295,7 @@ public class EditorStateUndoRedoTests
             state.Undo();
         }
 
-        Assert.Equal("", state.Document.GetText());
+        Assert.AreEqual("", state.Document.GetText());
 
         // Redo everything
         while (state.History.CanRedo)
@@ -302,6 +303,6 @@ public class EditorStateUndoRedoTests
             state.Redo();
         }
 
-        Assert.Equal(afterText, state.Document.GetText());
+        Assert.AreEqual(afterText, state.Document.GetText());
     }
 }

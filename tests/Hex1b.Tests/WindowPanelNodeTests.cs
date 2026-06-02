@@ -7,33 +7,34 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for WindowPanelNode layout and window management.
 /// </summary>
+[TestClass]
 public class WindowPanelNodeTests
 {
     #region Basic Tests
 
-    [Fact]
+    [TestMethod]
     public void Constructor_InitializesWindowManager()
     {
         var node = new WindowPanelNode();
 
-        Assert.NotNull(node.Windows);
-        Assert.Equal(0, node.Windows.Count);
+        Assert.IsNotNull(node.Windows);
+        Assert.AreEqual(0, node.Windows.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_InitializesEmptyWindowNodes()
     {
         var node = new WindowPanelNode();
 
-        Assert.NotNull(node.WindowNodes);
-        Assert.Empty(node.WindowNodes);
+        Assert.IsNotNull(node.WindowNodes);
+        Assert.IsEmpty(node.WindowNodes);
     }
 
     #endregion
 
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableSpace()
     {
         var node = new WindowPanelNode();
@@ -41,15 +42,15 @@ public class WindowPanelNodeTests
         var size = node.Measure(new Constraints(0, 80, 0, 24));
 
         // WindowPanel fills available space
-        Assert.Equal(80, size.Width);
-        Assert.Equal(24, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(24, size.Height);
     }
 
     #endregion
 
     #region Arrangement Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SetsBoundsOnNode()
     {
         var node = new WindowPanelNode();
@@ -57,13 +58,13 @@ public class WindowPanelNodeTests
 
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, node.Bounds.X);
-        Assert.Equal(0, node.Bounds.Y);
-        Assert.Equal(80, node.Bounds.Width);
-        Assert.Equal(24, node.Bounds.Height);
+        Assert.AreEqual(0, node.Bounds.X);
+        Assert.AreEqual(0, node.Bounds.Y);
+        Assert.AreEqual(80, node.Bounds.Width);
+        Assert.AreEqual(24, node.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_CentersWindowsWithNoPosition()
     {
         var node = new WindowPanelNode();
@@ -80,11 +81,11 @@ public class WindowPanelNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Window should be centered: (80-40)/2 = 20, (24-15)/2 = 4
-        Assert.Equal(20, windowNode.Bounds.X);
-        Assert.Equal(4, windowNode.Bounds.Y);
+        Assert.AreEqual(20, windowNode.Bounds.X);
+        Assert.AreEqual(4, windowNode.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_UsesSpecifiedPosition()
     {
         var node = new WindowPanelNode();
@@ -100,11 +101,11 @@ public class WindowPanelNodeTests
 
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(5, windowNode.Bounds.X);
-        Assert.Equal(3, windowNode.Bounds.Y);
+        Assert.AreEqual(5, windowNode.Bounds.X);
+        Assert.AreEqual(3, windowNode.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_ClampsWindowToPanelBounds()
     {
         var node = new WindowPanelNode();
@@ -124,25 +125,25 @@ public class WindowPanelNodeTests
         // Should be clamped to fit within bounds
         // X should be max 80-30 = 50
         // Y should be max 24-10 = 14
-        Assert.True(windowNode.Bounds.X <= 50);
-        Assert.True(windowNode.Bounds.Y <= 14);
+        Assert.IsTrue(windowNode.Bounds.X <= 50);
+        Assert.IsTrue(windowNode.Bounds.Y <= 14);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithNoWindows_ReturnsEmpty()
     {
         var node = new WindowPanelNode();
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithModalWindow_OnlyReturnsModalFocusables()
     {
         var node = new WindowPanelNode();
@@ -160,12 +161,12 @@ public class WindowPanelNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // Should contain modal window node and its button only
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(windowNode, focusables);
         Assert.Contains(windowButton, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithNonModalWindows_ReturnsWindowFocusables()
     {
         var node = new WindowPanelNode();
@@ -182,7 +183,7 @@ public class WindowPanelNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // Should contain window node itself and window button
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(windowNode, focusables);
         Assert.Contains(windowButton, focusables);
     }
@@ -191,7 +192,7 @@ public class WindowPanelNodeTests
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsWindows()
     {
         var node = new WindowPanelNode();
@@ -204,11 +205,11 @@ public class WindowPanelNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(windowNode, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(windowNode, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithNoContent_ReturnsOnlyWindows()
     {
         var node = new WindowPanelNode();
@@ -221,36 +222,36 @@ public class WindowPanelNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(windowNode, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(windowNode, children[0]);
     }
 
     #endregion
 
     #region IWindowHost Tests
 
-    [Fact]
+    [TestMethod]
     public void ImplementsIWindowHost()
     {
         var node = new WindowPanelNode();
 
-        Assert.IsAssignableFrom<IWindowHost>(node);
+        TestSeq.IsType<IWindowHost>(node);
     }
 
-    [Fact]
+    [TestMethod]
     public void Windows_IsSameAsWindowManager()
     {
         var node = new WindowPanelNode();
         var host = (IWindowHost)node;
 
-        Assert.Same(node.Windows, host.Windows);
+        Assert.AreSame(node.Windows, host.Windows);
     }
 
     #endregion
 
     #region Phase 6: Modal Dialog Tests
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithNestedModals_ReturnsOnlyTopmostModalFocusables()
     {
         var node = new WindowPanelNode();
@@ -278,14 +279,14 @@ public class WindowPanelNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // Should contain only the topmost (last) modal's focusables
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(modal2Node, focusables);
         Assert.Contains(modal2Button, focusables);
         Assert.DoesNotContain(modal1Node, focusables);
         Assert.DoesNotContain(modal1Button, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_ClosingTopModal_ExposesModalBelow()
     {
         var node = new WindowPanelNode();
@@ -317,7 +318,7 @@ public class WindowPanelNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // Now modal 1 should be accessible
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(modal1Node, focusables);
         Assert.Contains(modal1Button, focusables);
     }

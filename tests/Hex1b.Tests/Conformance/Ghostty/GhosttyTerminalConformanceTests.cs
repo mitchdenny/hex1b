@@ -9,7 +9,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// These tests verify Hex1b handles core terminal operations (cursor movement, erase, scroll,
 /// insert/delete lines, tabs, etc.) the same way Ghostty does.
 /// </remarks>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyTerminalConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -30,14 +31,14 @@ public class GhosttyTerminalConformanceTests
         for (int i = 0; i < expectedLines.Length; i++)
         {
             var actualLine = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal(expectedLines[i], actualLine);
+            Assert.AreEqual(expectedLines[i], actualLine);
         }
 
         // Check that lines beyond expected are empty
         for (int i = expectedLines.Length; i < terminal.Height; i++)
         {
             var line = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal("", line);
+            Assert.AreEqual("", line);
         }
     }
 
@@ -51,14 +52,14 @@ public class GhosttyTerminalConformanceTests
     /// Ghostty: test "Terminal: input with no control characters"
     /// Writes "hello" to a 40×40 terminal, verifies cursor at (5, 0) and text content.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Input_NoControlCharacters_WritesTextAndAdvancesCursor()
     {
         using var terminal = CreateTerminal(cols: 40, rows: 40);
         GhosttyTestFixture.Feed(terminal, "hello");
 
-        Assert.Equal(5, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(5, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
         AssertPlainText(terminal, "hello");
     }
 
@@ -68,7 +69,7 @@ public class GhosttyTerminalConformanceTests
     /// line 0 = "hello", line 1 = "world", line 2 = "abc12".
     /// Cursor ends at col 4, row 2 (with pending wrap in Ghostty — here we verify position).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Input_BasicWraparound_WrapsTextAtColumnBoundary()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 40);
@@ -78,7 +79,7 @@ public class GhosttyTerminalConformanceTests
         // After writing "abc12", the cursor is at col 4 row 2 with pending wrap set.
         // In Hex1b, the cursor should be at col 4, row 2 (or col 5 if no pending wrap concept).
         // We check the text content which is the authoritative behavior.
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorY);
         AssertPlainText(terminal, "hello\nworld\nabc12");
     }
 
@@ -88,19 +89,19 @@ public class GhosttyTerminalConformanceTests
     /// Each char after the first autowraps to the next row. The 6th char forces a scroll.
     /// After scroll: 'a' is lost, visible = "b","c","d","e","f". Cursor at row 4, col 0.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Input_ForcesScroll_ScrollsContentUp()
     {
         using var terminal = CreateTerminal(cols: 1, rows: 5);
         GhosttyTestFixture.Feed(terminal, "abcdef");
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(4, terminal.CursorY);
-        Assert.Equal("b", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("c", GhosttyTestFixture.GetLine(terminal, 1));
-        Assert.Equal("d", GhosttyTestFixture.GetLine(terminal, 2));
-        Assert.Equal("e", GhosttyTestFixture.GetLine(terminal, 3));
-        Assert.Equal("f", GhosttyTestFixture.GetLine(terminal, 4));
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(4, terminal.CursorY);
+        Assert.AreEqual("b", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("c", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("d", GhosttyTestFixture.GetLine(terminal, 2));
+        Assert.AreEqual("e", GhosttyTestFixture.GetLine(terminal, 3));
+        Assert.AreEqual("f", GhosttyTestFixture.GetLine(terminal, 4));
     }
 
     /// <summary>
@@ -111,7 +112,7 @@ public class GhosttyTerminalConformanceTests
     /// Behavioral test: without LF, the next char would autowrap to row 1 col 0.
     /// With LF, cursor moves to row 1 preserving col, so 'X' writes at col 4.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Linefeed_AfterFilledLine_UnsetsWrapAndMovesToNextRow()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 40);
@@ -119,9 +120,9 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\n");       // LF: clears pending wrap, moves down, keeps col
         GhosttyTestFixture.Feed(terminal, "X");        // writes at (col 4, row 1)
 
-        Assert.Equal(1, terminal.CursorY);
-        Assert.Equal("hello", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("    X", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual(1, terminal.CursorY);
+        Assert.AreEqual("hello", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("    X", GhosttyTestFixture.GetLine(terminal, 1));
     }
 
     /// <summary>
@@ -129,7 +130,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "hello" filling 5 cols, then CR. CR resets cursor to col 0 on same row.
     /// Writing 'X' overwrites the first character.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CarriageReturn_AfterFilledLine_UnsetsWrapAndReturnsToCol0()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 40);
@@ -137,8 +138,8 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\r");       // CR goes to col 0
         GhosttyTestFixture.Feed(terminal, "X");
 
-        Assert.Equal(1, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(1, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
         AssertPlainText(terminal, "Xello");
     }
 
@@ -146,7 +147,7 @@ public class GhosttyTerminalConformanceTests
     /// Ghostty: test "Terminal: backspace"
     /// Writes "hello", backspaces, writes 'y'. Result: "helly".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Backspace_OverwritesPreviousCharacter()
     {
         using var terminal = CreateTerminal(cols: 40, rows: 40);
@@ -170,7 +171,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE" in 5-col terminal (pending wrap), then CUP(1,1) (top-left).
     /// Writing 'X' overwrites 'A'. Result: "XBCDE".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CursorPos_ResetsWrap_WritesAtNewPosition()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -186,14 +187,14 @@ public class GhosttyTerminalConformanceTests
     /// CUP(500,500) in 5×5 terminal clamps to bottom-right (row 4, col 4).
     /// Writing 'X' places it at the last cell.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CursorPos_OffScreen_ClampsToTerminalBounds()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(terminal, "\x1b[500;500H"); // CUP far off-screen
         GhosttyTestFixture.Feed(terminal, "X");
 
-        Assert.Equal(4, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorY);
         var line = GhosttyTestFixture.GetLine(terminal, 4);
         Assert.EndsWith("X", line);
     }
@@ -202,34 +203,34 @@ public class GhosttyTerminalConformanceTests
     /// Ghostty: test "Terminal: setCursorPos"
     /// Tests CUP clamping: CUP(0,0) → (0,0), CUP(81,81) in 80×80 → (79,79).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CursorPos_Zero_ClampsToTopLeft()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
         // CUP(0,0) should clamp to (0,0) — row 0, col 0
         GhosttyTestFixture.Feed(terminal, "\x1b[0;0H");
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     /// <summary>
     /// Ghostty: test "Terminal: setCursorPos" — clamping to max
     /// CUP(81,81) in 80×80 terminal clamps to row 79, col 79.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CursorPos_BeyondMax_ClampsToBottomRight()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
         GhosttyTestFixture.Feed(terminal, "\x1b[81;81H");
-        Assert.Equal(79, terminal.CursorX);
-        Assert.Equal(79, terminal.CursorY);
+        Assert.AreEqual(79, terminal.CursorX);
+        Assert.AreEqual(79, terminal.CursorY);
     }
 
     /// <summary>
     /// Ghostty: test "Terminal: setCursorPos" — with DECOM (origin mode)
     /// Sets scroll region 2–4, enables DECOM, CUP(1,1) should map to row 1 (second row of region).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CursorPos_WithOriginMode_IsRelativeToScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
@@ -240,8 +241,8 @@ public class GhosttyTerminalConformanceTests
         // CUP(1,1) with DECOM → cursor at top of scroll region (row 1, 0-based)
         GhosttyTestFixture.Feed(terminal, "\x1b[1;1H");
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY); // row 1 (0-based) = top of scroll region (row 2, 1-based)
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY); // row 1 (0-based) = top of scroll region (row 2, 1-based)
     }
 
     #endregion
@@ -257,7 +258,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABC", CUP(1,1), ECH(2) erases 2 chars at col 0–1. Then CUP(1,1), write 'X'.
     /// Result: "X C" — A and B erased, X written at col 0, C remains at col 2.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseChars_SimpleOperation_ErasesCharactersAtCursor()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -276,7 +277,7 @@ public class GhosttyTerminalConformanceTests
         // Then write 'X' at col 0: col 0='X', col 1=' ', col 2='C' → trimmed = "X C"
         var line = GhosttyTestFixture.GetLine(terminal, 0);
         // The line has X at 0, space at 1, C at 2 — no trailing spaces after col 2
-        Assert.Equal("X C", line);
+        Assert.AreEqual("X C", line);
     }
 
     /// <summary>
@@ -284,7 +285,7 @@ public class GhosttyTerminalConformanceTests
     /// ECH(0) erases at least 1 character (minimum is 1).
     /// Writes "ABC", CUP(1,1), ECH(0), write 'X' → "XBC".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseChars_ZeroParameter_ErasesAtLeastOne()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -302,7 +303,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "  ABC" (2 spaces + ABC), CUP(1,4) → col 3 (0-based). ECH(10) erases from col 3 to end.
     /// Result: "  A" (only cols 0–2 survive).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseChars_BeyondScreenEdge_ClampsToLineEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -318,7 +319,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE" (fills 5 cols, pending wrap). ECH(1) resets wrap and erases col 4.
     /// Then writing 'X' overwrites col 4 (no wrap). Result: "ABCDX".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseChars_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -342,14 +343,14 @@ public class GhosttyTerminalConformanceTests
     /// ESC D (Index) moves cursor down one line. Then write 'A'.
     /// Result: line 0 empty, line 1 = "A".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Index_MovesCursorDown()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(terminal, "\u001bD");   // IND — cursor down
         GhosttyTestFixture.Feed(terminal, "A");
 
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(1, terminal.CursorY);
         AssertPlainText(terminal, "\nA");
     }
 
@@ -359,7 +360,7 @@ public class GhosttyTerminalConformanceTests
     /// At the bottom row, Index scrolls content up and inserts blank line at bottom.
     /// Then write 'B' on the new last row.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Index_FromBottomRow_ScrollsContentUp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -374,8 +375,8 @@ public class GhosttyTerminalConformanceTests
 
         var line3 = GhosttyTestFixture.GetLine(terminal, 3);
         var line4 = GhosttyTestFixture.GetLine(terminal, 4);
-        Assert.Equal("A", line3);
-        Assert.Equal("B", line4);
+        Assert.AreEqual("A", line3);
+        Assert.AreEqual("B", line4);
     }
 
     /// <summary>
@@ -383,7 +384,7 @@ public class GhosttyTerminalConformanceTests
     /// Sets scroll region rows 2–5 (1-based). Cursor at row 0 (above region).
     /// Index should move cursor to row 1 (normal movement, not scrolling).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Index_OutsideScrollRegion_MovesCursorNormally()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -394,14 +395,14 @@ public class GhosttyTerminalConformanceTests
 
         GhosttyTestFixture.Feed(terminal, "\u001bD");       // IND
 
-        Assert.Equal(1, terminal.CursorY); // moved to row 1
+        Assert.AreEqual(1, terminal.CursorY); // moved to row 1
     }
 
     /// <summary>
     /// Ghostty: test "Terminal: reverseIndex"
     /// Writes on row 3, then does Reverse Index (ESC M). Cursor moves up one row.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_MovesCursorUp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -411,14 +412,14 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1b[4;1H");   // Back to row 3, col 0
         GhosttyTestFixture.Feed(terminal, "\x1bM");       // RI — reverse index
 
-        Assert.Equal(2, terminal.CursorY); // moved up to row 2
+        Assert.AreEqual(2, terminal.CursorY); // moved up to row 2
     }
 
     /// <summary>
     /// Ghostty: test "Terminal: reverseIndex from the top"
     /// At row 0, Reverse Index scrolls content down (inserts blank line at top).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_FromTopRow_ScrollsContentDown()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -427,11 +428,11 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1bM");       // RI — at top, scrolls down
 
         // 'A' should have moved down from row 0 to row 1
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorY);
         var line0 = GhosttyTestFixture.GetLine(terminal, 0);
         var line1 = GhosttyTestFixture.GetLine(terminal, 1);
-        Assert.Equal("", line0);
-        Assert.Equal("A", line1);
+        Assert.AreEqual("", line0);
+        Assert.AreEqual("A", line1);
     }
 
     #endregion
@@ -447,7 +448,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE" on 5-col terminal, CUP(1,3) → col 2 (0-based).
     /// EL(0) erases from cursor to end of line. Result: "AB".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseLine_Right_ErasesFromCursorToEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -463,7 +464,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE" on 5-col terminal, CUP(1,4) → col 3 (0-based).
     /// EL(1) erases from start of line to cursor (inclusive). Result: "    E".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseLine_Left_ErasesFromStartToCursor()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -474,7 +475,7 @@ public class GhosttyTerminalConformanceTests
         // Cols 0–3 erased, col 4 = 'E'. But GetLine trims trailing spaces.
         // The content is "    E" — leading spaces + E. GetLine trims trailing only.
         var line = GhosttyTestFixture.GetLine(terminal, 0);
-        Assert.Equal("    E", line);
+        Assert.AreEqual("    E", line);
     }
 
     #endregion
@@ -487,7 +488,7 @@ public class GhosttyTerminalConformanceTests
     /// ED(0) erases from cursor position to end of display.
     /// Lines 0–1 untouched, line 2 partially erased from col 2, lines 3–4 fully erased.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Below_ErasesFromCursorToEndOfScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -501,11 +502,11 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1b[3;3H");
         GhosttyTestFixture.Feed(terminal, "\x1b[0J");     // ED(0) — erase below
 
-        Assert.Equal("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
-        Assert.Equal("CC", GhosttyTestFixture.GetLine(terminal, 2));  // cols 0–1 survive
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 3));
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 4));
+        Assert.AreEqual("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("CC", GhosttyTestFixture.GetLine(terminal, 2));  // cols 0–1 survive
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 3));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 4));
     }
 
     /// <summary>
@@ -514,7 +515,7 @@ public class GhosttyTerminalConformanceTests
     /// ED(1) erases from start of display to cursor position.
     /// Lines 0–1 fully erased, line 2 partially erased up to col 2, lines 3–4 untouched.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Above_ErasesFromStartToCursorPosition()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -528,13 +529,13 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1b[3;3H");
         GhosttyTestFixture.Feed(terminal, "\x1b[1J");     // ED(1) — erase above
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 1));
         // Row 2: cols 0–2 erased (inclusive), cols 3–4 survive → "   CC"
         var line2 = GhosttyTestFixture.GetLine(terminal, 2);
-        Assert.Equal("   CC", line2);
-        Assert.Equal("DDDDD", GhosttyTestFixture.GetLine(terminal, 3));
-        Assert.Equal("EEEEE", GhosttyTestFixture.GetLine(terminal, 4));
+        Assert.AreEqual("   CC", line2);
+        Assert.AreEqual("DDDDD", GhosttyTestFixture.GetLine(terminal, 3));
+        Assert.AreEqual("EEEEE", GhosttyTestFixture.GetLine(terminal, 4));
     }
 
     #endregion
@@ -550,21 +551,21 @@ public class GhosttyTerminalConformanceTests
     /// Default tab stops are every 8 columns. Write '1', tab → col 8, tab → col 16.
     /// Tab at end of line clamps to last column.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void HorizontalTab_DefaultStops_MovesToNext8thColumn()
     {
         using var terminal = CreateTerminal(cols: 20, rows: 5);
         GhosttyTestFixture.Feed(terminal, "1");
         GhosttyTestFixture.Feed(terminal, "\t");
 
-        Assert.Equal(8, terminal.CursorX);
+        Assert.AreEqual(8, terminal.CursorX);
 
         GhosttyTestFixture.Feed(terminal, "\t");
-        Assert.Equal(16, terminal.CursorX);
+        Assert.AreEqual(16, terminal.CursorX);
 
         // Tab near end should clamp to last column (cols-1 = 19)
         GhosttyTestFixture.Feed(terminal, "\t");
-        Assert.Equal(19, terminal.CursorX);
+        Assert.AreEqual(19, terminal.CursorX);
     }
 
     #endregion
@@ -579,7 +580,7 @@ public class GhosttyTerminalConformanceTests
     /// Ghostty: test "Terminal: setTopAndBottomMargin simple"
     /// Sets scroll region then verifies scrolling only affects that region.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ScrollRegion_LimitsScrollingToRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -599,15 +600,15 @@ public class GhosttyTerminalConformanceTests
         GhosttyTestFixture.Feed(terminal, "\u001bD");
 
         // Row 0 and row 4 (outside region) should be unchanged
-        Assert.Equal("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
         // Rows 1–3 (the scroll region) should have shifted up:
         // row 1 was "BBBBB" → now "CCCCC"
         // row 2 was "CCCCC" → now "DDDDD"
         // row 3 was "DDDDD" → now empty (blank inserted at bottom of region)
-        Assert.Equal("CCCCC", GhosttyTestFixture.GetLine(terminal, 1));
-        Assert.Equal("DDDDD", GhosttyTestFixture.GetLine(terminal, 2));
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 3));
-        Assert.Equal("EEEEE", GhosttyTestFixture.GetLine(terminal, 4));
+        Assert.AreEqual("CCCCC", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("DDDDD", GhosttyTestFixture.GetLine(terminal, 2));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 3));
+        Assert.AreEqual("EEEEE", GhosttyTestFixture.GetLine(terminal, 4));
     }
 
     #endregion
@@ -623,7 +624,7 @@ public class GhosttyTerminalConformanceTests
     /// Fills 5 rows, CUP to middle, IL(1) inserts a blank line pushing rows down.
     /// The last row is lost (scrolled out).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_ShiftsRowsDown()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -639,11 +640,11 @@ public class GhosttyTerminalConformanceTests
         // IL(1) — insert 1 blank line at row 2
         GhosttyTestFixture.Feed(terminal, "\x1b[1L");
 
-        Assert.Equal("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 2));     // inserted blank
-        Assert.Equal("CCCCC", GhosttyTestFixture.GetLine(terminal, 3));
-        Assert.Equal("DDDDD", GhosttyTestFixture.GetLine(terminal, 4)); // EEEEE lost
+        Assert.AreEqual("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 2));     // inserted blank
+        Assert.AreEqual("CCCCC", GhosttyTestFixture.GetLine(terminal, 3));
+        Assert.AreEqual("DDDDD", GhosttyTestFixture.GetLine(terminal, 4)); // EEEEE lost
     }
 
     /// <summary>
@@ -651,7 +652,7 @@ public class GhosttyTerminalConformanceTests
     /// Fills 5 rows, CUP to middle, DL(1) deletes a line shifting rows up.
     /// A blank line appears at the bottom.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_ShiftsRowsUp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -667,11 +668,11 @@ public class GhosttyTerminalConformanceTests
         // DL(1) — delete 1 line at row 2
         GhosttyTestFixture.Feed(terminal, "\x1b[1M");
 
-        Assert.Equal("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
-        Assert.Equal("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
-        Assert.Equal("DDDDD", GhosttyTestFixture.GetLine(terminal, 2)); // was row 3
-        Assert.Equal("EEEEE", GhosttyTestFixture.GetLine(terminal, 3)); // was row 4
-        Assert.Equal("", GhosttyTestFixture.GetLine(terminal, 4));     // blank at bottom
+        Assert.AreEqual("AAAAA", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("BBBBB", GhosttyTestFixture.GetLine(terminal, 1));
+        Assert.AreEqual("DDDDD", GhosttyTestFixture.GetLine(terminal, 2)); // was row 3
+        Assert.AreEqual("EEEEE", GhosttyTestFixture.GetLine(terminal, 3)); // was row 4
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, 4));     // blank at bottom
     }
 
     #endregion
@@ -687,7 +688,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABC", CUP(1,2) → col 1 (0-based). DCH(1) deletes 'B', 'C' shifts left.
     /// Result: "AC".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ShiftsCharactersLeft()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -703,7 +704,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABC", CUP(1,2) → col 1. DCH(10) deletes all from col 1 onward.
     /// Result: "A".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_MoreThanLineWidth_ClampsToEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -719,7 +720,7 @@ public class GhosttyTerminalConformanceTests
     /// Ghostty's internal deleteChars(0) is a no-op, but CSI 0P defaults to 1 per ECMA-48 §8.3.27.
     /// Our terminal correctly normalizes parameter 0 → 1, so this deletes 1 character.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ZeroCount_DefaultsToOne()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -735,7 +736,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE", CUP(1,2). DCH(3) deletes B,C,D. E shifts to col 1.
     /// Result: "AE".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_MoreThanHalf_ShiftsRemaining()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -751,7 +752,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABCDE", CUP(1,2). DCH(1) deletes B. C,D,E shift left.
     /// Result: "ACDE".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ShiftsRemainingLeft()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -767,7 +768,7 @@ public class GhosttyTerminalConformanceTests
     /// After filling 5-col line (pending wrap), DCH(1) resets wrap.
     /// Write 'X' stays on same line.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -783,7 +784,7 @@ public class GhosttyTerminalConformanceTests
     /// Writes "ABC123", CUP(1,3) → col 2. DCH(2) deletes C,1. 2,3 shift left.
     /// Result: "AB23".
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SimpleOperation_10x10()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);

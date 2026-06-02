@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Integration tests for KGP occlusion through the full Hex1bApp pipeline:
 /// widget tree → render → registry → solver → tracker → terminal placement verification.
 /// </summary>
+[TestClass]
 public class KgpOcclusionIntegrationTests
 {
     private static byte[] CreateTestImage(int width = 8, int height = 8)
@@ -42,7 +43,7 @@ public class KgpOcclusionIntegrationTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_KgpBackground_NoWindows_FullImagePlaced()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -85,12 +86,11 @@ public class KgpOcclusionIntegrationTests
         await runTask;
 
         // With no windows, the KGP image should be fully visible (1 placement)
-        Assert.NotNull(snapshot);
-        Assert.True(snapshot.KgpPlacements.Count >= 1,
-            $"Expected at least 1 KGP placement, got {snapshot.KgpPlacements.Count}");
+        Assert.IsNotNull(snapshot);
+        Assert.IsTrue(snapshot.KgpPlacements.Count >= 1, $"Expected at least 1 KGP placement, got {snapshot.KgpPlacements.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_TextWindowOverKgpBackground_ImageShredded()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -149,16 +149,15 @@ public class KgpOcclusionIntegrationTests
 
         await runTask;
 
-        Assert.True(windowOpened, "Window should have been opened");
-        Assert.NotNull(snapshot);
+        Assert.IsTrue(windowOpened, "Window should have been opened");
+        Assert.IsNotNull(snapshot);
 
         // With an occluding window, the image should be shredded into multiple placements
         // (up to 4 strips: top, bottom, left, right of the occluder)
-        Assert.True(snapshot.KgpPlacements.Count >= 2,
-            $"Expected at least 2 KGP placements (image shredded around window), got {snapshot.KgpPlacements.Count}");
+        Assert.IsTrue(snapshot.KgpPlacements.Count >= 2, $"Expected at least 2 KGP placements (image shredded around window), got {snapshot.KgpPlacements.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_KgpInsideWindow_PlacedCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -217,15 +216,14 @@ public class KgpOcclusionIntegrationTests
 
         await runTask;
 
-        Assert.True(windowOpened, "Window should have been opened");
-        Assert.NotNull(snapshot);
+        Assert.IsTrue(windowOpened, "Window should have been opened");
+        Assert.IsNotNull(snapshot);
 
         // KGP image inside the window should have at least one placement
-        Assert.True(snapshot.KgpPlacements.Count >= 1,
-            $"Expected at least 1 KGP placement for image inside window, got {snapshot.KgpPlacements.Count}");
+        Assert.IsTrue(snapshot.KgpPlacements.Count >= 1, $"Expected at least 1 KGP placement for image inside window, got {snapshot.KgpPlacements.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_MultipleKgpImages_BothRendered()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -271,15 +269,14 @@ public class KgpOcclusionIntegrationTests
 
         await runTask;
 
-        Assert.NotNull(snapshot);
+        Assert.IsNotNull(snapshot);
 
         // Both images should have placements
         var imageIds = snapshot.KgpPlacements.Select(p => p.ImageId).Distinct().ToList();
-        Assert.True(imageIds.Count >= 2,
-            $"Expected at least 2 distinct image IDs, got {imageIds.Count}: [{string.Join(", ", imageIds)}]");
+        Assert.IsTrue(imageIds.Count >= 2, $"Expected at least 2 distinct image IDs, got {imageIds.Count}: [{string.Join(", ", imageIds)}]");
     }
 
-    [Fact]
+    [TestMethod]
     public void OcclusionSolver_FullPipeline_RegistryToFragments()
     {
         // Unit-level pipeline test: registry → solver → tracker → commands
@@ -290,20 +287,19 @@ public class KgpOcclusionIntegrationTests
         registry.RegisterImage(imageData, 5, 2);
         var fragments = KgpOcclusionSolver.ComputeFragments(registry);
 
-        Assert.Single(fragments);
-        Assert.Equal(42u, fragments[0].ImageId);
-        Assert.Equal(5, fragments[0].AbsoluteX);
-        Assert.Equal(2, fragments[0].AbsoluteY);
-        Assert.Equal(20, fragments[0].CellWidth);
-        Assert.Equal(10, fragments[0].CellHeight);
+        TestSeq.Single(fragments);
+        Assert.AreEqual(42u, fragments[0].ImageId);
+        Assert.AreEqual(5, fragments[0].AbsoluteX);
+        Assert.AreEqual(2, fragments[0].AbsoluteY);
+        Assert.AreEqual(20, fragments[0].CellWidth);
+        Assert.AreEqual(10, fragments[0].CellHeight);
 
         // Feed to tracker
         var tracker = new KgpPlacementTracker();
         var (before1, after1) = tracker.GenerateCommands(fragments);
 
         // Should have transmit + placement commands
-        Assert.True(before1.Count > 0 || after1.Count > 0,
-            "Frame 1 should produce transmit + place commands");
+        Assert.IsTrue(before1.Count > 0 || after1.Count > 0, "Frame 1 should produce transmit + place commands");
 
         // Frame 2: Same image with an occluder — should produce multiple fragments
         registry.Clear();
@@ -314,18 +310,15 @@ public class KgpOcclusionIntegrationTests
         var fragments2 = KgpOcclusionSolver.ComputeFragments(registry);
 
         // Occluder partially overlaps image — should produce multiple fragments
-        Assert.True(fragments2.Count > 1,
-            $"Expected multiple fragments with partial occlusion, got {fragments2.Count}");
+        Assert.IsTrue(fragments2.Count > 1, $"Expected multiple fragments with partial occlusion, got {fragments2.Count}");
 
         // Total visible area should be less than original
         var totalVisibleCells = fragments2.Sum(f => f.CellWidth * f.CellHeight);
-        Assert.True(totalVisibleCells < 20 * 10,
-            $"Visible area ({totalVisibleCells}) should be less than full image (200)");
+        Assert.IsTrue(totalVisibleCells < 20 * 10, $"Visible area ({totalVisibleCells}) should be less than full image (200)");
 
         // Feed to tracker — should produce delete + re-place commands
         var (before2, after2) = tracker.GenerateCommands(fragments2);
-        Assert.True(before2.Count > 0 || after2.Count > 0,
-            "Frame 2 should produce delete + re-place commands for changed fragments");
+        Assert.IsTrue(before2.Count > 0 || after2.Count > 0, "Frame 2 should produce delete + re-place commands for changed fragments");
 
         // Frame 3: Same fragments — no changes needed
         registry.Clear();
@@ -336,11 +329,11 @@ public class KgpOcclusionIntegrationTests
         var fragments3 = KgpOcclusionSolver.ComputeFragments(registry);
         var (before3, after3) = tracker.GenerateCommands(fragments3);
 
-        Assert.Empty(before3);
-        Assert.Empty(after3);
+        Assert.IsEmpty(before3);
+        Assert.IsEmpty(after3);
     }
 
-    [Fact]
+    [TestMethod]
     public void OcclusionSolver_ImageFullyCovered_NoFragments()
     {
         var imageData = MakeKgpData(10, 10, 5, 50, 50);
@@ -352,7 +345,7 @@ public class KgpOcclusionIntegrationTests
         registry.RegisterOccluder(0, 0, 50, 50);
 
         var fragments = KgpOcclusionSolver.ComputeFragments(registry);
-        Assert.Empty(fragments);
+        Assert.IsEmpty(fragments);
 
         // Tracker should delete the previously placed image
         var tracker = new KgpPlacementTracker();
@@ -366,11 +359,10 @@ public class KgpOcclusionIntegrationTests
 
         // Now send empty fragments — should produce delete command
         var (before, after) = tracker.GenerateCommands(fragments);
-        Assert.True(before.Count > 0,
-            "Fully occluded image should produce delete command");
+        Assert.IsTrue(before.Count > 0, "Fully occluded image should produce delete command");
     }
 
-    [Fact]
+    [TestMethod]
     public void OcclusionSolver_SameLayerImages_NoOcclusion()
     {
         var data1 = MakeKgpData(1, 10, 5, 50, 50);
@@ -385,12 +377,12 @@ public class KgpOcclusionIntegrationTests
         var fragments = KgpOcclusionSolver.ComputeFragments(registry);
 
         // Same layer = no occlusion, each image gets exactly 1 fragment
-        Assert.Equal(2, fragments.Count);
-        Assert.Contains(fragments, f => f.ImageId == 1);
-        Assert.Contains(fragments, f => f.ImageId == 2);
+        Assert.AreEqual(2, fragments.Count);
+        Assert.IsTrue(fragments.Any(f => f.ImageId == 1));
+        Assert.IsTrue(fragments.Any(f => f.ImageId == 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void OcclusionSolver_ClipCoordinates_MappedCorrectly()
     {
         // Image: 200x100 pixels displayed in 20x10 cells
@@ -405,48 +397,48 @@ public class KgpOcclusionIntegrationTests
         var fragments = KgpOcclusionSolver.ComputeFragments(registry);
 
         // Should produce 4 strips
-        Assert.Equal(4, fragments.Count);
+        Assert.AreEqual(4, fragments.Count);
 
         // Top strip: (0,0) 20x3 → clip (0,0) 200x30
         var top = fragments.First(f => f.AbsoluteY == 0);
-        Assert.Equal(0, top.AbsoluteX);
-        Assert.Equal(20, top.CellWidth);
-        Assert.Equal(3, top.CellHeight);
-        Assert.Equal(0, top.ClipX);
-        Assert.Equal(0, top.ClipY);
-        Assert.Equal(200, top.ClipW);
-        Assert.Equal(30, top.ClipH);
+        Assert.AreEqual(0, top.AbsoluteX);
+        Assert.AreEqual(20, top.CellWidth);
+        Assert.AreEqual(3, top.CellHeight);
+        Assert.AreEqual(0, top.ClipX);
+        Assert.AreEqual(0, top.ClipY);
+        Assert.AreEqual(200, top.ClipW);
+        Assert.AreEqual(30, top.ClipH);
 
         // Bottom strip: (0,7) 20x3 → clip (0,70) 200x30
         var bottom = fragments.First(f => f.AbsoluteY == 7);
-        Assert.Equal(0, bottom.AbsoluteX);
-        Assert.Equal(20, bottom.CellWidth);
-        Assert.Equal(3, bottom.CellHeight);
-        Assert.Equal(0, bottom.ClipX);
-        Assert.Equal(70, bottom.ClipY);
-        Assert.Equal(200, bottom.ClipW);
-        Assert.Equal(30, bottom.ClipH);
+        Assert.AreEqual(0, bottom.AbsoluteX);
+        Assert.AreEqual(20, bottom.CellWidth);
+        Assert.AreEqual(3, bottom.CellHeight);
+        Assert.AreEqual(0, bottom.ClipX);
+        Assert.AreEqual(70, bottom.ClipY);
+        Assert.AreEqual(200, bottom.ClipW);
+        Assert.AreEqual(30, bottom.ClipH);
 
         // Left strip: (0,3) 5x4 → clip (0,30) 50x40
         var left = fragments.First(f => f.AbsoluteX == 0 && f.AbsoluteY == 3);
-        Assert.Equal(5, left.CellWidth);
-        Assert.Equal(4, left.CellHeight);
-        Assert.Equal(0, left.ClipX);
-        Assert.Equal(30, left.ClipY);
-        Assert.Equal(50, left.ClipW);
-        Assert.Equal(40, left.ClipH);
+        Assert.AreEqual(5, left.CellWidth);
+        Assert.AreEqual(4, left.CellHeight);
+        Assert.AreEqual(0, left.ClipX);
+        Assert.AreEqual(30, left.ClipY);
+        Assert.AreEqual(50, left.ClipW);
+        Assert.AreEqual(40, left.ClipH);
 
         // Right strip: (15,3) 5x4 → clip (150,30) 50x40
         var right = fragments.First(f => f.AbsoluteX == 15 && f.AbsoluteY == 3);
-        Assert.Equal(5, right.CellWidth);
-        Assert.Equal(4, right.CellHeight);
-        Assert.Equal(150, right.ClipX);
-        Assert.Equal(30, right.ClipY);
-        Assert.Equal(50, right.ClipW);
-        Assert.Equal(40, right.ClipH);
+        Assert.AreEqual(5, right.CellWidth);
+        Assert.AreEqual(4, right.CellHeight);
+        Assert.AreEqual(150, right.ClipX);
+        Assert.AreEqual(30, right.ClipY);
+        Assert.AreEqual(50, right.ClipW);
+        Assert.AreEqual(40, right.ClipH);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MenuPopup_DoesNotOccludeBackgroundKgpImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -495,9 +487,8 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(beforeMenu);
-        Assert.True(beforeMenu.KgpPlacements.Count >= 1,
-            $"Expected KGP placement before menu open, got {beforeMenu.KgpPlacements.Count}");
+        Assert.IsNotNull(beforeMenu);
+        Assert.IsTrue(beforeMenu.KgpPlacements.Count >= 1, $"Expected KGP placement before menu open, got {beforeMenu.KgpPlacements.Count}");
         var placementsBeforeMenu = beforeMenu.KgpPlacements.Count;
 
         // Open the File menu via Alt+F, then capture — image should still be visible
@@ -513,17 +504,15 @@ public class KgpOcclusionIntegrationTests
 
         await runTask;
 
-        Assert.NotNull(afterMenu);
-        Assert.True(afterMenu.KgpPlacements.Count >= 1,
-            $"Expected KGP placement with menu open, got {afterMenu.KgpPlacements.Count}");
+        Assert.IsNotNull(afterMenu);
+        Assert.IsTrue(afterMenu.KgpPlacements.Count >= 1, $"Expected KGP placement with menu open, got {afterMenu.KgpPlacements.Count}");
 
         // The menu popup should occlude part of the image, causing the occlusion
         // solver to slice it into more fragments than the original single placement.
-        Assert.True(afterMenu.KgpPlacements.Count > placementsBeforeMenu,
-            $"Expected image to be sliced by menu occluder: before={placementsBeforeMenu}, after={afterMenu.KgpPlacements.Count}");
+        Assert.IsTrue(afterMenu.KgpPlacements.Count > placementsBeforeMenu, $"Expected image to be sliced by menu occluder: before={placementsBeforeMenu}, after={afterMenu.KgpPlacements.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_KgpWindowDragThenResize_WindowSurvives()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -581,10 +570,10 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowOpened, "Window should have been opened");
-        Assert.NotNull(beforeDrag);
-        Assert.True(beforeDrag.ContainsText("DragMe"), "Window title should be visible before drag");
-        Assert.True(beforeDrag.ContainsText("KGP-Content"), "Window content should be visible before drag");
+        Assert.IsTrue(windowOpened, "Window should have been opened");
+        Assert.IsNotNull(beforeDrag);
+        Assert.IsTrue(beforeDrag.ContainsText("DragMe"), "Window title should be visible before drag");
+        Assert.IsTrue(beforeDrag.ContainsText("KGP-Content"), "Window content should be visible before drag");
 
         // Drag the window title bar from center to a new position (move right 5, down 3)
         // Window is centered at roughly (20, 6) on 60x20, title bar is first row
@@ -595,17 +584,17 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(afterDrag);
-        Assert.True(afterDrag.ContainsText("DragMe"), "Window title should be visible after drag");
-        Assert.True(afterDrag.ContainsText("KGP-Content"), "Window content should be visible after drag");
+        Assert.IsNotNull(afterDrag);
+        Assert.IsTrue(afterDrag.ContainsText("DragMe"), "Window title should be visible after drag");
+        Assert.IsTrue(afterDrag.ContainsText("KGP-Content"), "Window content should be visible after drag");
         var imageIdBeforeResize = afterDrag.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
 
         // Now resize the terminal by 1 row. Simulate a Kitty-style resize that
         // invalidates terminal-side KGP state so the app must fully rehydrate it.
         terminal.Resize(60, 19);
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=d,d=A,q=2"));
-        Assert.Empty(terminal.KgpPlacements);
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.IsEmpty(terminal.KgpPlacements);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
         await workload.ResizeAsync(60, 19, TestContext.Current.CancellationToken);
 
         var afterResize = await new Hex1bTerminalInputSequenceBuilder()
@@ -621,25 +610,22 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(afterResize);
+        Assert.IsNotNull(afterResize);
 
         // The window should still be visible after resize!
-        Assert.True(afterResize.ContainsText("DragMe"),
-            $"Window title 'DragMe' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
-        Assert.True(afterResize.ContainsText("KGP-Content"),
-            $"Window content 'KGP-Content' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
+        Assert.IsTrue(afterResize.ContainsText("DragMe"), $"Window title 'DragMe' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
+        Assert.IsTrue(afterResize.ContainsText("KGP-Content"), $"Window content 'KGP-Content' should be visible after drag+resize. Screen content:\n{afterResize.GetText()}");
 
         // KGP placements should exist after resize
-        Assert.True(afterResize.KgpPlacements.Count >= 1,
-            $"Expected KGP placement after drag+resize, got {afterResize.KgpPlacements.Count}");
+        Assert.IsTrue(afterResize.KgpPlacements.Count >= 1, $"Expected KGP placement after drag+resize, got {afterResize.KgpPlacements.Count}");
         var imageIdAfterResize = afterResize.KgpPlacements.Select(p => p.ImageId).Distinct().Single();
-        Assert.NotEqual(imageIdBeforeResize, imageIdAfterResize);
+        Assert.AreNotEqual(imageIdBeforeResize, imageIdAfterResize);
 
         app.RequestStop();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_NonKgpWindowDragThenResize_WindowSurvives()
     {
         // Control test: same as above but without KGP image to isolate whether
@@ -691,7 +677,7 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowOpened);
+        Assert.IsTrue(windowOpened);
 
         // Drag then resize
         await new Hex1bTerminalInputSequenceBuilder()
@@ -710,17 +696,15 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(afterResize);
-        Assert.True(afterResize.ContainsText("DragMe"),
-            $"Window title should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
-        Assert.True(afterResize.ContainsText("PlainContent"),
-            $"Window content should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
+        Assert.IsNotNull(afterResize);
+        Assert.IsTrue(afterResize.ContainsText("DragMe"), $"Window title should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
+        Assert.IsTrue(afterResize.ContainsText("PlainContent"), $"Window content should survive drag+resize (no KGP). Screen:\n{afterResize.GetText()}");
 
         app.RequestStop();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_KgpWindowDragCloseReopen_WindowRendersAgain()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -806,9 +790,9 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, openCount);
-        Assert.NotNull(initial);
-        Assert.True(initial.KgpPlacements.Count >= 1, "Expected KGP placement after initial open.");
+        Assert.AreEqual(1, openCount);
+        Assert.IsNotNull(initial);
+        Assert.IsTrue(initial.KgpPlacements.Count >= 1, "Expected KGP placement after initial open.");
 
         var afterDrag = await new Hex1bTerminalInputSequenceBuilder()
             .Drag(30, 7, 35, 10)
@@ -819,8 +803,8 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(afterDrag);
-        Assert.True(afterDrag.KgpPlacements.Count >= 1, "Expected KGP placement after drag.");
+        Assert.IsNotNull(afterDrag);
+        Assert.IsTrue(afterDrag.KgpPlacements.Count >= 1, "Expected KGP placement after drag.");
 
         var afterClose = await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.X, Hex1bModifiers.Control)
@@ -832,10 +816,10 @@ public class KgpOcclusionIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, closeCount);
-        Assert.NotNull(afterClose);
-        Assert.False(afterClose.ContainsText("DragMe"));
-        Assert.Empty(afterClose.KgpPlacements);
+        Assert.AreEqual(1, closeCount);
+        Assert.IsNotNull(afterClose);
+        Assert.IsFalse(afterClose.ContainsText("DragMe"));
+        Assert.IsEmpty(afterClose.KgpPlacements);
 
         var afterReopen = await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.O, Hex1bModifiers.Control)
@@ -852,16 +836,15 @@ public class KgpOcclusionIntegrationTests
 
         await runTask;
 
-        Assert.Equal(2, openCount);
-        Assert.Equal(1, closeCount);
-        Assert.NotNull(afterReopen);
-        Assert.True(afterReopen.ContainsText("DragMe"));
-        Assert.True(afterReopen.ContainsText("KGP-Content"));
-        Assert.True(afterReopen.KgpPlacements.Count >= 1,
-            $"Expected KGP placement after reopen, got {afterReopen.KgpPlacements.Count}");
+        Assert.AreEqual(2, openCount);
+        Assert.AreEqual(1, closeCount);
+        Assert.IsNotNull(afterReopen);
+        Assert.IsTrue(afterReopen.ContainsText("DragMe"));
+        Assert.IsTrue(afterReopen.ContainsText("KGP-Content"));
+        Assert.IsTrue(afterReopen.KgpPlacements.Count >= 1, $"Expected KGP placement after reopen, got {afterReopen.KgpPlacements.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeFrame_WithKgp_DeletesPlacementsBeforeClear_ThenRetransmitsOnFollowUpFrame()
     {
         using var workload = new Hex1bAppWorkloadAdapter(new TerminalCapabilities
@@ -927,13 +910,13 @@ public class KgpOcclusionIntegrationTests
             new[] { "\x1b_Ga=t,", "\x1b_Ga=p,", $"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\" },
             TestContext.Current.CancellationToken);
 
-        Assert.Equal("\x1b_Ga=d,d=a,q=2\x1b\\", deleteText);
-        Assert.Equal("\x1b[0m\x1b[2J", clearText);
+        Assert.AreEqual("\x1b_Ga=d,d=a,q=2\x1b\\", deleteText);
+        Assert.AreEqual("\x1b[0m\x1b[2J", clearText);
         Assert.DoesNotContain("\x1b_Ga=d,d=i,", afterClearText);
         Assert.Contains("\x1b_Ga=t,", afterClearText);
         Assert.Contains("\x1b_Ga=p,", afterClearText);
         Assert.Contains($"\x1b_Ga=d,d=I,i={initialImageId},q=2\x1b\\", afterClearText);
-        Assert.NotEqual(initialImageId, ExtractFirstTransmitImageId(afterClearText));
+        Assert.AreNotEqual(initialImageId, ExtractFirstTransmitImageId(afterClearText));
 
         app.RequestStop();
         await runTask;
@@ -1019,17 +1002,17 @@ public class KgpOcclusionIntegrationTests
     private static uint ExtractFirstTransmitImageId(string text)
     {
         var transmitIndex = text.IndexOf("\x1b_Ga=t,", StringComparison.Ordinal);
-        Assert.True(transmitIndex >= 0, "Expected KGP output to contain a transmit sequence.");
+        Assert.IsTrue(transmitIndex >= 0, "Expected KGP output to contain a transmit sequence.");
 
         var index = text.IndexOf("i=", transmitIndex, StringComparison.Ordinal);
-        Assert.True(index >= 0, "Expected KGP transmit output to contain an image id.");
+        Assert.IsTrue(index >= 0, "Expected KGP transmit output to contain an image id.");
 
         index += 2;
         var end = index;
         while (end < text.Length && char.IsDigit(text[end]))
             end++;
 
-        Assert.True(end > index, "Expected KGP image id digits after `i=`.");
+        Assert.IsTrue(end > index, "Expected KGP image id digits after `i=`.");
         return uint.Parse(text[index..end], System.Globalization.CultureInfo.InvariantCulture);
     }
 }

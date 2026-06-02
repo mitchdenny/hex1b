@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// Generates sample SVG and HTML files demonstrating scrollback rendering.
 /// Run with: dotnet test --filter "FullyQualifiedName~ScrollbackRenderingDemo"
 /// </summary>
+[TestClass]
 public class ScrollbackRenderingDemo
 {
-    [Fact]
+    [TestMethod]
     public void GenerateScrollbackDemo()
     {
         // Create a terminal with scrollback enabled
@@ -44,8 +45,8 @@ public class ScrollbackRenderingDemo
         // Create snapshot with 10 scrollback lines
         using var snapshot = terminal.CreateSnapshot(scrollbackLines: 10);
 
-        Assert.Equal(10, snapshot.ScrollbackLineCount);
-        Assert.Equal(34, snapshot.Height); // 10 scrollback + 24 visible
+        Assert.AreEqual(10, snapshot.ScrollbackLineCount);
+        Assert.AreEqual(34, snapshot.Height); // 10 scrollback + 24 visible
 
         // Write SVG output
         var svgContent = snapshot.ToSvg();

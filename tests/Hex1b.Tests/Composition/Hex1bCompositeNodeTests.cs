@@ -7,11 +7,12 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests.Composition;
 
+[TestClass]
 public class Hex1bCompositeNodeTests
 {
     // --- Layout pass-through (mirrors StatePanelNode tests) ---
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithChild_DelegatesToChild()
     {
         var child = new TextBlockNode { Text = "Hello" };
@@ -19,22 +20,22 @@ public class Hex1bCompositeNodeTests
 
         var size = node.Measure(new Constraints(0, 50, 0, 5));
 
-        Assert.True(size.Width > 0);
-        Assert.True(size.Height > 0);
+        Assert.IsTrue(size.Width > 0);
+        Assert.IsTrue(size.Height > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithoutChild_ReturnsConstrainedZero()
     {
         var node = new Hex1bCompositeNode();
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_PassesThroughToChild()
     {
         var child = new TextBlockNode { Text = "Hello" };
@@ -44,22 +45,22 @@ public class Hex1bCompositeNodeTests
         var rect = new Rect(5, 10, 30, 1);
         node.Arrange(rect);
 
-        Assert.Equal(rect, node.Bounds);
-        Assert.Equal(rect, child.Bounds);
+        Assert.AreEqual(rect, node.Bounds);
+        Assert.AreEqual(rect, child.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsChildOrEmpty()
     {
         var empty = new Hex1bCompositeNode();
-        Assert.Empty(empty.GetChildren());
+        Assert.IsEmpty(empty.GetChildren());
 
         var child = new TextBlockNode { Text = "x" };
         var withChild = new Hex1bCompositeNode { Child = child };
-        Assert.Equal(new[] { (Hex1bNode)child }, withChild.GetChildren());
+        TestSeq.AreEqual(new[] { (Hex1bNode)child }, withChild.GetChildren());
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_DelegatesToChild()
     {
         var button = new ButtonNode { Label = "OK" };
@@ -67,11 +68,11 @@ public class Hex1bCompositeNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(button, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithoutChild_DoesNothing()
     {
         var surface = new Surface(20, 3);
@@ -79,8 +80,8 @@ public class Hex1bCompositeNodeTests
         var node = new Hex1bCompositeNode();
         node.Arrange(new Rect(0, 0, 20, 3));
 
-        var ex = Record.Exception(() => ctx.RenderChild(node));
+        var ex = TestSeq.RecordException(() => ctx.RenderChild(node));
 
-        Assert.Null(ex);
+        Assert.IsNull(ex);
     }
 }

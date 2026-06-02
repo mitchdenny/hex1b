@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="KgpPlacementTracker"/> lifecycle management.
 /// </summary>
+[TestClass]
 public class KgpPlacementTrackerTests
 {
     private static readonly CellMetrics DefaultMetrics = new(10, 20);
@@ -46,7 +47,7 @@ public class KgpPlacementTrackerTests
         return surface;
     }
 
-    [Fact]
+    [TestMethod]
     public void FirstFrame_EmitsTransmitAndPlacement()
     {
         var tracker = new KgpPlacementTracker();
@@ -55,16 +56,16 @@ public class KgpPlacementTrackerTests
         var (before, after) = tracker.GenerateCommands(surface);
 
         // Below-text (z=-1) should be in beforeText
-        Assert.NotEmpty(before);
-        Assert.Empty(after);
+        Assert.IsNotEmpty(before);
+        Assert.IsEmpty(after);
 
         // Should have: cursor + transmit + placement
-        Assert.Contains(before, t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 4);
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsTrue(before.Any(t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 4));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void SecondFrame_SamePosition_EmitsNothing()
     {
         var tracker = new KgpPlacementTracker();
@@ -77,11 +78,11 @@ public class KgpPlacementTrackerTests
         var (before, after) = tracker.GenerateCommands(surface);
 
         // Nothing changed — no tokens needed
-        Assert.Empty(before);
-        Assert.Empty(after);
+        Assert.IsEmpty(before);
+        Assert.IsEmpty(after);
     }
 
-    [Fact]
+    [TestMethod]
     public void SecondFrame_Move_ReusesTransmissionAndReplacesPlacement()
     {
         var tracker = new KgpPlacementTracker();
@@ -89,19 +90,19 @@ public class KgpPlacementTrackerTests
 
         // Frame 1 — first appearance
         var (before1, _) = tracker.GenerateCommands(surface1);
-        Assert.Contains(before1, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
+        Assert.IsTrue(before1.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
 
         // Frame 2 — moved to new position
         var surface2 = CreateSurfaceWithKgp(imageId: 42, x: 6, y: 2);
         var (before2, _) = tracker.GenerateCommands(surface2);
 
         // Should have placement replacement but NO delete and NO transmit
-        Assert.DoesNotContain(before2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d"));
-        Assert.Contains(before2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
-        Assert.DoesNotContain(before2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
+        Assert.IsFalse(before2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d")));
+        Assert.IsTrue(before2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
+        Assert.IsFalse(before2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
     }
 
-    [Fact]
+    [TestMethod]
     public void Move_ReusesPlacementId()
     {
         var tracker = new KgpPlacementTracker();
@@ -112,12 +113,12 @@ public class KgpPlacementTrackerTests
         // Frame 2 at (6, 2) — moved right
         var (before, _) = tracker.GenerateCommands(CreateSurfaceWithKgp(imageId: 42, x: 6, y: 2));
 
-        Assert.DoesNotContain(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d"));
-        Assert.Contains(before, t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 7);
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d")));
+        Assert.IsTrue(before.Any(t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 7));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void Removal_EmitsDeleteOnly()
     {
         var tracker = new KgpPlacementTracker();
@@ -130,11 +131,11 @@ public class KgpPlacementTrackerTests
         var (before, _) = tracker.GenerateCommands(emptySurface);
 
         // Should have delete, no placement
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d"));
-        Assert.DoesNotContain(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p"));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d")));
+        Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ReappearanceAfterRemoval_RetransmitsImage()
     {
         var tracker = new KgpPlacementTracker();
@@ -145,11 +146,11 @@ public class KgpPlacementTrackerTests
 
         var (before, _) = tracker.GenerateCommands(surface);
 
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ImageIdChange_FreesOldImageDataAndRetransmitsNewImage()
     {
         var tracker = new KgpPlacementTracker();
@@ -158,20 +159,20 @@ public class KgpPlacementTrackerTests
 
         var (before, _) = tracker.GenerateCommands(CreateSurfaceWithKgp(imageId: 43, x: 3, y: 2));
 
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust &&
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=d") &&
             ust.Sequence.Contains("d=I") &&
-            ust.Sequence.Contains("i=42"));
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust &&
+            ust.Sequence.Contains("i=42")));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=t") &&
-            ust.Sequence.Contains("i=43"));
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust &&
+            ust.Sequence.Contains("i=43")));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=p") &&
             ust.Sequence.Contains("i=43") &&
-            ust.Sequence.Contains("p=1"));
+            ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void AboveText_EmitsInAfterTextList()
     {
         var tracker = new KgpPlacementTracker();
@@ -180,12 +181,12 @@ public class KgpPlacementTrackerTests
         var (before, after) = tracker.GenerateCommands(surface);
 
         // Above-text (z=1) should be in afterText
-        Assert.Empty(before);
-        Assert.NotEmpty(after);
-        Assert.Contains(after, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsEmpty(before);
+        Assert.IsNotEmpty(after);
+        Assert.IsTrue(after.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void Reset_ForcesRetransmission()
     {
         var tracker = new KgpPlacementTracker();
@@ -199,10 +200,10 @@ public class KgpPlacementTrackerTests
 
         // Frame 2 — should re-transmit because reset cleared transmitted images
         var (before, _) = tracker.GenerateCommands(surface);
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ResetPlacements_PreservesTransmissionCache()
     {
         var tracker = new KgpPlacementTracker();
@@ -214,11 +215,11 @@ public class KgpPlacementTrackerTests
 
         var (before, _) = tracker.GenerateCommands(surface);
 
-        Assert.DoesNotContain(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void MultipleImages_TrackedIndependently()
     {
         var tracker = new KgpPlacementTracker();
@@ -235,15 +236,15 @@ public class KgpPlacementTrackerTests
         surface2[15, 5] = new SurfaceCell(" ", null, null, Kgp: Track(CreateKgpData("img2", imageId: 20)));
         var (before, _) = tracker.GenerateCommands(surface2);
 
-        Assert.DoesNotContain(before, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d"));
-        Assert.Contains(before, t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 7);
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust &&
+        Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d")));
+        Assert.IsTrue(before.Any(t => t is CursorPositionToken cp && cp.Row == 3 && cp.Column == 7));
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=p") &&
             ust.Sequence.Contains("i=10") &&
-            ust.Sequence.Contains("p=1"));
+            ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void FragmentReduction_DeletesOnlySurplusPlacementId()
     {
         var tracker = new KgpPlacementTracker();
@@ -262,30 +263,30 @@ public class KgpPlacementTrackerTests
         };
         var (before, _) = tracker.GenerateCommands(frame2);
 
-        Assert.Contains(before, t => t is UnrecognizedSequenceToken ust &&
+        Assert.IsTrue(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=d") &&
             ust.Sequence.Contains("i=42") &&
-            ust.Sequence.Contains("p=2"));
-        Assert.DoesNotContain(before, t => t is UnrecognizedSequenceToken ust &&
+            ust.Sequence.Contains("p=2")));
+        Assert.IsFalse(before.Any(t => t is UnrecognizedSequenceToken ust &&
             ust.Sequence.Contains("a=d") &&
-            ust.Sequence.Contains("p=1"));
+            ust.Sequence.Contains("p=1")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ActivePlacementCount_TracksCorrectly()
     {
         var tracker = new KgpPlacementTracker();
 
-        Assert.Equal(0, tracker.ActivePlacementCount);
+        Assert.AreEqual(0, tracker.ActivePlacementCount);
 
         tracker.GenerateCommands(CreateSurfaceWithKgp(imageId: 42, x: 3, y: 2));
-        Assert.Equal(1, tracker.ActivePlacementCount);
+        Assert.AreEqual(1, tracker.ActivePlacementCount);
 
         tracker.GenerateCommands(new Surface(30, 15, DefaultMetrics));
-        Assert.Equal(0, tracker.ActivePlacementCount);
+        Assert.AreEqual(0, tracker.ActivePlacementCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void RoundTrip_MoveSequence_TerminalDisplaysCorrectly()
     {
         // Full round-trip: Surface → KgpPlacementTracker → serialize → Hex1bTerminal
@@ -327,9 +328,9 @@ public class KgpPlacementTrackerTests
         tokens2.AddRange(after2);
 
         // Verify: no transmit on second frame (image already sent)
-        Assert.DoesNotContain(tokens2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t"));
-        Assert.DoesNotContain(tokens2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d"));
-        Assert.Contains(tokens2, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1"));
+        Assert.IsFalse(tokens2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=t")));
+        Assert.IsFalse(tokens2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=d")));
+        Assert.IsTrue(tokens2.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("a=p") && ust.Sequence.Contains("p=1")));
 
         var bytes2 = AnsiTokenUtf8Serializer.Serialize(tokens2);
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(Encoding.UTF8.GetString(bytes2.ToArray())));

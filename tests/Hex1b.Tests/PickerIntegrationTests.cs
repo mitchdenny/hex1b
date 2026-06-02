@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// These tests verify the full lifecycle of the picker popup including
 /// opening, selecting, and dismissing via various methods.
 /// </summary>
+[TestClass]
 public class PickerIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Picker_EnterKey_OpensPopup()
     {
         // Arrange & Act
@@ -34,11 +35,11 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert - The popup should have opened showing all items
-        Assert.True(snapshot.ContainsText("Banana"));
-        Assert.True(snapshot.ContainsText("Cherry"));
+        Assert.IsTrue(snapshot.ContainsText("Banana"));
+        Assert.IsTrue(snapshot.ContainsText("Cherry"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_SelectItem_ClosesPopupAndUpdatesSelection()
     {
         // Arrange
@@ -69,12 +70,12 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert
-        Assert.Equal("Banana", selectedText);
+        Assert.AreEqual("Banana", selectedText);
         // The picker should now show "Banana ▼" and the popup should be closed
-        Assert.True(snapshot.ContainsText("Banana"));
+        Assert.IsTrue(snapshot.ContainsText("Banana"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_EscapeKey_ClosesPopupWithoutChangingSelection()
     {
         // Arrange
@@ -105,12 +106,12 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert - Selection should not have changed
-        Assert.Equal(0, selectionChangedCount);
+        Assert.AreEqual(0, selectionChangedCount);
         // The picker should still show "Apple ▼"
-        Assert.True(snapshot.ContainsText("Apple"));
+        Assert.IsTrue(snapshot.ContainsText("Apple"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_ClickAwayOnBackdrop_ClosesPopupWithoutChangingSelection()
     {
         // Arrange
@@ -144,12 +145,12 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert - Selection should not have changed
-        Assert.Equal(0, selectionChangedCount);
+        Assert.AreEqual(0, selectionChangedCount);
         // The picker should still show "Apple ▼"
-        Assert.True(snapshot.ContainsText("Apple"));
+        Assert.IsTrue(snapshot.ContainsText("Apple"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_ClickOnPopupContent_DoesNotDismiss()
     {
         // Arrange
@@ -184,15 +185,11 @@ public class PickerIntegrationTests
             }
         }
 
-        Assert.True(
-            popupApple.HasValue,
-            $"Expected to find the popup's selected Apple item.\nScreen:\n{popupSnapshot.GetText()}");
+        Assert.IsTrue(popupApple.HasValue, $"Expected to find the popup's selected Apple item.\nScreen:\n{popupSnapshot.GetText()}");
 
         var popupBorderX = popupApple.Value.Column;
         var popupBorderY = popupApple.Value.Line - 1;
-        Assert.True(
-            popupBorderY >= 0,
-            $"Expected popup border row above selected item.\nScreen:\n{popupSnapshot.GetText()}");
+        Assert.IsTrue(popupBorderY >= 0, $"Expected popup border row above selected item.\nScreen:\n{popupSnapshot.GetText()}");
 
         // Click the popup border itself. If that click wrongly dismisses the popup, the
         // subsequent Enter will reopen it instead of selecting the focused item.
@@ -211,11 +208,11 @@ public class PickerIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(finalSnapshot.ContainsText("Apple ▼"));
-        Assert.False(finalSnapshot.ContainsText("Cherry"));
+        Assert.IsTrue(finalSnapshot.ContainsText("Apple ▼"));
+        Assert.IsFalse(finalSnapshot.ContainsText("Cherry"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_DownArrow_OpensPopupWithNextItemSelected()
     {
         // Arrange
@@ -244,10 +241,10 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert
-        Assert.Equal("Banana", selectedText);
+        Assert.AreEqual("Banana", selectedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_UpArrow_OpensPopupWithPreviousItemSelected()
     {
         // Arrange - Start with Cherry selected (index 2)
@@ -276,10 +273,10 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert
-        Assert.Equal("Banana", selectedText);
+        Assert.AreEqual("Banana", selectedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_PopupOpened_FocusMovesToList()
     {
         // Arrange & Act
@@ -306,10 +303,10 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert - If we got here, the list received focus and responded to Down arrow
-        Assert.True(snapshot.ContainsText("> Banana"));
+        Assert.IsTrue(snapshot.ContainsText("> Banana"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_PopupDismissed_FocusRestoresToPicker()
     {
         // Arrange & Act
@@ -338,11 +335,11 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert - Focus was restored and picker could be reopened
-        Assert.True(snapshot.ContainsText("Banana"));
-        Assert.True(snapshot.ContainsText("Cherry"));
+        Assert.IsTrue(snapshot.ContainsText("Banana"));
+        Assert.IsTrue(snapshot.ContainsText("Cherry"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_MultiplePickersOnScreen_TabNavigatesBetweenThem()
     {
         // Arrange
@@ -388,11 +385,11 @@ public class PickerIntegrationTests
         await runTask;
 
         // Assert
-        Assert.Equal("Banana", selectedFruit);
-        Assert.Equal("Green", selectedColor);
+        Assert.AreEqual("Banana", selectedFruit);
+        Assert.AreEqual("Green", selectedColor);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Picker_StackedPickers_OpenedDropdown_DoesNotBleedSiblingChipBackground()
     {
         // Reproduces the bug where a Picker dropdown's transparent inner cells
@@ -456,8 +453,7 @@ public class PickerIntegrationTests
                 break;
             }
         }
-        Assert.True(popupBanana.HasValue,
-            $"Expected to find Banana inside the popup body.\nScreen:\n{snapshot.GetText()}");
+        Assert.IsTrue(popupBanana.HasValue, $"Expected to find Banana inside the popup body.\nScreen:\n{snapshot.GetText()}");
 
         // The dropdown wraps a ListWidget in a BorderWidget. The "Banana"
         // text starts after the border (col -1) and the unselected indicator
@@ -501,9 +497,7 @@ public class PickerIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(
-            leakedCells.Count == 0,
-            $"Sibling picker chip background ({siblingChipBg}) bled through the open dropdown at {leakedCells.Count} cell(s): " +
+        Assert.IsTrue(leakedCells.Count == 0, $"Sibling picker chip background ({siblingChipBg}) bled through the open dropdown at {leakedCells.Count} cell(s): " +
             string.Join(", ", leakedCells.Take(10).Select(c => $"({c.X},{c.Y})")) +
             $".\nScreen:\n{snapshot.GetText()}");
     }

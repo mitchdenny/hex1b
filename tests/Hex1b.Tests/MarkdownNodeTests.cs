@@ -5,97 +5,98 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MarkdownNodeTests
 {
     // --- Measure ---
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptySource_ReturnsZeroSize()
     {
         var node = new MarkdownNode { Source = "" };
         node.BuildWidgetTree(); // Trigger parse
         var size = node.Measure(new Constraints(0, 80, 0, 24));
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Height);
     }
 
     // --- Default Renderers ---
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_Heading_ProducesVStackWithTextBlock()
     {
         var node = new MarkdownNode { Source = "# Hello" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.Single(vstack.Children);
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        TestSeq.Single(vstack.Children);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_Paragraph_ProducesMarkdownTextBlock()
     {
         var node = new MarkdownNode { Source = "Hello world" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        var mdTextBlock = Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        var mdTextBlock = TestSeq.IsType<MarkdownTextBlockWidget>(TestSeq.Single(vstack.Children));
         // Verify the inlines contain the text
-        var textInline = Assert.IsType<TextInline>(Assert.Single(mdTextBlock.Inlines));
-        Assert.Equal("Hello world", textInline.Text);
+        var textInline = TestSeq.IsType<TextInline>(TestSeq.Single(mdTextBlock.Inlines));
+        Assert.AreEqual("Hello world", textInline.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_FencedCode_ProducesBorder()
     {
         var node = new MarkdownNode { Source = "```\ncode\n```" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.IsType<BorderWidget>(Assert.Single(vstack.Children));
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        TestSeq.IsType<BorderWidget>(TestSeq.Single(vstack.Children));
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_BlockQuote_ProducesMarkdownTextBlock()
     {
         var node = new MarkdownNode { Source = "> Quote text" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        TestSeq.IsType<MarkdownTextBlockWidget>(TestSeq.Single(vstack.Children));
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_UnorderedList_ProducesNestedVStack()
     {
         var node = new MarkdownNode { Source = "- Item 1\n- Item 2" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        var listStack = Assert.IsType<VStackWidget>(Assert.Single(vstack.Children));
-        Assert.Equal(2, listStack.Children.Count);
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        var listStack = TestSeq.IsType<VStackWidget>(TestSeq.Single(vstack.Children));
+        Assert.AreEqual(2, listStack.Children.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_ThematicBreak_ProducesSeparator()
     {
         var node = new MarkdownNode { Source = "---" };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.IsType<SeparatorWidget>(Assert.Single(vstack.Children));
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        TestSeq.IsType<SeparatorWidget>(TestSeq.Single(vstack.Children));
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_EmptySource_ProducesEmptyTextBlock()
     {
         var node = new MarkdownNode { Source = "" };
         var widget = node.BuildWidgetTree();
 
-        Assert.IsType<TextBlockWidget>(widget);
+        TestSeq.IsType<TextBlockWidget>(widget);
     }
 
     // --- Caching ---
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_SameSource_DoesNotReparse()
     {
         var node = new MarkdownNode { Source = "# Hello" };
@@ -103,28 +104,28 @@ public class MarkdownNodeTests
         var widget2 = node.BuildWidgetTree();
 
         // Both should produce structurally equivalent widgets
-        Assert.IsType<VStackWidget>(widget1);
-        Assert.IsType<VStackWidget>(widget2);
+        TestSeq.IsType<VStackWidget>(widget1);
+        TestSeq.IsType<VStackWidget>(widget2);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_ChangedSource_Reparses()
     {
         var node = new MarkdownNode { Source = "# Hello" };
         var widget1 = node.BuildWidgetTree();
-        Assert.IsType<VStackWidget>(widget1);
+        TestSeq.IsType<VStackWidget>(widget1);
 
         node.Source = "New paragraph";
         var widget2 = node.BuildWidgetTree();
-        var vstack = Assert.IsType<VStackWidget>(widget2);
-        var mdTextBlock = Assert.IsType<MarkdownTextBlockWidget>(Assert.Single(vstack.Children));
-        var textInline = Assert.IsType<TextInline>(Assert.Single(mdTextBlock.Inlines));
-        Assert.Equal("New paragraph", textInline.Text);
+        var vstack = TestSeq.IsType<VStackWidget>(widget2);
+        var mdTextBlock = TestSeq.IsType<MarkdownTextBlockWidget>(TestSeq.Single(vstack.Children));
+        var textInline = TestSeq.IsType<TextInline>(TestSeq.Single(mdTextBlock.Inlines));
+        Assert.AreEqual("New paragraph", textInline.Text);
     }
 
     // --- OnBlock Handler ---
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_WithOnBlockHandler_OverridesDefault()
     {
         var node = new MarkdownNode { Source = "# Hello" };
@@ -134,12 +135,12 @@ public class MarkdownNodeTests
                  (ctx, block) => new TextBlockWidget($"CUSTOM: {block.Text}"))));
 
         var widget = node.BuildWidgetTree();
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        var text = Assert.IsType<TextBlockWidget>(Assert.Single(vstack.Children));
-        Assert.Equal("CUSTOM: Hello", text.Text);
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        var text = TestSeq.IsType<TextBlockWidget>(TestSeq.Single(vstack.Children));
+        Assert.AreEqual("CUSTOM: Hello", text.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_WithOnBlockHandler_DefaultChaining()
     {
         var node = new MarkdownNode { Source = "# Hello" };
@@ -159,18 +160,18 @@ public class MarkdownNodeTests
                  })));
 
         var widget = node.BuildWidgetTree();
-        var outerVStack = Assert.IsType<VStackWidget>(widget);
-        var wrappedVStack = Assert.IsType<VStackWidget>(Assert.Single(outerVStack.Children));
-        Assert.Equal(3, wrappedVStack.Children.Count);
+        var outerVStack = TestSeq.IsType<VStackWidget>(widget);
+        var wrappedVStack = TestSeq.IsType<VStackWidget>(TestSeq.Single(outerVStack.Children));
+        Assert.AreEqual(3, wrappedVStack.Children.Count);
 
-        var before = Assert.IsType<TextBlockWidget>(wrappedVStack.Children[0]);
-        Assert.Equal("BEFORE", before.Text);
+        var before = TestSeq.IsType<TextBlockWidget>(wrappedVStack.Children[0]);
+        Assert.AreEqual("BEFORE", before.Text);
 
-        var after = Assert.IsType<TextBlockWidget>(wrappedVStack.Children[2]);
-        Assert.Equal("AFTER", after.Text);
+        var after = TestSeq.IsType<TextBlockWidget>(wrappedVStack.Children[2]);
+        Assert.AreEqual("AFTER", after.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_MultipleHandlers_LastRegisteredCalledFirst()
     {
         var node = new MarkdownNode { Source = "# Hello" };
@@ -198,36 +199,36 @@ public class MarkdownNodeTests
 
         node.BuildWidgetTree();
 
-        Assert.Equal(["B", "A"], callOrder);
+        TestSeq.AreEqual(["B", "A"], callOrder);
     }
 
     // --- Widget Record ---
 
-    [Fact]
+    [TestMethod]
     public void MarkdownWidget_OnBlock_ReturnsNewInstance()
     {
         var widget = new MarkdownWidget("# Hello");
         var modified = widget.OnBlock<HeadingBlock>((ctx, block) =>
             new TextBlockWidget("custom"));
 
-        Assert.NotSame(widget, modified);
-        Assert.Empty(widget.BlockHandlers);
-        Assert.Single(modified.BlockHandlers);
+        Assert.AreNotSame(widget, modified);
+        Assert.IsEmpty(widget.BlockHandlers);
+        TestSeq.Single(modified.BlockHandlers);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkdownWidget_OnBlock_ChainMultipleTypes()
     {
         var widget = new MarkdownWidget("# Hello")
             .OnBlock<HeadingBlock>((ctx, block) => new TextBlockWidget("h"))
             .OnBlock<ParagraphBlock>((ctx, block) => new TextBlockWidget("p"));
 
-        Assert.Equal(2, widget.BlockHandlers.Count);
+        Assert.AreEqual(2, widget.BlockHandlers.Count);
     }
 
     // --- Complex Documents ---
 
-    [Fact]
+    [TestMethod]
     public void BuildWidgetTree_ComplexDocument_ProducesCorrectStructure()
     {
         var source = """
@@ -250,7 +251,7 @@ public class MarkdownNodeTests
         var node = new MarkdownNode { Source = source };
         var widget = node.BuildWidgetTree();
 
-        var vstack = Assert.IsType<VStackWidget>(widget);
-        Assert.True(vstack.Children.Count >= 6, $"Expected ≥6 children, got {vstack.Children.Count}");
+        var vstack = TestSeq.IsType<VStackWidget>(widget);
+        Assert.IsTrue(vstack.Children.Count >= 6, $"Expected ≥6 children, got {vstack.Children.Count}");
     }
 }

@@ -10,6 +10,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorMouseTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -47,7 +48,7 @@ public class EditorMouseTests
 
     // ── Click positioning ────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Click_PositionsCursorAtClickLocation()
     {
         // NOTE: Click behavior may change with margin/gutter support.
@@ -71,10 +72,10 @@ public class EditorMouseTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Cursor should be at offset 5 (0-based column 5 = 1-based column 6)
-        Assert.Equal(5, state.Cursor.Position.Value);
+        Assert.AreEqual(5, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_OnSecondLine_PositionsCursorCorrectly()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello\nWorld\nThird");
@@ -97,10 +98,10 @@ public class EditorMouseTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // "Hello\n" = 6 chars, then column 2 (0-based) = offset 8
-        Assert.Equal(8, state.Cursor.Position.Value);
+        Assert.AreEqual(8, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_BeyondLineEnd_ClampsToLineEnd()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hi\nWorld");
@@ -117,10 +118,10 @@ public class EditorMouseTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // "Hi" is 2 chars, so cursor should be at offset 2 (after "Hi")
-        Assert.Equal(2, state.Cursor.Position.Value);
+        Assert.AreEqual(2, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_InTildeArea_ClampsToDocumentEnd()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello");
@@ -136,10 +137,10 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, state.Cursor.Position.Value);
+        Assert.AreEqual(5, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_ClearsExistingSelection()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello world");
@@ -158,13 +159,13 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(state.Cursor.HasSelection);
-        Assert.Equal(3, state.Cursor.Position.Value);
+        Assert.IsFalse(state.Cursor.HasSelection);
+        Assert.AreEqual(3, state.Cursor.Position.Value);
     }
 
     // ── Double-click word selection ──────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task DoubleClick_SelectsWord()
     {
         // NOTE: Word boundary logic may evolve for unicode/programming language tokens.
@@ -188,15 +189,15 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection);
+        Assert.IsTrue(state.Cursor.HasSelection);
         // "world" is at offsets 6-11
-        Assert.Equal(6, state.Cursor.SelectionStart!.Value);
-        Assert.Equal(11, state.Cursor.SelectionEnd!.Value);
+        Assert.AreEqual(6, state.Cursor.SelectionStart!.Value);
+        Assert.AreEqual(11, state.Cursor.SelectionEnd!.Value);
     }
 
     // ── Triple-click line selection ──────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task TripleClick_SelectsEntireLine()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello\nWorld\nThird");
@@ -216,12 +217,12 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection);
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
     // ── Drag selection ───────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Drag_CreatesSelection()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello world");
@@ -244,12 +245,12 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(0, state.Cursor.SelectionStart!.Value);
-        Assert.Equal(5, state.Cursor.SelectionEnd!.Value);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(0, state.Cursor.SelectionStart!.Value);
+        Assert.AreEqual(5, state.Cursor.SelectionEnd!.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Drag_AcrossLines_CreatesMultiLineSelection()
     {
         var (workload, terminal, app, state, theme, runTask) = SetupEditor("Hello\nWorld");
@@ -267,12 +268,12 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection);
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
     // ── Scroll wheel ─────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollDown_ScrollsViewport()
     {
         // NOTE: This test verifies mouse scroll wheel changes the viewport.
@@ -297,7 +298,7 @@ public class EditorMouseTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollUp_ScrollsViewportBack()
     {
         var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line {i}"));
@@ -322,7 +323,7 @@ public class EditorMouseTests
 
     // ── Ctrl+Click multi-cursor ───────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlClick_AddsSecondCursor()
     {
         // NOTE: Ctrl+Click adds a cursor at the clicked position.
@@ -349,14 +350,13 @@ public class EditorMouseTests
         // Original cursor should still be at (0,0)
         var snapshot = terminal.CreateSnapshot();
         var firstCursorCell = snapshot.GetCell(0, 0);
-        Assert.True(ColorEquals(firstCursorCell.Background, cursorBg),
-            "First cursor should still be visible at (0,0)");
+        Assert.IsTrue(ColorEquals(firstCursorCell.Background, cursorBg), "First cursor should still be visible at (0,0)");
 
         // State should have 2 cursors
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtPosition_AddsAndTogglesCursor()
     {
         // Unit test for the toggle behavior
@@ -364,34 +364,34 @@ public class EditorMouseTests
         var state = new EditorState(doc);
 
         // Initial: one cursor at offset 0
-        Assert.Single(state.Cursors);
+        TestSeq.Single(state.Cursors);
 
         // Add cursor at offset 5
         state.AddCursorAtPosition(new DocumentOffset(5));
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
 
         // Add cursor at offset 5 again — should remove it (toggle)
         state.AddCursorAtPosition(new DocumentOffset(5));
-        Assert.Single(state.Cursors);
+        TestSeq.Single(state.Cursors);
     }
 
     // ── Unit tests for EditorState methods ───────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SetCursorPosition_SetsCursorAndClearsSelection()
     {
         var doc = new Hex1bDocument("Hello world");
         var state = new EditorState(doc);
         state.SelectAll();
-        Assert.True(state.Cursor.HasSelection);
+        Assert.IsTrue(state.Cursor.HasSelection);
 
         state.SetCursorPosition(new DocumentOffset(5));
 
-        Assert.Equal(5, state.Cursor.Position.Value);
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(5, state.Cursor.Position.Value);
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetCursorPosition_WithExtend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello world");
@@ -399,12 +399,12 @@ public class EditorMouseTests
 
         state.SetCursorPosition(new DocumentOffset(5), extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(0, state.Cursor.SelectionStart!.Value);
-        Assert.Equal(5, state.Cursor.SelectionEnd!.Value);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(0, state.Cursor.SelectionStart!.Value);
+        Assert.AreEqual(5, state.Cursor.SelectionEnd!.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetCursorPosition_ClampsToDocumentBounds()
     {
         var doc = new Hex1bDocument("Hi");
@@ -412,10 +412,10 @@ public class EditorMouseTests
 
         state.SetCursorPosition(new DocumentOffset(100));
 
-        Assert.Equal(2, state.Cursor.Position.Value);
+        Assert.AreEqual(2, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetCursorPosition_CollapsesMultiCursors()
     {
         var doc = new Hex1bDocument("Hello Hello");
@@ -423,15 +423,15 @@ public class EditorMouseTests
         // Create multi-cursor via AddCursorAtNextMatch
         state.SelectWordAt(new DocumentOffset(0)); // select first "Hello"
         state.AddCursorAtNextMatch(); // adds cursor at second "Hello"
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
 
         state.SetCursorPosition(new DocumentOffset(3));
 
-        Assert.Single(state.Cursors);
-        Assert.Equal(3, state.Cursor.Position.Value);
+        TestSeq.Single(state.Cursors);
+        Assert.AreEqual(3, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectWordAt_SelectsWordUnderOffset()
     {
         var doc = new Hex1bDocument("Hello world");
@@ -439,12 +439,12 @@ public class EditorMouseTests
 
         state.SelectWordAt(new DocumentOffset(8)); // in "world"
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(6, state.Cursor.SelectionStart!.Value);
-        Assert.Equal(11, state.Cursor.SelectionEnd!.Value);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(6, state.Cursor.SelectionStart!.Value);
+        Assert.AreEqual(11, state.Cursor.SelectionEnd!.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectLineAt_SelectsEntireLine()
     {
         var doc = new Hex1bDocument("Hello\nWorld\nThird");
@@ -452,12 +452,12 @@ public class EditorMouseTests
 
         state.SelectLineAt(new DocumentOffset(8)); // in "World"
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(6, state.Cursor.SelectionStart!.Value);  // start of "World\n"
-        Assert.Equal(12, state.Cursor.SelectionEnd!.Value);   // start of "Third"
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(6, state.Cursor.SelectionStart!.Value);  // start of "World\n"
+        Assert.AreEqual(12, state.Cursor.SelectionEnd!.Value);   // start of "Third"
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectLineAt_LastLine_SelectsToDocumentEnd()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -465,14 +465,14 @@ public class EditorMouseTests
 
         state.SelectLineAt(new DocumentOffset(8)); // in "World" (last line)
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(6, state.Cursor.SelectionStart!.Value);
-        Assert.Equal(11, state.Cursor.SelectionEnd!.Value); // doc length
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(6, state.Cursor.SelectionStart!.Value);
+        Assert.AreEqual(11, state.Cursor.SelectionEnd!.Value); // doc length
     }
 
     // ── Editor inside container widgets ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Drag_InsideSplitter_CreatesSelection()
     {
         // Regression: editor drag selection stopped working when editor is inside a splitter.
@@ -508,6 +508,6 @@ public class EditorMouseTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection, "Editor inside splitter should support drag selection");
+        Assert.IsTrue(state.Cursor.HasSelection, "Editor inside splitter should support drag selection");
     }
 }

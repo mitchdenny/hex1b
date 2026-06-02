@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetOverridesBuildAndReconcileAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetOverridesBuildAndReconcileAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetOverridesBuildAndReconcileAnalyzer>.Diagnostic(WidgetOverridesBuildAndReconcileAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task NoOverrides_NoDiagnostic()
     {
         const string source = """
@@ -25,7 +26,7 @@ public class WidgetOverridesBuildAndReconcileAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesBuildOnly_NoDiagnostic()
     {
         const string source = """
@@ -43,7 +44,7 @@ public class WidgetOverridesBuildAndReconcileAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesReconcileOnly_NoDiagnostic()
     {
         // Note: ReconcileAsync is internal, so this scenario is only realistic for code
@@ -69,7 +70,7 @@ public class WidgetOverridesBuildAndReconcileAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesBoth_Reports()
     {
         const string source = """
@@ -95,7 +96,7 @@ public class WidgetOverridesBuildAndReconcileAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("FooWidget"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetClass_NoDiagnostic()
     {
         const string source = """

@@ -8,8 +8,7 @@ namespace Hex1b.Tests;
 /// Collection for CPU-intensive tests (fuzz, stress, performance) that should run
 /// serially to avoid starving timing-sensitive integration tests of CPU time.
 /// </summary>
-[CollectionDefinition("CPU-Intensive")]
-public class CpuIntensiveCollection { }
+
 
 /// <summary>
 /// Seed-based fuzz testing for editor operations. Each seed produces a deterministic
@@ -25,7 +24,8 @@ public class CpuIntensiveCollection { }
 ///   [114] InsertChar 'x' (docLen=4, cursor=3)
 ///   ...
 /// </summary>
-[Collection("CPU-Intensive")]
+[DoNotParallelize]
+[TestClass]
 public class EditorFuzzTests
 {
     // ── Operation types ─────────────────────────────────────────
@@ -466,8 +466,8 @@ public class EditorFuzzTests
 
     // ── Single-cursor bulk ──────────────────────────────────────
 
-    [Theory]
-    [MemberData(nameof(FuzzSeeds))]
+    [TestMethod]
+    [DynamicData(nameof(FuzzSeeds))]
     public void Fuzz_SingleCursor_NeverThrows(int seed)
     {
         RunFuzz(seed, iterations: 500,
@@ -485,8 +485,8 @@ public class EditorFuzzTests
 
     // ── Multi-cursor bulk ───────────────────────────────────────
 
-    [Theory]
-    [MemberData(nameof(MultiCursorSeeds))]
+    [TestMethod]
+    [DynamicData(nameof(MultiCursorSeeds))]
     public void Fuzz_MultiCursor_NeverThrows(int seed)
     {
         RunFuzz(seed, iterations: 500,
@@ -504,8 +504,8 @@ public class EditorFuzzTests
 
     // ── Byte-level bulk ─────────────────────────────────────────
 
-    [Theory]
-    [MemberData(nameof(ByteLevelSeeds))]
+    [TestMethod]
+    [DynamicData(nameof(ByteLevelSeeds))]
     public void Fuzz_ByteLevel_NeverThrows(int seed)
     {
         RunFuzz(seed, iterations: 500,
@@ -523,8 +523,8 @@ public class EditorFuzzTests
 
     // ── Full combined (all features) ────────────────────────────
 
-    [Theory]
-    [MemberData(nameof(FullFuzzSeeds))]
+    [TestMethod]
+    [DynamicData(nameof(FullFuzzSeeds))]
     public void Fuzz_AllFeatures_NeverThrows(int seed)
     {
         RunFuzz(seed, iterations: 500,
@@ -542,28 +542,28 @@ public class EditorFuzzTests
 
     // ── Targeted scenarios ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_EmptyDocument_NeverThrows()
     {
         for (var seed = 0; seed < 50; seed++)
             RunFuzz(seed, iterations: 200, initialText: "", StandardConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_SingleCharDocument_NeverThrows()
     {
         for (var seed = 0; seed < 50; seed++)
             RunFuzz(seed, iterations: 200, initialText: "X", StandardConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_MultiByteContent_NeverThrows()
     {
         for (var seed = 0; seed < 50; seed++)
             RunFuzz(seed, iterations: 200, initialText: "café 😀 日本語\nLine 2 🚀\n", StandardConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_LongDocument_NeverThrows()
     {
         var longText = string.Join("\n",
@@ -572,7 +572,7 @@ public class EditorFuzzTests
             RunFuzz(seed, iterations: 300, initialText: longText, StandardConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_DeepUndoRedo_NeverThrows()
     {
         // Dedicated test for deep undo/redo chains that stress history
@@ -580,21 +580,21 @@ public class EditorFuzzTests
             RunFuzz(seed, iterations: 400, initialText: "ABCDEF\nGHIJKL\n", StandardConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_MultiCursor_EmptyDocument_NeverThrows()
     {
         for (var seed = 0; seed < 50; seed++)
             RunFuzz(seed, iterations: 200, initialText: "", MultiCursorConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_ByteLevel_EmptyDocument_NeverThrows()
     {
         for (var seed = 0; seed < 50; seed++)
             RunFuzz(seed, iterations: 200, initialText: "", ByteLevelConfig);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_StaleSelectionAfterExternalEdit_NeverThrows()
     {
         // Targeted test: selection set, document shrinks externally, then type
@@ -609,10 +609,10 @@ public class EditorFuzzTests
 
         // Must not throw
         state.InsertText("Z");
-        Assert.True(state.Cursor.Position.Value <= doc.Length);
+        Assert.IsTrue(state.Cursor.Position.Value <= doc.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fuzz_ConcurrentExternalEdits_NeverThrows()
     {
         // Simulates an external collaborator making edits between user operations
@@ -702,12 +702,10 @@ public class EditorFuzzTests
                 }
 
                 // Check invariants
-                Assert.True(doc.Length >= 0,
-                    $"Seed {seed}, iter {i}: doc.Length={doc.Length} < 0");
+                Assert.IsTrue(doc.Length >= 0, $"Seed {seed}, iter {i}: doc.Length={doc.Length} < 0");
                 foreach (var cursor in state.Cursors)
                 {
-                    Assert.True(cursor.Position.Value >= 0 && cursor.Position.Value <= doc.Length,
-                        $"Seed {seed}, iter {i} ({op}): cursor pos={cursor.Position.Value} out of [0, {doc.Length}]");
+                    Assert.IsTrue(cursor.Position.Value >= 0 && cursor.Position.Value <= doc.Length, $"Seed {seed}, iter {i} ({op}): cursor pos={cursor.Position.Value} out of [0, {doc.Length}]");
                 }
 
                 doc.VerifyIntegrity();

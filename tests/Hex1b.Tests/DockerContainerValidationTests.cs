@@ -1,22 +1,23 @@
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DockerContainerValidationTests
 {
-    [Fact]
+    [TestMethod]
     public void Validate_DefaultOptions_NoThrow()
     {
         var options = new DockerContainerOptions();
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_CustomImageOnly_NoThrow()
     {
         var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_DockerfileOnly_NoThrow()
     {
         var options = new DockerContainerOptions
@@ -26,7 +27,7 @@ public class DockerContainerValidationTests
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_DockerfileWithBuildContext_NoThrow()
     {
         var options = new DockerContainerOptions
@@ -37,7 +38,7 @@ public class DockerContainerValidationTests
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_DockerfileWithBuildArgs_NoThrow()
     {
         var options = new DockerContainerOptions
@@ -48,7 +49,7 @@ public class DockerContainerValidationTests
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_CustomImageAndDockerfile_Throws()
     {
         var options = new DockerContainerOptions
@@ -57,14 +58,13 @@ public class DockerContainerValidationTests
             DockerfilePath = "./Dockerfile"
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => DockerContainerArgBuilder.Validate(options));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => DockerContainerArgBuilder.Validate(options));
 
         Assert.Contains("Image", ex.Message);
         Assert.Contains("DockerfilePath", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_BuildContextWithoutDockerfile_Throws()
     {
         var options = new DockerContainerOptions
@@ -72,34 +72,31 @@ public class DockerContainerValidationTests
             BuildContext = "/some/context"
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => DockerContainerArgBuilder.Validate(options));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => DockerContainerArgBuilder.Validate(options));
 
         Assert.Contains("BuildContext", ex.Message);
         Assert.Contains("DockerfilePath", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_BuildArgsWithoutDockerfile_Throws()
     {
         var options = new DockerContainerOptions();
         options.BuildArgs["SDK"] = "10.0";
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => DockerContainerArgBuilder.Validate(options));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => DockerContainerArgBuilder.Validate(options));
 
         Assert.Contains("BuildArgs", ex.Message);
         Assert.Contains("DockerfilePath", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_NullOptions_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(
-            () => DockerContainerArgBuilder.Validate(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => DockerContainerArgBuilder.Validate(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_DefaultImageWithDockerfile_NoThrow()
     {
         // Default image + Dockerfile is OK — Dockerfile overrides the default
@@ -110,7 +107,7 @@ public class DockerContainerValidationTests
         DockerContainerArgBuilder.Validate(options);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validate_AllContainerOptionsWithoutDockerfile_NoThrow()
     {
         // Setting all container-level options without Dockerfile is fine

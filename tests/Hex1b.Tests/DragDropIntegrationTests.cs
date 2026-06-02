@@ -12,60 +12,61 @@ namespace Hex1b.Tests;
 /// IconNode clickability, WindowPanel background interactivity,
 /// and a realistic multi-column drag scenario with overlays and drop targets.
 /// </summary>
+[TestClass]
 public class DragDropIntegrationTests
 {
     #region DraggableNode IsHovered Tests
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsHovered_DefaultFalse()
     {
         var node = new DraggableNode();
-        Assert.False(node.IsHovered);
+        Assert.IsFalse(node.IsHovered);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsHovered_SetTrue_MarksDirty()
     {
         var node = new DraggableNode { Child = new TextBlockNode { Text = "test" } };
         node.IsHovered = true;
-        Assert.True(node.IsHovered);
+        Assert.IsTrue(node.IsHovered);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsHovered_SetSameValue_NoChange()
     {
         var node = new DraggableNode();
         node.IsHovered = false; // Already false
-        Assert.False(node.IsHovered);
+        Assert.IsFalse(node.IsHovered);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableContext_IsHovered_ReflectsNodeState()
     {
         var node = new DraggableNode { DragData = "test" };
         var context = new DraggableContext(node);
 
-        Assert.False(context.IsHovered);
+        Assert.IsFalse(context.IsHovered);
 
         node.IsHovered = true;
-        Assert.True(context.IsHovered);
+        Assert.IsTrue(context.IsHovered);
 
         node.IsHovered = false;
-        Assert.False(context.IsHovered);
+        Assert.IsFalse(context.IsHovered);
     }
 
     #endregion
 
     #region IconNode Focusable Tests
 
-    [Fact]
+    [TestMethod]
     public void IconNode_NotClickable_NotFocusable()
     {
         var node = new IconNode { Icon = "x" };
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void IconNode_WithClickHandler_IsFocusable()
     {
         var node = new IconNode
@@ -73,11 +74,11 @@ public class DragDropIntegrationTests
             Icon = "x",
             ClickCallback = _ => Task.CompletedTask
         };
-        Assert.True(node.IsFocusable);
-        Assert.True(node.IsClickable);
+        Assert.IsTrue(node.IsFocusable);
+        Assert.IsTrue(node.IsClickable);
     }
 
-    [Fact]
+    [TestMethod]
     public void IconNode_WithClickHandler_HasHitTestBounds()
     {
         var node = new IconNode
@@ -88,24 +89,24 @@ public class DragDropIntegrationTests
         node.Measure(new Constraints(0, 40, 0, 10));
         node.Arrange(new Rect(5, 3, 1, 1));
 
-        Assert.Equal(new Rect(5, 3, 1, 1), node.HitTestBounds);
+        Assert.AreEqual(new Rect(5, 3, 1, 1), node.HitTestBounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void IconNode_WithoutClickHandler_DefaultHitTestBounds()
     {
         var node = new IconNode { Icon = "x" };
         node.Measure(new Constraints(0, 40, 0, 10));
         node.Arrange(new Rect(5, 3, 1, 1));
 
-        Assert.Equal(default(Rect), node.HitTestBounds);
+        Assert.AreEqual(default(Rect), node.HitTestBounds);
     }
 
     #endregion
 
     #region WindowPanel Background Input Routing Tests
 
-    [Fact]
+    [TestMethod]
     public void WindowPanelNode_GetChildren_IncludesBackground()
     {
         var bgNode = new TextBlockNode { Text = "bg" };
@@ -119,10 +120,10 @@ public class DragDropIntegrationTests
         // Background should be first (lowest hit priority), then windows
         Assert.Contains(bgNode, children);
         Assert.Contains(windowNode, children);
-        Assert.Equal(bgNode, children[0]);
+        Assert.AreEqual(bgNode, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowPanelNode_GetChildren_NullBackground_OnlyWindows()
     {
         var windowNode = new WindowNode();
@@ -132,15 +133,15 @@ public class DragDropIntegrationTests
 
         var children = panel.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(windowNode, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(windowNode, children[0]);
     }
 
     #endregion
 
     #region Drop Target Proximity Manhattan Distance Tests
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_FindDropTargets_HorizontalLayout_FoundByPosition()
     {
         // Simulate a horizontal layout of drop targets (like between commands on a track)
@@ -156,17 +157,17 @@ public class DragDropIntegrationTests
         droppable.Child = hstack;
 
         var targets = droppable.FindDropTargets();
-        Assert.Equal(3, targets.Count);
-        Assert.Equal("pos-0", targets[0].TargetId);
-        Assert.Equal("pos-1", targets[1].TargetId);
-        Assert.Equal("pos-2", targets[2].TargetId);
+        Assert.AreEqual(3, targets.Count);
+        Assert.AreEqual("pos-0", targets[0].TargetId);
+        Assert.AreEqual("pos-1", targets[1].TargetId);
+        Assert.AreEqual("pos-2", targets[2].TargetId);
     }
 
     #endregion
 
     #region Full Stack Drag-Drop Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_DragFromSourceToTarget_DropsData()
     {
         var dropped = new TaskCompletionSource<object>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -216,10 +217,10 @@ public class DragDropIntegrationTests
         await runTask;
 
         var result = await dropped.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal("task-1", result);
+        Assert.AreEqual("task-1", result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_AcceptPredicate_RejectsInvalidData()
     {
         var dropOccurred = false;
@@ -259,10 +260,10 @@ public class DragDropIntegrationTests
 
         await runTask;
 
-        Assert.False(dropOccurred, "Drop should be rejected because data is int, not string");
+        Assert.IsFalse(dropOccurred, "Drop should be rejected because data is int, not string");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_DragOverlay_ShowsGhostWhileDragging()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -309,7 +310,7 @@ public class DragDropIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_DropTarget_ActivatesNearestTarget()
     {
         string? droppedTargetId = null;
@@ -360,10 +361,10 @@ public class DragDropIntegrationTests
         await runTask;
 
         // A drop target should have been selected (exact one depends on proximity)
-        Assert.NotNull(droppedTargetId);
+        Assert.IsNotNull(droppedTargetId);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_RealisticKanban_DragBetweenColumns()
     {
         // Realistic scenario: two columns with items, drag an item from column 1 to column 2
@@ -461,13 +462,13 @@ public class DragDropIntegrationTests
         await runTask;
 
         var result = await dropSignal.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal("Task A", result.Item);
-        Assert.Equal("Column 2", result.Column);
+        Assert.AreEqual("Task A", result.Item);
+        Assert.AreEqual("Column 2", result.Column);
         Assert.Contains("Task A", column2Items);
         Assert.DoesNotContain("Task A", column1Items);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_IsDragging_SourceShowsPlaceholder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -509,7 +510,7 @@ public class DragDropIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DragDrop_HoverState_DroppableShowsFeedback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -557,7 +558,7 @@ public class DragDropIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IconWidget_Clickable_ReceivesClick()
     {
         var clicked = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -592,10 +593,10 @@ public class DragDropIntegrationTests
         await runTask;
 
         var didClick = await Task.WhenAny(clicked.Task, Task.Delay(2000)) == clicked.Task;
-        Assert.True(didClick, "Icon click handler should have fired");
+        Assert.IsTrue(didClick, "Icon click handler should have fired");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WindowPanel_BackgroundInteractive_ReceivesDrops()
     {
         var dropped = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
@@ -640,7 +641,7 @@ public class DragDropIntegrationTests
         await runTask;
 
         var result = await dropped.Task.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.Equal("payload", result);
+        Assert.AreEqual("payload", result);
     }
 
     #endregion

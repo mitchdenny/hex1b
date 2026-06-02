@@ -6,9 +6,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class WidgetLayerTests
 {
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayer_RendersTextBlockToSurface()
     {
         var node = new SurfaceNode
@@ -22,14 +23,14 @@ public class WidgetLayerTests
 
         node.Render(context);
 
-        Assert.Equal("H", surface[0, 0].Character);
-        Assert.Equal("e", surface[1, 0].Character);
-        Assert.Equal("l", surface[2, 0].Character);
-        Assert.Equal("l", surface[3, 0].Character);
-        Assert.Equal("o", surface[4, 0].Character);
+        Assert.AreEqual("H", surface[0, 0].Character);
+        Assert.AreEqual("e", surface[1, 0].Character);
+        Assert.AreEqual("l", surface[2, 0].Character);
+        Assert.AreEqual("l", surface[3, 0].Character);
+        Assert.AreEqual("o", surface[4, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayer_PreservesNodeStateAcrossFrames()
     {
         // Render twice with the same widget — should not throw and should reuse node state
@@ -45,11 +46,11 @@ public class WidgetLayerTests
         var surface2 = new Surface(80, 24);
         node.Render(new SurfaceRenderContext(surface2));
 
-        Assert.Equal("T", surface2[0, 0].Character);
-        Assert.Equal("e", surface2[1, 0].Character);
+        Assert.AreEqual("T", surface2[0, 0].Character);
+        Assert.AreEqual("e", surface2[1, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerWithComputedLayer_CompositesCorrectly()
     {
         // Widget layer on bottom, computed layer on top that replaces all content with 'X'
@@ -75,11 +76,11 @@ public class WidgetLayerTests
         // "Hello" should be replaced with "XXXXX"
         for (int i = 0; i < 5; i++)
         {
-            Assert.Equal("X", surface[i, 0].Character);
+            Assert.AreEqual("X", surface[i, 0].Character);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_MultipleWidgetLayers_CompositesInOrder()
     {
         var node = new SurfaceNode
@@ -96,11 +97,11 @@ public class WidgetLayerTests
         node.Render(new SurfaceRenderContext(surface));
 
         // Top layer "BB" should overwrite first 2 chars of "AAAA"
-        Assert.Equal("B", surface[0, 0].Character);
-        Assert.Equal("B", surface[1, 0].Character);
+        Assert.AreEqual("B", surface[0, 0].Character);
+        Assert.AreEqual("B", surface[1, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerChangingWidget_UpdatesContent()
     {
         string text = "First";
@@ -112,7 +113,7 @@ public class WidgetLayerTests
 
         var surface1 = new Surface(80, 24);
         node.Render(new SurfaceRenderContext(surface1));
-        Assert.Equal("F", surface1[0, 0].Character);
+        Assert.AreEqual("F", surface1[0, 0].Character);
 
         // Change the widget tree
         text = "Second";
@@ -120,10 +121,10 @@ public class WidgetLayerTests
 
         var surface2 = new Surface(80, 24);
         node.Render(new SurfaceRenderContext(surface2));
-        Assert.Equal("S", surface2[0, 0].Character);
+        Assert.AreEqual("S", surface2[0, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerAtOffset_WritesAtCorrectPosition()
     {
         // SurfaceNode positioned at (5, 2) in the target
@@ -138,11 +139,11 @@ public class WidgetLayerTests
 
         node.Render(context);
 
-        Assert.Equal("H", surface[5, 2].Character);
-        Assert.Equal("i", surface[6, 2].Character);
+        Assert.AreEqual("H", surface[5, 2].Character);
+        Assert.AreEqual("i", surface[6, 2].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerBelowStaticLayer_CompositesCorrectly()
     {
         // Widget layer as background, static source layer on top
@@ -163,13 +164,13 @@ public class WidgetLayerTests
         node.Render(new SurfaceRenderContext(surface));
 
         // "ZZ" overlay should replace first 2 chars
-        Assert.Equal("Z", surface[0, 0].Character);
-        Assert.Equal("Z", surface[1, 0].Character);
+        Assert.AreEqual("Z", surface[0, 0].Character);
+        Assert.AreEqual("Z", surface[1, 0].Character);
         // Remaining should be from widget layer
-        Assert.Equal("l", surface[2, 0].Character);
+        Assert.AreEqual("l", surface[2, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_EmptyWidgetTree_DoesNotThrow()
     {
         // VStack with no children — should render without crashing
@@ -186,7 +187,7 @@ public class WidgetLayerTests
         node.Render(context);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerRemovedBetweenFrames_CleansUpStaleState()
     {
         // Frame 1: two widget layers
@@ -209,11 +210,11 @@ public class WidgetLayerTests
         var surface2 = new Surface(80, 24);
         node.Render(new SurfaceRenderContext(surface2));
 
-        Assert.Equal("O", surface2[0, 0].Character);
-        Assert.Equal("n", surface2[1, 0].Character);
+        Assert.AreEqual("O", surface2[0, 0].Character);
+        Assert.AreEqual("n", surface2[1, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerWithVStack_RendersMultiLineLayout()
     {
         var node = new SurfaceNode
@@ -228,12 +229,12 @@ public class WidgetLayerTests
         var surface = new Surface(80, 24);
         node.Render(new SurfaceRenderContext(surface));
 
-        Assert.Equal("L", surface[0, 0].Character);
-        Assert.Equal("L", surface[0, 1].Character);
-        Assert.Equal("2", surface[4, 1].Character);
+        Assert.AreEqual("L", surface[0, 0].Character);
+        Assert.AreEqual("L", surface[0, 1].Character);
+        Assert.AreEqual("2", surface[4, 1].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WidgetLayerComputedLayerReadsWidgetContent()
     {
         // Computed layer reads widget layer content and transforms foreground
@@ -256,9 +257,9 @@ public class WidgetLayerTests
         node.Render(new SurfaceRenderContext(surface));
 
         // Characters from widget layer, foreground replaced by computed layer
-        Assert.Equal("T", surface[0, 0].Character);
-        Assert.Equal(tintColor, surface[0, 0].Foreground);
-        Assert.Equal("e", surface[1, 0].Character);
-        Assert.Equal(tintColor, surface[1, 0].Foreground);
+        Assert.AreEqual("T", surface[0, 0].Character);
+        Assert.AreEqual(tintColor, surface[0, 0].Foreground);
+        Assert.AreEqual("e", surface[1, 0].Character);
+        Assert.AreEqual(tintColor, surface[1, 0].Foreground);
     }
 }

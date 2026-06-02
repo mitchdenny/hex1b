@@ -1,4 +1,3 @@
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -7,7 +6,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// cursor positioning (CUP) with origin mode, DECALN, and save/restore cursor.
 /// Translated from Ghostty's Terminal.zig test suite.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyCursorConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -24,7 +24,7 @@ public class GhosttyCursorConformanceTests
     #region CursorUp (CUU — CSI n A)
 
     // Ghostty: test "Terminal: cursorUp basic"
-    [Fact]
+    [TestMethod]
     public void CursorUp_Basic()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -33,13 +33,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10A"); // CUU(10) — clamped to top
         Feed(terminal, "X");
 
-        Assert.Equal(" X", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("A", GetLine(terminal, 2));
+        Assert.AreEqual(" X", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorUp below top scroll margin"
-    [Fact]
+    [TestMethod]
     public void CursorUp_BelowTopScrollMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -49,13 +49,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[5A"); // CUU(5) — clamped to top margin (row 1)
         Feed(terminal, "X");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal(" X", GetLine(terminal, 1));
-        Assert.Equal("A", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual(" X", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorUp above top scroll margin"
-    [Fact]
+    [TestMethod]
     public void CursorUp_AboveTopScrollMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -66,13 +66,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10A"); // CUU(10) — clamped to row 0 (ignores margin since above)
         Feed(terminal, "X");
 
-        Assert.Equal("X", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("A", GetLine(terminal, 2));
+        Assert.AreEqual("X", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorUp resets wrap"
-    [Fact]
+    [TestMethod]
     public void CursorUp_ResetsWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -81,7 +81,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "X");
 
         // Should overwrite 'E' since wrap was reset and cursor stays at last col
-        Assert.Equal("ABCDX", GetLine(terminal, 0));
+        Assert.AreEqual("ABCDX", GetLine(terminal, 0));
     }
 
     #endregion
@@ -89,7 +89,7 @@ public class GhosttyCursorConformanceTests
     #region CursorDown (CUD — CSI n B)
 
     // Ghostty: test "Terminal: cursorDown basic"
-    [Fact]
+    [TestMethod]
     public void CursorDown_Basic()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -97,12 +97,12 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10B"); // CUD(10) — clamped to bottom
         Feed(terminal, "X");
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal(" X", GetLine(terminal, 4));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual(" X", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: cursorDown above bottom scroll margin"
-    [Fact]
+    [TestMethod]
     public void CursorDown_AboveBottomScrollMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -111,12 +111,12 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10B"); // CUD(10) — clamped to bottom margin (row 2)
         Feed(terminal, "X");
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal(" X", GetLine(terminal, 2));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual(" X", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorDown below bottom scroll margin"
-    [Fact]
+    [TestMethod]
     public void CursorDown_BelowBottomScrollMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -126,12 +126,12 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10B"); // CUD(10) — clamped to bottom of screen
         Feed(terminal, "X");
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("X", GetLine(terminal, 4));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: cursorDown resets wrap"
-    [Fact]
+    [TestMethod]
     public void CursorDown_ResetsWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -139,8 +139,8 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1B"); // CUD(1) — resets wrap
         Feed(terminal, "X");
 
-        Assert.Equal("ABCDE", GetLine(terminal, 0));
-        Assert.Equal("    X", GetLine(terminal, 1));
+        Assert.AreEqual("ABCDE", GetLine(terminal, 0));
+        Assert.AreEqual("    X", GetLine(terminal, 1));
     }
 
     #endregion
@@ -148,7 +148,7 @@ public class GhosttyCursorConformanceTests
     #region CursorRight (CUF — CSI n C)
 
     // Ghostty: test "Terminal: cursorRight resets wrap"
-    [Fact]
+    [TestMethod]
     public void CursorRight_ResetsWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -156,22 +156,22 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1C"); // CUF(1) — resets wrap, stays at last col
         Feed(terminal, "X");
 
-        Assert.Equal("ABCDX", GetLine(terminal, 0));
+        Assert.AreEqual("ABCDX", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: cursorRight to the edge of screen"
-    [Fact]
+    [TestMethod]
     public void CursorRight_ToEdgeOfScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         Feed(terminal, "\x1b[100C"); // CUF(100) — clamped to last col
         Feed(terminal, "X");
 
-        Assert.Equal("    X", GetLine(terminal, 0));
+        Assert.AreEqual("    X", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: cursorRight left of right margin"
-    [Fact]
+    [TestMethod]
     public void CursorRight_LeftOfRightMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -180,11 +180,11 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[100C"); // CUF(100) — clamped to right margin
         Feed(terminal, "X");
 
-        Assert.Equal("  X", GetLine(terminal, 0));
+        Assert.AreEqual("  X", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: cursorRight right of right margin"
-    [Fact]
+    [TestMethod]
     public void CursorRight_RightOfRightMargin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -194,7 +194,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[100C"); // CUF(100) — clamped to edge of screen (outside margin)
         Feed(terminal, "X");
 
-        Assert.Equal("    X", GetLine(terminal, 0));
+        Assert.AreEqual("    X", GetLine(terminal, 0));
     }
 
     #endregion
@@ -202,7 +202,7 @@ public class GhosttyCursorConformanceTests
     #region CursorLeft (CUB — CSI n D)
 
     // Ghostty: test "Terminal: cursorLeft no wrap"
-    [Fact]
+    [TestMethod]
     public void CursorLeft_NoWrap()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -212,12 +212,12 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[10D"); // CUB(10) — clamped to col 0
 
         // Cursor should be at col 0, row 1 — no wrapping to previous line
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
     }
 
     // Ghostty: test "Terminal: cursorLeft unsets pending wrap state"
-    [Fact]
+    [TestMethod]
     public void CursorLeft_UnsetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -225,11 +225,11 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1D"); // CUB(1) — resets wrap
         Feed(terminal, "X");
 
-        Assert.Equal("ABCXE", GetLine(terminal, 0));
+        Assert.AreEqual("ABCXE", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: cursorLeft unsets pending wrap state with longer jump"
-    [Fact]
+    [TestMethod]
     public void CursorLeft_UnsetsPendingWrap_LongerJump()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -237,7 +237,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[3D"); // CUB(3) — resets wrap, moves back 3
         Feed(terminal, "X");
 
-        Assert.Equal("AXCDE", GetLine(terminal, 0));
+        Assert.AreEqual("AXCDE", GetLine(terminal, 0));
     }
 
     #endregion
@@ -245,7 +245,7 @@ public class GhosttyCursorConformanceTests
     #region CursorPos (CUP) with Origin Mode
 
     // Ghostty: test "Terminal: cursorPos resets wrap"
-    [Fact]
+    [TestMethod]
     public void CursorPos_ResetsWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -253,23 +253,23 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1) — resets wrap
         Feed(terminal, "X");
 
-        Assert.Equal("XBCDE", GetLine(terminal, 0));
+        Assert.AreEqual("XBCDE", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: cursorPos off the screen"
-    [Fact]
+    [TestMethod]
     public void CursorPos_OffTheScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         Feed(terminal, "\x1b[500;500H"); // CUP(500,500) — clamped
         Feed(terminal, "X");
 
-        Assert.Equal(4, terminal.CursorY);
-        Assert.Equal("    X", GetLine(terminal, 4));
+        Assert.AreEqual(4, terminal.CursorY);
+        Assert.AreEqual("    X", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: cursorPos relative to origin"
-    [Fact]
+    [TestMethod]
     public void CursorPos_RelativeToOrigin()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -279,13 +279,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "X");
 
         // Origin mode: row 1 maps to scroll region top (row 2, 0-based)
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("X", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("X", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorPos relative to origin with left/right"
-    [Fact]
+    [TestMethod]
     public void CursorPos_RelativeToOrigin_WithLeftRight()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -296,13 +296,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1) — relative to both margins
         Feed(terminal, "X");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("  X", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("  X", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: cursorPos limits with full scroll region"
-    [Fact]
+    [TestMethod]
     public void CursorPos_LimitsWithFullScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -314,27 +314,27 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "X");
 
         // Should be clamped to bottom-right of scroll region
-        Assert.Equal("    X", GetLine(terminal, 3));
+        Assert.AreEqual("    X", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setCursorPos (original test)"
-    [Fact]
+    [TestMethod]
     public void SetCursorPos_OriginalTest()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
 
         // Setting to 0 should keep it zero (CUP is 1-based, 0 treated as 1)
         Feed(terminal, "\x1b[0;0H");
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
 
         // Should clamp to size
         Feed(terminal, "\x1b[81;81H");
-        Assert.Equal(79, terminal.CursorX);
-        Assert.Equal(79, terminal.CursorY);
+        Assert.AreEqual(79, terminal.CursorX);
+        Assert.AreEqual(79, terminal.CursorY);
     }
 
     #endregion
@@ -342,7 +342,7 @@ public class GhosttyCursorConformanceTests
     #region DECALN (Screen Alignment Test — ESC # 8)
 
     // Ghostty: test "Terminal: DECALN"
-    [Fact]
+    [TestMethod]
     public void Decaln_FillsWithE()
     {
         using var terminal = CreateTerminal(cols: 2, rows: 2);
@@ -351,14 +351,14 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "B");
         Feed(terminal, "\x1b#8"); // DECALN
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
-        Assert.Equal("EE", GetLine(terminal, 0));
-        Assert.Equal("EE", GetLine(terminal, 1));
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
+        Assert.AreEqual("EE", GetLine(terminal, 0));
+        Assert.AreEqual("EE", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: decaln reset margins"
-    [Fact]
+    [TestMethod]
     public void Decaln_ResetMargins()
     {
         using var terminal = CreateTerminal(cols: 3, rows: 3);
@@ -368,13 +368,13 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b[1T"); // SD(1) — scroll down
 
         // After DECALN resets margins, scroll down shifts all 3 rows
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("EEE", GetLine(terminal, 1));
-        Assert.Equal("EEE", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("EEE", GetLine(terminal, 1));
+        Assert.AreEqual("EEE", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: decaln preserves color"
-    [Fact]
+    [TestMethod]
     public void Decaln_PreservesColor()
     {
         using var terminal = CreateTerminal(cols: 3, rows: 3);
@@ -384,17 +384,17 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b#8"); // DECALN — should reset margins, preserve bg
         Feed(terminal, "\x1b[1T"); // SD(1) — scroll down
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("EEE", GetLine(terminal, 1));
-        Assert.Equal("EEE", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("EEE", GetLine(terminal, 1));
+        Assert.AreEqual("EEE", GetLine(terminal, 2));
 
         // Verify background color is preserved on the blank line
         var cell = GetCell(terminal, 0, 0);
-        Assert.NotNull(cell.Background);
+        Assert.IsNotNull(cell.Background);
         var bg = cell.Background!.Value;
-        Assert.Equal((byte)255, bg.R);
-        Assert.Equal((byte)0, bg.G);
-        Assert.Equal((byte)0, bg.B);
+        Assert.AreEqual((byte)255, bg.R);
+        Assert.AreEqual((byte)0, bg.G);
+        Assert.AreEqual((byte)0, bg.B);
     }
 
     #endregion
@@ -402,7 +402,7 @@ public class GhosttyCursorConformanceTests
     #region Save/Restore Cursor (DECSC/DECRC — ESC 7 / ESC 8)
 
     // Ghostty: test "Terminal: saveCursor position"
-    [Fact]
+    [TestMethod]
     public void SaveCursor_Position()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -414,11 +414,11 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b" + "8"); // DECRC (restore cursor)
         Feed(terminal, "X");
 
-        Assert.Equal("B   AX", GetLine(terminal, 0));
+        Assert.AreEqual("B   AX", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: saveCursor pending wrap state"
-    [Fact]
+    [TestMethod]
     public void SaveCursor_PendingWrapState()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -430,12 +430,12 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b" + "8"); // DECRC — restores pending wrap
         Feed(terminal, "X");
 
-        Assert.Equal("B   A", GetLine(terminal, 0));
-        Assert.Equal("X", GetLine(terminal, 1));
+        Assert.AreEqual("B   A", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: saveCursor origin mode"
-    [Fact]
+    [TestMethod]
     public void SaveCursor_OriginMode()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -449,11 +449,11 @@ public class GhosttyCursorConformanceTests
 
         // With origin mode restored, CUP should position relative to margins
         // But cursor position was (0,0) when saved, so X goes at (0,0)
-        Assert.Equal("X", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: saveCursor resize"
-    [Fact]
+    [TestMethod]
     public void SaveCursor_Resize()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -466,7 +466,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\x1b" + "8"); // DECRC — restore
         Feed(terminal, "X");
 
-        Assert.Equal("         X", GetLine(terminal, 0));
+        Assert.AreEqual("         X", GetLine(terminal, 0));
     }
 
     #endregion
@@ -474,7 +474,7 @@ public class GhosttyCursorConformanceTests
     #region Carriage Return with Margins
 
     // Ghostty: test "Terminal: carriage return origin mode moves to left margin"
-    [Fact]
+    [TestMethod]
     public void CarriageReturn_OriginMode_MovesToLeftMargin()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -485,11 +485,11 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\r"); // CR — should go to left margin (col 2)
         Feed(terminal, "X");
 
-        Assert.Equal("  X", GetLine(terminal, 0));
+        Assert.AreEqual("  X", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: carriage return left of left margin moves to zero"
-    [Fact]
+    [TestMethod]
     public void CarriageReturn_LeftOfLeftMargin_MovesToZero()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -499,11 +499,11 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\r"); // CR — should go to col 0 (outside margin)
         Feed(terminal, "X");
 
-        Assert.Equal("X", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: carriage return right of left margin moves to left margin"
-    [Fact]
+    [TestMethod]
     public void CarriageReturn_RightOfLeftMargin_MovesToLeftMargin()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -513,7 +513,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "\r"); // CR — should go to left margin (col 2)
         Feed(terminal, "X");
 
-        Assert.Equal("  X", GetLine(terminal, 0));
+        Assert.AreEqual("  X", GetLine(terminal, 0));
     }
 
     #endregion
@@ -521,7 +521,7 @@ public class GhosttyCursorConformanceTests
     #region Horizontal Tabs with Margins
 
     // Ghostty: test "Terminal: horizontal tabs with right margin"
-    [Fact]
+    [TestMethod]
     public void HorizontalTabs_WithRightMargin()
     {
         using var terminal = CreateTerminal(cols: 20, rows: 5);
@@ -531,7 +531,7 @@ public class GhosttyCursorConformanceTests
         Feed(terminal, "X");
 
         // Default tab stops at every 8 columns. Tab from col 0 → col 7 (right margin)
-        Assert.True(terminal.CursorX <= 8, $"CursorX {terminal.CursorX} should be within right margin");
+        Assert.IsTrue(terminal.CursorX <= 8, $"CursorX {terminal.CursorX} should be within right margin");
     }
 
     #endregion

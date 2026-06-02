@@ -10,6 +10,7 @@ namespace Hex1b.Tests.LanguageServer;
 /// Verifies feature gating, extension filtering, type conversions, and feature set
 /// combinations WITHOUT a real language server.
 /// </summary>
+[TestClass]
 public class LspPipelineIntegrationTests
 {
     // ── Helpers ──────────────────────────────────────────────
@@ -32,55 +33,55 @@ public class LspPipelineIntegrationTests
 
     // ── 1. Feature Controller Gating Tests ───────────────────
 
-    [Fact]
+    [TestMethod]
     public void Controller_DisabledFeature_ReturnsIsEnabledFalse()
     {
         var extension = new TestExtension(LspFeatureSet.All & ~LspFeatureSet.Hover);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
     }
 
-    [Fact]
+    [TestMethod]
     public void Controller_NoFeatures_AllDisabled()
     {
         var extension = new TestExtension(LspFeatureSet.None);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.False(controller.IsEnabled(LspFeatureSet.SemanticTokens));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.SemanticTokens));
     }
 
-    [Fact]
+    [TestMethod]
     public void Controller_AllFeatures_AllEnabled()
     {
         var extension = new TestExtension(LspFeatureSet.All);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.True(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.True(controller.IsEnabled(LspFeatureSet.SemanticTokens));
-        Assert.True(controller.IsEnabled(LspFeatureSet.InlayHints));
-        Assert.True(controller.IsEnabled(LspFeatureSet.CodeLens));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.SemanticTokens));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.InlayHints));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.CodeLens));
     }
 
-    [Fact]
+    [TestMethod]
     public void Controller_ExposesExtension()
     {
         var extension = new TestExtension(LspFeatureSet.All);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.Same(extension, controller.Extension);
+        Assert.AreSame(extension, controller.Extension);
     }
 
     // ── 2. Extension Filter Integration Tests ────────────────
 
-    [Fact]
+    [TestMethod]
     public void FilteringExtension_FiltersCompletions()
     {
         var extension = new FilteringExtension();
@@ -93,20 +94,20 @@ public class LspPipelineIntegrationTests
 
         var filtered = extension.FilterCompletions(items);
 
-        Assert.Equal(2, filtered.Count);
-        Assert.All(filtered, i => Assert.StartsWith("test", i.Label));
+        Assert.AreEqual(2, filtered.Count);
+        TestSeq.All(filtered, i => Assert.StartsWith("test", i.Label));
     }
 
-    [Fact]
+    [TestMethod]
     public void FilteringExtension_EmptyInput_ReturnsEmpty()
     {
         var extension = new FilteringExtension();
         var filtered = extension.FilterCompletions([]);
 
-        Assert.Empty(filtered);
+        Assert.IsEmpty(filtered);
     }
 
-    [Fact]
+    [TestMethod]
     public void FilteringExtension_NoMatches_ReturnsEmpty()
     {
         var extension = new FilteringExtension();
@@ -118,10 +119,10 @@ public class LspPipelineIntegrationTests
 
         var filtered = extension.FilterCompletions(items);
 
-        Assert.Empty(filtered);
+        Assert.IsEmpty(filtered);
     }
 
-    [Fact]
+    [TestMethod]
     public void DefaultExtension_PassthroughCompletions()
     {
         ILanguageExtension extension = DefaultLanguageExtension.Instance;
@@ -133,20 +134,20 @@ public class LspPipelineIntegrationTests
 
         var filtered = extension.FilterCompletions(items);
 
-        Assert.Same(items, filtered);
+        Assert.AreSame(items, filtered);
     }
 
-    [Fact]
+    [TestMethod]
     public void DefaultExtension_AllFeaturesEnabled()
     {
         var extension = DefaultLanguageExtension.Instance;
 
-        Assert.Equal(LspFeatureSet.All, extension.EnabledFeatures);
+        Assert.AreEqual(LspFeatureSet.All, extension.EnabledFeatures);
     }
 
     // ── 3. Full Pipeline Tests (LSP types → Foundation types) ─
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentHighlights_ToRangeHighlights_EndToEnd()
     {
         var lspHighlights = new DocumentHighlight[]
@@ -173,17 +174,17 @@ public class LspPipelineIntegrationTests
 
         var rangeHighlights = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(lspHighlights);
 
-        Assert.Equal(2, rangeHighlights.Count);
+        Assert.AreEqual(2, rangeHighlights.Count);
         // 0-based → 1-based
-        Assert.Equal(new DocumentPosition(6, 11), rangeHighlights[0].Start);
-        Assert.Equal(new DocumentPosition(6, 16), rangeHighlights[0].End);
-        Assert.Equal(RangeHighlightKind.ReadAccess, rangeHighlights[0].Kind);
-        Assert.Equal(new DocumentPosition(11, 1), rangeHighlights[1].Start);
-        Assert.Equal(new DocumentPosition(11, 6), rangeHighlights[1].End);
-        Assert.Equal(RangeHighlightKind.WriteAccess, rangeHighlights[1].Kind);
+        Assert.AreEqual(new DocumentPosition(6, 11), rangeHighlights[0].Start);
+        Assert.AreEqual(new DocumentPosition(6, 16), rangeHighlights[0].End);
+        Assert.AreEqual(RangeHighlightKind.ReadAccess, rangeHighlights[0].Kind);
+        Assert.AreEqual(new DocumentPosition(11, 1), rangeHighlights[1].Start);
+        Assert.AreEqual(new DocumentPosition(11, 6), rangeHighlights[1].End);
+        Assert.AreEqual(RangeHighlightKind.WriteAccess, rangeHighlights[1].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentHighlights_DefaultKind()
     {
         var lspHighlights = new DocumentHighlight[]
@@ -201,19 +202,19 @@ public class LspPipelineIntegrationTests
 
         var rangeHighlights = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(lspHighlights);
 
-        Assert.Single(rangeHighlights);
-        Assert.Equal(RangeHighlightKind.Default, rangeHighlights[0].Kind);
+        TestSeq.Single(rangeHighlights);
+        Assert.AreEqual(RangeHighlightKind.Default, rangeHighlights[0].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentHighlights_NullInput_ReturnsEmpty()
     {
         var result = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(null);
 
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_FoldingRanges_ToFoldingRegions_EndToEnd()
     {
         var lspRanges = new FoldingRange[]
@@ -225,27 +226,27 @@ public class LspPipelineIntegrationTests
 
         var regions = LanguageServerDecorationProvider.FoldingRangesToRegions(lspRanges);
 
-        Assert.Equal(3, regions.Count);
-        Assert.Equal(1, regions[0].StartLine); // 0-based → 1-based
-        Assert.Equal(11, regions[0].EndLine);
-        Assert.Equal(FoldingRegionKind.Comment, regions[0].Kind);
-        Assert.Equal(16, regions[1].StartLine);
-        Assert.Equal(21, regions[1].EndLine);
-        Assert.Equal(FoldingRegionKind.Imports, regions[1].Kind);
-        Assert.Equal(26, regions[2].StartLine);
-        Assert.Equal(51, regions[2].EndLine);
-        Assert.Equal(FoldingRegionKind.Region, regions[2].Kind); // default
+        Assert.AreEqual(3, regions.Count);
+        Assert.AreEqual(1, regions[0].StartLine); // 0-based → 1-based
+        Assert.AreEqual(11, regions[0].EndLine);
+        Assert.AreEqual(FoldingRegionKind.Comment, regions[0].Kind);
+        Assert.AreEqual(16, regions[1].StartLine);
+        Assert.AreEqual(21, regions[1].EndLine);
+        Assert.AreEqual(FoldingRegionKind.Imports, regions[1].Kind);
+        Assert.AreEqual(26, regions[2].StartLine);
+        Assert.AreEqual(51, regions[2].EndLine);
+        Assert.AreEqual(FoldingRegionKind.Region, regions[2].Kind); // default
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_FoldingRanges_NullInput_ReturnsEmpty()
     {
         var result = LanguageServerDecorationProvider.FoldingRangesToRegions(null);
 
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_InlayHints_ToInlineHints_EndToEnd()
     {
         var lspHints = new InlayHint[]
@@ -264,14 +265,14 @@ public class LspPipelineIntegrationTests
 
         var inlineHints = LanguageServerDecorationProvider.InlayHintsToInlineHints(lspHints);
 
-        Assert.Equal(2, inlineHints.Count);
-        Assert.Equal(new DocumentPosition(4, 16), inlineHints[0].Position); // 0→1 based
-        Assert.Equal("string", inlineHints[0].Text);
-        Assert.Equal(new DocumentPosition(8, 1), inlineHints[1].Position);
-        Assert.Equal("int", inlineHints[1].Text);
+        Assert.AreEqual(2, inlineHints.Count);
+        Assert.AreEqual(new DocumentPosition(4, 16), inlineHints[0].Position); // 0→1 based
+        Assert.AreEqual("string", inlineHints[0].Text);
+        Assert.AreEqual(new DocumentPosition(8, 1), inlineHints[1].Position);
+        Assert.AreEqual("int", inlineHints[1].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_InlayHints_ArrayLabel_ConcatenatesParts()
     {
         var labelParts = new[]
@@ -291,19 +292,19 @@ public class LspPipelineIntegrationTests
 
         var inlineHints = LanguageServerDecorationProvider.InlayHintsToInlineHints(lspHints);
 
-        Assert.Single(inlineHints);
-        Assert.Equal("param: int", inlineHints[0].Text);
+        TestSeq.Single(inlineHints);
+        Assert.AreEqual("param: int", inlineHints[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_InlayHints_NullInput_ReturnsEmpty()
     {
         var result = LanguageServerDecorationProvider.InlayHintsToInlineHints(null);
 
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentSymbols_ToBreadcrumbs_EndToEnd()
     {
         var lspSymbols = new DocumentSymbol[]
@@ -345,35 +346,35 @@ public class LspPipelineIntegrationTests
 
         var breadcrumbs = LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(lspSymbols);
 
-        Assert.NotNull(breadcrumbs);
-        Assert.Single(breadcrumbs!.Symbols);
-        Assert.Equal("MyClass", breadcrumbs.Symbols[0].Name);
-        Assert.Equal(BreadcrumbSymbolKind.Class, breadcrumbs.Symbols[0].Kind);
-        Assert.Equal(new DocumentPosition(1, 1), breadcrumbs.Symbols[0].Start);
-        Assert.Equal(new DocumentPosition(51, 1), breadcrumbs.Symbols[0].End);
-        Assert.NotNull(breadcrumbs.Symbols[0].Children);
-        Assert.Single(breadcrumbs.Symbols[0].Children!);
-        Assert.Equal("DoWork", breadcrumbs.Symbols[0].Children![0].Name);
-        Assert.Equal(BreadcrumbSymbolKind.Method, breadcrumbs.Symbols[0].Children![0].Kind);
+        Assert.IsNotNull(breadcrumbs);
+        TestSeq.Single(breadcrumbs!.Symbols);
+        Assert.AreEqual("MyClass", breadcrumbs.Symbols[0].Name);
+        Assert.AreEqual(BreadcrumbSymbolKind.Class, breadcrumbs.Symbols[0].Kind);
+        Assert.AreEqual(new DocumentPosition(1, 1), breadcrumbs.Symbols[0].Start);
+        Assert.AreEqual(new DocumentPosition(51, 1), breadcrumbs.Symbols[0].End);
+        Assert.IsNotNull(breadcrumbs.Symbols[0].Children);
+        TestSeq.Single(breadcrumbs.Symbols[0].Children!);
+        Assert.AreEqual("DoWork", breadcrumbs.Symbols[0].Children![0].Name);
+        Assert.AreEqual(BreadcrumbSymbolKind.Method, breadcrumbs.Symbols[0].Children![0].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentSymbols_NullInput_ReturnsNull()
     {
         var result = LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(null);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_DocumentSymbols_EmptyInput_ReturnsNull()
     {
         var result = LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs([]);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_SignatureHelp_ToSignaturePanel_EndToEnd()
     {
         var lspHelp = new SignatureHelp
@@ -396,34 +397,34 @@ public class LspPipelineIntegrationTests
 
         var panel = LanguageServerDecorationProvider.SignatureHelpToPanel(lspHelp);
 
-        Assert.NotNull(panel);
-        Assert.Single(panel!.Signatures);
-        Assert.Equal("void Foo(int x, string y)", panel.Signatures[0].Label);
-        Assert.Equal(2, panel.Signatures[0].Parameters.Count);
-        Assert.Equal("int x", panel.Signatures[0].Parameters[0].Label);
-        Assert.Equal("string y", panel.Signatures[0].Parameters[1].Label);
-        Assert.Equal(0, panel.ActiveSignature);
-        Assert.Equal(1, panel.ActiveParameter);
+        Assert.IsNotNull(panel);
+        TestSeq.Single(panel!.Signatures);
+        Assert.AreEqual("void Foo(int x, string y)", panel.Signatures[0].Label);
+        Assert.AreEqual(2, panel.Signatures[0].Parameters.Count);
+        Assert.AreEqual("int x", panel.Signatures[0].Parameters[0].Label);
+        Assert.AreEqual("string y", panel.Signatures[0].Parameters[1].Label);
+        Assert.AreEqual(0, panel.ActiveSignature);
+        Assert.AreEqual(1, panel.ActiveParameter);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_SignatureHelp_NullInput_ReturnsNull()
     {
         var result = LanguageServerDecorationProvider.SignatureHelpToPanel(null);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_SignatureHelp_EmptySignatures_ReturnsNull()
     {
         var result = LanguageServerDecorationProvider.SignatureHelpToPanel(
             new SignatureHelp { Signatures = [] });
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_SignatureHelp_NullActiveIndices_DefaultsToZero()
     {
         var lspHelp = new SignatureHelp
@@ -442,12 +443,12 @@ public class LspPipelineIntegrationTests
 
         var panel = LanguageServerDecorationProvider.SignatureHelpToPanel(lspHelp);
 
-        Assert.NotNull(panel);
-        Assert.Equal(0, panel!.ActiveSignature);
-        Assert.Equal(0, panel.ActiveParameter);
+        Assert.IsNotNull(panel);
+        Assert.AreEqual(0, panel!.ActiveSignature);
+        Assert.AreEqual(0, panel.ActiveParameter);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_CodeLens_ToGutterDecorations_EndToEnd()
     {
         var lspLenses = new CodeLens[]
@@ -474,15 +475,15 @@ public class LspPipelineIntegrationTests
 
         var decorations = LanguageServerDecorationProvider.CodeLensToGutterDecorations(lspLenses);
 
-        Assert.Equal(2, decorations.Count);
-        Assert.Equal(5, decorations[0].Line); // 0-based → 1-based
-        Assert.Equal('3', decorations[0].Character); // first char of title
-        Assert.Equal(GutterDecorationKind.Info, decorations[0].Kind);
-        Assert.Equal(13, decorations[1].Line);
-        Assert.Equal('R', decorations[1].Character);
+        Assert.AreEqual(2, decorations.Count);
+        Assert.AreEqual(5, decorations[0].Line); // 0-based → 1-based
+        Assert.AreEqual('3', decorations[0].Character); // first char of title
+        Assert.AreEqual(GutterDecorationKind.Info, decorations[0].Kind);
+        Assert.AreEqual(13, decorations[1].Line);
+        Assert.AreEqual('R', decorations[1].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_CodeLens_NullCommand_Skipped()
     {
         var lspLenses = new CodeLens[]
@@ -500,68 +501,68 @@ public class LspPipelineIntegrationTests
 
         var decorations = LanguageServerDecorationProvider.CodeLensToGutterDecorations(lspLenses);
 
-        Assert.Empty(decorations);
+        Assert.IsEmpty(decorations);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pipeline_CodeLens_NullInput_ReturnsEmpty()
     {
         var result = LanguageServerDecorationProvider.CodeLensToGutterDecorations(null);
 
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
     // ── 4. Feature Set Combination Tests ─────────────────────
 
-    [Fact]
+    [TestMethod]
     public void FeatureSet_SelectiveDisable_WorksEndToEnd()
     {
         var features = LspFeatureSet.All & ~LspFeatureSet.Hover & ~LspFeatureSet.InlayHints;
         var extension = new TestExtension(features);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.False(controller.IsEnabled(LspFeatureSet.InlayHints));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.True(controller.IsEnabled(LspFeatureSet.CodeActions));
-        Assert.True(controller.IsEnabled(LspFeatureSet.FoldingRange));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.InlayHints));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.CodeActions));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.FoldingRange));
     }
 
-    [Fact]
+    [TestMethod]
     public void FeatureSet_SingleFeatureEnabled()
     {
         var extension = new TestExtension(LspFeatureSet.Completion);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.False(controller.IsEnabled(LspFeatureSet.SemanticTokens));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.SemanticTokens));
     }
 
-    [Fact]
+    [TestMethod]
     public void FeatureSet_MultipleExplicitFeatures()
     {
         var features = LspFeatureSet.Hover | LspFeatureSet.Completion | LspFeatureSet.Definition;
         var extension = new TestExtension(features);
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.True(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Definition));
-        Assert.False(controller.IsEnabled(LspFeatureSet.References));
-        Assert.False(controller.IsEnabled(LspFeatureSet.InlayHints));
-        Assert.False(controller.IsEnabled(LspFeatureSet.CodeLens));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.References));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.InlayHints));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.CodeLens));
     }
 
-    [Fact]
+    [TestMethod]
     public void FeatureSet_None_IsZero()
     {
-        Assert.Equal((LspFeatureSet)0, LspFeatureSet.None);
+        Assert.AreEqual((LspFeatureSet)0, LspFeatureSet.None);
     }
 
-    [Fact]
+    [TestMethod]
     public void FeatureSet_All_ContainsEveryFeature()
     {
         var allFeatures = new[]
@@ -588,9 +589,7 @@ public class LspPipelineIntegrationTests
 
         foreach (var feature in allFeatures)
         {
-            Assert.True(
-                (LspFeatureSet.All & feature) != 0,
-                $"LspFeatureSet.All should contain {feature}");
+            Assert.IsTrue((LspFeatureSet.All & feature) != 0, $"LspFeatureSet.All should contain {feature}");
         }
     }
 }

@@ -6,7 +6,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Covers insertBlanks (ICH), deleteChars (DCH), insertLines (IL),
 /// deleteLines (DL), and insert mode behavior with wide characters.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyInsertDeleteConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -15,13 +16,13 @@ public class GhosttyInsertDeleteConformanceTests
     private static void AssertPlainText(Hex1bTerminal terminal, int row, string expected)
     {
         var line = GhosttyTestFixture.GetLine(terminal, row);
-        Assert.Equal(expected, line);
+        Assert.AreEqual(expected, line);
     }
 
     #region InsertBlanks (ICH / CSI @)
 
     // Ghostty: test "Terminal: insertBlanks zero"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_ZeroCount_NoOp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -32,7 +33,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_Basic_ShiftsRight()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -43,7 +44,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks pushes off end"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_PushesOffEnd()
     {
         using var terminal = CreateTerminal(cols: 3, rows: 2);
@@ -54,7 +55,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks more than size"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_MoreThanSize_ClearsLine()
     {
         using var terminal = CreateTerminal(cols: 3, rows: 2);
@@ -65,7 +66,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks no scroll region, fits"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_NoScrollRegion_Fits()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -76,7 +77,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks shift off screen"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_ShiftOffScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 10);
@@ -88,7 +89,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks split multi-cell character"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_SplitWideChar_ClearsWide()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 10);
@@ -100,7 +101,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks split multi-cell character from tail"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_SplitWideCharFromTail()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 10);
@@ -112,7 +113,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks preserves background sgr"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_PreservesBackgroundSgr()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -124,7 +125,7 @@ public class GhosttyInsertDeleteConformanceTests
 
         // Inserted blank cells should have red background
         var cell0 = GhosttyTestFixture.GetCell(terminal, 0, 0);
-        Assert.NotNull(cell0.Background);
+        Assert.IsNotNull(cell0.Background);
     }
 
     #endregion
@@ -132,7 +133,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region DeleteChars (DCH / CSI P)
 
     // Ghostty: test "Terminal: deleteChars"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_Basic()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -144,7 +145,7 @@ public class GhosttyInsertDeleteConformanceTests
 
     // Ghostty: test "Terminal: deleteChars zero count"
     // Ghostty's internal deleteChars(0) is a no-op, but CSI 0P defaults to 1 per ECMA-48.
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ZeroCount_DefaultsToOne()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -155,7 +156,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars more than half"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_MoreThanHalf()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -166,7 +167,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars more than line width"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_MoreThanLineWidth()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -177,7 +178,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars should shift left"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ShiftLeft()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -188,7 +189,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars resets pending wrap"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -200,7 +201,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars simple operation"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SimpleOperation()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -211,7 +212,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars preserves background sgr"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_PreservesBackgroundSgr()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -223,11 +224,11 @@ public class GhosttyInsertDeleteConformanceTests
 
         // Vacated cells at end should have background color
         var cellEnd = GhosttyTestFixture.GetCell(terminal, 0, 9);
-        Assert.NotNull(cellEnd.Background);
+        Assert.IsNotNull(cellEnd.Background);
     }
 
     // Ghostty: test "Terminal: deleteChars split wide character from spacer tail"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SplitWideCharFromSpacerTail()
     {
         using var terminal = CreateTerminal(cols: 6, rows: 10);
@@ -239,7 +240,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars split wide character from wide"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SplitWideCharFromWide()
     {
         using var terminal = CreateTerminal(cols: 6, rows: 10);
@@ -248,14 +249,13 @@ public class GhosttyInsertDeleteConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1b[1P"); // DCH 1
         // Deleting from wide head should clear continuation and shift
         var cell0 = GhosttyTestFixture.GetCell(terminal, 0, 0);
-        Assert.True(cell0.Character == "" || cell0.Character == " ",
-            $"Expected cleared cell, got '{cell0.Character}'");
+        Assert.IsTrue(cell0.Character == "" || cell0.Character == " ", $"Expected cleared cell, got '{cell0.Character}'");
         var cell1 = GhosttyTestFixture.GetCell(terminal, 0, 1);
-        Assert.Equal("1", cell1.Character);
+        Assert.AreEqual("1", cell1.Character);
     }
 
     // Ghostty: test "Terminal: deleteChars split wide character from end"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SplitWideCharFromEnd()
     {
         using var terminal = CreateTerminal(cols: 6, rows: 10);
@@ -264,9 +264,9 @@ public class GhosttyInsertDeleteConformanceTests
         GhosttyTestFixture.Feed(terminal, "\x1b[1P"); // DCH 1
         // "A" deleted, wide char shifts left intact
         var cell0 = GhosttyTestFixture.GetCell(terminal, 0, 0);
-        Assert.Equal("橋", cell0.Character);
+        Assert.AreEqual("橋", cell0.Character);
         var cell1 = GhosttyTestFixture.GetCell(terminal, 0, 1);
-        Assert.Equal("", cell1.Character); // continuation
+        Assert.AreEqual("", cell1.Character); // continuation
     }
 
     #endregion
@@ -274,7 +274,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region InsertLines (IL / CSI L)
 
     // Ghostty: test "Terminal: insertLines simple"
-    [Fact]
+    [TestMethod]
     public void InsertLines_Simple()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -291,7 +291,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines zero"
-    [Fact]
+    [TestMethod]
     public void InsertLines_Zero_NoOp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -306,7 +306,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines with scroll region"
-    [Fact]
+    [TestMethod]
     public void InsertLines_WithScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -324,7 +324,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines more than remaining"
-    [Fact]
+    [TestMethod]
     public void InsertLines_MoreThanRemaining()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -340,14 +340,14 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines resets pending wrap"
-    [Fact]
+    [TestMethod]
     public void InsertLines_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(terminal, "ABCDE"); // pending wrap
         GhosttyTestFixture.Feed(terminal, "\x1b[1L"); // IL 1
         GhosttyTestFixture.Feed(terminal, "X");
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorY);
         AssertPlainText(terminal, 0, "X");
         AssertPlainText(terminal, 1, "ABCDE");
     }
@@ -357,7 +357,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region DeleteLines (DL / CSI M)
 
     // Ghostty: test "Terminal: deleteLines simple"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_Simple()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -373,7 +373,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteLines with scroll region"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_WithScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -390,7 +390,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteLines with scroll region, large count"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_WithScrollRegion_LargeCount()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -407,14 +407,14 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteLines resets pending wrap"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(terminal, "ABCDE"); // pending wrap
         GhosttyTestFixture.Feed(terminal, "\x1b[1M"); // DL 1
         GhosttyTestFixture.Feed(terminal, "X");
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorY);
         AssertPlainText(terminal, 0, "X");
     }
 
@@ -423,7 +423,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region Insert Mode (IRM / CSI 4h)
 
     // Ghostty: test "Terminal: insert mode with space"
-    [Fact]
+    [TestMethod]
     public void InsertMode_Basic()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -435,7 +435,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode doesn't wrap pushed characters"
-    [Fact]
+    [TestMethod]
     public void InsertMode_DoesNotWrapPushed()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -447,7 +447,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode with wide characters"
-    [Fact]
+    [TestMethod]
     public void InsertMode_WithWideChars()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -459,7 +459,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode pushing off wide character"
-    [Fact]
+    [TestMethod]
     public void InsertMode_PushingOffWideChar()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -472,7 +472,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode does nothing at the end of the line"
-    [Fact]
+    [TestMethod]
     public void InsertMode_AtEndOfLine_Wraps()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -485,7 +485,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insert mode with wide characters at end"
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharAtEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -502,7 +502,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region Wide Character Edge Cases in Delete/Insert
 
     // Ghostty: test "Terminal: deleteChars wide char boundary conditions"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_WideCharBoundaryConditions()
     {
         using var terminal = CreateTerminal(cols: 8, rows: 1);
@@ -518,7 +518,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: deleteChars split wide character tail"
-    [Fact]
+    [TestMethod]
     public void DeleteChars_SplitWideCharTail()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -533,7 +533,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertBlanks wide char straddling right margin"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_WideCharStraddlingRightMargin()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -551,7 +551,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region InsertLines/DeleteLines with Wide Characters
 
     // Ghostty: test "Terminal: deleteLines wide character spacer head"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_WideCharSpacerHead()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -566,7 +566,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines resets wrap"
-    [Fact]
+    [TestMethod]
     public void InsertLines_ResetsWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -581,7 +581,7 @@ public class GhosttyInsertDeleteConformanceTests
     }
 
     // Ghostty: test "Terminal: insertLines multi-codepoint graphemes"
-    [Fact]
+    [TestMethod]
     public void InsertLines_MultiCodepointGraphemes()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -600,7 +600,7 @@ public class GhosttyInsertDeleteConformanceTests
     #region ECH (Erase Characters) with Wide Characters
 
     // Ghostty: test "Terminal: eraseChars with wide char splitting"
-    [Fact]
+    [TestMethod]
     public void EraseChars_WideCharSplitting()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -610,12 +610,11 @@ public class GhosttyInsertDeleteConformanceTests
 
         // Erasing at the wide char's head should clear both cells
         var cell1 = GhosttyTestFixture.GetCell(terminal, 0, 1);
-        Assert.True(cell1.Character == " " || cell1.Character == "",
-            $"Expected cleared, got '{cell1.Character}'");
+        Assert.IsTrue(cell1.Character == " " || cell1.Character == "", $"Expected cleared, got '{cell1.Character}'");
     }
 
     // Ghostty: test "Terminal: eraseChars over wide character continuation"
-    [Fact]
+    [TestMethod]
     public void EraseChars_OverWideContinuation()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -625,8 +624,7 @@ public class GhosttyInsertDeleteConformanceTests
 
         // Erasing at the continuation should clear leading cell too
         var cell1 = GhosttyTestFixture.GetCell(terminal, 0, 1);
-        Assert.True(cell1.Character == " " || cell1.Character == "",
-            $"Expected leading cleared, got '{cell1.Character}'");
+        Assert.IsTrue(cell1.Character == " " || cell1.Character == "", $"Expected leading cleared, got '{cell1.Character}'");
     }
 
     #endregion

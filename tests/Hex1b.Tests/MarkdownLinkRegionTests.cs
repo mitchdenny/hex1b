@@ -5,13 +5,14 @@ using Hex1b.Theming;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MarkdownLinkRegionTests
 {
     // ==========================================================================
     // LinkRegionInfo from WrapResult
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_SingleLink_ReturnsLinkRegion()
     {
         var inlines = new MarkdownInline[]
@@ -22,15 +23,15 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        var region = Assert.Single(result.LinkRegions);
-        Assert.Equal("https://example.com", region.Url);
-        Assert.Equal("example", region.Text);
-        Assert.Equal(0, region.LineIndex);
-        Assert.Equal(6, region.ColumnOffset); // "Visit " is 6 chars
-        Assert.Equal(7, region.DisplayWidth); // "example" is 7 chars
+        var region = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual("https://example.com", region.Url);
+        Assert.AreEqual("example", region.Text);
+        Assert.AreEqual(0, region.LineIndex);
+        Assert.AreEqual(6, region.ColumnOffset); // "Visit " is 6 chars
+        Assert.AreEqual(7, region.DisplayWidth); // "example" is 7 chars
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_MultipleLinks_ReturnsAllRegions()
     {
         var inlines = new MarkdownInline[]
@@ -43,20 +44,20 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        Assert.Equal(2, result.LinkRegions.Count);
+        Assert.AreEqual(2, result.LinkRegions.Count);
 
-        Assert.Equal("https://a.com", result.LinkRegions[0].Url);
-        Assert.Equal("here", result.LinkRegions[0].Text);
-        Assert.Equal(0, result.LinkRegions[0].LineIndex);
-        Assert.Equal(4, result.LinkRegions[0].ColumnOffset); // "See " is 4
+        Assert.AreEqual("https://a.com", result.LinkRegions[0].Url);
+        Assert.AreEqual("here", result.LinkRegions[0].Text);
+        Assert.AreEqual(0, result.LinkRegions[0].LineIndex);
+        Assert.AreEqual(4, result.LinkRegions[0].ColumnOffset); // "See " is 4
 
-        Assert.Equal("https://b.com", result.LinkRegions[1].Url);
-        Assert.Equal("there", result.LinkRegions[1].Text);
-        Assert.Equal(0, result.LinkRegions[1].LineIndex);
-        Assert.Equal(13, result.LinkRegions[1].ColumnOffset); // "See here and " is 13
+        Assert.AreEqual("https://b.com", result.LinkRegions[1].Url);
+        Assert.AreEqual("there", result.LinkRegions[1].Text);
+        Assert.AreEqual(0, result.LinkRegions[1].LineIndex);
+        Assert.AreEqual(13, result.LinkRegions[1].ColumnOffset); // "See here and " is 13
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_LinkAtLineStart_HasZeroOffset()
     {
         var inlines = new MarkdownInline[]
@@ -67,12 +68,12 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        var region = Assert.Single(result.LinkRegions);
-        Assert.Equal(0, region.ColumnOffset);
-        Assert.Equal(0, region.LineIndex);
+        var region = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual(0, region.ColumnOffset);
+        Assert.AreEqual(0, region.LineIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_LinkWrapsToNextLine_PositionTracked()
     {
         // "aaaa " (5) + link "click" (5) = 10, but width=8 forces wrap
@@ -84,13 +85,13 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 8);
 
-        Assert.Equal(2, result.Lines.Count);
-        var region = Assert.Single(result.LinkRegions);
-        Assert.Equal(1, region.LineIndex); // wrapped to line 1
-        Assert.Equal(0, region.ColumnOffset); // starts at column 0 on new line
+        Assert.AreEqual(2, result.Lines.Count);
+        var region = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual(1, region.LineIndex); // wrapped to line 1
+        Assert.AreEqual(0, region.ColumnOffset); // starts at column 0 on new line
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_MultiWordLink_AllWordsTracked()
     {
         var inlines = new MarkdownInline[]
@@ -100,14 +101,14 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        var region = Assert.Single(result.LinkRegions);
-        Assert.Equal("https://example.com", region.Url);
-        Assert.Equal("click here for info", region.Text);
-        Assert.Equal(0, region.LineIndex);
-        Assert.Equal(0, region.ColumnOffset);
+        var region = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual("https://example.com", region.Url);
+        Assert.AreEqual("click here for info", region.Text);
+        Assert.AreEqual(0, region.LineIndex);
+        Assert.AreEqual(0, region.ColumnOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_NoLinks_EmptyLinkRegions()
     {
         var inlines = new MarkdownInline[]
@@ -117,10 +118,10 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        Assert.Empty(result.LinkRegions);
+        Assert.IsEmpty(result.LinkRegions);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_ImageInline_TrackedAsLinkRegion()
     {
         var inlines = new MarkdownInline[]
@@ -131,12 +132,12 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        var region = Assert.Single(result.LinkRegions);
-        Assert.Equal("https://example.com/logo.png", region.Url);
-        Assert.Equal("[logo]", region.Text);
+        var region = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual("https://example.com/logo.png", region.Url);
+        Assert.AreEqual("[logo]", region.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_LinkIds_SequentialPerLink()
     {
         var inlines = new MarkdownInline[]
@@ -148,12 +149,12 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        Assert.Equal(2, result.LinkRegions.Count);
-        Assert.Equal(0, result.LinkRegions[0].LinkId);
-        Assert.Equal(1, result.LinkRegions[1].LinkId);
+        Assert.AreEqual(2, result.LinkRegions.Count);
+        Assert.AreEqual(0, result.LinkRegions[0].LinkId);
+        Assert.AreEqual(1, result.LinkRegions[1].LinkId);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_SameUrlDifferentLinks_SeparateRegions()
     {
         var inlines = new MarkdownInline[]
@@ -165,16 +166,16 @@ public class MarkdownLinkRegionTests
 
         var result = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40);
 
-        Assert.Equal(2, result.LinkRegions.Count);
+        Assert.AreEqual(2, result.LinkRegions.Count);
         // They have different LinkIds even though same URL
-        Assert.NotEqual(result.LinkRegions[0].LinkId, result.LinkRegions[1].LinkId);
+        Assert.AreNotEqual(result.LinkRegions[0].LinkId, result.LinkRegions[1].LinkId);
     }
 
     // ==========================================================================
     // Focus Highlight Rendering
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_FocusedLink_ReverseVideoApplied()
     {
         var inlines = new MarkdownInline[]
@@ -189,13 +190,13 @@ public class MarkdownLinkRegionTests
         var focused = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40, focusedLinkId: 0);
 
         // The focused version should have different ANSI codes for the link
-        Assert.NotEqual(normal.Lines[0], focused.Lines[0]);
+        Assert.AreNotEqual(normal.Lines[0], focused.Lines[0]);
         // Both should contain "example" text
         Assert.Contains("example", normal.Lines[0]);
         Assert.Contains("example", focused.Lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_NonFocusedLink_NormalRendering()
     {
         var inlines = new MarkdownInline[]
@@ -210,49 +211,49 @@ public class MarkdownLinkRegionTests
         var focused = MarkdownInlineRenderer.RenderLinesWithLinks(inlines, 40, focusedLinkId: 0);
 
         // Both render to one line, but the focused one has different styling for first link
-        Assert.NotEqual(normal.Lines[0], focused.Lines[0]);
+        Assert.AreNotEqual(normal.Lines[0], focused.Lines[0]);
     }
 
     // ==========================================================================
     // MarkdownLinkKind Classification
     // ==========================================================================
 
-    [Theory]
-    [InlineData("https://example.com", MarkdownLinkKind.External)]
-    [InlineData("http://example.com", MarkdownLinkKind.External)]
-    [InlineData("HTTPS://EXAMPLE.COM", MarkdownLinkKind.External)]
-    [InlineData("#heading-slug", MarkdownLinkKind.IntraDocument)]
-    [InlineData("#", MarkdownLinkKind.IntraDocument)]
-    [InlineData("mailto:user@example.com", MarkdownLinkKind.Custom)]
-    [InlineData("command:doSomething", MarkdownLinkKind.Custom)]
-    [InlineData("ftp://files.example.com", MarkdownLinkKind.Custom)]
+    [TestMethod]
+    [DataRow("https://example.com", MarkdownLinkKind.External)]
+    [DataRow("http://example.com", MarkdownLinkKind.External)]
+    [DataRow("HTTPS://EXAMPLE.COM", MarkdownLinkKind.External)]
+    [DataRow("#heading-slug", MarkdownLinkKind.IntraDocument)]
+    [DataRow("#", MarkdownLinkKind.IntraDocument)]
+    [DataRow("mailto:user@example.com", MarkdownLinkKind.Custom)]
+    [DataRow("command:doSomething", MarkdownLinkKind.Custom)]
+    [DataRow("ftp://files.example.com", MarkdownLinkKind.Custom)]
     public void ClassifyUrl_ReturnsCorrectKind(string url, MarkdownLinkKind expectedKind)
     {
         var kind = MarkdownLinkActivatedEventArgs.ClassifyUrl(url);
-        Assert.Equal(expectedKind, kind);
+        Assert.AreEqual(expectedKind, kind);
     }
 
     // ==========================================================================
     // MarkdownLinkRegionNode
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void MarkdownLinkRegionNode_IsFocusable()
     {
         var node = new MarkdownLinkRegionNode();
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkdownLinkRegionNode_IsFocused_MarksDirty()
     {
         var node = new MarkdownLinkRegionNode();
 
         node.IsFocused = true;
-        Assert.True(node.IsFocused);
+        Assert.IsTrue(node.IsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkdownLinkRegionNode_Properties_StoreValues()
     {
         var node = new MarkdownLinkRegionNode
@@ -265,19 +266,19 @@ public class MarkdownLinkRegionTests
             LinkDisplayWidth = 7
         };
 
-        Assert.Equal("https://example.com", node.Url);
-        Assert.Equal("example", node.LinkText);
-        Assert.Equal(42, node.LinkId);
-        Assert.Equal(3, node.LineIndex);
-        Assert.Equal(10, node.ColumnOffset);
-        Assert.Equal(7, node.LinkDisplayWidth);
+        Assert.AreEqual("https://example.com", node.Url);
+        Assert.AreEqual("example", node.LinkText);
+        Assert.AreEqual(42, node.LinkId);
+        Assert.AreEqual(3, node.LineIndex);
+        Assert.AreEqual(10, node.ColumnOffset);
+        Assert.AreEqual(7, node.LinkDisplayWidth);
     }
 
     // ==========================================================================
     // LinkId propagation through pipeline
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Links_AssignSequentialLinkIds()
     {
         var inlines = new MarkdownInline[]
@@ -294,13 +295,13 @@ public class MarkdownLinkRegionTests
 
         // Find runs with LinkIds
         var linkRuns = runs.Where(r => r.LinkId >= 0).ToList();
-        Assert.Equal(3, linkRuns.Count);
-        Assert.Equal(0, linkRuns[0].LinkId);
-        Assert.Equal(1, linkRuns[1].LinkId);
-        Assert.Equal(2, linkRuns[2].LinkId);
+        Assert.AreEqual(3, linkRuns.Count);
+        Assert.AreEqual(0, linkRuns[0].LinkId);
+        Assert.AreEqual(1, linkRuns[1].LinkId);
+        Assert.AreEqual(2, linkRuns[2].LinkId);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_NonLinks_HaveNegativeLinkId()
     {
         var inlines = new MarkdownInline[]
@@ -314,11 +315,11 @@ public class MarkdownLinkRegionTests
 
         foreach (var run in runs)
         {
-            Assert.Equal(-1, run.LinkId);
+            Assert.AreEqual(-1, run.LinkId);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_LinkId_Propagated()
     {
         var runs = new List<MarkdownTextRun>
@@ -331,17 +332,17 @@ public class MarkdownLinkRegionTests
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
         // "Hello" (no link), "click" (link 0), "here" (link 0)
-        Assert.True(words.Count >= 3);
+        Assert.IsTrue(words.Count >= 3);
 
         var clickWord = words.First(w => w.Fragments.Any(f => f.Text == "click"));
-        Assert.Equal(0, clickWord.Fragments[0].LinkId);
-        Assert.Equal("https://example.com", clickWord.Fragments[0].Url);
+        Assert.AreEqual(0, clickWord.Fragments[0].LinkId);
+        Assert.AreEqual("https://example.com", clickWord.Fragments[0].Url);
 
         var hereWord = words.First(w => w.Fragments.Any(f => f.Text == "here"));
-        Assert.Equal(0, hereWord.Fragments[0].LinkId);
+        Assert.AreEqual(0, hereWord.Fragments[0].LinkId);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkdownTextBlockNode_GetFocusableNodes_YieldsTwoLinks()
     {
         // Arrange: create a text block node with 2 links
@@ -351,20 +352,20 @@ public class MarkdownLinkRegionTests
         // Parse inline AST from markdown
         var doc = MarkdownParser.Parse("See [first](https://a.com) and [second](https://b.com)");
         var paragraph = doc.Blocks[0] as ParagraphBlock;
-        Assert.NotNull(paragraph);
+        Assert.IsNotNull(paragraph);
         node.ReconcileLinkRegions(paragraph!.Inlines);
 
         // Act
         var focusables = node.GetFocusableNodes().ToList();
 
         // Assert
-        Assert.Equal(2, focusables.Count);
-        Assert.All(focusables, f => Assert.IsType<MarkdownLinkRegionNode>(f));
+        Assert.AreEqual(2, focusables.Count);
+        TestSeq.All(focusables, f => TestSeq.IsType<MarkdownLinkRegionNode>(f));
         var link0 = (MarkdownLinkRegionNode)focusables[0];
         var link1 = (MarkdownLinkRegionNode)focusables[1];
-        Assert.Equal("https://a.com", link0.Url);
-        Assert.Equal("https://b.com", link1.Url);
-        Assert.Equal(0, link0.LinkId);
-        Assert.Equal(1, link1.LinkId);
+        Assert.AreEqual("https://a.com", link0.Url);
+        Assert.AreEqual("https://b.com", link1.Url);
+        Assert.AreEqual(0, link0.LinkId);
+        Assert.AreEqual(1, link1.LinkId);
     }
 }

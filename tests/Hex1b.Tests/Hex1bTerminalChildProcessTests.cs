@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// These tests require Linux (for PTY support via forkpty).
 /// Tests that require Linux use runtime checks to skip on other platforms.
 /// </summary>
+[TestClass]
 public class Hex1bTerminalChildProcessTests
 {
-    [Fact]
+    [TestMethod]
     public async Task WriteInput_BeforeStartCompletes_WaitsForPtyStartup()
     {
         var handle = new DelayedStartPtyHandle();
@@ -30,19 +31,19 @@ public class Hex1bTerminalChildProcessTests
         var writeTask = process.WriteInputAsync(Encoding.UTF8.GetBytes("hello"), cts.Token).AsTask();
 
         await Task.Delay(100, cts.Token);
-        Assert.False(writeTask.IsCompleted, "Input should wait until the PTY startup handshake completes.");
-        Assert.False(process.HasStarted);
+        Assert.IsFalse(writeTask.IsCompleted, "Input should wait until the PTY startup handshake completes.");
+        Assert.IsFalse(process.HasStarted);
 
         handle.CompleteStart();
 
         await startTask;
         await writeTask;
 
-        Assert.True(process.HasStarted);
-        Assert.Equal("hello", handle.LastWriteText);
+        Assert.IsTrue(process.HasStarted);
+        Assert.AreEqual("hello", handle.LastWriteText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsync_DoesNotInjectSyntheticEnterDuringInteractiveStartup()
     {
         var handle = new DelayedStartPtyHandle();
@@ -61,16 +62,16 @@ public class Hex1bTerminalChildProcessTests
 
         await process.StartAsync(cts.Token);
 
-        Assert.True(process.HasStarted);
-        Assert.Equal(0, handle.WriteCount);
+        Assert.IsTrue(process.HasStarted);
+        Assert.AreEqual(0, handle.WriteCount);
     }
 
     /// <summary>
     /// Verifies that when we launch bash with "tty" command, it reports
     /// a valid TTY device path (e.g., /dev/pts/X), proving a PTY is attached.
     /// </summary>
-    [Fact(Skip = "Flaky test - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestCategory("Unix")]
     public async Task BashWithTty_ReportsPtyDevice()
     {
         
@@ -115,17 +116,14 @@ public class Hex1bTerminalChildProcessTests
         
         // The tty command should output something like /dev/pts/0 or /dev/ttyp0
         Assert.Contains("/dev/", result);
-        Assert.True(
-            result.Contains("/dev/pts/") || result.Contains("/dev/tty"),
-            $"Expected PTY device path, got: {result}"
-        );
+        Assert.IsTrue(result.Contains("/dev/pts/") || result.Contains("/dev/tty"), $"Expected PTY device path, got: {result}");
     }
     
     /// <summary>
     /// Verifies that we can launch bash and it stays running at a prompt.
     /// </summary>
-    [Fact(Skip = "Flaky test - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestCategory("Unix")]
     public async Task BashInteractive_StaysAtPrompt()
     {
         
@@ -138,8 +136,8 @@ public class Hex1bTerminalChildProcessTests
         
         await process.StartAsync();
         
-        Assert.True(process.HasStarted);
-        Assert.True(process.ProcessId > 0, $"Expected positive PID, got {process.ProcessId}");
+        Assert.IsTrue(process.HasStarted);
+        Assert.IsTrue(process.ProcessId > 0, $"Expected positive PID, got {process.ProcessId}");
         
         // Read initial output (should include the tty path)
         var output = new StringBuilder();
@@ -175,7 +173,7 @@ public class Hex1bTerminalChildProcessTests
         Assert.Contains("/dev/", result);
         
         // Process should still be running (bash is waiting for input)
-        Assert.False(process.HasExited, "Process should still be running");
+        Assert.IsFalse(process.HasExited, "Process should still be running");
         
         // Send exit command
         await process.WriteInputAsync(Encoding.UTF8.GetBytes("exit\n"));
@@ -185,15 +183,15 @@ public class Hex1bTerminalChildProcessTests
         var exitCts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var exitCode = await process.WaitForExitAsync(exitCts.Token);
         
-        Assert.True(process.HasExited);
-        Assert.Equal(0, exitCode);
+        Assert.IsTrue(process.HasExited);
+        Assert.AreEqual(0, exitCode);
     }
     
     /// <summary>
     /// Verifies that echo command works through the PTY.
     /// </summary>
-    [Fact(Skip = "Test hangs - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Test hangs - needs investigation")]
+    [TestCategory("Unix")]
     public async Task Echo_WritesToOutput()
     {
         await using var process = new Hex1bTerminalChildProcess(
@@ -233,15 +231,15 @@ public class Hex1bTerminalChildProcessTests
         // Wait for exit
         var exitCode = await process.WaitForExitAsync();
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
         Assert.Contains("Hello from PTY!", output.ToString());
     }
     
     /// <summary>
     /// Verifies that input can be written to the process and is echoed back.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Unix")]
+    [TestMethod]
+    [TestCategory("Unix")]
     public async Task WriteInput_IsEchoedBack()
     {
         // Skip on non-Linux platforms - PTY support requires Linux
@@ -293,14 +291,14 @@ public class Hex1bTerminalChildProcessTests
         await process.WriteInputAsync(new byte[] { 0x04 });
         
         var exitCode = await process.WaitForExitAsync(CancellationToken.None);
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
     
     /// <summary>
     /// Verifies that terminal resize works via SIGWINCH.
     /// </summary>
-    [Fact(Skip = "Flaky test - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestCategory("Unix")]
     public async Task Resize_UpdatesTerminalSize()
     {
         
@@ -379,8 +377,8 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that the process integrates with Hex1bTerminal as a workload adapter.
     /// </summary>
-    [Fact(Skip = "Flaky test - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestCategory("Unix")]
     public async Task Integration_WithHex1bTerminal()
     {
         
@@ -476,8 +474,8 @@ public class Hex1bTerminalChildProcessTests
     /// <summary>
     /// Verifies that killing the process works.
     /// </summary>
-    [Fact(Skip = "Flaky test - needs investigation")]
-    [Trait("Category", "Unix")]
+    [TestMethod, Ignore("Flaky test - needs investigation")]
+    [TestCategory("Unix")]
     public async Task Kill_TerminatesProcess()
     {
         
@@ -489,8 +487,8 @@ public class Hex1bTerminalChildProcessTests
         
         await process.StartAsync();
         
-        Assert.True(process.HasStarted);
-        Assert.False(process.HasExited);
+        Assert.IsTrue(process.HasStarted);
+        Assert.IsFalse(process.HasExited);
         
         // Give it a moment to start
         await Task.Delay(200);
@@ -502,16 +500,16 @@ public class Hex1bTerminalChildProcessTests
         var cts = new CancellationTokenSource(TimeSpan.FromSeconds(2));
         var exitCode = await process.WaitForExitAsync(cts.Token);
         
-        Assert.True(process.HasExited);
+        Assert.IsTrue(process.HasExited);
         // SIGTERM (15) results in exit code 128 + 15 = 143
-        Assert.True(exitCode != 0, $"Expected non-zero exit code from killed process, got {exitCode}");
+        Assert.IsTrue(exitCode != 0, $"Expected non-zero exit code from killed process, got {exitCode}");
     }
     
     /// <summary>
     /// Verifies proper cleanup when disposing without waiting for exit.
     /// </summary>
-    [Fact]
-    [Trait("Category", "Unix")]
+    [TestMethod]
+    [TestCategory("Unix")]
     public async Task Dispose_CleansUpRunningProcess()
     {
         // Skip on non-Linux platforms - PTY support requires Linux
@@ -529,7 +527,7 @@ public class Hex1bTerminalChildProcessTests
             await process.StartAsync();
             pid = process.ProcessId;
             
-            Assert.True(pid > 0);
+            Assert.IsTrue(pid > 0);
             
             // Dispose without waiting
             await process.DisposeAsync();
@@ -541,7 +539,7 @@ public class Hex1bTerminalChildProcessTests
         // Verify process is gone (kill with signal 0 checks if process exists)
         // This will throw or return error if process doesn't exist
         var exists = ProcessExists(pid);
-        Assert.False(exists, $"Process {pid} should have been terminated");
+        Assert.IsFalse(exists, $"Process {pid} should have been terminated");
     }
     
     private static bool ProcessExists(int pid)
@@ -564,9 +562,9 @@ public class Hex1bTerminalChildProcessTests
     /// application that uses advanced terminal features (Unicode, 256 color, cursor positioning).
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact(Skip = "Stress test - run manually for visual validation")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
+    [TestMethod, Ignore("Stress test - run manually for visual validation")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
     public async Task StressTest_MapsciiViaInteractiveBash()
     {
         // Setup temp file for asciinema recording
@@ -731,7 +729,7 @@ public class Hex1bTerminalChildProcessTests
                 cornerDiagnostics.AppendLine($"  Row {row} first non-braille at column: {rowBlankStart}");
             }
             
-            TestContext.Current.TestOutputHelper?.WriteLine(cornerDiagnostics.ToString());
+            TestContext.Current?.WriteLine(cornerDiagnostics.ToString());
             
             // Check if all corners have braille characters
             var allCornersHaveBraille = IsBraille(topLeft) && IsBraille(topRight) && 
@@ -783,7 +781,7 @@ public class Hex1bTerminalChildProcessTests
             await TestCaptureHelper.CaptureCastAsync(recorder, "mapscii", TestContext.Current.CancellationToken);
             
             // Assert that we at least saw the map
-            Assert.True(mapLoaded, "Mapscii should have loaded and displayed the map");
+            Assert.IsTrue(mapLoaded, "Mapscii should have loaded and displayed the map");
         }
         finally
         {
@@ -799,9 +797,9 @@ public class Hex1bTerminalChildProcessTests
     /// braille graphs, cursor positioning).
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact(Skip = "Stress test - run manually for visual validation")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
+    [TestMethod, Ignore("Stress test - run manually for visual validation")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
     public async Task StressTest_BtopViaInteractiveBash()
     {
         // Setup temp file for asciinema recording
@@ -917,7 +915,7 @@ public class Hex1bTerminalChildProcessTests
             await TestCaptureHelper.CaptureCastAsync(recorder, "btop", TestContext.Current.CancellationToken);
             
             // Assert that we at least saw btop
-            Assert.True(btopLoaded, "Btop should have loaded and displayed the interface");
+            Assert.IsTrue(btopLoaded, "Btop should have loaded and displayed the interface");
         }
         finally
         {
@@ -933,9 +931,9 @@ public class Hex1bTerminalChildProcessTests
     /// Exercises cursor movement, Unicode art, and proper process termination handling.
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// </summary>
-    [Fact(Skip = "Stress test - run manually for visual validation")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
+    [TestMethod, Ignore("Stress test - run manually for visual validation")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
     public async Task StressTest_SlSteamLocomotive()
     {
         // Setup temp file for asciinema recording
@@ -1035,8 +1033,8 @@ public class Hex1bTerminalChildProcessTests
             // Assert that sl ran successfully - the key assertion is detecting the locomotive
             // The exit code may vary: 0 if completed, -1 if killed due to timeout, or other values
             // depending on the system. The important thing is we saw the animation.
-            Assert.True(locomotiveDetected, "Should have detected locomotive ASCII art");
-            Assert.True(process.HasExited, "sl should have terminated (either naturally or killed)");
+            Assert.IsTrue(locomotiveDetected, "Should have detected locomotive ASCII art");
+            Assert.IsTrue(process.HasExited, "sl should have terminated (either naturally or killed)");
         }
         finally
         {
@@ -1055,10 +1053,10 @@ public class Hex1bTerminalChildProcessTests
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// Requires Docker to be installed and running.
     /// </summary>
-    [Fact(Skip = "Stress test - run manually for visual validation")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
-    [Trait("Category", "Docker")]
+    [TestMethod, Ignore("Stress test - run manually for visual validation")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
+    [TestCategory("Docker")]
     public async Task StressTest_GlobeWithDockerAndMouse()
     {
         // Check if docker is available
@@ -1265,7 +1263,7 @@ public class Hex1bTerminalChildProcessTests
             await TestCaptureHelper.CaptureCastAsync(recorder, "globe", TestContext.Current.CancellationToken);
             
             // Assert success - we got through the whole workflow
-            Assert.True(globeStarted || buildComplete, "Globe workflow should have progressed");
+            Assert.IsTrue(globeStarted || buildComplete, "Globe workflow should have progressed");
         }
         finally
         {
@@ -1300,10 +1298,10 @@ public class Hex1bTerminalChildProcessTests
     /// This test is primarily for visual validation and is not intended to be kept long-term.
     /// Requires: tmux, telnet (for mapscii), docker (for globe), and git.
     /// </summary>
-    [Fact(Skip = "Stress test - run manually for visual validation")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
-    [Trait("Category", "Docker")]
+    [TestMethod, Ignore("Stress test - run manually for visual validation")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
+    [TestCategory("Docker")]
     public async Task StressTest_TmuxSplitGlobeAndMapscii()
     {
         // Check required tools
@@ -1444,7 +1442,7 @@ public class Hex1bTerminalChildProcessTests
             // Debug: Check what's in the buffer after tmux starts
             var tmuxSnapshot = terminal.CreateSnapshot();
             var fullText = tmuxSnapshot.GetScreenText();
-            TestContext.Current.TestOutputHelper?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
+            TestContext.Current?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
             
             // Check if tmux is running (should see status bar or fresh prompt)
             var hasTmuxStatusBar = tmuxSnapshot.ContainsText("[split_test]") ||
@@ -1453,7 +1451,7 @@ public class Hex1bTerminalChildProcessTests
             var hasOldContent = tmuxSnapshot.ContainsText("docker build") ||
                                 tmuxSnapshot.ContainsText("git clone");
             
-            TestContext.Current.TestOutputHelper?.WriteLine($"Has tmux status: {hasTmuxStatusBar}, Has old content: {hasOldContent}");
+            TestContext.Current?.WriteLine($"Has tmux status: {hasTmuxStatusBar}, Has old content: {hasOldContent}");
             
             // Step 5: Split pane vertically (creates left and right panes)
             // Ctrl+b % is the default key binding for vertical split
@@ -1571,8 +1569,8 @@ public class Hex1bTerminalChildProcessTests
             await TestCaptureHelper.CaptureCastAsync(recorder, "tmux-split", TestContext.Current.CancellationToken);
             
             // Assert that we saw content from both apps
-            Assert.True(mapsciiLoaded || hasMapContent, "Mapscii should have loaded in the right pane");
-            Assert.True(globeStarted || hasGlobeContent, "Globe should have started in the left pane");
+            Assert.IsTrue(mapsciiLoaded || hasMapContent, "Mapscii should have loaded in the right pane");
+            Assert.IsTrue(globeStarted || hasGlobeContent, "Globe should have started in the left pane");
         }
         finally
         {
@@ -1706,10 +1704,10 @@ public class Hex1bTerminalChildProcessTests
     /// This test is designed to capture the internal terminal state after a tmux split
     /// to help diagnose rendering glitches.
     /// </summary>
-    [Fact(Skip = "Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
-    [Trait("Category", "Unix")]
-    [Trait("Category", "StressTest")]
-    [Trait("Category", "Diagnostic")]
+    [TestMethod, Ignore("Diagnostic test - spawns PTY processes, slow, not suitable for CI")]
+    [TestCategory("Unix")]
+    [TestCategory("StressTest")]
+    [TestCategory("Diagnostic")]
     public async Task Diagnostic_TmuxSplitScreen_CapturesTerminalState()
     {
         // Skip on non-Linux platforms - PTY support requires Linux
@@ -1788,7 +1786,7 @@ public class Hex1bTerminalChildProcessTests
             // Debug output
             var tmuxSnapshot = terminal.CreateSnapshot();
             var fullText = tmuxSnapshot.GetScreenText();
-            TestContext.Current.TestOutputHelper?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
+            TestContext.Current?.WriteLine($"After tmux start, screen content (first 500 chars): {fullText[..Math.Min(500, fullText.Length)]}");
             
             // Step 3: Split pane vertically with Ctrl+B %
             // Ctrl+B is the tmux prefix key (ASCII 0x02)
@@ -1805,7 +1803,7 @@ public class Hex1bTerminalChildProcessTests
             // Debug output after split
             var splitSnapshot = terminal.CreateSnapshot();
             var splitText = splitSnapshot.GetScreenText();
-            TestContext.Current.TestOutputHelper?.WriteLine($"After split, screen content (first 500 chars): {splitText[..Math.Min(500, splitText.Length)]}");
+            TestContext.Current?.WriteLine($"After split, screen content (first 500 chars): {splitText[..Math.Min(500, splitText.Length)]}");
             
             // Dump raw screen buffer info for debugging
             var buffer = terminal.GetScreenBuffer();
@@ -1836,7 +1834,7 @@ public class Hex1bTerminalChildProcessTests
                 diagnostics.AppendLine($"  [{midY},{x}]: '{cell.Character}' Fg={cell.Foreground} Bg={cell.Background} Seq={cell.Sequence}");
             }
             
-            TestContext.Current.TestOutputHelper?.WriteLine(diagnostics.ToString());
+            TestContext.Current?.WriteLine(diagnostics.ToString());
             
             // Step 4: Take additional snapshots after waiting
             await Task.Delay(500, TestContext.Current.CancellationToken);
@@ -1889,7 +1887,7 @@ public class Hex1bTerminalChildProcessTests
             
             // This test is primarily for diagnostic capture, not assertions
             // If we got this far, the capture was successful
-            Assert.True(true, "Diagnostic capture completed successfully");
+            Assert.IsTrue(true, "Diagnostic capture completed successfully");
         }
         finally
         {

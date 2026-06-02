@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// Tests for SVG rendering of terminal snapshots and regions.
 /// SVG outputs are attached to test results for visual inspection.
 /// </summary>
+[TestClass]
 public class TerminalSvgRenderingTests
 {
-    [Fact]
+    [TestMethod]
     public async Task RenderFullSnapshot_ProducesSvg()
     {
         // Arrange
@@ -49,7 +50,7 @@ public class TerminalSvgRenderingTests
         var svg = snapshot.ToSvg();
 
         // Assert
-        Assert.NotEmpty(svg);
+        Assert.IsNotEmpty(svg);
         Assert.Contains("<svg", svg);
         Assert.Contains("</svg>", svg);
         Assert.Contains("<text", svg); // Should have text elements
@@ -59,7 +60,7 @@ public class TerminalSvgRenderingTests
         TestCaptureHelper.AttachSvg("full-snapshot.svg", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderArbitraryRegion_ProducesSvg()
     {
         // Arrange
@@ -97,7 +98,7 @@ public class TerminalSvgRenderingTests
         var svg = region.ToSvg();
 
         // Assert
-        Assert.NotEmpty(svg);
+        Assert.IsNotEmpty(svg);
         Assert.Contains("<svg", svg);
         Assert.Contains("</svg>", svg);
         // The region should have text elements for the content
@@ -111,7 +112,7 @@ public class TerminalSvgRenderingTests
         TestCaptureHelper.AttachSvg("arbitrary-region-full.svg", fullSvg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderButtonControl_ProducesSvg()
     {
         // Arrange
@@ -146,14 +147,14 @@ public class TerminalSvgRenderingTests
 
         // Find the button by searching for its text and extracting a region around it
         var buttonLocations = snapshot.FindText("Submit Form");
-        Assert.NotEmpty(buttonLocations);
+        Assert.IsNotEmpty(buttonLocations);
         var (line, column) = buttonLocations[0];
         // Button format is "[ Submit Form ]" so expand the region
         var buttonRegion = snapshot.GetRegion(new Rect(column - 2, line, 18, 1));
         var buttonSvg = buttonRegion.ToSvg();
 
         // Assert
-        Assert.NotEmpty(buttonSvg);
+        Assert.IsNotEmpty(buttonSvg);
         Assert.Contains("<svg", buttonSvg);
         Assert.Contains("</svg>", buttonSvg);
         Assert.Contains("<text", buttonSvg); // Should have text elements
@@ -163,7 +164,7 @@ public class TerminalSvgRenderingTests
         TestCaptureHelper.AttachSvg("button-control-full.svg", snapshot.ToSvg());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderWithCursor_ShowsCursorPosition()
     {
         // Arrange
@@ -193,14 +194,14 @@ public class TerminalSvgRenderingTests
         var svg = snapshot.ToSvg();
 
         // Assert - cursor should be rendered
-        Assert.NotEmpty(svg);
+        Assert.IsNotEmpty(svg);
         Assert.Contains("cursor", svg);
 
         // Attach SVG to test output
         TestCaptureHelper.AttachSvg("cursor-demo.svg", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderWithCustomOptions_AppliesSettings()
     {
         // Arrange

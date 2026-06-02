@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for PastableWidget/PastableNode container that intercepts paste events.
 /// </summary>
+[TestClass]
 public class PastableWidgetTests
 {
     /// <summary>
@@ -40,7 +41,7 @@ public class PastableWidgetTests
         return ctx;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_InterceptsPaste()
     {
         // Focused child doesn't handle paste → PastableNode receives it
@@ -61,12 +62,12 @@ public class PastableWidgetTests
         var result = await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("intercepted", receivedText);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("intercepted", receivedText);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_ChildHandlesFirst()
     {
         // Focused child handles paste → PastableNode NOT called
@@ -87,12 +88,12 @@ public class PastableWidgetTests
         await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.False(pastableWasCalled);
-        Assert.Single(child.ReceivedPastes);
+        Assert.IsFalse(pastableWasCalled);
+        TestSeq.Single(child.ReceivedPastes);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_OnPasteCallback()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -112,11 +113,11 @@ public class PastableWidgetTests
         await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal("callback data", receivedText);
+        Assert.AreEqual("callback data", receivedText);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_ReadChunks_MultipleChunks()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -145,14 +146,14 @@ public class PastableWidgetTests
         await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal(3, chunks.Count);
-        Assert.Equal("chunk1", chunks[0]);
-        Assert.Equal("chunk2", chunks[1]);
-        Assert.Equal("chunk3", chunks[2]);
+        Assert.AreEqual(3, chunks.Count);
+        Assert.AreEqual("chunk1", chunks[0]);
+        Assert.AreEqual("chunk2", chunks[1]);
+        Assert.AreEqual("chunk3", chunks[2]);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_ReadLines_StreamsLines()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -176,14 +177,14 @@ public class PastableWidgetTests
         await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_NoPasteHandler_NotHandled()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -202,11 +203,11 @@ public class PastableWidgetTests
         var result = await InputRouter.RouteInputAsync(
             node, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_NestedPastable_InnerTakesPrecedence()
     {
         // root (outer Pastable) -> inner (inner Pastable) -> focused child
@@ -236,12 +237,12 @@ public class PastableWidgetTests
         await InputRouter.RouteInputAsync(
             outer, new Hex1bPasteEvent(paste), focusRing, new InputRouterState());
 
-        Assert.Equal("inner wins", innerReceived);
-        Assert.False(outerCalled);
+        Assert.AreEqual("inner wins", innerReceived);
+        Assert.IsFalse(outerCalled);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_MaxSize_CancelsPaste()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -287,11 +288,11 @@ public class PastableWidgetTests
 
         await routeTask;
 
-        Assert.True(wasCancelled);
+        Assert.IsTrue(wasCancelled);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_Timeout_CancelsPaste()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -333,11 +334,11 @@ public class PastableWidgetTests
         // Don't complete the paste — let timeout fire
         await routeTask;
 
-        Assert.True(wasCancelled);
+        Assert.IsTrue(wasCancelled);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_CancelDuringStream()
     {
         var child = new TestFocusableNode { IsFocused = true, ShouldHandlePaste = false };
@@ -379,30 +380,30 @@ public class PastableWidgetTests
 
         await routeTask;
 
-        Assert.True(paste.IsCancelled);
-        Assert.True(chunksRead.Count >= 2);
-        Assert.Equal("chunk1", chunksRead[0]);
-        Assert.Equal("chunk2", chunksRead[1]);
+        Assert.IsTrue(paste.IsCancelled);
+        Assert.IsTrue(chunksRead.Count >= 2);
+        Assert.AreEqual("chunk1", chunksRead[0]);
+        Assert.AreEqual("chunk2", chunksRead[1]);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_TotalCharactersWritten_Tracked()
     {
         var paste = new PasteContext();
-        Assert.Equal(0, paste.TotalCharactersWritten);
+        Assert.AreEqual(0, paste.TotalCharactersWritten);
 
         paste.TryWrite("hello");
-        Assert.Equal(5, paste.TotalCharactersWritten);
+        Assert.AreEqual(5, paste.TotalCharactersWritten);
 
         paste.TryWrite(" world");
-        Assert.Equal(11, paste.TotalCharactersWritten);
+        Assert.AreEqual(11, paste.TotalCharactersWritten);
 
         paste.Complete();
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_Widget_ReconcilesToNode()
     {
         // Verify the widget creates the correct node type
@@ -412,24 +413,24 @@ public class PastableWidgetTests
             .MaxSize(1000)
             .Timeout(TimeSpan.FromSeconds(30));
 
-        Assert.NotNull(widget.PasteHandler);
-        Assert.Equal(1000, widget.MaxPasteSize);
-        Assert.Equal(TimeSpan.FromSeconds(30), widget.PasteTimeout);
+        Assert.IsNotNull(widget.PasteHandler);
+        Assert.AreEqual(1000, widget.MaxPasteSize);
+        Assert.AreEqual(TimeSpan.FromSeconds(30), widget.PasteTimeout);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Pastable_Widget_FluentApi()
     {
         // Verify fluent API methods return correct widget type
         var widget = new PastableWidget(new TextBlockWidget("test"));
         
         var withPaste = widget.OnPaste(e => { });
-        Assert.NotNull(withPaste.PasteHandler);
+        Assert.IsNotNull(withPaste.PasteHandler);
 
         var withMax = widget.MaxSize(500);
-        Assert.Equal(500, withMax.MaxPasteSize);
+        Assert.AreEqual(500, withMax.MaxPasteSize);
 
         var withTimeout = widget.Timeout(TimeSpan.FromMinutes(1));
-        Assert.Equal(TimeSpan.FromMinutes(1), withTimeout.PasteTimeout);
+        Assert.AreEqual(TimeSpan.FromMinutes(1), withTimeout.PasteTimeout);
     }
 }

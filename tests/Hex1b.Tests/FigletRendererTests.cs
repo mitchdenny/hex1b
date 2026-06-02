@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// hand-crafted single-row synthetic fonts. By keeping the fonts tiny we can read the expected
 /// outputs straight off the page and assert byte-for-byte.
 /// </summary>
+[TestClass]
 public class FigletRendererTests
 {
     private const char Hb = '$';
@@ -106,41 +107,41 @@ public class FigletRendererTests
 
     // ----- Empty / single-glyph behavior ------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_EmptyText_ProducesEmptyRowsAtFontHeight()
     {
         var font = new StampFont(0, false, false);
         var lines = FigletRenderer.Render("", font, FigletLayoutMode.Default, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal(font.Height, lines.Count);
-        foreach (var l in lines) Assert.Equal(string.Empty, l);
+        Assert.AreEqual(font.Height, lines.Count);
+        foreach (var l in lines) Assert.AreEqual(string.Empty, l);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_SingleCharacter_ReturnsThatGlyph()
     {
         var font = new StampFont(0, false, false);
         var lines = FigletRenderer.Render("A", font, FigletLayoutMode.Default, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Single(lines);
-        Assert.Equal("A A", lines[0]);
+        TestSeq.Single(lines);
+        Assert.AreEqual("A A", lines[0]);
     }
 
     // ----- Horizontal layout modes ------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_FullWidth_NoOverlap()
     {
         var font = new StampFont(0, false, false);
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.FullWidth, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("A AB B", lines[0]);
+        Assert.AreEqual("A AB B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Fitted_OverlapAtBoundaryBlanks()
     {
         // Each glyph is "X X" (3 wide, trailing & leading 0 visible chars but middle blank).
@@ -149,10 +150,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.Fitted, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("A AB B", lines[0]);
+        Assert.AreEqual("A AB B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Fitted_WithLeadingBlankInGlyph_OverlapsByOne()
     {
         // Letters use ".X." pattern (space-letter-space). Trailing blanks of " A " = 1; leading
@@ -161,10 +162,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.Fitted, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal(" AB", lines[0]);
+        Assert.AreEqual(" AB", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Smushed_UniversalRightWins()
     {
         // No leading/trailing blanks ("XYX") so fitted = 0. Smushed = +1: A's 'A' vs B's 'B' →
@@ -175,10 +176,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.Smushed, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("AABBB", lines[0]);
+        Assert.AreEqual("AABBB", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Smushed_HardblankProtectsColumn()
     {
         // Glyph A = "AA", glyph B = "$B$". After A: block = "AA". With B:
@@ -199,10 +200,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.Smushed, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("AA B", lines[0]);
+        Assert.AreEqual("AA B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Smushed_HardblankBoth_KeepsHardblank()
     {
         // Glyph A = "A$", glyph B = "$B". Smushed +1: '$' vs '$' → both hardblanks (universal) →
@@ -220,10 +221,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AB", font, FigletLayoutMode.Smushed, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("A B", lines[0]);
+        Assert.AreEqual("A B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Smushed_ControlledRule1_EqualCharSmushes()
     {
         // Glyph A = "AA" (no spaces), so for "AA" input: trailing blanks = 0, leading blanks = 0
@@ -240,10 +241,10 @@ public class FigletRendererTests
         var lines = FigletRenderer.Render("AA", font, FigletLayoutMode.Smushed, FigletLayoutMode.Default,
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal("AAA", lines[0]);
+        Assert.AreEqual("AAA", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Default_PrefersFontFlags()
     {
         // Font opts in to fitting only; Default should resolve to Fitted.
@@ -252,10 +253,10 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
         // .A. .B. fitted by 2 → " AB"
-        Assert.Equal(" AB", lines[0]);
+        Assert.AreEqual(" AB", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Default_NoFlags_FallsBackToFullWidth()
     {
         // Font has neither smushing nor fitting → full width.
@@ -264,12 +265,12 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
         // " A " + " B " concatenated, trailing trimmed → " A  B"
-        Assert.Equal(" A  B", lines[0]);
+        Assert.AreEqual(" A  B", lines[0]);
     }
 
     // ----- Hard line breaks (\n) --------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_HardNewline_StacksBlocksVertically()
     {
         var font = new StripeFont(height: 2);
@@ -277,16 +278,16 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
         // Two paragraphs of height 2, full vertical width, no overlap → 4 rows.
-        Assert.Equal(4, lines.Count);
-        Assert.Equal("A", lines[0]);
-        Assert.Equal("A", lines[1]);
-        Assert.Equal("B", lines[2]);
-        Assert.Equal("B", lines[3]);
+        Assert.AreEqual(4, lines.Count);
+        Assert.AreEqual("A", lines[0]);
+        Assert.AreEqual("A", lines[1]);
+        Assert.AreEqual("B", lines[2]);
+        Assert.AreEqual("B", lines[3]);
     }
 
     // ----- Word wrap --------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_Wrap_BreaksOnSpacesWhenWidthExceeded()
     {
         // Each letter renders to "X" (1 wide). Each rendered word is letterCount columns; no
@@ -296,12 +297,12 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Wrap, wrapWidth: 3);
 
         // Height=1 per paragraph, two paragraphs → 2 lines.
-        Assert.Equal(2, lines.Count);
-        Assert.Equal("AB", lines[0]);
-        Assert.Equal("CD", lines[1]);
+        Assert.AreEqual(2, lines.Count);
+        Assert.AreEqual("AB", lines[0]);
+        Assert.AreEqual("CD", lines[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Wrap_LongWord_BreaksAtCharacters()
     {
         var font = new StampFont(0, false, false, letterPattern: "X");
@@ -309,23 +310,23 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Wrap, wrapWidth: 3);
 
         // Single word longer than wrapWidth → broken at char boundaries: "ABC" (3 wide) + "DE" (2 wide).
-        Assert.Equal(2, lines.Count);
-        Assert.Equal("ABC", lines[0]);
-        Assert.Equal("DE", lines[1]);
+        Assert.AreEqual(2, lines.Count);
+        Assert.AreEqual("ABC", lines[0]);
+        Assert.AreEqual("DE", lines[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Wrap_InfiniteWidth_NoOpsToClipBehavior()
     {
         var font = new StampFont(0, false, false, letterPattern: "X");
         var lines = FigletRenderer.Render("AB CD", font, FigletLayoutMode.FullWidth, FigletLayoutMode.FullWidth,
             FigletHorizontalOverflow.Wrap, wrapWidth: int.MaxValue);
 
-        Assert.Single(lines);
-        Assert.Equal("AB CD", lines[0]);
+        TestSeq.Single(lines);
+        Assert.AreEqual("AB CD", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Wrap_StacksParagraphsWithoutVerticalSmushing()
     {
         // Stripe font: two-row glyph "X"/"X" with smushable rows. If wrap-induced paragraph
@@ -338,28 +339,28 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Wrap, wrapWidth: 3);
 
         // 2 paragraphs × 2 rows each = 4 rows, no smushing collapse.
-        Assert.Equal(4, lines.Count);
-        Assert.Equal("AB", lines[0]);
-        Assert.Equal("AB", lines[1]);
-        Assert.Equal("CD", lines[2]);
-        Assert.Equal("CD", lines[3]);
+        Assert.AreEqual(4, lines.Count);
+        Assert.AreEqual("AB", lines[0]);
+        Assert.AreEqual("AB", lines[1]);
+        Assert.AreEqual("CD", lines[2]);
+        Assert.AreEqual("CD", lines[3]);
     }
 
     // ----- Vertical layout --------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_VerticalFullWidth_StacksWithoutOverlap()
     {
         var font = new StripeFont(height: 2, vRules: 0, vSmush: false, vFit: false);
         var lines = FigletRenderer.Render("A\nB", font, FigletLayoutMode.Default,
             FigletLayoutMode.FullWidth, FigletHorizontalOverflow.Clip, int.MaxValue);
 
-        Assert.Equal(4, lines.Count);
+        Assert.AreEqual(4, lines.Count);
     }
 
     // ----- Hardblanks disappear from output ---------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_OutputContainsNoHardblanks()
     {
         var font = new SyntheticFont(
@@ -375,7 +376,7 @@ public class FigletRendererTests
             FigletHorizontalOverflow.Clip, int.MaxValue);
 
         Assert.DoesNotContain('$', lines[0]);
-        Assert.Equal(" A", lines[0]); // " A$" trimmed of trailing blanks (incl. the hardblank-as-space)
+        Assert.AreEqual(" A", lines[0]); // " A$" trimmed of trailing blanks (incl. the hardblank-as-space)
     }
 
     // ----- Helper: synthetic font with explicit glyph table -----------------------------

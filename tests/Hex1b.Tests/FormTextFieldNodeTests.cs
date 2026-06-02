@@ -4,9 +4,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class FormTextFieldNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void RunValidation_ValidValue_ResultIsValid()
     {
         var node = new FormTextFieldNode
@@ -17,10 +18,10 @@ public class FormTextFieldNodeTests
 
         node.RunValidation();
 
-        Assert.True(node.CurrentValidationResult.IsValid);
+        Assert.IsTrue(node.CurrentValidationResult.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void RunValidation_InvalidValue_SetsErrorResult()
     {
         var node = new FormTextFieldNode
@@ -33,11 +34,11 @@ public class FormTextFieldNodeTests
 
         node.RunValidation();
 
-        Assert.False(node.CurrentValidationResult.IsValid);
-        Assert.Equal("Required", node.CurrentValidationResult.ErrorMessage);
+        Assert.IsFalse(node.CurrentValidationResult.IsValid);
+        Assert.AreEqual("Required", node.CurrentValidationResult.ErrorMessage);
     }
 
-    [Fact]
+    [TestMethod]
     public void RunValidation_MultipleValidators_StopsAtFirstError()
     {
         var secondValidatorCalled = false;
@@ -52,12 +53,12 @@ public class FormTextFieldNodeTests
 
         node.RunValidation();
 
-        Assert.False(node.CurrentValidationResult.IsValid);
-        Assert.Equal("First error", node.CurrentValidationResult.ErrorMessage);
-        Assert.False(secondValidatorCalled);
+        Assert.IsFalse(node.CurrentValidationResult.IsValid);
+        Assert.AreEqual("First error", node.CurrentValidationResult.ErrorMessage);
+        Assert.IsFalse(secondValidatorCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public void RunValidation_NoValidators_RemainsValid()
     {
         var node = new FormTextFieldNode
@@ -68,10 +69,10 @@ public class FormTextFieldNodeTests
 
         node.RunValidation();
 
-        Assert.True(node.CurrentValidationResult.IsValid);
+        Assert.IsTrue(node.CurrentValidationResult.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void RunValidation_ValueBecomesValid_ClearsError()
     {
         var node = new FormTextFieldNode
@@ -83,14 +84,14 @@ public class FormTextFieldNodeTests
         };
 
         node.RunValidation();
-        Assert.False(node.CurrentValidationResult.IsValid);
+        Assert.IsFalse(node.CurrentValidationResult.IsValid);
 
         node.CurrentValue = "now valid";
         node.RunValidation();
-        Assert.True(node.CurrentValidationResult.IsValid);
+        Assert.IsTrue(node.CurrentValidationResult.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithLabelAndInput_IncludesBothRows()
     {
         var labelChild = new TextBlockNode { Text = "Name" };
@@ -105,10 +106,10 @@ public class FormTextFieldNodeTests
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
         // Label row + input row = at least 2 rows
-        Assert.True(size.Height >= 2);
+        Assert.IsTrue(size.Height >= 2);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_InputOnly_SingleRow()
     {
         var inputChild = new TextBoxNode();
@@ -121,10 +122,10 @@ public class FormTextFieldNodeTests
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
         // Just input row
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_LabelAboveInput()
     {
         var labelChild = new TextBlockNode { Text = "Name" };
@@ -140,11 +141,11 @@ public class FormTextFieldNodeTests
         node.Arrange(new Rect(0, 0, 30, 5));
 
         // Label at row 0, input at row 1
-        Assert.Equal(0, labelChild.Bounds.Y);
-        Assert.Equal(1, inputChild.Bounds.Y);
+        Assert.AreEqual(0, labelChild.Bounds.Y);
+        Assert.AreEqual(1, inputChild.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_InlineMode_SingleRow()
     {
         var labelChild = new TextBlockNode { Text = "Name" };
@@ -160,10 +161,10 @@ public class FormTextFieldNodeTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 20));
 
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_InlineMode_LabelBesideInput()
     {
         var labelChild = new TextBlockNode { Text = "Name" };
@@ -181,13 +182,13 @@ public class FormTextFieldNodeTests
         node.Arrange(new Rect(0, 0, 40, 5));
 
         // Same row, label on left, input starts at label width
-        Assert.Equal(0, labelChild.Bounds.Y);
-        Assert.Equal(0, inputChild.Bounds.Y);
-        Assert.Equal(0, labelChild.Bounds.X);
-        Assert.Equal(12, inputChild.Bounds.X);
+        Assert.AreEqual(0, labelChild.Bounds.Y);
+        Assert.AreEqual(0, inputChild.Bounds.Y);
+        Assert.AreEqual(0, labelChild.Bounds.X);
+        Assert.AreEqual(12, inputChild.Bounds.X);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsAllChildren()
     {
         var label = new TextBlockNode { Text = "Name" };
@@ -203,13 +204,13 @@ public class FormTextFieldNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Equal(3, children.Count);
+        Assert.AreEqual(3, children.Count);
         Assert.Contains(label, children);
         Assert.Contains(input, children);
         Assert.Contains(adornment, children);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_SkipsNullChildren()
     {
         var input = new TextBoxNode();
@@ -221,11 +222,11 @@ public class FormTextFieldNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(input, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(input, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_ReturnsInputFocusables()
     {
         var input = new TextBoxNode();
@@ -240,10 +241,10 @@ public class FormTextFieldNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // TextBoxNode is focusable
-        Assert.NotEmpty(focusables);
+        Assert.IsNotEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesFormTextFieldNode()
     {
         var widget = new FormTextFieldWidget("field1", "Name");
@@ -251,10 +252,10 @@ public class FormTextFieldNodeTests
 
         var node = await widget.ReconcileAsync(null, context);
 
-        Assert.IsType<FormTextFieldNode>(node);
+        TestSeq.IsType<FormTextFieldNode>(node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsFieldIdAndLabel()
     {
         var widget = new FormTextFieldWidget("field1", "Name");
@@ -262,11 +263,11 @@ public class FormTextFieldNodeTests
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Equal("field1", node.FieldId);
-        Assert.Equal("Name", node.Label);
+        Assert.AreEqual("field1", node.FieldId);
+        Assert.AreEqual("Name", node.Label);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesLabelAndInputChildren()
     {
         var widget = new FormTextFieldWidget("field1", "Name");
@@ -274,11 +275,11 @@ public class FormTextFieldNodeTests
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.LabelChild);
-        Assert.NotNull(node.InputChild);
+        Assert.IsNotNull(node.LabelChild);
+        Assert.IsNotNull(node.InputChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReusesExistingNode()
     {
         var widget = new FormTextFieldWidget("field1", "Name");
@@ -287,10 +288,10 @@ public class FormTextFieldNodeTests
         var node1 = await widget.ReconcileAsync(null, context);
         var node2 = await widget.ReconcileAsync(node1, context);
 
-        Assert.Same(node1, node2);
+        Assert.AreSame(node1, node2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_AppliesInitialValue()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
@@ -299,11 +300,11 @@ public class FormTextFieldNodeTests
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Equal("John", node.CurrentValue);
-        Assert.True(node.HasAppliedInitialValue);
+        Assert.AreEqual("John", node.CurrentValue);
+        Assert.IsTrue(node.HasAppliedInitialValue);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_InitialValueAppliedOnlyOnce()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
@@ -316,10 +317,10 @@ public class FormTextFieldNodeTests
         // Re-reconcile — initial value should NOT override user's change
         await widget.ReconcileAsync(node, context);
 
-        Assert.Equal("Jane", node.CurrentValue);
+        Assert.AreEqual("Jane", node.CurrentValue);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NoAdornmentsWhenValid()
     {
         var widget = new FormTextFieldWidget("field1", "Name");
@@ -327,10 +328,10 @@ public class FormTextFieldNodeTests
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Empty(node.AdornmentChildren);
+        Assert.IsEmpty(node.AdornmentChildren);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsValidators()
     {
         Func<string, ValidationResult> validator = v => ValidationResult.Valid;
@@ -340,12 +341,12 @@ public class FormTextFieldNodeTests
 
         var node = (FormTextFieldNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Single(node.Validators);
+        TestSeq.Single(node.Validators);
     }
 
     #region Adornment Tests
 
-    [Fact]
+    [TestMethod]
     public void EvaluateAdornments_SyncPredicate_SetsVisibilityImmediately()
     {
         // A sync predicate (wrapped in Task.FromResult) should resolve immediately
@@ -362,12 +363,12 @@ public class FormTextFieldNodeTests
         // Give async tasks a moment to complete (they're sync-wrapped)
         Thread.Sleep(50);
 
-        Assert.Equal(2, node.AdornmentVisibility.Count);
-        Assert.True(node.AdornmentVisibility[0]);
-        Assert.False(node.AdornmentVisibility[1]);
+        Assert.AreEqual(2, node.AdornmentVisibility.Count);
+        Assert.IsTrue(node.AdornmentVisibility[0]);
+        Assert.IsFalse(node.AdornmentVisibility[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EvaluateAdornments_AsyncPredicate_SetsVisibilityWhenResolved()
     {
         // An async predicate should set visibility after it resolves.
@@ -381,17 +382,17 @@ public class FormTextFieldNodeTests
         node.EvaluateAdornments(adornments, "test");
 
         // Before resolution, visibility should be false (default)
-        Assert.Single(node.AdornmentVisibility);
-        Assert.False(node.AdornmentVisibility[0]);
+        TestSeq.Single(node.AdornmentVisibility);
+        Assert.IsFalse(node.AdornmentVisibility[0]);
 
         // Resolve the predicate
         tcs.SetResult(true);
         await Task.Delay(50);
 
-        Assert.True(node.AdornmentVisibility[0]);
+        Assert.IsTrue(node.AdornmentVisibility[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EvaluateAdornments_CancelsPreviousEvaluation()
     {
         // When EvaluateAdornments is called again, previous in-flight predicates
@@ -429,15 +430,15 @@ public class FormTextFieldNodeTests
         // Resolve the first predicate — should be ignored (cancelled)
         firstTcs.SetResult(true);
         await Task.Delay(50);
-        Assert.False(node.AdornmentVisibility[0]);
+        Assert.IsFalse(node.AdornmentVisibility[0]);
 
         // Resolve the second predicate — should update visibility
         secondTcs.SetResult(true);
         await Task.Delay(50);
-        Assert.True(node.AdornmentVisibility[0]);
+        Assert.IsTrue(node.AdornmentVisibility[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void EvaluateAdornments_PredicateException_HidesAdornment()
     {
         // If a predicate throws, the adornment should be hidden (not crash).
@@ -451,11 +452,11 @@ public class FormTextFieldNodeTests
         node.EvaluateAdornments(adornments, "test");
         Thread.Sleep(50);
 
-        Assert.Single(node.AdornmentVisibility);
-        Assert.False(node.AdornmentVisibility[0]);
+        TestSeq.Single(node.AdornmentVisibility);
+        Assert.IsFalse(node.AdornmentVisibility[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_WithAdornment_SyncPredicateTrue_AddsAdornmentChild()
     {
         // When a field has an adornment with a sync-true predicate,
@@ -480,10 +481,10 @@ public class FormTextFieldNodeTests
             .InitialValue("Hello")
             .ReconcileAsync(node, context);
 
-        Assert.NotEmpty(node.AdornmentChildren);
+        Assert.IsNotEmpty(node.AdornmentChildren);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_WithAdornment_PredicateFalse_NoAdornmentChild()
     {
         // When the adornment predicate resolves to false, no adornment child should appear.
@@ -498,10 +499,10 @@ public class FormTextFieldNodeTests
         await Task.Delay(100);
         node = (FormTextFieldNode)await widget.ReconcileAsync(node, context);
 
-        Assert.Empty(node.AdornmentChildren);
+        Assert.IsEmpty(node.AdornmentChildren);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_MultipleAdornments_OnlyVisibleOnesRendered()
     {
         // With multiple adornments, only those whose predicate resolved true
@@ -518,10 +519,10 @@ public class FormTextFieldNodeTests
         node = (FormTextFieldNode)await widget.ReconcileAsync(node, context);
 
         // Should have 2 visible adornments (A and C)
-        Assert.Equal(2, node.AdornmentChildren.Count);
+        Assert.AreEqual(2, node.AdornmentChildren.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ValidationAdornment_ShowsErrorIndicator()
     {
         // When a field has validators and the value is invalid,
@@ -540,26 +541,26 @@ public class FormTextFieldNodeTests
         node = (FormTextFieldNode)await widget.ReconcileAsync(node, context);
 
         // Should have the validation adornment visible
-        Assert.NotEmpty(node.AdornmentChildren);
+        Assert.IsNotEmpty(node.AdornmentChildren);
     }
 
-    [Fact]
+    [TestMethod]
     public void FormTextFieldWidget_Adornment_FluentMethod_AddsToList()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
             .Adornment(async (v, ct) => true, () => new TextBlockWidget("A"))
             .Adornment(async (v, ct) => false, () => new TextBlockWidget("B"));
 
-        Assert.Equal(2, widget.Adornments.Count);
+        Assert.AreEqual(2, widget.Adornments.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void FormTextFieldWidget_Adornment_WithoutCancellation_Works()
     {
         var widget = new FormTextFieldWidget("field1", "Name")
             .Adornment(async v => true, () => new TextBlockWidget("A"));
 
-        Assert.Single(widget.Adornments);
+        TestSeq.Single(widget.Adornments);
     }
 
     #endregion

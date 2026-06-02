@@ -22,6 +22,7 @@ namespace Hex1b.Tests;
 /// - TerminalWidgetHandle: We inject cell impacts directly to simulate terminal output
 /// </para>
 /// </remarks>
+[TestClass]
 public class TerminalWidgetIntegrationTests
 {
     /// <summary>
@@ -200,7 +201,7 @@ public class TerminalWidgetIntegrationTests
         }
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_InitialRender_ShowsBorder()
     {
         // Arrange
@@ -215,7 +216,7 @@ public class TerminalWidgetIntegrationTests
         Assert.Contains("Inner Terminal", screen);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_InjectText_ShowsInWidget()
     {
         // Arrange
@@ -233,7 +234,7 @@ public class TerminalWidgetIntegrationTests
         Assert.Contains("Hello from inner terminal", screen);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_ClearLine_ClearsContent()
     {
         // Arrange
@@ -253,7 +254,7 @@ public class TerminalWidgetIntegrationTests
         Assert.DoesNotContain("FIRST LINE", screen);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_AnimationFrame_ClearsOldContent()
     {
         // Arrange
@@ -272,10 +273,10 @@ public class TerminalWidgetIntegrationTests
         // Assert - There should only be ONE train visible, not a ghost trail
         var screen = ctx.GetScreenText();
         var trainCount = CountOccurrences(screen, "[TRAIN]");
-        Assert.Equal(1, trainCount);
+        Assert.AreEqual(1, trainCount);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_RapidOutput_FinalFrameRendered()
     {
         // Arrange
@@ -302,7 +303,7 @@ public class TerminalWidgetIntegrationTests
         Assert.DoesNotContain("Frame 1", screen);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_ClearScreen_ClearsAllContent()
     {
         // Arrange
@@ -332,7 +333,7 @@ public class TerminalWidgetIntegrationTests
     /// Simulates the 'sl' steam locomotive animation pattern.
     /// The train should move across the screen without leaving ghost trails.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_TrainAnimation_NoGhostTrails()
     {
         // Arrange
@@ -358,7 +359,7 @@ public class TerminalWidgetIntegrationTests
         // Assert - Should only see ONE train
         var screen = ctx.GetScreenText();
         var trainCount = CountOccurrences(screen, "<=====>");
-        Assert.Equal(1, trainCount);
+        Assert.AreEqual(1, trainCount);
     }
     
     private static int CountOccurrences(string text, string pattern)
@@ -376,7 +377,7 @@ public class TerminalWidgetIntegrationTests
     /// <summary>
     /// Tests that a focused TerminalNode captures all input including Ctrl+C.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void TerminalNode_WhenFocusedAndRunning_CapturesAllInput()
     {
         // Arrange
@@ -392,14 +393,14 @@ public class TerminalWidgetIntegrationTests
         node.IsFocused = true;
         
         // Handle is NotStarted by default, so should not capture
-        Assert.Equal(TerminalState.NotStarted, handle.State);
-        Assert.Null(focusRing.CapturedNode);
+        Assert.AreEqual(TerminalState.NotStarted, handle.State);
+        Assert.IsNull(focusRing.CapturedNode);
     }
     
     /// <summary>
     /// Tests that an unfocused TerminalNode does not capture input.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void TerminalNode_WhenNotFocused_DoesNotCaptureInput()
     {
         // Arrange
@@ -414,13 +415,13 @@ public class TerminalWidgetIntegrationTests
         node.IsFocused = false;
         
         // Act & Assert
-        Assert.Null(focusRing.CapturedNode);
+        Assert.IsNull(focusRing.CapturedNode);
     }
     
     /// <summary>
     /// Tests that a TerminalNode without a handle does not capture input.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void TerminalNode_WhenNoHandle_DoesNotCaptureInput()
     {
         // Arrange
@@ -433,13 +434,13 @@ public class TerminalWidgetIntegrationTests
         node.IsFocused = true;
         
         // Act & Assert
-        Assert.Null(focusRing.CapturedNode);
+        Assert.IsNull(focusRing.CapturedNode);
     }
     
     /// <summary>
     /// Tests that Ctrl+C is forwarded to the focused terminal instead of triggering the app's default exit.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task FocusedTerminal_CtrlC_ForwardedToTerminal()
     {
         // Arrange - Create a terminal handle and track if input was received
@@ -464,22 +465,22 @@ public class TerminalWidgetIntegrationTests
         node.IsFocused = true;
         
         // Verify the state was set and capture happened
-        Assert.Equal(TerminalState.Running, handle.State);
-        Assert.Same(node, focusRing.CapturedNode);
+        Assert.AreEqual(TerminalState.Running, handle.State);
+        Assert.AreSame(node, focusRing.CapturedNode);
         
         // Act - Simulate Ctrl+C key event
         var ctrlCEvent = new Hex1bKeyEvent(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
         var result = node.HandleInput(ctrlCEvent);
         
         // Assert - The node should handle the input (forward it to the terminal)
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
     
     /// <summary>
     /// Tests that the InputRouter correctly routes Ctrl+C to a captured node
     /// before checking bindings.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task InputRouter_FocusedTerminal_ReceivesInputBeforeBindings()
     {
         // Arrange
@@ -509,8 +510,8 @@ public class TerminalWidgetIntegrationTests
         terminalNode.Parent = rootNode;
         
         // Verify preconditions
-        Assert.Same(terminalNode, focusRing.CapturedNode);
-        Assert.True(terminalNode.IsFocused, "Terminal should be focused");
+        Assert.AreSame(terminalNode, focusRing.CapturedNode);
+        Assert.IsTrue(terminalNode.IsFocused, "Terminal should be focused");
         
         // Act - Route a Ctrl+C through the InputRouter
         var ctrlCEvent = new Hex1bKeyEvent(Hex1bKey.C, '\x03', Hex1bModifiers.Control);
@@ -524,7 +525,7 @@ public class TerminalWidgetIntegrationTests
             requestStop: null);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(ctrlCTriggered, "Root's Ctrl+C binding should NOT have been triggered because TerminalNode captures all input");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(ctrlCTriggered, "Root's Ctrl+C binding should NOT have been triggered because TerminalNode captures all input");
     }
 }

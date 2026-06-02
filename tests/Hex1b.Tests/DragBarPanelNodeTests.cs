@@ -5,11 +5,12 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DragBarPanelNodeTests
 {
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_RightEdge_ReturnsCurrentSizeAsWidth()
     {
         var node = new DragBarPanelNode
@@ -21,10 +22,10 @@ public class DragBarPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 100, 0, 20));
 
-        Assert.Equal(30, size.Width);
+        Assert.AreEqual(30, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_LeftEdge_ReturnsCurrentSizeAsWidth()
     {
         var node = new DragBarPanelNode
@@ -36,10 +37,10 @@ public class DragBarPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 100, 0, 20));
 
-        Assert.Equal(25, size.Width);
+        Assert.AreEqual(25, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_BottomEdge_ReturnsCurrentSizeAsHeight()
     {
         var node = new DragBarPanelNode
@@ -51,10 +52,10 @@ public class DragBarPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 50, 0, 30));
 
-        Assert.Equal(15, size.Height);
+        Assert.AreEqual(15, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_TopEdge_ReturnsCurrentSizeAsHeight()
     {
         var node = new DragBarPanelNode
@@ -66,10 +67,10 @@ public class DragBarPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 50, 0, 30));
 
-        Assert.Equal(12, size.Height);
+        Assert.AreEqual(12, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_DefaultSize_ReturnsMinimumDefaultOf10()
     {
         var node = new DragBarPanelNode
@@ -81,10 +82,10 @@ public class DragBarPanelNodeTests
         var size = node.Measure(new Constraints(0, 100, 0, 20));
 
         // _currentSize starts at 0, but Measure uses 10 as default minimum
-        Assert.True(size.Width >= 5);
+        Assert.IsTrue(size.Width >= 5);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_ConstrainedToMaxWidth()
     {
         var node = new DragBarPanelNode
@@ -96,14 +97,14 @@ public class DragBarPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
-        Assert.True(size.Width <= 30);
+        Assert.IsTrue(size.Width <= 30);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_RightEdge_ContentGetsWidthMinusOne()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -117,11 +118,11 @@ public class DragBarPanelNodeTests
         node.Measure(new Constraints(0, 100, 0, 20));
         node.Arrange(new Rect(0, 0, 30, 20));
 
-        Assert.Equal(0, content.Bounds.X);
-        Assert.Equal(29, content.Bounds.Width);
+        Assert.AreEqual(0, content.Bounds.X);
+        Assert.AreEqual(29, content.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_LeftEdge_ContentShiftedRightByOne()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -135,11 +136,11 @@ public class DragBarPanelNodeTests
         node.Measure(new Constraints(0, 100, 0, 20));
         node.Arrange(new Rect(5, 0, 30, 20));
 
-        Assert.Equal(6, content.Bounds.X);
-        Assert.Equal(29, content.Bounds.Width);
+        Assert.AreEqual(6, content.Bounds.X);
+        Assert.AreEqual(29, content.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_BottomEdge_ContentGetsHeightMinusOne()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -153,11 +154,11 @@ public class DragBarPanelNodeTests
         node.Measure(new Constraints(0, 50, 0, 30));
         node.Arrange(new Rect(0, 0, 50, 15));
 
-        Assert.Equal(0, content.Bounds.Y);
-        Assert.Equal(14, content.Bounds.Height);
+        Assert.AreEqual(0, content.Bounds.Y);
+        Assert.AreEqual(14, content.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_TopEdge_ContentShiftedDownByOne()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -171,15 +172,15 @@ public class DragBarPanelNodeTests
         node.Measure(new Constraints(0, 50, 0, 30));
         node.Arrange(new Rect(0, 2, 50, 15));
 
-        Assert.Equal(3, content.Bounds.Y);
-        Assert.Equal(14, content.Bounds.Height);
+        Assert.AreEqual(3, content.Bounds.Y);
+        Assert.AreEqual(14, content.Bounds.Height);
     }
 
     #endregion
 
     #region HitTestBounds Tests
 
-    [Fact]
+    [TestMethod]
     public void HitTestBounds_RightEdge_ReturnsRightmostColumn()
     {
         var node = new DragBarPanelNode
@@ -192,12 +193,12 @@ public class DragBarPanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 20));
 
         var hitBounds = node.HitTestBounds;
-        Assert.Equal(29, hitBounds.X);
-        Assert.Equal(1, hitBounds.Width);
-        Assert.Equal(20, hitBounds.Height);
+        Assert.AreEqual(29, hitBounds.X);
+        Assert.AreEqual(1, hitBounds.Width);
+        Assert.AreEqual(20, hitBounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void HitTestBounds_LeftEdge_ReturnsLeftmostColumn()
     {
         var node = new DragBarPanelNode
@@ -210,11 +211,11 @@ public class DragBarPanelNodeTests
         node.Arrange(new Rect(5, 0, 30, 20));
 
         var hitBounds = node.HitTestBounds;
-        Assert.Equal(5, hitBounds.X);
-        Assert.Equal(1, hitBounds.Width);
+        Assert.AreEqual(5, hitBounds.X);
+        Assert.AreEqual(1, hitBounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void HitTestBounds_BottomEdge_ReturnsBottomRow()
     {
         var node = new DragBarPanelNode
@@ -227,12 +228,12 @@ public class DragBarPanelNodeTests
         node.Arrange(new Rect(0, 0, 50, 15));
 
         var hitBounds = node.HitTestBounds;
-        Assert.Equal(14, hitBounds.Y);
-        Assert.Equal(1, hitBounds.Height);
-        Assert.Equal(50, hitBounds.Width);
+        Assert.AreEqual(14, hitBounds.Y);
+        Assert.AreEqual(1, hitBounds.Height);
+        Assert.AreEqual(50, hitBounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void HitTestBounds_TopEdge_ReturnsTopRow()
     {
         var node = new DragBarPanelNode
@@ -245,15 +246,15 @@ public class DragBarPanelNodeTests
         node.Arrange(new Rect(0, 2, 50, 15));
 
         var hitBounds = node.HitTestBounds;
-        Assert.Equal(2, hitBounds.Y);
-        Assert.Equal(1, hitBounds.Height);
+        Assert.AreEqual(2, hitBounds.Y);
+        Assert.AreEqual(1, hitBounds.Height);
     }
 
     #endregion
 
     #region Size Clamping Tests
 
-    [Fact]
+    [TestMethod]
     public void CurrentSize_ClampsToMinSize()
     {
         var node = new DragBarPanelNode
@@ -262,10 +263,10 @@ public class DragBarPanelNodeTests
             CurrentSize = 3
         };
 
-        Assert.Equal(10, node.CurrentSize);
+        Assert.AreEqual(10, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void CurrentSize_ClampsToMaxSize()
     {
         var node = new DragBarPanelNode
@@ -274,10 +275,10 @@ public class DragBarPanelNodeTests
             CurrentSize = 100
         };
 
-        Assert.Equal(50, node.CurrentSize);
+        Assert.AreEqual(50, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void CurrentSize_WithinBounds_NotClamped()
     {
         var node = new DragBarPanelNode
@@ -287,14 +288,14 @@ public class DragBarPanelNodeTests
             CurrentSize = 30
         };
 
-        Assert.Equal(30, node.CurrentSize);
+        Assert.AreEqual(30, node.CurrentSize);
     }
 
     #endregion
 
     #region Keyboard Input Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_RightEdge_IncreasesSize()
     {
         var node = new DragBarPanelNode
@@ -311,10 +312,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(22, node.CurrentSize);
+        Assert.AreEqual(22, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_RightEdge_DecreasesSize()
     {
         var node = new DragBarPanelNode
@@ -331,10 +332,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(18, node.CurrentSize);
+        Assert.AreEqual(18, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_LeftEdge_IncreasesSize()
     {
         var node = new DragBarPanelNode
@@ -351,10 +352,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(22, node.CurrentSize);
+        Assert.AreEqual(22, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_BottomEdge_IncreasesSize()
     {
         var node = new DragBarPanelNode
@@ -371,10 +372,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(17, node.CurrentSize);
+        Assert.AreEqual(17, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_TopEdge_IncreasesSize()
     {
         var node = new DragBarPanelNode
@@ -391,10 +392,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(17, node.CurrentSize);
+        Assert.AreEqual(17, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_HorizontalArrows_DoNotAffectVerticalEdge()
     {
         var node = new DragBarPanelNode
@@ -412,10 +413,10 @@ public class DragBarPanelNodeTests
             null, null, TestContext.Current.CancellationToken);
 
         // Binding executes but orientation check prevents resize
-        Assert.Equal(15, node.CurrentSize);
+        Assert.AreEqual(15, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NotFocused_DoesNotResize()
     {
         var node = new DragBarPanelNode
@@ -431,10 +432,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(20, node.CurrentSize);
+        Assert.AreEqual(20, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Resize_ClampsToMinSize()
     {
         var node = new DragBarPanelNode
@@ -452,10 +453,10 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, node.CurrentSize);
+        Assert.AreEqual(5, node.CurrentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Resize_ClampsToMaxSize()
     {
         var node = new DragBarPanelNode
@@ -473,21 +474,21 @@ public class DragBarPanelNodeTests
             node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None),
             null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(50, node.CurrentSize);
+        Assert.AreEqual(50, node.CurrentSize);
     }
 
     #endregion
 
     #region Focusable Tests
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = new DragBarPanelNode();
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_IncludesSelfAndContentChildren()
     {
         var button = new ButtonNode { Label = "Click" };
@@ -502,7 +503,7 @@ public class DragBarPanelNodeTests
         Assert.Contains(button, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsContentChild()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -513,23 +514,23 @@ public class DragBarPanelNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(content, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(content, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_NoContent_ReturnsEmpty()
     {
         var node = new DragBarPanelNode();
         var children = node.GetChildren().ToList();
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     #endregion
 
     #region Edge Auto-Detection Tests (via Widget Reconciliation)
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HStack_FirstChild_DetectsRightEdge()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 20 };
@@ -540,11 +541,11 @@ public class DragBarPanelNodeTests
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(DragBarEdge.Right, node!.ResolvedEdge);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(DragBarEdge.Right, node!.ResolvedEdge);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HStack_LastChild_DetectsLeftEdge()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 20 };
@@ -555,11 +556,11 @@ public class DragBarPanelNodeTests
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(DragBarEdge.Left, node!.ResolvedEdge);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(DragBarEdge.Left, node!.ResolvedEdge);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_VStack_FirstChild_DetectsBottomEdge()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 15 };
@@ -570,11 +571,11 @@ public class DragBarPanelNodeTests
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(DragBarEdge.Bottom, node!.ResolvedEdge);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(DragBarEdge.Bottom, node!.ResolvedEdge);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_VStack_LastChild_DetectsTopEdge()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 15 };
@@ -585,11 +586,11 @@ public class DragBarPanelNodeTests
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(DragBarEdge.Top, node!.ResolvedEdge);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(DragBarEdge.Top, node!.ResolvedEdge);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ExplicitEdge_OverridesAutoDetection()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 20, Edge = DragBarEdge.Top };
@@ -600,11 +601,11 @@ public class DragBarPanelNodeTests
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(DragBarEdge.Top, node!.ResolvedEdge);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(DragBarEdge.Top, node!.ResolvedEdge);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_PreservesCurrentSize_OnRereconcile()
     {
         var widget = new DragBarPanelWidget { Content = new TextBlockWidget("Content"), InitialSize = 20 };
@@ -612,7 +613,7 @@ public class DragBarPanelNodeTests
         context.IsNew = true;
 
         var node = await widget.ReconcileAsync(null, context) as DragBarPanelNode;
-        Assert.Equal(20, node!.CurrentSize);
+        Assert.AreEqual(20, node!.CurrentSize);
 
         // Simulate user resize
         node.CurrentSize = 35;
@@ -622,58 +623,58 @@ public class DragBarPanelNodeTests
         context2.IsNew = false;
         var node2 = await widget.ReconcileAsync(node, context2) as DragBarPanelNode;
 
-        Assert.Same(node, node2);
-        Assert.Equal(35, node2!.CurrentSize); // Preserved, not reset to 20
+        Assert.AreSame(node, node2);
+        Assert.AreEqual(35, node2!.CurrentSize); // Preserved, not reset to 20
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void DragBarPanel_Extension_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.DragBarPanel(c => c.Text("Hello"));
 
-        Assert.NotNull(widget);
-        Assert.IsType<DragBarPanelWidget>(widget);
+        Assert.IsNotNull(widget);
+        TestSeq.IsType<DragBarPanelWidget>(widget);
     }
 
-    [Fact]
+    [TestMethod]
     public void InitialSize_SetsProperty()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.DragBarPanel(c => c.Text("Hello")).InitialSize(30);
 
-        Assert.Equal(30, widget.InitialSize);
+        Assert.AreEqual(30, widget.InitialSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void MinSize_SetsProperty()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.DragBarPanel(c => c.Text("Hello")).MinSize(10);
 
-        Assert.Equal(10, widget.MinimumSize);
+        Assert.AreEqual(10, widget.MinimumSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void MaxSize_SetsProperty()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.DragBarPanel(c => c.Text("Hello")).MaxSize(50);
 
-        Assert.Equal(50, widget.MaximumSize);
+        Assert.AreEqual(50, widget.MaximumSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleEdge_SetsProperty()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.DragBarPanel(c => c.Text("Hello")).HandleEdge(DragBarEdge.Left);
 
-        Assert.Equal(DragBarEdge.Left, widget.Edge);
+        Assert.AreEqual(DragBarEdge.Left, widget.Edge);
     }
 
     #endregion

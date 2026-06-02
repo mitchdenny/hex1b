@@ -15,6 +15,7 @@ namespace Hex1b.Tests;
 /// Expected outputs are derived from the FIGfont 2.0 spec (<c>docs/figfont.txt</c>), not from
 /// any reference implementation.
 /// </summary>
+[TestClass]
 public class FigletConformanceTests
 {
     // ----- Helpers ----------------------------------------------------------------------
@@ -117,7 +118,7 @@ public class FigletConformanceTests
 
     // ----- old_layout / full_layout precedence -----------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Layout_FullLayoutOverridesOldLayout()
     {
         // old_layout=-1 (full width); full_layout=128 (smushing, no rules → universal).
@@ -133,10 +134,10 @@ public class FigletConformanceTests
         var lines = Render(font, "AB");
         // With universal smushing: A's last 'A' meets B's first 'B' → right wins → 'B'.
         // Block: "ABB" (3 cols).
-        Assert.Equal("ABB", lines[0]);
+        Assert.AreEqual("ABB", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Layout_OldLayoutMinus1_FullWidthWhenNoFullLayout()
     {
         var flf = BuildFlf('$', 1, oldLayout: -1, fullLayout: null, new Dictionary<int, string[]>
@@ -147,10 +148,10 @@ public class FigletConformanceTests
         var font = LoadFlf(flf);
 
         var lines = Render(font, "AB");
-        Assert.Equal("AABB", lines[0]); // no overlap
+        Assert.AreEqual("AABB", lines[0]); // no overlap
     }
 
-    [Fact]
+    [TestMethod]
     public void Layout_OldLayout0_FittingWhenNoFullLayout()
     {
         var flf = BuildFlf('$', 1, oldLayout: 0, fullLayout: null, new Dictionary<int, string[]>
@@ -163,10 +164,10 @@ public class FigletConformanceTests
         // Trailing blanks of " A " = 1; leading blanks of " B " = 1; fitted = 2.
         var lines = Render(font, "AB");
         // " A " + " B " with 2 overlap → " AB " → trim trailing → " AB"
-        Assert.Equal(" AB", lines[0]);
+        Assert.AreEqual(" AB", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Layout_OldLayoutPositive_SmushingWithThoseRules()
     {
         // old_layout=1 → smushing enabled with horizontal rule 1 (equal char).
@@ -178,12 +179,12 @@ public class FigletConformanceTests
 
         // "AA": first 'A' glyph "AA" then second; smushed +1: 'A' vs 'A' → rule 1 → 'A'.
         var lines = Render(font, "AA");
-        Assert.Equal("AAA", lines[0]);
+        Assert.AreEqual("AAA", lines[0]);
     }
 
     // ----- Universal smushing edge cases ----------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Universal_VisibleVsHardblank_Rejects()
     {
         // Smushing flag set (full_layout=128), no rules → universal.
@@ -197,10 +198,10 @@ public class FigletConformanceTests
 
         // Try +1: 'A' vs '$' → reject. Backoff to fitted=0. Block: "AA$B$" → " B" after strips.
         var lines = Render(font, "AB");
-        Assert.Equal("AA B", lines[0]);
+        Assert.AreEqual("AA B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Universal_HardblankVsHardblank_Smushes()
     {
         var flf = BuildFlf('$', 1, oldLayout: 0, fullLayout: 128, new Dictionary<int, string[]>
@@ -212,12 +213,12 @@ public class FigletConformanceTests
 
         // Smushed +1: '$' vs '$' → hardblank. Block: "A$B" → "A B".
         var lines = Render(font, "AB");
-        Assert.Equal("A B", lines[0]);
+        Assert.AreEqual("A B", lines[0]);
     }
 
     // ----- Per-rule conformance --------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Rule1_EqualChar_Smushes()
     {
         // full_layout = smushing (128) + rule 1 (1) = 129.
@@ -228,10 +229,10 @@ public class FigletConformanceTests
         var font = LoadFlf(flf);
 
         var lines = Render(font, "AA");
-        Assert.Equal("AAA", lines[0]);
+        Assert.AreEqual("AAA", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Rule2_Underscore_SmushesWithBracketingChars()
     {
         // full_layout = smushing (128) + rule 2 (2) = 130.
@@ -244,10 +245,10 @@ public class FigletConformanceTests
 
         // Smushed +1: '_' vs '|' → rule 2 → '|'. Block: "A|B".
         var lines = Render(font, "AB");
-        Assert.Equal("A|B", lines[0]);
+        Assert.AreEqual("A|B", lines[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Rule6_Hardblank_SmushesTwoHardblanks()
     {
         // full_layout = smushing (128) + rule 6 (32) = 160. ONLY rule 6, no other rules → 
@@ -260,12 +261,12 @@ public class FigletConformanceTests
         var font = LoadFlf(flf);
 
         var lines = Render(font, "AB");
-        Assert.Equal("A B", lines[0]);
+        Assert.AreEqual("A B", lines[0]);
     }
 
     // ----- Code tag parsing -----------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void CodeTag_Decimal_LoadsExtendedGlyph()
     {
         var flf = BuildFlf('$', 1, oldLayout: 0, fullLayout: null, new Dictionary<int, string[]>
@@ -274,11 +275,11 @@ public class FigletConformanceTests
         });
         var font = LoadFlf(flf);
 
-        Assert.True(font.TryGetGlyph(0x2603, out var glyph));
-        Assert.Equal(1, glyph.Width);
+        Assert.IsTrue(font.TryGetGlyph(0x2603, out var glyph));
+        Assert.AreEqual(1, glyph.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void CodeTag_NegativeOne_IsRejected()
     {
         // -1 is the FIGfont reserved "missing" tag; the parser must reject it as illegal data.
@@ -286,12 +287,12 @@ public class FigletConformanceTests
         var flf = BuildFlf('$', 1, oldLayout: 0, fullLayout: null, new Dictionary<int, string[]>())
             + "-1\n*@\n*@@\n";
 
-        Assert.Throws<FigletFontFormatException>(() => LoadFlf(flf));
+        Assert.ThrowsExactly<FigletFontFormatException>(() => LoadFlf(flf));
     }
 
     // ----- Hardblank rendering --------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Render_OutputDoesNotContainHardblanks()
     {
         var flf = BuildFlf('$', 1, oldLayout: -1, fullLayout: null, new Dictionary<int, string[]>
@@ -306,7 +307,7 @@ public class FigletConformanceTests
 
     // ----- German block --------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void GermanBlock_AllSevenAreLoaded()
     {
         var flf = BuildFlf('$', 1, oldLayout: 0, fullLayout: null, new Dictionary<int, string[]>
@@ -323,7 +324,7 @@ public class FigletConformanceTests
 
         foreach (var cp in new[] { 196, 214, 220, 228, 246, 252, 223 })
         {
-            Assert.True(font.TryGetGlyph(cp, out _), $"Missing glyph for U+{cp:X4}.");
+            Assert.IsTrue(font.TryGetGlyph(cp, out _), $"Missing glyph for U+{cp:X4}.");
         }
     }
 }

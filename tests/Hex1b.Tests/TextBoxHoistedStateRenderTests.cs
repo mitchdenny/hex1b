@@ -20,9 +20,10 @@ namespace Hex1b.Tests;
 /// input gesture (button click), and asserting the rendered surface
 /// reflects the new value.
 /// </summary>
+[TestClass]
 public class TextBoxHoistedStateRenderTests
 {
-    [Fact]
+    [TestMethod]
     public async Task HoistedState_TextMutatedFromButtonHandler_RendersOnScreen()
     {
         // ── ARRANGE ────────────────────────────────────────────────────
@@ -73,8 +74,7 @@ public class TextBoxHoistedStateRenderTests
 
         // ── ASSERT ─────────────────────────────────────────────────────
         // The new value rendered.
-        Assert.True(snapshot.ContainsText("BRAVO"),
-            "Hoisted state mutation from button handler should render on screen.");
+        Assert.IsTrue(snapshot.ContainsText("BRAVO"), "Hoisted state mutation from button handler should render on screen.");
 
         // And the old value did NOT linger. This is the stronger of the
         // two assertions: a render-skip bug would leave "alpha" on the
@@ -82,11 +82,10 @@ public class TextBoxHoistedStateRenderTests
         // TextBoxWidget's hoisted-state branch overwrites the buffer
         // wholesale, the only way "alpha" survives is if the cells were
         // never re-painted.
-        Assert.False(snapshot.ContainsText("alpha"),
-            "Stale text from before the mutation should have been overwritten.");
+        Assert.IsFalse(snapshot.ContainsText("alpha"), "Stale text from before the mutation should have been overwritten.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HoistedState_RepeatedMutationsAllRender()
     {
         // The Version counter is monotonic. Multiple in-flight mutations
@@ -131,15 +130,13 @@ public class TextBoxHoistedStateRenderTests
 
         await runTask;
 
-        Assert.Equal(3, clickCount);
-        Assert.True(snapshot.ContainsText("step-3"));
-        Assert.False(snapshot.ContainsText("step-1"),
-            "Earlier values should have been overwritten on each render.");
-        Assert.False(snapshot.ContainsText("step-2"),
-            "Earlier values should have been overwritten on each render.");
+        Assert.AreEqual(3, clickCount);
+        Assert.IsTrue(snapshot.ContainsText("step-3"));
+        Assert.IsFalse(snapshot.ContainsText("step-1"), "Earlier values should have been overwritten on each render.");
+        Assert.IsFalse(snapshot.ContainsText("step-2"), "Earlier values should have been overwritten on each render.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HoistedState_UserTypingStillWorksAfterParentMutation()
     {
         // Mixing the two paths (parent mutation + user keystroke) is the
@@ -187,7 +184,7 @@ public class TextBoxHoistedStateRenderTests
 
         await runTask;
 
-        Assert.Equal("/help me", state.Text);
-        Assert.True(snapshot.ContainsText("/help me"));
+        Assert.AreEqual("/help me", state.Text);
+        Assert.IsTrue(snapshot.ContainsText("/help me"));
     }
 }

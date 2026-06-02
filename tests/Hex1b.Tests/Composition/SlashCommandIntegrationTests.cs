@@ -16,9 +16,10 @@ namespace Hex1b.Tests.Composition;
 /// arranged outside those bounds is clipped. Putting the palette in flow makes
 /// the composite grow vertically when visible, which is what users expect.
 /// </summary>
+[TestClass]
 public class SlashCommandIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task TypingSlash_RendersPaletteAboveTextBox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -49,15 +50,12 @@ public class SlashCommandIntegrationTests
             catch { return ""; }
         }));
 
-        Assert.True(snapshot.ContainsText("washthedishes"),
-            $"Palette should appear when text starts with '/'\n\nScreen:\n{screen}");
-        Assert.True(snapshot.ContainsText("picker"),
-            $"All matching commands should appear\n\nScreen:\n{screen}");
-        Assert.True(snapshot.ContainsText("Commands"),
-            $"Border title should appear\n\nScreen:\n{screen}");
+        Assert.IsTrue(snapshot.ContainsText("washthedishes"), $"Palette should appear when text starts with '/'\n\nScreen:\n{screen}");
+        Assert.IsTrue(snapshot.ContainsText("picker"), $"All matching commands should appear\n\nScreen:\n{screen}");
+        Assert.IsTrue(snapshot.ContainsText("Commands"), $"Border title should appear\n\nScreen:\n{screen}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypingNonSlash_DoesNotRenderPalette()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -82,13 +80,11 @@ public class SlashCommandIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(snapshot.ContainsText("Commands"),
-            "Palette should NOT appear when text does not start with '/'");
-        Assert.False(snapshot.ContainsText("washthedishes"),
-            "No completions should be shown");
+        Assert.IsFalse(snapshot.ContainsText("Commands"), "Palette should NOT appear when text does not start with '/'");
+        Assert.IsFalse(snapshot.ContainsText("washthedishes"), "No completions should be shown");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_MovesPaletteSelection()
     {
         // Drives the prompt with "/", then DownArrow, and verifies the
@@ -132,10 +128,8 @@ public class SlashCommandIntegrationTests
         var pickerLine = lines.FirstOrDefault(l => l.Contains("picker")) ?? "";
         var clearLine = lines.FirstOrDefault(l => l.Contains("clear")) ?? "";
 
-        Assert.True(clearLine.Contains(">"),
-            $"After DownArrow, '>' should mark the 'clear' row but did not. Screen:\n{screen}");
-        Assert.False(pickerLine.Contains(">"),
-            $"After DownArrow, '>' should no longer mark the 'picker' row. Screen:\n{screen}");
+        Assert.IsTrue(clearLine.Contains(">"), $"After DownArrow, '>' should mark the 'clear' row but did not. Screen:\n{screen}");
+        Assert.IsFalse(pickerLine.Contains(">"), $"After DownArrow, '>' should no longer mark the 'picker' row. Screen:\n{screen}");
     }
 
     private sealed record SlashPromptHostWidget : Hex1bWidget

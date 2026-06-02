@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests specifically for tree guide line alignment issues.
 /// </summary>
+[TestClass]
 public class TreeGuideAlignmentTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Tree_IsLastAtDepth_ComputedCorrectly()
     {
         // Unit test to verify IsLastAtDepth is computed correctly
@@ -26,39 +27,39 @@ public class TreeGuideAlignmentTests
         var node = await widget.ReconcileAsync(null, context) as TreeNode;
         
         // Verify flattened items
-        Assert.Equal(4, node!.FlattenedItems.Count);
+        Assert.AreEqual(4, node!.FlattenedItems.Count);
         
         // Root (depth=0, last=true at depth 0)
         var root = node.FlattenedItems[0];
-        Assert.Equal("Root", root.Node.Label);
-        Assert.Equal(0, root.Depth);
-        Assert.True(root.Node.IsLastChild); // Only root
-        Assert.Equal([true], root.IsLastAtDepth);
+        Assert.AreEqual("Root", root.Node.Label);
+        Assert.AreEqual(0, root.Depth);
+        Assert.IsTrue(root.Node.IsLastChild); // Only root
+        TestSeq.AreEqual([true], root.IsLastAtDepth);
         
         // Child 1 (depth=1, NOT last at depth 1)
         var child1 = node.FlattenedItems[1];
-        Assert.Equal("Child 1", child1.Node.Label);
-        Assert.Equal(1, child1.Depth);
-        Assert.False(child1.Node.IsLastChild); // Child 2 follows
-        Assert.Equal([true, false], child1.IsLastAtDepth);
+        Assert.AreEqual("Child 1", child1.Node.Label);
+        Assert.AreEqual(1, child1.Depth);
+        Assert.IsFalse(child1.Node.IsLastChild); // Child 2 follows
+        TestSeq.AreEqual([true, false], child1.IsLastAtDepth);
         
         // Grandchild (depth=2, last at depth 2, but Child 1 is NOT last at depth 1)
         var grandchild = node.FlattenedItems[2];
-        Assert.Equal("Grandchild", grandchild.Node.Label);
-        Assert.Equal(2, grandchild.Depth);
-        Assert.True(grandchild.Node.IsLastChild); // Only child of Child 1
+        Assert.AreEqual("Grandchild", grandchild.Node.Label);
+        Assert.AreEqual(2, grandchild.Depth);
+        Assert.IsTrue(grandchild.Node.IsLastChild); // Only child of Child 1
         // Key assertion: IsLastAtDepth[1] should be FALSE because Child 1 has siblings
-        Assert.Equal([true, false, true], grandchild.IsLastAtDepth);
+        TestSeq.AreEqual([true, false, true], grandchild.IsLastAtDepth);
         
         // Child 2 (depth=1, IS last at depth 1)
         var child2 = node.FlattenedItems[3];
-        Assert.Equal("Child 2", child2.Node.Label);
-        Assert.Equal(1, child2.Depth);
-        Assert.True(child2.Node.IsLastChild);
-        Assert.Equal([true, true], child2.IsLastAtDepth);
+        Assert.AreEqual("Child 2", child2.Node.Label);
+        Assert.AreEqual(1, child2.Depth);
+        Assert.IsTrue(child2.Node.IsLastChild);
+        TestSeq.AreEqual([true, true], child2.IsLastAtDepth);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Tree_GuideLines_VerticalAlignment_NestedStructure()
     {
         // Create a tree structure that should show:
@@ -115,8 +116,7 @@ public class TreeGuideAlignmentTests
         // │  └─   Grandchild   <-- vertical bar should connect
         // └─   Child 2
         
-        Assert.True(snapshot.ContainsText("│"), 
-            $"Should contain vertical guide line. Actual output:\n{output}");
+        Assert.IsTrue(snapshot.ContainsText("│"), $"Should contain vertical guide line. Actual output:\n{output}");
         
         // Find the Grandchild line and verify vertical bar exists
         var grandchildLine = -1;
@@ -129,7 +129,7 @@ public class TreeGuideAlignmentTests
             }
         }
         
-        Assert.True(grandchildLine > 0, $"Should find Grandchild line. Output:\n{output}");
+        Assert.IsTrue(grandchildLine > 0, $"Should find Grandchild line. Output:\n{output}");
         
         var gcLineContent = snapshot.GetLine(grandchildLine);
         // The vertical bar should be at the start of the line (column 0)
@@ -137,7 +137,7 @@ public class TreeGuideAlignmentTests
         // $"Grandchild line should start with vertical bar. Line content: [{gcLineContent}]\nFull output:\n{output}"
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Tree_GuideLines_MultipleRoots_NoVerticalForSingleRoot()
     {
         // Single root - no vertical lines needed at depth 0
@@ -180,7 +180,7 @@ public class TreeGuideAlignmentTests
         }
         
         // Verify structure
-        Assert.True(snapshot.ContainsText("├─"), $"Should have branch marker. Output:\n{output}");
-        Assert.True(snapshot.ContainsText("└─"), $"Should have last branch marker. Output:\n{output}");
+        Assert.IsTrue(snapshot.ContainsText("├─"), $"Should have branch marker. Output:\n{output}");
+        Assert.IsTrue(snapshot.ContainsText("└─"), $"Should have last branch marker. Output:\n{output}");
     }
 }

@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for terminal scrollback support in TerminalNode and TerminalWidgetHandle.
 /// </summary>
+[TestClass]
 public class TerminalNodeScrollbackTests
 {
     // Helper to create AppliedToken for PrivateMode sequences
@@ -17,24 +18,24 @@ public class TerminalNodeScrollbackTests
 
     #region TerminalWidgetHandle - Alternate Screen Tracking
 
-    [Fact]
+    [TestMethod]
     public void Handle_InAlternateScreen_DefaultsFalse()
     {
         var handle = new TerminalWidgetHandle(80, 24);
-        Assert.False(handle.InAlternateScreen);
+        Assert.IsFalse(handle.InAlternateScreen);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Handle_PrivateMode1049Enable_SetsInAlternateScreen()
     {
         var handle = new TerminalWidgetHandle(80, 24);
 
         await handle.WriteOutputWithImpactsAsync([PrivateModeApplied(1049, true)]);
 
-        Assert.True(handle.InAlternateScreen);
+        Assert.IsTrue(handle.InAlternateScreen);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Handle_PrivateMode1049Disable_ClearsInAlternateScreen()
     {
         var handle = new TerminalWidgetHandle(80, 24);
@@ -42,29 +43,29 @@ public class TerminalNodeScrollbackTests
         await handle.WriteOutputWithImpactsAsync([PrivateModeApplied(1049, true)]);
         await handle.WriteOutputWithImpactsAsync([PrivateModeApplied(1049, false)]);
 
-        Assert.False(handle.InAlternateScreen);
+        Assert.IsFalse(handle.InAlternateScreen);
     }
 
     #endregion
 
     #region TerminalWidgetHandle - Scrollback Access
 
-    [Fact]
+    [TestMethod]
     public void Handle_ScrollbackCount_ReturnsZeroWithoutTerminal()
     {
         var handle = new TerminalWidgetHandle(80, 24);
-        Assert.Equal(0, handle.ScrollbackCount);
+        Assert.AreEqual(0, handle.ScrollbackCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Handle_GetScrollbackSnapshot_ReturnsEmptyWithoutTerminal()
     {
         var handle = new TerminalWidgetHandle(80, 24);
         var rows = handle.GetScrollbackSnapshot(100);
-        Assert.Empty(rows);
+        Assert.IsEmpty(rows);
     }
 
-    [Fact]
+    [TestMethod]
     public void Handle_ScrollbackCount_ReturnsCountWhenTerminalHasScrollback()
     {
         var handle = new TerminalWidgetHandle(80, 24);
@@ -72,10 +73,10 @@ public class TerminalNodeScrollbackTests
         SetTerminalOnHandle(handle, terminal);
         PopulateScrollback(terminal, 50);
 
-        Assert.True(handle.ScrollbackCount > 0);
+        Assert.IsTrue(handle.ScrollbackCount > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Handle_GetScrollbackSnapshot_ReturnsRowsWhenTerminalHasScrollback()
     {
         var handle = new TerminalWidgetHandle(80, 24);
@@ -84,26 +85,26 @@ public class TerminalNodeScrollbackTests
         PopulateScrollback(terminal, 50);
 
         var rows = handle.GetScrollbackSnapshot(100);
-        Assert.NotEmpty(rows);
+        Assert.IsNotEmpty(rows);
     }
 
     #endregion
 
     #region TerminalNode - Scrollback Offset
 
-    [Fact]
+    [TestMethod]
     public void ScrollbackOffset_DefaultsToZero()
     {
         var node = new TerminalNode();
-        Assert.Equal(0, node.ScrollbackOffset);
-        Assert.False(node.IsInScrollbackMode);
+        Assert.AreEqual(0, node.ScrollbackOffset);
+        Assert.IsFalse(node.IsInScrollbackMode);
     }
 
     #endregion
 
     #region TerminalNode - Input Interception
 
-    [Fact]
+    [TestMethod]
     public void HandleInput_WhenInScrollbackMode_SnapsToLiveAndForwardsKeyboard()
     {
         var handle = CreateRunningHandle();
@@ -111,18 +112,18 @@ public class TerminalNodeScrollbackTests
 
         // Manually set scrollback offset to simulate being in scrollback mode
         SetScrollbackOffset(node, 5);
-        Assert.True(node.IsInScrollbackMode);
+        Assert.IsTrue(node.IsInScrollbackMode);
 
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.A, "a", Hex1bModifiers.None);
         var result = node.HandleInput(keyEvent);
 
         // Should snap back to live view and forward the key
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.ScrollbackOffset);
-        Assert.False(node.IsInScrollbackMode);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.ScrollbackOffset);
+        Assert.IsFalse(node.IsInScrollbackMode);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleInput_WhenNotInScrollbackMode_ForwardsKeyboard()
     {
         var handle = CreateRunningHandle();
@@ -132,10 +133,10 @@ public class TerminalNodeScrollbackTests
         var result = node.HandleInput(keyEvent);
 
         // Should return Handled (forwarded to terminal)
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleInput_MouseEvent_WhenInScrollbackMode_StillForwarded()
     {
         var handle = CreateRunningHandle();
@@ -147,14 +148,14 @@ public class TerminalNodeScrollbackTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 5, Hex1bModifiers.None);
         var result = node.HandleInput(mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
 
     #endregion
 
     #region TerminalNode - Mouse Scroll Routing
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_ScrollWheel_WhenMouseTrackingEnabled_ForwardsToChild()
     {
         var handle = CreateRunningHandle();
@@ -167,10 +168,10 @@ public class TerminalNodeScrollbackTests
         var result = node.HandleMouseClick(5, 5, scrollEvent);
 
         // When child has mouse tracking, scroll events are forwarded
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleMouseClick_ScrollWheel_WhenNoMouseTracking_ReturnsNotHandled()
     {
         var handle = CreateRunningHandle();
@@ -180,10 +181,10 @@ public class TerminalNodeScrollbackTests
         var result = node.HandleMouseClick(5, 5, scrollEvent);
 
         // Scroll events should return NotHandled so input binding system handles them
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleMouseClick_NonScroll_WhenNoMouseTracking_ForwardsToChild()
     {
         var handle = CreateRunningHandle();
@@ -193,10 +194,10 @@ public class TerminalNodeScrollbackTests
         var result = node.HandleMouseClick(5, 5, clickEvent);
 
         // Non-scroll mouse events are forwarded
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleMouseClick_ScrollDown_WhenNoMouseTracking_ReturnsNotHandled()
     {
         var handle = CreateRunningHandle();
@@ -205,14 +206,14 @@ public class TerminalNodeScrollbackTests
         var scrollEvent = new Hex1bMouseEvent(MouseButton.ScrollDown, MouseAction.Down, 5, 5, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, 5, scrollEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion
 
     #region TerminalNode - ConfigureDefaultBindings
 
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_RegistersAllScrollbackActions()
     {
         var node = new TerminalNode();
@@ -228,7 +229,7 @@ public class TerminalNodeScrollbackTests
         Assert.Contains(TerminalWidget.ScrollToBottom, actionIds);
     }
 
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_RegistersMouseScrollBindings()
     {
         var node = new TerminalNode();
@@ -236,11 +237,11 @@ public class TerminalNodeScrollbackTests
         node.ConfigureDefaultBindings(bindings);
 
         var mouseBindings = bindings.MouseBindings;
-        Assert.Contains(mouseBindings, b => b.Button == MouseButton.ScrollUp);
-        Assert.Contains(mouseBindings, b => b.Button == MouseButton.ScrollDown);
+        Assert.IsTrue(mouseBindings.Any(b => b.Button == MouseButton.ScrollUp));
+        Assert.IsTrue(mouseBindings.Any(b => b.Button == MouseButton.ScrollDown));
     }
 
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_HasKeyboardBindingsForScrollback()
     {
         var node = new TerminalNode();
@@ -248,29 +249,29 @@ public class TerminalNodeScrollbackTests
         node.ConfigureDefaultBindings(bindings);
 
         // Should have 6 keyboard bindings (ScrollUpLine, ScrollDownLine, ScrollUpPage, ScrollDownPage, ScrollToTop, ScrollToBottom)
-        Assert.True(bindings.Bindings.Count >= 6, $"Expected at least 6 key bindings, got {bindings.Bindings.Count}");
+        Assert.IsTrue(bindings.Bindings.Count >= 6, $"Expected at least 6 key bindings, got {bindings.Bindings.Count}");
     }
 
     #endregion
 
     #region TerminalWidget - ActionId Names
 
-    [Fact]
+    [TestMethod]
     public void ActionIds_FollowNamingConvention()
     {
-        Assert.Equal("TerminalWidget.ScrollUpLine", TerminalWidget.ScrollUpLine.Value);
-        Assert.Equal("TerminalWidget.ScrollDownLine", TerminalWidget.ScrollDownLine.Value);
-        Assert.Equal("TerminalWidget.ScrollUpPage", TerminalWidget.ScrollUpPage.Value);
-        Assert.Equal("TerminalWidget.ScrollDownPage", TerminalWidget.ScrollDownPage.Value);
-        Assert.Equal("TerminalWidget.ScrollToTop", TerminalWidget.ScrollToTop.Value);
-        Assert.Equal("TerminalWidget.ScrollToBottom", TerminalWidget.ScrollToBottom.Value);
+        Assert.AreEqual("TerminalWidget.ScrollUpLine", TerminalWidget.ScrollUpLine.Value);
+        Assert.AreEqual("TerminalWidget.ScrollDownLine", TerminalWidget.ScrollDownLine.Value);
+        Assert.AreEqual("TerminalWidget.ScrollUpPage", TerminalWidget.ScrollUpPage.Value);
+        Assert.AreEqual("TerminalWidget.ScrollDownPage", TerminalWidget.ScrollDownPage.Value);
+        Assert.AreEqual("TerminalWidget.ScrollToTop", TerminalWidget.ScrollToTop.Value);
+        Assert.AreEqual("TerminalWidget.ScrollToBottom", TerminalWidget.ScrollToBottom.Value);
     }
 
     #endregion
 
     #region Hex1bTerminal - Scrollback Access
 
-    [Fact]
+    [TestMethod]
     public void Terminal_ScrollbackCount_ReturnsZeroWhenNotEnabled()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -280,19 +281,19 @@ public class TerminalNodeScrollbackTests
             .WithDimensions(80, 24)
             .Build();
 
-        Assert.Equal(0, terminal.ScrollbackCount);
+        Assert.AreEqual(0, terminal.ScrollbackCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Terminal_ScrollbackCount_ReturnsCountWhenEnabled()
     {
         var terminal = CreateTerminalWithScrollback(80, 24, scrollbackCapacity: 100);
         PopulateScrollback(terminal, 50);
 
-        Assert.True(terminal.ScrollbackCount > 0);
+        Assert.IsTrue(terminal.ScrollbackCount > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Terminal_GetScrollbackRows_ReturnsEmptyWhenNotEnabled()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -303,27 +304,27 @@ public class TerminalNodeScrollbackTests
             .Build();
 
         var rows = terminal.GetScrollbackRows(100);
-        Assert.Empty(rows);
+        Assert.IsEmpty(rows);
     }
 
-    [Fact]
+    [TestMethod]
     public void Terminal_GetScrollbackRows_ReturnsRowsWhenEnabled()
     {
         var terminal = CreateTerminalWithScrollback(80, 24, scrollbackCapacity: 100);
         PopulateScrollback(terminal, 50);
 
         var rows = terminal.GetScrollbackRows(100);
-        Assert.NotEmpty(rows);
+        Assert.IsNotEmpty(rows);
     }
 
-    [Fact]
+    [TestMethod]
     public void Terminal_GetScrollbackRows_RespectsCountLimit()
     {
         var terminal = CreateTerminalWithScrollback(80, 24, scrollbackCapacity: 100);
         PopulateScrollback(terminal, 50);
 
         var rows = terminal.GetScrollbackRows(5);
-        Assert.True(rows.Length <= 5);
+        Assert.IsTrue(rows.Length <= 5);
     }
 
     #endregion

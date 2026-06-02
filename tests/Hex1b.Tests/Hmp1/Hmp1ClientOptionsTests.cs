@@ -10,11 +10,12 @@ namespace Hex1b.Tests.Hmp1;
 /// plus the underlying <see cref="Hmp1WorkloadAdapter.OnConnected"/> and
 /// <see cref="Hmp1WorkloadAdapter.OnRemoteResized"/> async callbacks.
 /// </summary>
+[TestClass]
 public class Hmp1ClientOptionsTests
 {
     private static readonly TimeSpan ShortTimeout = TimeSpan.FromSeconds(5);
 
-    [Fact]
+    [TestMethod]
     public async Task Adapter_Connected_FiresOnceWithHandshakeState()
     {
         var server = new Hmp1PresentationAdapter(120, 36);
@@ -39,16 +40,16 @@ public class Hmp1ClientOptionsTests
         var handle = await addTask.WaitAsync(ShortTimeout);
         await using var handleDispose = handle;
 
-        Assert.Equal(1, connectedCount);
-        Assert.NotNull(captured);
-        Assert.False(string.IsNullOrEmpty(captured!.PeerId));
-        Assert.Null(captured.PrimaryPeerId);
-        Assert.Equal(120, captured.Width);
-        Assert.Equal(36, captured.Height);
-        Assert.Empty(captured.Peers);
+        Assert.AreEqual(1, connectedCount);
+        Assert.IsNotNull(captured);
+        Assert.IsFalse(string.IsNullOrEmpty(captured!.PeerId));
+        Assert.IsNull(captured.PrimaryPeerId);
+        Assert.AreEqual(120, captured.Width);
+        Assert.AreEqual(36, captured.Height);
+        Assert.IsEmpty(captured.Peers);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Adapter_RemoteResized_FiresWhenLocalPrimaryRequestsResize()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -72,7 +73,7 @@ public class Hmp1ClientOptionsTests
         await using var handleDispose = handle;
 
         // Initial Hello dims must NOT have fired RemoteResized.
-        lock (resizes) { Assert.Empty(resizes); }
+        lock (resizes) { Assert.IsEmpty(resizes); }
 
         // Take primary at a new dim — RoleChange-driven resize from 80x24 to 110x35.
         await adapter.RequestPrimaryAsync(110, 35);
@@ -82,12 +83,12 @@ public class Hmp1ClientOptionsTests
 
         RemoteResizedEventArgs first;
         lock (resizes) { first = resizes[^1]; }
-        Assert.Equal(110, first.Width);
-        Assert.Equal(35, first.Height);
-        Assert.True(first.CausedByLocalPrimary, "Local peer was the new primary; CausedByLocalPrimary should be true.");
+        Assert.AreEqual(110, first.Width);
+        Assert.AreEqual(35, first.Height);
+        Assert.IsTrue(first.CausedByLocalPrimary, "Local peer was the new primary; CausedByLocalPrimary should be true.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Adapter_RemoteResized_FiresOnPureResizeFrameWhilePrimary()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -127,12 +128,12 @@ public class Hmp1ClientOptionsTests
 
         RemoteResizedEventArgs latest;
         lock (resizes) { latest = resizes[^1]; }
-        Assert.Equal(140, latest.Width);
-        Assert.Equal(45, latest.Height);
-        Assert.True(latest.CausedByLocalPrimary, "Local peer is the primary; CausedByLocalPrimary should be true.");
+        Assert.AreEqual(140, latest.Width);
+        Assert.AreEqual(45, latest.Height);
+        Assert.IsTrue(latest.CausedByLocalPrimary, "Local peer is the primary; CausedByLocalPrimary should be true.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Adapter_RemoteResized_DoesNotFireWhenDimsUnchanged()
     {
         var server = new Hmp1PresentationAdapter(100, 30);
@@ -164,10 +165,10 @@ public class Hmp1ClientOptionsTests
         // Give the read pump a beat to process any in-flight frames.
         await Task.Delay(100);
 
-        lock (resizes) { Assert.Empty(resizes); }
+        lock (resizes) { Assert.IsEmpty(resizes); }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Builder_OptionsCallback_AllHooksFireForCorrespondingEvents()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -231,10 +232,10 @@ public class Hmp1ClientOptionsTests
         await using var handleDispose = handle;
 
         await WaitUntilAsync(() => connectedCount == 1, ShortTimeout, () => "OnConnected never fired");
-        Assert.NotNull(capturedConnected);
-        Assert.False(string.IsNullOrEmpty(capturedConnected!.PeerId));
-        Assert.Equal(80, capturedConnected.Width);
-        Assert.Equal(24, capturedConnected.Height);
+        Assert.IsNotNull(capturedConnected);
+        Assert.IsFalse(string.IsNullOrEmpty(capturedConnected!.PeerId));
+        Assert.AreEqual(80, capturedConnected.Width);
+        Assert.AreEqual(24, capturedConnected.Height);
 
         // Add a second peer to drive PeerJoined.
         var (other1, other2) = CreateFullDuplexPair();
@@ -245,8 +246,8 @@ public class Hmp1ClientOptionsTests
         var otherHandle = await otherAddTask.WaitAsync(ShortTimeout);
 
         await WaitUntilAsync(() => peerJoinedCount >= 1, ShortTimeout, () => "OnPeerJoined never fired");
-        Assert.NotNull(capturedPeerJoined);
-        Assert.Equal("other-peer", capturedPeerJoined!.DisplayName);
+        Assert.IsNotNull(capturedPeerJoined);
+        Assert.AreEqual("other-peer", capturedPeerJoined!.DisplayName);
 
         // Have the other peer take primary at a new dim — drives OnRoleChanged
         // (for our viewer) and OnRemoteResized.
@@ -255,17 +256,17 @@ public class Hmp1ClientOptionsTests
 
         await WaitUntilAsync(() => roleChangedCount >= 1, ShortTimeout, () => "OnRoleChanged never fired");
         await WaitUntilAsync(() => remoteResizedCount >= 1, ShortTimeout, () => "OnRemoteResized never fired");
-        Assert.NotNull(lastRemoteResized);
-        Assert.Equal(120, lastRemoteResized!.Width);
-        Assert.Equal(40, lastRemoteResized.Height);
-        Assert.False(lastRemoteResized.CausedByLocalPrimary, "Other peer caused the resize, not us.");
+        Assert.IsNotNull(lastRemoteResized);
+        Assert.AreEqual(120, lastRemoteResized!.Width);
+        Assert.AreEqual(40, lastRemoteResized.Height);
+        Assert.IsFalse(lastRemoteResized.CausedByLocalPrimary, "Other peer caused the resize, not us.");
 
         // Disconnect the other peer to drive OnPeerLeft.
         await otherHandle.DisposeAsync();
         await otherAdapter.DisposeAsync();
 
         await WaitUntilAsync(() => peerLeftCount >= 1, ShortTimeout, () => "OnPeerLeft never fired");
-        Assert.NotNull(capturedPeerLeft);
+        Assert.IsNotNull(capturedPeerLeft);
 
         // Tear down our terminal — drives OnDisconnected.
         await ctsRun.CancelAsync();
@@ -274,7 +275,7 @@ public class Hmp1ClientOptionsTests
         await WaitUntilAsync(() => disconnectedCount >= 1, ShortTimeout, () => "OnDisconnected never fired");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Builder_OptionsCallback_NullHooksAreTolerated()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -301,13 +302,13 @@ public class Hmp1ClientOptionsTests
         // No assertions on events — the goal is just to prove that calling
         // WithHmp1Stream(stream, opt => { ... }) with every event hook left
         // null doesn't throw during build, connect, or read-pump shutdown.
-        Assert.NotNull(handle);
+        Assert.IsNotNull(handle);
 
         await ctsRun.CancelAsync();
         try { await runTask.WaitAsync(ShortTimeout); } catch (OperationCanceledException) { }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Builder_OptionsCallback_NullConfigureSucceeds()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -328,7 +329,7 @@ public class Hmp1ClientOptionsTests
         var handle = await addTask.WaitAsync(ShortTimeout);
         await using var handleDispose = handle;
 
-        Assert.NotNull(handle);
+        Assert.IsNotNull(handle);
 
         await ctsRun.CancelAsync();
         try { await runTask.WaitAsync(ShortTimeout); } catch (OperationCanceledException) { }
@@ -344,7 +345,7 @@ public class Hmp1ClientOptionsTests
             if (predicate()) return;
             await Task.Delay(10);
         }
-        throw new Xunit.Sdk.XunitException($"Timed out waiting: {describeFailure()}");
+        throw new AssertFailedException($"Timed out waiting: {describeFailure()}");
     }
 
     private static (Stream S1, Stream S2) CreateFullDuplexPair()

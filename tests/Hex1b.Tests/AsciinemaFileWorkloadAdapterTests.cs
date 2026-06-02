@@ -1,9 +1,9 @@
 using System.Text;
 using Hex1b;
-using Xunit;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AsciinemaFileWorkloadAdapterTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -38,7 +38,7 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         return filePath;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_WithValidFilePath_CreatesAdapter()
     {
         // Arrange
@@ -49,34 +49,34 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await using var adapter = new AsciinemaFileWorkloadAdapter(filePath);
 
         // Assert
-        Assert.NotNull(adapter);
+        Assert.IsNotNull(adapter);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithNullFilePath_ThrowsArgumentException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new AsciinemaFileWorkloadAdapter(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new AsciinemaFileWorkloadAdapter(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithEmptyFilePath_ThrowsArgumentException()
     {
         // Act & Assert
-        Assert.Throws<ArgumentException>(() => new AsciinemaFileWorkloadAdapter(""));
+        Assert.ThrowsExactly<ArgumentException>(() => new AsciinemaFileWorkloadAdapter(""));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsync_WithNonexistentFile_ThrowsFileNotFoundException()
     {
         // Arrange
         await using var adapter = new AsciinemaFileWorkloadAdapter("/nonexistent/file.cast");
 
         // Act & Assert
-        await Assert.ThrowsAsync<FileNotFoundException>(async () => await adapter.StartAsync());
+        await Assert.ThrowsExactlyAsync<FileNotFoundException>(async () => await adapter.StartAsync());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsync_CalledTwice_ThrowsInvalidOperationException()
     {
         // Arrange
@@ -88,10 +88,10 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await adapter.StartAsync();
 
         // Assert
-        await Assert.ThrowsAsync<InvalidOperationException>(async () => await adapter.StartAsync());
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await adapter.StartAsync());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_ReadsEventsFromFile()
     {
         // Arrange
@@ -112,7 +112,7 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         Assert.Contains("Hello, World!", text1);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_RespectsTimingDelays()
     {
         // Arrange
@@ -128,20 +128,19 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         // Read first event (at 0.0s)
         await Task.Delay(100);
         var output1 = await adapter.ReadOutputAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(output1.ToArray());
+        Assert.IsNotEmpty(output1.ToArray());
 
         // Read second event (at 0.5s, should have ~500ms delay)
         var output2 = await adapter.ReadOutputAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(output2.ToArray());
+        Assert.IsNotEmpty(output2.ToArray());
 
         var elapsed = DateTime.UtcNow - startTime;
 
         // Should have taken at least 400ms (allowing some margin)
-        Assert.True(elapsed.TotalMilliseconds >= 400, 
-            $"Expected at least 400ms delay, got {elapsed.TotalMilliseconds}ms");
+        Assert.IsTrue(elapsed.TotalMilliseconds >= 400, $"Expected at least 400ms delay, got {elapsed.TotalMilliseconds}ms");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SpeedMultiplier_AffectsPlaybackSpeed()
     {
         // Arrange
@@ -160,20 +159,19 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         // Read events
         await Task.Delay(50);
         var output1 = await adapter.ReadOutputAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(output1.ToArray());
+        Assert.IsNotEmpty(output1.ToArray());
 
         var output2 = await adapter.ReadOutputAsync(TestContext.Current.CancellationToken);
-        Assert.NotEmpty(output2.ToArray());
+        Assert.IsNotEmpty(output2.ToArray());
 
         var elapsed = DateTime.UtcNow - startTime;
 
         // At 2x speed, 0.5s delay should take ~250ms
         // Allow some margin (should be less than 400ms)
-        Assert.True(elapsed.TotalMilliseconds < 400,
-            $"Expected less than 400ms at 2x speed, got {elapsed.TotalMilliseconds}ms");
+        Assert.IsTrue(elapsed.TotalMilliseconds < 400, $"Expected less than 400ms at 2x speed, got {elapsed.TotalMilliseconds}ms");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SpeedMultiplier_SetToZero_ThrowsArgumentOutOfRangeException()
     {
         // Arrange
@@ -181,10 +179,10 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await using var adapter = new AsciinemaFileWorkloadAdapter(filePath);
 
         // Act & Assert
-        Assert.Throws<ArgumentOutOfRangeException>(() => adapter.SpeedMultiplier = 0);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => adapter.SpeedMultiplier = 0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SpeedMultiplier_SetToNegative_ThrowsArgumentOutOfRangeException()
     {
         // Arrange
@@ -192,10 +190,10 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await using var adapter = new AsciinemaFileWorkloadAdapter(filePath);
 
         // Act & Assert
-        Assert.Throws<ArgumentOutOfRangeException>(() => adapter.SpeedMultiplier = -1.0);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => adapter.SpeedMultiplier = -1.0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Width_Height_ReadFromHeader()
     {
         // Arrange
@@ -208,11 +206,11 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await Task.Delay(100); // Give time to read header
 
         // Assert
-        Assert.Equal(80, adapter.Width);
-        Assert.Equal(24, adapter.Height);
+        Assert.AreEqual(80, adapter.Width);
+        Assert.AreEqual(24, adapter.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Disconnected_FiredWhenPlaybackCompletes()
     {
         // Arrange
@@ -241,10 +239,10 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await Task.Delay(200);
 
         // Assert
-        Assert.True(disconnectedFired);
+        Assert.IsTrue(disconnectedFired);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WriteInputAsync_DoesNotThrow()
     {
         // Arrange
@@ -256,7 +254,7 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await adapter.WriteInputAsync(Encoding.UTF8.GetBytes("test"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_DoesNotThrow()
     {
         // Arrange
@@ -268,7 +266,7 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
         await adapter.ResizeAsync(100, 40);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DisposeAsync_StopsPlayback()
     {
         // Arrange
@@ -284,6 +282,6 @@ public class AsciinemaFileWorkloadAdapterTests : IDisposable
 
         // Assert - subsequent reads should return empty
         var output = await adapter.ReadOutputAsync(TestContext.Current.CancellationToken);
-        Assert.True(output.IsEmpty);
+        Assert.IsTrue(output.IsEmpty);
     }
 }

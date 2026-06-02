@@ -1,24 +1,13 @@
-<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="MSTest.Sdk/4.2.3">
 
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
-    <!-- Suppress xUnit analyzer recommendations (not bugs):
-         xUnit1031: blocking task operations
-         xUnit1051: CancellationToken usage -->
-    <NoWarn>xUnit1031;xUnit1051</NoWarn>
     <IsPackable>false</IsPackable>
-    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
   </PropertyGroup>
-
-  <ItemGroup>
-    <PackageReference Include="coverlet.collector" Version="6.0.2" />
-    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.12.0" />
-    <PackageReference Include="xunit.v3" Version="3.2.1" />
-    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
-  </ItemGroup>
 
   <ItemGroup>
     <!-- Reference the demo so we can drive its widgets directly.
@@ -28,7 +17,6 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Using Include="Xunit" />
     <Using Include="Hex1b.Automation" />
   </ItemGroup>
 

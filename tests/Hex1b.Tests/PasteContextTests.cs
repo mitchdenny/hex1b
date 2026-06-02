@@ -2,9 +2,10 @@ using Hex1b.Input;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class PasteContextTests
 {
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_SmallText_ReturnsFullText()
     {
         await using var ctx = new PasteContext();
@@ -12,20 +13,20 @@ public class PasteContextTests
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("hello", text);
+        Assert.AreEqual("hello", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_EmptyPaste_ReturnsEmptyString()
     {
         await using var ctx = new PasteContext();
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("", text);
+        Assert.AreEqual("", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_SingleChar_ReturnsSingleChar()
     {
         await using var ctx = new PasteContext();
@@ -33,10 +34,10 @@ public class PasteContextTests
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("x", text);
+        Assert.AreEqual("x", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_MultiLine_PreservesNewlines()
     {
         await using var ctx = new PasteContext();
@@ -44,10 +45,10 @@ public class PasteContextTests
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("line1\nline2\r\nline3\ttab", text);
+        Assert.AreEqual("line1\nline2\r\nline3\ttab", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_UnicodeEmoji_PreservesContent()
     {
         await using var ctx = new PasteContext();
@@ -55,21 +56,20 @@ public class PasteContextTests
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("hello 🌍 世界 🎉", text);
+        Assert.AreEqual("hello 🌍 世界 🎉", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_ExceedsMaxBytes_Throws()
     {
         await using var ctx = new PasteContext();
         ctx.TryWrite(new string('a', 100));
         ctx.Complete();
 
-        await Assert.ThrowsAsync<InvalidOperationException>(
-            () => ctx.ReadToEndAsync(maxCharacters: 50));
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => ctx.ReadToEndAsync(maxCharacters: 50));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_MultipleChunks_ConcatenatesAll()
     {
         await using var ctx = new PasteContext();
@@ -79,10 +79,10 @@ public class PasteContextTests
         ctx.Complete();
 
         var text = await ctx.ReadToEndAsync();
-        Assert.Equal("hello world!", text);
+        Assert.AreEqual("hello world!", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadChunks_ReceivesIncrementally()
     {
         await using var ctx = new PasteContext();
@@ -99,13 +99,13 @@ public class PasteContextTests
             chunks.Add(chunk);
         }
 
-        Assert.Equal(3, chunks.Count);
-        Assert.Equal("chunk1", chunks[0]);
-        Assert.Equal("chunk2", chunks[1]);
-        Assert.Equal("chunk3", chunks[2]);
+        Assert.AreEqual(3, chunks.Count);
+        Assert.AreEqual("chunk1", chunks[0]);
+        Assert.AreEqual("chunk2", chunks[1]);
+        Assert.AreEqual("chunk3", chunks[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_SplitsCorrectly()
     {
         await using var ctx = new PasteContext();
@@ -118,13 +118,13 @@ public class PasteContextTests
             lines.Add(line);
         }
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_HandlesCarriageReturnLineFeed()
     {
         await using var ctx = new PasteContext();
@@ -137,13 +137,13 @@ public class PasteContextTests
             lines.Add(line);
         }
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyToAsync_WritesToStream()
     {
         await using var ctx = new PasteContext();
@@ -156,10 +156,10 @@ public class PasteContextTests
         ms.Position = 0;
         using var reader = new StreamReader(ms);
         var text = await reader.ReadToEndAsync();
-        Assert.Equal("hello world", text);
+        Assert.AreEqual("hello world", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SaveToFile_CreatesFile()
     {
         var tempPath = Path.GetTempFileName();
@@ -172,7 +172,7 @@ public class PasteContextTests
             await ctx.SaveToFileAsync(tempPath);
 
             var content = await File.ReadAllTextAsync(tempPath);
-            Assert.Equal("file content", content);
+            Assert.AreEqual("file content", content);
         }
         finally
         {
@@ -180,7 +180,7 @@ public class PasteContextTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Cancel_StopsReading()
     {
         await using var ctx = new PasteContext();
@@ -194,21 +194,21 @@ public class PasteContextTests
         }
 
         // Should get at most the chunk that was written before cancel
-        Assert.True(chunks.Count <= 1);
+        Assert.IsTrue(chunks.Count <= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void Cancel_SignalsCancellationToken()
     {
         var ctx = new PasteContext();
         try
         {
-            Assert.False(ctx.CancellationToken.IsCancellationRequested);
+            Assert.IsFalse(ctx.CancellationToken.IsCancellationRequested);
 
             ctx.Cancel();
 
-            Assert.True(ctx.CancellationToken.IsCancellationRequested);
-            Assert.True(ctx.IsCancelled);
+            Assert.IsTrue(ctx.CancellationToken.IsCancellationRequested);
+            Assert.IsTrue(ctx.IsCancelled);
         }
         finally
         {
@@ -216,19 +216,19 @@ public class PasteContextTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Completed_SignaledOnComplete()
     {
         await using var ctx = new PasteContext();
-        Assert.False(ctx.IsCompleted);
+        Assert.IsFalse(ctx.IsCompleted);
 
         ctx.Complete();
 
         await ctx.Completed; // Should not hang
-        Assert.True(ctx.IsCompleted);
+        Assert.IsTrue(ctx.IsCompleted);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Completed_SignaledOnCancel()
     {
         await using var ctx = new PasteContext();
@@ -236,46 +236,46 @@ public class PasteContextTests
         ctx.Cancel();
 
         await ctx.Completed; // Should not hang
-        Assert.True(ctx.IsCancelled);
+        Assert.IsTrue(ctx.IsCancelled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Dispose_CompletesContext()
     {
         var ctx = new PasteContext();
         await ctx.DisposeAsync();
 
-        Assert.True(ctx.IsCancelled);
+        Assert.IsTrue(ctx.IsCancelled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WriteAsync_AfterCancel_ReturnsFalse()
     {
         await using var ctx = new PasteContext();
         ctx.Cancel();
 
         var written = await ctx.WriteAsync("should not write");
-        Assert.False(written);
+        Assert.IsFalse(written);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WriteAsync_AfterComplete_ReturnsFalse()
     {
         await using var ctx = new PasteContext();
         ctx.Complete();
 
         var written = await ctx.WriteAsync("should not write");
-        Assert.False(written);
+        Assert.IsFalse(written);
     }
 
-    [Fact]
+    [TestMethod]
     public void TryWrite_AfterCancel_ReturnsFalse()
     {
         var ctx = new PasteContext();
         try
         {
             ctx.Cancel();
-            Assert.False(ctx.TryWrite("should not write"));
+            Assert.IsFalse(ctx.TryWrite("should not write"));
         }
         finally
         {
@@ -283,27 +283,27 @@ public class PasteContextTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Cancel_Idempotent()
     {
         await using var ctx = new PasteContext();
         ctx.Cancel();
         ctx.Cancel(); // Should not throw
 
-        Assert.True(ctx.IsCancelled);
+        Assert.IsTrue(ctx.IsCancelled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Complete_Idempotent()
     {
         await using var ctx = new PasteContext();
         ctx.Complete();
         ctx.Complete(); // Should not throw
 
-        Assert.True(ctx.IsCompleted);
+        Assert.IsTrue(ctx.IsCompleted);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Invalidate_CalledWhenProvided()
     {
         int invalidateCount = 0;
@@ -312,10 +312,10 @@ public class PasteContextTests
         ctx.Invalidate();
         ctx.Invalidate();
 
-        Assert.Equal(2, invalidateCount);
+        Assert.AreEqual(2, invalidateCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadToEnd_CancelledDuringRead_ThrowsOrReturnsPartial()
     {
         await using var ctx = new PasteContext();
@@ -333,7 +333,7 @@ public class PasteContextTests
         {
             var text = await ctx.ReadToEndAsync();
             // If it returns, it should have the data written before cancel
-            Assert.Equal("hello", text);
+            Assert.AreEqual("hello", text);
         }
         catch (OperationCanceledException)
         {
@@ -341,7 +341,7 @@ public class PasteContextTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadChunks_StreamsAsDataArrives()
     {
         await using var ctx = new PasteContext();
@@ -363,12 +363,12 @@ public class PasteContextTests
 
         await readTask;
 
-        Assert.Equal(2, receivedChunks.Count);
-        Assert.Equal("chunk1", receivedChunks[0]);
-        Assert.Equal("chunk2", receivedChunks[1]);
+        Assert.AreEqual(2, receivedChunks.Count);
+        Assert.AreEqual("chunk1", receivedChunks[0]);
+        Assert.AreEqual("chunk2", receivedChunks[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_AcrossChunks_MergesCorrectly()
     {
         await using var ctx = new PasteContext();
@@ -384,8 +384,8 @@ public class PasteContextTests
             lines.Add(line);
         }
 
-        Assert.Equal(2, lines.Count);
-        Assert.Equal("hello", lines[0]);
-        Assert.Equal("world", lines[1]);
+        Assert.AreEqual(2, lines.Count);
+        Assert.AreEqual("hello", lines[0]);
+        Assert.AreEqual("world", lines[1]);
     }
 }

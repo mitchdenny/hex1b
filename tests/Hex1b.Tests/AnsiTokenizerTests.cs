@@ -2,890 +2,859 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AnsiTokenizerTests
 {
     #region Basic Text Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_EmptyString_ReturnsEmptyList()
     {
         var result = AnsiTokenizer.Tokenize("");
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_NullString_ReturnsEmptyList()
     {
         var result = AnsiTokenizer.Tokenize(null!);
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_PlainText_ReturnsSingleTextToken()
     {
         var result = AnsiTokenizer.Tokenize("Hello, World!");
 
-        var token = Assert.Single(result);
-        var textToken = Assert.IsType<TextToken>(token);
-        Assert.Equal("Hello, World!", textToken.Text);
+        var token = TestSeq.Single(result);
+        var textToken = TestSeq.IsType<TextToken>(token);
+        Assert.AreEqual("Hello, World!", textToken.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ConsecutiveTextAndControlChars_BatchesTextCorrectly()
     {
         var result = AnsiTokenizer.Tokenize("Hello\nWorld");
 
-        Assert.Collection(result,
-            t => Assert.Equal("Hello", Assert.IsType<TextToken>(t).Text),
-            t => Assert.Same(ControlCharacterToken.LineFeed, t),
-            t => Assert.Equal("World", Assert.IsType<TextToken>(t).Text));
+        TestSeq.Collection(result, t => Assert.AreEqual("Hello", TestSeq.IsType<TextToken>(t).Text), t => Assert.AreSame(ControlCharacterToken.LineFeed, t), t => Assert.AreEqual("World", TestSeq.IsType<TextToken>(t).Text));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_UnicodeEmoji_PreservesGraphemeClusters()
     {
         // Family emoji is a complex grapheme cluster
         var result = AnsiTokenizer.Tokenize("Hello 👨‍👩‍👧 World");
 
-        var token = Assert.Single(result);
-        var textToken = Assert.IsType<TextToken>(token);
-        Assert.Equal("Hello 👨‍👩‍👧 World", textToken.Text);
+        var token = TestSeq.Single(result);
+        var textToken = TestSeq.IsType<TextToken>(token);
+        Assert.AreEqual("Hello 👨‍👩‍👧 World", textToken.Text);
     }
 
     #endregion
 
     #region Control Character Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_LineFeed_ReturnsLineFeedToken()
     {
         var result = AnsiTokenizer.Tokenize("\n");
 
-        var token = Assert.Single(result);
-        Assert.Same(ControlCharacterToken.LineFeed, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(ControlCharacterToken.LineFeed, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CarriageReturn_ReturnsCarriageReturnToken()
     {
         var result = AnsiTokenizer.Tokenize("\r");
 
-        var token = Assert.Single(result);
-        Assert.Same(ControlCharacterToken.CarriageReturn, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(ControlCharacterToken.CarriageReturn, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_Tab_ReturnsTabToken()
     {
         var result = AnsiTokenizer.Tokenize("\t");
 
-        var token = Assert.Single(result);
-        Assert.Same(ControlCharacterToken.Tab, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(ControlCharacterToken.Tab, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CrLf_ReturnsTwoTokens()
     {
         var result = AnsiTokenizer.Tokenize("\r\n");
 
-        Assert.Collection(result,
-            t => Assert.Same(ControlCharacterToken.CarriageReturn, t),
-            t => Assert.Same(ControlCharacterToken.LineFeed, t));
+        TestSeq.Collection(result, t => Assert.AreSame(ControlCharacterToken.CarriageReturn, t), t => Assert.AreSame(ControlCharacterToken.LineFeed, t));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MultipleNewlines_ReturnsSeparateTokens()
     {
         var result = AnsiTokenizer.Tokenize("\n\n\n");
 
-        Assert.Equal(3, result.Count);
-        Assert.All(result, t => Assert.Same(ControlCharacterToken.LineFeed, t));
+        Assert.AreEqual(3, result.Count);
+        TestSeq.All(result, t => Assert.AreSame(ControlCharacterToken.LineFeed, t));
     }
 
     #endregion
 
     #region SGR Token Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SgrReset_ReturnsSgrToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[0m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("0", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("0", sgrToken.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SgrEmpty_ReturnsSgrTokenWithEmptyParams()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("", sgrToken.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SgrBold_ReturnsSgrToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("1", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("1", sgrToken.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SgrMultipleParams_PreservesAllParams()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1;31;42m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("1;31;42", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("1;31;42", sgrToken.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_Sgr256Color_PreservesParams()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[38;5;196m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("38;5;196", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("38;5;196", sgrToken.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SgrRgbColor_PreservesParams()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[38;2;255;128;64m");
 
-        var token = Assert.Single(result);
-        var sgrToken = Assert.IsType<SgrToken>(token);
-        Assert.Equal("38;2;255;128;64", sgrToken.Parameters);
+        var token = TestSeq.Single(result);
+        var sgrToken = TestSeq.IsType<SgrToken>(token);
+        Assert.AreEqual("38;2;255;128;64", sgrToken.Parameters);
     }
 
     #endregion
 
     #region Cursor Position Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorPositionDefault_ReturnsOneOne()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[H");
 
-        var token = Assert.Single(result);
-        var posToken = Assert.IsType<CursorPositionToken>(token);
-        Assert.Equal(1, posToken.Row);
-        Assert.Equal(1, posToken.Column);
+        var token = TestSeq.Single(result);
+        var posToken = TestSeq.IsType<CursorPositionToken>(token);
+        Assert.AreEqual(1, posToken.Row);
+        Assert.AreEqual(1, posToken.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorPositionExplicit_ReturnsCorrectPosition()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[10;20H");
 
-        var token = Assert.Single(result);
-        var posToken = Assert.IsType<CursorPositionToken>(token);
-        Assert.Equal(10, posToken.Row);
-        Assert.Equal(20, posToken.Column);
+        var token = TestSeq.Single(result);
+        var posToken = TestSeq.IsType<CursorPositionToken>(token);
+        Assert.AreEqual(10, posToken.Row);
+        Assert.AreEqual(20, posToken.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorPositionRowOnly_ReturnsRowWithDefaultColumn()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[5H");
 
-        var token = Assert.Single(result);
-        var posToken = Assert.IsType<CursorPositionToken>(token);
-        Assert.Equal(5, posToken.Row);
-        Assert.Equal(1, posToken.Column);
+        var token = TestSeq.Single(result);
+        var posToken = TestSeq.IsType<CursorPositionToken>(token);
+        Assert.AreEqual(5, posToken.Row);
+        Assert.AreEqual(1, posToken.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorPositionWithF_SameAsH()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[10;20f");
 
-        var token = Assert.Single(result);
-        var posToken = Assert.IsType<CursorPositionToken>(token);
-        Assert.Equal(10, posToken.Row);
-        Assert.Equal(20, posToken.Column);
+        var token = TestSeq.Single(result);
+        var posToken = TestSeq.IsType<CursorPositionToken>(token);
+        Assert.AreEqual(10, posToken.Row);
+        Assert.AreEqual(20, posToken.Column);
     }
 
     #endregion
 
     #region Clear Screen Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearScreenDefault_ReturnsClearToEnd()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[J");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearScreenToken>(token);
-        Assert.Equal(ClearMode.ToEnd, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearScreenToken>(token);
+        Assert.AreEqual(ClearMode.ToEnd, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearScreenToEnd_ReturnsClearToEnd()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[0J");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearScreenToken>(token);
-        Assert.Equal(ClearMode.ToEnd, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearScreenToken>(token);
+        Assert.AreEqual(ClearMode.ToEnd, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearScreenToStart_ReturnsClearToStart()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1J");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearScreenToken>(token);
-        Assert.Equal(ClearMode.ToStart, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearScreenToken>(token);
+        Assert.AreEqual(ClearMode.ToStart, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearScreenAll_ReturnsClearAll()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[2J");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearScreenToken>(token);
-        Assert.Equal(ClearMode.All, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearScreenToken>(token);
+        Assert.AreEqual(ClearMode.All, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearScreenAllAndScrollback_ReturnsClearAllAndScrollback()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[3J");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearScreenToken>(token);
-        Assert.Equal(ClearMode.AllAndScrollback, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearScreenToken>(token);
+        Assert.AreEqual(ClearMode.AllAndScrollback, clearToken.Mode);
     }
 
     #endregion
 
     #region Clear Line Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearLineDefault_ReturnsClearToEnd()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[K");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearLineToken>(token);
-        Assert.Equal(ClearMode.ToEnd, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearLineToken>(token);
+        Assert.AreEqual(ClearMode.ToEnd, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearLineToEnd_ReturnsClearToEnd()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[0K");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearLineToken>(token);
-        Assert.Equal(ClearMode.ToEnd, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearLineToken>(token);
+        Assert.AreEqual(ClearMode.ToEnd, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearLineToStart_ReturnsClearToStart()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1K");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearLineToken>(token);
-        Assert.Equal(ClearMode.ToStart, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearLineToken>(token);
+        Assert.AreEqual(ClearMode.ToStart, clearToken.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearLineAll_ReturnsClearAll()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[2K");
 
-        var token = Assert.Single(result);
-        var clearToken = Assert.IsType<ClearLineToken>(token);
-        Assert.Equal(ClearMode.All, clearToken.Mode);
+        var token = TestSeq.Single(result);
+        var clearToken = TestSeq.IsType<ClearLineToken>(token);
+        Assert.AreEqual(ClearMode.All, clearToken.Mode);
     }
 
     #endregion
 
     #region Private Mode Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_AlternateScreenEnable_ReturnsPrivateModeToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1049h");
 
-        var token = Assert.Single(result);
-        var pmToken = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1049, pmToken.Mode);
-        Assert.True(pmToken.Enable);
+        var token = TestSeq.Single(result);
+        var pmToken = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1049, pmToken.Mode);
+        Assert.IsTrue(pmToken.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_AlternateScreenDisable_ReturnsPrivateModeToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1049l");
 
-        var token = Assert.Single(result);
-        var pmToken = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1049, pmToken.Mode);
-        Assert.False(pmToken.Enable);
+        var token = TestSeq.Single(result);
+        var pmToken = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1049, pmToken.Mode);
+        Assert.IsFalse(pmToken.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorVisible_ReturnsPrivateModeToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?25h");
 
-        var token = Assert.Single(result);
-        var pmToken = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(25, pmToken.Mode);
-        Assert.True(pmToken.Enable);
+        var token = TestSeq.Single(result);
+        var pmToken = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(25, pmToken.Mode);
+        Assert.IsTrue(pmToken.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorHidden_ReturnsPrivateModeToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?25l");
 
-        var token = Assert.Single(result);
-        var pmToken = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(25, pmToken.Mode);
-        Assert.False(pmToken.Enable);
+        var token = TestSeq.Single(result);
+        var pmToken = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(25, pmToken.Mode);
+        Assert.IsFalse(pmToken.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MultiplePrivateModesEnable_EmitsTokenPerMode()
     {
         // edit.exe sends this to enable mouse tracking + SGR mouse + bracketed paste
         var result = AnsiTokenizer.Tokenize("\x1b[?1002;1006;2004h");
 
-        Assert.Equal(3, result.Count);
-        var pm0 = Assert.IsType<PrivateModeToken>(result[0]);
-        Assert.Equal(1002, pm0.Mode);
-        Assert.True(pm0.Enable);
-        var pm1 = Assert.IsType<PrivateModeToken>(result[1]);
-        Assert.Equal(1006, pm1.Mode);
-        Assert.True(pm1.Enable);
-        var pm2 = Assert.IsType<PrivateModeToken>(result[2]);
-        Assert.Equal(2004, pm2.Mode);
-        Assert.True(pm2.Enable);
+        Assert.AreEqual(3, result.Count);
+        var pm0 = TestSeq.IsType<PrivateModeToken>(result[0]);
+        Assert.AreEqual(1002, pm0.Mode);
+        Assert.IsTrue(pm0.Enable);
+        var pm1 = TestSeq.IsType<PrivateModeToken>(result[1]);
+        Assert.AreEqual(1006, pm1.Mode);
+        Assert.IsTrue(pm1.Enable);
+        var pm2 = TestSeq.IsType<PrivateModeToken>(result[2]);
+        Assert.AreEqual(2004, pm2.Mode);
+        Assert.IsTrue(pm2.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MultiplePrivateModesDisable_EmitsTokenPerMode()
     {
         // edit.exe cleanup sequence
         var result = AnsiTokenizer.Tokenize("\x1b[?1002;1006;2004l");
 
-        Assert.Equal(3, result.Count);
-        var pm0 = Assert.IsType<PrivateModeToken>(result[0]);
-        Assert.Equal(1002, pm0.Mode);
-        Assert.False(pm0.Enable);
-        var pm1 = Assert.IsType<PrivateModeToken>(result[1]);
-        Assert.Equal(1006, pm1.Mode);
-        Assert.False(pm1.Enable);
-        var pm2 = Assert.IsType<PrivateModeToken>(result[2]);
-        Assert.Equal(2004, pm2.Mode);
-        Assert.False(pm2.Enable);
+        Assert.AreEqual(3, result.Count);
+        var pm0 = TestSeq.IsType<PrivateModeToken>(result[0]);
+        Assert.AreEqual(1002, pm0.Mode);
+        Assert.IsFalse(pm0.Enable);
+        var pm1 = TestSeq.IsType<PrivateModeToken>(result[1]);
+        Assert.AreEqual(1006, pm1.Mode);
+        Assert.IsFalse(pm1.Enable);
+        var pm2 = TestSeq.IsType<PrivateModeToken>(result[2]);
+        Assert.AreEqual(2004, pm2.Mode);
+        Assert.IsFalse(pm2.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_TwoPrivateModesEnable_EmitsTokenPerMode()
     {
         // Common pattern: alt screen + cursor hide
         var result = AnsiTokenizer.Tokenize("\x1b[?1049;25h");
 
-        Assert.Equal(2, result.Count);
-        Assert.Equal(1049, Assert.IsType<PrivateModeToken>(result[0]).Mode);
-        Assert.Equal(25, Assert.IsType<PrivateModeToken>(result[1]).Mode);
+        Assert.AreEqual(2, result.Count);
+        Assert.AreEqual(1049, TestSeq.IsType<PrivateModeToken>(result[0]).Mode);
+        Assert.AreEqual(25, TestSeq.IsType<PrivateModeToken>(result[1]).Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MultipleStandardModesEnable_EmitsTokenPerMode()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[4;20h");
 
-        Assert.Equal(2, result.Count);
-        var sm0 = Assert.IsType<StandardModeToken>(result[0]);
-        Assert.Equal(4, sm0.Mode);
-        Assert.True(sm0.Enable);
-        var sm1 = Assert.IsType<StandardModeToken>(result[1]);
-        Assert.Equal(20, sm1.Mode);
-        Assert.True(sm1.Enable);
+        Assert.AreEqual(2, result.Count);
+        var sm0 = TestSeq.IsType<StandardModeToken>(result[0]);
+        Assert.AreEqual(4, sm0.Mode);
+        Assert.IsTrue(sm0.Enable);
+        var sm1 = TestSeq.IsType<StandardModeToken>(result[1]);
+        Assert.AreEqual(20, sm1.Mode);
+        Assert.IsTrue(sm1.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MouseTrackingModes_AllRecognized()
     {
         // Verify all mouse tracking private modes are correctly tokenized
         var result1000 = AnsiTokenizer.Tokenize("\x1b[?1000h");
-        Assert.Equal(1000, Assert.IsType<PrivateModeToken>(Assert.Single(result1000)).Mode);
+        Assert.AreEqual(1000, TestSeq.IsType<PrivateModeToken>(TestSeq.Single(result1000)).Mode);
 
         var result1002 = AnsiTokenizer.Tokenize("\x1b[?1002h");
-        Assert.Equal(1002, Assert.IsType<PrivateModeToken>(Assert.Single(result1002)).Mode);
+        Assert.AreEqual(1002, TestSeq.IsType<PrivateModeToken>(TestSeq.Single(result1002)).Mode);
 
         var result1003 = AnsiTokenizer.Tokenize("\x1b[?1003h");
-        Assert.Equal(1003, Assert.IsType<PrivateModeToken>(Assert.Single(result1003)).Mode);
+        Assert.AreEqual(1003, TestSeq.IsType<PrivateModeToken>(TestSeq.Single(result1003)).Mode);
 
         var result1006 = AnsiTokenizer.Tokenize("\x1b[?1006h");
-        Assert.Equal(1006, Assert.IsType<PrivateModeToken>(Assert.Single(result1006)).Mode);
+        Assert.AreEqual(1006, TestSeq.IsType<PrivateModeToken>(TestSeq.Single(result1006)).Mode);
     }
 
     #endregion
 
     #region Cursor Shape Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeDefault_ReturnsDefaultToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[0q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.Default, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.Default, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeBlinkingBlock_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.BlinkingBlock, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.BlinkingBlock, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeSteadyBlock_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[2q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.SteadyBlock, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.SteadyBlock, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeBlinkingUnderline_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[3q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.BlinkingUnderline, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.BlinkingUnderline, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeSteadyUnderline_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[4q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.SteadyUnderline, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.SteadyUnderline, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeBlinkingBar_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[5q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.BlinkingBar, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.BlinkingBar, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_CursorShapeSteadyBar_ReturnsCorrectToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[6q");
 
-        var token = Assert.Single(result);
-        Assert.Same(CursorShapeToken.SteadyBar, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(CursorShapeToken.SteadyBar, token);
     }
 
     #endregion
 
     #region Scroll Region Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ScrollRegionReset_ReturnsResetToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[r");
 
-        var token = Assert.Single(result);
-        Assert.Same(ScrollRegionToken.Reset, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(ScrollRegionToken.Reset, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ScrollRegionExplicit_ReturnsCorrectRegion()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[5;20r");
 
-        var token = Assert.Single(result);
-        var scrollToken = Assert.IsType<ScrollRegionToken>(token);
-        Assert.Equal(5, scrollToken.Top);
-        Assert.Equal(20, scrollToken.Bottom);
+        var token = TestSeq.Single(result);
+        var scrollToken = TestSeq.IsType<ScrollRegionToken>(token);
+        Assert.AreEqual(5, scrollToken.Top);
+        Assert.AreEqual(20, scrollToken.Bottom);
     }
 
     #endregion
 
     #region Save/Restore Cursor Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SaveCursorAnsi_ReturnsAnsiToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[s");
 
-        var token = Assert.Single(result);
-        Assert.Same(SaveCursorToken.Ansi, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(SaveCursorToken.Ansi, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_RestoreCursorAnsi_ReturnsAnsiToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[u");
 
-        var token = Assert.Single(result);
-        Assert.Same(RestoreCursorToken.Ansi, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(RestoreCursorToken.Ansi, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SaveCursorDec_ReturnsDecToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b" + "7");
 
-        var token = Assert.Single(result);
-        Assert.Same(SaveCursorToken.Dec, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(SaveCursorToken.Dec, token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_RestoreCursorDec_ReturnsDecToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b" + "8");
 
-        var token = Assert.Single(result);
-        Assert.Same(RestoreCursorToken.Dec, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(RestoreCursorToken.Dec, token);
     }
 
     #endregion
 
     #region OSC Token Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscHyperlinkWithBel_ReturnsOscToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x07");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("", oscToken.Parameters);
-        Assert.Equal("https://example.com", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("", oscToken.Parameters);
+        Assert.AreEqual("https://example.com", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscHyperlinkWithST_ReturnsOscToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x1b\\");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("https://example.com", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("https://example.com", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscHyperlinkWithParams_PreservesParams()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]8;id=mylink;https://example.com\x07");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("id=mylink", oscToken.Parameters);
-        Assert.Equal("https://example.com", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("id=mylink", oscToken.Parameters);
+        Assert.AreEqual("https://example.com", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscHyperlinkEnd_ReturnsOscWithEmptyPayload()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]8;;\x07");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("", oscToken.Parameters);
-        Assert.Equal("", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("", oscToken.Parameters);
+        Assert.AreEqual("", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscWithC1Start_ReturnsOscToken()
     {
         var result = AnsiTokenizer.Tokenize("\x9d" + "8;;https://example.com\x07");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("https://example.com", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("https://example.com", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscWithC1Terminator_ReturnsOscToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x9c");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("8", oscToken.Command);
-        Assert.Equal("https://example.com", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("8", oscToken.Command);
+        Assert.AreEqual("https://example.com", oscToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_OscWindowTitle_ReturnsOscToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b]0;My Window Title\x07");
 
-        var token = Assert.Single(result);
-        var oscToken = Assert.IsType<OscToken>(token);
-        Assert.Equal("0", oscToken.Command);
-        Assert.Equal("My Window Title", oscToken.Payload);
+        var token = TestSeq.Single(result);
+        var oscToken = TestSeq.IsType<OscToken>(token);
+        Assert.AreEqual("0", oscToken.Command);
+        Assert.AreEqual("My Window Title", oscToken.Payload);
     }
 
     #endregion
 
     #region DCS Token Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_DcsSequence_ReturnsDcsToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1bPq#0;2;0;0;0\x1b\\");
 
-        var token = Assert.Single(result);
-        var dcsToken = Assert.IsType<DcsToken>(token);
-        Assert.Equal("q#0;2;0;0;0", dcsToken.Payload);
+        var token = TestSeq.Single(result);
+        var dcsToken = TestSeq.IsType<DcsToken>(token);
+        Assert.AreEqual("q#0;2;0;0;0", dcsToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_DcsWithC1Start_ReturnsDcsToken()
     {
         var result = AnsiTokenizer.Tokenize("\x90q#0;2;0;0;0\x1b\\");
 
-        var token = Assert.Single(result);
-        var dcsToken = Assert.IsType<DcsToken>(token);
-        Assert.Equal("q#0;2;0;0;0", dcsToken.Payload);
+        var token = TestSeq.Single(result);
+        var dcsToken = TestSeq.IsType<DcsToken>(token);
+        Assert.AreEqual("q#0;2;0;0;0", dcsToken.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_DcsWithC1Terminator_ReturnsDcsToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1bPq#0;2;0;0;0\x9c");
 
-        var token = Assert.Single(result);
-        var dcsToken = Assert.IsType<DcsToken>(token);
-        Assert.Equal("q#0;2;0;0;0", dcsToken.Payload);
+        var token = TestSeq.Single(result);
+        var dcsToken = TestSeq.IsType<DcsToken>(token);
+        Assert.AreEqual("q#0;2;0;0;0", dcsToken.Payload);
     }
 
     #endregion
 
     #region Unrecognized Sequence Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_UnrecognizedEscapeSequence_ReturnsUnrecognizedToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1bX");
 
-        var token = Assert.Single(result);
-        var unrecToken = Assert.IsType<UnrecognizedSequenceToken>(token);
-        Assert.Equal("\x1bX", unrecToken.Sequence);
+        var token = TestSeq.Single(result);
+        var unrecToken = TestSeq.IsType<UnrecognizedSequenceToken>(token);
+        Assert.AreEqual("\x1bX", unrecToken.Sequence);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_IncompleteEscapeSequence_ReturnsUnrecognizedToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b");
 
-        var token = Assert.Single(result);
-        var unrecToken = Assert.IsType<UnrecognizedSequenceToken>(token);
-        Assert.Equal("\x1b", unrecToken.Sequence);
+        var token = TestSeq.Single(result);
+        var unrecToken = TestSeq.IsType<UnrecognizedSequenceToken>(token);
+        Assert.AreEqual("\x1b", unrecToken.Sequence);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_UnknownCsiCommand_ReturnsUnrecognizedToken()
     {
         // Use CSI W which is not a standard command
         var result = AnsiTokenizer.Tokenize("\x1b[5W");
 
-        var token = Assert.Single(result);
-        var unrecToken = Assert.IsType<UnrecognizedSequenceToken>(token);
-        Assert.Equal("\x1b[5W", unrecToken.Sequence);
+        var token = TestSeq.Single(result);
+        var unrecToken = TestSeq.IsType<UnrecognizedSequenceToken>(token);
+        Assert.AreEqual("\x1b[5W", unrecToken.Sequence);
     }
     
-    [Fact]
+    [TestMethod]
     public void Tokenize_BackTab_ReturnsBackTabToken()
     {
         // CSI Z is Shift+Tab (Backtab)
         var result = AnsiTokenizer.Tokenize("\x1b[Z");
 
-        var token = Assert.Single(result);
-        Assert.Same(BackTabToken.Instance, token);
+        var token = TestSeq.Single(result);
+        Assert.AreSame(BackTabToken.Instance, token);
     }
 
     #endregion
 
     #region Complex Sequence Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ColoredText_ReturnsCorrectTokenSequence()
     {
         // ESC[31m (red) + "Hello" + ESC[0m (reset)
         var result = AnsiTokenizer.Tokenize("\x1b[31mHello\x1b[0m");
 
-        Assert.Collection(result,
-            t => Assert.Equal("31", Assert.IsType<SgrToken>(t).Parameters),
-            t => Assert.Equal("Hello", Assert.IsType<TextToken>(t).Text),
-            t => Assert.Equal("0", Assert.IsType<SgrToken>(t).Parameters));
+        TestSeq.Collection(result, t => Assert.AreEqual("31", TestSeq.IsType<SgrToken>(t).Parameters), t => Assert.AreEqual("Hello", TestSeq.IsType<TextToken>(t).Text), t => Assert.AreEqual("0", TestSeq.IsType<SgrToken>(t).Parameters));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_PositionedText_ReturnsCorrectTokenSequence()
     {
         // ESC[5;10H + "Hello"
         var result = AnsiTokenizer.Tokenize("\x1b[5;10HHello");
 
-        Assert.Collection(result,
-            t =>
+        TestSeq.Collection(result, t =>
             {
-                var pos = Assert.IsType<CursorPositionToken>(t);
-                Assert.Equal(5, pos.Row);
-                Assert.Equal(10, pos.Column);
-            },
-            t => Assert.Equal("Hello", Assert.IsType<TextToken>(t).Text));
+                var pos = TestSeq.IsType<CursorPositionToken>(t);
+                Assert.AreEqual(5, pos.Row);
+                Assert.AreEqual(10, pos.Column);
+            }, t => Assert.AreEqual("Hello", TestSeq.IsType<TextToken>(t).Text));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MultiLineOutput_ReturnsCorrectSequence()
     {
         var result = AnsiTokenizer.Tokenize("Line 1\r\nLine 2\r\nLine 3");
 
-        Assert.Collection(result,
-            t => Assert.Equal("Line 1", Assert.IsType<TextToken>(t).Text),
-            t => Assert.Same(ControlCharacterToken.CarriageReturn, t),
-            t => Assert.Same(ControlCharacterToken.LineFeed, t),
-            t => Assert.Equal("Line 2", Assert.IsType<TextToken>(t).Text),
-            t => Assert.Same(ControlCharacterToken.CarriageReturn, t),
-            t => Assert.Same(ControlCharacterToken.LineFeed, t),
-            t => Assert.Equal("Line 3", Assert.IsType<TextToken>(t).Text));
+        TestSeq.Collection(result, t => Assert.AreEqual("Line 1", TestSeq.IsType<TextToken>(t).Text), t => Assert.AreSame(ControlCharacterToken.CarriageReturn, t), t => Assert.AreSame(ControlCharacterToken.LineFeed, t), t => Assert.AreEqual("Line 2", TestSeq.IsType<TextToken>(t).Text), t => Assert.AreSame(ControlCharacterToken.CarriageReturn, t), t => Assert.AreSame(ControlCharacterToken.LineFeed, t), t => Assert.AreEqual("Line 3", TestSeq.IsType<TextToken>(t).Text));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_HyperlinkWithText_ReturnsCorrectSequence()
     {
         // Start hyperlink, text, end hyperlink
         var result = AnsiTokenizer.Tokenize("\x1b]8;;https://example.com\x07" + "Click here\x1b]8;;\x07");
 
-        Assert.Collection(result,
-            t =>
+        TestSeq.Collection(result, t =>
             {
-                var osc = Assert.IsType<OscToken>(t);
-                Assert.Equal("8", osc.Command);
-                Assert.Equal("https://example.com", osc.Payload);
-            },
-            t => Assert.Equal("Click here", Assert.IsType<TextToken>(t).Text),
-            t =>
+                var osc = TestSeq.IsType<OscToken>(t);
+                Assert.AreEqual("8", osc.Command);
+                Assert.AreEqual("https://example.com", osc.Payload);
+            }, t => Assert.AreEqual("Click here", TestSeq.IsType<TextToken>(t).Text), t =>
             {
-                var osc = Assert.IsType<OscToken>(t);
-                Assert.Equal("8", osc.Command);
-                Assert.Equal("", osc.Payload);
+                var osc = TestSeq.IsType<OscToken>(t);
+                Assert.AreEqual("8", osc.Command);
+                Assert.AreEqual("", osc.Payload);
             });
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_ClearAndPosition_ReturnsCorrectSequence()
     {
         // Clear screen + position cursor + write text
         var result = AnsiTokenizer.Tokenize("\x1b[2J\x1b[1;1HWelcome");
 
-        Assert.Collection(result,
-            t =>
+        TestSeq.Collection(result, t =>
             {
-                var clear = Assert.IsType<ClearScreenToken>(t);
-                Assert.Equal(ClearMode.All, clear.Mode);
-            },
-            t =>
+                var clear = TestSeq.IsType<ClearScreenToken>(t);
+                Assert.AreEqual(ClearMode.All, clear.Mode);
+            }, t =>
             {
-                var pos = Assert.IsType<CursorPositionToken>(t);
-                Assert.Equal(1, pos.Row);
-                Assert.Equal(1, pos.Column);
-            },
-            t => Assert.Equal("Welcome", Assert.IsType<TextToken>(t).Text));
+                var pos = TestSeq.IsType<CursorPositionToken>(t);
+                Assert.AreEqual(1, pos.Row);
+                Assert.AreEqual(1, pos.Column);
+            }, t => Assert.AreEqual("Welcome", TestSeq.IsType<TextToken>(t).Text));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_AlternateScreenSequence_ReturnsCorrectSequence()
     {
         // Enter alternate screen + clear + text + exit alternate screen
         var result = AnsiTokenizer.Tokenize("\x1b[?1049h\x1b[2JHello\x1b[?1049l");
 
-        Assert.Collection(result,
-            t =>
+        TestSeq.Collection(result, t =>
             {
-                var pm = Assert.IsType<PrivateModeToken>(t);
-                Assert.Equal(1049, pm.Mode);
-                Assert.True(pm.Enable);
-            },
-            t => Assert.IsType<ClearScreenToken>(t),
-            t => Assert.Equal("Hello", Assert.IsType<TextToken>(t).Text),
-            t =>
+                var pm = TestSeq.IsType<PrivateModeToken>(t);
+                Assert.AreEqual(1049, pm.Mode);
+                Assert.IsTrue(pm.Enable);
+            }, t => TestSeq.IsType<ClearScreenToken>(t), t => Assert.AreEqual("Hello", TestSeq.IsType<TextToken>(t).Text), t =>
             {
-                var pm = Assert.IsType<PrivateModeToken>(t);
-                Assert.Equal(1049, pm.Mode);
-                Assert.False(pm.Enable);
+                var pm = TestSeq.IsType<PrivateModeToken>(t);
+                Assert.AreEqual(1049, pm.Mode);
+                Assert.IsFalse(pm.Enable);
             });
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SaveRestoreCursor_ReturnsCorrectSequence()
     {
         // Save cursor, move, restore cursor
         var result = AnsiTokenizer.Tokenize("\x1b" + "7\x1b[10;20H\x1b" + "8");
 
-        Assert.Collection(result,
-            t => Assert.Same(SaveCursorToken.Dec, t),
-            t =>
+        TestSeq.Collection(result, t => Assert.AreSame(SaveCursorToken.Dec, t), t =>
             {
-                var pos = Assert.IsType<CursorPositionToken>(t);
-                Assert.Equal(10, pos.Row);
-                Assert.Equal(20, pos.Column);
-            },
-            t => Assert.Same(RestoreCursorToken.Dec, t));
+                var pos = TestSeq.IsType<CursorPositionToken>(t);
+                Assert.AreEqual(10, pos.Row);
+                Assert.AreEqual(20, pos.Column);
+            }, t => Assert.AreSame(RestoreCursorToken.Dec, t));
     }
 
     #endregion
 
     #region Edge Cases
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_TrailingEscape_ReturnsUnrecognizedToken()
     {
         var result = AnsiTokenizer.Tokenize("Hello\x1b");
 
-        Assert.Collection(result,
-            t => Assert.Equal("Hello", Assert.IsType<TextToken>(t).Text),
-            t => Assert.IsType<UnrecognizedSequenceToken>(t));
+        TestSeq.Collection(result, t => Assert.AreEqual("Hello", TestSeq.IsType<TextToken>(t).Text), t => TestSeq.IsType<UnrecognizedSequenceToken>(t));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_IncompleteCsi_ReturnsUnrecognizedToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[123");
 
-        var token = Assert.Single(result);
-        Assert.IsType<UnrecognizedSequenceToken>(token);
+        var token = TestSeq.Single(result);
+        TestSeq.IsType<UnrecognizedSequenceToken>(token);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_IncompleteOsc_ReturnsText()
     {
         // OSC without terminator - should not be parsed as OSC
@@ -894,27 +863,25 @@ public class AnsiTokenizerTests
 
         // Since there's no terminator, the OSC parsing fails
         // and we get an unrecognized sequence for the ESC ]
-        Assert.True(result.Count >= 1);
+        Assert.IsTrue(result.Count >= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_EmptyGrapheme_HandledCorrectly()
     {
         var result = AnsiTokenizer.Tokenize("");
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MixedSgrAndClear_ReturnsCorrectSequence()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[1;31m\x1b[2K");
 
-        Assert.Collection(result,
-            t => Assert.Equal("1;31", Assert.IsType<SgrToken>(t).Parameters),
-            t =>
+        TestSeq.Collection(result, t => Assert.AreEqual("1;31", TestSeq.IsType<SgrToken>(t).Parameters), t =>
             {
-                var clear = Assert.IsType<ClearLineToken>(t);
-                Assert.Equal(ClearMode.All, clear.Mode);
+                var clear = TestSeq.IsType<ClearLineToken>(t);
+                Assert.AreEqual(ClearMode.All, clear.Mode);
             });
     }
 
@@ -922,73 +889,73 @@ public class AnsiTokenizerTests
 
     #region DECSLRM Tests
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_DECSLRM_WithParameters_ReturnsLeftRightMarginToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[91;178s");
 
-        var token = Assert.Single(result);
-        var lrmToken = Assert.IsType<LeftRightMarginToken>(token);
-        Assert.Equal(91, lrmToken.Left);
-        Assert.Equal(178, lrmToken.Right);
+        var token = TestSeq.Single(result);
+        var lrmToken = TestSeq.IsType<LeftRightMarginToken>(token);
+        Assert.AreEqual(91, lrmToken.Left);
+        Assert.AreEqual(178, lrmToken.Right);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_SaveCursor_WithNoParameters_ReturnsSaveCursorToken()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[s");
 
-        var token = Assert.Single(result);
-        Assert.IsType<SaveCursorToken>(token);
+        var token = TestSeq.Single(result);
+        TestSeq.IsType<SaveCursorToken>(token);
     }
 
     #endregion
 
     #region Arrow Key With Modifiers Tests
 
-    [Theory]
-    [InlineData("\x1b[A", CursorMoveDirection.Up)]
-    [InlineData("\x1b[B", CursorMoveDirection.Down)]
-    [InlineData("\x1b[C", CursorMoveDirection.Forward)]
-    [InlineData("\x1b[D", CursorMoveDirection.Back)]
+    [TestMethod]
+    [DataRow("\x1b[A", CursorMoveDirection.Up)]
+    [DataRow("\x1b[B", CursorMoveDirection.Down)]
+    [DataRow("\x1b[C", CursorMoveDirection.Forward)]
+    [DataRow("\x1b[D", CursorMoveDirection.Back)]
     public void Tokenize_PlainArrowKey_ReturnsCursorMoveToken(string input, CursorMoveDirection expectedDirection)
     {
         var result = AnsiTokenizer.Tokenize(input);
 
-        var token = Assert.Single(result);
-        var moveToken = Assert.IsType<CursorMoveToken>(token);
-        Assert.Equal(expectedDirection, moveToken.Direction);
-        Assert.Equal(1, moveToken.Count);
+        var token = TestSeq.Single(result);
+        var moveToken = TestSeq.IsType<CursorMoveToken>(token);
+        Assert.AreEqual(expectedDirection, moveToken.Direction);
+        Assert.AreEqual(1, moveToken.Count);
     }
 
-    [Theory]
-    [InlineData("\x1b[1;2D", CursorMoveDirection.Back, 2)]   // Shift+Left
-    [InlineData("\x1b[1;5D", CursorMoveDirection.Back, 5)]   // Ctrl+Left
-    [InlineData("\x1b[1;2C", CursorMoveDirection.Forward, 2)] // Shift+Right
-    [InlineData("\x1b[1;5C", CursorMoveDirection.Forward, 5)] // Ctrl+Right
-    [InlineData("\x1b[1;3A", CursorMoveDirection.Up, 3)]     // Alt+Up
-    [InlineData("\x1b[1;6B", CursorMoveDirection.Down, 6)]   // Shift+Ctrl+Down
+    [TestMethod]
+    [DataRow("\x1b[1;2D", CursorMoveDirection.Back, 2)]   // Shift+Left
+    [DataRow("\x1b[1;5D", CursorMoveDirection.Back, 5)]   // Ctrl+Left
+    [DataRow("\x1b[1;2C", CursorMoveDirection.Forward, 2)] // Shift+Right
+    [DataRow("\x1b[1;5C", CursorMoveDirection.Forward, 5)] // Ctrl+Right
+    [DataRow("\x1b[1;3A", CursorMoveDirection.Up, 3)]     // Alt+Up
+    [DataRow("\x1b[1;6B", CursorMoveDirection.Down, 6)]   // Shift+Ctrl+Down
     public void Tokenize_ArrowKeyWithModifiers_ReturnsArrowKeyToken(string input, CursorMoveDirection expectedDirection, int expectedModifiers)
     {
         var result = AnsiTokenizer.Tokenize(input);
 
-        var token = Assert.Single(result);
-        var arrowToken = Assert.IsType<ArrowKeyToken>(token);
-        Assert.Equal(expectedDirection, arrowToken.Direction);
-        Assert.Equal(expectedModifiers, arrowToken.Modifiers);
+        var token = TestSeq.Single(result);
+        var arrowToken = TestSeq.IsType<ArrowKeyToken>(token);
+        Assert.AreEqual(expectedDirection, arrowToken.Direction);
+        Assert.AreEqual(expectedModifiers, arrowToken.Modifiers);
     }
 
-    [Theory]
-    [InlineData("\x1b[5A", CursorMoveDirection.Up, 5)]    // Move up 5 lines (no modifiers)
-    [InlineData("\x1b[10C", CursorMoveDirection.Forward, 10)] // Move right 10 columns (no modifiers)
+    [TestMethod]
+    [DataRow("\x1b[5A", CursorMoveDirection.Up, 5)]    // Move up 5 lines (no modifiers)
+    [DataRow("\x1b[10C", CursorMoveDirection.Forward, 10)] // Move right 10 columns (no modifiers)
     public void Tokenize_CursorMoveWithCount_ReturnsCursorMoveToken(string input, CursorMoveDirection expectedDirection, int expectedCount)
     {
         var result = AnsiTokenizer.Tokenize(input);
 
-        var token = Assert.Single(result);
-        var moveToken = Assert.IsType<CursorMoveToken>(token);
-        Assert.Equal(expectedDirection, moveToken.Direction);
-        Assert.Equal(expectedCount, moveToken.Count);
+        var token = TestSeq.Single(result);
+        var moveToken = TestSeq.IsType<CursorMoveToken>(token);
+        Assert.AreEqual(expectedDirection, moveToken.Direction);
+        Assert.AreEqual(expectedCount, moveToken.Count);
     }
 
     #endregion

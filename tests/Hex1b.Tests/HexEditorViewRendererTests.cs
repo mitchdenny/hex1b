@@ -4,111 +4,112 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class HexEditorViewRendererTests
 {
     // ═══════════════════════════════════════════════════════════
     // SECTION 1: Layout calculation — fluid mode (no snap points)
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(15, 1)]   // Absolute minimum: "XXXXXXXX  XX  ." = 4*1+11=15
-    [InlineData(16, 1)]   // 1 byte still (4*2+11=19 needed for 2)
-    [InlineData(19, 2)]   // 4*2+11=19 → 2 bytes
-    [InlineData(22, 2)]   // 4*3+11=23 needed for 3
-    [InlineData(23, 3)]   // 4*3+11=23 → 3 bytes
-    [InlineData(27, 4)]   // 4*4+11=27 → 4 bytes
-    [InlineData(43, 8)]   // 4*8+11=43 → 8 bytes
-    [InlineData(75, 16)]  // 4*16+11=75 → 16 bytes
-    [InlineData(200, 16)] // Capped at MaxBytesPerRow=16
+    [TestMethod]
+    [DataRow(15, 1)]   // Absolute minimum: "XXXXXXXX  XX  ." = 4*1+11=15
+    [DataRow(16, 1)]   // 1 byte still (4*2+11=19 needed for 2)
+    [DataRow(19, 2)]   // 4*2+11=19 → 2 bytes
+    [DataRow(22, 2)]   // 4*3+11=23 needed for 3
+    [DataRow(23, 3)]   // 4*3+11=23 → 3 bytes
+    [DataRow(27, 4)]   // 4*4+11=27 → 4 bytes
+    [DataRow(43, 8)]   // 4*8+11=43 → 8 bytes
+    [DataRow(75, 16)]  // 4*16+11=75 → 16 bytes
+    [DataRow(200, 16)] // Capped at MaxBytesPerRow=16
     public void CalculateLayout_Fluid_ReturnsExpectedBytesPerRow(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer(); // fluid (no snap points)
         var bytesPerRow = renderer.CalculateLayout(width);
 
-        Assert.Equal(expectedBytes, bytesPerRow);
+        Assert.AreEqual(expectedBytes, bytesPerRow);
     }
 
-    [Theory]
-    [InlineData(10)]  // Below absolute minimum (15)
-    [InlineData(14)]
+    [TestMethod]
+    [DataRow(10)]  // Below absolute minimum (15)
+    [DataRow(14)]
     public void CalculateLayout_BelowMinimum_Returns1Byte(int width)
     {
         var renderer = new HexEditorViewRenderer();
         var bytesPerRow = renderer.CalculateLayout(width);
-        Assert.Equal(1, bytesPerRow);
+        Assert.AreEqual(1, bytesPerRow);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 2: Layout calculation — snap points
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(15, 1)]   // Only 1 fits → snap to 1
-    [InlineData(43, 8)]   // (43-11)/4=8 → snap to 8
-    [InlineData(44, 8)]   // still 8
-    [InlineData(75, 16)]  // (75-11)/4=16 → snap to 16
-    [InlineData(76, 16)]  // still 16
+    [TestMethod]
+    [DataRow(15, 1)]   // Only 1 fits → snap to 1
+    [DataRow(43, 8)]   // (43-11)/4=8 → snap to 8
+    [DataRow(44, 8)]   // still 8
+    [DataRow(75, 16)]  // (75-11)/4=16 → snap to 16
+    [DataRow(76, 16)]  // still 16
     public void CalculateLayout_StandardSnaps_SnapsCorrectly(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = HexEditorViewRenderer.StandardSnaps };
         var bytesPerRow = renderer.CalculateLayout(width);
-        Assert.Equal(expectedBytes, bytesPerRow);
+        Assert.AreEqual(expectedBytes, bytesPerRow);
     }
 
-    [Theory]
-    [InlineData(15, 1)]
-    [InlineData(19, 2)]
-    [InlineData(23, 2)]   // 3 bytes fit but snap down to 2
-    [InlineData(27, 4)]   // 4*4+11=27
-    [InlineData(43, 8)]   // (43-11)/4=8 → snap to 8
-    [InlineData(44, 8)]
-    [InlineData(75, 16)]
+    [TestMethod]
+    [DataRow(15, 1)]
+    [DataRow(19, 2)]
+    [DataRow(23, 2)]   // 3 bytes fit but snap down to 2
+    [DataRow(27, 4)]   // 4*4+11=27
+    [DataRow(43, 8)]   // (43-11)/4=8 → snap to 8
+    [DataRow(44, 8)]
+    [DataRow(75, 16)]
     public void CalculateLayout_PowerOfTwoSnaps_SnapsCorrectly(int width, int expectedBytes)
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = HexEditorViewRenderer.PowerOfTwoSnaps };
         var bytesPerRow = renderer.CalculateLayout(width);
-        Assert.Equal(expectedBytes, bytesPerRow);
+        Assert.AreEqual(expectedBytes, bytesPerRow);
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_CustomSnaps_RoundsToNearest()
     {
         var renderer = new HexEditorViewRenderer { SnapPoints = [1, 6, 12], MaxBytesPerRow = 12 };
         // width 35 → (35-11)/4=6 → snap to 6
         var bytes6 = renderer.CalculateLayout(35);
-        Assert.Equal(6, bytes6);
+        Assert.AreEqual(6, bytes6);
 
         // width 42 → (42-11)/4=7 → snap to 6 (7 > 6, 7 < 12)
         var bytes6b = renderer.CalculateLayout(42);
-        Assert.Equal(6, bytes6b);
+        Assert.AreEqual(6, bytes6b);
 
         // width 59 → (59-11)/4=12 → snap to 12
         var bytes12 = renderer.CalculateLayout(59);
-        Assert.Equal(12, bytes12);
+        Assert.AreEqual(12, bytes12);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 3: Min/Max constraints
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_MinBytesPerRow_NeverGoesBelowMin()
     {
         var renderer = new HexEditorViewRenderer { MinBytesPerRow = 4 };
         // Even at narrow widths where only 2 fit, clamp to 4
         var bytesPerRow = renderer.CalculateLayout(19); // 2 bytes would fit
-        Assert.Equal(4, bytesPerRow);
+        Assert.AreEqual(4, bytesPerRow);
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_MaxBytesPerRow_CapsAtMax()
     {
         var renderer = new HexEditorViewRenderer { MaxBytesPerRow = 8 };
         var bytesPerRow = renderer.CalculateLayout(200); // 16+ would fit
-        Assert.Equal(8, bytesPerRow);
+        Assert.AreEqual(8, bytesPerRow);
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_SnapPointsWithMinMax_RespectsAll()
     {
         var renderer = new HexEditorViewRenderer
@@ -119,18 +120,18 @@ public class HexEditorViewRendererTests
         };
         // Very narrow: snap to 1, but min is 2 → 2
         var narrow = renderer.CalculateLayout(15);
-        Assert.Equal(2, narrow);
+        Assert.AreEqual(2, narrow);
 
         // Wide: would snap to 16, but max is 8 → 8
         var wide = renderer.CalculateLayout(200);
-        Assert.Equal(8, wide);
+        Assert.AreEqual(8, wide);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 4: GetTotalLines depends on viewport width
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void GetTotalLines_WideViewport_FewerRows()
     {
         // 32 bytes of content
@@ -139,54 +140,53 @@ public class HexEditorViewRendererTests
 
         // At width 75 → 16 bytes/row → ceil(32/16)=2 rows
         var wideLines = renderer.GetTotalLines(doc, 75);
-        Assert.Equal(2, wideLines);
+        Assert.AreEqual(2, wideLines);
 
         // At width 43 → 8 bytes/row → ceil(32/8)=4 rows
         var narrowLines = renderer.GetTotalLines(doc, 43);
-        Assert.Equal(4, narrowLines);
+        Assert.AreEqual(4, narrowLines);
 
         // At width 15 → 1 byte/row → 32 rows
         var tinyLines = renderer.GetTotalLines(doc, 15);
-        Assert.Equal(32, tinyLines);
+        Assert.AreEqual(32, tinyLines);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 5: GetMaxLineWidth never exceeds viewport (no h-scroll)
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(15)]
-    [InlineData(30)]
-    [InlineData(50)]
-    [InlineData(80)]
-    [InlineData(120)]
+    [TestMethod]
+    [DataRow(15)]
+    [DataRow(30)]
+    [DataRow(50)]
+    [DataRow(80)]
+    [DataRow(120)]
     public void GetMaxLineWidth_NeverExceedsViewportWidth(int viewportWidth)
     {
         var doc = new Hex1bDocument("Hello, World! This is a test of the hex editor.");
         var renderer = new HexEditorViewRenderer();
         var maxWidth = renderer.GetMaxLineWidth(doc, 1, 10, viewportWidth);
-        Assert.True(maxWidth <= viewportWidth,
-            $"Max line width {maxWidth} should not exceed viewport width {viewportWidth}");
+        Assert.IsTrue(maxWidth <= viewportWidth, $"Max line width {maxWidth} should not exceed viewport width {viewportWidth}");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 6: Row format verification
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_MinimumWidth_ProducesExpectedFormat()
     {
         // "XXXXXXXX  XX  ." = 15 chars for 1 byte
         var renderer = new HexEditorViewRenderer();
         var bytesPerRow = renderer.CalculateLayout(15);
-        Assert.Equal(1, bytesPerRow);
+        Assert.AreEqual(1, bytesPerRow);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 7: Fluid mode fills continuously
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_Fluid_BytesIncreaseGradually()
     {
         var renderer = new HexEditorViewRenderer();
@@ -194,12 +194,12 @@ public class HexEditorViewRendererTests
         for (int w = 15; w <= 80; w++)
         {
             var bytes = renderer.CalculateLayout(w);
-            Assert.True(bytes >= prev, $"Bytes should not decrease: was {prev} at width {w - 1}, got {bytes} at width {w}");
+            Assert.IsTrue(bytes >= prev, $"Bytes should not decrease: was {prev} at width {w - 1}, got {bytes} at width {w}");
             prev = bytes;
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateLayout_SnapPoints_BytesNeverBetweenSnaps()
     {
         var snaps = new[] { 1, 4, 8, 16 };
@@ -223,14 +223,14 @@ public class HexEditorViewRendererTests
         return (renderer, state);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandlesCharInput_IsTrue()
     {
         var renderer = new HexEditorViewRenderer();
-        Assert.True(renderer.HandlesCharInput);
+        Assert.IsTrue(renderer.HandlesCharInput);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_FirstNibble_StoresPending()
     {
         var (renderer, state) = SetupHexInput("AB");
@@ -238,13 +238,13 @@ public class HexEditorViewRendererTests
 
         var consumed = renderer.HandleCharInput('4', state, ref nibble, 80);
 
-        Assert.True(consumed);
-        Assert.Equal('4', nibble);
+        Assert.IsTrue(consumed);
+        Assert.AreEqual('4', nibble);
         // Document unchanged — still "AB"
-        Assert.Equal("AB", state.Document.GetText());
+        Assert.AreEqual("AB", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_SecondNibble_CommitsByte()
     {
         var (renderer, state) = SetupHexInput("AB");
@@ -252,45 +252,45 @@ public class HexEditorViewRendererTests
 
         var consumed = renderer.HandleCharInput('A', state, ref nibble, 80);
 
-        Assert.True(consumed);
-        Assert.Null(nibble);
+        Assert.IsTrue(consumed);
+        Assert.IsNull(nibble);
         // Byte 0x4A = 'J' replaces 'A' at position 0, cursor advances to pos 1
-        Assert.Equal("JB", state.Document.GetText());
-        Assert.Equal(1, state.Cursor.Position.Value);
+        Assert.AreEqual("JB", state.Document.GetText());
+        Assert.AreEqual(1, state.Cursor.Position.Value);
     }
 
-    [Theory]
-    [InlineData('0')]
-    [InlineData('9')]
-    [InlineData('a')]
-    [InlineData('f')]
-    [InlineData('A')]
-    [InlineData('F')]
+    [TestMethod]
+    [DataRow('0')]
+    [DataRow('9')]
+    [DataRow('a')]
+    [DataRow('f')]
+    [DataRow('A')]
+    [DataRow('F')]
     public void HandleCharInput_HexChars_AreConsumed(char c)
     {
         var (renderer, state) = SetupHexInput("X");
         char? nibble = null;
 
-        Assert.True(renderer.HandleCharInput(c, state, ref nibble, 80));
-        Assert.Equal(c, nibble);
+        Assert.IsTrue(renderer.HandleCharInput(c, state, ref nibble, 80));
+        Assert.AreEqual(c, nibble);
     }
 
-    [Theory]
-    [InlineData('g')]
-    [InlineData('G')]
-    [InlineData('z')]
-    [InlineData(' ')]
-    [InlineData('!')]
+    [TestMethod]
+    [DataRow('g')]
+    [DataRow('G')]
+    [DataRow('z')]
+    [DataRow(' ')]
+    [DataRow('!')]
     public void HandleCharInput_NonHexChars_NotConsumed(char c)
     {
         var (renderer, state) = SetupHexInput("X");
         char? nibble = null;
 
-        Assert.False(renderer.HandleCharInput(c, state, ref nibble, 80));
-        Assert.Null(nibble);
+        Assert.IsFalse(renderer.HandleCharInput(c, state, ref nibble, 80));
+        Assert.IsNull(nibble);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_NonHexChar_ClearsPendingNibble()
     {
         var (renderer, state) = SetupHexInput("X");
@@ -298,10 +298,10 @@ public class HexEditorViewRendererTests
 
         renderer.HandleCharInput('z', state, ref nibble, 80);
 
-        Assert.Null(nibble);
+        Assert.IsNull(nibble);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_TwoNibbles_ProducesCorrectByteValue()
     {
         // 0xFF is not valid as a single UTF-8 byte → becomes replacement char
@@ -312,10 +312,10 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('F', state, ref nibble, 80);
 
         // Single byte 0xFF is invalid UTF-8 → U+FFFD replacement
-        Assert.Equal('\uFFFD', state.Document.GetText()[0]);
+        Assert.AreEqual('\uFFFD', state.Document.GetText()[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_AtEndOfDocument_InsertsNewByte()
     {
         var (renderer, state) = SetupHexInput("A");
@@ -327,10 +327,10 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('2', state, ref nibble, 80);
 
         // 0x42 = 'B', appended after 'A'
-        Assert.Equal("AB", state.Document.GetText());
+        Assert.AreEqual("AB", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_CursorAdvancesAfterCommit()
     {
         var (renderer, state) = SetupHexInput("ABC");
@@ -339,17 +339,17 @@ public class HexEditorViewRendererTests
         // Edit first byte: 0x58 = 'X'
         renderer.HandleCharInput('5', state, ref nibble, 80);
         renderer.HandleCharInput('8', state, ref nibble, 80);
-        Assert.Equal(1, state.Cursor.Position.Value);
+        Assert.AreEqual(1, state.Cursor.Position.Value);
 
         // Edit second byte: 0x59 = 'Y'
         renderer.HandleCharInput('5', state, ref nibble, 80);
         renderer.HandleCharInput('9', state, ref nibble, 80);
-        Assert.Equal(2, state.Cursor.Position.Value);
+        Assert.AreEqual(2, state.Cursor.Position.Value);
 
-        Assert.Equal("XYC", state.Document.GetText());
+        Assert.AreEqual("XYC", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_LowercaseHex_WorksCorrectly()
     {
         // 0x41 = 'A' (valid ASCII byte)
@@ -359,10 +359,10 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('4', state, ref nibble, 80);
         renderer.HandleCharInput('1', state, ref nibble, 80);
 
-        Assert.Equal('A', state.Document.GetText()[0]);
+        Assert.AreEqual('A', state.Document.GetText()[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleCharInput_ReadOnly_DoesNotConsume()
     {
         var (renderer, state) = SetupHexInput("X");
@@ -371,9 +371,9 @@ public class HexEditorViewRendererTests
 
         var consumed = renderer.HandleCharInput('4', state, ref nibble, 80);
 
-        Assert.False(consumed);
-        Assert.Null(nibble);
-        Assert.Equal("X", state.Document.GetText());
+        Assert.IsFalse(consumed);
+        Assert.IsNull(nibble);
+        Assert.AreEqual("X", state.Document.GetText());
     }
 
     // ═══════════════════════════════════════════════════════════
@@ -395,18 +395,18 @@ public class HexEditorViewRendererTests
         return node;
     }
 
-    [Fact]
+    [TestMethod]
     public void TextEditorRenderer_HandlesCharInput_IsFalse()
     {
         IEditorViewRenderer renderer = TextEditorViewRenderer.Instance;
-        Assert.False(renderer.HandlesCharInput);
+        Assert.IsFalse(renderer.HandlesCharInput);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 10: Multi-byte byte-level editing
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_TwoByteChar_ReplacesFirstByte()
     {
         // © = C2 A9. Replace C2 with 41 → bytes become 41 A9.
@@ -420,10 +420,10 @@ public class HexEditorViewRendererTests
         var result = state.Document.GetText();
         // The bytes 41 A9 decoded as UTF-8: 'A' + invalid → "A\uFFFD"
         Assert.StartsWith("A", result);
-        Assert.Equal(2, result.Length); // 'A' + replacement char
+        Assert.AreEqual(2, result.Length); // 'A' + replacement char
     }
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_TwoByteChar_ReplacesSecondByte()
     {
         // "A©" = bytes 41 C2 A9. Cursor at char 1 (©), byte offset = 1.
@@ -436,10 +436,10 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('3', state, ref nibble, 80);
 
         // C3 A9 = é
-        Assert.Equal("Aé", state.Document.GetText());
+        Assert.AreEqual("Aé", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_BOM_ReplaceFirstByte()
     {
         // BOM = EF BB BF. Replace EF with 00 → bytes 00 BB BF
@@ -451,11 +451,11 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('0', state, ref nibble, 80);
 
         var result = state.Document.GetText();
-        Assert.Equal('\0', result[0]); // NUL byte
-        Assert.True(result.Length >= 2); // At least NUL + something from invalid bytes
+        Assert.AreEqual('\0', result[0]); // NUL byte
+        Assert.IsTrue(result.Length >= 2); // At least NUL + something from invalid bytes
     }
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_AsciiChar_StillWorks()
     {
         // Verify ASCII editing still works with the new CommitByte
@@ -466,11 +466,11 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('5', state, ref nibble, 80);
         renderer.HandleCharInput('8', state, ref nibble, 80);
 
-        Assert.Equal("XBC", state.Document.GetText());
-        Assert.Equal(1, state.Cursor.Position.Value); // Advanced past 'X'
+        Assert.AreEqual("XBC", state.Document.GetText());
+        Assert.AreEqual(1, state.Cursor.Position.Value); // Advanced past 'X'
     }
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_ArbitraryByte_PreservedExactly()
     {
         // Typing 0xAA in the hex editor must produce exactly byte 0xAA in the document.
@@ -482,18 +482,18 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('A', state, ref nibble, 80);
 
         var bytes = state.Document.GetBytes().ToArray();
-        Assert.Single(bytes);
-        Assert.Equal(0xAA, bytes[0]);
+        TestSeq.Single(bytes);
+        Assert.AreEqual(0xAA, bytes[0]);
     }
 
-    [Theory]
-    [InlineData(0x80)]  // Continuation byte
-    [InlineData(0xBF)]  // Continuation byte
-    [InlineData(0xC0)]  // Overlong
-    [InlineData(0xFE)]  // Invalid UTF-8
-    [InlineData(0xFF)]  // Invalid UTF-8
-    [InlineData(0x00)]  // Null byte
-    public void CommitByte_InvalidUtf8Byte_PreservedExactly(byte expected)
+    [TestMethod]
+    [DataRow(0x80)]  // Continuation byte
+    [DataRow(0xBF)]  // Continuation byte
+    [DataRow(0xC0)]  // Overlong
+    [DataRow(0xFE)]  // Invalid UTF-8
+    [DataRow(0xFF)]  // Invalid UTF-8
+    [DataRow(0x00)]  // Null byte
+    public void CommitByte_InvalidUtf8Byte_PreservedExactly(int expected)
     {
         var (renderer, state) = SetupHexInput("X");
         char? nibble = null;
@@ -504,11 +504,11 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput("0123456789ABCDEF"[lo], state, ref nibble, 80);
 
         var bytes = state.Document.GetBytes().ToArray();
-        Assert.Single(bytes);
-        Assert.Equal(expected, bytes[0]);
+        TestSeq.Single(bytes);
+        Assert.AreEqual((byte)expected, bytes[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void CommitByte_ByteAppendAtEnd_PreservedExactly()
     {
         // Append byte 0xAA at end of document
@@ -521,15 +521,15 @@ public class HexEditorViewRendererTests
         renderer.HandleCharInput('A', state, ref nibble, 80);
 
         var bytes = state.Document.GetBytes().ToArray();
-        Assert.Single(bytes);
-        Assert.Equal(0xAA, bytes[0]);
+        TestSeq.Single(bytes);
+        Assert.AreEqual(0xAA, bytes[0]);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 11: HitTest with multi-byte characters
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void HitTest_ContinuationByte_MapsToSameChar()
     {
         // "©B" = bytes C2 A9 42. Clicking byte 1 (A9) should map to char 0 (©), not char 1
@@ -546,11 +546,11 @@ public class HexEditorViewRendererTests
         var hexCol1 = 10 + 3; // hex start (10) + 1 byte * 3 chars = col 13
         var result = renderer.HitTest(hexCol1, 0, state, 80, 10, 1, 0);
 
-        Assert.NotNull(result);
-        Assert.Equal(0, result.Value.Value); // Should map to char 0 (©), not char 1 (B)
+        Assert.IsNotNull(result);
+        Assert.AreEqual(0, result.Value.Value); // Should map to char 0 (©), not char 1 (B)
     }
 
-    [Fact]
+    [TestMethod]
     public void HitTest_BOMThirdByte_MapsToCharZero()
     {
         // "\uFEFFX" = bytes EF BB BF 58. Byte 2 (BF) should map to char 0 (BOM)
@@ -562,15 +562,15 @@ public class HexEditorViewRendererTests
         var hexCol2 = 9 + 6;
         var result = renderer.HitTest(hexCol2, 0, state, 80, 10, 1, 0);
 
-        Assert.NotNull(result);
-        Assert.Equal(0, result.Value.Value); // Char 0 (BOM), not char 2
+        Assert.IsNotNull(result);
+        Assert.AreEqual(0, result.Value.Value); // Char 0 (BOM), not char 2
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 12: Cross-editor resilience
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void SharedDoc_HexDeleteShrinks_TextEditorCursorClamped()
     {
         // Two EditorStates sharing one document
@@ -580,21 +580,21 @@ public class HexEditorViewRendererTests
 
         // Move text editor cursor to end
         textState.MoveToDocumentEnd();
-        Assert.Equal(11, textState.Cursor.Position.Value);
+        Assert.AreEqual(11, textState.Cursor.Position.Value);
 
         // Hex editor selects all and deletes (simulating via document)
         hexState.SelectAll();
         hexState.DeleteForward();
 
         // Document is now empty
-        Assert.Equal(0, doc.Length);
+        Assert.AreEqual(0, doc.Length);
 
         // Text editor clamps its cursor
         textState.ClampAllCursors();
-        Assert.Equal(0, textState.Cursor.Position.Value);
+        Assert.AreEqual(0, textState.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void SharedDoc_HexReplacesMultibyte_TextEditorSurvives()
     {
         // Document with BOM followed by text
@@ -606,7 +606,7 @@ public class HexEditorViewRendererTests
         textState.MoveCursor(CursorDirection.Right);
         textState.MoveCursor(CursorDirection.Right);
         textState.MoveCursor(CursorDirection.Right);
-        Assert.Equal(3, textState.Cursor.Position.Value);
+        Assert.AreEqual(3, textState.Cursor.Position.Value);
 
         // Hex editor replaces the BOM byte — this changes the BOM char
         // to potentially multiple replacement chars, shifting everything
@@ -620,19 +620,19 @@ public class HexEditorViewRendererTests
 
         // Cursor should still be valid (not throw)
         var pos = textState.Cursor.Position.Value;
-        Assert.True(pos >= 0 && pos <= doc.Length);
+        Assert.IsTrue(pos >= 0 && pos <= doc.Length);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 13: Hex/ASCII column alignment
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(15)]    // 1 byte
-    [InlineData(19)]    // 2 bytes
-    [InlineData(27)]    // 4 bytes
-    [InlineData(43)]    // 8 bytes
-    [InlineData(75)]    // 16 bytes
+    [TestMethod]
+    [DataRow(15)]    // 1 byte
+    [DataRow(19)]    // 2 bytes
+    [DataRow(27)]    // 4 bytes
+    [DataRow(43)]    // 8 bytes
+    [DataRow(75)]    // 16 bytes
     public void ColumnMapping_AsciiColumnMatchesRenderedPosition(int viewportWidth)
     {
         var renderer = new HexEditorViewRenderer();
@@ -662,13 +662,11 @@ public class HexEditorViewRendererTests
             // Hex cell should contain the byte value
             var expectedHex = i.ToString("X2");
             var actualHex = line.Substring(hexCol, 2);
-            Assert.True(expectedHex == actualHex,
-                $"Byte {i}: hex at col {hexCol} should be '{expectedHex}' but got '{actualHex}'");
+            Assert.IsTrue(expectedHex == actualHex, $"Byte {i}: hex at col {hexCol} should be '{expectedHex}' but got '{actualHex}'");
 
             // ASCII cell should contain the corresponding letter
             var expectedAscii = (char)('a' + i);
-            Assert.True(expectedAscii == line[asciiCol],
-                $"Byte {i}: ASCII at col {asciiCol} should be '{expectedAscii}' but got '{line[asciiCol]}'");
+            Assert.IsTrue(expectedAscii == line[asciiCol], $"Byte {i}: ASCII at col {asciiCol} should be '{expectedAscii}' but got '{line[asciiCol]}'");
         }
     }
 
@@ -694,20 +692,20 @@ public class HexEditorViewRendererTests
     /// For any arbitrary byte written at position 0, the cursor must advance
     /// to byte 1 (not skip ahead due to UTF-8 re-encoding mismatch).
     /// </summary>
-    [Theory]
-    [InlineData(0x00)]
-    [InlineData(0x41)]  // 'A' — valid ASCII
-    [InlineData(0x7F)]  // DEL — valid ASCII
-    [InlineData(0x80)]  // Continuation byte
-    [InlineData(0xAA)]  // Continuation byte (the original bug)
-    [InlineData(0xBF)]  // Continuation byte
-    [InlineData(0xC0)]  // Overlong
-    [InlineData(0xC2)]  // Start of 2-byte seq (truncated)
-    [InlineData(0xE0)]  // Start of 3-byte seq (truncated)
-    [InlineData(0xF0)]  // Start of 4-byte seq (truncated)
-    [InlineData(0xFE)]  // Invalid
-    [InlineData(0xFF)]  // Invalid
-    public void CommitByte_CursorAdvancesToNextByte(byte byteValue)
+    [TestMethod]
+    [DataRow(0x00)]
+    [DataRow(0x41)]  // 'A' — valid ASCII
+    [DataRow(0x7F)]  // DEL — valid ASCII
+    [DataRow(0x80)]  // Continuation byte
+    [DataRow(0xAA)]  // Continuation byte (the original bug)
+    [DataRow(0xBF)]  // Continuation byte
+    [DataRow(0xC0)]  // Overlong
+    [DataRow(0xC2)]  // Start of 2-byte seq (truncated)
+    [DataRow(0xE0)]  // Start of 3-byte seq (truncated)
+    [DataRow(0xF0)]  // Start of 4-byte seq (truncated)
+    [DataRow(0xFE)]  // Invalid
+    [DataRow(0xFF)]  // Invalid
+    public void CommitByte_CursorAdvancesToNextByte(int byteValue)
     {
         // Start with "ABCD" (4 ASCII bytes), write byteValue at byte 0
         var doc = new Hex1bDocument("ABCD");
@@ -722,19 +720,19 @@ public class HexEditorViewRendererTests
 
         // The byte was written correctly
         var bytes = doc.GetBytes().ToArray();
-        Assert.Equal(byteValue, bytes[0]);
+        Assert.AreEqual(byteValue, bytes[0]);
 
         // Cursor should be at the char that owns byte 1, which is 'B' (unchanged)
         var map = new Utf8ByteMap(doc.GetBytes().Span);
         var (expectedCharIdx, _) = map.ByteToChar(1);
-        Assert.Equal(expectedCharIdx, state.Cursor.Position.Value);
+        Assert.AreEqual(expectedCharIdx, state.Cursor.Position.Value);
     }
 
     /// <summary>
     /// After writing an invalid byte, every subsequent byte should be reachable
     /// via sequential HitTest. Simulates clicking each hex cell in the first row.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void HitTest_AfterInvalidByteEdit_AllBytesReachable()
     {
         // Write 0xAA at byte 0 of "Hello" → bytes [AA 65 6C 6C 6F]
@@ -754,7 +752,7 @@ public class HexEditorViewRendererTests
             var hexCol = 10 + byteIdx * 3; // AddressWidth(8) + Sep(2) + byteIdx * 3
             var result = renderer.HitTest(hexCol, 0, state, 80, 10, 1, 0);
 
-            Assert.NotNull(result);
+            Assert.IsNotNull(result);
             // Map the char offset back to a byte to verify it's the right one
             var map = new Utf8ByteMap(doc.GetBytes().Span);
             var charIdx = result.Value.Value;
@@ -779,7 +777,7 @@ public class HexEditorViewRendererTests
     /// After writing multiple invalid bytes, cursor navigation via CommitByte
     /// visits each byte sequentially without skipping.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CommitByte_SequentialEdits_CursorVisitsEveryByte()
     {
         // Start with 4-byte ASCII doc, replace each byte with an invalid byte
@@ -798,20 +796,20 @@ public class HexEditorViewRendererTests
             // Verify cursor is at the char owning byte i before edit
             var mapBefore = new Utf8ByteMap(doc.GetBytes().Span);
             var (expectedChar, _) = mapBefore.ByteToChar(i);
-            Assert.Equal(expectedChar, state.Cursor.Position.Value);
+            Assert.AreEqual(expectedChar, state.Cursor.Position.Value);
 
             renderer.HandleCharInput("0123456789ABCDEF"[hi], state, ref nibble, 80);
             renderer.HandleCharInput("0123456789ABCDEF"[lo], state, ref nibble, 80);
         }
 
         // All 4 bytes should be exactly what we typed
-        Assert.Equal(targetBytes, doc.GetBytes().ToArray());
+        TestSeq.AreEqual(targetBytes, doc.GetBytes().ToArray());
     }
 
     /// <summary>
     /// Multi-byte character followed by invalid byte: cursor must not skip the invalid byte.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CommitByte_AfterMultibyteChar_CursorPositionCorrect()
     {
         // "©X" = bytes [C2 A9 58]. Replace byte 2 (X) with 0xBB
@@ -821,24 +819,24 @@ public class HexEditorViewRendererTests
 
         // Move cursor to char 1 (which is 'X', byte 2)
         state.MoveCursor(CursorDirection.Right);
-        Assert.Equal(1, state.Cursor.Position.Value);
+        Assert.AreEqual(1, state.Cursor.Position.Value);
 
         char? nibble = null;
         renderer.HandleCharInput('B', state, ref nibble, 80);
         renderer.HandleCharInput('B', state, ref nibble, 80);
 
         var bytes = doc.GetBytes().ToArray();
-        Assert.Equal(3, bytes.Length);
-        Assert.Equal(0xC2, bytes[0]); // © first byte unchanged
-        Assert.Equal(0xA9, bytes[1]); // © second byte unchanged
-        Assert.Equal(0xBB, bytes[2]); // replaced
+        Assert.AreEqual(3, bytes.Length);
+        Assert.AreEqual(0xC2, bytes[0]); // © first byte unchanged
+        Assert.AreEqual(0xA9, bytes[1]); // © second byte unchanged
+        Assert.AreEqual(0xBB, bytes[2]); // replaced
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 15: Byte-level navigation (HandleNavigation)
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Right_MovesByOneByte()
     {
         // "é" = C3 A9 (2 bytes), cursor starts at byte 0 (char 0)
@@ -850,12 +848,12 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
         var handled = renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
 
-        Assert.True(handled);
-        Assert.Equal(1, state.ByteCursorOffset); // now at byte 1
-        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 still maps to char 0 ("é")
+        Assert.IsTrue(handled);
+        Assert.AreEqual(1, state.ByteCursorOffset); // now at byte 1
+        Assert.AreEqual(0, state.Cursor.Position.Value); // byte 1 still maps to char 0 ("é")
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Right_TraversesAllBytesInMultiByteChar()
     {
         // "é" = C3 A9 (2 bytes)
@@ -868,19 +866,19 @@ public class HexEditorViewRendererTests
 
         // Move right 3 times: byte 0 → byte 1 → byte 2 (end)
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(1, state.ByteCursorOffset);
-        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 → char 0
+        Assert.AreEqual(1, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.Cursor.Position.Value); // byte 1 → char 0
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(2, state.ByteCursorOffset);
-        Assert.Equal(1, state.Cursor.Position.Value); // past "é" → doc.Length = 1
+        Assert.AreEqual(2, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.Cursor.Position.Value); // past "é" → doc.Length = 1
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(2, state.ByteCursorOffset); // clamped at totalBytes
-        Assert.Equal(1, state.Cursor.Position.Value); // stays at end
+        Assert.AreEqual(2, state.ByteCursorOffset); // clamped at totalBytes
+        Assert.AreEqual(1, state.Cursor.Position.Value); // stays at end
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Left_MovesByOneByte()
     {
         // "AB" = 41 42 (2 bytes), cursor at byte 1 (char 1)
@@ -892,12 +890,12 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
         var handled = renderer.HandleNavigation(CursorDirection.Left, state, extend: false, 80);
 
-        Assert.True(handled);
-        Assert.Equal(0, state.ByteCursorOffset);
-        Assert.Equal(0, state.Cursor.Position.Value); // byte 0 = char 0
+        Assert.IsTrue(handled);
+        Assert.AreEqual(0, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.Cursor.Position.Value); // byte 0 = char 0
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Right_ThreeByteChar_VisitsEachByte()
     {
         // "日" = E6 97 A5 (3 bytes)
@@ -909,19 +907,19 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(1, state.ByteCursorOffset);
-        Assert.Equal(0, state.Cursor.Position.Value); // byte 1 still maps to char 0
+        Assert.AreEqual(1, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.Cursor.Position.Value); // byte 1 still maps to char 0
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(2, state.ByteCursorOffset);
-        Assert.Equal(0, state.Cursor.Position.Value); // byte 2 still maps to char 0
+        Assert.AreEqual(2, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.Cursor.Position.Value); // byte 2 still maps to char 0
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(3, state.ByteCursorOffset);
-        Assert.Equal(1, state.Cursor.Position.Value); // byte 3 → past "日" → doc.Length = 1
+        Assert.AreEqual(3, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.Cursor.Position.Value); // byte 3 → past "日" → doc.Length = 1
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_UpDown_MovesByBytesPerRow()
     {
         // Create content that spans multiple hex rows at 80 columns
@@ -936,23 +934,23 @@ public class HexEditorViewRendererTests
         state.ByteCursorOffset = 0;
 
         // Down should move to byte 16 (row 1, col 0)
-        Assert.True(renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80));
-        Assert.Equal(16, state.ByteCursorOffset);
+        Assert.IsTrue(renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80));
+        Assert.AreEqual(16, state.ByteCursorOffset);
 
         // Down again should move to byte 32 (row 2, col 0)
         renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
-        Assert.Equal(32, state.ByteCursorOffset);
+        Assert.AreEqual(32, state.ByteCursorOffset);
 
         // Up should move back to byte 16 (row 1, col 0)
         renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
-        Assert.Equal(16, state.ByteCursorOffset);
+        Assert.AreEqual(16, state.ByteCursorOffset);
 
         // Up again should move back to byte 0 (row 0, col 0)
         renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
-        Assert.Equal(0, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Up_ClampsToZero()
     {
         var doc = new Hex1bDocument("ABCD");
@@ -962,10 +960,10 @@ public class HexEditorViewRendererTests
 
         // Up from first row should clamp to byte 0
         renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
-        Assert.Equal(0, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Down_ClampsToTotalBytes()
     {
         var doc = new Hex1bDocument("ABCD");
@@ -975,10 +973,10 @@ public class HexEditorViewRendererTests
 
         // Down from first row with only 4 bytes (< bytesPerRow) should clamp to end
         renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
-        Assert.Equal(4, state.ByteCursorOffset);
+        Assert.AreEqual(4, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_UpDown_PreservesColumnPosition()
     {
         // 48 bytes = 3 rows of 16 bytes at 80 columns
@@ -993,18 +991,18 @@ public class HexEditorViewRendererTests
 
         // Down should move to byte 21 (row 1, col 5)
         renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
-        Assert.Equal(21, state.ByteCursorOffset);
+        Assert.AreEqual(21, state.ByteCursorOffset);
 
         // Down again should move to byte 37 (row 2, col 5)
         renderer.HandleNavigation(CursorDirection.Down, state, extend: false, 80);
-        Assert.Equal(37, state.ByteCursorOffset);
+        Assert.AreEqual(37, state.ByteCursorOffset);
 
         // Up should return to byte 21
         renderer.HandleNavigation(CursorDirection.Up, state, extend: false, 80);
-        Assert.Equal(21, state.ByteCursorOffset);
+        Assert.AreEqual(21, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_Right_InvalidBytes_OneBytePerMove()
     {
         // Raw bytes: each invalid byte is 1 char
@@ -1016,19 +1014,19 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(1, state.ByteCursorOffset);
-        Assert.Equal(1, state.Cursor.Position.Value); // byte 1 → char 1
+        Assert.AreEqual(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.Cursor.Position.Value); // byte 1 → char 1
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(2, state.ByteCursorOffset);
-        Assert.Equal(2, state.Cursor.Position.Value); // byte 2 → char 2
+        Assert.AreEqual(2, state.ByteCursorOffset);
+        Assert.AreEqual(2, state.Cursor.Position.Value); // byte 2 → char 2
 
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(3, state.ByteCursorOffset);
-        Assert.Equal(3, state.Cursor.Position.Value); // past end → doc.Length = 3
+        Assert.AreEqual(3, state.ByteCursorOffset);
+        Assert.AreEqual(3, state.Cursor.Position.Value); // past end → doc.Length = 3
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_MixedContent_ByteByByte()
     {
         // "Aé" = 41 C3 A9 (3 bytes, 2 chars)
@@ -1041,21 +1039,21 @@ public class HexEditorViewRendererTests
 
         // byte 0 → byte 1 (C3, maps to char 1 'é')
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(1, state.ByteCursorOffset);
-        Assert.Equal(1, state.Cursor.Position.Value);
+        Assert.AreEqual(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.Cursor.Position.Value);
 
         // byte 1 → byte 2 (A9, still char 1 'é')
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(2, state.ByteCursorOffset);
-        Assert.Equal(1, state.Cursor.Position.Value);
+        Assert.AreEqual(2, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.Cursor.Position.Value);
 
         // byte 2 → byte 3 (past end)
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
-        Assert.Equal(3, state.ByteCursorOffset);
-        Assert.Equal(2, state.Cursor.Position.Value); // doc.Length = 2
+        Assert.AreEqual(3, state.ByteCursorOffset);
+        Assert.AreEqual(2, state.Cursor.Position.Value); // doc.Length = 2
     }
 
-    [Fact]
+    [TestMethod]
     public void HandleNavigation_WithoutByteCursorOffset_DerivesFromCharPosition()
     {
         // "AB" = 41 42, cursor at char 1 (byte 1)
@@ -1067,7 +1065,7 @@ public class HexEditorViewRendererTests
         var renderer = new HexEditorViewRenderer();
         renderer.HandleNavigation(CursorDirection.Right, state, extend: false, 80);
 
-        Assert.Equal(2, state.ByteCursorOffset); // byte 1 → byte 2 (end)
-        Assert.Equal(2, state.Cursor.Position.Value); // doc.Length
+        Assert.AreEqual(2, state.ByteCursorOffset); // byte 1 → byte 2 (end)
+        Assert.AreEqual(2, state.Cursor.Position.Value); // doc.Length
     }
 }

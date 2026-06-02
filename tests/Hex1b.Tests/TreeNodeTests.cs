@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for TreeNode and TreeItemNode behavior.
 /// </summary>
+[TestClass]
 public class TreeNodeTests
 {
     #region Helper Methods
@@ -45,68 +46,68 @@ public class TreeNodeTests
 
     #region Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesTreeNode()
     {
         var widget = CreateSimpleTree();
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.NotNull(node);
-        Assert.IsType<TreeNode>(node);
+        Assert.IsNotNull(node);
+        TestSeq.IsType<TreeNode>(node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesCorrectItemCount()
     {
         var widget = CreateSimpleTree();
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.Equal(2, node.Items.Count); // 2 root items
-        Assert.Equal(2, node.Items[0].Children.Count); // Root 1 has 2 children
-        Assert.Single(node.Items[0].Children[1].Children); // Child 1.2 has 1 grandchild
+        Assert.AreEqual(2, node.Items.Count); // 2 root items
+        Assert.AreEqual(2, node.Items[0].Children.Count); // Root 1 has 2 children
+        TestSeq.Single(node.Items[0].Children[1].Children); // Child 1.2 has 1 grandchild
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsLabelsCorrectly()
     {
         var widget = CreateSimpleTree();
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.Equal("Root 1", node.Items[0].Label);
-        Assert.Equal("Root 2", node.Items[1].Label);
-        Assert.Equal("Child 1.1", node.Items[0].Children[0].Label);
+        Assert.AreEqual("Root 1", node.Items[0].Label);
+        Assert.AreEqual("Root 2", node.Items[1].Label);
+        Assert.AreEqual("Child 1.1", node.Items[0].Children[0].Label);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsIsExpandedCorrectly()
     {
         var widget = CreateSimpleTree();
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.True(node.Items[0].IsExpanded); // Root 1 is expanded
-        Assert.False(node.Items[1].IsExpanded); // Root 2 is not expanded
+        Assert.IsTrue(node.Items[0].IsExpanded); // Root 1 is expanded
+        Assert.IsFalse(node.Items[1].IsExpanded); // Root 2 is not expanded
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsIsLastChildCorrectly()
     {
         var widget = CreateSimpleTree();
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.False(node.Items[0].IsLastChild); // Root 1 is not last
-        Assert.True(node.Items[1].IsLastChild); // Root 2 is last
+        Assert.IsFalse(node.Items[0].IsLastChild); // Root 1 is not last
+        Assert.IsTrue(node.Items[1].IsLastChild); // Root 2 is last
     }
 
     #endregion
 
     #region Flattened View Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RebuildFlattenedView_IncludesExpandedItems()
     {
         var widget = CreateSimpleTree();
@@ -114,10 +115,10 @@ public class TreeNodeTests
         
         // Root 1 is expanded, should show: Root 1, Child 1.1, Child 1.2, Root 2
         // (Grandchild not shown because Child 1.2 is not expanded)
-        Assert.Equal(4, node.FlattenedItems.Count);
+        Assert.AreEqual(4, node.FlattenedItems.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RebuildFlattenedView_ExcludesCollapsedChildren()
     {
         var widget = new TreeWidget([
@@ -130,26 +131,26 @@ public class TreeNodeTests
         
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.Single(node.FlattenedItems); // Only Root visible
+        TestSeq.Single(node.FlattenedItems); // Only Root visible
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RebuildFlattenedView_SetsDepthCorrectly()
     {
         var widget = CreateSimpleTree();
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.Equal(0, node.FlattenedItems[0].Depth); // Root 1
-        Assert.Equal(1, node.FlattenedItems[1].Depth); // Child 1.1
-        Assert.Equal(1, node.FlattenedItems[2].Depth); // Child 1.2
-        Assert.Equal(0, node.FlattenedItems[3].Depth); // Root 2
+        Assert.AreEqual(0, node.FlattenedItems[0].Depth); // Root 1
+        Assert.AreEqual(1, node.FlattenedItems[1].Depth); // Child 1.1
+        Assert.AreEqual(1, node.FlattenedItems[2].Depth); // Child 1.2
+        Assert.AreEqual(0, node.FlattenedItems[3].Depth); // Root 2
     }
 
     #endregion
 
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectHeight()
     {
         var widget = CreateSimpleTree();
@@ -158,10 +159,10 @@ public class TreeNodeTests
         var size = node.Measure(Constraints.Unbounded);
         
         // 4 visible items
-        Assert.Equal(4, size.Height);
+        Assert.AreEqual(4, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectWidth()
     {
         var widget = new TreeWidget([
@@ -173,10 +174,10 @@ public class TreeNodeTests
         var size = node.Measure(Constraints.Unbounded);
         
         // Width = indicator (2) + longest label
-        Assert.True(size.Width >= "Much Longer Label".Length + 2);
+        Assert.IsTrue(size.Width >= "Much Longer Label".Length + 2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyTree_ReturnsZeroHeight()
     {
         var widget = new TreeWidget([]);
@@ -184,10 +185,10 @@ public class TreeNodeTests
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_IncludesGuideWidth()
     {
         var widget = new TreeWidget([
@@ -208,38 +209,38 @@ public class TreeNodeTests
         var size = node.Measure(Constraints.Unbounded);
         
         // Grandchild at depth 2 should add 6 chars for guides (2 levels * 3 chars each)
-        Assert.True(size.Width >= "Grandchild".Length + 2 + 6);
+        Assert.IsTrue(size.Width >= "Grandchild".Length + 2 + 6);
     }
 
     #endregion
 
     #region Focus Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task FirstItem_HasInitialFocus()
     {
         var widget = CreateSimpleTree();
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.True(node.FlattenedItems[0].Node.IsFocused);
-        Assert.False(node.FlattenedItems[1].Node.IsFocused);
+        Assert.IsTrue(node.FlattenedItems[0].Node.IsFocused);
+        Assert.IsFalse(node.FlattenedItems[1].Node.IsFocused);
     }
 
     #endregion
 
     #region Multi-Select Tests
 
-    [Fact]
+    [TestMethod]
     public async Task MultiSelect_SetsToggleSelectCallback()
     {
         var widget = CreateSimpleTree().MultiSelect();
         var node = await ReconcileTreeAsync(widget);
         
         // All items should have ToggleSelectCallback set
-        Assert.NotNull(node.Items[0].ToggleSelectCallback);
+        Assert.IsNotNull(node.Items[0].ToggleSelectCallback);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetSelectedItems_ReturnsSelectedItems()
     {
         var widget = new TreeWidget([
@@ -250,15 +251,15 @@ public class TreeNodeTests
         
         var selected = node.GetSelectedItems();
         
-        Assert.Single(selected);
-        Assert.Equal("Selected", selected[0].Label);
+        TestSeq.Single(selected);
+        Assert.AreEqual("Selected", selected[0].Label);
     }
 
     #endregion
 
     #region Icon Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TreeItem_WithIcon_SetsIconProperty()
     {
         var widget = new TreeWidget([
@@ -266,27 +267,27 @@ public class TreeNodeTests
         ]);
         var node = await ReconcileTreeAsync(widget);
         
-        Assert.Equal("📁", node.Items[0].Icon);
+        Assert.AreEqual("📁", node.Items[0].Icon);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetDisplayText_WithIcon_IncludesIcon()
     {
         var item = new TreeItemNode { Label = "Test", Icon = "📁" };
         
         var displayText = item.GetDisplayText();
         
-        Assert.Equal("📁 Test", displayText);
+        Assert.AreEqual("📁 Test", displayText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetDisplayText_WithoutIcon_ReturnsLabel()
     {
         var item = new TreeItemNode { Label = "Test" };
         
         var displayText = item.GetDisplayText();
         
-        Assert.Equal("Test", displayText);
+        Assert.AreEqual("Test", displayText);
     }
 
     #endregion
@@ -297,7 +298,7 @@ public class TreeNodeTests
 
     #region TreeItemWidget Fluent API Tests
 
-    [Fact]
+    [TestMethod]
     public void TreeItemWidget_FluentApi_ChainsCorrectly()
     {
         var item = new TreeItemWidget("Test")
@@ -306,15 +307,15 @@ public class TreeNodeTests
             .Selected(true)
             .Data("user-data");
         
-        Assert.Equal("Test", item.Label);
-        Assert.Equal("📁", item.IconValue);
-        Assert.True(item.IsExpanded);
-        Assert.True(item.IsSelected);
-        Assert.Equal("user-data", item.DataValue);
-        Assert.Equal(typeof(string), item.DataType);
+        Assert.AreEqual("Test", item.Label);
+        Assert.AreEqual("📁", item.IconValue);
+        Assert.IsTrue(item.IsExpanded);
+        Assert.IsTrue(item.IsSelected);
+        Assert.AreEqual("user-data", item.DataValue);
+        Assert.AreEqual(typeof(string), item.DataType);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TreeItemNode_GetData_ReturnsTypedData()
     {
         var widget = new TreeWidget([
@@ -327,10 +328,10 @@ public class TreeNodeTests
         var itemNode = node!.Items[0];
         var data = itemNode.GetData<string>();
         
-        Assert.Equal("my-data", data);
+        Assert.AreEqual("my-data", data);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TreeItemNode_GetData_ThrowsOnTypeMismatch()
     {
         var widget = new TreeWidget([
@@ -342,10 +343,10 @@ public class TreeNodeTests
         
         var itemNode = node!.Items[0];
         
-        Assert.Throws<InvalidCastException>(() => itemNode.GetData<int>());
+        Assert.ThrowsExactly<InvalidCastException>(() => itemNode.GetData<int>());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TreeItemNode_TryGetData_ReturnsFalseOnTypeMismatch()
     {
         var widget = new TreeWidget([
@@ -357,61 +358,61 @@ public class TreeNodeTests
         
         var itemNode = node!.Items[0];
         
-        Assert.False(itemNode.TryGetData<int>(out _));
-        Assert.True(itemNode.TryGetData<string>(out var data));
-        Assert.Equal("string-data", data);
+        Assert.IsFalse(itemNode.TryGetData<int>(out _));
+        Assert.IsTrue(itemNode.TryGetData<string>(out var data));
+        Assert.AreEqual("string-data", data);
     }
 
-    [Fact]
+    [TestMethod]
     public void TreeItemWidget_WithChildren_SetsHasChildren()
     {
         var child = new TreeItemWidget("Child");
         var parent = new TreeItemWidget("Parent").Children(child);
         
-        Assert.True(parent.HasChildren);
-        Assert.Single(parent.ChildItems);
+        Assert.IsTrue(parent.HasChildren);
+        TestSeq.Single(parent.ChildItems);
     }
 
-    [Fact]
+    [TestMethod]
     public void TreeItemWidget_OnExpanding_SetsHasChildren()
     {
         var item = new TreeItemWidget("Lazy")
             .OnExpanding(_ => [new TreeItemWidget("Loaded")]);
         
-        Assert.True(item.HasChildren);
-        Assert.NotNull(item.ExpandingHandler);
+        Assert.IsTrue(item.HasChildren);
+        Assert.IsNotNull(item.ExpandingHandler);
     }
 
     #endregion
 
     #region CanExpand Tests
 
-    [Fact]
+    [TestMethod]
     public void TreeItemNode_CanExpand_TrueWhenHasChildren()
     {
         var node = new TreeItemNode { HasChildren = true };
-        Assert.True(node.CanExpand);
+        Assert.IsTrue(node.CanExpand);
     }
 
-    [Fact]
+    [TestMethod]
     public void TreeItemNode_CanExpand_TrueWhenHasActualChildren()
     {
         var node = new TreeItemNode { Children = [new TreeItemNode { Label = "Child" }] };
-        Assert.True(node.CanExpand);
+        Assert.IsTrue(node.CanExpand);
     }
 
-    [Fact]
+    [TestMethod]
     public void TreeItemNode_CanExpand_FalseWhenNoChildren()
     {
         var node = new TreeItemNode();
-        Assert.False(node.CanExpand);
+        Assert.IsFalse(node.CanExpand);
     }
 
     #endregion
 
     #region Input Binding Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TreeNode_HasInputBindings()
     {
         var widget = CreateSimpleTree();
@@ -421,10 +422,10 @@ public class TreeNodeTests
         var bindings = builder.Build();
         
         // Should have Up, Down, Left, Right, Enter, Space bindings at minimum
-        Assert.True(bindings.Count >= 6, $"Expected at least 6 bindings, got {bindings.Count}");
+        Assert.IsTrue(bindings.Count >= 6, $"Expected at least 6 bindings, got {bindings.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TreeNode_Expand_ChangesIsExpanded()
     {
         var widget = new TreeWidget([
@@ -435,8 +436,8 @@ public class TreeNodeTests
         var node = await ReconcileTreeAsync(widget);
         
         // Initially collapsed
-        Assert.False(node.Items[0].IsExpanded);
-        Assert.Single(node.FlattenedItems); // Only Parent visible
+        Assert.IsFalse(node.Items[0].IsExpanded);
+        TestSeq.Single(node.FlattenedItems); // Only Parent visible
         
         // Toggle expand
         var focusRing = new FocusRing();
@@ -444,11 +445,11 @@ public class TreeNodeTests
         await node.ToggleExpandAsync(node.Items[0], ctx);
         
         // Now expanded
-        Assert.True(node.Items[0].IsExpanded);
-        Assert.Equal(2, node.FlattenedItems.Count); // Parent and Child visible
+        Assert.IsTrue(node.Items[0].IsExpanded);
+        Assert.AreEqual(2, node.FlattenedItems.Count); // Parent and Child visible
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TreeNode_Collapse_ChangesIsExpanded()
     {
         var widget = new TreeWidget([
@@ -459,8 +460,8 @@ public class TreeNodeTests
         var node = await ReconcileTreeAsync(widget);
         
         // Initially expanded
-        Assert.True(node.Items[0].IsExpanded);
-        Assert.Equal(2, node.FlattenedItems.Count); // Parent and Child visible
+        Assert.IsTrue(node.Items[0].IsExpanded);
+        Assert.AreEqual(2, node.FlattenedItems.Count); // Parent and Child visible
         
         // Toggle collapse
         var focusRing = new FocusRing();
@@ -468,8 +469,8 @@ public class TreeNodeTests
         await node.ToggleExpandAsync(node.Items[0], ctx);
         
         // Now collapsed
-        Assert.False(node.Items[0].IsExpanded);
-        Assert.Single(node.FlattenedItems); // Only Parent visible
+        Assert.IsFalse(node.Items[0].IsExpanded);
+        TestSeq.Single(node.FlattenedItems); // Only Parent visible
     }
 
     #endregion

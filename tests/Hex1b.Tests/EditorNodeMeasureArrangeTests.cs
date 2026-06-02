@@ -7,9 +7,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorNodeMeasureArrangeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableSpace()
     {
         // NOTE: Editor may not always fill space if min-size constraints are added.
@@ -19,11 +20,11 @@ public class EditorNodeMeasureArrangeTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 10));
 
-        Assert.Equal(40, size.Width);
-        Assert.Equal(10, size.Height);
+        Assert.AreEqual(40, size.Width);
+        Assert.AreEqual(10, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_Unconstrained_FillsDesiredDefault()
     {
         // NOTE: Default dimensions may become configurable.
@@ -36,11 +37,11 @@ public class EditorNodeMeasureArrangeTests
         var size = node.Measure(new Constraints(0, 200, 0, 100));
 
         // Editor takes all available space up to max
-        Assert.Equal(200, size.Width);
-        Assert.Equal(100, size.Height);
+        Assert.AreEqual(200, size.Width);
+        Assert.AreEqual(100, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_StoresViewportDimensions()
     {
         // NOTE: Viewport may shrink if scrollbar or gutter is added.
@@ -51,11 +52,11 @@ public class EditorNodeMeasureArrangeTests
         node.Measure(new Constraints(0, 50, 0, 20));
         node.Arrange(new Rect(0, 0, 50, 20));
 
-        Assert.Equal(20, node.ViewportLines);
-        Assert.Equal(50, node.ViewportColumns);
+        Assert.AreEqual(20, node.ViewportLines);
+        Assert.AreEqual(50, node.ViewportColumns);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SubscribesToDocument_ChangesMarkDirty()
     {
         // NOTE: Subscription model may change with reactive/observable patterns.
@@ -73,10 +74,10 @@ public class EditorNodeMeasureArrangeTests
         doc.Apply(new InsertOperation(new DocumentOffset(5), " World"));
 
         // If subscription failed, this would not reach here
-        Assert.Equal("Hello World", doc.GetText());
+        Assert.AreEqual("Hello World", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SwappingDocument_UnsubscribesOldSubscribesNew()
     {
         // NOTE: Hot-swapping documents may gain animation/transition in future.
@@ -95,14 +96,14 @@ public class EditorNodeMeasureArrangeTests
 
         // Edit doc2 — should not throw (subscription active)
         doc2.Apply(new InsertOperation(new DocumentOffset(4), "!"));
-        Assert.Equal("Doc2!", doc2.GetText());
+        Assert.AreEqual("Doc2!", doc2.GetText());
 
         // Edit doc1 — node should no longer react to it (unsubscribed)
         doc1.Apply(new InsertOperation(new DocumentOffset(4), "?"));
-        Assert.Equal("Doc1?", doc1.GetText());
+        Assert.AreEqual("Doc1?", doc1.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         // NOTE: Read-only editor may still be focusable for navigation.
@@ -110,6 +111,6 @@ public class EditorNodeMeasureArrangeTests
         var state = new EditorState(doc);
         var node = new EditorNode { State = state };
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 }

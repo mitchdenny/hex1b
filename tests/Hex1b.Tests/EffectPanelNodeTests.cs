@@ -7,11 +7,12 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EffectPanelNodeTests
 {
     // --- Layout pass-through tests ---
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithChild_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -19,22 +20,22 @@ public class EffectPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 50, 0, 10));
 
-        Assert.True(size.Width > 0);
-        Assert.True(size.Height > 0);
+        Assert.IsTrue(size.Width > 0);
+        Assert.IsTrue(size.Height > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithoutChild_ReturnsConstrainedZero()
     {
         var node = new EffectPanelNode { Child = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_PassesThroughToChild()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -44,13 +45,13 @@ public class EffectPanelNodeTests
         var rect = new Rect(5, 10, 30, 3);
         node.Arrange(rect);
 
-        Assert.Equal(rect, node.Bounds);
-        Assert.Equal(rect, child.Bounds);
+        Assert.AreEqual(rect, node.Bounds);
+        Assert.AreEqual(rect, child.Bounds);
     }
 
     // --- Focus pass-through tests ---
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_DelegatesToChild()
     {
         var button = new ButtonNode { Label = "OK" };
@@ -58,21 +59,21 @@ public class EffectPanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(button, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithoutChild_ReturnsEmpty()
     {
         var node = new EffectPanelNode { Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithChild_ReturnsSingletonList()
     {
         var child = new TextBlockNode();
@@ -80,23 +81,23 @@ public class EffectPanelNodeTests
 
         var children = node.GetChildren();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithoutChild_ReturnsEmpty()
     {
         var node = new EffectPanelNode { Child = null };
 
         var children = node.GetChildren();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     // --- Render tests ---
 
-    [Fact]
+    [TestMethod]
     public void Render_WithoutEffect_PassesThroughUnchanged()
     {
         var node = SetupRenderedNode("Hello", effect: null);
@@ -107,7 +108,7 @@ public class EffectPanelNodeTests
         Assert.Contains("Hello", text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithEffect_ModifiesSurfaceCells()
     {
         var effectCalled = false;
@@ -125,18 +126,18 @@ public class EffectPanelNodeTests
 
         var surface = RenderToSurface(node, 40, 5);
 
-        Assert.True(effectCalled);
+        Assert.IsTrue(effectCalled);
         // The text should still be present
         var text = GetRowText(surface, 0);
         Assert.Contains("Hello", text);
         // The background should be red on rendered cells
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Background);
-        Assert.Equal(255, cell.Background.Value.R);
-        Assert.Equal(0, cell.Background.Value.G);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(255, cell.Background.Value.R);
+        Assert.AreEqual(0, cell.Background.Value.G);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithEffect_ReceivesCorrectlySizedSurface()
     {
         int? surfaceWidth = null;
@@ -150,11 +151,11 @@ public class EffectPanelNodeTests
 
         RenderToSurface(node, 25, 3);
 
-        Assert.Equal(25, surfaceWidth);
-        Assert.Equal(3, surfaceHeight);
+        Assert.AreEqual(25, surfaceWidth);
+        Assert.AreEqual(3, surfaceHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithEffect_ReceivesChildRenderedContent()
     {
         string? capturedText = null;
@@ -166,11 +167,11 @@ public class EffectPanelNodeTests
 
         RenderToSurface(node, 40, 5);
 
-        Assert.NotNull(capturedText);
+        Assert.IsNotNull(capturedText);
         Assert.Contains("TestContent", capturedText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithNullChild_DoesNotThrow()
     {
         var node = new EffectPanelNode
@@ -188,7 +189,7 @@ public class EffectPanelNodeTests
         ctx.RenderChild(node);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithZeroBounds_DoesNotThrow()
     {
         var child = new TextBlockNode();
@@ -206,12 +207,12 @@ public class EffectPanelNodeTests
         ctx.RenderChild(node);
 
         // Effect should not be called for zero-sized bounds
-        Assert.False(effectCalled);
+        Assert.IsFalse(effectCalled);
     }
 
     // --- Reconciliation tests ---
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReusesExistingNode()
     {
         var childWidget = new TextBlockWidget("Hello");
@@ -221,11 +222,11 @@ public class EffectPanelNodeTests
         var node1 = await widget.ReconcileAsync(null, context);
         var node2 = await widget.ReconcileAsync(node1, context);
 
-        Assert.IsType<EffectPanelNode>(node1);
-        Assert.Same(node1, node2);
+        TestSeq.IsType<EffectPanelNode>(node1);
+        Assert.AreSame(node1, node2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SetsEffect()
     {
         Action<Surface> effect = _ => { };
@@ -235,10 +236,10 @@ public class EffectPanelNodeTests
 
         var node = (EffectPanelNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(effect, node.Effect);
+        Assert.AreSame(effect, node.Effect);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesEffect()
     {
         Action<Surface> effect1 = _ => { };
@@ -247,14 +248,14 @@ public class EffectPanelNodeTests
 
         var widget1 = new EffectPanelWidget(new TextBlockWidget("test")).Effect(effect1);
         var node = (EffectPanelNode)await widget1.ReconcileAsync(null, context);
-        Assert.Same(effect1, node.Effect);
+        Assert.AreSame(effect1, node.Effect);
 
         var widget2 = new EffectPanelWidget(new TextBlockWidget("test")).Effect(effect2);
         await widget2.ReconcileAsync(node, context);
-        Assert.Same(effect2, node.Effect);
+        Assert.AreSame(effect2, node.Effect);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReconcileChild()
     {
         var widget = new EffectPanelWidget(new TextBlockWidget("Hello"));
@@ -262,21 +263,21 @@ public class EffectPanelNodeTests
 
         var node = (EffectPanelNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.Child);
-        Assert.IsType<TextBlockNode>(node.Child);
+        Assert.IsNotNull(node.Child);
+        TestSeq.IsType<TextBlockNode>(node.Child);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_GetExpectedNodeType_ReturnsEffectPanelNode()
     {
         var widget = new EffectPanelWidget(new TextBlockWidget("x"));
 
-        Assert.Equal(typeof(EffectPanelNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(EffectPanelNode), widget.GetExpectedNodeType());
     }
 
     // --- Extension method tests ---
 
-    [Fact]
+    [TestMethod]
     public void Extension_EffectPanel_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -284,11 +285,11 @@ public class EffectPanelNodeTests
 
         var widget = ctx.EffectPanel(child);
 
-        Assert.IsType<EffectPanelWidget>(widget);
-        Assert.Same(child, widget.Child);
+        TestSeq.IsType<EffectPanelWidget>(widget);
+        Assert.AreSame(child, widget.Child);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extension_EffectPanel_WithEffectOverload()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -297,12 +298,12 @@ public class EffectPanelNodeTests
 
         var widget = ctx.EffectPanel(child, effect);
 
-        Assert.IsType<EffectPanelWidget>(widget);
-        Assert.Same(child, widget.Child);
-        Assert.NotNull(widget.EffectCallback);
+        TestSeq.IsType<EffectPanelWidget>(widget);
+        Assert.AreSame(child, widget.Child);
+        Assert.IsNotNull(widget.EffectCallback);
     }
 
-    [Fact]
+    [TestMethod]
     public void Effect_ReturnsCopyWithEffect()
     {
         var child = new TextBlockWidget("hello");
@@ -310,13 +311,13 @@ public class EffectPanelNodeTests
 
         var widget = new EffectPanelWidget(child).Effect(effect);
 
-        Assert.Same(child, widget.Child);
-        Assert.NotNull(widget.EffectCallback);
+        Assert.AreSame(child, widget.Child);
+        Assert.IsNotNull(widget.EffectCallback);
     }
 
     // --- Nested EffectPanels ---
 
-    [Fact]
+    [TestMethod]
     public async Task NestedEffectPanels_BothEffectsApplied()
     {
         var outerCalled = false;
@@ -337,8 +338,8 @@ public class EffectPanelNodeTests
         var renderContext = new SurfaceRenderContext(surface);
         renderContext.RenderChild(node);
 
-        Assert.True(innerCalled);
-        Assert.True(outerCalled);
+        Assert.IsTrue(innerCalled);
+        Assert.IsTrue(outerCalled);
     }
 
     // --- Helpers ---

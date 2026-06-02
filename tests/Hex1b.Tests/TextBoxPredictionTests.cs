@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the inline predictive-completion behavior of <see cref="TextBoxNode"/>.
 /// </summary>
+[TestClass]
 public class TextBoxPredictionTests
 {
     private static TextBoxNode CreateNode(
@@ -46,7 +47,7 @@ public class TextBoxPredictionTests
 
     private static Hex1bKeyEvent CharKey(char ch) => new((Hex1bKey)char.ToUpperInvariant(ch), ch, Hex1bModifiers.None);
 
-    [Fact]
+    [TestMethod]
     public async Task Typing_AtEndOfBuffer_TriggersPredictor()
     {
         var calls = 0;
@@ -72,12 +73,12 @@ public class TextBoxPredictionTests
 
         var prediction = await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
 
-        Assert.Equal("world", prediction);
-        Assert.True(seen.Contains("hello"), $"Predictor never saw 'hello'. text='{node.Text}' seen=[{string.Join(",", seen)}] calls={calls}");
-        Assert.True(calls >= 1);
+        Assert.AreEqual("world", prediction);
+        Assert.IsTrue(seen.Contains("hello"), $"Predictor never saw 'hello'. text='{node.Text}' seen=[{string.Join(", ", seen)}] calls={calls}");
+        Assert.IsTrue(calls >= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Typing_WithCursorInMiddle_DoesNotTriggerPredictor()
     {
         var calls = 0;
@@ -94,89 +95,89 @@ public class TextBoxPredictionTests
 
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, calls);
-        Assert.Null(node.CurrentPrediction);
+        Assert.AreEqual(0, calls);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftArrow_ClearsActivePrediction()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("xyz"));
         await InputRouter.RouteInputToNodeAsync(node, CharKey('a'), null, null, TestContext.Current.CancellationToken);
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
 
-        Assert.Equal("xyz", node.CurrentPrediction);
+        Assert.AreEqual("xyz", node.CurrentPrediction);
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Null(node.CurrentPrediction);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Backspace_ClearsActivePrediction()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("xyz"));
         await InputRouter.RouteInputToNodeAsync(node, CharKey('a'), null, null, TestContext.Current.CancellationToken);
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
-        Assert.Equal("xyz", node.CurrentPrediction);
+        Assert.AreEqual("xyz", node.CurrentPrediction);
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Null(node.CurrentPrediction);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FocusLoss_ClearsActivePrediction()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("xyz"));
         await InputRouter.RouteInputToNodeAsync(node, CharKey('a'), null, null, TestContext.Current.CancellationToken);
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
-        Assert.Equal("xyz", node.CurrentPrediction);
+        Assert.AreEqual("xyz", node.CurrentPrediction);
 
         node.IsFocused = false;
 
-        Assert.Null(node.CurrentPrediction);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseClick_ClearsActivePrediction()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("xyz"));
         await InputRouter.RouteInputToNodeAsync(node, CharKey('a'), null, null, TestContext.Current.CancellationToken);
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
-        Assert.Equal("xyz", node.CurrentPrediction);
+        Assert.AreEqual("xyz", node.CurrentPrediction);
 
         node.Arrange(new Rect(0, 0, 10, 1));
         node.HandleMouseClick(0, 0, new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1));
 
-        Assert.Null(node.CurrentPrediction);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Escape_WithActivePrediction_IsConsumed_AndClears()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("xyz"));
         await InputRouter.RouteInputToNodeAsync(node, CharKey('a'), null, null, TestContext.Current.CancellationToken);
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
-        Assert.Equal("xyz", node.CurrentPrediction);
+        Assert.AreEqual("xyz", node.CurrentPrediction);
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Null(node.CurrentPrediction);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsNull(node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Escape_WithoutActivePrediction_IsNotConsumed()
     {
         var node = CreateNode();
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightArrow_WithActivePrediction_AcceptsAndFiresChange()
     {
         var node = CreateNode((_, _) => Task.FromResult<string?>("world"));
@@ -196,20 +197,20 @@ public class TextBoxPredictionTests
         await InputRouter.RouteInputToNodeAsync(node, CharKey('o'), null, null, TestContext.Current.CancellationToken);
 
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
-        Assert.Equal("world", node.CurrentPrediction);
+        Assert.AreEqual("world", node.CurrentPrediction);
 
         var typingChanges = changes;
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("helloworld", node.Text);
-        Assert.Equal(node.Text.Length, node.State.CursorPosition);
-        Assert.Null(node.CurrentPrediction);
-        Assert.Equal(typingChanges + 1, changes);
-        Assert.Equal("helloworld", lastNew);
+        Assert.AreEqual("helloworld", node.Text);
+        Assert.AreEqual(node.Text.Length, node.State.CursorPosition);
+        Assert.IsNull(node.CurrentPrediction);
+        Assert.AreEqual(typingChanges + 1, changes);
+        Assert.AreEqual("helloworld", lastNew);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightArrow_WithoutPrediction_MovesCursor()
     {
         var node = new TextBoxNode { Text = "abc", IsFocused = true };
@@ -217,10 +218,10 @@ public class TextBoxPredictionTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, node.State.CursorPosition);
+        Assert.AreEqual(2, node.State.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StaleAsyncResult_IsDiscarded()
     {
         // The predictor deliberately *ignores* the cancellation token. The
@@ -249,10 +250,10 @@ public class TextBoxPredictionTests
         // tied to the stale snapshot ("a!") must never become the active
         // prediction. Only the value tied to the live snapshot ("ab!")
         // is allowed.
-        Assert.Equal("ab!", prediction);
+        Assert.AreEqual("ab!", prediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Debounce_CoalescesRapidKeystrokesIntoSingleCall()
     {
         var calls = 0;
@@ -276,12 +277,12 @@ public class TextBoxPredictionTests
 
         await WaitForPredictionAsync(node, TimeSpan.FromSeconds(2));
 
-        Assert.Equal(1, calls);
-        Assert.Equal("abc", lastSeen);
-        Assert.Equal("abc!", node.CurrentPrediction);
+        Assert.AreEqual(1, calls);
+        Assert.AreEqual("abc", lastSeen);
+        Assert.AreEqual("abc!", node.CurrentPrediction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Multiline_NeverPopulatesPrediction()
     {
         var calls = 0;
@@ -298,11 +299,11 @@ public class TextBoxPredictionTests
 
         await Task.Delay(100, TestContext.Current.CancellationToken);
 
-        Assert.Null(node.CurrentPrediction);
-        Assert.Equal(0, calls);
+        Assert.IsNull(node.CurrentPrediction);
+        Assert.AreEqual(0, calls);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PredictWidget_Reconciles_PredictorOntoNode()
     {
         var widget = new TextBoxWidget("hello").Predict((_, _) => Task.FromResult<string?>("ignored"));
@@ -312,11 +313,11 @@ public class TextBoxPredictionTests
 
         await widget.ReconcileAsync(node, ctx);
 
-        Assert.NotNull(node.Predictor);
-        Assert.Equal(TimeSpan.Zero, node.PredictionDebounce);
+        Assert.IsNotNull(node.Predictor);
+        Assert.AreEqual(TimeSpan.Zero, node.PredictionDebounce);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PredictWidget_WithDebounce_FlowsDebounceOntoNode()
     {
         var widget = new TextBoxWidget("hello").Predict((_, _) => Task.FromResult<string?>("ignored"), TimeSpan.FromMilliseconds(123));
@@ -326,6 +327,6 @@ public class TextBoxPredictionTests
 
         await widget.ReconcileAsync(node, ctx);
 
-        Assert.Equal(TimeSpan.FromMilliseconds(123), node.PredictionDebounce);
+        Assert.AreEqual(TimeSpan.FromMilliseconds(123), node.PredictionDebounce);
     }
 }

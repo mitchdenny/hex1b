@@ -12,8 +12,7 @@ namespace Hex1b.Tests;
 /// Collection definition for diagnostic shell tests that cannot run in parallel.
 /// These tests use shared terminal resources and are timing-sensitive.
 /// </summary>
-[CollectionDefinition("DiagnosticShell", DisableParallelization = true)]
-public class DiagnosticShellCollection { }
+
 
 /// <summary>
 /// Integration tests for the DiagnosticShell to debug rendering stall issues.
@@ -32,7 +31,8 @@ public class DiagnosticShellCollection { }
 /// - TerminalWidgetHandle: Bridges inner terminal output to outer app rendering
 /// </para>
 /// </remarks>
-[Collection("DiagnosticShell")]
+[DoNotParallelize]
+[TestClass]
 public class DiagnosticShellIntegrationTests
 {
     /// <summary>
@@ -475,7 +475,7 @@ public class DiagnosticShellIntegrationTests
         }
     }
     
-    [Fact]
+    [TestMethod]
     public async Task DiagnosticShell_HelpCommand_RendersCompletely()
     {
         // Arrange
@@ -487,7 +487,7 @@ public class DiagnosticShellIntegrationTests
 
         // Wait for the last expected help entry so assertions observe the full render.
         var foundDump = await ctx.WaitForTextAsync("dump", TimeSpan.FromSeconds(5));
-        Assert.True(foundDump, $"Should find 'dump' in help output\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsTrue(foundDump, $"Should find 'dump' in help output\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
 
         var content = ctx.GetOuterContent();
         
@@ -497,7 +497,7 @@ public class DiagnosticShellIntegrationTests
         Assert.Contains("dump", content);
     }
     
-    [Fact(Skip = "Flaky - timing-sensitive diagnostic shell test")]
+    [TestMethod, Ignore("Flaky - timing-sensitive diagnostic shell test")]
     public async Task DiagnosticShell_PingCommand_RespondsImmediately()
     {
         // Arrange
@@ -535,15 +535,14 @@ public class DiagnosticShellIntegrationTests
         Console.Error.WriteLine(ctx.GetInnerContent());
         
         // Assert
-        Assert.True(foundPong, "Should receive 'pong' response");
-        Assert.True((afterPong - beforePing).TotalMilliseconds < 3000, 
-            $"Pong should appear within 3s, took {(afterPong - beforePing).TotalMilliseconds}ms");
+        Assert.IsTrue(foundPong, "Should receive 'pong' response");
+        Assert.IsTrue((afterPong - beforePing).TotalMilliseconds < 3000, $"Pong should appear within 3s, took {(afterPong - beforePing).TotalMilliseconds}ms");
     }
     
     private static string Truncate(string s, int maxLen) 
         => s.Length <= maxLen ? s.Replace("\n", "\\n").Replace("\r", "\\r") : s[..maxLen].Replace("\n", "\\n").Replace("\r", "\\r") + "...";
     
-    [Fact]
+    [TestMethod]
     public async Task DiagnosticShell_MultipleCommands_AllRender()
     {
         // Arrange
@@ -554,20 +553,20 @@ public class DiagnosticShellIntegrationTests
         // before typing, so the next command can't race the previous render.
         await ctx.SendCommandAsync("echo hello");
         var foundHello = await ctx.WaitForTextAsync("hello", TimeSpan.FromSeconds(5));
-        Assert.True(foundHello, $"Should find 'hello'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsTrue(foundHello, $"Should find 'hello'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
 
         await ctx.SendCommandAsync("echo world");
         var foundWorld = await ctx.WaitForTextAsync("world", TimeSpan.FromSeconds(5));
-        Assert.True(foundWorld, $"Should find 'world'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsTrue(foundWorld, $"Should find 'world'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
 
         await ctx.SendCommandAsync("ping");
         var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
         
         // Assert with diagnostics
-        Assert.True(foundPong, $"Should find 'PONG'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
+        Assert.IsTrue(foundPong, $"Should find 'PONG'\nOuter:\n{ctx.GetOuterContent()}\nInner:\n{ctx.GetInnerContent()}");
     }
     
-    [Fact(Skip = "Flaky in CI - timing-sensitive flood output test")]
+    [TestMethod, Ignore("Flaky in CI - timing-sensitive flood output test")]
     public async Task DiagnosticShell_FloodCommand_HandlesRapidOutput()
     {
         // Arrange
@@ -582,10 +581,10 @@ public class DiagnosticShellIntegrationTests
         var foundComplete = await ctx.WaitForTextAsync("Line 010", TimeSpan.FromSeconds(10));
         
         // Assert
-        Assert.True(foundComplete, "Should see last flood line");
+        Assert.IsTrue(foundComplete, "Should see last flood line");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task InvalidateCallback_IsInvokedOnOutput()
     {
         // This test verifies that OutputReceived triggers Invalidate()
@@ -601,7 +600,7 @@ public class DiagnosticShellIntegrationTests
         // Act
         await ctx.SendCommandAsync("ping");
         var foundPong = await ctx.WaitForTextAsync("PONG", TimeSpan.FromSeconds(5));
-        Assert.True(foundPong, "Should receive PONG output before checking trace events");
+        Assert.IsTrue(foundPong, "Should receive PONG output before checking trace events");
         
         // Get events
         var allEvents = ctx.Tracer.GetEvents();
@@ -612,7 +611,7 @@ public class DiagnosticShellIntegrationTests
         var hasHandleOutput = newEvents.Any(e => e.Source == "Handle" && e.Event.Contains("OutputReceived"));
         
         // Assert
-        Assert.True(hasInnerOutput, "Should have inner workload output event");
+        Assert.IsTrue(hasInnerOutput, "Should have inner workload output event");
         // Note: Handle OutputReceived tracing requires the custom TracingTerminalWidgetHandle
     }
 }

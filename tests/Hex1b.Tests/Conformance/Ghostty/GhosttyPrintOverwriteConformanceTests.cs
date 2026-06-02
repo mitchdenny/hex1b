@@ -1,4 +1,3 @@
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -6,7 +5,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Conformance tests for print and overwrite operations,
 /// translated from Ghostty's Terminal.zig.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyPrintOverwriteConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -14,7 +14,7 @@ public class GhosttyPrintOverwriteConformanceTests
 
     #region Print Basics
 
-    [Fact]
+    [TestMethod]
     public void PrintSingleVeryLongLine_DoesNotCrash()
     {
         // Ghostty: "Terminal: print single very long line"
@@ -28,7 +28,7 @@ public class GhosttyPrintOverwriteConformanceTests
 
     #region Print Over Wide Characters
 
-    [Fact]
+    [TestMethod]
     public void PrintOverWideCharAtCol0_DoesNotCorruptPreviousRow()
     {
         // Ghostty: "Terminal: print over wide char at col 0 corrupts previous row"
@@ -45,23 +45,23 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Row 1, col 0 should be the narrow 'A'
         var cell10 = GhosttyTestFixture.GetCell(t, 1, 0);
-        Assert.Equal("A", cell10.Character);
+        Assert.AreEqual("A", cell10.Character);
 
         // Row 0, col 8 should still be wide (last wide char on the row)
         var cell08 = GhosttyTestFixture.GetCell(t, 0, 8);
-        Assert.Equal("中", cell08.Character);
+        Assert.AreEqual("中", cell08.Character);
 
         // Row 0, col 9 must remain spacer_tail (continuation cell)
         var cell09 = GhosttyTestFixture.GetCell(t, 0, 9);
-        Assert.Equal("", cell09.Character);
+        Assert.AreEqual("", cell09.Character);
     }
 
     #endregion
 
     #region Print Multicodepoint Grapheme
 
-    [Trait("FailureReason", "Bug")]
-    [Fact]
+    [TestCategory("FailureReason:Bug")]
+    [TestMethod]
     public void PrintMulticodepointGrapheme_DisabledMode2027_TreatedAsSeparateChars()
     {
         // Ghostty: "Terminal: print multicodepoint grapheme, disabled mode 2027"
@@ -75,8 +75,8 @@ public class GhosttyPrintOverwriteConformanceTests
         GhosttyTestFixture.Feed(t, "\U0001F468\u200D\U0001F469\u200D\U0001F467");
 
         // Without grapheme clustering, 3 wide chars × 2 cells = 6
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(6, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(6, t.CursorX);
 
         // First cell should have the first emoji (possibly with ZWJ appended)
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
@@ -87,7 +87,7 @@ public class GhosttyPrintOverwriteConformanceTests
 
     #region Overwrite Grapheme Data
 
-    [Fact]
+    [TestMethod]
     public void OverwriteGrapheme_ClearsGraphemeData()
     {
         // Ghostty: "Terminal: overwrite grapheme should clear grapheme data"
@@ -104,13 +104,13 @@ public class GhosttyPrintOverwriteConformanceTests
         GhosttyTestFixture.Feed(t, "A");
 
         var line = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("A", line);
+        Assert.AreEqual("A", line);
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("A", cell.Character);
+        Assert.AreEqual("A", cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void OverwriteMulticodepointGrapheme_ClearsGraphemeData()
     {
         // Ghostty: "Terminal: overwrite multicodepoint grapheme clears grapheme data"
@@ -123,21 +123,21 @@ public class GhosttyPrintOverwriteConformanceTests
         GhosttyTestFixture.Feed(t, "\U0001F468\u200D\U0001F469\u200D\U0001F467");
 
         // With mode 2027, treated as single wide grapheme (2 cells)
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         // Go back and overwrite
         GhosttyTestFixture.Feed(t, "\u001b[1;1H");
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         var line = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("X", line);
+        Assert.AreEqual("X", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void OverwriteMulticodepointGraphemeTail_ClearsGraphemeData()
     {
         // Ghostty: "Terminal: overwrite multicodepoint grapheme tail clears grapheme data"
@@ -149,26 +149,26 @@ public class GhosttyPrintOverwriteConformanceTests
         // Print family emoji: 👨‍👩‍👧
         GhosttyTestFixture.Feed(t, "\U0001F468\u200D\U0001F469\u200D\U0001F467");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         // Move to col 2 (1-based) = col 1 (0-based, the tail/spacer) and overwrite
         GhosttyTestFixture.Feed(t, "\u001b[1;2H");
         GhosttyTestFixture.Feed(t, "X");
 
         var line = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal(" X", line);
+        Assert.AreEqual(" X", line);
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
     }
 
     #endregion
 
     #region Print Charset
 
-    [Trait("FailureReason", "Bug")]
-    [Fact]
+    [TestCategory("FailureReason:Bug")]
+    [TestMethod]
     public void PrintCharset_DecSpecialGraphics()
     {
         // Ghostty: "Terminal: print charset"
@@ -196,11 +196,11 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Expected: "```◆" — first three are literal backticks, fourth is diamond
         var line = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("```◆", line);
+        Assert.AreEqual("```◆", line);
     }
 
-    [Trait("FailureReason", "Bug")]
-    [Fact]
+    [TestCategory("FailureReason:Bug")]
+    [TestMethod]
     public void PrintCharset_OutsideAscii()
     {
         // Ghostty: "Terminal: print charset outside of ASCII"
@@ -220,7 +220,7 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Verify diamond at col 0
         var cell0 = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("◆", cell0.Character);
+        Assert.AreEqual("◆", cell0.Character);
 
         // Ghostty expects "◆ " — non-ASCII emoji in DEC special mode produces
         // a space. GetLine trims trailing spaces, so check trimmed result.
@@ -228,8 +228,8 @@ public class GhosttyPrintOverwriteConformanceTests
         Assert.StartsWith("◆", line);
     }
 
-    [Trait("FailureReason", "Bug")]
-    [Fact]
+    [TestCategory("FailureReason:Bug")]
+    [TestMethod]
     public void PrintInvokeCharset_ShiftInOut()
     {
         // Ghostty: "Terminal: print invoke charset"
@@ -256,14 +256,14 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Expected: "`◆◆`"
         var line = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("`\u25C6\u25C6`", line);
+        Assert.AreEqual("`\u25C6\u25C6`", line);
     }
 
     #endregion
 
     #region Print Right Margin
 
-    [Fact]
+    [TestMethod]
     public void PrintRightMarginWrap()
     {
         // Ghostty: "Terminal: print right margin wrap"
@@ -282,14 +282,14 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Row 0: X replaces col 4 (was '5'), rest unchanged
         var line0 = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("1234X6789", line0);
+        Assert.AreEqual("1234X6789", line0);
 
         // Y wraps within margin to next row at left margin (col 2, 0-based)
         var line1 = GhosttyTestFixture.GetLine(t, 1);
-        Assert.Equal("  Y", line1);
+        Assert.AreEqual("  Y", line1);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintRightMarginOutside()
     {
         // Ghostty: "Terminal: print right margin outside"
@@ -305,10 +305,10 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // Printing outside margin doesn't trigger margin wrap
         var line0 = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("12345XY89", line0);
+        Assert.AreEqual("12345XY89", line0);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintRightMarginOutsideWrap()
     {
         // Ghostty: "Terminal: print right margin outside wrap"
@@ -324,11 +324,11 @@ public class GhosttyPrintOverwriteConformanceTests
 
         // X prints at col 9 (last column), then wraps
         var line0 = GhosttyTestFixture.GetLine(t, 0);
-        Assert.Equal("123456789X", line0);
+        Assert.AreEqual("123456789X", line0);
 
         // Y wraps to next row at left margin (col 2, 0-based)
         var line1 = GhosttyTestFixture.GetLine(t, 1);
-        Assert.Equal("  Y", line1);
+        Assert.AreEqual("  Y", line1);
     }
 
     #endregion

@@ -17,6 +17,7 @@ namespace Hex1b.Tests;
 /// <para><b>Key difference from Kitty/Xterm:</b> VTE and Ghostty reflow the DECSC saved cursor
 /// position alongside the primary cursor. Kitty and Xterm do not.</para>
 /// </remarks>
+[TestClass]
 public class VteGhosttyReflowTests
 {
     #region Helper Methods
@@ -72,7 +73,7 @@ public class VteGhosttyReflowTests
     /// Cursor on '2' at (0,1). Resize to cols=10.
     /// Logical line "1ABCD2EFGH" re-wraps to one row. Cursor moves to (5,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeMoreCols_ReflowFitsFullWidth()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -86,17 +87,17 @@ public class VteGhosttyReflowTests
         // Move cursor to '2' at (0,1)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;1H")); // Move to row 2, col 1 = '2'
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
 
         terminal.Resize(10, 5);
 
         // After reflow: "1ABCD2EFGH" becomes one row, cursor on '2' moves to (5,0)
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("1ABCD2EFGH", snap.GetLine(0).TrimEnd());
-        Assert.Equal("3IJKL", snap.GetLine(1).TrimEnd());
-        Assert.Equal(5, snap.CursorX);
-        Assert.Equal(0, snap.CursorY);
+        Assert.AreEqual("1ABCD2EFGH", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("3IJKL", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual(5, snap.CursorX);
+        Assert.AreEqual(0, snap.CursorY);
     }
 
     /// <summary>
@@ -110,7 +111,7 @@ public class VteGhosttyReflowTests
     /// Cursor on '3' at (0,2). Resize to cols=10.
     /// Logical line "1ABCD2EFGH" re-wraps to one row at width 10. Cursor on '3' stays on '3'.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeMoreCols_ReflowEndsInNewline()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 6, 5, scrollback: 5);
@@ -122,17 +123,17 @@ public class VteGhosttyReflowTests
         // Move cursor to '3' at row 3 col 1 (which is screen row 2, col 0 in 0-based)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1H"));
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
 
         terminal.Resize(10, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("1ABCD2EFGH", snap.GetLine(0).TrimEnd());
-        Assert.Equal("3IJKL", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("1ABCD2EFGH", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("3IJKL", snap.GetLine(1).TrimEnd());
         // Cursor on '3' moved from row 2 to row 1
-        Assert.Equal(0, snap.CursorX);
-        Assert.Equal(1, snap.CursorY);
+        Assert.AreEqual(0, snap.CursorX);
+        Assert.AreEqual(1, snap.CursorY);
     }
 
     /// <summary>
@@ -146,7 +147,7 @@ public class VteGhosttyReflowTests
     /// Resize to cols=7. "1ABCD2EFGH" → "1ABCD2E" (soft) + "FGH" → 2 rows.
     /// Cursor on '2' was at cell offset 5, maps to (5,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeMoreCols_ForcesMoreWrapping()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -161,11 +162,11 @@ public class VteGhosttyReflowTests
         terminal.Resize(7, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("1ABCD2E", snap.GetLine(0).TrimEnd());
-        Assert.Equal("FGH", snap.GetLine(1).TrimEnd());
-        Assert.Equal("3IJKL", snap.GetLine(2).TrimEnd());
-        Assert.Equal(5, snap.CursorX);
-        Assert.Equal(0, snap.CursorY);
+        Assert.AreEqual("1ABCD2E", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGH", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("3IJKL", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual(5, snap.CursorX);
+        Assert.AreEqual(0, snap.CursorY);
     }
 
     /// <summary>
@@ -179,7 +180,7 @@ public class VteGhosttyReflowTests
     /// Cursor on '3' at (0,2). Resize to cols=15. All one row.
     /// Cursor on '3' was at cell offset 10, maps to (10,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeMoreCols_UnwrapsMultipleTimes()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -189,15 +190,15 @@ public class VteGhosttyReflowTests
         // Move cursor to '3' at (0,2)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[3;1H"));
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
 
         terminal.Resize(15, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("1ABCD2EFGH3IJKL", snap.GetLine(0).TrimEnd());
-        Assert.Equal(10, snap.CursorX);
-        Assert.Equal(0, snap.CursorY);
+        Assert.AreEqual("1ABCD2EFGH3IJKL", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual(10, snap.CursorX);
+        Assert.AreEqual(0, snap.CursorY);
     }
 
     /// <summary>
@@ -211,7 +212,7 @@ public class VteGhosttyReflowTests
     /// Resize to cols=3. 15 chars → 5 rows at width 3.
     /// Screen shows: "3IJ" "KL4" "ABC" "D5E" "FGH"
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeLessCols_ReflowPreviouslyWrapped()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -221,11 +222,11 @@ public class VteGhosttyReflowTests
         terminal.Resize(3, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("3IJ", snap.GetLine(0).TrimEnd());
-        Assert.Equal("KL4", snap.GetLine(1).TrimEnd());
-        Assert.Equal("ABC", snap.GetLine(2).TrimEnd());
-        Assert.Equal("D5E", snap.GetLine(3).TrimEnd());
-        Assert.Equal("FGH", snap.GetLine(4).TrimEnd());
+        Assert.AreEqual("3IJ", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("KL4", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABC", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("D5E", snap.GetLine(3).TrimEnd());
+        Assert.AreEqual("FGH", snap.GetLine(4).TrimEnd());
     }
 
     /// <summary>
@@ -239,7 +240,7 @@ public class VteGhosttyReflowTests
     /// Cursor at (1,2) on 'E'. Resize to cols=3. Each line is hard-wrapped (no merging).
     /// The hard-wrapped lines stay as separate logical lines. Cursor stays at (1,2).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeLessCols_ReflowWithScrollback()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 3, scrollback: 5);
@@ -247,20 +248,20 @@ public class VteGhosttyReflowTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("1A\r\n2B\r\n3C\r\n4D\r\n5E"));
 
         // Cursor should be after "5E" at col 2, row 2
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
 
         terminal.Resize(3, 3);
 
         // Content is short enough that no re-wrapping needed (each line < 3 chars).
         // Cursor should still be at (2, 2) on 'E' row.
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("3C", snap.GetLine(0).TrimEnd());
-        Assert.Equal("4D", snap.GetLine(1).TrimEnd());
-        Assert.Equal("5E", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("3C", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("4D", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("5E", snap.GetLine(2).TrimEnd());
     }
 
     /// <summary>
@@ -279,7 +280,7 @@ public class VteGhosttyReflowTests
     /// Cursor was on 'H' at cell offset 4*5+4=24. At width 3: row=24/3=8, col=24%3=0.
     /// Screen (rows=3): shows rows 6-8: "CD5", "EFG", "H". Cursor at (0, 2).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_ResizeLessCols_PreviouslyWrappedWithScrollback()
     {
         using var terminal = CreateTerminal(GhosttyReflowStrategy.Instance, 5, 3, scrollback: 2);
@@ -288,15 +289,15 @@ public class VteGhosttyReflowTests
 
         // After writing 25 chars at width 5: 5 rows, screen shows last 3.
         // Cursor wraps to end of content. After pending wrap, cursor is at col 4 row 4 (last screen row = 2)
-        Assert.Equal(4, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
 
         terminal.Resize(3, 3);
 
         var snap = terminal.CreateSnapshot();
         // Cursor was on 'H' (last char), should track to its new position
-        Assert.Equal(0, snap.CursorX);
-        Assert.Equal(2, snap.CursorY);
+        Assert.AreEqual(0, snap.CursorX);
+        Assert.AreEqual(2, snap.CursorY);
     }
 
     #endregion
@@ -314,7 +315,7 @@ public class VteGhosttyReflowTests
     /// Resize to cols=5. "12345" is only 5 chars so stays on one row. "67890" same.
     /// Saved cursor should be at (4,0) — same position since the line fits.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Vte_SavedCursor_TracksCharacterAfterNarrowResize()
     {
         using var terminal = CreateTerminal(VteReflowStrategy.Instance, 10, 5, scrollback: 5);
@@ -323,8 +324,8 @@ public class VteGhosttyReflowTests
 
         // Move cursor to '5' at (4,0) and save
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;5H")); // row 1, col 5 = (4, 0)
-        Assert.Equal(4, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
         terminal.ApplyTokens([SaveCursorToken.Dec]);
 
         // Move cursor away
@@ -334,11 +335,11 @@ public class VteGhosttyReflowTests
 
         // Restore saved cursor and check — should still be on '5'
         terminal.ApplyTokens([RestoreCursorToken.Dec]);
-        Assert.Equal(4, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("12345", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("12345", snap.GetLine(0).TrimEnd());
     }
 
     /// <summary>
@@ -353,7 +354,7 @@ public class VteGhosttyReflowTests
     /// After reflow: "ABCDEFGHIJ" becomes one row. 'F' is at (5,0).
     /// Restore and verify.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Vte_SavedCursor_TracksCharacterAfterWiderResize()
     {
         using var terminal = CreateTerminal(VteReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -362,8 +363,8 @@ public class VteGhosttyReflowTests
 
         // Move cursor to 'F' at (0,1) and save
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2;1H"));
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
         terminal.ApplyTokens([SaveCursorToken.Dec]);
 
         // Write more content on a new line
@@ -374,11 +375,11 @@ public class VteGhosttyReflowTests
 
         // Restore saved cursor — should be at (5, 0) where 'F' now is
         terminal.ApplyTokens([RestoreCursorToken.Dec]);
-        Assert.Equal(5, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(5, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap.GetLine(0).TrimEnd());
     }
 
     /// <summary>
@@ -393,7 +394,7 @@ public class VteGhosttyReflowTests
     /// Kitty: saved cursor stays at original (0,1) — NOT reflowed.
     /// VTE: saved cursor moves to (5,0) — reflowed.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Vte_SavedCursor_DiffersFromKitty()
     {
         // Build the same context for both strategies
@@ -415,15 +416,15 @@ public class VteGhosttyReflowTests
 
         // VTE strategy reflowed the saved cursor
         var vteResult = VteReflowStrategy.Instance.Reflow(context);
-        Assert.NotNull(vteResult.NewSavedCursorX);
-        Assert.NotNull(vteResult.NewSavedCursorY);
-        Assert.Equal(5, vteResult.NewSavedCursorX!.Value);
-        Assert.Equal(0, vteResult.NewSavedCursorY!.Value);
+        Assert.IsNotNull(vteResult.NewSavedCursorX);
+        Assert.IsNotNull(vteResult.NewSavedCursorY);
+        Assert.AreEqual(5, vteResult.NewSavedCursorX!.Value);
+        Assert.AreEqual(0, vteResult.NewSavedCursorY!.Value);
 
         // Kitty strategy does NOT reflow the saved cursor
         var kittyResult = KittyReflowStrategy.Instance.Reflow(context);
-        Assert.Null(kittyResult.NewSavedCursorX);
-        Assert.Null(kittyResult.NewSavedCursorY);
+        Assert.IsNull(kittyResult.NewSavedCursorX);
+        Assert.IsNull(kittyResult.NewSavedCursorY);
     }
 
     /// <summary>
@@ -433,7 +434,7 @@ public class VteGhosttyReflowTests
     /// <b>Provenance:</b> Verification that <see cref="GhosttyReflowStrategy"/> produces
     /// identical saved cursor behavior to <see cref="VteReflowStrategy"/>.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Ghostty_SavedCursor_MatchesVteBehavior()
     {
         int width = 5, height = 5;
@@ -455,10 +456,10 @@ public class VteGhosttyReflowTests
         var vteResult = VteReflowStrategy.Instance.Reflow(context);
         var ghosttyResult = GhosttyReflowStrategy.Instance.Reflow(context);
 
-        Assert.Equal(vteResult.NewSavedCursorX, ghosttyResult.NewSavedCursorX);
-        Assert.Equal(vteResult.NewSavedCursorY, ghosttyResult.NewSavedCursorY);
-        Assert.Equal(vteResult.CursorX, ghosttyResult.CursorX);
-        Assert.Equal(vteResult.CursorY, ghosttyResult.CursorY);
+        Assert.AreEqual(vteResult.NewSavedCursorX, ghosttyResult.NewSavedCursorX);
+        Assert.AreEqual(vteResult.NewSavedCursorY, ghosttyResult.NewSavedCursorY);
+        Assert.AreEqual(vteResult.CursorX, ghosttyResult.CursorX);
+        Assert.AreEqual(vteResult.CursorY, ghosttyResult.CursorY);
     }
 
     #endregion
@@ -474,7 +475,7 @@ public class VteGhosttyReflowTests
     /// <b>Setup:</b> "Hello\nWorld" (hard-wrapped via newlines). Resize wider.
     /// The two lines must remain separate.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Vte_HardWrappedLines_NotMerged()
     {
         using var terminal = CreateTerminal(VteReflowStrategy.Instance, 10, 5, scrollback: 5);
@@ -484,8 +485,8 @@ public class VteGhosttyReflowTests
         terminal.Resize(20, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snap.GetLine(0).TrimEnd());
-        Assert.Equal("World", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("Hello", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("World", snap.GetLine(1).TrimEnd());
     }
 
     /// <summary>
@@ -499,7 +500,7 @@ public class VteGhosttyReflowTests
     /// Resize to cols=10. Line is still "ABCDE" (no soft-wrap to join).
     /// Saved cursor should be at (4,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Vte_SavedCursorAtEOL_StaysAtEOL()
     {
         using var terminal = CreateTerminal(VteReflowStrategy.Instance, 5, 5, scrollback: 5);
@@ -517,8 +518,8 @@ public class VteGhosttyReflowTests
 
         // Restore and verify cursor is still on 'E'
         terminal.ApplyTokens([RestoreCursorToken.Dec]);
-        Assert.Equal(4, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     #endregion
@@ -528,25 +529,25 @@ public class VteGhosttyReflowTests
     /// <summary>
     /// VTE strategy sets ShouldClearSoftWrapOnAbsolutePosition to true.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void VteStrategy_ShouldClearSoftWrapOnAbsolutePosition_IsTrue()
     {
-        Assert.True(VteReflowStrategy.Instance.ShouldClearSoftWrapOnAbsolutePosition);
+        Assert.IsTrue(VteReflowStrategy.Instance.ShouldClearSoftWrapOnAbsolutePosition);
     }
 
     /// <summary>
     /// Ghostty strategy sets ShouldClearSoftWrapOnAbsolutePosition to true.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void GhosttyStrategy_ShouldClearSoftWrapOnAbsolutePosition_IsTrue()
     {
-        Assert.True(GhosttyReflowStrategy.Instance.ShouldClearSoftWrapOnAbsolutePosition);
+        Assert.IsTrue(GhosttyReflowStrategy.Instance.ShouldClearSoftWrapOnAbsolutePosition);
     }
 
     /// <summary>
     /// VTE does not reflow alternate screen buffer.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void VteStrategy_AlternateScreen_NoReflow()
     {
         int width = 5, height = 3;
@@ -564,13 +565,13 @@ public class VteGhosttyReflowTests
         var result = VteReflowStrategy.Instance.Reflow(context);
 
         // No reflow in alt screen — content is cropped/extended, not re-wrapped
-        Assert.Equal("ABCDE", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("ABCDE", GetRowText(result.ScreenRows[0]));
     }
 
     /// <summary>
     /// Ghostty does not reflow alternate screen buffer.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void GhosttyStrategy_AlternateScreen_NoReflow()
     {
         int width = 5, height = 3;
@@ -587,7 +588,7 @@ public class VteGhosttyReflowTests
 
         var result = GhosttyReflowStrategy.Instance.Reflow(context);
 
-        Assert.Equal("ABCDE", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("ABCDE", GetRowText(result.ScreenRows[0]));
     }
 
     #endregion
@@ -597,7 +598,7 @@ public class VteGhosttyReflowTests
     /// <summary>
     /// When reflowSavedCursor is false, saved cursor fields are null in result.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_NoSavedCursorReflow_ReturnsNull()
     {
         int width = 5, height = 3;
@@ -615,14 +616,14 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: false);
 
-        Assert.Null(result.NewSavedCursorX);
-        Assert.Null(result.NewSavedCursorY);
+        Assert.IsNull(result.NewSavedCursorX);
+        Assert.IsNull(result.NewSavedCursorY);
     }
 
     /// <summary>
     /// When reflowSavedCursor is true but saved cursor is null, result fields are null.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_SavedCursorNull_ReturnsNull()
     {
         int width = 5, height = 3;
@@ -639,8 +640,8 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: true);
 
-        Assert.Null(result.NewSavedCursorX);
-        Assert.Null(result.NewSavedCursorY);
+        Assert.IsNull(result.NewSavedCursorX);
+        Assert.IsNull(result.NewSavedCursorY);
     }
 
     /// <summary>
@@ -654,7 +655,7 @@ public class VteGhosttyReflowTests
     /// Primary cursor at (0,1), saved cursor at (2,0) on 'C'.
     /// Resize to width 10: "ABCDEFGHIJ". 'C' moves to (2,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_SavedCursor_TracksOnWiden()
     {
         int width = 5, height = 3;
@@ -672,11 +673,11 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: true);
 
-        Assert.Equal(2, result.NewSavedCursorX);
-        Assert.Equal(0, result.NewSavedCursorY);
+        Assert.AreEqual(2, result.NewSavedCursorX);
+        Assert.AreEqual(0, result.NewSavedCursorY);
 
         // Verify content
-        Assert.Equal("ABCDEFGHIJ", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("ABCDEFGHIJ", GetRowText(result.ScreenRows[0]));
     }
 
     /// <summary>
@@ -687,7 +688,7 @@ public class VteGhosttyReflowTests
     /// Saved cursor at (2,1) = 'H' in "ABCDE" + "FGHIJ". Cell offset = 1*5+2 = 7.
     /// At width 10: row=7/10=0, col=7%10=7. Saved cursor → (7,0).
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_SavedCursor_TracksSecondRowOnWiden()
     {
         int width = 5, height = 3;
@@ -705,8 +706,8 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: true);
 
-        Assert.Equal(7, result.NewSavedCursorX);
-        Assert.Equal(0, result.NewSavedCursorY);
+        Assert.AreEqual(7, result.NewSavedCursorX);
+        Assert.AreEqual(0, result.NewSavedCursorY);
     }
 
     /// <summary>
@@ -717,7 +718,7 @@ public class VteGhosttyReflowTests
     /// "ABCDEFGHIJ" at width 10, saved cursor at (7,0) = 'H'.
     /// Resize to width 5: "ABCDE" + "FGHIJ". Cell offset 7: row=7/5=1, col=7%5=2. → (2,1) = 'H'.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_SavedCursor_TracksOnNarrow()
     {
         int width = 10, height = 3;
@@ -735,17 +736,17 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: true);
 
-        Assert.Equal(2, result.NewSavedCursorX);
-        Assert.Equal(1, result.NewSavedCursorY);
+        Assert.AreEqual(2, result.NewSavedCursorX);
+        Assert.AreEqual(1, result.NewSavedCursorY);
 
-        Assert.Equal("ABCDE", GetRowText(result.ScreenRows[0]));
-        Assert.Equal("FGHIJ", GetRowText(result.ScreenRows[1]));
+        Assert.AreEqual("ABCDE", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("FGHIJ", GetRowText(result.ScreenRows[1]));
     }
 
     /// <summary>
     /// Same-size resize returns saved cursor unchanged.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReflowHelper_SameSize_SavedCursorUnchanged()
     {
         int width = 5, height = 3;
@@ -763,8 +764,8 @@ public class VteGhosttyReflowTests
 
         var result = ReflowHelper.PerformReflow(context, preserveCursorRow: true, reflowSavedCursor: true);
 
-        Assert.Equal(3, result.NewSavedCursorX);
-        Assert.Equal(1, result.NewSavedCursorY);
+        Assert.AreEqual(3, result.NewSavedCursorX);
+        Assert.AreEqual(1, result.NewSavedCursorY);
     }
 
     #endregion

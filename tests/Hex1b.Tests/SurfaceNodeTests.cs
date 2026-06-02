@@ -6,9 +6,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class SurfaceNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_WithFillHints_ReturnsMaxConstraints()
     {
         var node = new SurfaceNode
@@ -20,11 +21,11 @@ public class SurfaceNodeTests
 
         var size = node.Measure(Constraints.Loose(80, 24));
 
-        Assert.Equal(80, size.Width);
-        Assert.Equal(24, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(24, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFixedHints_ReturnsFixedSize()
     {
         var node = new SurfaceNode
@@ -36,11 +37,11 @@ public class SurfaceNodeTests
 
         var size = node.Measure(Constraints.Loose(80, 24));
 
-        Assert.Equal(40, size.Width);
-        Assert.Equal(10, size.Height);
+        Assert.AreEqual(40, size.Width);
+        Assert.AreEqual(10, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFixedHints_ClampsToConstraints()
     {
         var node = new SurfaceNode
@@ -52,11 +53,11 @@ public class SurfaceNodeTests
 
         var size = node.Measure(Constraints.Loose(80, 24));
 
-        Assert.Equal(80, size.Width); // Clamped to max
-        Assert.Equal(24, size.Height); // Clamped to max
+        Assert.AreEqual(80, size.Width); // Clamped to max
+        Assert.AreEqual(24, size.Height); // Clamped to max
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithNoLayers_DoesNotThrow()
     {
         var node = new SurfaceNode { LayerBuilder = _ => [] };
@@ -69,7 +70,7 @@ public class SurfaceNodeTests
         node.Render(context);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithNullLayerBuilder_DoesNotThrow()
     {
         var node = new SurfaceNode { LayerBuilder = null };
@@ -82,7 +83,7 @@ public class SurfaceNodeTests
         node.Render(context);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithZeroSizeBounds_DoesNotThrow()
     {
         var node = new SurfaceNode { LayerBuilder = _ => [new SourceSurfaceLayer(new Surface(1, 1), 0, 0)] };
@@ -95,7 +96,7 @@ public class SurfaceNodeTests
         node.Render(context);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_SingleStaticLayer_WritesToContext()
     {
         // Create a surface with some content
@@ -114,14 +115,14 @@ public class SurfaceNodeTests
         node.Render(context);
 
         // Check that content was written
-        Assert.Equal("H", targetSurface[0, 0].Character);
-        Assert.Equal("e", targetSurface[1, 0].Character);
-        Assert.Equal("l", targetSurface[2, 0].Character);
-        Assert.Equal("l", targetSurface[3, 0].Character);
-        Assert.Equal("o", targetSurface[4, 0].Character);
+        Assert.AreEqual("H", targetSurface[0, 0].Character);
+        Assert.AreEqual("e", targetSurface[1, 0].Character);
+        Assert.AreEqual("l", targetSurface[2, 0].Character);
+        Assert.AreEqual("l", targetSurface[3, 0].Character);
+        Assert.AreEqual("o", targetSurface[4, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_LayerWithOffset_PositionsCorrectly()
     {
         var sourceSurface = new Surface(3, 1);
@@ -139,12 +140,12 @@ public class SurfaceNodeTests
         node.Render(context);
 
         // Content should be at offset position
-        Assert.Equal("A", targetSurface[5, 2].Character);
-        Assert.Equal("B", targetSurface[6, 2].Character);
-        Assert.Equal("C", targetSurface[7, 2].Character);
+        Assert.AreEqual("A", targetSurface[5, 2].Character);
+        Assert.AreEqual("B", targetSurface[6, 2].Character);
+        Assert.AreEqual("C", targetSurface[7, 2].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_DrawLayer_ExecutesCallback()
     {
         var drawWasCalled = false;
@@ -164,11 +165,11 @@ public class SurfaceNodeTests
 
         node.Render(context);
 
-        Assert.True(drawWasCalled);
-        Assert.Equal("D", targetSurface[0, 0].Character);
+        Assert.IsTrue(drawWasCalled);
+        Assert.AreEqual("D", targetSurface[0, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ComputedLayer_ExecutesForEachCell()
     {
         // Create a computed layer that makes all cells 'X'
@@ -188,12 +189,12 @@ public class SurfaceNodeTests
         {
             for (int x = 0; x < 3; x++)
             {
-                Assert.Equal("X", targetSurface[x, y].Character);
+                Assert.AreEqual("X", targetSurface[x, y].Character);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_MultipleLayers_CompositesInOrder()
     {
         // Background layer with 'A' everywhere
@@ -218,14 +219,14 @@ public class SurfaceNodeTests
 
         node.Render(context);
 
-        Assert.Equal("A", targetSurface[0, 0].Character);
-        Assert.Equal("A", targetSurface[1, 0].Character);
-        Assert.Equal("B", targetSurface[2, 0].Character); // Foreground overwrites
-        Assert.Equal("A", targetSurface[3, 0].Character);
-        Assert.Equal("A", targetSurface[4, 0].Character);
+        Assert.AreEqual("A", targetSurface[0, 0].Character);
+        Assert.AreEqual("A", targetSurface[1, 0].Character);
+        Assert.AreEqual("B", targetSurface[2, 0].Character); // Foreground overwrites
+        Assert.AreEqual("A", targetSurface[3, 0].Character);
+        Assert.AreEqual("A", targetSurface[4, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ComputedLayerCanQueryBelow()
     {
         // Base layer with 'A'
@@ -256,12 +257,12 @@ public class SurfaceNodeTests
         node.Render(context);
 
         // All cells should be replaced with 'X' since the computed layer could see the base
-        Assert.Equal("X", targetSurface[0, 0].Character);
-        Assert.Equal("X", targetSurface[1, 0].Character);
-        Assert.Equal("X", targetSurface[2, 0].Character);
+        Assert.AreEqual("X", targetSurface[0, 0].Character);
+        Assert.AreEqual("X", targetSurface[1, 0].Character);
+        Assert.AreEqual("X", targetSurface[2, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_ProvidesCorrectDimensions()
     {
         int capturedWidth = 0, capturedHeight = 0;
@@ -282,11 +283,11 @@ public class SurfaceNodeTests
 
         node.Render(context);
 
-        Assert.Equal(40, capturedWidth);
-        Assert.Equal(12, capturedHeight);
+        Assert.AreEqual(40, capturedWidth);
+        Assert.AreEqual(12, capturedHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_ProvidesTheme()
     {
         Hex1bTheme? capturedTheme = null;
@@ -307,10 +308,10 @@ public class SurfaceNodeTests
 
         node.Render(context);
 
-        Assert.NotNull(capturedTheme);
+        Assert.IsNotNull(capturedTheme);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_CellWithColor_WritesWithAnsiCodes()
     {
         var sourceSurface = new Surface(1, 1);
@@ -329,18 +330,18 @@ public class SurfaceNodeTests
 
         // The cell should have colors applied
         var cell = targetSurface[0, 0];
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(Hex1bColor.Red, cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsEmpty()
     {
         var node = new SurfaceNode();
 
         var children = node.GetChildren().ToList();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 }

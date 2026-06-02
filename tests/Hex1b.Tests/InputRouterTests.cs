@@ -4,6 +4,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class InputRouterTests
 {
     /// <summary>
@@ -67,7 +68,7 @@ public class InputRouterTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_ToFocusedNode_RoutesSuccessfully()
     {
         // Arrange
@@ -87,13 +88,13 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Single(focusedNode.ReceivedInputs);
-        var receivedKeyEvent = Assert.IsType<Hex1bKeyEvent>(focusedNode.ReceivedInputs[0]);
-        Assert.Equal(Hex1bKey.A, receivedKeyEvent.Key);
+        Assert.AreEqual(InputResult.Handled, result);
+        TestSeq.Single(focusedNode.ReceivedInputs);
+        var receivedKeyEvent = TestSeq.IsType<Hex1bKeyEvent>(focusedNode.ReceivedInputs[0]);
+        Assert.AreEqual(Hex1bKey.A, receivedKeyEvent.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_WithMatchingBinding_ExecutesBinding()
     {
         // Arrange
@@ -119,12 +120,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(bindingExecuted);
-        Assert.Empty(focusedNode.ReceivedInputs); // OnInput should not be called when binding matches
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(bindingExecuted);
+        Assert.IsEmpty(focusedNode.ReceivedInputs); // OnInput should not be called when binding matches
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_ChildBindingOverridesParentBinding()
     {
         // Arrange
@@ -156,12 +157,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(childBindingExecuted);
-        Assert.False(parentBindingExecuted); // Child binding should win
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(childBindingExecuted);
+        Assert.IsFalse(parentBindingExecuted); // Child binding should win
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_ParentBindingUsedWhenChildHasNone()
     {
         // Arrange
@@ -189,11 +190,11 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(parentBindingExecuted);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(parentBindingExecuted);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_NoFocusedNode_ReturnsNotHandled()
     {
         // Arrange
@@ -212,10 +213,10 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, keyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_NestedContainers_CollectsBindingsFromPath()
     {
         // Arrange - 3 levels: root -> middle -> focused
@@ -254,13 +255,13 @@ public class InputRouterTests
         var middleResult = await InputRouter.RouteInputAsync(rootContainer, middleKeyEvent, focusRing, state, null, TestContext.Current.CancellationToken);
         
         // Assert
-        Assert.Equal(InputResult.Handled, rootResult);
-        Assert.True(rootBindingExecuted);
-        Assert.Equal(InputResult.Handled, middleResult);
-        Assert.True(middleBindingExecuted);
+        Assert.AreEqual(InputResult.Handled, rootResult);
+        Assert.IsTrue(rootBindingExecuted);
+        Assert.AreEqual(InputResult.Handled, middleResult);
+        Assert.IsTrue(middleBindingExecuted);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBinding_Factory_CreatesCorrectBindings()
     {
         // Test InputBindingsBuilder creates correct key/modifier combinations
@@ -271,60 +272,57 @@ public class InputRouterTests
         
         var bindings = builder.Bindings;
         
-        Assert.Equal(3, bindings.Count);
+        Assert.AreEqual(3, bindings.Count);
         
         // Plain binding
-        Assert.Equal(Hex1bKey.A, bindings[0].Steps[0].Key);
-        Assert.Equal(Hex1bModifiers.None, bindings[0].Steps[0].Modifiers);
+        Assert.AreEqual(Hex1bKey.A, bindings[0].Steps[0].Key);
+        Assert.AreEqual(Hex1bModifiers.None, bindings[0].Steps[0].Modifiers);
         
         // Ctrl binding
-        Assert.Equal(Hex1bKey.S, bindings[1].Steps[0].Key);
-        Assert.Equal(Hex1bModifiers.Control, bindings[1].Steps[0].Modifiers);
+        Assert.AreEqual(Hex1bKey.S, bindings[1].Steps[0].Key);
+        Assert.AreEqual(Hex1bModifiers.Control, bindings[1].Steps[0].Modifiers);
         
         // Shift binding
-        Assert.Equal(Hex1bKey.Tab, bindings[2].Steps[0].Key);
-        Assert.Equal(Hex1bModifiers.Shift, bindings[2].Steps[0].Modifiers);
+        Assert.AreEqual(Hex1bKey.Tab, bindings[2].Steps[0].Key);
+        Assert.AreEqual(Hex1bModifiers.Shift, bindings[2].Steps[0].Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void Hex1bKeyEvent_Properties_ReturnCorrectValues()
     {
         var evt = new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control | Hex1bModifiers.Shift);
         
-        Assert.True(evt.Control);
-        Assert.True(evt.Shift);
-        Assert.False(evt.Alt);
-        Assert.True(evt.IsPrintable);
+        Assert.IsTrue(evt.Control);
+        Assert.IsTrue(evt.Shift);
+        Assert.IsFalse(evt.Alt);
+        Assert.IsTrue(evt.IsPrintable);
         
         var nonPrintable = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
-        Assert.False(nonPrintable.IsPrintable);
+        Assert.IsFalse(nonPrintable.IsPrintable);
     }
 
-    [Fact]
+    [TestMethod]
     public void KeyMapper_ToHex1bKey_MapsCorrectly()
     {
-        Assert.Equal(Hex1bKey.A, KeyMapper.ToHex1bKey(ConsoleKey.A));
-        Assert.Equal(Hex1bKey.Enter, KeyMapper.ToHex1bKey(ConsoleKey.Enter));
-        Assert.Equal(Hex1bKey.Escape, KeyMapper.ToHex1bKey(ConsoleKey.Escape));
-        Assert.Equal(Hex1bKey.Tab, KeyMapper.ToHex1bKey(ConsoleKey.Tab));
-        Assert.Equal(Hex1bKey.UpArrow, KeyMapper.ToHex1bKey(ConsoleKey.UpArrow));
-        Assert.Equal(Hex1bKey.F1, KeyMapper.ToHex1bKey(ConsoleKey.F1));
+        Assert.AreEqual(Hex1bKey.A, KeyMapper.ToHex1bKey(ConsoleKey.A));
+        Assert.AreEqual(Hex1bKey.Enter, KeyMapper.ToHex1bKey(ConsoleKey.Enter));
+        Assert.AreEqual(Hex1bKey.Escape, KeyMapper.ToHex1bKey(ConsoleKey.Escape));
+        Assert.AreEqual(Hex1bKey.Tab, KeyMapper.ToHex1bKey(ConsoleKey.Tab));
+        Assert.AreEqual(Hex1bKey.UpArrow, KeyMapper.ToHex1bKey(ConsoleKey.UpArrow));
+        Assert.AreEqual(Hex1bKey.F1, KeyMapper.ToHex1bKey(ConsoleKey.F1));
     }
 
-    [Fact]
+    [TestMethod]
     public void KeyMapper_ToHex1bModifiers_MapsCorrectly()
     {
-        Assert.Equal(Hex1bModifiers.None, KeyMapper.ToHex1bModifiers(false, false, false));
-        Assert.Equal(Hex1bModifiers.Shift, KeyMapper.ToHex1bModifiers(true, false, false));
-        Assert.Equal(Hex1bModifiers.Alt, KeyMapper.ToHex1bModifiers(false, true, false));
-        Assert.Equal(Hex1bModifiers.Control, KeyMapper.ToHex1bModifiers(false, false, true));
-        Assert.Equal(
-            Hex1bModifiers.Shift | Hex1bModifiers.Control,
-            KeyMapper.ToHex1bModifiers(true, false, true)
-        );
+        Assert.AreEqual(Hex1bModifiers.None, KeyMapper.ToHex1bModifiers(false, false, false));
+        Assert.AreEqual(Hex1bModifiers.Shift, KeyMapper.ToHex1bModifiers(true, false, false));
+        Assert.AreEqual(Hex1bModifiers.Alt, KeyMapper.ToHex1bModifiers(false, true, false));
+        Assert.AreEqual(Hex1bModifiers.Control, KeyMapper.ToHex1bModifiers(false, false, true));
+        Assert.AreEqual(Hex1bModifiers.Shift | Hex1bModifiers.Control, KeyMapper.ToHex1bModifiers(true, false, true));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_TextBoxBackspace_DeletesAndPositionsCursor()
     {
         // Arrange
@@ -335,12 +333,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("hell", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("hell", state.Text);
+        Assert.AreEqual(4, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_TextBoxDoubleBackspace_DeletesTwoCharacters()
     {
         // Arrange
@@ -352,13 +350,13 @@ public class InputRouterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("hel", state.Text);
-        Assert.Equal(3, state.CursorPosition);
+        Assert.AreEqual("hel", state.Text);
+        Assert.AreEqual(3, state.CursorPosition);
     }
 
     #region CharacterBinding Tests
 
-    [Fact]
+    [TestMethod]
     public void CharacterBinding_MatchesPrintableText()
     {
         // Arrange
@@ -369,21 +367,21 @@ public class InputRouterTests
             "Insert text");
 
         // Act & Assert
-        Assert.True(binding.Matches("a"));
-        Assert.True(binding.Matches("Z"));
-        Assert.True(binding.Matches("5"));
-        Assert.True(binding.Matches(" "));
-        Assert.True(binding.Matches("😀"));  // Emoji as string works!
-        Assert.False(binding.Matches("\n"));
-        Assert.False(binding.Matches("\t"));
-        Assert.False(binding.Matches("\b"));
-        Assert.False(binding.Matches(""));
+        Assert.IsTrue(binding.Matches("a"));
+        Assert.IsTrue(binding.Matches("Z"));
+        Assert.IsTrue(binding.Matches("5"));
+        Assert.IsTrue(binding.Matches(" "));
+        Assert.IsTrue(binding.Matches("😀"));  // Emoji as string works!
+        Assert.IsFalse(binding.Matches("\n"));
+        Assert.IsFalse(binding.Matches("\t"));
+        Assert.IsFalse(binding.Matches("\b"));
+        Assert.IsFalse(binding.Matches(""));
         
         binding.Execute("X");
-        Assert.Equal("X", received);
+        Assert.AreEqual("X", received);
     }
 
-    [Fact]
+    [TestMethod]
     public void CharacterBinding_CustomPredicate_MatchesDigitsOnly()
     {
         // Arrange
@@ -394,17 +392,17 @@ public class InputRouterTests
             "Insert digit");
 
         // Act & Assert
-        Assert.True(binding.Matches("0"));
-        Assert.True(binding.Matches("9"));
-        Assert.False(binding.Matches("a"));
-        Assert.False(binding.Matches(" "));
-        Assert.False(binding.Matches("12"));  // Multiple digits don't match single-digit predicate
+        Assert.IsTrue(binding.Matches("0"));
+        Assert.IsTrue(binding.Matches("9"));
+        Assert.IsFalse(binding.Matches("a"));
+        Assert.IsFalse(binding.Matches(" "));
+        Assert.IsFalse(binding.Matches("12"));  // Multiple digits don't match single-digit predicate
         
         binding.Execute("7");
-        Assert.Equal("7", received);
+        Assert.AreEqual("7", received);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_AnyCharacter_CreatesCharacterBinding()
     {
         // Arrange
@@ -415,18 +413,18 @@ public class InputRouterTests
         builder.AnyCharacter().Action(text => received = text, "Type");
 
         // Assert
-        Assert.Single(builder.CharacterBindings);
-        Assert.Empty(builder.Bindings);  // Key bindings list should be empty
+        TestSeq.Single(builder.CharacterBindings);
+        Assert.IsEmpty(builder.Bindings);  // Key bindings list should be empty
         
         var binding = builder.CharacterBindings[0];
-        Assert.True(binding.Matches("a"));
-        Assert.True(binding.Matches("😀"));  // Emoji works
-        Assert.False(binding.Matches("\n"));
-        Assert.False(binding.Matches(""));
-        Assert.Equal("Type", binding.Description);
+        Assert.IsTrue(binding.Matches("a"));
+        Assert.IsTrue(binding.Matches("😀"));  // Emoji works
+        Assert.IsFalse(binding.Matches("\n"));
+        Assert.IsFalse(binding.Matches(""));
+        Assert.AreEqual("Type", binding.Description);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_Character_WithCustomPredicate()
     {
         // Arrange
@@ -437,16 +435,16 @@ public class InputRouterTests
         builder.Character(text => text.Length == 1 && char.IsLetter(text[0])).Action(text => received = text, "Letters only");
 
         // Assert
-        Assert.Single(builder.CharacterBindings);
+        TestSeq.Single(builder.CharacterBindings);
         
         var binding = builder.CharacterBindings[0];
-        Assert.True(binding.Matches("a"));
-        Assert.True(binding.Matches("Z"));
-        Assert.False(binding.Matches("5"));
-        Assert.False(binding.Matches(" "));
+        Assert.IsTrue(binding.Matches("a"));
+        Assert.IsTrue(binding.Matches("Z"));
+        Assert.IsFalse(binding.Matches("5"));
+        Assert.IsFalse(binding.Matches(" "));
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_MixedBindings_KeyAndCharacter()
     {
         // Arrange
@@ -457,11 +455,11 @@ public class InputRouterTests
         builder.AnyCharacter().Action(_ => { }, "Type");
 
         // Assert
-        Assert.Single(builder.Bindings);
-        Assert.Single(builder.CharacterBindings);
+        TestSeq.Single(builder.Bindings);
+        TestSeq.Single(builder.CharacterBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_InsertsCharacter()
     {
         // Arrange
@@ -472,12 +470,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("helloX", state.Text);
-        Assert.Equal(6, state.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("helloX", state.Text);
+        Assert.AreEqual(6, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_MultipleCharacters()
     {
         // Arrange
@@ -490,11 +488,11 @@ public class InputRouterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '!', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("Hi!", state.Text);
-        Assert.Equal(3, state.CursorPosition);
+        Assert.AreEqual("Hi!", state.Text);
+        Assert.AreEqual(3, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_NotFocused_NotHandled()
     {
         // Arrange
@@ -505,11 +503,11 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal("hello", state.Text);  // Text unchanged
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual("hello", state.Text);  // Text unchanged
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_KeyBindingTakesPrecedence_OverCharacterBinding()
     {
         // Arrange - node with both a key binding for 'A' and a character binding
@@ -527,12 +525,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - key binding should win
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(keyBindingCalled);
-        Assert.Equal("", textReceived);  // Character binding should not have been called
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(keyBindingCalled);
+        Assert.AreEqual("", textReceived);  // Character binding should not have been called
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_FallsBackWhenNoKeyBinding()
     {
         // Arrange - node with key binding for Enter, but typing 'x'
@@ -550,12 +548,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - character binding should handle it
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(enterPressed);
-        Assert.Equal("x", textReceived);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(enterPressed);
+        Assert.AreEqual("x", textReceived);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_EmptyText_NotHandled()
     {
         // Arrange - key event with no text
@@ -571,11 +569,11 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.F1, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert - character binding should not match
-        Assert.Equal(InputResult.Handled, result);  // Handled by HandleInput fallback
-        Assert.Equal("", textReceived);
+        Assert.AreEqual(InputResult.Handled, result);  // Handled by HandleInput fallback
+        Assert.AreEqual("", textReceived);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_FirstMatchWins()
     {
         // Arrange - multiple character bindings, first matching one wins
@@ -592,11 +590,11 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.D5, '5', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("digit", handler);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("digit", handler);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_SecondMatchWhenFirstFails()
     {
         // Arrange - digit binding first, but typing a letter
@@ -613,11 +611,11 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("any", handler);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("any", handler);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInput_CharacterBinding_OnlyOnFocusedNode()
     {
         // Arrange - parent has character binding, child is focused
@@ -648,12 +646,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputAsync(container, new Hex1bKeyEvent(Hex1bKey.X, 'x', Hex1bModifiers.None), focusRing, state, null, TestContext.Current.CancellationToken);
 
         // Assert - only child's character binding should fire (not parent's)
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("x", childReceived);
-        Assert.Equal("", parentReceived);  // Parent's character binding should NOT have been called
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("x", childReceived);
+        Assert.AreEqual("", parentReceived);  // Parent's character binding should NOT have been called
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_Emoji()
     {
         // Arrange - emoji as a full string (not surrogate pair chars)
@@ -664,12 +662,12 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("😀"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("hello😀", state.Text);
-        Assert.Equal(7, state.CursorPosition);  // Emoji is 2 chars in UTF-16
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("hello😀", state.Text);
+        Assert.AreEqual(7, state.CursorPosition);  // Emoji is 2 chars in UTF-16
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_MultipleEmojis()
     {
         // Arrange
@@ -682,10 +680,10 @@ public class InputRouterTests
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("🚀"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("👍🎉🚀", state.Text);
+        Assert.AreEqual("👍🎉🚀", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_UnicodeCharacters()
     {
         // Arrange
@@ -699,11 +697,11 @@ public class InputRouterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.None, '日', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal("éñ中日", state.Text);
-        Assert.Equal(4, state.CursorPosition);
+        Assert.AreEqual("éñ中日", state.Text);
+        Assert.AreEqual(4, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RouteInputToNode_CharacterBinding_PastedText()
     {
         // Arrange - simulating paste of multiple characters at once
@@ -714,9 +712,9 @@ public class InputRouterTests
         var result = await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText("World!"), null, null, TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("Hello World!", state.Text);
-        Assert.Equal(12, state.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("Hello World!", state.Text);
+        Assert.AreEqual(12, state.CursorPosition);
     }
 
     #endregion

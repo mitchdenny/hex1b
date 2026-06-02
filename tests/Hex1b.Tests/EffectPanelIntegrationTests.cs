@@ -7,12 +7,13 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EffectPanelIntegrationTests
 {
     /// <summary>
     /// Full widget → reconcile → measure → arrange → render cycle with effect.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task FullCycle_WithEffect_RendersAndAppliesEffect()
     {
         var effectApplied = false;
@@ -39,7 +40,7 @@ public class EffectPanelIntegrationTests
         var renderContext = new SurfaceRenderContext(surface);
         renderContext.RenderChild(node);
 
-        Assert.True(effectApplied);
+        Assert.IsTrue(effectApplied);
 
         // Text should be present
         var text = GetRowText(surface, 0);
@@ -47,16 +48,16 @@ public class EffectPanelIntegrationTests
 
         // Background should be blue
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Background);
-        Assert.Equal(0, cell.Background.Value.R);
-        Assert.Equal(0, cell.Background.Value.G);
-        Assert.Equal(255, cell.Background.Value.B);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(0, cell.Background.Value.R);
+        Assert.AreEqual(0, cell.Background.Value.G);
+        Assert.AreEqual(255, cell.Background.Value.B);
     }
 
     /// <summary>
     /// Interactive child inside EffectPanel remains focusable.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task InteractiveChild_RemainsFocusable()
     {
         var widget = new EffectPanelWidget(
@@ -68,14 +69,14 @@ public class EffectPanelIntegrationTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.IsType<ButtonNode>(focusables[0]);
+        TestSeq.Single(focusables);
+        TestSeq.IsType<ButtonNode>(focusables[0]);
     }
 
     /// <summary>
     /// Effect applied to a VStack with multiple children.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Effect_AppliedToVStackChildren()
     {
         var capturedSurface = (Surface?)null;
@@ -100,7 +101,7 @@ public class EffectPanelIntegrationTests
         var renderContext = new SurfaceRenderContext(surface);
         renderContext.RenderChild(node);
 
-        Assert.NotNull(capturedSurface);
+        Assert.IsNotNull(capturedSurface);
         var line1 = GetRowText(capturedSurface!, 0);
         var line2 = GetRowText(capturedSurface!, 1);
         Assert.Contains("Line 1", line1);
@@ -110,7 +111,7 @@ public class EffectPanelIntegrationTests
     /// <summary>
     /// EffectPanel composes with StatePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ComposesWithStatePanel()
     {
         var stateKey = new object();
@@ -130,7 +131,7 @@ public class EffectPanelIntegrationTests
         var renderContext = new SurfaceRenderContext(surface);
         renderContext.RenderChild(node);
 
-        Assert.True(effectCalled);
+        Assert.IsTrue(effectCalled);
         var text = GetRowText(surface, 0);
         Assert.Contains("Animated", text);
     }
@@ -138,7 +139,7 @@ public class EffectPanelIntegrationTests
     /// <summary>
     /// Dim effect reduces color values.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task DimEffect_ReducesColorValues()
     {
         // Render a text block with known foreground, then dim it

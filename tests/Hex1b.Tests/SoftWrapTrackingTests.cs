@@ -5,9 +5,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the SoftWrap cell attribute tracking during terminal operations.
 /// </summary>
+[TestClass]
 public class SoftWrapTrackingTests
 {
-    [Fact]
+    [TestMethod]
     public void WriteToEndOfLine_SetsSoftWrapOnLastCell()
     {
         // Arrange: 5-column terminal
@@ -21,15 +22,14 @@ public class SoftWrapTrackingTests
         // Assert: Last cell of row 0 should have SoftWrap (it was the wrap point)
         var snapshot = terminal.CreateSnapshot();
         var lastCell = snapshot.GetCell(4, 0); // col 4 (0-based), row 0
-        Assert.Equal("E", lastCell.Character);
-        Assert.True((lastCell.Attributes & CellAttributes.SoftWrap) != 0,
-            "Last cell of wrapped row should have SoftWrap attribute");
+        Assert.AreEqual("E", lastCell.Character);
+        Assert.IsTrue((lastCell.Attributes & CellAttributes.SoftWrap) != 0, "Last cell of wrapped row should have SoftWrap attribute");
 
         // Row 1 should have F and no SoftWrap on its last occupied cell
-        Assert.Equal("F", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("F", snapshot.GetCell(0, 1).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExplicitLineFeed_DoesNotSetSoftWrap()
     {
         // Arrange: 10-column terminal
@@ -44,14 +44,13 @@ public class SoftWrapTrackingTests
         // Assert: Last cell of row 0 should NOT have SoftWrap
         var snapshot = terminal.CreateSnapshot();
         var lastCell = snapshot.GetCell(9, 0); // last column
-        Assert.True((lastCell.Attributes & CellAttributes.SoftWrap) == 0,
-            "Row ending with explicit LF should not have SoftWrap");
+        Assert.IsTrue((lastCell.Attributes & CellAttributes.SoftWrap) == 0, "Row ending with explicit LF should not have SoftWrap");
         // Also verify the content is correct (World on row 1)
-        Assert.Equal("Hello", snapshot.GetLine(0).TrimEnd());
-        Assert.Equal("World", snapshot.GetLine(1).TrimEnd());
+        Assert.AreEqual("Hello", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("World", snapshot.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_ClearsSoftWrap()
     {
         // Arrange: 5-column terminal, write to wrap
@@ -64,7 +63,7 @@ public class SoftWrapTrackingTests
 
         // Verify wrap is set
         var snap1 = terminal.CreateSnapshot();
-        Assert.True((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
+        Assert.IsTrue((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
 
         // Act: Move cursor to row 0 and erase entire line (CSI 2K)
         terminal.ApplyTokens([
@@ -74,11 +73,10 @@ public class SoftWrapTrackingTests
 
         // Assert: SoftWrap should be cleared
         var snap2 = terminal.CreateSnapshot();
-        Assert.True((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0,
-            "Erase line should clear SoftWrap");
+        Assert.IsTrue((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0, "Erase line should clear SoftWrap");
     }
 
-    [Fact]
+    [TestMethod]
     public void OverwriteLastCell_ClearsSoftWrapWhenNotWrapping()
     {
         // Arrange: 5-column terminal, write to wrap
@@ -91,7 +89,7 @@ public class SoftWrapTrackingTests
 
         // Verify wrap is set
         var snap1 = terminal.CreateSnapshot();
-        Assert.True((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
+        Assert.IsTrue((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
 
         // Act: Move cursor to col 5 of row 0 and overwrite (no wrap occurs)
         terminal.ApplyTokens([
@@ -102,10 +100,10 @@ public class SoftWrapTrackingTests
         // Assert: The cell was overwritten. Since this write triggers another wrap,
         // SoftWrap should still be set.
         var snap2 = terminal.CreateSnapshot();
-        Assert.Equal("X", snap2.GetCell(4, 0).Character);
+        Assert.AreEqual("X", snap2.GetCell(4, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void SoftWrap_TravelsWithScrollUp()
     {
         // Arrange: 5-column, 3-row terminal with scrollback
@@ -126,11 +124,10 @@ public class SoftWrapTrackingTests
 
         // Screen row 0's last cell should have SoftWrap (it wrapped)
         var screenRow0Last = snapshot.GetCell(4, 0);
-        Assert.True((screenRow0Last.Attributes & CellAttributes.SoftWrap) != 0,
-            "Screen row that wrapped should retain SoftWrap");
+        Assert.IsTrue((screenRow0Last.Attributes & CellAttributes.SoftWrap) != 0, "Screen row that wrapped should retain SoftWrap");
     }
 
-    [Fact]
+    [TestMethod]
     public void MultipleWraps_AllSetSoftWrap()
     {
         // Arrange: 3-column terminal
@@ -144,19 +141,16 @@ public class SoftWrapTrackingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0: ABC (soft-wrapped)
-        Assert.True((snapshot.GetCell(2, 0).Attributes & CellAttributes.SoftWrap) != 0,
-            "Row 0 last cell should have SoftWrap");
+        Assert.IsTrue((snapshot.GetCell(2, 0).Attributes & CellAttributes.SoftWrap) != 0, "Row 0 last cell should have SoftWrap");
 
         // Row 1: DEF (soft-wrapped)
-        Assert.True((snapshot.GetCell(2, 1).Attributes & CellAttributes.SoftWrap) != 0,
-            "Row 1 last cell should have SoftWrap");
+        Assert.IsTrue((snapshot.GetCell(2, 1).Attributes & CellAttributes.SoftWrap) != 0, "Row 1 last cell should have SoftWrap");
 
         // Row 2: GHI (not wrapped — content ends here)
-        Assert.True((snapshot.GetCell(2, 2).Attributes & CellAttributes.SoftWrap) == 0,
-            "Last row should not have SoftWrap (no continuation)");
+        Assert.IsTrue((snapshot.GetCell(2, 2).Attributes & CellAttributes.SoftWrap) == 0, "Last row should not have SoftWrap (no continuation)");
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_ClearsSoftWrap()
     {
         // Arrange
@@ -168,18 +162,17 @@ public class SoftWrapTrackingTests
 
         // Verify wrap is set
         var snap1 = terminal.CreateSnapshot();
-        Assert.True((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
+        Assert.IsTrue((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0);
 
         // Act: Clear entire display (CSI 2J)
         terminal.ApplyTokens([new ClearScreenToken(ClearMode.All)]);
 
         // Assert
         var snap2 = terminal.CreateSnapshot();
-        Assert.True((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0,
-            "Erase display should clear SoftWrap");
+        Assert.IsTrue((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0, "Erase display should clear SoftWrap");
     }
 
-    [Fact]
+    [TestMethod]
     public void ExactFill_NoWrap_NoSoftWrap()
     {
         // Arrange: Write exactly 5 chars to a 5-column terminal
@@ -194,7 +187,6 @@ public class SoftWrapTrackingTests
         // Assert: No SoftWrap yet because wrap hasn't actually fired
         // (it's just pending)
         var snapshot = terminal.CreateSnapshot();
-        Assert.True((snapshot.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0,
-            "Pending wrap (no next char) should not set SoftWrap");
+        Assert.IsTrue((snapshot.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) == 0, "Pending wrap (no next char) should not set SoftWrap");
     }
 }

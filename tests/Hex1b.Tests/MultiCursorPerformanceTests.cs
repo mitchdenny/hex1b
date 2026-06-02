@@ -17,7 +17,8 @@ namespace Hex1b.Tests;
 ///
 /// The fix: batch all piece tree mutations, call RebuildCaches() once at the end.
 /// </summary>
-[Collection("CPU-Intensive")]
+[DoNotParallelize]
+[TestClass]
 public class MultiCursorPerformanceTests
 {
     /// <summary>
@@ -67,19 +68,19 @@ public class MultiCursorPerformanceTests
         return (state, placed);
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorReplace_70Cursors_100KLines_Correctness()
     {
         // Smaller doc for correctness check (faster in CI)
         var (state, cursorCount) = SetupMultiCursorScenario(
             lineCount: 1000, cursorCount: 70, targetWord: "TARGET");
 
-        Assert.Equal(70, cursorCount);
+        Assert.AreEqual(70, cursorCount);
 
         // Verify all cursors have selections
         foreach (var cursor in state.Cursors)
         {
-            Assert.True(cursor.HasSelection, "Each cursor should have a selection");
+            Assert.IsTrue(cursor.HasSelection, "Each cursor should have a selection");
         }
 
         // Replace all selections with "X"
@@ -97,28 +98,28 @@ public class MultiCursorPerformanceTests
                 replacedCount++;
         }
 
-        Assert.Equal(70, replacedCount);
+        Assert.AreEqual(70, replacedCount);
 
         // Verify cursors are valid
         foreach (var cursor in state.Cursors)
         {
-            Assert.True(cursor.Position.Value >= 0);
-            Assert.True(cursor.Position.Value <= state.Document.Length);
-            Assert.False(cursor.HasSelection, "Selections should be cleared after replace");
+            Assert.IsTrue(cursor.Position.Value >= 0);
+            Assert.IsTrue(cursor.Position.Value <= state.Document.Length);
+            Assert.IsFalse(cursor.HasSelection, "Selections should be cleared after replace");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorReplace_70Cursors_100KLines_Performance()
     {
         var (state, cursorCount) = SetupMultiCursorScenario(
             lineCount: 100_000, cursorCount: 70, targetWord: "TARGET");
 
-        Assert.Equal(70, cursorCount);
+        Assert.AreEqual(70, cursorCount);
 
         // Warm up: verify document is ready
-        Assert.True(state.Document.Length > 0);
-        Assert.True(state.Document.LineCount >= 100_000);
+        Assert.IsTrue(state.Document.Length > 0);
+        Assert.IsTrue(state.Document.LineCount >= 100_000);
 
         // Measure the replace operation
         var sw = Stopwatch.StartNew();
@@ -130,20 +131,19 @@ public class MultiCursorPerformanceTests
 
         // With batch mode: single RebuildCaches call, typically <100ms.
         // Use 500ms threshold for CI headroom.
-        Assert.True(ms < 500,
-            $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
+        Assert.IsTrue(ms < 500, $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
             $"took {ms}ms — expected <500ms. " +
             $"This likely means RebuildCaches is being called per-cursor instead of once.");
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorReplace_200Cursors_100KLines_Performance()
     {
         // Stress test: 200 cursors (simulates large find-and-replace)
         var (state, cursorCount) = SetupMultiCursorScenario(
             lineCount: 100_000, cursorCount: 200, targetWord: "TARGET");
 
-        Assert.True(cursorCount >= 190); // May be slightly less due to line spacing
+        Assert.IsTrue(cursorCount >= 190); // May be slightly less due to line spacing
 
         var sw = Stopwatch.StartNew();
         state.InsertText("REPLACEMENT");
@@ -152,12 +152,11 @@ public class MultiCursorPerformanceTests
         var ms = sw.ElapsedMilliseconds;
 
         // With batch mode: single RebuildCaches call, typically <100ms.
-        Assert.True(ms < 500,
-            $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
+        Assert.IsTrue(ms < 500, $"Multi-cursor replace with {cursorCount} cursors on 100K-line doc " +
             $"took {ms}ms — expected <500ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorDelete_70Cursors_100KLines_Performance()
     {
         // Test deletion (Backspace with selections = delete selected text)
@@ -169,12 +168,11 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 500,
-            $"Multi-cursor delete with {cursorCount} cursors on 100K-line doc " +
+        Assert.IsTrue(ms < 500, $"Multi-cursor delete with {cursorCount} cursors on 100K-line doc " +
             $"took {ms}ms — expected <500ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorInsert_70Cursors_NoSelection_100KLines_Performance()
     {
         // Test insertion without selection (just 70 cursor positions, type a char)
@@ -193,12 +191,11 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 500,
-            $"Multi-cursor insert with {cursorCount} cursors on 100K-line doc " +
+        Assert.IsTrue(ms < 500, $"Multi-cursor insert with {cursorCount} cursors on 100K-line doc " +
             $"took {ms}ms — expected <500ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void SingleCursorReplace_100KLines_Baseline()
     {
         // Baseline: single cursor should be fast regardless
@@ -210,14 +207,13 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 500,
-            $"Single-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
+        Assert.IsTrue(ms < 500, $"Single-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
     }
 
     /// <summary>
     /// Directly measures RebuildCaches cost to quantify the per-cursor overhead.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void RebuildCaches_100KLineDoc_MeasureSingleCallCost()
     {
         var sb = new StringBuilder(100_000 * 60);
@@ -238,11 +234,10 @@ public class MultiCursorPerformanceTests
 
         // A single rebuild should be <100ms. Multiplied by 70 cursors = ~7 seconds.
         // This test documents the cost to help reason about batching gains.
-        Assert.True(singleRebuildMs < 500,
-            $"Single Apply (including RebuildCaches) took {singleRebuildMs}ms");
+        Assert.IsTrue(singleRebuildMs < 500, $"Single Apply (including RebuildCaches) took {singleRebuildMs}ms");
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorUndo_70Cursors_100KLines_Performance()
     {
         var (state, cursorCount) = SetupMultiCursorScenario(
@@ -258,14 +253,13 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 500,
-            $"Undo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
+        Assert.IsTrue(ms < 500, $"Undo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
 
         // Verify undo restored the text
         Assert.Contains("TARGET", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiCursorRedo_70Cursors_100KLines_Performance()
     {
         var (state, cursorCount) = SetupMultiCursorScenario(
@@ -280,13 +274,12 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         var ms = sw.ElapsedMilliseconds;
-        Assert.True(ms < 500,
-            $"Redo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
+        Assert.IsTrue(ms < 500, $"Redo of 70-cursor replace on 100K-line doc took {ms}ms — expected <500ms.");
     }
 
     // ── Single-keystroke performance tests (post lazy-cache optimization) ──
 
-    [Fact]
+    [TestMethod]
     public void SingleKeystroke_100KLineFile_CompletesUnderThreshold()
     {
         // Build a 100K-line document (~5MB)
@@ -323,11 +316,10 @@ public class MultiCursorPerformanceTests
         // With lazy text + per-line reading, single keystroke avoids full text materialization
         // Previously ~30-50ms with full RebuildCaches; now ~10-15ms (byte assembly + line starts scan).
         // A regression to per-edit full materialization would push the minimum above 50ms.
-        Assert.True(minMs < 50,
-            $"Single keystroke on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
+        Assert.IsTrue(minMs < 50, $"Single keystroke on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void SingleKeystroke_DoesNotRebuildFullText()
     {
         // Build a 100K-line document
@@ -364,11 +356,10 @@ public class MultiCursorPerformanceTests
         }
 
         // Edit + render of visible lines should be <50ms total
-        Assert.True(minMs < 50,
-            $"Edit + render-visible-lines on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
+        Assert.IsTrue(minMs < 50, $"Edit + render-visible-lines on 100K-line doc took {minMs:F1}ms (min of {iterations}) — expected <50ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void GetLineText_ReadsFromPiecesNotCachedText()
     {
         // Verify that GetLineText doesn't trigger full text materialization
@@ -389,11 +380,10 @@ public class MultiCursorPerformanceTests
         sw.Stop();
 
         Assert.StartsWith("Line ", lineText);
-        Assert.True(sw.Elapsed.TotalMilliseconds < 5,
-            $"GetLineText on 10K-line doc took {sw.Elapsed.TotalMilliseconds:F1}ms — expected <5ms.");
+        Assert.IsTrue(sw.Elapsed.TotalMilliseconds < 5, $"GetLineText on 10K-line doc took {sw.Elapsed.TotalMilliseconds:F1}ms — expected <5ms.");
     }
 
-    [Fact]
+    [TestMethod]
     public void OffsetToPosition_BinarySearch_Fast()
     {
         // Verify O(log L) OffsetToPosition on large doc
@@ -415,7 +405,6 @@ public class MultiCursorPerformanceTests
 
         var ms = sw.Elapsed.TotalMilliseconds;
         // 10K binary searches on 100K-entry list should be <10ms
-        Assert.True(ms < 50,
-            $"10K OffsetToPosition calls took {ms:F1}ms — expected <50ms.");
+        Assert.IsTrue(ms < 50, $"10K OffsetToPosition calls took {ms:F1}ms — expected <50ms.");
     }
 }

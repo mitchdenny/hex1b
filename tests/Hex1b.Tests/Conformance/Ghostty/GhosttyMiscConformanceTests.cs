@@ -1,6 +1,5 @@
 using System;
 using Hex1b;
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -9,7 +8,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// deleteLines with margins, insertLines extras, print wrapping with L/R margins,
 /// linefeed mode, insertLines/deleteLines bg color preservation.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyMiscConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols, int rows) => GhosttyTestFixture.CreateTerminal(cols, rows);
@@ -20,7 +20,7 @@ public class GhosttyMiscConformanceTests
     #region deleteLines with L/R scroll region
 
     // Ghostty: test "Terminal: deleteLines left/right scroll region"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_LeftRightScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -30,13 +30,13 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1M"); // DL(1)
 
-        Assert.Equal("ABC123", GetLine(terminal, 0));
-        Assert.Equal("DHI756", GetLine(terminal, 1));
-        Assert.Equal("G   89", GetLine(terminal, 2));
+        Assert.AreEqual("ABC123", GetLine(terminal, 0));
+        Assert.AreEqual("DHI756", GetLine(terminal, 1));
+        Assert.AreEqual("G   89", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: deleteLines left/right scroll region from top"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_LeftRightScrollRegion_FromTop()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -46,13 +46,13 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2)
         Feed(terminal, "\x1b[1M"); // DL(1)
 
-        Assert.Equal("AEF423", GetLine(terminal, 0));
-        Assert.Equal("DHI756", GetLine(terminal, 1));
-        Assert.Equal("G   89", GetLine(terminal, 2));
+        Assert.AreEqual("AEF423", GetLine(terminal, 0));
+        Assert.AreEqual("DHI756", GetLine(terminal, 1));
+        Assert.AreEqual("G   89", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: deleteLines left/right scroll region high count"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_LeftRightScrollRegion_HighCount()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -62,13 +62,13 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[100M"); // DL(100)
 
-        Assert.Equal("ABC123", GetLine(terminal, 0));
-        Assert.Equal("D   56", GetLine(terminal, 1));
-        Assert.Equal("G   89", GetLine(terminal, 2));
+        Assert.AreEqual("ABC123", GetLine(terminal, 0));
+        Assert.AreEqual("D   56", GetLine(terminal, 1));
+        Assert.AreEqual("G   89", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: deleteLines with scroll region, cursor outside of region"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_CursorOutsideScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
@@ -77,10 +77,10 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[4;1H"); // CUP(4,1) → outside scroll region
         Feed(terminal, "\x1b[1M"); // DL(1) — no-op since outside region
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("B", GetLine(terminal, 1));
-        Assert.Equal("C", GetLine(terminal, 2));
-        Assert.Equal("D", GetLine(terminal, 3));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("B", GetLine(terminal, 1));
+        Assert.AreEqual("C", GetLine(terminal, 2));
+        Assert.AreEqual("D", GetLine(terminal, 3));
     }
 
     #endregion
@@ -88,7 +88,7 @@ public class GhosttyMiscConformanceTests
     #region insertLines extras
 
     // Ghostty: test "Terminal: insertLines outside of scroll region"
-    [Fact]
+    [TestMethod]
     public void InsertLines_OutsideScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -97,13 +97,13 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2) → row 1 (outside region)
         Feed(terminal, "\x1b[1L"); // IL(1) — no-op since outside
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("DEF", GetLine(terminal, 1));
-        Assert.Equal("GHI", GetLine(terminal, 2));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("DEF", GetLine(terminal, 1));
+        Assert.AreEqual("GHI", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: insertLines top/bottom scroll region"
-    [Fact]
+    [TestMethod]
     public void InsertLines_TopBottomScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -112,14 +112,14 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("123", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("123", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: insertLines colors with bg color"
-    [Fact]
+    [TestMethod]
     public void InsertLines_ColorsWithBgColor()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -128,22 +128,22 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[48;2;255;0;0m"); // Set bg to red
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
 
         // Verify the inserted blank line has the bg color
         var cell = GetCell(terminal, 1, 0);
-        Assert.NotNull(cell.Background);
+        Assert.IsNotNull(cell.Background);
         var bg = cell.Background!.Value;
-        Assert.Equal((byte)255, bg.R);
-        Assert.Equal((byte)0, bg.G);
-        Assert.Equal((byte)0, bg.B);
+        Assert.AreEqual((byte)255, bg.R);
+        Assert.AreEqual((byte)0, bg.G);
+        Assert.AreEqual((byte)0, bg.B);
     }
 
     // Ghostty: test "Terminal: deleteLines colors with bg color"
-    [Fact]
+    [TestMethod]
     public void DeleteLines_ColorsWithBgColor()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -152,16 +152,16 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[48;2;255;0;0m"); // Set bg to red
         Feed(terminal, "\x1b[1M"); // DL(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("GHI", GetLine(terminal, 1));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("GHI", GetLine(terminal, 1));
 
         // Verify the newly blank bottom line has the bg color
         var cell = GetCell(terminal, 4, 0);
-        Assert.NotNull(cell.Background);
+        Assert.IsNotNull(cell.Background);
         var bg = cell.Background!.Value;
-        Assert.Equal((byte)255, bg.R);
-        Assert.Equal((byte)0, bg.G);
-        Assert.Equal((byte)0, bg.B);
+        Assert.AreEqual((byte)255, bg.R);
+        Assert.AreEqual((byte)0, bg.G);
+        Assert.AreEqual((byte)0, bg.B);
     }
 
     #endregion
@@ -169,7 +169,7 @@ public class GhosttyMiscConformanceTests
     #region Print wrapping with L/R margins
 
     // Ghostty: test "Terminal: print right margin wrap"
-    [Fact]
+    [TestMethod]
     public void Print_RightMarginWrap()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -179,12 +179,12 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1;5H"); // CUP(1,5) → col 4 (right margin)
         Feed(terminal, "XY"); // X at col 4, Y wraps to col 2 of row 1
 
-        Assert.Equal("1234X6789", GetLine(terminal, 0));
-        Assert.Equal("  Y", GetLine(terminal, 1));
+        Assert.AreEqual("1234X6789", GetLine(terminal, 0));
+        Assert.AreEqual("  Y", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: print right margin outside"
-    [Fact]
+    [TestMethod]
     public void Print_RightMarginOutside()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -194,11 +194,11 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1;6H"); // CUP(1,6) → col 5 (outside right margin)
         Feed(terminal, "XY");
 
-        Assert.Equal("12345XY89", GetLine(terminal, 0));
+        Assert.AreEqual("12345XY89", GetLine(terminal, 0));
     }
 
     // Ghostty: test "Terminal: print right margin outside wrap"
-    [Fact]
+    [TestMethod]
     public void Print_RightMarginOutsideWrap()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -208,8 +208,8 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1;10H"); // CUP(1,10) → col 9 (far right, outside margin)
         Feed(terminal, "XY"); // X at col 9, Y wraps to left margin col 2
 
-        Assert.Equal("123456789X", GetLine(terminal, 0));
-        Assert.Equal("  Y", GetLine(terminal, 1));
+        Assert.AreEqual("123456789X", GetLine(terminal, 0));
+        Assert.AreEqual("  Y", GetLine(terminal, 1));
     }
 
     #endregion
@@ -217,20 +217,20 @@ public class GhosttyMiscConformanceTests
     #region Linefeed behavior
 
     // Ghostty: test "Terminal: linefeed and carriage return"
-    [Fact]
+    [TestMethod]
     public void Linefeed_AndCarriageReturn()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
         Feed(terminal, "hello\r\nworld");
 
-        Assert.Equal(1, terminal.CursorY);
-        Assert.Equal(5, terminal.CursorX);
-        Assert.Equal("hello", GetLine(terminal, 0));
-        Assert.Equal("world", GetLine(terminal, 1));
+        Assert.AreEqual(1, terminal.CursorY);
+        Assert.AreEqual(5, terminal.CursorX);
+        Assert.AreEqual("hello", GetLine(terminal, 0));
+        Assert.AreEqual("world", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: linefeed mode automatic carriage return"
-    [Fact]
+    [TestMethod]
     public void Linefeed_AutomaticCarriageReturn()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -239,12 +239,12 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\n"); // LF — in LNM, this also does CR
         Feed(terminal, "X");
 
-        Assert.Equal("123456", GetLine(terminal, 0));
-        Assert.Equal("X", GetLine(terminal, 1));
+        Assert.AreEqual("123456", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: carriage return origin mode moves to left margin"
-    [Fact]
+    [TestMethod]
     public void CarriageReturn_OriginMode_MovesToLeftMargin_Direct()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 80);
@@ -254,7 +254,7 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP — goes to origin (margin left=2)
         Feed(terminal, "\r"); // CR — should go to left margin
 
-        Assert.Equal(2, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorX);
     }
 
     #endregion
@@ -262,25 +262,25 @@ public class GhosttyMiscConformanceTests
     #region Backspace
 
     // Ghostty: test "Terminal: backspace"
-    [Fact]
+    [TestMethod]
     public void Backspace_Basic()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
         Feed(terminal, "A\b");
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     // Ghostty: test "Terminal: backspace at left margin"
-    [Fact]
+    [TestMethod]
     public void Backspace_AtLeftMargin()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 80);
         Feed(terminal, "\b"); // Backspace at col 0 — should be no-op
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     #endregion
@@ -288,7 +288,7 @@ public class GhosttyMiscConformanceTests
     #region Additional index/scroll behavior
 
     // Ghostty: test "Terminal: index bottom of primary screen background sgr"
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScreen_BackgroundSgr()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -297,25 +297,25 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[48;2;255;0;0m"); // Set bg to red
         Feed(terminal, "\u001bD"); // IND — scrolls, new blank line has bg color
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("A", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("A", GetLine(terminal, 3));
 
         // Verify the new blank bottom line has red background
         var cell = GetCell(terminal, 4, 0);
-        Assert.NotNull(cell.Background);
+        Assert.IsNotNull(cell.Background);
         var bg = cell.Background!.Value;
-        Assert.Equal((byte)255, bg.R);
-        Assert.Equal((byte)0, bg.G);
-        Assert.Equal((byte)0, bg.B);
+        Assert.AreEqual((byte)255, bg.R);
+        Assert.AreEqual((byte)0, bg.G);
+        Assert.AreEqual((byte)0, bg.B);
     }
 
     // Ghostty: test "Terminal: scrollUp preserves pending wrap" (from scrollUp tests)
     // Already covered in GhosttyScrollMarginConformanceTests — verify cursor positioning
     
     // Ghostty: test "Terminal: input that forces scroll"
-    [Fact]
+    [TestMethod]
     public void Input_ForcesScroll()
     {
         using var terminal = CreateTerminal(cols: 80, rows: 5);
@@ -324,11 +324,11 @@ public class GhosttyMiscConformanceTests
         // Now print another char which forces scroll
         Feed(terminal, "\r\n6");
 
-        Assert.Equal("2", GetLine(terminal, 0));
-        Assert.Equal("3", GetLine(terminal, 1));
-        Assert.Equal("4", GetLine(terminal, 2));
-        Assert.Equal("5", GetLine(terminal, 3));
-        Assert.Equal("6", GetLine(terminal, 4));
+        Assert.AreEqual("2", GetLine(terminal, 0));
+        Assert.AreEqual("3", GetLine(terminal, 1));
+        Assert.AreEqual("4", GetLine(terminal, 2));
+        Assert.AreEqual("5", GetLine(terminal, 3));
+        Assert.AreEqual("6", GetLine(terminal, 4));
     }
 
     #endregion
@@ -336,7 +336,7 @@ public class GhosttyMiscConformanceTests
     #region setTopAndBottomMargin extras
 
     // Ghostty: test "Terminal: setTopAndBottomMargin top only"
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopOnly()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -345,14 +345,14 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;1H"); // CUP(2,1)
         Feed(terminal, "\x1b[1L"); // IL(1) — within scroll region
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setTopAndBottomMargin top and bottom"
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopAndBottom()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -361,14 +361,14 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[2;1H"); // CUP(2,1)
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("123", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("123", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setTopAndBottomMargin top equal to bottom"
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopEqualBottom()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -378,10 +378,10 @@ public class GhosttyMiscConformanceTests
         Feed(terminal, "\x1b[1L"); // IL(1)
 
         // With top=bottom, DECSTBM should be treated as invalid → full height
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
     }
 
     #endregion
@@ -389,25 +389,25 @@ public class GhosttyMiscConformanceTests
     #region Print wrapping edge cases
 
     // Ghostty: test "Terminal: printRepeat wrap"
-    [Fact]
+    [TestMethod]
     public void PrintRepeat_Wrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         Feed(terminal, "    A");
         Feed(terminal, "\x1b[b"); // REP(1) — repeat last char
 
-        Assert.Equal("    A", GetLine(terminal, 0));
-        Assert.Equal("A", GetLine(terminal, 1));
+        Assert.AreEqual("    A", GetLine(terminal, 0));
+        Assert.AreEqual("A", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: printRepeat no previous character"
-    [Fact]
+    [TestMethod]
     public void PrintRepeat_NoPreviousCharacter()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
         Feed(terminal, "\x1b[b"); // REP(1) — no previous char, should be no-op
 
-        Assert.Equal("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 0));
     }
 
     #endregion

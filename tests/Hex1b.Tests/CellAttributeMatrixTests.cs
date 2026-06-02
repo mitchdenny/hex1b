@@ -5,6 +5,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests that render a visual matrix of cell attribute combinations and capture SVGs.
 /// </summary>
+[TestClass]
 public class CellAttributeMatrixTests
 {
     /// <summary>
@@ -64,7 +65,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Renders individual attributes each on their own line.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void IndividualAttributes_RendersCorrectly()
     {
         using var test = new TestTerminal(40, 25);
@@ -99,16 +100,16 @@ public class CellAttributeMatrixTests
         // Verify attributes via first row's single chars
         var snapshot = test.Terminal.CreateSnapshot();
 
-        Assert.True(HasCellWithAttributes(snapshot, 'N', CellAttributes.None), "Normal");
-        Assert.True(HasCellWithAttributes(snapshot, 'B', CellAttributes.Bold), "Bold");
-        Assert.True(HasCellWithAttributes(snapshot, 'D', CellAttributes.Dim), "Dim");
-        Assert.True(HasCellWithAttributes(snapshot, 'I', CellAttributes.Italic), "Italic");
-        Assert.True(HasCellWithAttributes(snapshot, 'U', CellAttributes.Underline), "Underline");
-        Assert.True(HasCellWithAttributes(snapshot, 'K', CellAttributes.Blink), "Blink");
-        Assert.True(HasCellWithAttributes(snapshot, 'R', CellAttributes.Reverse), "Reverse");
-        Assert.True(HasCellWithAttributes(snapshot, 'H', CellAttributes.Hidden), "Hidden");
-        Assert.True(HasCellWithAttributes(snapshot, 'S', CellAttributes.Strikethrough), "Strikethrough");
-        Assert.True(HasCellWithAttributes(snapshot, 'O', CellAttributes.Overline), "Overline");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'N', CellAttributes.None), "Normal");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'B', CellAttributes.Bold), "Bold");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'D', CellAttributes.Dim), "Dim");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'I', CellAttributes.Italic), "Italic");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'U', CellAttributes.Underline), "Underline");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'K', CellAttributes.Blink), "Blink");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'R', CellAttributes.Reverse), "Reverse");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'H', CellAttributes.Hidden), "Hidden");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'S', CellAttributes.Strikethrough), "Strikethrough");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'O', CellAttributes.Overline), "Overline");
 
         TestCaptureHelper.Capture(test.Terminal, "individual-attributes");
     }
@@ -116,7 +117,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Renders common attribute combinations.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CommonCombinations_RendersCorrectly()
     {
         using var test = new TestTerminal(50, 25);  // Increased height
@@ -161,14 +162,14 @@ public class CellAttributeMatrixTests
         // Verify combinations via test characters
         var snapshot = test.Terminal.CreateSnapshot();
 
-        Assert.True(HasCellWithAttributes(snapshot, '1', CellAttributes.Bold | CellAttributes.Italic), "Bold+Italic");
-        Assert.True(HasCellWithAttributes(snapshot, '2', CellAttributes.Bold | CellAttributes.Underline), "Bold+Underline");
-        Assert.True(HasCellWithAttributes(snapshot, '3', CellAttributes.Bold | CellAttributes.Strikethrough), "Bold+Strike");
-        Assert.True(HasCellWithAttributes(snapshot, '4', CellAttributes.Italic | CellAttributes.Underline), "Italic+Underline");
-        Assert.True(HasCellWithAttributes(snapshot, '5', CellAttributes.Italic | CellAttributes.Strikethrough), "Italic+Strike");
-        Assert.True(HasCellWithAttributes(snapshot, '6', CellAttributes.Underline | CellAttributes.Strikethrough), "Underline+Strike");
-        Assert.True(HasCellWithAttributes(snapshot, '7', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline), "Bold+Italic+Underline");
-        Assert.True(HasCellWithAttributes(snapshot, '8', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline | CellAttributes.Strikethrough), "All four");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '1', CellAttributes.Bold | CellAttributes.Italic), "Bold+Italic");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '2', CellAttributes.Bold | CellAttributes.Underline), "Bold+Underline");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '3', CellAttributes.Bold | CellAttributes.Strikethrough), "Bold+Strike");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '4', CellAttributes.Italic | CellAttributes.Underline), "Italic+Underline");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '5', CellAttributes.Italic | CellAttributes.Strikethrough), "Italic+Strike");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '6', CellAttributes.Underline | CellAttributes.Strikethrough), "Underline+Strike");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '7', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline), "Bold+Italic+Underline");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, '8', CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline | CellAttributes.Strikethrough), "All four");
 
         TestCaptureHelper.Capture(test.Terminal, "common-combinations");
     }
@@ -176,7 +177,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Renders attributes with colors.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void AttributesWithColors_RendersCorrectly()
     {
         using var test = new TestTerminal(50, 16);
@@ -220,7 +221,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Renders a full matrix grid of attribute combinations.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void FullAttributeMatrix_RendersCorrectly()
     {
         using var test = new TestTerminal(80, 30);
@@ -277,7 +278,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Tests that attribute reset codes work correctly.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void AttributeReset_WorksCorrectly()
     {
         using var test = new TestTerminal(60, 15);
@@ -307,27 +308,22 @@ public class CellAttributeMatrixTests
         var snapshot = test.Terminal.CreateSnapshot();
 
         // "A" should have all four attributes
-        Assert.True(HasCellWithAttributes(snapshot, 'A', 
-            CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline | CellAttributes.Strikethrough),
-            "A should have all attributes");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'A', 
+            CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline | CellAttributes.Strikethrough), "A should have all attributes");
 
         // "E" should have bold, italic, underline (no strikethrough)
-        Assert.True(HasCellWithAttributes(snapshot, 'E', 
-            CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline),
-            "E should not have strikethrough");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'E', 
+            CellAttributes.Bold | CellAttributes.Italic | CellAttributes.Underline), "E should not have strikethrough");
 
         // "I" should have bold, italic (no underline, no strikethrough)
-        Assert.True(HasCellWithAttributes(snapshot, 'I', 
-            CellAttributes.Bold | CellAttributes.Italic),
-            "I should only have bold+italic");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'I', 
+            CellAttributes.Bold | CellAttributes.Italic), "I should only have bold+italic");
 
         // "M" should have bold only
-        Assert.True(HasCellWithAttributes(snapshot, 'M', CellAttributes.Bold),
-            "M should only have bold");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'M', CellAttributes.Bold), "M should only have bold");
 
         // "Q" should be normal
-        Assert.True(HasCellWithAttributes(snapshot, 'Q', CellAttributes.None),
-            "Q should be normal");
+        Assert.IsTrue(HasCellWithAttributes(snapshot, 'Q', CellAttributes.None), "Q should be normal");
 
         TestCaptureHelper.Capture(test.Terminal, "attribute-reset");
     }
@@ -335,7 +331,7 @@ public class CellAttributeMatrixTests
     /// <summary>
     /// Tests all possible combinations of the 4 most common attributes.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void CommonAttributePowerSet_RendersCorrectly()
     {
         using var test = new TestTerminal(60, 22);
@@ -388,7 +384,7 @@ public class CellAttributeMatrixTests
     /// Renders underlines with colors distinct from the foreground text.
     /// Verifies that SGR 58 (underline color) is stored in cells and rendered in SVG/HTML.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ColoredUnderlines_RendersCorrectly()
     {
         using var test = new TestTerminal(60, 20);
@@ -436,54 +432,54 @@ public class CellAttributeMatrixTests
 
         // Row 4 (0-indexed): "White text, red underline" — SGR 58;2;255;0;0
         var redUlCell = snapshot.GetCell(0, 4);
-        Assert.True(redUlCell.IsUnderline);
-        Assert.NotNull(redUlCell.UnderlineColor);
-        Assert.Equal(255, redUlCell.UnderlineColor!.Value.R);
-        Assert.Equal(0, redUlCell.UnderlineColor!.Value.G);
-        Assert.Equal(0, redUlCell.UnderlineColor!.Value.B);
+        Assert.IsTrue(redUlCell.IsUnderline);
+        Assert.IsNotNull(redUlCell.UnderlineColor);
+        Assert.AreEqual(255, redUlCell.UnderlineColor!.Value.R);
+        Assert.AreEqual(0, redUlCell.UnderlineColor!.Value.G);
+        Assert.AreEqual(0, redUlCell.UnderlineColor!.Value.B);
         // Foreground is white (37)
-        Assert.NotNull(redUlCell.Foreground);
+        Assert.IsNotNull(redUlCell.Foreground);
 
         // Row 8 (colon syntax): cyan text, coral underline
         var colonCell = snapshot.GetCell(0, 8);
-        Assert.True(colonCell.IsUnderline);
-        Assert.NotNull(colonCell.UnderlineColor);
-        Assert.Equal(255, colonCell.UnderlineColor!.Value.R);
-        Assert.Equal(100, colonCell.UnderlineColor!.Value.G);
-        Assert.Equal(50, colonCell.UnderlineColor!.Value.B);
+        Assert.IsTrue(colonCell.IsUnderline);
+        Assert.IsNotNull(colonCell.UnderlineColor);
+        Assert.AreEqual(255, colonCell.UnderlineColor!.Value.R);
+        Assert.AreEqual(100, colonCell.UnderlineColor!.Value.G);
+        Assert.AreEqual(50, colonCell.UnderlineColor!.Value.B);
 
         // Row 10: after SGR 59 reset, the second half should have no underline color
         // "Red text blue ul " then SGR 59 "red text default ul"
         // Find the cell after reset — at position 18 ("red text default ul" starts there)
         var resetCell = snapshot.GetCell(18, 10);
-        Assert.True(resetCell.IsUnderline);
-        Assert.Null(resetCell.UnderlineColor); // SGR 59 clears underline color
+        Assert.IsTrue(resetCell.IsUnderline);
+        Assert.IsNull(resetCell.UnderlineColor); // SGR 59 clears underline color
 
         // Verify underline styles are stored correctly
         // Row 3: default underline via SGR 4 → Single style
         var defaultUlCell = snapshot.GetCell(0, 3);
-        Assert.Equal(UnderlineStyle.Single, defaultUlCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Single, defaultUlCell.UnderlineStyle);
 
         // Row 12 (after empty line): "Single (4:1)  Double (4:2)  Curly (4:3)"
         var singleCell = snapshot.GetCell(0, 13);
-        Assert.Equal(UnderlineStyle.Single, singleCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Single, singleCell.UnderlineStyle);
 
         var doubleCell = snapshot.GetCell(14, 13); // "Double (4:2)" starts after "Single (4:1)  "
-        Assert.Equal(UnderlineStyle.Double, doubleCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Double, doubleCell.UnderlineStyle);
 
         var curlyCell = snapshot.GetCell(28, 13); // "Curly (4:3)" starts after "Double (4:2)  "
-        Assert.Equal(UnderlineStyle.Curly, curlyCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Curly, curlyCell.UnderlineStyle);
 
         // Row 14: "Dotted (4:4)  Dashed (4:5)"
         var dottedCell = snapshot.GetCell(0, 14);
-        Assert.Equal(UnderlineStyle.Dotted, dottedCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Dotted, dottedCell.UnderlineStyle);
 
         var dashedCell = snapshot.GetCell(14, 14); // "Dashed (4:5)" starts after "Dotted (4:4)  "
-        Assert.Equal(UnderlineStyle.Dashed, dashedCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Dashed, dashedCell.UnderlineStyle);
 
         // Row 16: Kakoune curly (4:3)
         var kakouneCell = snapshot.GetCell(0, 16);
-        Assert.Equal(UnderlineStyle.Curly, kakouneCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.Curly, kakouneCell.UnderlineStyle);
 
         TestCaptureHelper.Capture(test.Terminal, "colored-underlines");
     }

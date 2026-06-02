@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <see cref="SignatureParameterInfo"/>, and their integration with
 /// <see cref="IEditorSession"/> on <see cref="EditorNode"/>.
 /// </summary>
+[TestClass]
 public class SignaturePanelTests
 {
     private static IEditorSession CreateSession(string text = "test")
@@ -21,7 +22,7 @@ public class SignaturePanelTests
 
     // ── SignaturePanel construction ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_SingleSignature_StoresCorrectly()
     {
         var panel = new SignaturePanel([
@@ -30,13 +31,13 @@ public class SignaturePanelTests
             ])
         ]);
 
-        Assert.Single(panel.Signatures);
-        Assert.Equal("void Foo(int x)", panel.Signatures[0].Label);
-        Assert.Single(panel.Signatures[0].Parameters);
-        Assert.Equal("int x", panel.Signatures[0].Parameters[0].Label);
+        TestSeq.Single(panel.Signatures);
+        Assert.AreEqual("void Foo(int x)", panel.Signatures[0].Label);
+        TestSeq.Single(panel.Signatures[0].Parameters);
+        Assert.AreEqual("int x", panel.Signatures[0].Parameters[0].Label);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_MultipleOverloads_StoresAll()
     {
         var panel = new SignaturePanel([
@@ -50,23 +51,23 @@ public class SignaturePanelTests
             new SignaturePanelEntry("void Foo()", [])
         ]);
 
-        Assert.Equal(3, panel.Signatures.Count);
-        Assert.Single(panel.Signatures[0].Parameters);
-        Assert.Equal(2, panel.Signatures[1].Parameters.Count);
-        Assert.Empty(panel.Signatures[2].Parameters);
+        Assert.AreEqual(3, panel.Signatures.Count);
+        TestSeq.Single(panel.Signatures[0].Parameters);
+        Assert.AreEqual(2, panel.Signatures[1].Parameters.Count);
+        Assert.IsEmpty(panel.Signatures[2].Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_ActiveSignatureDefault_IsZero()
     {
         var panel = new SignaturePanel([
             new SignaturePanelEntry("void Foo()", [])
         ]);
 
-        Assert.Equal(0, panel.ActiveSignature);
+        Assert.AreEqual(0, panel.ActiveSignature);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_ActiveParameterDefault_IsZero()
     {
         var panel = new SignaturePanel([
@@ -75,10 +76,10 @@ public class SignaturePanelTests
             ])
         ]);
 
-        Assert.Equal(0, panel.ActiveParameter);
+        Assert.AreEqual(0, panel.ActiveParameter);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_WithActiveSignature_PreservesValue()
     {
         var panel = new SignaturePanel([
@@ -88,10 +89,10 @@ public class SignaturePanelTests
             ])
         ]) { ActiveSignature = 1 };
 
-        Assert.Equal(1, panel.ActiveSignature);
+        Assert.AreEqual(1, panel.ActiveSignature);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_WithActiveParameter_PreservesValue()
     {
         var panel = new SignaturePanel([
@@ -101,32 +102,32 @@ public class SignaturePanelTests
             ])
         ]) { ActiveParameter = 1 };
 
-        Assert.Equal(1, panel.ActiveParameter);
+        Assert.AreEqual(1, panel.ActiveParameter);
     }
 
     // ── SignaturePanelEntry ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanelEntry_WithDocumentation_StoresValue()
     {
         var entry = new SignaturePanelEntry("void Save(string path)", [
             new SignatureParameterInfo("string path")
         ]) { Documentation = "Saves the document to disk." };
 
-        Assert.Equal("Saves the document to disk.", entry.Documentation);
+        Assert.AreEqual("Saves the document to disk.", entry.Documentation);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanelEntry_WithoutDocumentation_IsNull()
     {
         var entry = new SignaturePanelEntry("void Foo()", []);
 
-        Assert.Null(entry.Documentation);
+        Assert.IsNull(entry.Documentation);
     }
 
     // ── SignatureParameterInfo ───────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SignatureParameterInfo_WithDocumentation_StoresValue()
     {
         var param = new SignatureParameterInfo("string path")
@@ -134,21 +135,21 @@ public class SignaturePanelTests
             Documentation = "The file path to save to."
         };
 
-        Assert.Equal("string path", param.Label);
-        Assert.Equal("The file path to save to.", param.Documentation);
+        Assert.AreEqual("string path", param.Label);
+        Assert.AreEqual("The file path to save to.", param.Documentation);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignatureParameterInfo_WithoutDocumentation_IsNull()
     {
         var param = new SignatureParameterInfo("int count");
 
-        Assert.Null(param.Documentation);
+        Assert.IsNull(param.Documentation);
     }
 
     // ── IEditorSession integration ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ShowSignaturePanel_ThenDismiss_ClearsPanel()
     {
         var session = CreateSession();
@@ -166,7 +167,7 @@ public class SignaturePanelTests
         session.DismissSignaturePanel();
     }
 
-    [Fact]
+    [TestMethod]
     public void ShowSignaturePanel_CalledTwice_ReplacesPanel()
     {
         var session = CreateSession();
@@ -188,7 +189,7 @@ public class SignaturePanelTests
 
     // ── Record equality ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_RecordEquality_EqualWhenSameListReference()
     {
         var signatures = new List<SignaturePanelEntry>
@@ -199,10 +200,10 @@ public class SignaturePanelTests
         var a = new SignaturePanel(signatures) { ActiveSignature = 0, ActiveParameter = 0 };
         var b = new SignaturePanel(signatures) { ActiveSignature = 0, ActiveParameter = 0 };
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanel_RecordEquality_NotEqualWhenDifferentActiveParam()
     {
         var signatures = new List<SignaturePanelEntry>
@@ -216,24 +217,24 @@ public class SignaturePanelTests
         var a = new SignaturePanel(signatures) { ActiveParameter = 0 };
         var b = new SignaturePanel(signatures) { ActiveParameter = 1 };
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignaturePanelEntry_RecordEquality_EqualWhenSameValues()
     {
         var a = new SignaturePanelEntry("void Foo()", []) { Documentation = "docs" };
         var b = new SignaturePanelEntry("void Foo()", []) { Documentation = "docs" };
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignatureParameterInfo_RecordEquality_EqualWhenSameValues()
     {
         var a = new SignatureParameterInfo("int x") { Documentation = "the value" };
         var b = new SignatureParameterInfo("int x") { Documentation = "the value" };
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 }

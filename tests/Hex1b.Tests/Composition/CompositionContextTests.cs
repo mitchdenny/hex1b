@@ -6,9 +6,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests.Composition;
 
+[TestClass]
 public class CompositionContextTests
 {
-    [Fact]
+    [TestMethod]
     public async Task UseState_ReturnsSameInstanceAcrossReconciliations()
     {
         var node1 = await ReconcileAsync(new InspectStateCompositeWidget(), null);
@@ -17,49 +18,49 @@ public class CompositionContextTests
         await ReconcileAsync(new InspectStateCompositeWidget(), node1);
         var captured2 = InspectStateCompositeWidget.LastSeenState;
 
-        Assert.NotNull(captured1);
-        Assert.Same(captured1, captured2);
+        Assert.IsNotNull(captured1);
+        Assert.AreSame(captured1, captured2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsNew_TrueOnFirstFrameThenFalse()
     {
         var node1 = await ReconcileAsync(new IsNewObservingCompositeWidget(), null);
-        Assert.True(IsNewObservingCompositeWidget.LastIsNew);
+        Assert.IsTrue(IsNewObservingCompositeWidget.LastIsNew);
 
         await ReconcileAsync(new IsNewObservingCompositeWidget(), node1);
-        Assert.False(IsNewObservingCompositeWidget.LastIsNew);
+        Assert.IsFalse(IsNewObservingCompositeWidget.LastIsNew);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Use_NoAncestorProvided_ReturnsNull()
     {
         var node = await ReconcileAsync(new UseFooCompositeWidget(), null);
-        var composite = Assert.IsType<Hex1bCompositeNode>(node);
-        var text = Assert.IsType<TextBlockNode>(composite.Child);
-        Assert.Equal("Foo=<none>", text.Text);
+        var composite = TestSeq.IsType<Hex1bCompositeNode>(node);
+        var text = TestSeq.IsType<TextBlockNode>(composite.Child);
+        Assert.AreEqual("Foo=<none>", text.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Require_NoAncestorProvided_BubblesUpInvalidOperationException()
     {
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
             await ReconcileAsync(new RequireFooCompositeWidget(), null));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Provide_FromAncestorComposite_FlowsToDescendantUse()
     {
         var node = await ReconcileAsync(new ProvideFooCompositeWidget("hello"), null);
 
         // Tree shape: ProvideFooCompositeWidget → UseFooCompositeWidget → TextBlock("Foo=hello")
-        var outer = Assert.IsType<Hex1bCompositeNode>(node);
-        var inner = Assert.IsType<Hex1bCompositeNode>(outer.Child);
-        var text = Assert.IsType<TextBlockNode>(inner.Child);
-        Assert.Equal("Foo=hello", text.Text);
+        var outer = TestSeq.IsType<Hex1bCompositeNode>(node);
+        var inner = TestSeq.IsType<Hex1bCompositeNode>(outer.Child);
+        var text = TestSeq.IsType<TextBlockNode>(inner.Child);
+        Assert.AreEqual("Foo=hello", text.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Provide_NestedSameType_InnerShadowsOuter()
     {
         var node = await ReconcileAsync(
@@ -67,14 +68,14 @@ public class CompositionContextTests
             null);
 
         // Tree: outer Provide("outer") → inner Provide("inner") → UseFooCompositeWidget → TextBlock("Foo=inner")
-        var outer = Assert.IsType<Hex1bCompositeNode>(node);
-        var middle = Assert.IsType<Hex1bCompositeNode>(outer.Child);
-        var leaf = Assert.IsType<Hex1bCompositeNode>(middle.Child);
-        var text = Assert.IsType<TextBlockNode>(leaf.Child);
-        Assert.Equal("Foo=inner", text.Text);
+        var outer = TestSeq.IsType<Hex1bCompositeNode>(node);
+        var middle = TestSeq.IsType<Hex1bCompositeNode>(outer.Child);
+        var leaf = TestSeq.IsType<Hex1bCompositeNode>(middle.Child);
+        var text = TestSeq.IsType<TextBlockNode>(leaf.Child);
+        Assert.AreEqual("Foo=inner", text.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Provide_OnlyVisibleToDescendants_NotSiblings()
     {
         // VStack of two ProvideFoo peers; the second uses Use<FooContext>().
@@ -91,9 +92,9 @@ public class CompositionContextTests
         var rootShell = new RootShellNode();
         var ctx = ReconcileContext.CreateRoot();
         var stack = (VStackNode)(await ctx.ReconcileChildAsync(null, widget, rootShell))!;
-        var second = Assert.IsType<Hex1bCompositeNode>(stack.Children[1]);
-        var text = Assert.IsType<TextBlockNode>(second.Child);
-        Assert.Equal("Foo=<none>", text.Text);
+        var second = TestSeq.IsType<Hex1bCompositeNode>(stack.Children[1]);
+        var text = TestSeq.IsType<TextBlockNode>(second.Child);
+        Assert.AreEqual("Foo=<none>", text.Text);
     }
 
     // --- Composite test fixtures ---

@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for the editor overlay system — push/dismiss, dismiss-on-cursor-move,
 /// coordinate mapping, and lifecycle management.
 /// </summary>
+[TestClass]
 public class EditorOverlayTests
 {
     /// <summary>
@@ -55,7 +56,7 @@ public class EditorOverlayTests
         return (node, workload, context);
     }
 
-    [Fact]
+    [TestMethod]
     public void Activate_CalledWhenProviderSetViaReconcile()
     {
         // Arrange
@@ -68,11 +69,11 @@ public class EditorOverlayTests
         node.UpdateDecorationProviders([provider]);
 
         // Assert
-        Assert.True(provider.WasActivated);
-        Assert.NotNull(provider.Session);
+        Assert.IsTrue(provider.WasActivated);
+        Assert.IsNotNull(provider.Session);
     }
 
-    [Fact]
+    [TestMethod]
     public void Deactivate_CalledWhenProviderRemoved()
     {
         // Arrange
@@ -84,10 +85,10 @@ public class EditorOverlayTests
         node.UpdateDecorationProviders(null);
 
         // Assert
-        Assert.True(provider.WasDeactivated);
+        Assert.IsTrue(provider.WasDeactivated);
     }
 
-    [Fact]
+    [TestMethod]
     public void PushOverlay_AddsToActiveOverlays()
     {
         // Arrange
@@ -105,11 +106,11 @@ public class EditorOverlayTests
         provider.Session!.PushOverlay(overlay);
 
         // Assert
-        Assert.Single(provider.Session.ActiveOverlays);
-        Assert.Equal("test-overlay", provider.Session.ActiveOverlays[0].Id);
+        TestSeq.Single(provider.Session.ActiveOverlays);
+        Assert.AreEqual("test-overlay", provider.Session.ActiveOverlays[0].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void PushOverlay_ReplacesSameId()
     {
         // Arrange
@@ -127,12 +128,12 @@ public class EditorOverlayTests
         provider.Session.PushOverlay(overlay2);
 
         // Assert
-        Assert.Single(provider.Session.ActiveOverlays);
-        Assert.Equal("second", provider.Session.ActiveOverlays[0].Content[0].Text);
-        Assert.Equal(OverlayPlacement.Above, provider.Session.ActiveOverlays[0].Placement);
+        TestSeq.Single(provider.Session.ActiveOverlays);
+        Assert.AreEqual("second", provider.Session.ActiveOverlays[0].Content[0].Text);
+        Assert.AreEqual(OverlayPlacement.Above, provider.Session.ActiveOverlays[0].Placement);
     }
 
-    [Fact]
+    [TestMethod]
     public void DismissOverlay_RemovesById()
     {
         // Arrange
@@ -149,11 +150,11 @@ public class EditorOverlayTests
         provider.Session.DismissOverlay("a");
 
         // Assert
-        Assert.Single(provider.Session.ActiveOverlays);
-        Assert.Equal("b", provider.Session.ActiveOverlays[0].Id);
+        TestSeq.Single(provider.Session.ActiveOverlays);
+        Assert.AreEqual("b", provider.Session.ActiveOverlays[0].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void DismissOnCursorMove_RemovesOverlayWhenCursorMoves()
     {
         // Arrange
@@ -165,16 +166,16 @@ public class EditorOverlayTests
             OverlayPlacement.Below, [new OverlayLine("hover info")],
             DismissOnCursorMove: true));
 
-        Assert.Single(provider.Session.ActiveOverlays);
+        TestSeq.Single(provider.Session.ActiveOverlays);
 
         // Act — simulate cursor move
         node.NotifyCursorChanged();
 
         // Assert
-        Assert.Empty(provider.Session.ActiveOverlays);
+        Assert.IsEmpty(provider.Session.ActiveOverlays);
     }
 
-    [Fact]
+    [TestMethod]
     public void DismissOnCursorMove_False_PreservesOverlayWhenCursorMoves()
     {
         // Arrange
@@ -190,11 +191,11 @@ public class EditorOverlayTests
         node.NotifyCursorChanged();
 
         // Assert — overlay should survive
-        Assert.Single(provider.Session.ActiveOverlays);
-        Assert.Equal("sticky", provider.Session.ActiveOverlays[0].Id);
+        TestSeq.Single(provider.Session.ActiveOverlays);
+        Assert.AreEqual("sticky", provider.Session.ActiveOverlays[0].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_WithOverlay_DoesNotCrash()
     {
         // Arrange — ensure rendering with an active overlay doesn't throw
@@ -213,7 +214,7 @@ public class EditorOverlayTests
         node.Render(context);
     }
 
-    [Fact]
+    [TestMethod]
     public void MultipleProviders_IndependentOverlays()
     {
         // Arrange
@@ -229,7 +230,7 @@ public class EditorOverlayTests
             OverlayPlacement.Above, [new OverlayLine("from provider 2")]));
 
         // Assert — both overlays exist on the same session
-        Assert.Equal(2, provider1.Session.ActiveOverlays.Count);
-        Assert.Equal(2, provider2.Session.ActiveOverlays.Count);
+        Assert.AreEqual(2, provider1.Session.ActiveOverlays.Count);
+        Assert.AreEqual(2, provider2.Session.ActiveOverlays.Count);
     }
 }

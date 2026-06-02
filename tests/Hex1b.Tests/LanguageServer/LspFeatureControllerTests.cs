@@ -4,6 +4,7 @@ using Hex1b.LanguageServer.Protocol;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class LspFeatureControllerTests
 {
     private sealed class MinimalExtension : ILanguageExtension
@@ -14,13 +15,13 @@ public class LspFeatureControllerTests
 
     // --- LspFeatureSet flag tests ---
 
-    [Fact]
+    [TestMethod]
     public void LspFeatureSet_None_HasValueZero()
     {
-        Assert.Equal(0, (int)LspFeatureSet.None);
+        Assert.AreEqual(0, (int)LspFeatureSet.None);
     }
 
-    [Fact]
+    [TestMethod]
     public void LspFeatureSet_IndividualFlags_AreDistinct()
     {
         var flags = new[]
@@ -49,125 +50,122 @@ public class LspFeatureControllerTests
         {
             for (var j = i + 1; j < flags.Length; j++)
             {
-                Assert.True((flags[i] & flags[j]) == 0,
-                    $"{flags[i]} and {flags[j]} should not overlap");
+                Assert.IsTrue((flags[i] & flags[j]) == 0, $"{flags[i]} and {flags[j]} should not overlap");
             }
         }
     }
 
-    [Theory]
-    [InlineData(LspFeatureSet.SemanticTokens)]
-    [InlineData(LspFeatureSet.Completion)]
-    [InlineData(LspFeatureSet.Diagnostics)]
-    [InlineData(LspFeatureSet.Hover)]
-    [InlineData(LspFeatureSet.Definition)]
-    [InlineData(LspFeatureSet.References)]
-    [InlineData(LspFeatureSet.Rename)]
-    [InlineData(LspFeatureSet.SignatureHelp)]
-    [InlineData(LspFeatureSet.CodeActions)]
-    [InlineData(LspFeatureSet.Formatting)]
-    [InlineData(LspFeatureSet.DocumentSymbol)]
-    [InlineData(LspFeatureSet.DocumentHighlight)]
-    [InlineData(LspFeatureSet.FoldingRange)]
-    [InlineData(LspFeatureSet.SelectionRange)]
-    [InlineData(LspFeatureSet.InlayHints)]
-    [InlineData(LspFeatureSet.CodeLens)]
-    [InlineData(LspFeatureSet.CallHierarchy)]
-    [InlineData(LspFeatureSet.TypeHierarchy)]
+    [TestMethod]
+    [DataRow(LspFeatureSet.SemanticTokens)]
+    [DataRow(LspFeatureSet.Completion)]
+    [DataRow(LspFeatureSet.Diagnostics)]
+    [DataRow(LspFeatureSet.Hover)]
+    [DataRow(LspFeatureSet.Definition)]
+    [DataRow(LspFeatureSet.References)]
+    [DataRow(LspFeatureSet.Rename)]
+    [DataRow(LspFeatureSet.SignatureHelp)]
+    [DataRow(LspFeatureSet.CodeActions)]
+    [DataRow(LspFeatureSet.Formatting)]
+    [DataRow(LspFeatureSet.DocumentSymbol)]
+    [DataRow(LspFeatureSet.DocumentHighlight)]
+    [DataRow(LspFeatureSet.FoldingRange)]
+    [DataRow(LspFeatureSet.SelectionRange)]
+    [DataRow(LspFeatureSet.InlayHints)]
+    [DataRow(LspFeatureSet.CodeLens)]
+    [DataRow(LspFeatureSet.CallHierarchy)]
+    [DataRow(LspFeatureSet.TypeHierarchy)]
     public void LspFeatureSet_All_IncludesFlag(LspFeatureSet flag)
     {
-        Assert.True((LspFeatureSet.All & flag) != 0,
-            $"All should include {flag}");
+        Assert.IsTrue((LspFeatureSet.All & flag) != 0, $"All should include {flag}");
     }
 
-    [Theory]
-    [InlineData(LspFeatureSet.Hover)]
-    [InlineData(LspFeatureSet.Completion)]
-    [InlineData(LspFeatureSet.Diagnostics)]
+    [TestMethod]
+    [DataRow(LspFeatureSet.Hover)]
+    [DataRow(LspFeatureSet.Completion)]
+    [DataRow(LspFeatureSet.Diagnostics)]
     public void LspFeatureSet_Combination_ExcludesRemovedFlag(LspFeatureSet excluded)
     {
         var combined = LspFeatureSet.All & ~excluded;
 
-        Assert.True((combined & excluded) == 0,
-            $"Combination should not include excluded flag {excluded}");
+        Assert.IsTrue((combined & excluded) == 0, $"Combination should not include excluded flag {excluded}");
     }
 
-    [Fact]
+    [TestMethod]
     public void LspFeatureSet_Combination_RetainsOtherFlags()
     {
         var combined = LspFeatureSet.All & ~LspFeatureSet.Hover;
 
-        Assert.True((combined & LspFeatureSet.Completion) != 0);
-        Assert.True((combined & LspFeatureSet.Definition) != 0);
-        Assert.True((combined & LspFeatureSet.SemanticTokens) != 0);
+        Assert.IsTrue((combined & LspFeatureSet.Completion) != 0);
+        Assert.IsTrue((combined & LspFeatureSet.Definition) != 0);
+        Assert.IsTrue((combined & LspFeatureSet.SemanticTokens) != 0);
     }
 
     // --- DefaultLanguageExtension tests ---
 
-    [Fact]
+    [TestMethod]
     public void DefaultExtension_EnablesAllFeatures()
     {
         var extension = new DefaultLanguageExtension("csharp");
 
-        Assert.Equal(LspFeatureSet.All, extension.EnabledFeatures);
+        Assert.AreEqual(LspFeatureSet.All, extension.EnabledFeatures);
     }
 
-    [Fact]
+    [TestMethod]
     public void DefaultExtension_HasCorrectLanguageId()
     {
         var extension = new DefaultLanguageExtension("python");
 
-        Assert.Equal("python", extension.LanguageId);
+        Assert.AreEqual("python", extension.LanguageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DefaultExtension_Singleton_HasPlaintextLanguageId()
     {
-        Assert.Equal("plaintext", DefaultLanguageExtension.Instance.LanguageId);
+        Assert.AreEqual("plaintext", DefaultLanguageExtension.Instance.LanguageId);
     }
 
     // --- LspFeatureController.IsEnabled tests ---
 
-    [Theory]
-    [InlineData(LspFeatureSet.SemanticTokens)]
-    [InlineData(LspFeatureSet.Completion)]
-    [InlineData(LspFeatureSet.Diagnostics)]
-    [InlineData(LspFeatureSet.Hover)]
-    [InlineData(LspFeatureSet.Definition)]
-    [InlineData(LspFeatureSet.References)]
-    [InlineData(LspFeatureSet.Rename)]
-    [InlineData(LspFeatureSet.SignatureHelp)]
-    [InlineData(LspFeatureSet.CodeActions)]
-    [InlineData(LspFeatureSet.Formatting)]
-    [InlineData(LspFeatureSet.DocumentSymbol)]
-    [InlineData(LspFeatureSet.DocumentHighlight)]
-    [InlineData(LspFeatureSet.FoldingRange)]
-    [InlineData(LspFeatureSet.SelectionRange)]
-    [InlineData(LspFeatureSet.InlayHints)]
-    [InlineData(LspFeatureSet.CodeLens)]
-    [InlineData(LspFeatureSet.CallHierarchy)]
-    [InlineData(LspFeatureSet.TypeHierarchy)]
+    [TestMethod]
+    [DataRow(LspFeatureSet.SemanticTokens)]
+    [DataRow(LspFeatureSet.Completion)]
+    [DataRow(LspFeatureSet.Diagnostics)]
+    [DataRow(LspFeatureSet.Hover)]
+    [DataRow(LspFeatureSet.Definition)]
+    [DataRow(LspFeatureSet.References)]
+    [DataRow(LspFeatureSet.Rename)]
+    [DataRow(LspFeatureSet.SignatureHelp)]
+    [DataRow(LspFeatureSet.CodeActions)]
+    [DataRow(LspFeatureSet.Formatting)]
+    [DataRow(LspFeatureSet.DocumentSymbol)]
+    [DataRow(LspFeatureSet.DocumentHighlight)]
+    [DataRow(LspFeatureSet.FoldingRange)]
+    [DataRow(LspFeatureSet.SelectionRange)]
+    [DataRow(LspFeatureSet.InlayHints)]
+    [DataRow(LspFeatureSet.CodeLens)]
+    [DataRow(LspFeatureSet.CallHierarchy)]
+    [DataRow(LspFeatureSet.TypeHierarchy)]
     public void IsEnabled_AllFeaturesEnabled_ReturnsTrueForEach(LspFeatureSet feature)
     {
         var extension = new MinimalExtension { EnabledFeatures = LspFeatureSet.All };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.True(controller.IsEnabled(feature));
+        Assert.IsTrue(controller.IsEnabled(feature));
     }
 
-    [Theory]
-    [InlineData(LspFeatureSet.Hover)]
-    [InlineData(LspFeatureSet.Completion)]
-    [InlineData(LspFeatureSet.Rename)]
+    [TestMethod]
+    [DataRow(LspFeatureSet.Hover)]
+    [DataRow(LspFeatureSet.Completion)]
+    [DataRow(LspFeatureSet.Rename)]
     public void IsEnabled_SpecificFeatureDisabled_ReturnsFalse(LspFeatureSet disabled)
     {
         var extension = new MinimalExtension { EnabledFeatures = LspFeatureSet.All & ~disabled };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(disabled));
+        Assert.IsFalse(controller.IsEnabled(disabled));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsEnabled_SpecificFeatureDisabled_OtherFeaturesStillEnabled()
     {
         var extension = new MinimalExtension
@@ -176,47 +174,47 @@ public class LspFeatureControllerTests
         };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.True(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Definition));
     }
 
-    [Theory]
-    [InlineData(LspFeatureSet.SemanticTokens)]
-    [InlineData(LspFeatureSet.Completion)]
-    [InlineData(LspFeatureSet.Hover)]
-    [InlineData(LspFeatureSet.CodeActions)]
+    [TestMethod]
+    [DataRow(LspFeatureSet.SemanticTokens)]
+    [DataRow(LspFeatureSet.Completion)]
+    [DataRow(LspFeatureSet.Hover)]
+    [DataRow(LspFeatureSet.CodeActions)]
     public void IsEnabled_None_ReturnsFalseForAll(LspFeatureSet feature)
     {
         var extension = new MinimalExtension { EnabledFeatures = LspFeatureSet.None };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.False(controller.IsEnabled(feature));
+        Assert.IsFalse(controller.IsEnabled(feature));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsEnabled_OnlyOneFeature_ReturnsTrueOnlyForThat()
     {
         var extension = new MinimalExtension { EnabledFeatures = LspFeatureSet.Hover };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.True(controller.IsEnabled(LspFeatureSet.Hover));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Completion));
-        Assert.False(controller.IsEnabled(LspFeatureSet.Definition));
+        Assert.IsTrue(controller.IsEnabled(LspFeatureSet.Hover));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Completion));
+        Assert.IsFalse(controller.IsEnabled(LspFeatureSet.Definition));
     }
 
-    [Fact]
+    [TestMethod]
     public void Extension_Property_ReturnsProvidedExtension()
     {
         var extension = new MinimalExtension { LanguageId = "rust" };
         var controller = new LspFeatureController(null!, extension);
 
-        Assert.Same(extension, controller.Extension);
+        Assert.AreSame(extension, controller.Extension);
     }
 
     // --- ILanguageExtension default implementation tests ---
 
-    [Fact]
+    [TestMethod]
     public void ILanguageExtension_DefaultFilterCompletions_ReturnsInput()
     {
         ILanguageExtension extension = new MinimalExtension();
@@ -228,10 +226,10 @@ public class LspFeatureControllerTests
 
         var result = extension.FilterCompletions(items);
 
-        Assert.Same(items, result);
+        Assert.AreSame(items, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void ILanguageExtension_DefaultFilterCodeActions_ReturnsInput()
     {
         ILanguageExtension extension = new MinimalExtension();
@@ -243,10 +241,10 @@ public class LspFeatureControllerTests
 
         var result = extension.FilterCodeActions(actions);
 
-        Assert.Same(actions, result);
+        Assert.AreSame(actions, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void ILanguageExtension_DefaultRenderHoverOverlay_ReturnsNull()
     {
         ILanguageExtension extension = new MinimalExtension();
@@ -255,16 +253,16 @@ public class LspFeatureControllerTests
 
         var result = extension.RenderHoverOverlay(hover, position);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void ILanguageExtension_DefaultGetServerConfiguration_ReturnsNull()
     {
         ILanguageExtension extension = new MinimalExtension();
 
         var result = extension.GetServerConfiguration();
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 }

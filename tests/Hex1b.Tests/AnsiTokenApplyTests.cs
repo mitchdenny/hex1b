@@ -6,11 +6,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for applying ANSI tokens to the terminal buffer.
 /// </summary>
+[TestClass]
 public class AnsiTokenApplyTests
 {
     #region TextToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_TextToken_WritesToBuffer()
     {
         // Arrange
@@ -23,10 +24,10 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("Hello", snapshot.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_TextToken_AdvancesCursor()
     {
         // Arrange
@@ -38,11 +39,11 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(tokens);
 
         // Assert
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_TextToken_WrapsAtEdge()
     {
         // Arrange
@@ -55,15 +56,15 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snapshot.GetLine(0));
-        Assert.Equal(" Worl", snapshot.GetLine(1));
+        Assert.AreEqual("Hello", snapshot.GetLine(0));
+        Assert.AreEqual(" Worl", snapshot.GetLine(1));
     }
 
     #endregion
 
     #region ControlCharacterToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_NewLine_MovesCursorDown()
     {
         // Arrange
@@ -77,11 +78,11 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal('A', snapshot.GetLine(0)[0]);
-        Assert.Equal('B', snapshot.GetLine(1)[0]);
+        Assert.AreEqual('A', snapshot.GetLine(0)[0]);
+        Assert.AreEqual('B', snapshot.GetLine(1)[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_CarriageReturn_MovesCursorToStart()
     {
         // Arrange
@@ -94,10 +95,10 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("XBC", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("XBC", snapshot.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_Tab_MovesToNextTabStop()
     {
         // Arrange
@@ -109,14 +110,14 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(tokens);
 
         // Assert
-        Assert.Equal(9, terminal.CursorX); // 'B' written at position 8, cursor at 9
+        Assert.AreEqual(9, terminal.CursorX); // 'B' written at position 8, cursor at 9
     }
 
     #endregion
 
     #region CursorPositionToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_CursorPosition_MovesCursor()
     {
         // Arrange
@@ -129,10 +130,10 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal('X', snapshot.GetCell(4, 2).Character[0]); // 0-based: col 4, row 2
+        Assert.AreEqual('X', snapshot.GetCell(4, 2).Character[0]); // 0-based: col 4, row 2
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_CursorPosition_ClampsToScreen()
     {
         // Arrange
@@ -144,15 +145,15 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(tokens);
 
         // Assert
-        Assert.Equal(4, terminal.CursorY); // 0-based, clamped to height-1
-        Assert.Equal(9, terminal.CursorX); // 0-based, clamped to width-1
+        Assert.AreEqual(4, terminal.CursorY); // 0-based, clamped to height-1
+        Assert.AreEqual(9, terminal.CursorX); // 0-based, clamped to width-1
     }
 
     #endregion
 
     #region SgrToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_SgrBold_SetsAttribute()
     {
         // Arrange
@@ -166,10 +167,10 @@ public class AnsiTokenApplyTests
         // Assert
         var snapshot = terminal.CreateSnapshot();
         var cell = snapshot.GetCell(0, 0);
-        Assert.True((cell.Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((cell.Attributes & CellAttributes.Bold) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_SgrReset_ClearsAttributes()
     {
         // Arrange
@@ -182,11 +183,11 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.True((snapshot.GetCell(0, 0).Attributes & CellAttributes.Bold) != 0);
-        Assert.True((snapshot.GetCell(1, 0).Attributes & CellAttributes.Bold) == 0);
+        Assert.IsTrue((snapshot.GetCell(0, 0).Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((snapshot.GetCell(1, 0).Attributes & CellAttributes.Bold) == 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_SgrForeground_SetsColor()
     {
         // Arrange
@@ -200,17 +201,17 @@ public class AnsiTokenApplyTests
         // Assert
         var snapshot = terminal.CreateSnapshot();
         var cell = snapshot.GetCell(0, 0);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(255, cell.Foreground.Value.R);
-        Assert.Equal(0, cell.Foreground.Value.G);
-        Assert.Equal(0, cell.Foreground.Value.B);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(255, cell.Foreground.Value.R);
+        Assert.AreEqual(0, cell.Foreground.Value.G);
+        Assert.AreEqual(0, cell.Foreground.Value.B);
     }
 
     #endregion
 
     #region ClearScreenToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_ClearScreenToEnd_ClearsFromCursor()
     {
         // Arrange
@@ -225,12 +226,12 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("AAAAAAAAAA", snapshot.GetLine(0));
-        Assert.Equal("BBBBB", snapshot.GetLine(1).TrimEnd()); // Cleared from position 5
-        Assert.Equal("", snapshot.GetLine(2).TrimEnd()); // Fully cleared
+        Assert.AreEqual("AAAAAAAAAA", snapshot.GetLine(0));
+        Assert.AreEqual("BBBBB", snapshot.GetLine(1).TrimEnd()); // Cleared from position 5
+        Assert.AreEqual("", snapshot.GetLine(2).TrimEnd()); // Fully cleared
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_ClearScreenAll_ClearsEntireBuffer()
     {
         // Arrange
@@ -241,14 +242,14 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snapshot.GetLine(0).TrimEnd());
     }
 
     #endregion
 
     #region ClearLineToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_ClearLineToEnd_ClearsFromCursor()
     {
         // Arrange
@@ -259,10 +260,10 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("ABC", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABC", snapshot.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_ClearLineAll_ClearsEntireLine()
     {
         // Arrange
@@ -273,14 +274,14 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snapshot.GetLine(0).TrimEnd());
     }
 
     #endregion
 
     #region PrivateModeToken Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreenEnable_EntersAlternateScreen()
     {
         // Arrange
@@ -292,12 +293,12 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
 
         // Assert
-        Assert.True(terminal.InAlternateScreen);
+        Assert.IsTrue(terminal.InAlternateScreen);
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("", snapshot.GetLine(0).TrimEnd()); // Alt screen is blank
+        Assert.AreEqual("", snapshot.GetLine(0).TrimEnd()); // Alt screen is blank
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreenDisable_ExitsAlternateScreen()
     {
         // Arrange
@@ -309,10 +310,10 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
 
         // Assert
-        Assert.False(terminal.InAlternateScreen);
+        Assert.IsFalse(terminal.InAlternateScreen);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreen_SavesAndRestoresCursorPosition()
     {
         // Arrange
@@ -334,23 +335,23 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
         
         // Verify cursor position is preserved from primary screen
-        Assert.Equal(cursorXBeforeAltScreen, terminal.CursorX);
-        Assert.Equal(cursorYBeforeAltScreen, terminal.CursorY);
+        Assert.AreEqual(cursorXBeforeAltScreen, terminal.CursorX);
+        Assert.AreEqual(cursorYBeforeAltScreen, terminal.CursorY);
         
         // Move cursor in alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(3, 5) });
-        Assert.Equal(4, terminal.CursorX); // 0-based
-        Assert.Equal(2, terminal.CursorY); // 0-based
+        Assert.AreEqual(4, terminal.CursorX); // 0-based
+        Assert.AreEqual(2, terminal.CursorY); // 0-based
         
         // Exit alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
         
         // Assert - Cursor should be restored to position before entering alt screen
-        Assert.Equal(cursorXBeforeAltScreen, terminal.CursorX);
-        Assert.Equal(cursorYBeforeAltScreen, terminal.CursorY);
+        Assert.AreEqual(cursorXBeforeAltScreen, terminal.CursorX);
+        Assert.AreEqual(cursorYBeforeAltScreen, terminal.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreen_SavesAndRestoresMainScreenBuffer()
     {
         // Arrange
@@ -380,7 +381,7 @@ public class AnsiTokenApplyTests
         Assert.StartsWith("Main Screen", restoredText);
     }
     
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreen_ExitWithoutEnter_DoesNotClearScreen()
     {
         // Arrange - create terminal with content
@@ -393,8 +394,8 @@ public class AnsiTokenApplyTests
         
         // Save original cursor position
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(3, 10) });
-        Assert.Equal(9, terminal.CursorX); // 0-based
-        Assert.Equal(2, terminal.CursorY); // 0-based
+        Assert.AreEqual(9, terminal.CursorX); // 0-based
+        Assert.AreEqual(2, terminal.CursorY); // 0-based
         
         // Act - Exit alternate screen WITHOUT having entered it
         // This should NOT clear the screen or change cursor position
@@ -405,11 +406,11 @@ public class AnsiTokenApplyTests
         Assert.StartsWith("Important Data", afterText);
         
         // Cursor position should also be preserved
-        Assert.Equal(9, terminal.CursorX);
-        Assert.Equal(2, terminal.CursorY);
+        Assert.AreEqual(9, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
     }
     
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_AlternateScreen_SeparateCursorSaveFromDECSC()
     {
         // Arrange - verify alternate screen cursor save doesn't conflict with DECSC
@@ -430,31 +431,31 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, true) });
         
         // Cursor position is preserved from primary screen on alt screen entry
-        Assert.Equal(14, terminal.CursorX);
-        Assert.Equal(5, terminal.CursorY);
+        Assert.AreEqual(14, terminal.CursorX);
+        Assert.AreEqual(5, terminal.CursorY);
         
         // Move cursor in alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new CursorPositionToken(4, 10) }); // y=3, x=9
         
         // Use DECRC to restore the DECSC position (should be 4, 1 from before)
         terminal.ApplyTokens(new AnsiToken[] { new RestoreCursorToken(true) });
-        Assert.Equal(4, terminal.CursorX); // from DECSC
-        Assert.Equal(1, terminal.CursorY); // from DECSC
+        Assert.AreEqual(4, terminal.CursorX); // from DECSC
+        Assert.AreEqual(1, terminal.CursorY); // from DECSC
         
         // Exit alternate screen
         terminal.ApplyTokens(new AnsiToken[] { new PrivateModeToken(1049, false) });
         
         // Cursor should be restored to position when we ENTERED alternate screen (5, 14 -> y=5, x=14)
         // NOT the DECSC position
-        Assert.Equal(14, terminal.CursorX);
-        Assert.Equal(5, terminal.CursorY);
+        Assert.AreEqual(14, terminal.CursorX);
+        Assert.AreEqual(5, terminal.CursorY);
     }
 
     #endregion
 
     #region SaveCursor / RestoreCursor Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_SaveAndRestoreCursor_PreservesPosition()
     {
         // Arrange
@@ -471,15 +472,15 @@ public class AnsiTokenApplyTests
         });
 
         // Assert
-        Assert.Equal(9, terminal.CursorX); // 0-based from column 10
-        Assert.Equal(4, terminal.CursorY); // 0-based from row 5
+        Assert.AreEqual(9, terminal.CursorX); // 0-based from column 10
+        Assert.AreEqual(4, terminal.CursorY); // 0-based from row 5
     }
 
     #endregion
 
     #region Round-trip Tests
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_RoundTrip_TokenizeAndApply_ProducesExpectedResult()
     {
         // Arrange - complex ANSI sequence
@@ -494,11 +495,11 @@ public class AnsiTokenApplyTests
 
         // Assert - buffer should have expected content
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("Hello World", snapshot.GetLine(0).TrimEnd());
-        Assert.Equal("Line 2", snapshot.GetLine(1).TrimEnd());
+        Assert.AreEqual("Hello World", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("Line 2", snapshot.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_ComplexSequence_AppliesCorrectly()
     {
         // Arrange
@@ -512,18 +513,18 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("Orange Bold Italic", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("Orange Bold Italic", snapshot.GetLine(0).TrimEnd());
         
         // Check cell attributes
         var cell = snapshot.GetCell(0, 0);
-        Assert.Equal(Hex1bColor.FromRgb(255, 128, 64), cell.Foreground);
+        Assert.AreEqual(Hex1bColor.FromRgb(255, 128, 64), cell.Foreground);
     }
 
     #endregion
 
     #region Edge Cases
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_EmptyList_DoesNothing()
     {
         // Arrange
@@ -534,11 +535,11 @@ public class AnsiTokenApplyTests
         terminal.ApplyTokens(Array.Empty<AnsiToken>());
 
         // Assert - no crash, cursor at origin
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void ApplyTokens_UnrecognizedSequence_Ignored()
     {
         // Arrange
@@ -551,7 +552,7 @@ public class AnsiTokenApplyTests
 
         // Assert
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("OK", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("OK", snapshot.GetLine(0).TrimEnd());
     }
 
     #endregion

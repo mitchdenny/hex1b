@@ -28,11 +28,12 @@ namespace Hex1b.Tests;
 /// PRECEDENCE (no focused widget):
 /// 1. Global bindings only
 /// </summary>
+[TestClass]
 public class InputBindingPrecedenceTests
 {
     #region A. No Focused Widget - Global Bindings
 
-    [Fact]
+    [TestMethod]
     public async Task A1_NoFocus_GlobalBindingMatches_GlobalBindingFires()
     {
         // RULE: When no focused widget exists, global bindings are checked.
@@ -67,13 +68,13 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(globalBindingFired, "Global binding should fire when no focused widget exists");
+        Assert.IsTrue(globalBindingFired, "Global binding should fire when no focused widget exists");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task A2_NoFocus_NoGlobalBindingForKey_NotHandled()
     {
         // RULE: When no binding matches and no focused widget, input is not handled.
@@ -108,13 +109,13 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.Y).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(anyBindingFired, "No binding should fire for unbound key");
+        Assert.IsFalse(anyBindingFired, "No binding should fire for unbound key");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task A3_NoFocus_MultipleWidgetsDefineSameGlobalKey_LastWriteWins()
     {
         // RULE: Global bindings use last-write-wins semantics.
@@ -159,8 +160,8 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(childBindingFired, "Child (last reconciled) binding should fire");
-        Assert.False(parentBindingFired, "Parent binding should NOT fire (overridden by child)");
+        Assert.IsTrue(childBindingFired, "Child (last reconciled) binding should fire");
+        Assert.IsFalse(parentBindingFired, "Parent binding should NOT fire (overridden by child)");
 
         cts.Cancel();
         await runTask;
@@ -170,7 +171,7 @@ public class InputBindingPrecedenceTests
 
     #region B. Focused Widget - Precedence Chain
 
-    [Fact]
+    [TestMethod]
     public async Task B1_FocusedWidget_FocusBindingMatches_FocusBindingFires()
     {
         // RULE: Focus bindings are checked first when widget is focused.
@@ -208,13 +209,13 @@ public class InputBindingPrecedenceTests
         // Button should auto-focus as first focusable widget
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(focusBindingFired, "Focus binding should fire when widget is focused");
+        Assert.IsTrue(focusBindingFired, "Focus binding should fire when widget is focused");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task B2_FocusedWidget_NoFocusBinding_HandleInputHandles()
     {
         // RULE: If no focus binding matches, HandleInput is called on focused widget.
@@ -245,13 +246,13 @@ public class InputBindingPrecedenceTests
         // TextBox should auto-focus
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.A).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("a", textChanged);
+        Assert.AreEqual("a", textChanged);
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task B4_FocusedWidget_NothingHandles_GlobalBindingFires()
     {
         // RULE: If focus bindings and HandleInput chain don't handle, global bindings fire.
@@ -289,7 +290,7 @@ public class InputBindingPrecedenceTests
         // Button is focused, press Q (button doesn't handle it)
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.Q).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(globalBindingFired, "Global binding should fire when focus chain doesn't handle");
+        Assert.IsTrue(globalBindingFired, "Global binding should fire when focus chain doesn't handle");
 
         cts.Cancel();
         await runTask;
@@ -299,7 +300,7 @@ public class InputBindingPrecedenceTests
 
     #region C. Focus Bindings Override Global
 
-    [Fact]
+    [TestMethod]
     public async Task C1_SameKeyFocusAndGlobal_WidgetFocused_FocusBindingFires()
     {
         // RULE: Focus bindings take precedence over global bindings for the same key.
@@ -344,14 +345,14 @@ public class InputBindingPrecedenceTests
         
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(focusBindingFired, "Focus binding should fire");
-        Assert.False(globalBindingFired, "Global binding should NOT fire (overridden by focus)");
+        Assert.IsTrue(focusBindingFired, "Focus binding should fire");
+        Assert.IsFalse(globalBindingFired, "Global binding should NOT fire (overridden by focus)");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task C2_SameKeyFocusAndGlobal_DifferentWidgetFocused_GlobalFires()
     {
         // RULE: When a different widget is focused, focus bindings don't apply.
@@ -401,8 +402,8 @@ public class InputBindingPrecedenceTests
             .Key(Hex1bKey.X).Wait(100)
             .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(button1FocusBindingFired, "Button1's focus binding should NOT fire (not focused)");
-        Assert.True(globalBindingFired, "Global binding should fire as fallback");
+        Assert.IsFalse(button1FocusBindingFired, "Button1's focus binding should NOT fire (not focused)");
+        Assert.IsTrue(globalBindingFired, "Global binding should fire as fallback");
 
         cts.Cancel();
         await runTask;
@@ -412,7 +413,7 @@ public class InputBindingPrecedenceTests
 
     #region D. Global Binding Collection (Last-Write-Wins)
 
-    [Fact]
+    [TestMethod]
     public async Task D1_ParentDefinesKey_ChildRedefines_ChildWins()
     {
         // RULE: Last-write-wins for global bindings (child reconciled after parent).
@@ -457,14 +458,14 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(innerFired, "Inner (last reconciled) should win");
-        Assert.False(outerFired, "Outer should be overridden");
+        Assert.IsTrue(innerFired, "Inner (last reconciled) should win");
+        Assert.IsFalse(outerFired, "Outer should be overridden");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task D2_DeeplyNestedWidget_OverridesRoot()
     {
         // RULE: Deeply nested widget's global binding overrides root's.
@@ -511,8 +512,8 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(deepFired, "Deepest (last reconciled) should win");
-        Assert.False(rootFired, "Root should be overridden");
+        Assert.IsTrue(deepFired, "Deepest (last reconciled) should win");
+        Assert.IsFalse(rootFired, "Root should be overridden");
 
         cts.Cancel();
         await runTask;
@@ -522,7 +523,7 @@ public class InputBindingPrecedenceTests
 
     #region E. Default App Bindings
 
-    [Fact]
+    [TestMethod]
     public async Task E1_DefaultCtrlC_NoOverride_AppStops()
     {
         // RULE: Default Ctrl+C binding stops the app.
@@ -552,10 +553,10 @@ public class InputBindingPrecedenceTests
         
         // App should stop within reasonable time
         var completed = await Task.WhenAny(runTask, Task.Delay(1000, TestContext.Current.CancellationToken)) == runTask;
-        Assert.True(completed, "App should stop when Ctrl+C is pressed");
+        Assert.IsTrue(completed, "App should stop when Ctrl+C is pressed");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task E2_UserGlobalBinding_OverridesDefaultCtrlC()
     {
         // RULE: User global bindings override default app bindings.
@@ -591,8 +592,8 @@ public class InputBindingPrecedenceTests
         
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.C).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(userBindingFired, "User binding should fire");
-        Assert.False(runTask.IsCompleted, "App should NOT stop (user overrode Ctrl+C)");
+        Assert.IsTrue(userBindingFired, "User binding should fire");
+        Assert.IsFalse(runTask.IsCompleted, "App should NOT stop (user overrode Ctrl+C)");
 
         cts.Cancel();
         await runTask;
@@ -602,7 +603,7 @@ public class InputBindingPrecedenceTests
 
     #region F. Chord Bindings
 
-    [Fact]
+    [TestMethod]
     public async Task F1_FocusChordBinding_CompletesAndFires()
     {
         // RULE: Chord bindings work on focusable widgets.
@@ -642,13 +643,13 @@ public class InputBindingPrecedenceTests
             .Key(Hex1bKey.G).Wait(100)
             .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(chordFired, "Chord should complete and fire");
+        Assert.IsTrue(chordFired, "Chord should complete and fire");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task F2_GlobalChordBinding_CompletesAndFires()
     {
         // RULE: Chord bindings work on global level.
@@ -687,13 +688,13 @@ public class InputBindingPrecedenceTests
             .Key(Hex1bKey.G).Wait(100)
             .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(chordFired, "Global chord should complete and fire");
+        Assert.IsTrue(chordFired, "Global chord should complete and fire");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task F4_MidChord_EscapePressed_ChordCancelled()
     {
         // RULE: Escape cancels pending chord.
@@ -733,7 +734,7 @@ public class InputBindingPrecedenceTests
             .Key(Hex1bKey.G).Wait(100)
             .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(chordFired, "Chord should be cancelled by Escape");
+        Assert.IsFalse(chordFired, "Chord should be cancelled by Escape");
 
         cts.Cancel();
         await runTask;
@@ -743,7 +744,7 @@ public class InputBindingPrecedenceTests
 
     #region H. API Behavior
 
-    [Fact]
+    [TestMethod]
     public async Task H1_InputBindings_OnNonFocusable_CreatesGlobalBindings()
     {
         // RULE: InputBindings on non-focusable widget creates global bindings.
@@ -778,13 +779,13 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "VStack binding should fire as global binding");
+        Assert.IsTrue(bindingFired, "VStack binding should fire as global binding");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task H2_InputBindings_OnFocusable_CreatesFocusBindings()
     {
         // RULE: InputBindings on focusable widget creates focus bindings.
@@ -826,7 +827,7 @@ public class InputBindingPrecedenceTests
             .Key(Hex1bKey.X).Wait(100)
             .Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(button1BindingFired, "Button1's focus binding should NOT fire when Button2 is focused");
+        Assert.IsFalse(button1BindingFired, "Button1's focus binding should NOT fire when Button2 is focused");
 
         cts.Cancel();
         await runTask;
@@ -836,7 +837,7 @@ public class InputBindingPrecedenceTests
 
     #region I. Tree Compositions
 
-    [Fact]
+    [TestMethod]
     public async Task I6_RescueWidgetWrapping_DoesNotBreakBindings()
     {
         // RULE: RescueWidget (enabled by default) should not prevent bindings from working.
@@ -876,7 +877,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "Global binding should fire even with RescueWidget wrapping");
+        Assert.IsTrue(bindingFired, "Global binding should fire even with RescueWidget wrapping");
 
         cts.Cancel();
         await runTask;
@@ -886,7 +887,7 @@ public class InputBindingPrecedenceTests
 
     #region Ctrl Modifier Tests
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlModifier_GlobalBinding_Fires()
     {
         // RULE: Ctrl+Key bindings work as global bindings.
@@ -921,13 +922,13 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.X).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "Ctrl+X global binding should fire");
+        Assert.IsTrue(bindingFired, "Ctrl+X global binding should fire");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlModifier_FocusBinding_OverridesGlobal()
     {
         // RULE: Focus Ctrl+Key bindings override global Ctrl+Key bindings.
@@ -972,8 +973,8 @@ public class InputBindingPrecedenceTests
         
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Key(Hex1bKey.S).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(focusBindingFired, "Focus Ctrl+S binding should fire");
-        Assert.False(globalBindingFired, "Global Ctrl+S should NOT fire");
+        Assert.IsTrue(focusBindingFired, "Focus Ctrl+S binding should fire");
+        Assert.IsFalse(globalBindingFired, "Global Ctrl+S should NOT fire");
 
         cts.Cancel();
         await runTask;
@@ -983,7 +984,7 @@ public class InputBindingPrecedenceTests
 
     #region Shift Modifier Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftModifier_GlobalBinding_Fires()
     {
         // RULE: Shift+Key bindings work as global bindings.
@@ -1018,7 +1019,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Shift().Tab().Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "Shift+Tab global binding should fire");
+        Assert.IsTrue(bindingFired, "Shift+Tab global binding should fire");
 
         cts.Cancel();
         await runTask;
@@ -1028,7 +1029,7 @@ public class InputBindingPrecedenceTests
 
     #region Modifier Combination Tests
 
-    [Fact]
+    [TestMethod]
     public void ModifierBuilder_CtrlThenShift_ProducesCombinedModifiers()
     {
         // RULE: Ctrl and Shift modifiers can be combined.
@@ -1038,13 +1039,13 @@ public class InputBindingPrecedenceTests
         var builder = new InputBindingsBuilder();
         builder.Ctrl().Shift().Key(Hex1bKey.LeftArrow).Action(() => { });
 
-        var binding = Assert.Single(builder.Bindings);
-        var step = Assert.Single(binding.Steps);
-        Assert.Equal(Hex1bKey.LeftArrow, step.Key);
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
+        var binding = TestSeq.Single(builder.Bindings);
+        var step = TestSeq.Single(binding.Steps);
+        Assert.AreEqual(Hex1bKey.LeftArrow, step.Key);
+        Assert.AreEqual(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void ModifierBuilder_ShiftThenCtrl_ProducesCombinedModifiers()
     {
         // RULE: Modifier order does not matter — both Shift().Ctrl() and Ctrl().Shift() yield the same combined step.
@@ -1054,13 +1055,13 @@ public class InputBindingPrecedenceTests
         var builder = new InputBindingsBuilder();
         builder.Shift().Ctrl().Key(Hex1bKey.RightArrow).Action(() => { });
 
-        var binding = Assert.Single(builder.Bindings);
-        var step = Assert.Single(binding.Steps);
-        Assert.Equal(Hex1bKey.RightArrow, step.Key);
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
+        var binding = TestSeq.Single(builder.Bindings);
+        var step = TestSeq.Single(binding.Steps);
+        Assert.AreEqual(Hex1bKey.RightArrow, step.Key);
+        Assert.AreEqual(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlShiftBinding_GlobalBinding_FiresEndToEnd()
     {
         // RULE: A Ctrl+Shift+Key binding declared via the fluent API
@@ -1094,7 +1095,7 @@ public class InputBindingPrecedenceTests
         await renderOccurred.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
         await new Hex1bTerminalInputSequenceBuilder().Ctrl().Shift().Key(Hex1bKey.LeftArrow).Wait(100).Capture("final").Build().ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "Ctrl+Shift+LeftArrow global binding should fire end-to-end");
+        Assert.IsTrue(bindingFired, "Ctrl+Shift+LeftArrow global binding should fire end-to-end");
 
         cts.Cancel();
         await runTask;

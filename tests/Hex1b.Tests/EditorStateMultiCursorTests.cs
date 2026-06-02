@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// NOTE: Multi-cursor behavior may change as the editor evolves; these tests document
 /// the current expected behavior for insert, delete, movement, and merge operations.
 /// </summary>
+[TestClass]
 public class EditorStateMultiCursorTests
 {
     private static EditorState CreateState(string text)
@@ -17,7 +18,7 @@ public class EditorStateMultiCursorTests
 
     // ── Multi-cursor insert ─────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void InsertText_MultiCursor_InsertsAtAllPositions()
     {
         var state = CreateState("aaabbb");
@@ -28,10 +29,10 @@ public class EditorStateMultiCursorTests
 
         // After reverse-order insert: cursor at 3 inserts first -> "aaaXbbb"
         // Then cursor at 0 inserts -> "XaaaXbbb"
-        Assert.Equal("XaaaXbbb", state.Document.GetText());
+        Assert.AreEqual("XaaaXbbb", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertText_MultiCursor_CursorsAdvancePastInsertedText()
     {
         var state = CreateState("ab");
@@ -41,12 +42,12 @@ public class EditorStateMultiCursorTests
         state.InsertText("X");
 
         // "XaXb", cursors at 1 and 3
-        Assert.Equal("XaXb", state.Document.GetText());
-        Assert.Equal(1, state.Cursors[0].Position.Value);
-        Assert.Equal(3, state.Cursors[1].Position.Value);
+        Assert.AreEqual("XaXb", state.Document.GetText());
+        Assert.AreEqual(1, state.Cursors[0].Position.Value);
+        Assert.AreEqual(3, state.Cursors[1].Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertText_MultiCursor_MergesOverlapping()
     {
         var state = CreateState("");
@@ -61,7 +62,7 @@ public class EditorStateMultiCursorTests
 
     // ── Multi-cursor delete ─────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DeleteBackward_MultiCursor_DeletesAtAllPositions()
     {
         var state = CreateState("XaXb");
@@ -70,10 +71,10 @@ public class EditorStateMultiCursorTests
 
         state.DeleteBackward();
 
-        Assert.Equal("ab", state.Document.GetText());
+        Assert.AreEqual("ab", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteForward_MultiCursor_DeletesAtAllPositions()
     {
         var state = CreateState("aXbX");
@@ -82,12 +83,12 @@ public class EditorStateMultiCursorTests
 
         state.DeleteForward();
 
-        Assert.Equal("ab", state.Document.GetText());
+        Assert.AreEqual("ab", state.Document.GetText());
     }
 
     // ── Multi-cursor navigation ─────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_MultiCursor_MovesAll()
     {
         var state = CreateState("Hello\nWorld");
@@ -96,11 +97,11 @@ public class EditorStateMultiCursorTests
 
         state.MoveCursor(CursorDirection.Right);
 
-        Assert.Equal(1, state.Cursors[0].Position.Value);
-        Assert.Equal(7, state.Cursors[1].Position.Value);
+        Assert.AreEqual(1, state.Cursors[0].Position.Value);
+        Assert.AreEqual(7, state.Cursors[1].Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineEnd_MultiCursor_MovesAll()
     {
         var state = CreateState("abc\ndef");
@@ -109,11 +110,11 @@ public class EditorStateMultiCursorTests
 
         state.MoveToLineEnd();
 
-        Assert.Equal(3, state.Cursors[0].Position.Value); // End of "abc"
-        Assert.Equal(7, state.Cursors[1].Position.Value); // End of "def"
+        Assert.AreEqual(3, state.Cursors[0].Position.Value); // End of "abc"
+        Assert.AreEqual(7, state.Cursors[1].Position.Value); // End of "def"
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentStart_MultiCursor_MergesAll()
     {
         var state = CreateState("Hello\nWorld");
@@ -123,11 +124,11 @@ public class EditorStateMultiCursorTests
         state.MoveToDocumentStart();
 
         // Both cursors move to offset 0 — should merge to 1
-        Assert.Single(state.Cursors);
-        Assert.Equal(0, state.Cursor.Position.Value);
+        TestSeq.Single(state.Cursors);
+        Assert.AreEqual(0, state.Cursor.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentEnd_MultiCursor_MergesAll()
     {
         var state = CreateState("Hello\nWorld");
@@ -136,13 +137,13 @@ public class EditorStateMultiCursorTests
 
         state.MoveToDocumentEnd();
 
-        Assert.Single(state.Cursors);
-        Assert.Equal(11, state.Cursor.Position.Value);
+        TestSeq.Single(state.Cursors);
+        Assert.AreEqual(11, state.Cursor.Position.Value);
     }
 
     // ── Multi-cursor selection extend ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Extend_MultiCursor_ExtendsAll()
     {
         var state = CreateState("abcdef");
@@ -151,18 +152,18 @@ public class EditorStateMultiCursorTests
 
         state.MoveCursor(CursorDirection.Right, extend: true);
 
-        Assert.Equal(2, state.Cursors[0].Position.Value);
-        Assert.True(state.Cursors[0].HasSelection);
-        Assert.Equal(1, state.Cursors[0].SelectionAnchor!.Value.Value);
+        Assert.AreEqual(2, state.Cursors[0].Position.Value);
+        Assert.IsTrue(state.Cursors[0].HasSelection);
+        Assert.AreEqual(1, state.Cursors[0].SelectionAnchor!.Value.Value);
 
-        Assert.Equal(5, state.Cursors[1].Position.Value);
-        Assert.True(state.Cursors[1].HasSelection);
-        Assert.Equal(4, state.Cursors[1].SelectionAnchor!.Value.Value);
+        Assert.AreEqual(5, state.Cursors[1].Position.Value);
+        Assert.IsTrue(state.Cursors[1].HasSelection);
+        Assert.AreEqual(4, state.Cursors[1].SelectionAnchor!.Value.Value);
     }
 
     // ── AddCursorAtNextMatch ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtNextMatch_SelectsWordUnderCursor_IfNoSelection()
     {
         var state = CreateState("hello world hello");
@@ -171,10 +172,10 @@ public class EditorStateMultiCursorTests
         state.AddCursorAtNextMatch();
 
         // First call selects "hello" under cursor, then finds next "hello"
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtNextMatch_FindsNextOccurrence()
     {
         var state = CreateState("abc def abc ghi abc");
@@ -184,15 +185,15 @@ public class EditorStateMultiCursorTests
 
         state.AddCursorAtNextMatch();
 
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
         // Second cursor should select the second "abc" at positions 8..11
         var second = state.Cursors[1];
-        Assert.True(second.HasSelection);
-        Assert.Equal(8, second.SelectionStart.Value);
-        Assert.Equal(11, second.SelectionEnd.Value);
+        Assert.IsTrue(second.HasSelection);
+        Assert.AreEqual(8, second.SelectionStart.Value);
+        Assert.AreEqual(11, second.SelectionEnd.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtNextMatch_WrapsAround()
     {
         var state = CreateState("abc def abc");
@@ -203,10 +204,10 @@ public class EditorStateMultiCursorTests
         state.AddCursorAtNextMatch();
 
         // Should wrap around and find the first "abc"
-        Assert.Equal(2, state.Cursors.Count);
+        Assert.AreEqual(2, state.Cursors.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtNextMatch_NoMatch_DoesNothing()
     {
         var state = CreateState("abc def ghi");
@@ -215,10 +216,10 @@ public class EditorStateMultiCursorTests
 
         state.AddCursorAtNextMatch(); // No more "abc"
 
-        Assert.Single(state.Cursors); // No new cursor added
+        TestSeq.Single(state.Cursors); // No new cursor added
     }
 
-    [Fact]
+    [TestMethod]
     public void AddCursorAtNextMatch_ThreeTimes_ThreeCursors()
     {
         var state = CreateState("ab cd ab ef ab");
@@ -228,12 +229,12 @@ public class EditorStateMultiCursorTests
         state.AddCursorAtNextMatch(); // Finds "ab" at 6
         state.AddCursorAtNextMatch(); // Finds "ab" at 12
 
-        Assert.Equal(3, state.Cursors.Count);
+        Assert.AreEqual(3, state.Cursors.Count);
     }
 
     // ── CollapseToSingleCursor ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void CollapseToSingleCursor_KeepsPrimary()
     {
         var state = CreateState("abcdef");
@@ -242,13 +243,13 @@ public class EditorStateMultiCursorTests
 
         state.CollapseToSingleCursor();
 
-        Assert.Single(state.Cursors);
-        Assert.Equal(2, state.Cursor.Position.Value);
+        TestSeq.Single(state.Cursors);
+        Assert.AreEqual(2, state.Cursor.Position.Value);
     }
 
     // ── Multi-cursor word operations ────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_MultiCursor()
     {
         // "hello world foo bar" with cursors after "hello" and "world"
@@ -262,10 +263,10 @@ public class EditorStateMultiCursorTests
 
         state.DeleteWordBackward();
 
-        Assert.Equal("  foo bar", state.Document.GetText());
+        Assert.AreEqual("  foo bar", state.Document.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordForward_MultiCursor()
     {
         // "hello world foo" with cursors before "hello" and before "world"
@@ -278,6 +279,6 @@ public class EditorStateMultiCursorTests
 
         state.DeleteWordForward();
 
-        Assert.Equal("foo", state.Document.GetText());
+        Assert.AreEqual("foo", state.Document.GetText());
     }
 }

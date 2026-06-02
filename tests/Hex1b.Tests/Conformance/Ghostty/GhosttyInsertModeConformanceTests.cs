@@ -5,7 +5,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// CSI 4 h enables insert mode, CSI 4 l disables (back to replace mode).
 /// In insert mode, printing a character shifts existing content right.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyInsertModeConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -14,12 +15,12 @@ public class GhosttyInsertModeConformanceTests
     private static void AssertPlainText(Hex1bTerminal terminal, int row, string expected)
     {
         var line = GhosttyTestFixture.GetLine(terminal, row);
-        Assert.Equal(expected, line);
+        Assert.AreEqual(expected, line);
     }
 
     #region Basic Insert Mode Toggle
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_DefaultOff_OverwritesCharacters()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -30,7 +31,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABXDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_Enable_InsertsCharacters()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -42,7 +43,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABXCDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_DisableWithCSI4l_ReturnsToReplace()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -55,7 +56,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABXDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_MultipleCharsInserted()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -71,7 +72,7 @@ public class GhosttyInsertModeConformanceTests
 
     #region Edge Cases — Line Boundary
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_PushesCharsOffEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -83,7 +84,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "XABCD");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_PushedCharsDoNotWrapToNextLine()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -96,7 +97,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 1, "");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_AtEndOfLine_PendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 3);
@@ -108,7 +109,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 1, "X");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_FillEntireLine()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -118,21 +119,21 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABCDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_InsertAtCol0_EmptyLine()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
         GhosttyTestFixture.Feed(terminal, "\x1b[4h"); // Enable IRM
         GhosttyTestFixture.Feed(terminal, "ABC");
         AssertPlainText(terminal, 0, "ABC");
-        Assert.Equal(3, terminal.CursorX);
+        Assert.AreEqual(3, terminal.CursorX);
     }
 
     #endregion
 
     #region Wide Characters
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharInserted()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -144,7 +145,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "AB😀CDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharPushedOff()
     {
         // Wide char at cols 3-4 gets split when pushed to 4-5 (col 4 is last)
@@ -158,7 +159,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "XAB😀");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharSplitAtEdge()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -171,7 +172,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ZAB😀");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharDoesntFitAtEnd()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -188,7 +189,7 @@ public class GhosttyInsertModeConformanceTests
 
     #region SGR Attributes Preservation
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_PreservesAttributesOnShiftedChars()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -203,11 +204,11 @@ public class GhosttyInsertModeConformanceTests
 
         // Shifted 'A' (now at col 1) should still have red foreground
         var cellA = GhosttyTestFixture.GetCell(terminal, 0, 1);
-        Assert.Equal("A", cellA.Character);
-        Assert.NotNull(cellA.Foreground);
+        Assert.AreEqual("A", cellA.Character);
+        Assert.IsNotNull(cellA.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_InsertedBlankHasCurrentBg()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -218,15 +219,15 @@ public class GhosttyInsertModeConformanceTests
         GhosttyTestFixture.Feed(terminal, "X");
         // X at col 2 should have red background
         var cellX = GhosttyTestFixture.GetCell(terminal, 0, 2);
-        Assert.Equal("X", cellX.Character);
-        Assert.NotNull(cellX.Background);
+        Assert.AreEqual("X", cellX.Character);
+        Assert.IsNotNull(cellX.Background);
     }
 
     #endregion
 
     #region Interaction with Other Operations
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_CursorMoveDoesNotInsert()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -237,7 +238,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABCDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_PersistsAcrossLines()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 3);
@@ -251,7 +252,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 1, "XFG");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WithBackspace()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -263,10 +264,10 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "ABCXDE");
         // Backspace moves cursor but doesn't insert
         GhosttyTestFixture.Feed(terminal, "\b");
-        Assert.Equal(3, terminal.CursorX);
+        Assert.AreEqual(3, terminal.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WithTab()
     {
         using var terminal = CreateTerminal(cols: 20, rows: 2);
@@ -276,7 +277,7 @@ public class GhosttyInsertModeConformanceTests
         // Tab should not insert — it's a control character
         GhosttyTestFixture.Feed(terminal, "\t");
         // Cursor moves to next tab stop but doesn't shift anything
-        Assert.Equal(8, terminal.CursorX);
+        Assert.AreEqual(8, terminal.CursorX);
         AssertPlainText(terminal, 0, "ABCDE");
     }
 
@@ -284,7 +285,7 @@ public class GhosttyInsertModeConformanceTests
 
     #region Tokenizer Roundtrip
 
-    [Fact]
+    [TestMethod]
     public void StandardModeToken_ParsedCorrectly()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -297,7 +298,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "XAB");
     }
 
-    [Fact]
+    [TestMethod]
     public void StandardModeToken_DisableParsedCorrectly()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 2);
@@ -314,7 +315,7 @@ public class GhosttyInsertModeConformanceTests
 
     #region Stress / Boundary Tests
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_SingleColumnTerminal()
     {
         using var terminal = CreateTerminal(cols: 1, rows: 3);
@@ -327,7 +328,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "B");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_InsertManyCharsRapidly()
     {
         using var terminal = CreateTerminal(cols: 20, rows: 2);
@@ -339,7 +340,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "1234567890ABCDE");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_ExactlyFillsLine()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);
@@ -351,7 +352,7 @@ public class GhosttyInsertModeConformanceTests
         AssertPlainText(terminal, 0, "XYZAB");
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_OverflowExactly()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 2);

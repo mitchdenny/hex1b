@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for render optimization - verifying that clean nodes are not re-rendered.
 /// </summary>
+[TestClass]
 public class RenderOptimizationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task SameWidgetInstance_ShouldNotReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -37,10 +38,10 @@ public class RenderOptimizationTests
         await runTask;
 
         // Same widget instance = same node = clean = only initial render
-        Assert.Equal(1, renderCount);
+        Assert.AreEqual(1, renderCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TextBlock_WithChangingText_ShouldReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -78,7 +79,7 @@ public class RenderOptimizationTests
         // The WaitUntil above already verified "Counter: 3" was displayed
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TextBlock_WithSameText_ShouldNotReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -107,10 +108,10 @@ public class RenderOptimizationTests
         await runTask;
 
         // Both widgets have same content each frame - only initial render
-        Assert.Equal(1, renderCount);
+        Assert.AreEqual(1, renderCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MixedTree_StaticAndDynamic_AllNodesRenderEveryFrame()
     {
         // In Surface mode, all nodes render every frame to the surface.
@@ -150,12 +151,12 @@ public class RenderOptimizationTests
 
         // In Surface mode, static widgets render every frame (optimization is at diff level)
         // Counter goes 1, 2, 3 = 3 frames plus possible initial frame
-        Assert.True(staticRenderCount >= 3, $"Expected at least 3 renders, got {staticRenderCount}");
+        Assert.IsTrue(staticRenderCount >= 3, $"Expected at least 3 renders, got {staticRenderCount}");
         
         // Dynamic text verified by WaitUntil above - "Counter: 3" was confirmed before Ctrl+C
     }
 
-    [Fact]
+    [TestMethod]
     public async Task VStack_IndexBasedReconciliation_CreatesNewNodeWhenWidgetMoves()
     {
         // Verifies that VStack's index-based reconciliation correctly creates new nodes
@@ -204,14 +205,14 @@ public class RenderOptimizationTests
         // Frame 2: testWidget at index 0 → same node reused  
         // Frame 3: testWidget at index 1 → new node (because VStack uses index-based reconciliation)
         // Frame 4: Ctrl+C triggers another frame (testWidget still at index 1, reused)
-        Assert.Equal(4, reconcileDetails.Count);
-        Assert.True(reconcileDetails[0].isNewNode);  // Frame 1: new
-        Assert.False(reconcileDetails[1].isNewNode); // Frame 2: reused
-        Assert.True(reconcileDetails[2].isNewNode);  // Frame 3: new (widget moved to index 1)
-        Assert.False(reconcileDetails[3].isNewNode); // Frame 4: reused
+        Assert.AreEqual(4, reconcileDetails.Count);
+        Assert.IsTrue(reconcileDetails[0].isNewNode);  // Frame 1: new
+        Assert.IsFalse(reconcileDetails[1].isNewNode); // Frame 2: reused
+        Assert.IsTrue(reconcileDetails[2].isNewNode);  // Frame 3: new (widget moved to index 1)
+        Assert.IsFalse(reconcileDetails[3].isNewNode); // Frame 4: reused
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleFrame_RendersNewNode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -245,12 +246,12 @@ public class RenderOptimizationTests
         await runTask;
 
         // After first frame and Ctrl+C frame, verify node state
-        Assert.NotNull(capturedNode);
-        Assert.Equal(2, reconcileCount); // Initial + Ctrl+C frame
-        Assert.Equal(1, renderCount); // Node is clean on second frame, so only 1 render
+        Assert.IsNotNull(capturedNode);
+        Assert.AreEqual(2, reconcileCount); // Initial + Ctrl+C frame
+        Assert.AreEqual(1, renderCount); // Node is clean on second frame, so only 1 render
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NodeWithChangedBounds_ShouldReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -295,10 +296,10 @@ public class RenderOptimizationTests
         // - Frame 1: testWidget at index 0 → new TestWidgetNode created → rendered (1)
         // - Frame 2 (after 'a'): testWidget at index 0 → same node reused → clean → NOT rendered (1)  
         // - Frame 3 (after 'b'): testWidget at index 1 → NEW TestWidgetNode created → rendered (2)
-        Assert.Equal(2, renderCount);
+        Assert.AreEqual(2, renderCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseCursorMove_WithNativeCursor_ShouldNotCauseExtraRenders()
     {
         // This test verifies that mouse cursor movement using the terminal's native cursor
@@ -334,10 +335,10 @@ public class RenderOptimizationTests
         // With native terminal cursor, mouse movement should NOT trigger extra renders.
         // The widget should only render once (initial frame) since we use the terminal's
         // native cursor instead of drawing a colored block that overwrites content.
-        Assert.Equal(1, renderCount);
+        Assert.AreEqual(1, renderCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitterDrag_ShouldReRenderSplitterAndChildren()
     {
         // When dragging the splitter, FirstSize changes and the splitter should be marked dirty
@@ -378,10 +379,10 @@ public class RenderOptimizationTests
 
         // The widget in the right pane should re-render when the splitter moves
         // because its bounds change: initial render (1) + after drag moves bounds (2)
-        Assert.True(rightPaneRenderCount >= 2, $"Expected at least 2 renders but got {rightPaneRenderCount}. Splitter drag should trigger re-render.");
+        Assert.IsTrue(rightPaneRenderCount >= 2, $"Expected at least 2 renders but got {rightPaneRenderCount}. Splitter drag should trigger re-render.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitterDrag_DividerShouldReRenderAtNewPosition()
     {
         // The splitter divider itself should re-render at its new position when dragged.
@@ -429,10 +430,10 @@ public class RenderOptimizationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(dividerMoved, "Divider should have moved to new position after drag");
+        Assert.IsTrue(dividerMoved, "Divider should have moved to new position after drag");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TerminalResize_Enlarge_ShouldNotCrash()
     {
         // Verifies that enlarging the terminal doesn't cause an index out of bounds exception
@@ -446,11 +447,11 @@ public class RenderOptimizationTests
         
         // Verify new dimensions
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(120, snapshot.Width);
-        Assert.Equal(40, snapshot.Height);
+        Assert.AreEqual(120, snapshot.Width);
+        Assert.AreEqual(40, snapshot.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TerminalResize_ShouldTriggerFullReRender()
     {
         // When the terminal is resized, all nodes should re-render
@@ -477,10 +478,10 @@ public class RenderOptimizationTests
         await runTask;
 
         // Should render twice: initial render + after resize
-        Assert.True(renderCount >= 2, $"Expected at least 2 renders but got {renderCount}. Resize should trigger full re-render.");
+        Assert.IsTrue(renderCount >= 2, $"Expected at least 2 renders but got {renderCount}. Resize should trigger full re-render.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ButtonHoverInPanel_ShouldPreserveBackgroundColor()
     {
         // This test verifies that when a button inside a panel becomes hovered,
@@ -529,8 +530,7 @@ public class RenderOptimizationTests
         // Check columns 15-40 on row 1 - these should still have the panel background
         var mismatches = finalSnapshot.FindMismatchedBackgrounds(15, 1, 25, 1, panelBgColor);
         
-        Assert.True(mismatches.Count == 0,
-            $"Expected cells to the right of button to have panel background color {panelBgColor}, " +
+        Assert.IsTrue(mismatches.Count == 0, $"Expected cells to the right of button to have panel background color {panelBgColor}, " +
             $"but found {mismatches.Count} cells with wrong background.\n" +
             $"Background visualization:\n{finalSnapshot.VisualizeBackgroundColors(0, 0, 40, 5, panelBgColor)}\n" +
             $"Mismatched cells: {string.Join(", ", mismatches.Select(m => $"({m.X},{m.Y})={m.ActualBackground?.ToString() ?? "null"}"))}");

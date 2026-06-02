@@ -11,75 +11,76 @@ namespace Hex1b.Tests.Composition;
 /// dispatches into <see cref="Hex1bWidget.Build(CompositionContext)"/>. Covers node
 /// recycling, state lifetime, and disposal across widget-type swaps.
 /// </summary>
+[TestClass]
 public class CompositeBuildPipelineTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NewComposite_BuildsChildAndStoresType()
     {
         var widget = new TextOnlyCompositeWidget("hello");
         var node = await ReconcileAsync(widget, null);
 
-        Assert.NotNull(node.Child);
-        Assert.IsType<TextBlockNode>(node.Child);
-        Assert.Equal(typeof(TextOnlyCompositeWidget), node.CompositeWidgetType);
+        Assert.IsNotNull(node.Child);
+        TestSeq.IsType<TextBlockNode>(node.Child);
+        Assert.AreEqual(typeof(TextOnlyCompositeWidget), node.CompositeWidgetType);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NullBuildOutput_Throws()
     {
-        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () =>
             await ReconcileAsync(new NullReturningCompositeWidget(), null));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SameCompositeType_ReusesNodeAndPreservesState()
     {
         // The composite increments its UseState counter on every Build pass.
         // First reconciliation: state initialised to 0, then incremented to 1.
         var node1 = await ReconcileAsync(new StatefulCounterCompositeWidget(), null);
-        Assert.Equal("count=1", LabelOf(node1));
+        Assert.AreEqual("count=1", LabelOf(node1));
 
         // Second reconciliation: state must persist across frames.
         var node2 = await ReconcileAsync(new StatefulCounterCompositeWidget(), node1);
 
-        Assert.Same(node1, node2);
-        Assert.Equal("count=2", LabelOf(node2));
+        Assert.AreSame(node1, node2);
+        Assert.AreEqual("count=2", LabelOf(node2));
 
         // Third reconciliation: still persistent.
         var node3 = await ReconcileAsync(new StatefulCounterCompositeWidget(), node2);
-        Assert.Equal("count=3", LabelOf(node3));
+        Assert.AreEqual("count=3", LabelOf(node3));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_DifferentCompositeType_DisposesStateAndStartsFresh()
     {
         var node1 = await ReconcileAsync(new StatefulCounterCompositeWidget(), null);
-        Assert.Equal("count=1", LabelOf(node1));
+        Assert.AreEqual("count=1", LabelOf(node1));
 
         // Replace with a different composite type at the same tree position. The framework's
         // GetExpectedNodeType match would normally reuse the node shell, so the composite
         // reconciler must spot the type change and wipe the prior state.
         var node2 = (Hex1bCompositeNode)await ReconcileAsync(new TextOnlyCompositeWidget("after-swap"), node1);
-        Assert.Equal(typeof(TextOnlyCompositeWidget), node2.CompositeWidgetType);
-        Assert.Equal("after-swap", LabelOf(node2));
+        Assert.AreEqual(typeof(TextOnlyCompositeWidget), node2.CompositeWidgetType);
+        Assert.AreEqual("after-swap", LabelOf(node2));
 
         // Going back to the counter composite should start its state fresh — the previous count is gone.
         var node3 = await ReconcileAsync(new StatefulCounterCompositeWidget(), node2);
-        Assert.Equal("count=1", LabelOf(node3));
+        Assert.AreEqual("count=1", LabelOf(node3));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_DifferentCompositeType_DisposesIDisposableState()
     {
         var disposable = new TrackingDisposable();
         DisposableSeedingCompositeWidget.NextSeed = disposable;
 
         var node1 = await ReconcileAsync(new DisposableSeedingCompositeWidget(), null);
-        Assert.False(disposable.WasDisposed);
+        Assert.IsFalse(disposable.WasDisposed);
 
         // Swapping composite types must dispose the previous state objects that implement IDisposable.
         await ReconcileAsync(new TextOnlyCompositeWidget("done"), node1);
-        Assert.True(disposable.WasDisposed);
+        Assert.IsTrue(disposable.WasDisposed);
     }
 
     // --- Composite test fixtures ---
@@ -131,8 +132,8 @@ public class CompositeBuildPipelineTests
 
     private static string LabelOf(Hex1bNode node)
     {
-        var composite = Assert.IsType<Hex1bCompositeNode>(node);
-        var textNode = Assert.IsType<TextBlockNode>(composite.Child);
+        var composite = TestSeq.IsType<Hex1bCompositeNode>(node);
+        var textNode = TestSeq.IsType<TextBlockNode>(composite.Child);
         return textNode.Text;
     }
 
@@ -141,7 +142,7 @@ public class CompositeBuildPipelineTests
         var context = ReconcileContext.CreateRoot();
         var rootShell = new RootShellNode();
         var node = await context.ReconcileChildAsync(existing, widget, rootShell);
-        return Assert.IsType<Hex1bCompositeNode>(node);
+        return TestSeq.IsType<Hex1bCompositeNode>(node);
     }
 
     private sealed class RootShellNode : Hex1bNode

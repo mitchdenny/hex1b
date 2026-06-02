@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Tests for <see cref="ActionMenu"/>, <see cref="ActionMenuItem"/>,
 /// and their integration with <see cref="IEditorSession"/> on <see cref="EditorNode"/>.
 /// </summary>
+[TestClass]
 public class ActionMenuTests
 {
     private static IEditorSession CreateSession(string text = "test")
@@ -20,7 +21,7 @@ public class ActionMenuTests
 
     // ── ActionMenu construction ──────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_WithItems_StoresAnchorAndItems()
     {
         var anchor = new DocumentPosition(5, 10);
@@ -29,45 +30,45 @@ public class ActionMenuTests
             new ActionMenuItem("Inline Variable", "inline-var")
         ]);
 
-        Assert.Equal(anchor, menu.Anchor);
-        Assert.Equal(2, menu.Items.Count);
-        Assert.Equal("Extract Method", menu.Items[0].Label);
-        Assert.Equal("extract-method", menu.Items[0].Id);
-        Assert.Equal("Inline Variable", menu.Items[1].Label);
-        Assert.Equal("inline-var", menu.Items[1].Id);
+        Assert.AreEqual(anchor, menu.Anchor);
+        Assert.AreEqual(2, menu.Items.Count);
+        Assert.AreEqual("Extract Method", menu.Items[0].Label);
+        Assert.AreEqual("extract-method", menu.Items[0].Id);
+        Assert.AreEqual("Inline Variable", menu.Items[1].Label);
+        Assert.AreEqual("inline-var", menu.Items[1].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_WithTitle_StoresTitle()
     {
         var menu = new ActionMenu(new DocumentPosition(1, 1), [
             new ActionMenuItem("Fix", "fix-1")
         ]) { Title = "Quick Fixes" };
 
-        Assert.Equal("Quick Fixes", menu.Title);
+        Assert.AreEqual("Quick Fixes", menu.Title);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_WithoutTitle_IsNull()
     {
         var menu = new ActionMenu(new DocumentPosition(1, 1), [
             new ActionMenuItem("Fix", "fix-1")
         ]);
 
-        Assert.Null(menu.Title);
+        Assert.IsNull(menu.Title);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_EmptyItems_IsValid()
     {
         var menu = new ActionMenu(new DocumentPosition(1, 1), []);
 
-        Assert.Empty(menu.Items);
+        Assert.IsEmpty(menu.Items);
     }
 
     // ── ActionMenuItem construction ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_WithDetail_StoresValue()
     {
         var item = new ActionMenuItem("Extract Method", "extract-method")
@@ -75,34 +76,34 @@ public class ActionMenuTests
             Detail = "Extract selected code into a new method"
         };
 
-        Assert.Equal("Extract selected code into a new method", item.Detail);
+        Assert.AreEqual("Extract selected code into a new method", item.Detail);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_WithoutDetail_IsNull()
     {
         var item = new ActionMenuItem("Rename", "rename");
 
-        Assert.Null(item.Detail);
+        Assert.IsNull(item.Detail);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_WithIsPreferred_StoresTrue()
     {
         var item = new ActionMenuItem("Fix All", "fix-all") { IsPreferred = true };
 
-        Assert.True(item.IsPreferred);
+        Assert.IsTrue(item.IsPreferred);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_DefaultIsPreferred_IsFalse()
     {
         var item = new ActionMenuItem("Fix All", "fix-all");
 
-        Assert.False(item.IsPreferred);
+        Assert.IsFalse(item.IsPreferred);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_FullyPopulated_PreservesAllProperties()
     {
         var item = new ActionMenuItem("Add Import", "add-import")
@@ -111,15 +112,15 @@ public class ActionMenuTests
             IsPreferred = true
         };
 
-        Assert.Equal("Add Import", item.Label);
-        Assert.Equal("add-import", item.Id);
-        Assert.Equal("using System.Linq;", item.Detail);
-        Assert.True(item.IsPreferred);
+        Assert.AreEqual("Add Import", item.Label);
+        Assert.AreEqual("add-import", item.Id);
+        Assert.AreEqual("using System.Linq;", item.Detail);
+        Assert.IsTrue(item.IsPreferred);
     }
 
     // ── IEditorSession integration ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task ShowActionMenuAsync_ReturnsNull_CurrentStubBehavior()
     {
         var session = CreateSession();
@@ -130,10 +131,10 @@ public class ActionMenuTests
 
         var result = await session.ShowActionMenuAsync(menu);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShowActionMenuAsync_WithTitle_ReturnsNull()
     {
         var session = CreateSession();
@@ -143,12 +144,12 @@ public class ActionMenuTests
 
         var result = await session.ShowActionMenuAsync(menu);
 
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 
     // ── Record equality ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_RecordEquality_EqualWhenSameListReference()
     {
         var items = new List<ActionMenuItem> { new("Fix", "fix-1") };
@@ -156,10 +157,10 @@ public class ActionMenuTests
         var a = new ActionMenu(new DocumentPosition(1, 1), items) { Title = "Actions" };
         var b = new ActionMenu(new DocumentPosition(1, 1), items) { Title = "Actions" };
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenu_RecordEquality_NotEqualWhenDifferentAnchor()
     {
         var items = new List<ActionMenuItem> { new("Fix", "fix-1") };
@@ -167,24 +168,24 @@ public class ActionMenuTests
         var a = new ActionMenu(new DocumentPosition(1, 1), items);
         var b = new ActionMenu(new DocumentPosition(2, 3), items);
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_RecordEquality_EqualWhenSameValues()
     {
         var a = new ActionMenuItem("Rename", "rename") { Detail = "Rename symbol", IsPreferred = true };
         var b = new ActionMenuItem("Rename", "rename") { Detail = "Rename symbol", IsPreferred = true };
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionMenuItem_RecordEquality_NotEqualWhenDifferentId()
     {
         var a = new ActionMenuItem("Fix", "fix-1");
         var b = new ActionMenuItem("Fix", "fix-2");
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 }

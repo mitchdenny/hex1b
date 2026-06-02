@@ -6,9 +6,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class HoverFeatureTests
 {
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_WithPlainText_GeneratesCorrectOverlay()
     {
         var result = new HoverResult
@@ -18,13 +19,13 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 3, 5);
 
-        Assert.NotNull(overlay);
-        Assert.Equal("lsp-hover", overlay.Id);
-        Assert.Single(overlay.Content);
-        Assert.Equal(" int x ", overlay.Content[0].Text);
+        Assert.IsNotNull(overlay);
+        Assert.AreEqual("lsp-hover", overlay.Id);
+        TestSeq.Single(overlay.Content);
+        Assert.AreEqual(" int x ", overlay.Content[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_WithMultiLineContent_GeneratesMultipleLines()
     {
         var result = new HoverResult
@@ -38,22 +39,22 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.NotNull(overlay);
-        Assert.Equal(3, overlay.Content.Count);
-        Assert.Equal(" void MyMethod() ", overlay.Content[0].Text);
-        Assert.Equal(" Does something useful ", overlay.Content[1].Text);
-        Assert.Equal(" Returns nothing ", overlay.Content[2].Text);
+        Assert.IsNotNull(overlay);
+        Assert.AreEqual(3, overlay.Content.Count);
+        Assert.AreEqual(" void MyMethod() ", overlay.Content[0].Text);
+        Assert.AreEqual(" Does something useful ", overlay.Content[1].Text);
+        Assert.AreEqual(" Returns nothing ", overlay.Content[2].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_WithNullResult_ReturnsNull()
     {
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(null, 1, 1);
 
-        Assert.Null(overlay);
+        Assert.IsNull(overlay);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_WithEmptyValue_ReturnsNull()
     {
         var result = new HoverResult
@@ -63,10 +64,10 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.Null(overlay);
+        Assert.IsNull(overlay);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_WithWhitespaceValue_ReturnsNull()
     {
         var result = new HoverResult
@@ -76,10 +77,10 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.Null(overlay);
+        Assert.IsNull(overlay);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_HasCorrectAnchorPosition()
     {
         var result = new HoverResult
@@ -89,11 +90,11 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 10, 25);
 
-        Assert.NotNull(overlay);
-        Assert.Equal(new DocumentPosition(10, 25), overlay.AnchorPosition);
+        Assert.IsNotNull(overlay);
+        Assert.AreEqual(new DocumentPosition(10, 25), overlay.AnchorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_PlacesAboveAnchor()
     {
         var result = new HoverResult
@@ -103,11 +104,11 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.NotNull(overlay);
-        Assert.Equal(OverlayPlacement.Above, overlay.Placement);
+        Assert.IsNotNull(overlay);
+        Assert.AreEqual(OverlayPlacement.Above, overlay.Placement);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_DismissesOnCursorMove()
     {
         var result = new HoverResult
@@ -117,11 +118,11 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.NotNull(overlay);
-        Assert.True(overlay.DismissOnCursorMove);
+        Assert.IsNotNull(overlay);
+        Assert.IsTrue(overlay.DismissOnCursorMove);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_LinesHaveExpectedColors()
     {
         var result = new HoverResult
@@ -131,19 +132,19 @@ public class HoverFeatureTests
 
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.NotNull(overlay);
+        Assert.IsNotNull(overlay);
         var line = overlay.Content[0];
-        Assert.Equal(Hex1bColor.FromRgb(204, 204, 204), line.Foreground);
-        Assert.Equal(Hex1bColor.FromRgb(37, 37, 38), line.Background);
+        Assert.AreEqual(Hex1bColor.FromRgb(204, 204, 204), line.Foreground);
+        Assert.AreEqual(Hex1bColor.FromRgb(37, 37, 38), line.Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildHoverOverlay_NullContents_ReturnsNull()
     {
         var result = new HoverResult();
         // Contents defaults to new MarkupContent() with Value = ""
         var overlay = LanguageServerDecorationProvider.BuildHoverOverlay(result, 1, 1);
 
-        Assert.Null(overlay);
+        Assert.IsNull(overlay);
     }
 }

@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for underline decoration rendering and terminal capability fallback.
 /// </summary>
+[TestClass]
 public class TextDecorationUnderlineTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -44,7 +45,7 @@ public class TextDecorationUnderlineTests
         return (node, workload, terminal, context, theme);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_CurlyUnderline_AppliedToDecoratedCells()
     {
         var ulColor = Hex1bColor.FromRgb(255, 0, 0); // red error underline
@@ -76,20 +77,19 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(UnderlineStyle.Curly, cell.UnderlineStyle);
-            Assert.True(ColorEquals(ToCellColor(ulColor), cell.UnderlineColor),
-                $"Column {x}: expected underline color {ulColor}, got {cell.UnderlineColor}");
+            Assert.AreEqual(UnderlineStyle.Curly, cell.UnderlineStyle);
+            Assert.IsTrue(ColorEquals(ToCellColor(ulColor), cell.UnderlineColor), $"Column {x}: expected underline color {ulColor}, got {cell.UnderlineColor}");
         }
 
         // Column 4 ("o") should not have underline
         var normalCell = snapshot.GetCell(4, 0);
-        Assert.Equal(UnderlineStyle.None, normalCell.UnderlineStyle);
+        Assert.AreEqual(UnderlineStyle.None, normalCell.UnderlineStyle);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_SingleUnderline_AppliedToDecoratedCells()
     {
         var provider = new StaticDecorationProvider([
@@ -116,17 +116,17 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(cell.IsUnderline, $"Column {x}: expected underline");
+            Assert.IsTrue(cell.IsUnderline, $"Column {x}: expected underline");
         }
 
         // " " at column 3 should not be underlined
-        Assert.False(snapshot.GetCell(3, 0).IsUnderline);
+        Assert.IsFalse(snapshot.GetCell(3, 0).IsUnderline);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_UnderlineWithForeground_BothApplied()
     {
         var fgColor = Hex1bColor.FromRgb(86, 156, 214);
@@ -159,18 +159,16 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(ToCellColor(fgColor), cell.Foreground),
-                $"Column {x}: expected fg {fgColor}, got {cell.Foreground}");
-            Assert.Equal(UnderlineStyle.Curly, cell.UnderlineStyle);
-            Assert.True(ColorEquals(ToCellColor(ulColor), cell.UnderlineColor),
-                $"Column {x}: expected underline color {ulColor}, got {cell.UnderlineColor}");
+            Assert.IsTrue(ColorEquals(ToCellColor(fgColor), cell.Foreground), $"Column {x}: expected fg {fgColor}, got {cell.Foreground}");
+            Assert.AreEqual(UnderlineStyle.Curly, cell.UnderlineStyle);
+            Assert.IsTrue(ColorEquals(ToCellColor(ulColor), cell.UnderlineColor), $"Column {x}: expected underline color {ulColor}, got {cell.UnderlineColor}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_UnderlineColorThemeElement_ResolvesFromTheme()
     {
         var provider = new StaticDecorationProvider([
@@ -201,16 +199,15 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(UnderlineStyle.Curly, cell.UnderlineStyle);
-            Assert.True(ColorEquals(expectedUlColor, cell.UnderlineColor),
-                $"Column {x}: expected underline color {expectedUlColor}, got {cell.UnderlineColor}");
+            Assert.AreEqual(UnderlineStyle.Curly, cell.UnderlineStyle);
+            Assert.IsTrue(ColorEquals(expectedUlColor, cell.UnderlineColor), $"Column {x}: expected underline color {expectedUlColor}, got {cell.UnderlineColor}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_DottedUnderline_AppliedCorrectly()
     {
         var provider = new StaticDecorationProvider([
@@ -236,14 +233,14 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 3; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(UnderlineStyle.Dotted, cell.UnderlineStyle);
+            Assert.AreEqual(UnderlineStyle.Dotted, cell.UnderlineStyle);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_DashedUnderline_AppliedCorrectly()
     {
         var provider = new StaticDecorationProvider([
@@ -269,14 +266,14 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 3; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(UnderlineStyle.Dashed, cell.UnderlineStyle);
+            Assert.AreEqual(UnderlineStyle.Dashed, cell.UnderlineStyle);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_FallbackToSingleUnderline_WhenStyledUnsupported()
     {
         var provider = new StaticDecorationProvider([
@@ -305,7 +302,7 @@ public class TextDecorationUnderlineTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(cell.IsUnderline, $"Column {x}: expected underline (fallback from curly to single)");
+            Assert.IsTrue(cell.IsUnderline, $"Column {x}: expected underline (fallback from curly to single)");
         }
 
         workload.Dispose();

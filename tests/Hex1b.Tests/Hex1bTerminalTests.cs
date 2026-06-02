@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the Hex1bTerminal virtual terminal emulator.
 /// </summary>
+[TestClass]
 public class Hex1bTerminalTests
 {
     private sealed class QueuedInputPresentationAdapter : IHex1bTerminalPresentationAdapter
@@ -312,18 +313,18 @@ public class Hex1bTerminalTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_InitializesWithCorrectDimensions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
-        Assert.Equal(80, terminal.Width);
-        Assert.Equal(24, terminal.Height);
+        Assert.AreEqual(80, terminal.Width);
+        Assert.AreEqual(24, terminal.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_InitializesWithEmptyScreen()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -331,10 +332,10 @@ public class Hex1bTerminalTests
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(10, 5).Build();
         
         var line = terminal.CreateSnapshot().GetLineTrimmed(0);
-        Assert.Equal("", line);
+        Assert.AreEqual("", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_WithResizedTerminalWidgetHandle_UsesHandleDimensionsForInitialWorkloadResize()
     {
         await using var presentation = new TerminalWidgetHandle(80, 24);
@@ -350,13 +351,13 @@ public class Hex1bTerminalTests
             Height = 24
         });
 
-        Assert.Equal(132, terminal.Width);
-        Assert.Equal(41, terminal.Height);
-        Assert.Equal(132, workload.ResizeWidth);
-        Assert.Equal(41, workload.ResizeHeight);
+        Assert.AreEqual(132, terminal.Width);
+        Assert.AreEqual(41, terminal.Height);
+        Assert.AreEqual(132, workload.ResizeWidth);
+        Assert.AreEqual(41, workload.ResizeHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void Dispose_SynchronouslyDisposesPresentationAndWorkload()
     {
         var presentation = new RecordingDisposePresentationAdapter();
@@ -372,11 +373,11 @@ public class Hex1bTerminalTests
 
         terminal.Dispose();
 
-        Assert.True(presentation.DisposeAsyncCalled);
-        Assert.True(workload.DisposeAsyncCalled);
+        Assert.IsTrue(presentation.DisposeAsyncCalled);
+        Assert.IsTrue(workload.DisposeAsyncCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Write_PlacesTextAtCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -391,14 +392,14 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Hello", snapshot.GetLineTrimmed(0));
-        Assert.Equal(5, snapshot.CursorX);
-        Assert.Equal(0, snapshot.CursorY);
+        Assert.AreEqual("Hello", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual(5, snapshot.CursorX);
+        Assert.AreEqual(0, snapshot.CursorY);
     }
 
-    [Theory]
-    [InlineData("\x1b_Gi=123", ";OK\x1b\\")]
-    [InlineData("\x1b_Gi=123;OK\x1b", "\\")]
+    [TestMethod]
+    [DataRow("\x1b_Gi=123", ";OK\x1b\\")]
+    [DataRow("\x1b_Gi=123;OK\x1b", "\\")]
     public async Task PresentationInput_SplitKgpResponse_DoesNotEmitEscapeKeyEvent(string firstChunk, string secondChunk)
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -418,14 +419,14 @@ public class Hex1bTerminalTests
         var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
-        Assert.Equal(Hex1bKey.A, keyEvent.Key);
-        Assert.Equal("a", keyEvent.Text);
-        Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
-        Assert.False(workload.InputEvents.TryRead(out _));
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.A, keyEvent.Key);
+        Assert.AreEqual("a", keyEvent.Text);
+        Assert.AreEqual(Hex1bModifiers.None, keyEvent.Modifiers);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationInput_SplitSs3Sequence_DoesNotEmitAltKeyEvent()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -444,13 +445,13 @@ public class Hex1bTerminalTests
         var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
-        Assert.Equal(Hex1bKey.UpArrow, keyEvent.Key);
-        Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
-        Assert.False(workload.InputEvents.TryRead(out _));
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.UpArrow, keyEvent.Key);
+        Assert.AreEqual(Hex1bModifiers.None, keyEvent.Modifiers);
+        Assert.IsFalse(workload.InputEvents.TryRead(out _));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunAsync_WhenPresentationInputPumpThrows_SurfacesTheFailure()
     {
         await using var presentation = new ThrowingInputPresentationAdapter(
@@ -464,15 +465,14 @@ public class Hex1bTerminalTests
             Height = 24
         });
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => terminal.RunAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(ex.InnerException);
+        Assert.IsNotNull(ex.InnerException);
         Assert.Contains("synthetic input failure", ex.InnerException!.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunAsync_WhenWorkloadWriteInputThrows_SurfacesTheFailure()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -488,15 +488,14 @@ public class Hex1bTerminalTests
 
         presentation.EnqueueInput("x");
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(
-            () => terminal.RunAsync(TestContext.Current.CancellationToken));
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => terminal.RunAsync(TestContext.Current.CancellationToken));
 
         Assert.Contains("presentation input", ex.Message, StringComparison.OrdinalIgnoreCase);
-        Assert.NotNull(ex.InnerException);
+        Assert.IsNotNull(ex.InnerException);
         Assert.Contains("synthetic shim send failure", ex.InnerException!.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunAsync_WhenCursorPositionResponseOverlapsTyping_SerializesWorkloadWrites()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -517,19 +516,19 @@ public class Hex1bTerminalTests
         await workload.WaitForTwoWritesAsync()
             .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.False(workload.ConcurrentWriteDetected);
+        Assert.IsFalse(workload.ConcurrentWriteDetected);
 
         var writes = workload.Writes;
-        Assert.Contains(writes, write => write.StartsWith("\x1b[", StringComparison.Ordinal) && write.EndsWith("R", StringComparison.Ordinal));
-        Assert.Contains(writes, write => write.Contains("abc", StringComparison.Ordinal));
+        Assert.IsTrue(writes.Any(write => write.StartsWith("\x1b[", StringComparison.Ordinal) && write.EndsWith("R", StringComparison.Ordinal)));
+        Assert.IsTrue(writes.Any(write => write.Contains("abc", StringComparison.Ordinal)));
 
         cts.Cancel();
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () => await runTask);
+        await Assert.ThrowsAsync<OperationCanceledException>(async () => await runTask);
     }
 
-    [Theory]
-    [InlineData("\x1b_Gi=123", ";OK\x1b\\")]
-    [InlineData("\x1b_Gi=123;OK\x1b", "\\")]
+    [TestMethod]
+    [DataRow("\x1b_Gi=123", ";OK\x1b\\")]
+    [DataRow("\x1b_Gi=123;OK\x1b", "\\")]
     public async Task AppInput_SplitKgpResponse_DoesNotTriggerEscapeBinding(string firstChunk, string secondChunk)
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -594,14 +593,14 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(escapeTriggered);
-        Assert.True(snapshot.ContainsText("Normal key handled"));
+        Assert.IsFalse(escapeTriggered);
+        Assert.IsTrue(snapshot.ContainsText("Normal key handled"));
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationInput_BareEscape_FlushedAfterTimeout()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -621,12 +620,12 @@ public class Hex1bTerminalTests
         var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
-        Assert.Equal(Hex1bKey.Escape, keyEvent.Key);
-        Assert.Equal(Hex1bModifiers.None, keyEvent.Modifiers);
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.Escape, keyEvent.Key);
+        Assert.AreEqual(Hex1bModifiers.None, keyEvent.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationInput_DoubleEscape_DoesNotKillEventPump()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -652,15 +651,15 @@ public class Hex1bTerminalTests
         {
             var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
                 .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-            events.Add(Assert.IsType<Hex1bKeyEvent>(evt));
+            events.Add(TestSeq.IsType<Hex1bKeyEvent>(evt));
         }
 
-        Assert.Equal(Hex1bKey.Escape, events[0].Key);
-        Assert.Equal(Hex1bKey.Escape, events[1].Key);
-        Assert.Equal(Hex1bKey.A, events[2].Key);
+        Assert.AreEqual(Hex1bKey.Escape, events[0].Key);
+        Assert.AreEqual(Hex1bKey.Escape, events[1].Key);
+        Assert.AreEqual(Hex1bKey.A, events[2].Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationInput_CustomEscapeTimeout_UsesConfiguredValue()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -679,11 +678,11 @@ public class Hex1bTerminalTests
         var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
-        Assert.Equal(Hex1bKey.Escape, keyEvent.Key);
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.Escape, keyEvent.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationInput_ZeroEscapeTimeout_DisablesFlush()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -704,8 +703,7 @@ public class Hex1bTerminalTests
         await Task.Delay(150);
 
         // No event should have been dispatched
-        Assert.False(workload.InputEvents.TryRead(out _),
-            "With EscapeSequenceTimeout=Zero, bare ESC should stay buffered");
+        Assert.IsFalse(workload.InputEvents.TryRead(out _), "With EscapeSequenceTimeout=Zero, bare ESC should stay buffered");
 
         // Sending a continuation byte should produce the combined sequence (Alt+A)
         presentation.EnqueueInput("a");
@@ -713,12 +711,12 @@ public class Hex1bTerminalTests
         var evt = await workload.InputEvents.ReadAsync(TestContext.Current.CancellationToken).AsTask()
             .WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(evt);
-        Assert.Equal(Hex1bKey.A, keyEvent.Key);
-        Assert.Equal(Hex1bModifiers.Alt, keyEvent.Modifiers);
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(evt);
+        Assert.AreEqual(Hex1bKey.A, keyEvent.Key);
+        Assert.AreEqual(Hex1bModifiers.Alt, keyEvent.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AppInput_BareEscape_TriggersEscapeBinding()
     {
         await using var presentation = new QueuedInputPresentationAdapter();
@@ -768,13 +766,13 @@ public class Hex1bTerminalTests
 
         await escapeTriggered.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
-        Assert.True(escapeTriggered.Task.IsCompletedSuccessfully, "Escape binding should have fired from bare \\x1b");
+        Assert.IsTrue(escapeTriggered.Task.IsCompletedSuccessfully, "Escape binding should have fired from bare \\x1b");
 
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Write_HandlesNewlines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -790,12 +788,12 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Line1", snapshot.GetLineTrimmed(0));
-        Assert.Equal("Line2", snapshot.GetLineTrimmed(1));
-        Assert.Equal("Line3", snapshot.GetLineTrimmed(2));
+        Assert.AreEqual("Line1", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Line2", snapshot.GetLineTrimmed(1));
+        Assert.AreEqual("Line3", snapshot.GetLineTrimmed(2));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Write_WrapsAtEndOfLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -810,11 +808,11 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Hello", snapshot.GetLineTrimmed(0));
-        Assert.Equal("World", snapshot.GetLineTrimmed(1));
+        Assert.AreEqual("Hello", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("World", snapshot.GetLineTrimmed(1));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Clear_ResetsScreenAndCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -833,12 +831,12 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyAsync(terminal);
         
-        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
-        Assert.Equal(0, terminal.CreateSnapshot().CursorX);
-        Assert.Equal(0, terminal.CreateSnapshot().CursorY);
+        Assert.AreEqual("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.AreEqual(0, terminal.CreateSnapshot().CursorX);
+        Assert.AreEqual(0, terminal.CreateSnapshot().CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SetCursorPosition_MovesCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -855,10 +853,10 @@ public class Hex1bTerminalTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         var line = snapshot.GetLine(2);
-        Assert.Equal('X', line[5]);
+        Assert.AreEqual('X', line[5]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SetCursorPosition_ClampsToBounds()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -871,25 +869,25 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyAsync(terminal);
         
-        Assert.Equal(9, terminal.CreateSnapshot().CursorX);
-        Assert.Equal(4, terminal.CreateSnapshot().CursorY);
+        Assert.AreEqual(9, terminal.CreateSnapshot().CursorX);
+        Assert.AreEqual(4, terminal.CreateSnapshot().CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterAlternateScreen_SetsFlag()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(20, 5).Build();
         
-        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
+        Assert.IsFalse(terminal.CreateSnapshot().InAlternateScreen);
         
         terminal.EnterAlternateScreen();
         
-        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
+        Assert.IsTrue(terminal.CreateSnapshot().InAlternateScreen);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExitAlternateScreen_ClearsFlag()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -899,10 +897,10 @@ public class Hex1bTerminalTests
         
         terminal.ExitAlternateScreen();
         
-        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
+        Assert.IsFalse(terminal.CreateSnapshot().InAlternateScreen);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ContainsText_FindsText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -916,11 +914,11 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("World"));
-        Assert.False(snapshot.ContainsText("Foo"));
+        Assert.IsTrue(snapshot.ContainsText("World"));
+        Assert.IsFalse(snapshot.ContainsText("Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FindText_ReturnsPositions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -937,12 +935,12 @@ public class Hex1bTerminalTests
         
         var results = snapshot.FindText("Hello");
         
-        Assert.Equal(2, results.Count);
-        Assert.Equal((0, 0), results[0]); // (Line, Column) = row 0, col 0
-        Assert.Equal((1, 0), results[1]); // (Line, Column) = row 1, col 0
+        Assert.AreEqual(2, results.Count);
+        Assert.AreEqual((0, 0), results[0]); // (Line, Column) = row 0, col 0
+        Assert.AreEqual((1, 0), results[1]); // (Line, Column) = row 1, col 0
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetNonEmptyLines_FiltersEmptyLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -959,12 +957,12 @@ public class Hex1bTerminalTests
         
         var lines = snapshot.GetNonEmptyLines().ToList();
         
-        Assert.Equal(2, lines.Count);
-        Assert.Equal("Line 1", lines[0]);
-        Assert.Equal("Line 3", lines[1]);
+        Assert.AreEqual(2, lines.Count);
+        Assert.AreEqual("Line 1", lines[0]);
+        Assert.AreEqual("Line 3", lines[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Resize_PreservesContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -979,12 +977,12 @@ public class Hex1bTerminalTests
         
         terminal.Resize(40, 10);
         
-        Assert.Equal(40, terminal.Width);
-        Assert.Equal(10, terminal.Height);
-        Assert.Equal("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.AreEqual(40, terminal.Width);
+        Assert.AreEqual(10, terminal.Height);
+        Assert.AreEqual("Hello", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AnsiSequences_AreProcessedButNotDisplayed()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -999,10 +997,10 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.Equal("Red Text", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Red Text", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AnsiCursorPosition_MovesCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1019,10 +1017,10 @@ public class Hex1bTerminalTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         var line = snapshot.GetLine(1); // 0-based
-        Assert.Equal('X', line[4]); // 0-based
+        Assert.AreEqual('X', line[4]); // 0-based
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AnsiClearScreen_ClearsBuffer()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1041,10 +1039,10 @@ public class Hex1bTerminalTests
             .Build()
             .ApplyAsync(terminal);
         
-        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.AreEqual("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetScreenBuffer_ReturnsCopyWithColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1059,14 +1057,14 @@ public class Hex1bTerminalTests
         
         var buffer = terminal.GetScreenBuffer();
         
-        Assert.Equal("R", buffer[0, 0].Character);
-        Assert.NotNull(buffer[0, 0].Foreground);
-        Assert.Equal(255, buffer[0, 0].Foreground!.Value.R);
-        Assert.Equal(0, buffer[0, 0].Foreground!.Value.G);
-        Assert.Equal(0, buffer[0, 0].Foreground!.Value.B);
+        Assert.AreEqual("R", buffer[0, 0].Character);
+        Assert.IsNotNull(buffer[0, 0].Foreground);
+        Assert.AreEqual(255, buffer[0, 0].Foreground!.Value.R);
+        Assert.AreEqual(0, buffer[0, 0].Foreground!.Value.G);
+        Assert.AreEqual(0, buffer[0, 0].Foreground!.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AlternateScreenAnsiSequence_IsRecognized()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1078,33 +1076,33 @@ public class Hex1bTerminalTests
             .WaitUntil(s => s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().InAlternateScreen);
+        Assert.IsTrue(terminal.CreateSnapshot().InAlternateScreen);
         
         workload.Write("\x1b[?1049l");
         await new Hex1bTerminalInputSequenceBuilder()
             .WaitUntil(s => !s.InAlternateScreen, TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.False(terminal.CreateSnapshot().InAlternateScreen);
+        Assert.IsFalse(terminal.CreateSnapshot().InAlternateScreen);
     }
 
     #region Resize Behavior
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_SetsWorkloadDimensions()
     {
         // Workload dimensions are 0x0 before terminal is created
         using var workload = new Hex1bAppWorkloadAdapter();
-        Assert.Equal(0, workload.Width);
-        Assert.Equal(0, workload.Height);
+        Assert.AreEqual(0, workload.Width);
+        Assert.AreEqual(0, workload.Height);
         
         // Terminal sets workload dimensions during construction
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
-        Assert.Equal(80, workload.Width);
-        Assert.Equal(24, workload.Height);
+        Assert.AreEqual(80, workload.Width);
+        Assert.AreEqual(24, workload.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_DoesNotFireResizeEvent()
     {
         // This is critical: the initial dimension setup should NOT fire a resize event
@@ -1114,10 +1112,10 @@ public class Hex1bTerminalTests
         
         // Try to read from input channel - should be empty (no resize event)
         var hasEvent = workload.InputEvents.TryRead(out var evt);
-        Assert.False(hasEvent, "Constructor should not fire a resize event");
+        Assert.IsFalse(hasEvent, "Constructor should not fire a resize event");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_AfterInitialization_FiresResizeEvent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1128,14 +1126,14 @@ public class Hex1bTerminalTests
         
         // This should fire a resize event
         var hasEvent = workload.InputEvents.TryRead(out var evt);
-        Assert.True(hasEvent, "ResizeAsync after init should fire a resize event");
+        Assert.IsTrue(hasEvent, "ResizeAsync after init should fire a resize event");
         
-        var resizeEvent = Assert.IsType<Hex1bResizeEvent>(evt);
-        Assert.Equal(100, resizeEvent.Width);
-        Assert.Equal(30, resizeEvent.Height);
+        var resizeEvent = TestSeq.IsType<Hex1bResizeEvent>(evt);
+        Assert.AreEqual(100, resizeEvent.Width);
+        Assert.AreEqual(30, resizeEvent.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_SameDimensions_DoesNotFireEvent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1146,7 +1144,7 @@ public class Hex1bTerminalTests
         
         // Should NOT fire event (no change)
         var hasEvent = workload.InputEvents.TryRead(out _);
-        Assert.False(hasEvent, "ResizeAsync with same dimensions should not fire event");
+        Assert.IsFalse(hasEvent, "ResizeAsync with same dimensions should not fire event");
     }
 
     #endregion

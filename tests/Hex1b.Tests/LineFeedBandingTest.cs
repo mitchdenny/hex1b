@@ -1,11 +1,11 @@
 namespace Hex1b.Tests;
 
 using Hex1b.Tokens;
-using Xunit;
 
+[TestClass]
 public class LineFeedBandingTest
 {
-    [Fact]
+    [TestMethod]
     public void MapsciiPattern_CrLfCr_NoBlankLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -41,16 +41,16 @@ public class LineFeedBandingTest
         // Row 2: CCCCCCCCCC
         
         // Row 0 should have "AAAAAAAAAA"
-        Assert.True(snapshot.GetCell(0, 0).Character == "A", $"Expected 'A' at (0,0), got '{snapshot.GetCell(0, 0).Character}'{rowInfo}");
+        Assert.IsTrue(snapshot.GetCell(0, 0).Character == "A", $"Expected 'A' at (0,0), got '{snapshot.GetCell(0, 0).Character}'{rowInfo}");
         
         // Row 1 should have "BBBBBBBBBB" (consecutive, no banding!)
-        Assert.True(snapshot.GetCell(0, 1).Character == "B", $"Expected 'B' at (0,1), got '{snapshot.GetCell(0, 1).Character}'{rowInfo}");
+        Assert.IsTrue(snapshot.GetCell(0, 1).Character == "B", $"Expected 'B' at (0,1), got '{snapshot.GetCell(0, 1).Character}'{rowInfo}");
         
         // Row 2 should have "CCCCCCCCCC" (consecutive, no banding!)
-        Assert.True(snapshot.GetCell(0, 2).Character == "C", $"Expected 'C' at (0,2), got '{snapshot.GetCell(0, 2).Character}'{rowInfo}");
+        Assert.IsTrue(snapshot.GetCell(0, 2).Character == "C", $"Expected 'C' at (0,2), got '{snapshot.GetCell(0, 2).Character}'{rowInfo}");
     }
     
-    [Fact]
+    [TestMethod]
     public void DeferredWrap_WritingAtEndOfLine_DoesNotWrapUntilNextChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -60,17 +60,17 @@ public class LineFeedBandingTest
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("AAAAA"));
 
         // Cursor should be at last column (4), not wrapped to next line
-        Assert.Equal(4, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(4, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
         
         // Now write one more character - this should trigger the deferred wrap
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("B"));
         
         // After writing B, cursor should be at column 1 (or column 0 with pending wrap)
         // Actually B is at row 1, col 0, then cursor moves to col 1
-        Assert.Equal(1, terminal.CursorY); // Should be on row 1 now
+        Assert.AreEqual(1, terminal.CursorY); // Should be on row 1 now
         
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("B", snapshot.GetCell(0, 1).Character); // B is on row 1
+        Assert.AreEqual("B", snapshot.GetCell(0, 1).Character); // B is on row 1
     }
 }

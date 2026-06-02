@@ -19,20 +19,21 @@ namespace Hex1b.Tests.Flow;
 /// the formula and the simulator can't drift in lockstep because the
 /// simulator never calls the formula.
 /// </summary>
+[TestClass]
 public class FlowResizeRowOriginFeasibilityTests
 {
-    [Fact]
+    [TestMethod]
     public void NoTombstones_RowOriginEqualsInitial()
     {
         var sim = new FakeReflowTerminal(width: 80, initialCursorRow: 0);
         sim.MarkActiveWidgetTop();
 
         var actual = ComputeOrigin(initial: 0, sim, width: 80);
-        Assert.Equal(sim.ActiveWidgetRow, actual);
-        Assert.Equal(0, actual);
+        Assert.AreEqual(sim.ActiveWidgetRow, actual);
+        Assert.AreEqual(0, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void ShortTombstone_FitsAtBothWidths()
     {
         var sim = new FakeReflowTerminal(width: 80, initialCursorRow: 0);
@@ -43,12 +44,12 @@ public class FlowResizeRowOriginFeasibilityTests
         {
             sim.Resize(width);
             var math = ComputeOrigin(initial: 0, sim, width);
-            Assert.Equal(sim.ActiveWidgetRow, math);
-            Assert.Equal(1, math);
+            Assert.AreEqual(sim.ActiveWidgetRow, math);
+            Assert.AreEqual(1, math);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void LongSingleParagraph_WrapsWhenWidthShrinks()
     {
         var sim = new FakeReflowTerminal(width: 80, initialCursorRow: 0);
@@ -56,19 +57,19 @@ public class FlowResizeRowOriginFeasibilityTests
         sim.MarkActiveWidgetTop();
 
         sim.Resize(80);
-        Assert.Equal(1, sim.ActiveWidgetRow);
-        Assert.Equal(1, ComputeOrigin(0, sim, 80));
+        Assert.AreEqual(1, sim.ActiveWidgetRow);
+        Assert.AreEqual(1, ComputeOrigin(0, sim, 80));
 
         sim.Resize(40);
-        Assert.Equal(2, sim.ActiveWidgetRow);
-        Assert.Equal(2, ComputeOrigin(0, sim, 40));
+        Assert.AreEqual(2, sim.ActiveWidgetRow);
+        Assert.AreEqual(2, ComputeOrigin(0, sim, 40));
 
         sim.Resize(20);
-        Assert.Equal(3, sim.ActiveWidgetRow);
-        Assert.Equal(3, ComputeOrigin(0, sim, 20));
+        Assert.AreEqual(3, sim.ActiveWidgetRow);
+        Assert.AreEqual(3, ComputeOrigin(0, sim, 20));
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiParagraph_MixedWidths()
     {
         var sim = new FakeReflowTerminal(width: 40, initialCursorRow: 0);
@@ -77,11 +78,11 @@ public class FlowResizeRowOriginFeasibilityTests
         sim.WriteParagraph(new string('c', 5));
         sim.MarkActiveWidgetTop();
 
-        Assert.Equal(4, sim.ActiveWidgetRow); // 1 + 2 + 1
-        Assert.Equal(sim.ActiveWidgetRow, ComputeOrigin(0, sim, 40));
+        Assert.AreEqual(4, sim.ActiveWidgetRow); // 1 + 2 + 1
+        Assert.AreEqual(sim.ActiveWidgetRow, ComputeOrigin(0, sim, 40));
     }
 
-    [Fact]
+    [TestMethod]
     public void DragResizeSequence_OriginTracksSimulator()
     {
         var sim = new FakeReflowTerminal(width: 80, initialCursorRow: 0);
@@ -94,11 +95,11 @@ public class FlowResizeRowOriginFeasibilityTests
         foreach (var width in new[] { 80, 70, 60, 50, 40, 30, 25, 20, 15, 10, 30, 80 })
         {
             sim.Resize(width);
-            Assert.Equal(sim.ActiveWidgetRow, ComputeOrigin(0, sim, width));
+            Assert.AreEqual(sim.ActiveWidgetRow, ComputeOrigin(0, sim, width));
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WidthGrows_PreviouslyWrappedParagraphUnwraps()
     {
         var sim = new FakeReflowTerminal(width: 40, initialCursorRow: 0);
@@ -106,15 +107,15 @@ public class FlowResizeRowOriginFeasibilityTests
         sim.MarkActiveWidgetTop();
 
         sim.Resize(40);
-        Assert.Equal(2, sim.ActiveWidgetRow);
-        Assert.Equal(2, ComputeOrigin(0, sim, 40));
+        Assert.AreEqual(2, sim.ActiveWidgetRow);
+        Assert.AreEqual(2, ComputeOrigin(0, sim, 40));
 
         sim.Resize(80);
-        Assert.Equal(1, sim.ActiveWidgetRow);
-        Assert.Equal(1, ComputeOrigin(0, sim, 80));
+        Assert.AreEqual(1, sim.ActiveWidgetRow);
+        Assert.AreEqual(1, ComputeOrigin(0, sim, 80));
     }
 
-    [Fact]
+    [TestMethod]
     public void RandomWalk_NoCumulativeDrift()
     {
         // Deterministic seed so the test is reproducible.
@@ -132,32 +133,30 @@ public class FlowResizeRowOriginFeasibilityTests
             sim.Resize(width);
             var simRow = sim.ActiveWidgetRow;
             var mathRow = ComputeOrigin(initial: 5, sim, width);
-            Assert.True(
-                simRow == mathRow,
-                $"step={step} width={width} sim={simRow} math={mathRow}");
+            Assert.IsTrue(simRow == mathRow, $"step={step} width={width} sim={simRow} math={mathRow}");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void EmptyParagraph_StillTakesOneRow()
     {
         var sim = new FakeReflowTerminal(width: 40, initialCursorRow: 0);
         sim.WriteParagraph("");
         sim.MarkActiveWidgetTop();
 
-        Assert.Equal(1, sim.ActiveWidgetRow);
-        Assert.Equal(1, ComputeOrigin(0, sim, 40));
+        Assert.AreEqual(1, sim.ActiveWidgetRow);
+        Assert.AreEqual(1, ComputeOrigin(0, sim, 40));
     }
 
-    [Fact]
+    [TestMethod]
     public void ParagraphExactlyTerminalWidth_DoesNotForceExtraRow()
     {
         var sim = new FakeReflowTerminal(width: 40, initialCursorRow: 0);
         sim.WriteParagraph(new string('x', 40));
         sim.MarkActiveWidgetTop();
 
-        Assert.Equal(1, sim.ActiveWidgetRow);
-        Assert.Equal(1, ComputeOrigin(0, sim, 40));
+        Assert.AreEqual(1, sim.ActiveWidgetRow);
+        Assert.AreEqual(1, ComputeOrigin(0, sim, 40));
     }
 
     private static int ComputeOrigin(int initial, FakeReflowTerminal sim, int width)

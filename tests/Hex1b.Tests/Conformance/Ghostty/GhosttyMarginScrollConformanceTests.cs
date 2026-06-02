@@ -1,4 +1,3 @@
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -7,7 +6,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// with left/right margins (DECSLRM), and erase reset-wrap/SGR behavior.
 /// Translated from Ghostty's Terminal.zig.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyMarginScrollConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -15,20 +15,20 @@ public class GhosttyMarginScrollConformanceTests
 
     #region EraseChars — reset wrap and preserves SGR
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_ResetsPendingWrap()
     {
         // Ghostty: "Terminal: eraseChars resets pending wrap"
         using var t = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(t, "ABCDE");
-        Assert.True(t.PendingWrap);
+        Assert.IsTrue(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "\u001b[X"); // eraseChars(1)
-        Assert.False(t.PendingWrap);
+        Assert.IsFalse(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "X");
-        Assert.Equal("ABCDX", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABCDX", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_ResetsWrap()
     {
         // Ghostty: "Terminal: eraseChars resets wrap"
@@ -37,11 +37,11 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[X");     // eraseChars(1)
         GhosttyTestFixture.Feed(t, "X");
-        Assert.Equal("XBCDE", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("123", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("XBCDE", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("123", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_PreservesBackgroundSgr()
     {
         // Ghostty: "Terminal: eraseChars preserves background sgr"
@@ -55,34 +55,34 @@ public class GhosttyMarginScrollConformanceTests
         var cell0 = GhosttyTestFixture.GetCell(t, 0, 0);
         var cell1 = GhosttyTestFixture.GetCell(t, 0, 1);
         var cell2 = GhosttyTestFixture.GetCell(t, 0, 2);
-        Assert.Equal(" ", cell0.Character);
-        Assert.Equal(" ", cell1.Character);
-        Assert.Equal("C", cell2.Character);
+        Assert.AreEqual(" ", cell0.Character);
+        Assert.AreEqual(" ", cell1.Character);
+        Assert.AreEqual("C", cell2.Character);
         // Erased cells should have the background color set
-        Assert.Equal(255, cell0.Background!.Value.R);
-        Assert.Equal(0, cell0.Background!.Value.G);
-        Assert.Equal(0, cell0.Background!.Value.B);
-        Assert.Equal(255, cell1.Background!.Value.R);
+        Assert.AreEqual(255, cell0.Background!.Value.R);
+        Assert.AreEqual(0, cell0.Background!.Value.G);
+        Assert.AreEqual(0, cell0.Background!.Value.B);
+        Assert.AreEqual(255, cell1.Background!.Value.R);
     }
 
     #endregion
 
     #region EraseLine — reset wrap and preserves SGR
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_ResetsPendingWrap()
     {
         // Ghostty: "Terminal: eraseLine resets pending wrap"
         using var t = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(t, "ABCDE");
-        Assert.True(t.PendingWrap);
+        Assert.IsTrue(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "\u001b[K"); // eraseLine(.right)
-        Assert.False(t.PendingWrap);
+        Assert.IsFalse(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "B");
-        Assert.Equal("ABCDB", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABCDB", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_ResetsWrap()
     {
         // Ghostty: "Terminal: eraseLine resets wrap"
@@ -91,11 +91,11 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[K");     // eraseLine(.right)
         GhosttyTestFixture.Feed(t, "X");
-        Assert.Equal("X", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("123", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("123", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_RightPreservesBackgroundSgr()
     {
         // Ghostty: "Terminal: eraseLine right preserves background sgr"
@@ -105,29 +105,29 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001b[K"); // eraseLine(.right)
 
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 0));
         for (int x = 1; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 0, x);
-            Assert.Equal(255, cell.Background!.Value.R);
-            Assert.Equal(0, cell.Background!.Value.G);
+            Assert.AreEqual(255, cell.Background!.Value.R);
+            Assert.AreEqual(0, cell.Background!.Value.G);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_LeftResetsWrap()
     {
         // Ghostty: "Terminal: eraseLine left resets wrap" (adapted — skip dirty check)
         using var t = CreateTerminal(cols: 5, rows: 5);
         GhosttyTestFixture.Feed(t, "ABCDE");
-        Assert.True(t.PendingWrap);
+        Assert.IsTrue(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "\u001b[1K"); // eraseLine(.left)
-        Assert.False(t.PendingWrap);
+        Assert.IsFalse(t.PendingWrap);
         GhosttyTestFixture.Feed(t, "B");
-        Assert.Equal("    B", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("    B", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_LeftPreservesBackgroundSgr()
     {
         // Ghostty: "Terminal: eraseLine left preserves background sgr"
@@ -138,15 +138,15 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1K"); // eraseLine(.left)
 
         // First two cells erased (cols 0-1), rest remain
-        Assert.Equal("  CDE", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  CDE", GhosttyTestFixture.GetLine(t, 0));
         for (int x = 0; x < 2; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 0, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_CompletePreservesBackgroundSgr()
     {
         // Ghostty: "Terminal: eraseLine complete preserves background sgr"
@@ -156,11 +156,11 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001b[2K"); // eraseLine(.complete)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
         for (int x = 0; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 0, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
@@ -168,7 +168,7 @@ public class GhosttyMarginScrollConformanceTests
 
     #region EraseDisplay — preserves SGR and cursor
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_BelowPreservesSgrBg()
     {
         // Ghostty: "Terminal: eraseDisplay erase below preserves SGR bg"
@@ -178,17 +178,17 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001b[J"); // eraseDisplay(.below)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("D", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("D", GhosttyTestFixture.GetLine(t, 1));
         // Erased cells on row 1 (cols 1-4) should have red bg
         for (int x = 1; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 1, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_AbovePreservesSgrBg()
     {
         // Ghostty: "Terminal: eraseDisplay erase above preserves SGR bg"
@@ -198,19 +198,19 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001b[1J"); // eraseDisplay(.above)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
         // Row 1: first two cells erased, "F" remains
-        Assert.Equal("  F", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("  F", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
         // Erased cells on row 1 (cols 0-1) should have red bg
         for (int x = 0; x < 2; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 1, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_CompletePreservesCursor()
     {
         // Ghostty: "Terminal: eraseDisplay complete preserves cursor"
@@ -222,15 +222,15 @@ public class GhosttyMarginScrollConformanceTests
         var cursorY = t.CursorY;
         GhosttyTestFixture.Feed(t, "\u001b[2J"); // eraseDisplay(.complete)
         // Cursor position should be preserved
-        Assert.Equal(cursorX, t.CursorX);
-        Assert.Equal(cursorY, t.CursorY);
+        Assert.AreEqual(cursorX, t.CursorX);
+        Assert.AreEqual(cursorY, t.CursorY);
     }
 
     #endregion
 
     #region Index — SGR bg and left/right margins
 
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfPrimaryScreen_BackgroundSgr()
     {
         // Ghostty: "Terminal: index bottom of primary screen background sgr"
@@ -241,16 +241,16 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001bD"); // index
 
         // After scrolling, 'A' moves to row 3, row 4 is blank with red bg
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 3));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 4));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 4));
         for (int x = 0; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 4, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScrollRegion_BackgroundSgr()
     {
         // Ghostty: "Terminal: index bottom of scroll region with background SGR"
@@ -263,19 +263,19 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001bD"); // index (scrolls within region)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("B", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("B", GhosttyTestFixture.GetLine(t, 3));
         // New blank line (row 2) should have red bg
         for (int x = 0; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 2, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScrollRegion_BlankLinePreservesSgr()
     {
         // Ghostty: "Terminal: index bottom of scroll region blank line preserves SGR"
@@ -288,19 +288,19 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[48;2;255;0;0m"); // bg = red
         GhosttyTestFixture.Feed(t, "\u001bD"); // index
 
-        Assert.Equal("2", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("3", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("X", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("2", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("3", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("X", GhosttyTestFixture.GetLine(t, 3));
         // Blank line (row 2) should preserve red bg
         for (int x = 0; x < 5; x++)
         {
             var cell = GhosttyTestFixture.GetCell(t, 2, x);
-            Assert.Equal(255, cell.Background!.Value.R);
+            Assert.AreEqual(255, cell.Background!.Value.R);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Index_OutsideLeftRightMargin()
     {
         // Ghostty: "Terminal: index outside left/right margin"
@@ -316,12 +316,12 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001bD"); // index
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 1));
         Assert.StartsWith("X A", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void Index_InsideLeftRightMargin()
     {
         // Ghostty: "Terminal: index inside left/right margin"
@@ -333,19 +333,19 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[3;1H"); // setCursorPos(3,1) → row 2, col 0
         GhosttyTestFixture.Feed(t, "\u001bD"); // index
 
-        Assert.Equal(2, t.CursorY);
-        Assert.Equal(0, t.CursorX);
-        Assert.Equal("AAAAAA", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("AAAAAA", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual(2, t.CursorY);
+        Assert.AreEqual(0, t.CursorX);
+        Assert.AreEqual("AAAAAA", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("AAAAAA", GhosttyTestFixture.GetLine(t, 1));
         // After scrolling within L/R margins, the margin region shifts up
-        Assert.Equal("   AAA", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("   AAA", GhosttyTestFixture.GetLine(t, 2));
     }
 
     #endregion
 
     #region ReverseIndex — left/right margins
 
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_LeftRightMargins()
     {
         // Ghostty: "Terminal: reverseIndex left/right margins"
@@ -360,13 +360,13 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2) → row 0, col 1 (inside margin)
         GhosttyTestFixture.Feed(t, "\u001bM"); // reverseIndex
 
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DBC", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GEF", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal(" HI", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DBC", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GEF", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual(" HI", GhosttyTestFixture.GetLine(t, 3));
     }
 
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_OutsideLeftRightMargins()
     {
         // Ghostty: "Terminal: reverseIndex outside left/right margins"
@@ -382,12 +382,12 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001bM"); // reverseIndex
 
         // Outside margin — no scrolling happens, content unchanged
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_TopOfScrollingRegion()
     {
         // Ghostty: "Terminal: reverseIndex top of scrolling region"
@@ -400,18 +400,18 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001bM"); // reverseIndex
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("X", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("B", GhosttyTestFixture.GetLine(t, 3));
-        Assert.Equal("C", GhosttyTestFixture.GetLine(t, 4));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("X", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("B", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("C", GhosttyTestFixture.GetLine(t, 4));
     }
 
     #endregion
 
     #region ScrollUp — left/right margins
 
-    [Fact]
+    [TestMethod]
     public void ScrollUp_LeftRightScrollRegion()
     {
         // Ghostty: "Terminal: scrollUp left/right scroll region"
@@ -422,12 +422,12 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[S"); // scrollUp(1)
 
-        Assert.Equal("AEF423", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DHI756", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("G   89", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("AEF423", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DHI756", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("G   89", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollUp_FullTopBottomRegion()
     {
         // Ghostty: "Terminal: scrollUp full top/bottom region"
@@ -438,11 +438,11 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;5r"); // setTopAndBottomMargin(2,5)
         GhosttyTestFixture.Feed(t, "\u001b[4S"); // scrollUp(4)
 
-        Assert.Equal("top", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("top", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollUp_FullTopBottomLeftRightRegion()
     {
         // Ghostty: "Terminal: scrollUp full top/bottomleft/right scroll region"
@@ -455,18 +455,18 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;4s"); // setLeftAndRightMargin(2,4)
         GhosttyTestFixture.Feed(t, "\u001b[4S"); // scrollUp(4)
 
-        Assert.Equal("top", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 3));
-        Assert.Equal("A   E", GhosttyTestFixture.GetLine(t, 4));
+        Assert.AreEqual("top", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("A   E", GhosttyTestFixture.GetLine(t, 4));
     }
 
     #endregion
 
     #region ScrollDown — left/right margins
 
-    [Fact]
+    [TestMethod]
     public void ScrollDown_LeftRightScrollRegion()
     {
         // Ghostty: "Terminal: scrollDown left/right scroll region"
@@ -477,13 +477,13 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[T"); // scrollDown(1)
 
-        Assert.Equal("A   23", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DBC156", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GEF489", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal(" HI7", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("A   23", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DBC156", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GEF489", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual(" HI7", GhosttyTestFixture.GetLine(t, 3));
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollDown_OutsideLeftRightScrollRegion()
     {
         // Ghostty: "Terminal: scrollDown outside of left/right scroll region"
@@ -495,17 +495,17 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[T"); // scrollDown(1)
 
         // Cursor outside margin — scroll still affects the margin region
-        Assert.Equal("A   23", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DBC156", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GEF489", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal(" HI7", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("A   23", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DBC156", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GEF489", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual(" HI7", GhosttyTestFixture.GetLine(t, 3));
     }
 
     #endregion
 
     #region FullReset — origin mode
 
-    [Fact]
+    [TestMethod]
     public void FullReset_OriginMode()
     {
         // Ghostty: "Terminal: fullReset origin mode"
@@ -515,11 +515,11 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001bc"); // fullReset (RIS)
 
         // Origin mode should be reset and cursor should be at home
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(0, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(0, t.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void FullReset_NonEmptyPen()
     {
         // Ghostty: "Terminal: fullReset with a non-empty pen"
@@ -532,11 +532,11 @@ public class GhosttyMarginScrollConformanceTests
 
         // After reset, 'A' should have default styling
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("A", cell.Character);
-        Assert.False(cell.IsBold);
+        Assert.AreEqual("A", cell.Character);
+        Assert.IsFalse(cell.IsBold);
     }
 
-    [Fact]
+    [TestMethod]
     public void FullReset_NonEmptySavedCursor()
     {
         // Ghostty: "Terminal: fullReset with a non-empty saved cursor"
@@ -547,15 +547,15 @@ public class GhosttyMarginScrollConformanceTests
         // After reset, saved cursor should also be reset
         GhosttyTestFixture.Feed(t, "\u001b8"); // restore cursor — should restore to defaults
         // Cursor should be at origin after reset
-        Assert.Equal(0, t.CursorX);
-        Assert.Equal(0, t.CursorY);
+        Assert.AreEqual(0, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
     }
 
     #endregion
 
     #region SetTopAndBottomMargin — additional edge cases
 
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopOnly()
     {
         // Ghostty: "Terminal: setTopAndBottomMargin top only"
@@ -565,14 +565,14 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[3;1H"); // setCursorPos(3,1)
         GhosttyTestFixture.Feed(t, "\u001b[M"); // deleteLines(1)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("JKL", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("MNO", GhosttyTestFixture.GetLine(t, 3));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 4));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("JKL", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("MNO", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 4));
     }
 
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopEqualBottom()
     {
         // Ghostty: "Terminal: setTopAndBottomMargin top equal to bottom"
@@ -583,18 +583,18 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[3;1H"); // setCursorPos(3,1)
         GhosttyTestFixture.Feed(t, "\u001b[M"); // deleteLines(1)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("JKL", GhosttyTestFixture.GetLine(t, 2));
-        Assert.Equal("MNO", GhosttyTestFixture.GetLine(t, 3));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 4));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("JKL", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("MNO", GhosttyTestFixture.GetLine(t, 3));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 4));
     }
 
     #endregion
 
     #region SetLeftAndRightMargin — edge cases
 
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftAndRight()
     {
         // Ghostty: "Terminal: setLeftAndRightMargin left and right"
@@ -605,12 +605,12 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // home
         GhosttyTestFixture.Feed(t, "\u001b[M"); // deleteLines(1) — within margin
 
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftEqualRight()
     {
         // Ghostty: "Terminal: setLeftAndRightMargin left equal right"
@@ -622,12 +622,12 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // home
         GhosttyTestFixture.Feed(t, "\u001b[M"); // deleteLines(1)
 
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftOnly()
     {
         // Ghostty: "Terminal: setLeftAndRightMargin left only"
@@ -640,16 +640,16 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[M");     // deleteLines(1) — within margin
 
         // Only cols 1-4 should be affected
-        Assert.Equal("AGHIJ", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("FLMNO", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("K", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("AGHIJ", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("FLMNO", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("K", GhosttyTestFixture.GetLine(t, 2));
     }
 
     #endregion
 
     #region SaveCursor — additional tests
 
-    [Fact]
+    [TestMethod]
     public void SaveCursor_Basic()
     {
         // Ghostty: "Terminal: saveCursor"
@@ -658,8 +658,8 @@ public class GhosttyMarginScrollConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b7"); // saveCursor
         GhosttyTestFixture.Feed(t, "\u001b[2;3H"); // move cursor
         GhosttyTestFixture.Feed(t, "\u001b8"); // restoreCursor
-        Assert.Equal(5, t.CursorX); // cursor was at col 5 before save
-        Assert.Equal(0, t.CursorY);
+        Assert.AreEqual(5, t.CursorX); // cursor was at col 5 before save
+        Assert.AreEqual(0, t.CursorY);
     }
 
     #endregion

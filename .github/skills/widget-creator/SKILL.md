@@ -343,7 +343,7 @@ public static class MyExtensions
 
 ### Step 6: Write Unit Tests
 
-Tests verify that the node behaves correctly.
+Tests verify that the node behaves correctly. Test files use MSTest 4 (`MSTest.Sdk/4.2.3` with `OutputType=Exe`) and import `Microsoft.VisualStudio.TestTools.UnitTesting`; `Hex1b.Testing` is global-using'd for `TestSeq` helpers.
 
 **Location**: `tests/Hex1b.Tests/{Name}NodeTests.cs`
 
@@ -361,12 +361,14 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Theming;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MyNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectSize()
     {
         // Arrange
@@ -377,11 +379,11 @@ public class MyNodeTests
         var size = node.Measure(constraints);
 
         // Assert
-        Assert.Equal(5, size.Width); // "Hello".Length
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width); // "Hello".Length
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void PropertyChange_MarksDirty()
     {
         // Arrange
@@ -395,7 +397,7 @@ public class MyNodeTests
         // This depends on whether your node implements dirty tracking in setters
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_WhenSet_MarksDirty()
     {
         // Arrange
@@ -406,7 +408,7 @@ public class MyNodeTests
         node.IsFocused = true;
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 }
 ```
@@ -419,8 +421,11 @@ After creating all files:
 # Build the library
 dotnet build src/Hex1b
 
-# Run all tests
+# Run all tests (MTP via global.json)
 dotnet test
+
+# Or run a test project as an executable
+dotnet run --project tests/Hex1b.Tests/
 
 # Or run specific tests
 dotnet test --filter "MyNodeTests"
@@ -490,16 +495,16 @@ Unit tests verify isolated node behavior without running a full app.
 **Example pattern**:
 
 ```csharp
-[Fact]
+[TestMethod]
 public void Measure_FillsAvailableWidth()
 {
     var node = new ProgressNode { Value = 50, Maximum = 100 };
     var size = node.Measure(new Constraints(0, 80, 0, 10));
-    Assert.Equal(80, size.Width);
-    Assert.Equal(1, size.Height);
+    Assert.AreEqual(80, size.Width);
+    Assert.AreEqual(1, size.Height);
 }
 
-[Fact]
+[TestMethod]
 public void PropertyChange_MarksDirty()
 {
     var node = new ProgressNode { Value = 50 };
@@ -509,7 +514,7 @@ public void PropertyChange_MarksDirty()
     var widget = new ProgressWidget { Value = 75 };
     widget.Reconcile(node, new ReconcileContext(...));
     
-    Assert.True(node.IsDirty);
+    Assert.IsTrue(node.IsDirty);
 }
 ```
 
@@ -529,7 +534,9 @@ Integration tests spin up a real `Hex1bApp` and test the widget in various layou
 using Hex1b;
 using Hex1b.Input;
 using Hex1b.Theming;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
 
+[TestClass]
 public class MyWidgetIntegrationTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -554,7 +561,7 @@ public class MyWidgetIntegrationTests : IDisposable
 #### Basic Integration Test Pattern
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task MyWidget_RendersCorrectly()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -586,7 +593,7 @@ public async Task MyWidget_RendersCorrectly()
 Test the widget in all common layout containers:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task MyWidget_InBorder()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -612,7 +619,7 @@ public async Task MyWidget_InBorder()
     await runTask;
 }
 
-[Fact]
+[TestMethod]
 public async Task MyWidget_InHStackWithFill()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -638,11 +645,11 @@ public async Task MyWidget_InHStackWithFill()
     await runTask;
 }
 
-[Theory]
-[InlineData(40)]
-[InlineData(60)]
-[InlineData(80)]
-[InlineData(120)]
+[TestMethod]
+[DataRow(40)]
+[DataRow(60)]
+[DataRow(80)]
+[DataRow(120)]
 public async Task MyWidget_RespondsToTerminalWidth(int width)
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -671,7 +678,7 @@ public async Task MyWidget_RespondsToTerminalWidth(int width)
 For widgets with animation or dynamic behavior, record asciinema sessions:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task MyWidget_RecordsAnimation()
 {
     var tempFile = GetTempFile();
@@ -725,7 +732,7 @@ public async Task MyWidget_RecordsAnimation()
 Test how widgets respond to terminal resizing:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task MyWidget_RecordsResizeScenario()
 {
     var tempFile = GetTempFile();
@@ -789,7 +796,7 @@ public async Task MyWidget_RecordsResizeScenario()
 Verify custom themes are applied correctly:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task MyWidget_RespectsCustomTheme()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -831,7 +838,7 @@ Every widget should have integration tests covering:
 - [ ] **Multiple instances** - Several widgets in a VStack
 - [ ] **Fixed width** - Widget with `.FixedWidth()` constraint
 - [ ] **Fill behavior** - Widget with `.Fill()` in cross-axis container
-- [ ] **Various terminal widths** - Theory test with 40, 60, 80, 120 columns
+- [ ] **Various terminal widths** - MSTest `DataRow` test with 40, 60, 80, 120 columns
 - [ ] **Custom theme** - Widget with custom theme elements
 - [ ] **Dynamic updates** - Widget responding to `app.Invalidate()` (if applicable)
 - [ ] **Animation recording** - Asciinema recording for animated states (if applicable)

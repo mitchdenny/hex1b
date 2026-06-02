@@ -14,9 +14,10 @@ namespace Hex1b.Tests.Flow;
 /// the host's grid and the row-origin recompute described in
 /// <c>FlowResizeRowOriginFeasibilityTests</c> stops matching reality.
 /// </summary>
+[TestClass]
 public class SoftWrapEmitterHardNewlineTests
 {
-    [Fact]
+    [TestMethod]
     public void Format_MultiRowSurface_TerminatesInteriorRowsWithCarriageReturnPlusLineFeed()
     {
         var surface = new Surface(20, 4);
@@ -37,7 +38,7 @@ public class SoftWrapEmitterHardNewlineTests
         Assert.EndsWith("row-3\x1b[K\x1b[?25h", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_NoBareLineFeedsAtInteriorRowBoundaries()
     {
         // Walk the output looking for any inter-row boundary terminated by
@@ -56,12 +57,11 @@ public class SoftWrapEmitterHardNewlineTests
         for (var i = 0; i < output.Length; i++)
         {
             if (output[i] != '\n') continue;
-            Assert.True(i > 0 && output[i - 1] == '\r',
-                $"Bare LF found at index {i}; every LF must be preceded by CR. Output: {output.Replace("\x1b", "ESC")}");
+            Assert.IsTrue(i > 0 && output[i - 1] == '\r', $"Bare LF found at index {i}; every LF must be preceded by CR. Output: {output.Replace("\x1b", "ESC")}");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_SingleRowSurface_HasNoLineTerminatorAtAll()
     {
         // Single-row case: the only row is also the last row, so no CR or

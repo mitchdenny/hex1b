@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// Tests for OSC 8 hyperlink support, including both low-level terminal parsing
 /// and high-level HyperlinkWidget integration with Hex1bApp.
 /// </summary>
+[TestClass]
 public class Osc8HyperlinkTests
 {
     #region Low-Level OSC 8 Parsing Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_WithOsc8Sequence_CreatesHyperlinkData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -26,17 +27,17 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\")); // End hyperlink
         
         // Should track the hyperlink data
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
-        Assert.True(terminal.ContainsHyperlinkData());
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
+        Assert.IsTrue(terminal.ContainsHyperlinkData());
         
         // The cells with "Link Text" should have the hyperlink data
         var hyperlinkData = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(hyperlinkData);
-        Assert.Equal("https://example.com", hyperlinkData.Uri);
-        Assert.Equal("", hyperlinkData.Parameters);
+        Assert.IsNotNull(hyperlinkData);
+        Assert.AreEqual("https://example.com", hyperlinkData.Uri);
+        Assert.AreEqual("", hyperlinkData.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_WithOsc8UsingBel_CreatesHyperlinkData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -47,14 +48,14 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("Click here"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x07")); // End hyperlink
         
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
         
         var hyperlinkData = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(hyperlinkData);
-        Assert.Equal("https://example.org", hyperlinkData.Uri);
+        Assert.IsNotNull(hyperlinkData);
+        Assert.AreEqual("https://example.org", hyperlinkData.Uri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_WithOsc8WithParameters_StoresParameters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -66,12 +67,12 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var hyperlinkData = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(hyperlinkData);
-        Assert.Equal("https://example.com/path", hyperlinkData.Uri);
-        Assert.Equal("id=test123", hyperlinkData.Parameters);
+        Assert.IsNotNull(hyperlinkData);
+        Assert.AreEqual("https://example.com/path", hyperlinkData.Uri);
+        Assert.AreEqual("id=test123", hyperlinkData.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_EndOsc8_ReleasesHyperlink()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -82,9 +83,9 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
         
         // Verify hyperlink exists
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
         var linkData1 = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(linkData1);
+        Assert.IsNotNull(linkData1);
         
         // End hyperlink
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
@@ -94,14 +95,14 @@ public class Osc8HyperlinkTests
         
         // The plain text should not have hyperlink
         var linkData2 = terminal.GetHyperlinkDataAt(5, 0);
-        Assert.Null(linkData2);
+        Assert.IsNull(linkData2);
         
         // But the original link text should still have it
         var linkData3 = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(linkData3);
+        Assert.IsNotNull(linkData3);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedHyperlink_WhenCellOverwritten_ReleasesReference()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -112,16 +113,16 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("Link"));
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
         
         // Overwrite the cells
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
         
         // Hyperlink data should be released (refcount reached 0)
-        Assert.Equal(0, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(0, terminal.TrackedHyperlinkCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedHyperlink_Deduplication_ReusesSameObject()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -139,15 +140,15 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Should still only have one unique tracked object
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
         
         // Both link texts should reference the same object
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
         var link2 = terminal.GetHyperlinkDataAt(6, 0);
-        Assert.Same(link1, link2);
+        Assert.AreSame(link1, link2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedHyperlink_RefCount_IncreasesWithDeduplication()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -159,13 +160,13 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var trackedLink = terminal.GetTrackedHyperlinkAt(0, 0);
-        Assert.NotNull(trackedLink);
+        Assert.IsNotNull(trackedLink);
         
         // RefCount should be 4 (one for each character: L, i, n, k)
-        Assert.Equal(4, trackedLink.RefCount);
+        Assert.AreEqual(4, trackedLink.RefCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedHyperlink_DifferentParameters_CreatesSeparateObjects()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -181,16 +182,16 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         // Should have two unique tracked objects
-        Assert.Equal(2, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(2, terminal.TrackedHyperlinkCount);
         
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
         var link2 = terminal.GetHyperlinkDataAt(1, 0);
-        Assert.NotSame(link1, link2);
-        Assert.Equal("id=1", link1!.Parameters);
-        Assert.Equal("id=2", link2!.Parameters);
+        Assert.AreNotSame(link1, link2);
+        Assert.AreEqual("id=1", link1!.Parameters);
+        Assert.AreEqual("id=2", link2!.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_MultilineHyperlink_TracksAcrossRows()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -207,13 +208,13 @@ public class Osc8HyperlinkTests
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
         var link2 = terminal.GetHyperlinkDataAt(0, 1);
         
-        Assert.NotNull(link1);
-        Assert.NotNull(link2);
-        Assert.Same(link1, link2);
-        Assert.Equal("https://example.com", link1.Uri);
+        Assert.IsNotNull(link1);
+        Assert.IsNotNull(link2);
+        Assert.AreSame(link1, link2);
+        Assert.AreEqual("https://example.com", link1.Uri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_NestedHyperlinks_ReplacesWithNewLink()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -230,19 +231,19 @@ public class Osc8HyperlinkTests
         
         // First character should have first link
         var link1 = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(link1);
-        Assert.Equal("https://first.com", link1.Uri);
+        Assert.IsNotNull(link1);
+        Assert.AreEqual("https://first.com", link1.Uri);
         
         // Second character should have second link
         var link2 = terminal.GetHyperlinkDataAt(1, 0);
-        Assert.NotNull(link2);
-        Assert.Equal("https://second.com", link2.Uri);
+        Assert.IsNotNull(link2);
+        Assert.AreEqual("https://second.com", link2.Uri);
         
         // Should have two tracked objects
-        Assert.Equal(2, terminal.TrackedHyperlinkCount);
+        Assert.AreEqual(2, terminal.TrackedHyperlinkCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadAdapter_WithOsc8_TerminalReceivesHyperlinkData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -259,15 +260,15 @@ public class Osc8HyperlinkTests
             .Build()
             .ApplyAsync(terminal);
         
-        Assert.Equal(1, terminal.TrackedHyperlinkCount);
-        Assert.True(terminal.ContainsHyperlinkData());
+        Assert.AreEqual(1, terminal.TrackedHyperlinkCount);
+        Assert.IsTrue(terminal.ContainsHyperlinkData());
         
         var linkData = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(linkData);
-        Assert.Equal("https://example.com", linkData.Uri);
+        Assert.IsNotNull(linkData);
+        Assert.AreEqual("https://example.com", linkData.Uri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProcessOutput_ComplexUri_PreservesAllCharacters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -280,15 +281,15 @@ public class Osc8HyperlinkTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b]8;;\x1b\\"));
         
         var linkData = terminal.GetHyperlinkDataAt(0, 0);
-        Assert.NotNull(linkData);
-        Assert.Equal(uri, linkData.Uri);
+        Assert.IsNotNull(linkData);
+        Assert.AreEqual(uri, linkData.Uri);
     }
 
     #endregion
 
     #region HyperlinkWidget Integration Tests with Snapshots
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_SingleLink_RendersWithOsc8()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -316,11 +317,11 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-single");
 
         // Verify the link text is rendered
-        Assert.True(snapshot.ContainsText("Visit GitHub"));
-        Assert.True(snapshot.ContainsText("Click the link below"));
+        Assert.IsTrue(snapshot.ContainsText("Visit GitHub"));
+        Assert.IsTrue(snapshot.ContainsText("Click the link below"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_MultipleLinks_AllRenderCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -351,13 +352,13 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-multiple");
 
         // Verify all links are rendered
-        Assert.True(snapshot.ContainsText("GitHub"));
-        Assert.True(snapshot.ContainsText("Documentation"));
-        Assert.True(snapshot.ContainsText("Examples"));
-        Assert.True(snapshot.ContainsText("API Reference"));
+        Assert.IsTrue(snapshot.ContainsText("GitHub"));
+        Assert.IsTrue(snapshot.ContainsText("Documentation"));
+        Assert.IsTrue(snapshot.ContainsText("Examples"));
+        Assert.IsTrue(snapshot.ContainsText("API Reference"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InHStack_RendersInline()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -391,12 +392,12 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-inline");
 
         // Verify inline layout
-        Assert.True(snapshot.ContainsText("[Home]"));
-        Assert.True(snapshot.ContainsText("[Docs]"));
-        Assert.True(snapshot.ContainsText("[GitHub]"));
+        Assert.IsTrue(snapshot.ContainsText("[Home]"));
+        Assert.IsTrue(snapshot.ContainsText("[Docs]"));
+        Assert.IsTrue(snapshot.ContainsText("[GitHub]"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InBorder_RendersWithFrame()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -428,12 +429,12 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-bordered");
 
         // Verify content
-        Assert.True(snapshot.ContainsText("Resources"));
-        Assert.True(snapshot.ContainsText("Project Repository"));
-        Assert.True(snapshot.ContainsText("Issue Tracker"));
+        Assert.IsTrue(snapshot.ContainsText("Resources"));
+        Assert.IsTrue(snapshot.ContainsText("Project Repository"));
+        Assert.IsTrue(snapshot.ContainsText("Issue Tracker"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_WithClickHandler_TracksClicks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -463,11 +464,11 @@ public class Osc8HyperlinkTests
         await runTask;
 
         // Assert the click handlers were invoked
-        Assert.Equal("https://example.com", clickedUri);
-        Assert.Equal(2, clickCount);
+        Assert.AreEqual("https://example.com", clickedUri);
+        Assert.AreEqual(2, clickCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_TabNavigation_FocusesLinks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -507,10 +508,10 @@ public class Osc8HyperlinkTests
         var snapshot = terminal.CreateSnapshot();
         TestSvgHelper.Capture(snapshot, "hyperlink-navigation");
 
-        Assert.Equal("https://third.com", lastClickedUri);
+        Assert.AreEqual("https://third.com", lastClickedUri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_MixedWithButtons_InterleavedCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -545,11 +546,11 @@ public class Osc8HyperlinkTests
         await runTask;
 
         // Assert the handlers were invoked
-        Assert.True(linkClicked, "Link click handler should have been invoked");
-        Assert.True(buttonClicked, "Button click handler should have been invoked");
+        Assert.IsTrue(linkClicked, "Link click handler should have been invoked");
+        Assert.IsTrue(buttonClicked, "Button click handler should have been invoked");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_ComplexUrls_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -579,13 +580,13 @@ public class Osc8HyperlinkTests
 
         TestSvgHelper.Capture(snapshot, "hyperlink-complex-urls");
 
-        Assert.True(snapshot.ContainsText("Search Results"));
-        Assert.True(snapshot.ContainsText("Wikipedia Section"));
-        Assert.True(snapshot.ContainsText("File Protocol"));
-        Assert.True(snapshot.ContainsText("Mailto Link"));
+        Assert.IsTrue(snapshot.ContainsText("Search Results"));
+        Assert.IsTrue(snapshot.ContainsText("Wikipedia Section"));
+        Assert.IsTrue(snapshot.ContainsText("File Protocol"));
+        Assert.IsTrue(snapshot.ContainsText("Mailto Link"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_NarrowTerminal_TextTruncates()
     {
         // Very narrow terminal - hyperlink text should be truncated
@@ -614,12 +615,12 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-narrow-terminal");
 
         // The text should be truncated, so full text should NOT be present
-        Assert.False(snapshot.ContainsText("Very Long Hyperlink Text That Should Truncate"));
+        Assert.IsFalse(snapshot.ContainsText("Very Long Hyperlink Text That Should Truncate"));
         // But partial text should be visible
-        Assert.True(snapshot.ContainsText("Very"));
+        Assert.IsTrue(snapshot.ContainsText("Very"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InSplitter_ClippedByPane()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -654,13 +655,13 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-splitter-clipping");
 
         // Right pane should be fully visible
-        Assert.True(snapshot.ContainsText("Right Pane"));
-        Assert.True(snapshot.ContainsText("Right Link"));
+        Assert.IsTrue(snapshot.ContainsText("Right Pane"));
+        Assert.IsTrue(snapshot.ContainsText("Right Link"));
         // Left pane text should be clipped (partial visibility)
-        Assert.True(snapshot.ContainsText("Left"));
+        Assert.IsTrue(snapshot.ContainsText("Left"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InScrollView_PartiallyVisible()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -694,7 +695,7 @@ public class Osc8HyperlinkTests
         // WaitUntil already verified links are visible after scrolling
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InBorderWithSmallSize_Clipped()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -723,12 +724,12 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-border-clipped");
 
         // Border title should be visible
-        Assert.True(snapshot.ContainsText("Tiny"));
+        Assert.IsTrue(snapshot.ContainsText("Tiny"));
         // Full hyperlink text should NOT be visible (clipped)
-        Assert.False(snapshot.ContainsText("exceeds the border"));
+        Assert.IsFalse(snapshot.ContainsText("exceeds the border"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_MultipleInHStack_WrapsOrClips()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -761,11 +762,11 @@ public class Osc8HyperlinkTests
         TestSvgHelper.Capture(snapshot, "hyperlink-hstack-overflow");
 
         // First links should be visible
-        Assert.True(snapshot.ContainsText("[GitHub]"));
+        Assert.IsTrue(snapshot.ContainsText("[GitHub]"));
         // Later links may be clipped depending on terminal width
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_EmptyText_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -793,11 +794,11 @@ public class Osc8HyperlinkTests
 
         TestSvgHelper.Capture(snapshot, "hyperlink-empty-text");
 
-        Assert.True(snapshot.ContainsText("Before"));
-        Assert.True(snapshot.ContainsText("After"));
+        Assert.IsTrue(snapshot.ContainsText("Before"));
+        Assert.IsTrue(snapshot.ContainsText("After"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_SpecialCharactersInText_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -827,14 +828,14 @@ public class Osc8HyperlinkTests
 
         TestSvgHelper.Capture(snapshot, "hyperlink-special-chars");
 
-        Assert.True(snapshot.ContainsText("angle"));
-        Assert.True(snapshot.ContainsText("quotes"));
-        Assert.True(snapshot.ContainsText("apostrophes"));
-        Assert.True(snapshot.ContainsText("ampersand"));
-        Assert.True(snapshot.ContainsText("日本語"));
+        Assert.IsTrue(snapshot.ContainsText("angle"));
+        Assert.IsTrue(snapshot.ContainsText("quotes"));
+        Assert.IsTrue(snapshot.ContainsText("apostrophes"));
+        Assert.IsTrue(snapshot.ContainsText("ampersand"));
+        Assert.IsTrue(snapshot.ContainsText("日本語"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_WithParameters_PreservesId()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -862,11 +863,11 @@ public class Osc8HyperlinkTests
 
         TestSvgHelper.Capture(snapshot, "hyperlink-with-id");
 
-        Assert.True(snapshot.ContainsText("Part 1 of"));
-        Assert.True(snapshot.ContainsText("the same link"));
+        Assert.IsTrue(snapshot.ContainsText("Part 1 of"));
+        Assert.IsTrue(snapshot.ContainsText("the same link"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InsideLayoutWithClipping_PreservesHyperlinkData()
     {
         // Test that OSC 8 hyperlink tracking works correctly when content is clipped by a layout provider
@@ -910,15 +911,15 @@ public class Osc8HyperlinkTests
             if (cell.HasHyperlinkData)
             {
                 foundHyperlink = true;
-                Assert.Equal("https://example.com/clipped", cell.HyperlinkData!.Uri);
+                Assert.AreEqual("https://example.com/clipped", cell.HyperlinkData!.Uri);
                 break;
             }
         }
         
-        Assert.True(foundHyperlink, "Should find at least one cell with hyperlink data in the clipped area");
+        Assert.IsTrue(foundHyperlink, "Should find at least one cell with hyperlink data in the clipped area");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_InsideVStackWithConstrainedWidth_TracksHyperlinkPerCell()
     {
         // Test that a hyperlink inside a VStack with constrained width has hyperlink data for each visible cell
@@ -959,10 +960,10 @@ public class Osc8HyperlinkTests
         }
         
         // Should have hyperlink data for each character in "Link ABC" (8 chars)
-        Assert.Equal(linkText.Length, hyperlinkCellCount);
+        Assert.AreEqual(linkText.Length, hyperlinkCellCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_WithTextOverflowWrap_WrapsAcrossMultipleLines()
     {
         // Test that a hyperlink with TextOverflow.Wrap wraps properly across multiple lines
@@ -1008,15 +1009,13 @@ public class Osc8HyperlinkTests
         
         // The text "This is a very long hyperlink that should wrap to multiple lines" (63 chars)
         // in a 20-column terminal should wrap to at least 4 lines
-        Assert.True(rowsWithHyperlink.Count >= 3, 
-            $"Expected hyperlink to span at least 3 rows, but found {rowsWithHyperlink.Count} rows: [{string.Join(", ", rowsWithHyperlink)}]");
+        Assert.IsTrue(rowsWithHyperlink.Count >= 3, $"Expected hyperlink to span at least 3 rows, but found {rowsWithHyperlink.Count} rows: [{string.Join(", ", rowsWithHyperlink)}]");
         
         // Verify the first row contains "This is a very"
-        Assert.True(snapshot.ContainsText("This is a very") || snapshot.ContainsText("This"), 
-            "First line should contain start of hyperlink text");
+        Assert.IsTrue(snapshot.ContainsText("This is a very") || snapshot.ContainsText("This"), "First line should contain start of hyperlink text");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HyperlinkWidget_WithTextOverflowWrap_AllWrappedLinesHaveOsc8()
     {
         // Verify that each wrapped line of a hyperlink emits OSC 8 sequences
@@ -1060,15 +1059,14 @@ public class Osc8HyperlinkTests
         
         // "First Second Third Fourth" = 25 characters, but word-wrapping may not include
         // trailing spaces on lines. Should have at least 20 characters with hyperlink data.
-        Assert.True(hyperlinkCellCount >= 20, 
-            $"Expected at least 20 cells with hyperlink data, found {hyperlinkCellCount}");
+        Assert.IsTrue(hyperlinkCellCount >= 20, $"Expected at least 20 cells with hyperlink data, found {hyperlinkCellCount}");
     }
 
     #endregion
 
     #region SVG Group Class Tests
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_HyperlinkCells_HaveGroupClass()
     {
         // Cells with the same hyperlink should have the same group class in the SVG output
@@ -1085,7 +1083,7 @@ public class Osc8HyperlinkTests
         Assert.Contains("class=\"cell link-0\"", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_MultipleSameHyperlinks_ShareGroupClass()
     {
         // Multiple cells with the same hyperlink share the same TrackedObject,
@@ -1101,10 +1099,10 @@ public class Osc8HyperlinkTests
         
         // Count how many cells have the link-0 class - should be 5 (for A, B, C, D, E)
         var cellGroupCount = System.Text.RegularExpressions.Regex.Matches(svg, @"class=""cell link-0""").Count;
-        Assert.Equal(5, cellGroupCount);
+        Assert.AreEqual(5, cellGroupCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_DifferentHyperlinks_HaveDifferentGroupClasses()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1123,7 +1121,7 @@ public class Osc8HyperlinkTests
         Assert.Contains("link-1", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_CellsWithoutHyperlink_HaveNoGroupClass()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1140,7 +1138,7 @@ public class Osc8HyperlinkTests
         Assert.DoesNotContain("link-", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_ContainsHighlightCssClass()
     {
         // SVG should include CSS for highlighting cell groups
@@ -1155,7 +1153,7 @@ public class Osc8HyperlinkTests
         Assert.Contains(".cell.highlight", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SvgOutput_CellsHaveDataAttributes()
     {
         // Each cell group should have data-x and data-y attributes

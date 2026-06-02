@@ -6,39 +6,40 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DatePickerWidgetTests
 {
     #region DatePickerNode State Tests
 
-    [Fact]
+    [TestMethod]
     public void Node_DefaultStep_IsYear()
     {
         var node = new DatePickerNode();
-        Assert.Equal(PickerStep.Year, node.Step);
+        Assert.AreEqual(PickerStep.Year, node.Step);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectYear_AdvancesToMonthStep()
     {
         var node = new DatePickerNode();
         node.SelectYear(2026);
 
-        Assert.Equal(PickerStep.Month, node.Step);
-        Assert.Equal(2026, node.DisplayYear);
+        Assert.AreEqual(PickerStep.Month, node.Step);
+        Assert.AreEqual(2026, node.DisplayYear);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectMonth_AdvancesToCalendarStep()
     {
         var node = new DatePickerNode();
         node.SelectYear(2026);
         node.SelectMonth(3);
 
-        Assert.Equal(PickerStep.Calendar, node.Step);
-        Assert.Equal(3, node.DisplayMonth);
+        Assert.AreEqual(PickerStep.Calendar, node.Step);
+        Assert.AreEqual(3, node.DisplayMonth);
     }
 
-    [Fact]
+    [TestMethod]
     public void GoBack_FromCalendar_ReturnsToMonth()
     {
         var node = new DatePickerNode();
@@ -47,11 +48,11 @@ public class DatePickerWidgetTests
 
         var result = node.GoBack();
 
-        Assert.True(result);
-        Assert.Equal(PickerStep.Month, node.Step);
+        Assert.IsTrue(result);
+        Assert.AreEqual(PickerStep.Month, node.Step);
     }
 
-    [Fact]
+    [TestMethod]
     public void GoBack_FromMonth_ReturnsToYear()
     {
         var node = new DatePickerNode();
@@ -59,40 +60,40 @@ public class DatePickerWidgetTests
 
         var result = node.GoBack();
 
-        Assert.True(result);
-        Assert.Equal(PickerStep.Year, node.Step);
+        Assert.IsTrue(result);
+        Assert.AreEqual(PickerStep.Year, node.Step);
     }
 
-    [Fact]
+    [TestMethod]
     public void GoBack_FromYear_ReturnsFalse()
     {
         var node = new DatePickerNode();
 
         var result = node.GoBack();
 
-        Assert.False(result);
-        Assert.Equal(PickerStep.Year, node.Step);
+        Assert.IsFalse(result);
+        Assert.AreEqual(PickerStep.Year, node.Step);
     }
 
-    [Fact]
+    [TestMethod]
     public void PageYearsForward_ShiftsBy12()
     {
         var node = new DatePickerNode { YearPageStart = 2020 };
         node.PageYearsForward();
 
-        Assert.Equal(2032, node.YearPageStart);
+        Assert.AreEqual(2032, node.YearPageStart);
     }
 
-    [Fact]
+    [TestMethod]
     public void PageYearsBackward_ShiftsBy12()
     {
         var node = new DatePickerNode { YearPageStart = 2020 };
         node.PageYearsBackward();
 
-        Assert.Equal(2008, node.YearPageStart);
+        Assert.AreEqual(2008, node.YearPageStart);
     }
 
-    [Fact]
+    [TestMethod]
     public void ResetStep_ResetsToYear_CenteredOnSelectedDate()
     {
         var node = new DatePickerNode
@@ -104,11 +105,11 @@ public class DatePickerWidgetTests
 
         node.ResetStep();
 
-        Assert.Equal(PickerStep.Year, node.Step);
-        Assert.Equal(2021, node.YearPageStart); // 2026 - 5
+        Assert.AreEqual(PickerStep.Year, node.Step);
+        Assert.AreEqual(2021, node.YearPageStart); // 2026 - 5
     }
 
-    [Fact]
+    [TestMethod]
     public void ResetStep_NoSelectedDate_CenteredOnCurrentYear()
     {
         var node = new DatePickerNode();
@@ -116,35 +117,35 @@ public class DatePickerWidgetTests
 
         node.ResetStep();
 
-        Assert.Equal(PickerStep.Year, node.Step);
-        Assert.Equal(DateTime.Today.Year - 5, node.YearPageStart);
+        Assert.AreEqual(PickerStep.Year, node.Step);
+        Assert.AreEqual(DateTime.Today.Year - 5, node.YearPageStart);
     }
 
     #endregion
 
     #region Display Text Tests
 
-    [Fact]
+    [TestMethod]
     public void GetDisplayText_NoDate_ReturnsPlaceholder()
     {
         var node = new DatePickerNode();
 
         var text = node.GetDisplayText("Choose date");
 
-        Assert.Equal("Choose date", text);
+        Assert.AreEqual("Choose date", text);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetDisplayText_NoDate_DefaultPlaceholder()
     {
         var node = new DatePickerNode();
 
         var text = node.GetDisplayText(null);
 
-        Assert.Equal("Select date...", text);
+        Assert.AreEqual("Select date...", text);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetDisplayText_WithDate_UsesShortDateByDefault()
     {
         var node = new DatePickerNode
@@ -154,10 +155,10 @@ public class DatePickerWidgetTests
 
         var text = node.GetDisplayText("placeholder");
 
-        Assert.Equal(new DateOnly(2026, 3, 15).ToShortDateString(), text);
+        Assert.AreEqual(new DateOnly(2026, 3, 15).ToShortDateString(), text);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetDisplayText_WithDate_UsesCustomFormat()
     {
         var node = new DatePickerNode
@@ -168,14 +169,14 @@ public class DatePickerWidgetTests
 
         var text = node.GetDisplayText("placeholder");
 
-        Assert.Equal("2026-03-15", text);
+        Assert.AreEqual("2026-03-15", text);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_ShowsPlaceholder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -202,10 +203,10 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Pick a date"));
+        Assert.IsTrue(snapshot.ContainsText("Pick a date"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_OpensYearGrid()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -239,12 +240,12 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText(currentYear.ToString()));
+        Assert.IsTrue(snapshot.ContainsText(currentYear.ToString()));
         // Border title now shows the year range
-        Assert.True(snapshot.ContainsText("–"));
+        Assert.IsTrue(snapshot.ContainsText("–"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_FullFlow_SelectsDate()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -287,10 +288,10 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Single(selectedDates);
+        TestSeq.Single(selectedDates);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_ArrowKeys_NavigateYearGrid()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -330,7 +331,7 @@ public class DatePickerWidgetTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_ArrowKeys_WithSurroundingWidgets()
     {
         // Mirrors CalendarDemo layout: ToggleSwitch + DatePicker
@@ -374,7 +375,7 @@ public class DatePickerWidgetTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_ArrowKeys_DiagnosticRepro()
     {
         // Comprehensive repro: proves arrow key navigation works through the full
@@ -440,17 +441,17 @@ public class DatePickerWidgetTests
         await runTask;
 
         // A date was selected via pure keyboard arrow navigation
-        Assert.Single(selectedDates);
+        TestSeq.Single(selectedDates);
 
         var date = selectedDates[0];
         // Focus starts at currentYear (index 5 in the 12-year grid).
         // Right(2) → index 7, Down(4) → index 11
         var today = DateTime.Today;
         var expectedYear = today.Year - 5 + 11; // YearPageStart + 11 = currentYear + 6
-        Assert.Equal(expectedYear, date.Year);
+        Assert.AreEqual(expectedYear, date.Year);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_YearGrid_EdgeNavigation_PageTransitions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -499,22 +500,19 @@ public class DatePickerWidgetTests
         await runTask;
 
         var captures = sequence.Steps.OfType<CaptureStep>().ToList();
-        var output = TestContext.Current.TestOutputHelper;
+        var output = TestContext.Current;
         foreach (var cap in captures)
         {
             output?.WriteLine($"=== {cap.Name} ===");
             output?.WriteLine(cap.CapturedSnapshot!.GetScreenText());
         }
 
-        Assert.True(captures[0].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"),
-            "Initial should be on first page");
-        Assert.True(captures[1].CapturedSnapshot!.ContainsText($"{prevPageStart}–{prevPageStart + 11}"),
-            $"After page back should show {prevPageStart}–{prevPageStart + 11}");
-        Assert.True(captures[2].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"),
-            "After page forward should be back on first page");
+        Assert.IsTrue(captures[0].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"), "Initial should be on first page");
+        Assert.IsTrue(captures[1].CapturedSnapshot!.ContainsText($"{prevPageStart}–{prevPageStart + 11}"), $"After page back should show {prevPageStart}–{prevPageStart + 11}");
+        Assert.IsTrue(captures[2].CapturedSnapshot!.ContainsText($"{firstPageStart}–{firstPageStart + 11}"), "After page forward should be back on first page");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_YearGrid_LeftEdge_PageBack_FocusesCorrectYear()
     {
         // Regression test: pressing LEFT twice from the current year should page back
@@ -580,12 +578,11 @@ public class DatePickerWidgetTests
 
         // The month grid shows DisplayYear as a label. After selecting the focused year,
         // it should be cy-10 (row 1, col 3 on prev page), NOT cy-13 (row 1, col 0).
-        Assert.True(snapshot.ContainsText(expectedYear.ToString()),
-            $"Month grid should show year {expectedYear} (index 7, col 3), " +
+        Assert.IsTrue(snapshot.ContainsText(expectedYear.ToString()), $"Month grid should show year {expectedYear} (index 7, col 3), " +
             $"not {buggyYear} (index 4, col 0 — stale focus position).");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_YearGrid_RightEdge_PageForward_FocusesCorrectYear()
     {
         // Same issue as left-edge but for RIGHT at col 3 → page forward.
@@ -638,11 +635,10 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText(expectedYear.ToString()),
-            $"Month grid should show year {expectedYear} (row 1, col 0 on next page).");
+        Assert.IsTrue(snapshot.ContainsText(expectedYear.ToString()), $"Month grid should show year {expectedYear} (row 1, col 0 on next page).");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_YearGrid_VerticalNav_ClampsAtEdges()
     {
         // DOWN from the bottom row should NOT escape to the ◀/▶ icon nodes.
@@ -690,11 +686,10 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText(bottomRowYear.ToString()),
-            $"After DOWN twice from row 1, focus should clamp at row 2, col 1 = {bottomRowYear}.");
+        Assert.IsTrue(snapshot.ContainsText(bottomRowYear.ToString()), $"After DOWN twice from row 1, focus should clamp at row 2, col 1 = {bottomRowYear}.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_Escape_DismissesPopup()
     {
         // ESC from year step should dismiss the popup entirely.
@@ -730,11 +725,10 @@ public class DatePickerWidgetTests
         await runTask;
 
         // Popup is gone — trigger button should be visible, year grid border should not
-        Assert.True(snapshot.ContainsText("Select date..."),
-            "Trigger button should be visible after ESC dismisses popup.");
+        Assert.IsTrue(snapshot.ContainsText("Select date..."), "Trigger button should be visible after ESC dismisses popup.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_Escape_DismissesPopup_FromMonthStep()
     {
         // ESC from month step should dismiss the popup entirely (not go back to year).
@@ -771,13 +765,11 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Select date..."),
-            "Trigger button should be visible after ESC from month step.");
-        Assert.False(snapshot.ContainsText("Month"),
-            "Month grid should not be visible after ESC.");
+        Assert.IsTrue(snapshot.ContainsText("Select date..."), "Trigger button should be visible after ESC from month step.");
+        Assert.IsFalse(snapshot.ContainsText("Month"), "Month grid should not be visible after ESC.");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_DatePicker_Backspace_DismissesPopup()
     {
         // Backspace (alternative dismiss key) should also close the popup.
@@ -811,8 +803,7 @@ public class DatePickerWidgetTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Select date..."),
-            "Trigger button should be visible after Backspace dismisses popup.");
+        Assert.IsTrue(snapshot.ContainsText("Select date..."), "Trigger button should be visible after Backspace dismisses popup.");
     }
 
     #endregion

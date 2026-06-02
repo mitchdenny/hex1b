@@ -2,13 +2,14 @@ using Hex1b.Tool.Commands.Terminal;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class AttachTuiAppTests
 {
-    [Theory]
-    [InlineData(true, true, true, true)]
-    [InlineData(true, false, true, false)]
-    [InlineData(true, false, false, true)]
-    [InlineData(false, true, true, false)]
+    [TestMethod]
+    [DataRow(true, true, true, true)]
+    [DataRow(true, false, true, false)]
+    [DataRow(true, false, false, true)]
+    [DataRow(false, true, true, false)]
     public void ShouldSendResizeForDisplayChange_RespectsLeaderAndInitialResize(
         bool isLeader,
         bool initialResizeRequested,
@@ -20,10 +21,10 @@ public class AttachTuiAppTests
             initialResizeRequested,
             isInitialSessionStart);
 
-        Assert.Equal(expected, shouldSend);
+        Assert.AreEqual(expected, shouldSend);
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateResizeTarget_SubtractsAttachChromeFromDisplay()
     {
         var target = AttachTuiApp.CalculateResizeTarget(
@@ -32,19 +33,19 @@ public class AttachTuiAppTests
             remoteWidth: 120,
             remoteHeight: 30);
 
-        Assert.Equal((Width: 78, Height: 20), target);
+        Assert.AreEqual((Width: 78, Height: 20), target);
     }
 
-    [Fact]
+    [TestMethod]
     public void CalculateResizeTarget_UnchangedOrTooSmall_ReturnsNull()
     {
-        Assert.Null(AttachTuiApp.CalculateResizeTarget(
+        Assert.IsNull(AttachTuiApp.CalculateResizeTarget(
             displayWidth: 82,
             displayHeight: 24,
             remoteWidth: 80,
             remoteHeight: 20));
 
-        Assert.Null(AttachTuiApp.CalculateResizeTarget(
+        Assert.IsNull(AttachTuiApp.CalculateResizeTarget(
             displayWidth: 2,
             displayHeight: 4,
             remoteWidth: 80,

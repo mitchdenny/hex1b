@@ -9,11 +9,12 @@ namespace Hex1b.Tests.Hmp1;
 /// self-dispose from a callback (no deadlock), and DisconnectedTask
 /// independence from slow user OnDisconnected handlers.
 /// </summary>
+[TestClass]
 public class Hmp1AsyncCallbackTests
 {
     private static readonly TimeSpan ShortTimeout = TimeSpan.FromSeconds(5);
 
-    [Fact]
+    [TestMethod]
     public async Task OnPeerJoined_Multicast_AllHandlersRunInOrder_EvenWhenFirstThrows()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -54,13 +55,13 @@ public class Hmp1AsyncCallbackTests
 
         lock (calls)
         {
-            Assert.Equal(2, calls.Count);
-            Assert.Equal("first:joiner", calls[0]);
-            Assert.Equal("second:joiner", calls[1]);
+            Assert.AreEqual(2, calls.Count);
+            Assert.AreEqual("first:joiner", calls[0]);
+            Assert.AreEqual("second:joiner", calls[1]);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnRoleChanged_SelfDisposeFromCallback_DoesNotDeadlock()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -91,10 +92,10 @@ public class Hmp1AsyncCallbackTests
         await adapter.RequestPrimaryAsync(100, 30);
 
         var completed = await Task.WhenAny(disposed.Task, Task.Delay(ShortTimeout));
-        Assert.Same(disposed.Task, completed);
+        Assert.AreSame(disposed.Task, completed);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DisconnectedTask_CompletesBeforeSlowOnDisconnectedReturns()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -129,7 +130,7 @@ public class Hmp1AsyncCallbackTests
         // runCallback relies on.
         await handlerEntered.Task.WaitAsync(ShortTimeout);
         await adapter.DisconnectedTask.WaitAsync(ShortTimeout);
-        Assert.False(slowGate.Task.IsCompleted, "Sanity: slow handler is still gated.");
+        Assert.IsFalse(slowGate.Task.IsCompleted, "Sanity: slow handler is still gated.");
 
         // Release the handler and finish disposal.
         slowGate.TrySetResult();
@@ -144,7 +145,7 @@ public class Hmp1AsyncCallbackTests
             if (predicate()) return;
             await Task.Delay(10);
         }
-        throw new Xunit.Sdk.XunitException($"Timed out waiting: {describeFailure()}");
+        throw new AssertFailedException($"Timed out waiting: {describeFailure()}");
     }
 
     private static (Stream S1, Stream S2) CreateFullDuplexPair()

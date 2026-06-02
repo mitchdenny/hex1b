@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Phase 2: Verify paste events reach focused nodes, bubble to ancestors,
 /// and Escape cancellation works.
 /// </summary>
+[TestClass]
 public class PasteRoutingTests
 {
     /// <summary>
@@ -86,7 +87,7 @@ public class PasteRoutingTests
 
     // --- Routing tests ---
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_PasteToFocusedNode()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -96,14 +97,14 @@ public class PasteRoutingTests
         var result = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Single(focused.ReceivedPastes);
+        Assert.AreEqual(InputResult.Handled, result);
+        TestSeq.Single(focused.ReceivedPastes);
         var text = await focused.ReceivedPastes[0].Paste.ReadToEndAsync();
-        Assert.Equal("pasted text", text);
+        Assert.AreEqual("pasted text", text);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_PasteBubblesToAncestor()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -114,15 +115,15 @@ public class PasteRoutingTests
         var result = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
         // Focused got the event first but returned NotHandled
-        Assert.Single(focused.ReceivedPastes);
+        TestSeq.Single(focused.ReceivedPastes);
         // Parent got the event second and handled it
-        Assert.Single(root.ReceivedPastes);
+        TestSeq.Single(root.ReceivedPastes);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_PasteBubblesMultipleLevels()
     {
         // root -> middle -> focused (3 levels)
@@ -144,15 +145,15 @@ public class PasteRoutingTests
         var result = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
         // All three got the event
-        Assert.Single(focused.ReceivedPastes);
-        Assert.Single(middle.ReceivedPastes);
-        Assert.Single(root.ReceivedPastes);
+        TestSeq.Single(focused.ReceivedPastes);
+        TestSeq.Single(middle.ReceivedPastes);
+        TestSeq.Single(root.ReceivedPastes);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_NoPasteHandler_NotHandled()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -163,11 +164,11 @@ public class PasteRoutingTests
         var result = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_PasteWhileNothingFocused()
     {
         // No focused node
@@ -193,7 +194,7 @@ public class PasteRoutingTests
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_HandlePasteAsync_DefaultNotHandled()
     {
         // Verify Hex1bNode base class returns NotHandled by default
@@ -202,11 +203,11 @@ public class PasteRoutingTests
 
         var result = await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_MultiplePastesSequential()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -216,25 +217,25 @@ public class PasteRoutingTests
         var paste1 = CreateTestPasteContext("first");
         var result1 = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste1), focusRing, state);
-        Assert.Equal(InputResult.Handled, result1);
+        Assert.AreEqual(InputResult.Handled, result1);
 
         // Second paste
         var paste2 = CreateTestPasteContext("second");
         var result2 = await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste2), focusRing, state);
-        Assert.Equal(InputResult.Handled, result2);
+        Assert.AreEqual(InputResult.Handled, result2);
 
-        Assert.Equal(2, focused.ReceivedPastes.Count);
+        Assert.AreEqual(2, focused.ReceivedPastes.Count);
         var text1 = await focused.ReceivedPastes[0].Paste.ReadToEndAsync();
         var text2 = await focused.ReceivedPastes[1].Paste.ReadToEndAsync();
-        Assert.Equal("first", text1);
-        Assert.Equal("second", text2);
+        Assert.AreEqual("first", text1);
+        Assert.AreEqual("second", text2);
 
         await paste1.DisposeAsync();
         await paste2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_FocusedNodeHandles_AncestorNotCalled()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -245,12 +246,12 @@ public class PasteRoutingTests
         await InputRouter.RouteInputAsync(
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
-        Assert.Single(focused.ReceivedPastes);
-        Assert.Empty(root.ReceivedPastes); // should NOT have received the event
+        TestSeq.Single(focused.ReceivedPastes);
+        Assert.IsEmpty(root.ReceivedPastes); // should NOT have received the event
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Routing_PasteContext_IsCompleted_AfterRead()
     {
         var (root, focused, focusRing, state) = SetupSimpleTree();
@@ -261,7 +262,7 @@ public class PasteRoutingTests
             root, new Hex1bPasteEvent(paste), focusRing, state);
 
         // The paste was completed at creation (Complete() called)
-        Assert.True(paste.IsCompleted);
+        Assert.IsTrue(paste.IsCompleted);
         await paste.DisposeAsync();
     }
 }

@@ -8,38 +8,39 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Unit tests for CheckboxNode behavior.
 /// </summary>
+[TestClass]
 public class CheckboxNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectSize_NoLabel()
     {
         var node = new CheckboxNode { State = CheckboxState.Unchecked };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
 
         // " ▢ " = 3 display cells, no label
-        Assert.Equal(3, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(3, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectSize_WithLabel()
     {
         var node = new CheckboxNode { State = CheckboxState.Unchecked, Label = "Option" };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
 
         // " ▢ " = 3 cells + " " + "Option" = 3 + 1 + 6 = 10
-        Assert.Equal(10, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(10, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = new CheckboxNode();
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_WhenSet_MarksDirty()
     {
         var node = new CheckboxNode();
@@ -47,10 +48,10 @@ public class CheckboxNodeTests
 
         node.IsFocused = true;
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_Reconcile_CreatesNode()
     {
         var widget = new CheckboxWidget(CheckboxValue.Checked);
@@ -58,11 +59,11 @@ public class CheckboxNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
 
-        Assert.NotNull(node);
-        Assert.Equal(CheckboxValue.Checked, node.State.Value);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(CheckboxValue.Checked, node.State.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_Reconcile_UpdatesState()
     {
         var widget1 = new CheckboxWidget(CheckboxValue.Unchecked);
@@ -70,16 +71,16 @@ public class CheckboxNodeTests
 
         var context = ReconcileContext.CreateRoot();
         var node = await widget1.ReconcileAsync(null, context) as CheckboxNode;
-        Assert.Equal(CheckboxValue.Unchecked, node!.State.Value);
+        Assert.AreEqual(CheckboxValue.Unchecked, node!.State.Value);
 
         node.ClearDirty();
         await widget2.ReconcileAsync(node, context);
 
-        Assert.Equal(CheckboxValue.Checked, node.State.Value);
-        Assert.True(node.IsDirty);
+        Assert.AreEqual(CheckboxValue.Checked, node.State.Value);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_WithLabel_SetsLabel()
     {
         var widget = new CheckboxWidget().Label("Test Label");
@@ -87,29 +88,29 @@ public class CheckboxNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
 
-        Assert.Equal("Test Label", node!.Label);
+        Assert.AreEqual("Test Label", node!.Label);
     }
 
-    [Fact]
+    [TestMethod]
     public void Widget_FluentApi_ChainsCorrectly()
     {
         var widget = new CheckboxWidget()
             .Checked()
             .Label("Option 1");
 
-        Assert.Equal(CheckboxValue.Checked, widget.Value);
-        Assert.Equal("Option 1", widget.LabelText);
+        Assert.AreEqual(CheckboxValue.Checked, widget.Value);
+        Assert.AreEqual("Option 1", widget.LabelText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Widget_Indeterminate_SetsState()
     {
         var widget = new CheckboxWidget().Indeterminate();
 
-        Assert.Equal(CheckboxValue.Indeterminate, widget.Value);
+        Assert.AreEqual(CheckboxValue.Indeterminate, widget.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_HoistedState_RoutesParentInstanceIntoNode()
     {
         // When the parent supplies a CheckboxState via .State(...), the node
@@ -120,11 +121,11 @@ public class CheckboxNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as CheckboxNode;
 
-        Assert.Same(parentState, node!.State);
-        Assert.Equal(CheckboxValue.Checked, parentState.Value);
+        Assert.AreSame(parentState, node!.State);
+        Assert.AreEqual(CheckboxValue.Checked, parentState.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_HoistedState_TogglePropagatesToParent()
     {
         // The framework's Toggle() mutates State.Value in place — so when a
@@ -141,6 +142,6 @@ public class CheckboxNodeTests
             ? CheckboxValue.Unchecked
             : CheckboxValue.Checked;
 
-        Assert.Equal(CheckboxValue.Checked, parentState.Value);
+        Assert.AreEqual(CheckboxValue.Checked, parentState.Value);
     }
 }

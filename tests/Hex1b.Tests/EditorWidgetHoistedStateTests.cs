@@ -10,9 +10,10 @@ namespace Hex1b.Tests;
 /// out-of-band parent mutations, and keeping peer instances isolated. Mirrors
 /// the suite already in place for <see cref="TextBoxWidget"/>.
 /// </summary>
+[TestClass]
 public class EditorWidgetHoistedStateTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_RoutesParentInstanceIntoNode()
     {
         var doc = new Hex1bDocument("hello");
@@ -25,11 +26,11 @@ public class EditorWidgetHoistedStateTests
 
         // The parent's exact state instance must be the one the node uses —
         // not a copy — so subsequent parent mutations are observed.
-        Assert.Same(state, node.State);
-        Assert.Same(doc, node.State.Document);
+        Assert.AreSame(state, node.State);
+        Assert.AreSame(doc, node.State.Document);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PreservedAcrossReconciles()
     {
         var doc = new Hex1bDocument("first");
@@ -39,18 +40,18 @@ public class EditorWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (EditorNode)await new EditorWidget(state).ReconcileAsync(null, context);
-        Assert.Same(state, node.State);
+        Assert.AreSame(state, node.State);
 
         // A new widget instance pointing at the same state must NOT replace
         // the state instance on the node.
         context.IsNew = false;
         var node2 = (EditorNode)await new EditorWidget(state).ReconcileAsync(node, context);
 
-        Assert.Same(node, node2);
-        Assert.Same(state, node2.State);
+        Assert.AreSame(node, node2);
+        Assert.AreSame(state, node2.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_ParentMutationVisibleAfterReconcile()
     {
         var doc = new Hex1bDocument("hello");
@@ -60,7 +61,7 @@ public class EditorWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (EditorNode)await new EditorWidget(state).ReconcileAsync(null, context);
-        Assert.Equal("hello", node.State.Document.GetText());
+        Assert.AreEqual("hello", node.State.Document.GetText());
 
         // Parent mutates the document content from outside the widget tree,
         // then reconciles. The node should observe the new text since it
@@ -71,11 +72,11 @@ public class EditorWidgetHoistedStateTests
         context.IsNew = false;
         await new EditorWidget(state).ReconcileAsync(node, context);
 
-        Assert.Equal("hello world", node.State.Document.GetText());
-        Assert.Same(doc, node.State.Document);
+        Assert.AreEqual("hello world", node.State.Document.GetText());
+        Assert.AreSame(doc, node.State.Document);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PeerInstancesAreIndependent()
     {
         var stateA = new EditorState(new Hex1bDocument("alpha"));
@@ -93,12 +94,12 @@ public class EditorWidgetHoistedStateTests
         stateA.Cursor.Position = new DocumentOffset(5);
         stateA.InsertText("-mutated");
 
-        Assert.Equal("alpha-mutated", nodeA.State.Document.GetText());
-        Assert.Equal("beta", nodeB.State.Document.GetText());
-        Assert.NotSame(nodeA.State, nodeB.State);
+        Assert.AreEqual("alpha-mutated", nodeA.State.Document.GetText());
+        Assert.AreEqual("beta", nodeB.State.Document.GetText());
+        Assert.AreNotSame(nodeA.State, nodeB.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_FluentState_OverridesCtorState()
     {
         // The fluent .State(...) overload is the IStatefulWidget contract
@@ -114,7 +115,7 @@ public class EditorWidgetHoistedStateTests
         context.IsNew = true;
         var node = (EditorNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(hoistedState, node.State);
-        Assert.Equal("from-hoist", node.State.Document.GetText());
+        Assert.AreSame(hoistedState, node.State);
+        Assert.AreEqual("from-hoist", node.State.Document.GetText());
     }
 }

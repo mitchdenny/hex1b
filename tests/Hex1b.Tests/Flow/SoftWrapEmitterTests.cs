@@ -9,18 +9,19 @@ namespace Hex1b.Tests.Flow;
 /// shape of the output so the host terminal can soft-wrap and scroll
 /// tombstoned content naturally on resize.
 /// </summary>
+[TestClass]
 public class SoftWrapEmitterTests
 {
-    [Fact]
+    [TestMethod]
     public void Format_ZeroHeightSurface_RejectedByCtor()
     {
         // Surface requires a non-zero height; SoftWrapEmitter is therefore
         // never invoked on an empty surface in practice. Document the
         // boundary so we don't accidentally start passing zero in the runner.
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(10, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Surface(10, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_AllRowsBlank_EmitsClearLinePerRow_AndCrLfBetweenRows()
     {
         var surface = new Surface(20, 3);
@@ -30,16 +31,14 @@ public class SoftWrapEmitterTests
         // Preamble + (ESC[K + CR + LF) for rows 0..n-2 + ESC[K for the last row + epilogue.
         // The last row deliberately omits the CR + LF so emitting at the bottom
         // of the viewport does not scroll the screen.
-        Assert.Equal(
-            "\x1b[?25l\x1b[?7h" +
+        Assert.AreEqual("\x1b[?25l\x1b[?7h" +
             "\x1b[K\r\n" +
             "\x1b[K\r\n" +
             "\x1b[K" +
-            "\x1b[?25h",
-            output);
+            "\x1b[?25h", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_PlainTextRow_EmitsCharactersThenClearLine()
     {
         var surface = new Surface(20, 1);
@@ -56,7 +55,7 @@ public class SoftWrapEmitterTests
         Assert.EndsWith("\x1b[?25h", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_PlainTextRow_DoesNotEmitTrailingBlanksAsCharacters()
     {
         var surface = new Surface(20, 1);
@@ -71,7 +70,7 @@ public class SoftWrapEmitterTests
         Assert.DoesNotContain("hi  ", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_RowWithLeadingBlanks_EmitsSpacesUpToContent()
     {
         // Leading blanks must be preserved as actual spaces because we can't
@@ -84,7 +83,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("   x\x1b[K", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_RowWithForegroundColor_EmitsSgrResetThenColor()
     {
         var surface = new Surface(10, 1);
@@ -98,7 +97,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("X\x1b[0m\x1b[K", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_MultipleColorsInRow_GroupsConsecutiveCellsIntoRuns()
     {
         var surface = new Surface(10, 1);
@@ -113,7 +112,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("\x1b[0;31mAB\x1b[32mCD", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_BackgroundColor_ResetBeforeClearLineSoCellsDontInherit()
     {
         var surface = new Surface(5, 1);
@@ -127,7 +126,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("\x1b[0m\x1b[K", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_WideCharacter_EmitsGraphemeOnceAndSkipsContinuation()
     {
         var surface = new Surface(10, 1);
@@ -142,7 +141,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("漢A\x1b[K", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_StartsWithCursorHide_EndsWithCursorShow()
     {
         var surface = new Surface(10, 2);
@@ -155,7 +154,7 @@ public class SoftWrapEmitterTests
         Assert.EndsWith("\x1b[?25h", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_EmitsAutowrapEnableInPreamble()
     {
         var surface = new Surface(5, 1);
@@ -169,10 +168,10 @@ public class SoftWrapEmitterTests
         // The hint comes before any row content.
         var awmIdx = output.IndexOf("\x1b[?7h", StringComparison.Ordinal);
         var firstA = output.IndexOf('a');
-        Assert.True(awmIdx < firstA);
+        Assert.IsTrue(awmIdx < firstA);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_MultiRow_EmitsCrLfBetweenRowsButNotAfterLast()
     {
         var surface = new Surface(8, 4);
@@ -185,8 +184,8 @@ public class SoftWrapEmitterTests
 
         // CR + LF between rows: 3 of them for a 4-row surface (rows 0, 1, 2 end
         // with CR + LF; row 3 — the last row — ends with just ESC[K).
-        Assert.Equal(3, output.Count(c => c == '\n'));
-        Assert.Equal(3, output.Count(c => c == '\r'));
+        Assert.AreEqual(3, output.Count(c => c == '\n'));
+        Assert.AreEqual(3, output.Count(c => c == '\r'));
 
         // Rows 0, 1, 2 each terminate with ESC[K + CR + LF.
         Assert.Contains("r0\x1b[K\r\n", output);
@@ -200,7 +199,7 @@ public class SoftWrapEmitterTests
         Assert.DoesNotContain("r3\x1b[K\n", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_MultiRow_EmitsCarriageReturnBeforeLineFeed_SoNextRowStartsAtColumnZero()
     {
         // Regression: in raw output mode a bare LF only moves the cursor down
@@ -220,7 +219,7 @@ public class SoftWrapEmitterTests
         Assert.DoesNotContain("abc\x1b[K\n", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_BoldAttribute_EmittedAsSgr1()
     {
         var surface = new Surface(5, 1);
@@ -231,7 +230,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("\x1b[0;1mB", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void Format_RowWithOnlyBlanks_BetweenContentRows_StillCleared()
     {
         var surface = new Surface(8, 3);
@@ -247,7 +246,7 @@ public class SoftWrapEmitterTests
         Assert.Contains("bottom\x1b[K", output);
         Assert.DoesNotContain("bottom\x1b[K\r\n", output);
         // Two line feeds total: one between rows 0/1, one between rows 1/2.
-        Assert.Equal(2, output.Count(c => c == '\n'));
-        Assert.Equal(2, output.Count(c => c == '\r'));
+        Assert.AreEqual(2, output.Count(c => c == '\n'));
+        Assert.AreEqual(2, output.Count(c => c == '\r'));
     }
 }

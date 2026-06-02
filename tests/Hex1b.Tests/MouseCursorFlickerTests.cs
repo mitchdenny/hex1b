@@ -19,6 +19,7 @@ namespace Hex1b.Tests;
 /// between <c>?2026h</c> and <c>?2026l</c> and paint atomically; non-supporting
 /// terminals ignore the sequences.
 /// </summary>
+[TestClass]
 public class MouseCursorFlickerTests
 {
     /// <summary>
@@ -68,7 +69,7 @@ public class MouseCursorFlickerTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderFrame_WithMouseEnabled_WrapsHideShowInSynchronizedUpdate()
     {
         var recorder = new CursorTokenRecorder();
@@ -121,9 +122,9 @@ public class MouseCursorFlickerTests
             var begin = tokens.Select((t, i) => (t, i)).FirstOrDefault(x => x.t.Mode == 2026 && x.t.Enable);
             var end = tokens.Select((t, i) => (t, i)).LastOrDefault(x => x.t.Mode == 2026 && !x.t.Enable);
 
-            Assert.NotNull(begin.t);
-            Assert.NotNull(end.t);
-            Assert.True(begin.i < end.i, "Begin sync-update token must precede end token.");
+            Assert.IsNotNull(begin.t);
+            Assert.IsNotNull(end.t);
+            Assert.IsTrue(begin.i < end.i, "Begin sync-update token must precede end token.");
 
             // Every hide/show cursor token between begin and end must lie inside
             // the synchronized region — that is what makes the hide → cells →
@@ -131,9 +132,7 @@ public class MouseCursorFlickerTests
             for (var i = 0; i < tokens.Count; i++)
             {
                 if (tokens[i].Mode != 25) continue;
-                Assert.True(
-                    i > begin.i && i < end.i,
-                    $"Cursor visibility token at index {i} (Enable={tokens[i].Enable}) must be inside the synchronized-update region [{begin.i}..{end.i}], not outside it.");
+                Assert.IsTrue(i > begin.i && i < end.i, $"Cursor visibility token at index {i} (Enable={tokens[i].Enable}) must be inside the synchronized-update region [{begin.i}..{end.i}], not outside it.");
             }
         }
         finally
@@ -146,7 +145,7 @@ public class MouseCursorFlickerTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderFrame_SynchronizedUpdate_BeginAndEndAreBalanced()
     {
         var recorder = new CursorTokenRecorder();
@@ -193,8 +192,8 @@ public class MouseCursorFlickerTests
 
             // Each render frame must emit a balanced begin/end pair so the
             // terminal never gets stuck buffering output indefinitely.
-            Assert.Equal(beginCount, endCount);
-            Assert.True(beginCount >= 3, $"Expected at least 3 sync-update frames, got {beginCount}.");
+            Assert.AreEqual(beginCount, endCount);
+            Assert.IsTrue(beginCount >= 3, $"Expected at least 3 sync-update frames, got {beginCount}.");
         }
         finally
         {

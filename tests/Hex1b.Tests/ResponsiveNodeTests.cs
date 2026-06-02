@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for ResponsiveNode layout, rendering, and condition evaluation.
 /// </summary>
+[TestClass]
 public class ResponsiveNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
@@ -15,7 +16,7 @@ public class ResponsiveNodeTests
         return new Hex1bRenderContext(workload);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_FirstMatchingCondition_ReturnsChildSize()
     {
         var node = new ResponsiveNode
@@ -35,12 +36,12 @@ public class ResponsiveNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Should measure the "Visible" text (7 chars)
-        Assert.Equal(7, size.Width);
-        Assert.Equal(1, size.Height);
-        Assert.Equal(1, node.ActiveBranchIndex);
+        Assert.AreEqual(7, size.Width);
+        Assert.AreEqual(1, size.Height);
+        Assert.AreEqual(1, node.ActiveBranchIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_FirstConditionTrue_SelectsFirst()
     {
         var node = new ResponsiveNode
@@ -59,11 +60,11 @@ public class ResponsiveNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(5, size.Width); // "First"
-        Assert.Equal(0, node.ActiveBranchIndex);
+        Assert.AreEqual(5, size.Width); // "First"
+        Assert.AreEqual(0, node.ActiveBranchIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_NoMatchingCondition_ReturnsZero()
     {
         var node = new ResponsiveNode
@@ -82,12 +83,12 @@ public class ResponsiveNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
-        Assert.Equal(-1, node.ActiveBranchIndex);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
+        Assert.AreEqual(-1, node.ActiveBranchIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyBranches_ReturnsZero()
     {
         var node = new ResponsiveNode
@@ -98,12 +99,12 @@ public class ResponsiveNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
-        Assert.Equal(-1, node.ActiveBranchIndex);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
+        Assert.AreEqual(-1, node.ActiveBranchIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsConstraints()
     {
         var node = new ResponsiveNode
@@ -120,11 +121,11 @@ public class ResponsiveNodeTests
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
-        Assert.True(size.Width <= 10);
-        Assert.True(size.Height <= 5);
+        Assert.IsTrue(size.Width <= 10);
+        Assert.IsTrue(size.Height <= 5);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_ActiveChildGetsFullBounds()
     {
         var child1 = new TextBlockNode { Text = "Hidden" };
@@ -144,11 +145,11 @@ public class ResponsiveNodeTests
         node.Arrange(bounds);
 
         // Only the active child should have bounds set
-        Assert.Equal(bounds, child2.Bounds);
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, child2.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_OnlyRendersActiveChild()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -183,7 +184,7 @@ public class ResponsiveNodeTests
         Assert.DoesNotContain("Hidden", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NoMatchingCondition_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -214,7 +215,7 @@ public class ResponsiveNodeTests
         Assert.DoesNotContain("Hidden", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ConditionReceivesAvailableSize()
     {
         int receivedWidth = 0;
@@ -233,11 +234,11 @@ public class ResponsiveNodeTests
 
         node.Measure(new Constraints(0, 100, 0, 50));
 
-        Assert.Equal(100, receivedWidth);
-        Assert.Equal(50, receivedHeight);
+        Assert.AreEqual(100, receivedWidth);
+        Assert.AreEqual(50, receivedHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WidthBasedCondition_SelectsCorrectBranch()
     {
         var node = new ResponsiveNode
@@ -258,18 +259,18 @@ public class ResponsiveNodeTests
 
         // Wide layout
         node.Measure(new Constraints(0, 120, 0, 30));
-        Assert.Equal(0, node.ActiveBranchIndex);
+        Assert.AreEqual(0, node.ActiveBranchIndex);
 
         // Medium layout
         node.Measure(new Constraints(0, 80, 0, 30));
-        Assert.Equal(1, node.ActiveBranchIndex);
+        Assert.AreEqual(1, node.ActiveBranchIndex);
 
         // Narrow layout
         node.Measure(new Constraints(0, 40, 0, 30));
-        Assert.Equal(2, node.ActiveBranchIndex);
+        Assert.AreEqual(2, node.ActiveBranchIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_ReturnsOnlyActiveChildFocusables()
     {
         var button1 = new ButtonNode { Label = "Hidden" };
@@ -289,12 +290,12 @@ public class ResponsiveNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
+        TestSeq.Single(focusables);
         Assert.Contains(button2, focusables);
         Assert.DoesNotContain(button1, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_NoMatchingCondition_ReturnsEmpty()
     {
         var button = new ButtonNode { Label = "Hidden" };
@@ -310,10 +311,10 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Unbounded);
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PassesToActiveChild()
     {
         var clicked = false;
@@ -342,11 +343,11 @@ public class ResponsiveNodeTests
         // Use InputRouter to route input to the focused child
         var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NoActiveChild_ReturnsFalse()
     {
         var node = new ResponsiveNode
@@ -364,18 +365,18 @@ public class ResponsiveNodeTests
         node.Measure(Constraints.Unbounded);
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsFalse()
     {
         var node = new ResponsiveNode();
 
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ActiveChild_ReturnsCorrectNode()
     {
         var child1 = new TextBlockNode { Text = "First" };
@@ -392,10 +393,10 @@ public class ResponsiveNodeTests
 
         node.Measure(Constraints.Unbounded);
 
-        Assert.Same(child2, node.ActiveChild);
+        Assert.AreSame(child2, node.ActiveChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ActiveChild_NoMatch_ReturnsNull()
     {
         var node = new ResponsiveNode
@@ -412,10 +413,10 @@ public class ResponsiveNodeTests
 
         node.Measure(Constraints.Unbounded);
 
-        Assert.Null(node.ActiveChild);
+        Assert.IsNull(node.ActiveChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NestedResponsive_WorksCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -459,7 +460,7 @@ public class ResponsiveNodeTests
         Assert.Contains("Inner", snapshot.GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Responsive_WithOtherwiseFallback_ShowsFallback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -496,7 +497,7 @@ public class ResponsiveNodeTests
 
     #region Integration Tests with Fluent API
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WideLayout_ShowsWideContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -522,11 +523,11 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Wide View: Full Details"));
-        Assert.False(snapshot.ContainsText("Compact"));
+        Assert.IsTrue(snapshot.ContainsText("Wide View: Full Details"));
+        Assert.IsFalse(snapshot.ContainsText("Compact"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_NarrowLayout_ShowsNarrowContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -552,11 +553,11 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Compact View"));
-        Assert.False(snapshot.ContainsText("Wide View"));
+        Assert.IsTrue(snapshot.ContainsText("Compact View"));
+        Assert.IsFalse(snapshot.ContainsText("Wide View"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_ThreeTiers_SelectsCorrectTier()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -584,12 +585,12 @@ public class ResponsiveNodeTests
         await runTask;
 
         // 75 width should match Medium tier
-        Assert.True(snapshot.ContainsText("Medium"));
-        Assert.False(snapshot.ContainsText("Large"));
-        Assert.False(snapshot.ContainsText("Small"));
+        Assert.IsTrue(snapshot.ContainsText("Medium"));
+        Assert.IsFalse(snapshot.ContainsText("Large"));
+        Assert.IsFalse(snapshot.ContainsText("Small"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WhenWidth_ConditionWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -616,11 +617,11 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Wide"));
-        Assert.False(snapshot.ContainsText("Very Wide"));
+        Assert.IsTrue(snapshot.ContainsText("Wide"));
+        Assert.IsFalse(snapshot.ContainsText("Very Wide"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WithFullCondition_UsesWidthAndHeight()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -646,10 +647,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Large Screen"));
+        Assert.IsTrue(snapshot.ContainsText("Large Screen"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_InsideBorder_ReceivesConstrainedSize()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -678,11 +679,11 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Border takes 2 columns, so inner space is 48, which is < 100
-        Assert.True(snapshot.ContainsText("Narrow"));
-        Assert.True(snapshot.ContainsText("Container"));
+        Assert.IsTrue(snapshot.ContainsText("Narrow"));
+        Assert.IsTrue(snapshot.ContainsText("Container"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WithFocusableChildren_FocusWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -710,10 +711,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WithTextBox_InputWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -742,10 +743,10 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Responsive input", text);
+        Assert.AreEqual("Responsive input", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_InVStack_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -775,12 +776,12 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Header"));
-        Assert.True(snapshot.ContainsText("Wide Content"));
-        Assert.True(snapshot.ContainsText("Footer"));
+        Assert.IsTrue(snapshot.ContainsText("Header"));
+        Assert.IsTrue(snapshot.ContainsText("Wide Content"));
+        Assert.IsTrue(snapshot.ContainsText("Footer"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_NoMatchingConditions_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -807,11 +808,11 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(terminal.CreateSnapshot().ContainsText("Very Wide"));
-        Assert.False(terminal.CreateSnapshot().ContainsText("Wide"));
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Very Wide"));
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Wide"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WithList_NavigationWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -841,10 +842,10 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Verify second item is selected via rendered output
-        Assert.True(snapshot.ContainsText("> Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_DifferentLayoutsForDifferentWidgets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -881,11 +882,11 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Wide layout uses HStack
-        Assert.True(snapshot.ContainsText("Left Panel"));
-        Assert.True(snapshot.ContainsText("Right Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Left Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Right Panel"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_NarrowFallsBackToVStack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -922,11 +923,11 @@ public class ResponsiveNodeTests
         await runTask;
 
         // Narrow layout uses VStack
-        Assert.True(snapshot.ContainsText("Top Panel"));
-        Assert.True(snapshot.ContainsText("Bottom Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Top Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Bottom Panel"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_InSplitter_WorksCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -956,11 +957,11 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Wide Left"));
-        Assert.True(snapshot.ContainsText("Right Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Wide Left"));
+        Assert.IsTrue(snapshot.ContainsText("Right Panel"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Responsive_WithState_AccessesStateCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -986,7 +987,7 @@ public class ResponsiveNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Hello from state"));
+        Assert.IsTrue(snapshot.ContainsText("Hello from state"));
     }
 
     #endregion

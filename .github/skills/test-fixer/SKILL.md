@@ -5,7 +5,7 @@ description: Agent for diagnosing and fixing flaky terminal UI tests in the Hex1
 
 # Test Fixer Skill
 
-This skill provides guidelines for AI agents to diagnose and fix flaky tests in the Hex1b TUI library test suite. These tests use `Hex1bTerminalInputSequenceBuilder` to simulate user interactions with terminal applications.
+This skill provides guidelines for AI agents to diagnose and fix flaky tests in the Hex1b TUI library test suite. These tests use MSTest 4 (`MSTest.Sdk/4.2.3`, `OutputType=Exe`) with Microsoft.Testing.Platform and `Hex1bTerminalInputSequenceBuilder` to simulate user interactions with terminal applications. `global.json` configures `dotnet test` to use MTP, and test projects can also be run as executables with `dotnet run --project tests/SomeProject/`.
 
 ## Quick Reference: Common Flaky Test Patterns
 
@@ -16,7 +16,7 @@ This skill provides guidelines for AI agents to diagnose and fix flaky tests in 
 | [Race with Ctrl+C](#pattern-3-race-condition-with-ctrlc) | Snapshot missing expected content | Add `WaitUntil` between last action and `Capture` |
 | [Task.WhenAny Race](#pattern-4-taskwhenany-race-condition) | Test sometimes times out | Replace with proper `WaitUntil` or increase timeout |
 | [Test Interference](#pattern-5-test-interference) | Pass isolated, fail in suite | Check for shared state, file locks, or parallel execution issues |
-| [Platform-Specific](#pattern-6-platform-specific-failures) | Fails consistently on Windows/Linux | Add platform skip trait or fix platform-specific code |
+| [Platform-Specific](#pattern-6-platform-specific-failures) | Fails consistently on Windows/Linux | Add `TestCategory`/`Ignore` or fix platform-specific code |
 | [Task.Delay for Async Events](#pattern-7-taskdelay-for-async-events) | Flaky on slower CI runners | Replace `Task.Delay` with `TaskCompletionSource` signal |
 | [Helper Partial Wait](#pattern-8-test-helper-partial-wait) | Tests using multi-line helpers fail intermittently | Wait for all/last content, not just first line |
 
@@ -30,7 +30,7 @@ This skill provides guidelines for AI agents to diagnose and fix flaky tests in 
 - Test passes consistently on Windows
 - Test fails on Linux CI (GitHub Actions ubuntu-latest)
 - Assertion fails with content that "should" be there
-- Error messages like `Assert.True() Failure` or `An item should be selected with indicator`
+- Error messages like `Assert.IsTrue failed` or `An item should be selected with indicator`
 
 #### Root Cause
 
@@ -49,7 +49,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Build()
     .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 // snapshot is from AFTER Ctrl+C, not from Capture step!
-Assert.True(snapshot.ContainsText("Counter: 3")); // May fail on Linux!
+Assert.IsTrue(snapshot.ContainsText("Counter: 3")); // May fail on Linux!
 ```
 
 #### How It Works
@@ -77,7 +77,7 @@ await runTask;
 
 // If the WaitUntil passed, we know the content was there at Capture time
 // The assertion is now checking what WaitUntil already verified
-Assert.True(snapshot.ContainsText("Counter: 3"));
+Assert.IsTrue(snapshot.ContainsText("Counter: 3"));
 ```
 
 **Option B: Don't use snapshot for content assertions**
@@ -95,7 +95,7 @@ await new Hex1bTerminalInputSequenceBuilder()
 await runTask;
 
 // Assert on counters/state captured during execution, not snapshot content
-Assert.Equal(1, staticRenderCount);
+Assert.AreEqual(1, staticRenderCount);
 ```
 
 **Option C: Use WaitUntil as the assertion itself**
@@ -135,7 +135,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Ctrl().Key(Hex1bKey.C)
     .Build()
     .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-Assert.True(snapshot.ContainsText("> Second")); // Flaky!
+Assert.IsTrue(snapshot.ContainsText("> Second")); // Flaky!
 ```
 
 #### Fix
@@ -150,7 +150,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Ctrl().Key(Hex1bKey.C)
     .Build()
     .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-Assert.True(snapshot.ContainsText("> Second")); // Reliable
+Assert.IsTrue(snapshot.ContainsText("> Second")); // Reliable
 ```
 
 ---
@@ -177,7 +177,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Ctrl().Key(Hex1bKey.C)  // May interrupt scroll processing!
     .Build()
     .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-Assert.True(snapshot.ContainsText("> Item 06")); // Flaky!
+Assert.IsTrue(snapshot.ContainsText("> Item 06")); // Flaky!
 ```
 
 #### Fix
@@ -192,7 +192,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Ctrl().Key(Hex1bKey.C)
     .Build()
     .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-Assert.True(snapshot.ContainsText("> Item 06")); // Reliable
+Assert.IsTrue(snapshot.ContainsText("> Item 06")); // Reliable
 ```
 
 ---
@@ -247,8 +247,8 @@ gh run view <run-id> --log-failed
 
 # Look for test names and error messages
 # Common patterns:
-# - Assert.True() Failure
-# - Expected: True / Actual: False
+# - Assert.IsTrue failed
+# - Expected:<True> or equivalent / Actual:<False>
 # - "An item should be selected with indicator"
 ```
 
@@ -274,7 +274,7 @@ Look for these anti-patterns:
 .Capture("final")
 .Ctrl().Key(Hex1bKey.C)
 // ... later ...
-Assert.True(snapshot.ContainsText("expected"));  // ❌
+Assert.IsTrue(snapshot.ContainsText("expected"));  // ❌
 
 // Anti-pattern 2: Action without WaitUntil before Capture
 .Down()
@@ -300,7 +300,7 @@ Assert.True(snapshot.ContainsText("expected"));  // ❌
 ### Pattern A: Full Integration Test with Exit
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task Navigation_DownArrow_SelectsNextItem()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -329,14 +329,14 @@ public async Task Navigation_DownArrow_SelectsNextItem()
     await runTask;
     
     // This assertion is technically redundant since WaitUntil verified it
-    Assert.True(snapshot.ContainsText("> Second"));
+    Assert.IsTrue(snapshot.ContainsText("> Second"));
 }
 ```
 
 ### Pattern B: Render Count Test (No Snapshot Assertions)
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task StaticWidget_OnlyRendersOnce()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -366,14 +366,14 @@ public async Task StaticWidget_OnlyRendersOnce()
     await runTask;
     
     // Assert on counter, not snapshot content
-    Assert.Equal(1, renderCount);
+    Assert.AreEqual(1, renderCount);
 }
 ```
 
 ### Pattern C: Unit Test Without App Exit
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task Render_AllItems_AreVisible()
 {
     using var workload = new Hex1bAppWorkloadAdapter();
@@ -398,9 +398,9 @@ public async Task Render_AllItems_AreVisible()
         .Build()
         .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
     
-    Assert.True(snapshot.ContainsText("Item 1"));
-    Assert.True(snapshot.ContainsText("Item 2"));
-    Assert.True(snapshot.ContainsText("Item 3"));
+    Assert.IsTrue(snapshot.ContainsText("Item 1"));
+    Assert.IsTrue(snapshot.ContainsText("Item 2"));
+    Assert.IsTrue(snapshot.ContainsText("Item 3"));
 }
 ```
 
@@ -431,7 +431,7 @@ await new Hex1bTerminalInputSequenceBuilder()
     .ApplyAsync(terminal);
 
 var completed = await Task.WhenAny(runTask, Task.Delay(2000));
-Assert.True(completed == runTask, "Expected CTRL-C to exit");  // Flaky!
+Assert.IsTrue(completed == runTask, "Expected CTRL-C to exit");  // Flaky!
 ```
 
 #### Fix
@@ -482,7 +482,7 @@ dotnet test --filter "FullyQualifiedName~TestName|FullyQualifiedName~OtherTest" 
 1. **Use unique temp paths** - Include test name or GUID in temp file paths
 2. **Properly dispose resources** - Ensure `using` statements on terminals/workloads
 3. **Avoid static state** - Use instance fields or dependency injection
-4. **Add xUnit collection** - Force sequential execution for conflicting tests
+4. **Add `[DoNotParallelize]` on the test class** - tests parallelize by default, and this forces sequential execution for conflicting tests
 
 ```csharp
 // Use unique temp file names
@@ -510,12 +510,12 @@ var tempPath = Path.Combine(Path.GetTempPath(), $"hex1b_{nameof(MyTestMethod)}.c
 | File locking | Strict | Flexible |
 | Path separators | `\` | `/` |
 
-#### Fix: Add Platform Skip Trait
+#### Fix: Add Platform Skip Category or Ignore
 
 ```csharp
 // Skip on Windows - PTY tests require Unix
-[Fact]
-[Trait("Category", "LinuxOnly")]
+[TestMethod]
+[TestCategory("LinuxOnly")]
 public async Task WithPtyProcess_ExecutesProcess()
 {
     if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
@@ -526,19 +526,26 @@ public async Task WithPtyProcess_ExecutesProcess()
     // ... test code
 }
 
-// Or use Skip property
-[Fact(Skip = "Requires Unix PTY support")]
+// Or use Ignore attribute
+[TestMethod]
+[Ignore("Requires Unix PTY support")]
 public async Task PtyTest() { }
 
-// Or conditional skip with xUnit
-public class LinuxOnlyFactAttribute : FactAttribute
+// Or conditional skip with MSTest
+public sealed class LinuxOnlyTestMethodAttribute : TestMethodAttribute
 {
-    public LinuxOnlyFactAttribute()
+    public override async Task<TestResult[]> ExecuteAsync(ITestMethod testMethod)
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
-            Skip = "This test requires Linux";
+            return [new TestResult
+            {
+                Outcome = UnitTestOutcome.Inconclusive,
+                TestFailureException = new AssertInconclusiveException("This test requires Linux")
+            }];
         }
+
+        return await base.ExecuteAsync(testMethod);
     }
 }
 ```
@@ -598,7 +605,7 @@ await new Hex1bTerminalInputSequenceBuilder()
 
 await Task.Delay(100);  // ❌ Fixed delay - may not be long enough!
 
-Assert.True(bindingFired);  // Flaky!
+Assert.IsTrue(bindingFired);  // Flaky!
 ```
 
 #### Fix
@@ -638,7 +645,7 @@ await new Hex1bTerminalInputSequenceBuilder()
 await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
 // If we got here, the binding fired (the wait would have timed out otherwise)
-Assert.True(bindingFired.Task.IsCompleted);  // Reliable
+Assert.IsTrue(bindingFired.Task.IsCompleted);  // Reliable
 ```
 
 #### Key Points
@@ -738,5 +745,5 @@ Before committing test changes, verify:
 - [ ] No `Task.WhenAny` race conditions - use `WaitAsync` instead
 - [ ] No `Task.Delay` for async events - use `TaskCompletionSource` instead
 - [ ] Test passes both in isolation and in full suite
-- [ ] Platform-specific tests have appropriate skip traits
+- [ ] Platform-specific tests have appropriate `TestCategory`, `Ignore`, or conditional `TestMethodAttribute` handling
 - [ ] Test helpers writing multiple lines wait for all/last content

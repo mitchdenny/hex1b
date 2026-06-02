@@ -10,6 +10,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class HexEditorSelectionTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -85,11 +86,11 @@ public class HexEditorSelectionTests
     // SECTION 1: Click cursor positioning — single byte selection
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
-    [InlineData(3)]
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
+    [DataRow(3)]
     public async Task Click_OnHexByte_PositionsCursorOnThatByte(int byteIndex)
     {
         // "ABCD" = 41 42 43 44 (all single-byte ASCII)
@@ -109,11 +110,11 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(byteIndex, state.ByteCursorOffset);
-        Assert.Equal(byteIndex, state.Cursor.Position.Value); // ASCII = 1 byte per char
+        Assert.AreEqual(byteIndex, state.ByteCursorOffset);
+        Assert.AreEqual(byteIndex, state.Cursor.Position.Value); // ASCII = 1 byte per char
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_OnAsciiColumn_PositionsCursorOnCorrectByte()
     {
         // "ABCD" = 41 42 43 44, click on ASCII column for byte 2
@@ -137,17 +138,17 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, state.ByteCursorOffset);
+        Assert.AreEqual(2, state.ByteCursorOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 2: Click on multi-byte characters — byte-level precision
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(0, 0)] // First byte of "é" (C3) → byte 0
-    [InlineData(1, 1)] // Second byte of "é" (A9) → byte 1
-    [InlineData(2, 2)] // "B" (42) → byte 2
+    [TestMethod]
+    [DataRow(0, 0)] // First byte of "é" (C3) → byte 0
+    [DataRow(1, 1)] // Second byte of "é" (A9) → byte 1
+    [DataRow(2, 2)] // "B" (42) → byte 2
     public async Task Click_OnMultiByteContent_SelectsCorrectByte(int byteIndex, int expectedByteOffset)
     {
         // "éB" = C3 A9 42 (3 bytes, 2 chars)
@@ -171,14 +172,14 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(expectedByteOffset, state.ByteCursorOffset);
+        Assert.AreEqual(expectedByteOffset, state.ByteCursorOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 3: Arrow key navigation — byte-level movement
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task ArrowRight_MovesOneByteAtATime_ThroughMultiByte()
     {
         // "é" = C3 A9 (2 bytes)
@@ -208,10 +209,10 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ArrowLeft_MovesOneByteAtATime_ThroughMultiByte()
     {
         // "éB" = C3 A9 42 (3 bytes)
@@ -241,7 +242,7 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.ByteCursorOffset);
 
         // Left arrow to byte 0 (C3)
         var cursorAtByte0 = new CellPatternSearcher()
@@ -255,14 +256,14 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, state.ByteCursorOffset);
+        Assert.AreEqual(0, state.ByteCursorOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 4: Shift+Arrow selection — byte-level selection
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftRight_SelectsOneByteAtATime()
     {
         // "ABCD" = 41 42 43 44
@@ -292,11 +293,11 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(1, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftRight_MultiByte_MovesByteAndTracksOffset()
     {
         // "éB" = C3 A9 42 (3 bytes, 2 chars)
@@ -324,7 +325,7 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.ByteCursorOffset);
 
         // Shift+Right again — byte 2 = char 1 ('B'), now crosses char boundary = char-level selection
         await new Hex1bTerminalInputSequenceBuilder()
@@ -334,15 +335,15 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, state.ByteCursorOffset);
-        Assert.True(state.Cursor.HasSelection, "selection should exist after crossing char boundary");
+        Assert.AreEqual(2, state.ByteCursorOffset);
+        Assert.IsTrue(state.Cursor.HasSelection, "selection should exist after crossing char boundary");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 5: Click after navigation — ByteCursorOffset updates
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task Click_AfterArrowNavigation_UpdatesByteCursorOffset()
     {
         // "ABCD" = 41 42 43 44
@@ -375,17 +376,17 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.ByteCursorOffset);
+        Assert.AreEqual(1, state.ByteCursorOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 6: Invalid byte content — click and navigate
     // ═══════════════════════════════════════════════════════════
 
-    [Theory]
-    [InlineData(0)]
-    [InlineData(1)]
-    [InlineData(2)]
+    [TestMethod]
+    [DataRow(0)]
+    [DataRow(1)]
+    [DataRow(2)]
     public async Task Click_OnInvalidBytes_SelectsCorrectByte(int byteIndex)
     {
         // Raw invalid bytes: FE FF 80 (each 1 byte = 1 char)
@@ -410,10 +411,10 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(byteIndex, state.ByteCursorOffset);
+        Assert.AreEqual(byteIndex, state.ByteCursorOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Navigate_ThroughInvalidBytes_VisitsEveryByte()
     {
         // FE FF 80 BF — 4 invalid bytes
@@ -443,14 +444,14 @@ public class HexEditorSelectionTests
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         }
 
-        Assert.Equal(4, state.ByteCursorOffset);
+        Assert.AreEqual(4, state.ByteCursorOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 7: Hex input + cursor advance
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task TypeHex_CommitsAndAdvancesToNextByte()
     {
         // "AB" = 41 42
@@ -480,15 +481,15 @@ public class HexEditorSelectionTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.ByteCursorOffset);
-        Assert.Equal(0xFF, state.Document.GetBytes().Span[0]);
+        Assert.AreEqual(1, state.ByteCursorOffset);
+        Assert.AreEqual(0xFF, state.Document.GetBytes().Span[0]);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 8: Cursor highlight rendering — verify visual
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task CursorHighlight_AppearOnBothHexAndAsciiColumns()
     {
         // "A" = 41 (1 byte)

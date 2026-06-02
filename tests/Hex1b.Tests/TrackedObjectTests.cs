@@ -5,9 +5,10 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class TrackedObjectTests
 {
-    [Fact]
+    [TestMethod]
     public async Task ApplyTokens_WithSixelSequence_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -17,16 +18,16 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should track the Sixel data
-        Assert.Equal(1, terminal.TrackedSixelCount);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
         
         // The origin cell should have the Sixel data
         var sixelData = terminal.GetSixelDataAt(0, 0);
-        Assert.NotNull(sixelData);
+        Assert.IsNotNull(sixelData);
         Assert.Contains("#0;2;100;0;0#0~~~~~~", sixelData.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyTokens_WithCursorPositionThenSixel_CreatesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -36,16 +37,16 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1H\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should track the Sixel data
-        Assert.Equal(1, terminal.TrackedSixelCount);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
         
         // The origin cell should have the Sixel data
         var sixelData = terminal.GetSixelDataAt(0, 0);
-        Assert.NotNull(sixelData);
+        Assert.IsNotNull(sixelData);
         Assert.Contains("#0;2;100;0;0#0~~~~~~", sixelData.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadAdapter_WithSixel_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -62,11 +63,11 @@ public class TrackedObjectTests
             .ApplyAsync(terminal);
         
         // Should track the Sixel data
-        Assert.Equal(1, terminal.TrackedSixelCount);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadAdapter_SeparateWrites_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -83,11 +84,11 @@ public class TrackedObjectTests
             .ApplyAsync(terminal);
         
         // Should track the Sixel data
-        Assert.Equal(1, terminal.TrackedSixelCount);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadAdapter_WriteTokensWithBytes_WithSixel_UnrecognizedDcs_IsTracked()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -109,11 +110,11 @@ public class TrackedObjectTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal(1, terminal.TrackedSixelCount);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderContext_WithSixel_TerminalReceivesSixelData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -131,11 +132,11 @@ public class TrackedObjectTests
             .ApplyAsync(terminal);
         
         // Should track the Sixel data
-        Assert.True(terminal.ContainsSixelData());
-        Assert.Equal(1, terminal.TrackedSixelCount);
+        Assert.IsTrue(terminal.ContainsSixelData());
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedSixel_WhenCellOverwritten_ReleasesReference()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -143,16 +144,16 @@ public class TrackedObjectTests
         
         // Process a Sixel sequence
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
-        Assert.Equal(1, terminal.TrackedSixelCount);
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
         
         // Overwrite the cell with text
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;1HXXXXXXXX"));
         
         // Sixel data should be released (refcount reached 0)
-        Assert.Equal(0, terminal.TrackedSixelCount);
+        Assert.AreEqual(0, terminal.TrackedSixelCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedSixel_Deduplication_ReusesSameObject()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -164,15 +165,15 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         // Should still only have one unique tracked object
-        Assert.Equal(1, terminal.TrackedSixelCount);
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
         
         // Both cells should reference the same object
         var sixel1 = terminal.GetSixelDataAt(0, 0);
         var sixel2 = terminal.GetSixelDataAt(0, 1);
-        Assert.Same(sixel1, sixel2);
+        Assert.AreSame(sixel1, sixel2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TrackedSixel_RefCount_IncreasesWithDeduplication()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -184,9 +185,9 @@ public class TrackedObjectTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bPq#0;2;100;0;0#0~~~~~~\x1b\\"));
         
         var trackedSixel = terminal.GetTrackedSixelAt(0, 0);
-        Assert.NotNull(trackedSixel);
+        Assert.IsNotNull(trackedSixel);
         
         // RefCount should be 2 (one for each cell)
-        Assert.Equal(2, trackedSixel.RefCount);
+        Assert.AreEqual(2, trackedSixel.RefCount);
     }
 }

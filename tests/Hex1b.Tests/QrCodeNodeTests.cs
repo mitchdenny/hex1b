@@ -8,11 +8,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for QrCodeNode rendering and measurement.
 /// </summary>
+[TestClass]
 public class QrCodeNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectSizeForUrl()
     {
         var node = new QrCodeNode { Data = "https://github.com/mitchdenny/hex1b" };
@@ -20,24 +21,24 @@ public class QrCodeNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // QR code for this URL should be non-zero
-        Assert.True(size.Width > 0, "Width should be greater than 0");
-        Assert.True(size.Height > 0, "Height should be greater than 0");
+        Assert.IsTrue(size.Width > 0, "Width should be greater than 0");
+        Assert.IsTrue(size.Height > 0, "Height should be greater than 0");
         // Width is doubled (2 chars per module) so width = height * 2
-        Assert.Equal(size.Height * 2, size.Width);
+        Assert.AreEqual(size.Height * 2, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptyData_ReturnsZeroSize()
     {
         var node = new QrCodeNode { Data = "" };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithQuietZone_IncludesQuietZoneInSize()
     {
         var nodeWithoutQuietZone = new QrCodeNode { Data = "test", QuietZone = 0 };
@@ -48,26 +49,26 @@ public class QrCodeNodeTests
 
         // With quiet zone should be larger by 2 * quietZone (both sides)
         // Width is doubled (2 chars per module), so quiet zone adds 2 * 2 * 2 = 8 chars
-        Assert.Equal(sizeWithout.Width + 8, sizeWith.Width);
-        Assert.Equal(sizeWithout.Height + 4, sizeWith.Height);
+        Assert.AreEqual(sizeWithout.Width + 8, sizeWith.Width);
+        Assert.AreEqual(sizeWithout.Height + 4, sizeWith.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsMaxWidthConstraint()
     {
         var node = new QrCodeNode { Data = "test" };
 
         var size = node.Measure(new Constraints(0, 10, 0, 10));
 
-        Assert.True(size.Width <= 10, $"Width {size.Width} should be <= 10");
-        Assert.True(size.Height <= 10, $"Height {size.Height} should be <= 10");
+        Assert.IsTrue(size.Width <= 10, $"Width {size.Width} should be <= 10");
+        Assert.IsTrue(size.Height <= 10, $"Height {size.Height} should be <= 10");
     }
 
     #endregion
 
     #region Property Tests
 
-    [Fact]
+    [TestMethod]
     public void Data_WhenChanged_MarksNodeDirty()
     {
         var node = new QrCodeNode { Data = "initial" };
@@ -75,10 +76,10 @@ public class QrCodeNodeTests
 
         node.Data = "changed";
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void QuietZone_WhenChanged_MarksNodeDirty()
     {
         var node = new QrCodeNode { QuietZone = 1 };
@@ -86,22 +87,22 @@ public class QrCodeNodeTests
 
         node.QuietZone = 2;
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void QuietZone_NegativeValue_ClampsToZero()
     {
         var node = new QrCodeNode { QuietZone = -5 };
 
-        Assert.Equal(0, node.QuietZone);
+        Assert.AreEqual(0, node.QuietZone);
     }
 
     #endregion
 
     #region Widget Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public void QrCodeWidget_Reconcile_CreatesNewNode()
     {
         var widget = new QrCodeWidget("https://example.com");
@@ -109,13 +110,13 @@ public class QrCodeNodeTests
 
         var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
 
-        Assert.IsType<QrCodeNode>(node);
+        TestSeq.IsType<QrCodeNode>(node);
         var qrNode = (QrCodeNode)node;
-        Assert.Equal("https://example.com", qrNode.Data);
-        Assert.Equal(1, qrNode.QuietZone); // Default quiet zone
+        Assert.AreEqual("https://example.com", qrNode.Data);
+        Assert.AreEqual(1, qrNode.QuietZone); // Default quiet zone
     }
 
-    [Fact]
+    [TestMethod]
     public void QrCodeWidget_Reconcile_UpdatesExistingNode()
     {
         var widget = new QrCodeWidget("https://example.com", QuietZone: 0);
@@ -124,12 +125,12 @@ public class QrCodeNodeTests
 
         var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
-        Assert.Same(existingNode, node);
-        Assert.Equal("https://example.com", existingNode.Data);
-        Assert.Equal(0, existingNode.QuietZone);
+        Assert.AreSame(existingNode, node);
+        Assert.AreEqual("https://example.com", existingNode.Data);
+        Assert.AreEqual(0, existingNode.QuietZone);
     }
 
-    [Fact]
+    [TestMethod]
     public void QrCodeWidget_Reconcile_MarksNodeDirtyWhenDataChanges()
     {
         var widget = new QrCodeWidget("new-data");
@@ -139,7 +140,7 @@ public class QrCodeNodeTests
 
         widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
-        Assert.True(existingNode.IsDirty);
+        Assert.IsTrue(existingNode.IsDirty);
     }
 
     #endregion

@@ -5,6 +5,7 @@ using Hex1b.Surfaces;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DonutChartNodeTests
 {
     private static DonutChartNode<ChartItem> CreateNode(
@@ -31,26 +32,26 @@ public class DonutChartNodeTests
 
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithConstraints_ReturnsPositiveSize()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(new Constraints(0, 40, 0, 30));
 
-        Assert.True(size.Width > 0);
-        Assert.True(size.Height > 0);
+        Assert.IsTrue(size.Width > 0);
+        Assert.IsTrue(size.Height > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableWidth()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(new Constraints(0, 60, 0, 50));
 
-        Assert.Equal(60, size.Width);
+        Assert.AreEqual(60, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_IncludesTitleRow_WhenTitleSet()
     {
         var withTitle = CreateNode(SampleData, title: "Languages");
@@ -59,10 +60,10 @@ public class DonutChartNodeTests
         var sizeWith = withTitle.Measure(new Constraints(0, 40, 0, 100));
         var sizeWithout = withoutTitle.Measure(new Constraints(0, 40, 0, 100));
 
-        Assert.Equal(sizeWithout.Height + 1, sizeWith.Height);
+        Assert.AreEqual(sizeWithout.Height + 1, sizeWith.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_SameHeight_RegardlessOfDataCount()
     {
         var threeItems = CreateNode(SampleData);
@@ -74,32 +75,32 @@ public class DonutChartNodeTests
         var size5 = fiveItems.Measure(new Constraints(0, 40, 0, 100));
 
         // Without built-in legend, donut height depends only on width, not data count
-        Assert.Equal(size3.Height, size5.Height);
+        Assert.AreEqual(size3.Height, size5.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_UnboundedWidth_DefaultsTo40()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(40, size.Width);
+        Assert.AreEqual(40, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsMaxHeight()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(new Constraints(0, 40, 0, 5));
 
-        Assert.True(size.Height <= 5);
+        Assert.IsTrue(size.Height <= 5);
     }
 
     #endregion
 
     #region Render Tests
 
-    [Fact]
+    [TestMethod]
     public void Render_ProducesNonEmptySurface()
     {
         var node = CreateNode(SampleData);
@@ -114,10 +115,10 @@ public class DonutChartNodeTests
                 hasContent = true;
         }
 
-        Assert.True(hasContent, "Surface should have rendered content");
+        Assert.IsTrue(hasContent, "Surface should have rendered content");
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Title_AppearsOnFirstRow()
     {
         var node = CreateNode(SampleData, title: "Languages");
@@ -127,7 +128,7 @@ public class DonutChartNodeTests
         Assert.Contains("Languages", titleRow);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_DonutHasRingShape_PixelsAtEdgeAndNotCenter()
     {
         var node = CreateNode([new("A", 100)], holeSize: 0.5);
@@ -147,10 +148,10 @@ public class DonutChartNodeTests
                              (centerCell.Character is not null && centerCell.Character != "\0" && centerCell.Character != " ");
         // This is a soft assertion — the exact pixel depends on radius math
         // Just verify the render completed without error
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_PieMode_HoleSizeZero_FillsCenter()
     {
         var node = CreateNode([new("A", 100)], holeSize: 0.0);
@@ -164,10 +165,10 @@ public class DonutChartNodeTests
         var cell = surface[centerX, centerY];
         var hasContent = cell.Background is not null ||
                          (cell.Character is not null && cell.Character != "\0" && cell.Character != " ");
-        Assert.True(hasContent, "Pie mode (holeSize=0) should fill the center");
+        Assert.IsTrue(hasContent, "Pie mode (holeSize=0) should fill the center");
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_MultipleSegments_ProducesMultipleColors()
     {
         var node = CreateNode(SampleData);
@@ -186,23 +187,23 @@ public class DonutChartNodeTests
                 colors.Add($"bg:{bg.R},{bg.G},{bg.B}");
         }
 
-        Assert.True(colors.Count >= 3, $"Expected at least 3 colors for 3 segments, got {colors.Count}");
+        Assert.IsTrue(colors.Count >= 3, $"Expected at least 3 colors for 3 segments, got {colors.Count}");
     }
 
     #endregion
 
     #region Edge Case Tests
 
-    [Fact]
+    [TestMethod]
     public void Render_EmptyData_DoesNotCrash()
     {
         var node = CreateNode([]);
         var (_, size) = RenderNode(node, 40, 30);
         // Should not throw
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_NullData_DoesNotCrash()
     {
         var node = new DonutChartNode<ChartItem>
@@ -220,7 +221,7 @@ public class DonutChartNodeTests
         // Should not throw
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_SingleSegment_FillsEntireRing()
     {
         var node = CreateNode([new("Only", 100)]);
@@ -235,10 +236,10 @@ public class DonutChartNodeTests
             if (surface[x, y].Background is not null || surface[x, y].Foreground is not null)
                 hasColor = true;
         }
-        Assert.True(hasColor, "Single segment donut should have colored content");
+        Assert.IsTrue(hasColor, "Single segment donut should have colored content");
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_VerySmallSize_DoesNotCrash()
     {
         var node = CreateNode(SampleData);
@@ -251,7 +252,7 @@ public class DonutChartNodeTests
         // Should not throw
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ZeroValues_Excluded()
     {
         var data = new ChartItem[]
@@ -265,7 +266,7 @@ public class DonutChartNodeTests
 
         // Donut no longer renders labels — those are in LegendWidget
         // Just verify the render didn't crash
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
     #endregion

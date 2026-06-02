@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// <see cref="CheckboxNodeTests"/> doesn't already cover. Mirrors the
 /// <see cref="TextBoxWidgetTests"/> hoisted-state suite.
 /// </summary>
+[TestClass]
 public class CheckboxWidgetHoistedStateTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PreservedAcrossReconciles()
     {
         var state = new CheckboxState(CheckboxValue.Unchecked);
@@ -19,7 +20,7 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (CheckboxNode)await new CheckboxWidget().State(state).ReconcileAsync(null, context);
-        Assert.Same(state, node.State);
+        Assert.AreSame(state, node.State);
 
         // A new widget instance pointing at the same state must NOT replace
         // the state instance on the node — that would discard any user
@@ -27,11 +28,11 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = false;
         var node2 = (CheckboxNode)await new CheckboxWidget().State(state).ReconcileAsync(node, context);
 
-        Assert.Same(node, node2);
-        Assert.Same(state, node2.State);
+        Assert.AreSame(node, node2);
+        Assert.AreSame(state, node2.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_ParentMutationVisibleAfterReconcile()
     {
         var state = new CheckboxState(CheckboxValue.Unchecked);
@@ -40,7 +41,7 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (CheckboxNode)await new CheckboxWidget().State(state).ReconcileAsync(null, context);
-        Assert.Equal(CheckboxValue.Unchecked, node.State.Value);
+        Assert.AreEqual(CheckboxValue.Unchecked, node.State.Value);
 
         // Parent flips the value from outside the widget tree, then
         // reconciles. The node observes the new value because it shares
@@ -50,10 +51,10 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = false;
         await new CheckboxWidget().State(state).ReconcileAsync(node, context);
 
-        Assert.Equal(CheckboxValue.Checked, node.State.Value);
+        Assert.AreEqual(CheckboxValue.Checked, node.State.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PeerInstancesAreIndependent()
     {
         var stateA = new CheckboxState(CheckboxValue.Unchecked);
@@ -67,12 +68,12 @@ public class CheckboxWidgetHoistedStateTests
 
         stateA.Value = CheckboxValue.Checked;
 
-        Assert.Equal(CheckboxValue.Checked, nodeA.State.Value);
-        Assert.Equal(CheckboxValue.Unchecked, nodeB.State.Value);
-        Assert.NotSame(nodeA.State, nodeB.State);
+        Assert.AreEqual(CheckboxValue.Checked, nodeA.State.Value);
+        Assert.AreEqual(CheckboxValue.Unchecked, nodeB.State.Value);
+        Assert.AreNotSame(nodeA.State, nodeB.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_IgnoresCtorValue()
     {
         // CheckboxWidget's ctor `Value` parameter has a default and is
@@ -88,11 +89,11 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = true;
         var node = (CheckboxNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(state, node.State);
-        Assert.Equal(CheckboxValue.Checked, node.State.Value);
+        Assert.AreSame(state, node.State);
+        Assert.AreEqual(CheckboxValue.Checked, node.State.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_OutOfBandChangeMarksDirty()
     {
         // After the first reconcile the node is marked clean. If the parent
@@ -111,7 +112,7 @@ public class CheckboxWidgetHoistedStateTests
         context.IsNew = false;
         await new CheckboxWidget().State(second).ReconcileAsync(node, context);
 
-        Assert.True(node.IsDirty);
-        Assert.Same(second, node.State);
+        Assert.IsTrue(node.IsDirty);
+        Assert.AreSame(second, node.State);
     }
 }

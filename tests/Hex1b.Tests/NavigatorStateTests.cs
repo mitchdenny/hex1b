@@ -4,23 +4,24 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class NavigatorStateTests
 {
     private static NavigatorRoute CreateRoute(string id) =>
         new(id, nav => new TextBlockWidget($"Screen: {id}"));
 
-    [Fact]
+    [TestMethod]
     public void Constructor_InitializesWithRootRoute()
     {
         var root = CreateRoute("home");
         var navigator = new NavigatorState(root);
 
-        Assert.Equal("home", navigator.CurrentRoute.Id);
-        Assert.Equal(1, navigator.Depth);
-        Assert.False(navigator.CanGoBack);
+        Assert.AreEqual("home", navigator.CurrentRoute.Id);
+        Assert.AreEqual(1, navigator.Depth);
+        Assert.IsFalse(navigator.CanGoBack);
     }
 
-    [Fact]
+    [TestMethod]
     public void Push_AddsRouteToStack()
     {
         var root = CreateRoute("home");
@@ -28,12 +29,12 @@ public class NavigatorStateTests
 
         navigator.Push(CreateRoute("details"));
 
-        Assert.Equal("details", navigator.CurrentRoute.Id);
-        Assert.Equal(2, navigator.Depth);
-        Assert.True(navigator.CanGoBack);
+        Assert.AreEqual("details", navigator.CurrentRoute.Id);
+        Assert.AreEqual(2, navigator.Depth);
+        Assert.IsTrue(navigator.CanGoBack);
     }
 
-    [Fact]
+    [TestMethod]
     public void Push_WithIdAndBuilder_AddsRouteToStack()
     {
         var root = CreateRoute("home");
@@ -41,11 +42,11 @@ public class NavigatorStateTests
 
         navigator.Push("details", nav => new TextBlockWidget("Details"));
 
-        Assert.Equal("details", navigator.CurrentRoute.Id);
-        Assert.Equal(2, navigator.Depth);
+        Assert.AreEqual("details", navigator.CurrentRoute.Id);
+        Assert.AreEqual(2, navigator.Depth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pop_RemovesTopRoute()
     {
         var root = CreateRoute("home");
@@ -55,12 +56,12 @@ public class NavigatorStateTests
 
         var result = navigator.Pop();
 
-        Assert.True(result);
-        Assert.Equal("details", navigator.CurrentRoute.Id);
-        Assert.Equal(2, navigator.Depth);
+        Assert.IsTrue(result);
+        Assert.AreEqual("details", navigator.CurrentRoute.Id);
+        Assert.AreEqual(2, navigator.Depth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pop_AtRoot_ReturnsFalse()
     {
         var root = CreateRoute("home");
@@ -68,12 +69,12 @@ public class NavigatorStateTests
 
         var result = navigator.Pop();
 
-        Assert.False(result);
-        Assert.Equal("home", navigator.CurrentRoute.Id);
-        Assert.Equal(1, navigator.Depth);
+        Assert.IsFalse(result);
+        Assert.AreEqual("home", navigator.CurrentRoute.Id);
+        Assert.AreEqual(1, navigator.Depth);
     }
 
-    [Fact]
+    [TestMethod]
     public void PopToRoot_ClearsAllButRoot()
     {
         var root = CreateRoute("home");
@@ -84,12 +85,12 @@ public class NavigatorStateTests
 
         navigator.PopToRoot();
 
-        Assert.Equal("home", navigator.CurrentRoute.Id);
-        Assert.Equal(1, navigator.Depth);
-        Assert.False(navigator.CanGoBack);
+        Assert.AreEqual("home", navigator.CurrentRoute.Id);
+        Assert.AreEqual(1, navigator.Depth);
+        Assert.IsFalse(navigator.CanGoBack);
     }
 
-    [Fact]
+    [TestMethod]
     public void Replace_SwapsCurrentRoute()
     {
         var root = CreateRoute("home");
@@ -98,11 +99,11 @@ public class NavigatorStateTests
 
         navigator.Replace(CreateRoute("redirect"));
 
-        Assert.Equal("redirect", navigator.CurrentRoute.Id);
-        Assert.Equal(2, navigator.Depth); // Still 2 - replaced, not added
+        Assert.AreEqual("redirect", navigator.CurrentRoute.Id);
+        Assert.AreEqual(2, navigator.Depth); // Still 2 - replaced, not added
     }
 
-    [Fact]
+    [TestMethod]
     public void Replace_WithIdAndBuilder_SwapsCurrentRoute()
     {
         var root = CreateRoute("home");
@@ -111,11 +112,11 @@ public class NavigatorStateTests
 
         navigator.Replace("redirect", nav => new TextBlockWidget("Redirect"));
 
-        Assert.Equal("redirect", navigator.CurrentRoute.Id);
-        Assert.Equal(2, navigator.Depth);
+        Assert.AreEqual("redirect", navigator.CurrentRoute.Id);
+        Assert.AreEqual(2, navigator.Depth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reset_ClearsStackAndSetsNewRoot()
     {
         var root = CreateRoute("home");
@@ -125,12 +126,12 @@ public class NavigatorStateTests
 
         navigator.Reset(CreateRoute("new-home"));
 
-        Assert.Equal("new-home", navigator.CurrentRoute.Id);
-        Assert.Equal(1, navigator.Depth);
-        Assert.False(navigator.CanGoBack);
+        Assert.AreEqual("new-home", navigator.CurrentRoute.Id);
+        Assert.AreEqual(1, navigator.Depth);
+        Assert.IsFalse(navigator.CanGoBack);
     }
 
-    [Fact]
+    [TestMethod]
     public void OnNavigated_FiresOnPush()
     {
         var root = CreateRoute("home");
@@ -140,10 +141,10 @@ public class NavigatorStateTests
 
         navigator.Push(CreateRoute("details"));
 
-        Assert.True(eventFired);
+        Assert.IsTrue(eventFired);
     }
 
-    [Fact]
+    [TestMethod]
     public void OnNavigated_FiresOnPop()
     {
         var root = CreateRoute("home");
@@ -154,10 +155,10 @@ public class NavigatorStateTests
 
         navigator.Pop();
 
-        Assert.True(eventFired);
+        Assert.IsTrue(eventFired);
     }
 
-    [Fact]
+    [TestMethod]
     public void OnNavigated_FiresOnPopToRoot()
     {
         var root = CreateRoute("home");
@@ -169,10 +170,10 @@ public class NavigatorStateTests
 
         navigator.PopToRoot();
 
-        Assert.True(eventFired);
+        Assert.IsTrue(eventFired);
     }
 
-    [Fact]
+    [TestMethod]
     public void WizardFlow_PushThenPopToRoot()
     {
         var root = CreateRoute("home");
@@ -182,15 +183,15 @@ public class NavigatorStateTests
         navigator.Push(CreateRoute("wizard-step-1"));
         navigator.Push(CreateRoute("wizard-step-2"));
         navigator.Push(CreateRoute("wizard-step-3"));
-        Assert.Equal(4, navigator.Depth);
+        Assert.AreEqual(4, navigator.Depth);
 
         // Complete wizard - go back to home
         navigator.PopToRoot();
-        Assert.Equal("home", navigator.CurrentRoute.Id);
-        Assert.False(navigator.CanGoBack);
+        Assert.AreEqual("home", navigator.CurrentRoute.Id);
+        Assert.IsFalse(navigator.CanGoBack);
     }
 
-    [Fact]
+    [TestMethod]
     public void DrillDown_CanNavigateBackStepByStep()
     {
         var root = CreateRoute("home");
@@ -202,15 +203,15 @@ public class NavigatorStateTests
         navigator.Push(CreateRoute("details"));
 
         // Navigate back step by step
-        Assert.True(navigator.Pop());
-        Assert.Equal("item", navigator.CurrentRoute.Id);
+        Assert.IsTrue(navigator.Pop());
+        Assert.AreEqual("item", navigator.CurrentRoute.Id);
 
-        Assert.True(navigator.Pop());
-        Assert.Equal("category", navigator.CurrentRoute.Id);
+        Assert.IsTrue(navigator.Pop());
+        Assert.AreEqual("category", navigator.CurrentRoute.Id);
 
-        Assert.True(navigator.Pop());
-        Assert.Equal("home", navigator.CurrentRoute.Id);
+        Assert.IsTrue(navigator.Pop());
+        Assert.AreEqual("home", navigator.CurrentRoute.Id);
 
-        Assert.False(navigator.Pop()); // Can't go back further
+        Assert.IsFalse(navigator.Pop()); // Can't go back further
     }
 }

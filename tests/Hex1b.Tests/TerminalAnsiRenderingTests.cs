@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// Tests for ANSI rendering of terminal snapshots and regions.
 /// ANSI outputs are attached to test results and can be viewed with `cat`.
 /// </summary>
+[TestClass]
 public class TerminalAnsiRenderingTests
 {
-    [Fact]
+    [TestMethod]
     public async Task RenderFullSnapshot_ProducesAnsi()
     {
         // Arrange
@@ -46,7 +47,7 @@ public class TerminalAnsiRenderingTests
         var ansi = snapshot.ToAnsi();
 
         // Assert
-        Assert.NotEmpty(ansi);
+        Assert.IsNotEmpty(ansi);
         // ANSI output should contain escape sequences
         Assert.Contains("\x1b[", ansi);
         // Should have cursor up to move back after scrolling
@@ -62,7 +63,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("full-snapshot.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderWithColors_ProducesCorrectColorCodes()
     {
         // Arrange
@@ -100,7 +101,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("colored.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderArbitraryRegion_ProducesAnsi()
     {
         // Arrange
@@ -135,7 +136,7 @@ public class TerminalAnsiRenderingTests
         var ansi = region.ToAnsi();
 
         // Assert
-        Assert.NotEmpty(ansi);
+        Assert.IsNotEmpty(ansi);
         Assert.Contains("\x1b[", ansi);
 
         // Attach ANSI to test output
@@ -146,7 +147,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("arbitrary-region-full.ansi", fullAnsi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderWithClearScreen_IncludesClearAndHome()
     {
         // Arrange
@@ -179,7 +180,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("clear-screen.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RenderWithTextAttributes_IncludesSgrCodes()
     {
         // Arrange
@@ -211,14 +212,14 @@ public class TerminalAnsiRenderingTests
         var ansi = snapshot.ToAnsi();
 
         // Assert - should contain SGR codes
-        Assert.NotEmpty(ansi);
+        Assert.IsNotEmpty(ansi);
         Assert.Contains("\x1b[", ansi);
 
         // Attach ANSI to test output
         TestCaptureHelper.AttachFile("text-attributes.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsi_EmptyRegion_ReturnsValidAnsi()
     {
         // Arrange - Create a simple snapshot with just spaces
@@ -231,7 +232,7 @@ public class TerminalAnsiRenderingTests
         var ansi = snapshot.ToAnsi();
 
         // Assert - Even an empty snapshot should produce valid ANSI
-        Assert.NotNull(ansi);
+        Assert.IsNotNull(ansi);
         // Should end with reset
         Assert.Contains("\x1b[0m", ansi);
 
@@ -239,7 +240,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("empty.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ToAnsi_WithCursorPosition_PositionsCursor()
     {
         // Arrange
@@ -267,7 +268,7 @@ public class TerminalAnsiRenderingTests
         var ansi = snapshot.ToAnsi(new TerminalAnsiOptions { IncludeCursorPosition = true });
 
         // Assert - The ANSI output should position the cursor
-        Assert.NotEmpty(ansi);
+        Assert.IsNotEmpty(ansi);
         // Cursor position uses horizontal absolute (G) command
         Assert.Contains("\x1b[", ansi);
         Assert.Contains("G", ansi);
@@ -276,7 +277,7 @@ public class TerminalAnsiRenderingTests
         TestCaptureHelper.AttachFile("cursor-position.ansi", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_IncludesAnsiFile()
     {
         // Arrange
@@ -300,6 +301,6 @@ public class TerminalAnsiRenderingTests
 
         // Assert - verify the files were created (xUnit context attachments)
         // The actual file creation is verified by the Capture() call not throwing
-        Assert.True(true);
+        Assert.IsTrue(true);
     }
 }

@@ -5,7 +5,6 @@ using Hex1b.Input;
 using Hex1b.Layout;
 using Hex1b.Nodes;
 using Hex1b.Widgets;
-using Xunit;
 
 namespace Hex1b.Tests;
 
@@ -18,21 +17,22 @@ internal class SelectableItem
     public bool IsSelected { get; set; }
 }
 
+[TestClass]
 public class TableNodeTests
 {
     #region Construction & Basics
 
-    [Fact]
+    [TestMethod]
     public void Node_DefaultState_HasNoRows()
     {
         var node = new TableNode<string>();
         
-        Assert.Null(node.Data);
-        Assert.Null(node.HeaderBuilder);
-        Assert.Null(node.RowBuilder);
+        Assert.IsNull(node.Data);
+        Assert.IsNull(node.HeaderBuilder);
+        Assert.IsNull(node.RowBuilder);
     }
 
-    [Fact]
+    [TestMethod]
     public void Node_WithData_HasCorrectRowCount()
     {
         var data = new[] { "A", "B", "C" };
@@ -43,14 +43,14 @@ public class TableNodeTests
             RowBuilder = (r, item, _) => [r.Cell(item)]
         };
         
-        Assert.Equal(3, node.Data!.Count);
+        Assert.AreEqual(3, node.Data!.Count);
     }
 
     #endregion
 
     #region Column Count Validation
 
-    [Fact]
+    [TestMethod]
     public void Validation_HeaderRowMismatch_Throws()
     {
         var data = new[] { "Item1" };
@@ -61,7 +61,7 @@ public class TableNodeTests
             RowBuilder = (r, item, _) => [r.Cell(item)] // 1 column - mismatch!
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             node.Measure(new Constraints(0, 80, 0, 24)));
 
         Assert.Contains("column count mismatch", ex.Message, StringComparison.OrdinalIgnoreCase);
@@ -69,7 +69,7 @@ public class TableNodeTests
         Assert.Contains("row 0 has 1", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validation_FooterMismatch_Throws()
     {
         var data = new[] { "Item1" };
@@ -81,14 +81,14 @@ public class TableNodeTests
             FooterBuilder = f => [f.Cell("A"), f.Cell("B")] // 2 columns - mismatch!
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             node.Measure(new Constraints(0, 80, 0, 24)));
 
         Assert.Contains("column count mismatch", ex.Message, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("footer", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validation_ZeroColumns_Throws()
     {
         var node = new TableNode<string>
@@ -98,13 +98,13 @@ public class TableNodeTests
             RowBuilder = (r, item, _) => []
         };
 
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             node.Measure(new Constraints(0, 80, 0, 24)));
 
         Assert.Contains("at least one column", ex.Message, StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [TestMethod]
     public void Validation_MatchingColumns_DoesNotThrow()
     {
         var data = new[] { "A", "B" };
@@ -118,15 +118,15 @@ public class TableNodeTests
 
         var size = node.Measure(new Constraints(0, 80, 0, 24));
         
-        Assert.True(size.Width > 0);
-        Assert.True(size.Height > 0);
+        Assert.IsTrue(size.Width > 0);
+        Assert.IsTrue(size.Height > 0);
     }
 
     #endregion
 
     #region Measurement
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectHeight_ForBasicTable()
     {
         var data = new[] { "A", "B", "C" };
@@ -140,10 +140,10 @@ public class TableNodeTests
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
         // Height = top border (1) + header (1) + separator (1) + 3 rows (3) + bottom border (1) = 7
-        Assert.Equal(7, size.Height);
+        Assert.AreEqual(7, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectHeight_WithFooter()
     {
         var data = new[] { "A", "B" };
@@ -158,10 +158,10 @@ public class TableNodeTests
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
         // Height = top (1) + header (1) + sep (1) + 2 rows (2) + sep (1) + footer (1) + bottom (1) = 8
-        Assert.Equal(8, size.Height);
+        Assert.AreEqual(8, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_UsesConstraintWidth()
     {
         var node = new TableNode<string>
@@ -174,10 +174,10 @@ public class TableNodeTests
 
         var size = node.Measure(new Constraints(0, 60, 0, 24));
 
-        Assert.Equal(60, size.Width);
+        Assert.AreEqual(60, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_NullData_ShowsEmptyState()
     {
         var node = new TableNode<string>
@@ -190,10 +190,10 @@ public class TableNodeTests
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
         // Height = top (1) + header (1) + sep (1) + 1 empty row (1) + bottom (1) = 5
-        Assert.Equal(5, size.Height);
+        Assert.AreEqual(5, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptyData_AddsEmptyStateHeight()
     {
         var node = new TableNode<string>
@@ -206,14 +206,14 @@ public class TableNodeTests
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
         // Height = top (1) + header (1) + sep (1) + empty message (1) + bottom (1) = 5
-        Assert.Equal(5, size.Height);
+        Assert.AreEqual(5, size.Height);
     }
 
     #endregion
 
     #region Widget API
 
-    [Fact]
+    [TestMethod]
     public void Widget_FluentApi_ConfiguresCorrectly()
     {
         var data = new[] { "A", "B" };
@@ -225,14 +225,14 @@ public class TableNodeTests
             .Footer(f => [f.Cell("End")])
             .Focus(1);  // Use key-based focus
 
-        Assert.Same(data, widget.Data);
-        Assert.NotNull(widget.HeaderBuilder);
-        Assert.NotNull(widget.RowBuilder);
-        Assert.NotNull(widget.FooterBuilder);
-        Assert.Equal(1, widget.FocusedKey);
+        Assert.AreSame(data, widget.Data);
+        Assert.IsNotNull(widget.HeaderBuilder);
+        Assert.IsNotNull(widget.RowBuilder);
+        Assert.IsNotNull(widget.FooterBuilder);
+        Assert.AreEqual(1, widget.FocusedKey);
     }
 
-    [Fact]
+    [TestMethod]
     public void Widget_WithEmpty_ConfiguresEmptyBuilder()
     {
         var ctx = new RootContext();
@@ -242,45 +242,45 @@ public class TableNodeTests
             .Row((r, item, _) => [r.Cell(item)])
             .Empty(e => e.Text("No items"));
 
-        Assert.NotNull(widget.EmptyBuilder);
+        Assert.IsNotNull(widget.EmptyBuilder);
     }
 
     #endregion
 
     #region Cell Extensions
 
-    [Fact]
+    [TestMethod]
     public void TableCell_Fixed_SetsWidth()
     {
         var cell = new TableHeaderContext().Cell("Test").Fixed(15);
         
-        Assert.NotNull(cell.Width);
-        Assert.True(cell.Width.Value.IsFixed);
-        Assert.Equal(15, cell.Width.Value.FixedValue);
+        Assert.IsNotNull(cell.Width);
+        Assert.IsTrue(cell.Width.Value.IsFixed);
+        Assert.AreEqual(15, cell.Width.Value.FixedValue);
     }
 
-    [Fact]
+    [TestMethod]
     public void TableCell_Fill_SetsWidth()
     {
         var cell = new TableHeaderContext().Cell("Test").Fill();
         
-        Assert.NotNull(cell.Width);
-        Assert.True(cell.Width.Value.IsFill);
+        Assert.IsNotNull(cell.Width);
+        Assert.IsTrue(cell.Width.Value.IsFill);
     }
 
-    [Fact]
+    [TestMethod]
     public void TableCell_AlignRight_SetsAlignment()
     {
         var cell = new TableHeaderContext().Cell("Test").AlignRight();
         
-        Assert.Equal(Alignment.Right, cell.Alignment);
+        Assert.AreEqual(Alignment.Right, cell.Alignment);
     }
 
     #endregion
 
     #region Reconciliation
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesNewNode()
     {
         var widget = new TableWidget<string>
@@ -295,10 +295,10 @@ public class TableNodeTests
 
         var node = await widget.ReconcileAsync(null, context);
 
-        Assert.IsType<TableNode<string>>(node);
+        TestSeq.IsType<TableNode<string>>(node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReusesExistingNode()
     {
         var existingNode = new TableNode<string>();
@@ -313,10 +313,10 @@ public class TableNodeTests
 
         var node = await widget.ReconcileAsync(existingNode, context);
 
-        Assert.Same(existingNode, node);
+        Assert.AreSame(existingNode, node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesNodeData()
     {
         var existingNode = new TableNode<string> { Data = ["Old"] };
@@ -331,14 +331,14 @@ public class TableNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(existingNode, context);
 
-        Assert.Same(newData, ((TableNode<string>)node).Data);
+        Assert.AreSame(newData, ((TableNode<string>)node).Data);
     }
 
     #endregion
 
     #region Row Navigation Bindings
 
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_KeyBinding_MovesFocusToNextRow()
     {
         // Create a table with enough data to scroll
@@ -357,19 +357,19 @@ public class TableNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         // Verify initial state
-        Assert.Equal(0, node.FocusedKey);
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.FocusedKey);
+        Assert.AreEqual(0, node.ScrollOffset);
 
         // Simulate key press using InputRouter
         node.IsFocused = true;
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.FocusedKey); // Focus moved to row 1
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.FocusedKey); // Focus moved to row 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_AtBottomOfViewport_ScrollsToKeepFocusVisible()
     {
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
@@ -388,7 +388,7 @@ public class TableNodeTests
         // With 10 height, we have about 6-7 data rows visible
         // If focused row is at the bottom edge and we press Down,
         // the view should scroll to keep the new focused row visible
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.ScrollOffset);
 
         node.IsFocused = true;
         
@@ -401,10 +401,10 @@ public class TableNodeTests
         }
 
         // After moving focus past the visible area, scroll should have adjusted
-        Assert.True(node.ScrollOffset > 0, "Table should have scrolled to keep focus visible");
+        Assert.IsTrue(node.ScrollOffset > 0, "Table should have scrolled to keep focus visible");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageDown_KeyBinding_MovesFocusByPage()
     {
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
@@ -425,14 +425,14 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
         
         // Focus should have moved by approximately one page
         var focusedIndex = (int)node.FocusedKey!;
-        Assert.True(focusedIndex > 3, $"PageDown should move focus by multiple rows, but focus is at {focusedIndex}");
+        Assert.IsTrue(focusedIndex > 3, $"PageDown should move focus by multiple rows, but focus is at {focusedIndex}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Home_KeyBinding_MovesFocusToFirstRow()
     {
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
@@ -452,12 +452,12 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.FocusedKey); // Focus moved to first row
-        Assert.Equal(0, node.ScrollOffset); // Scrolled to show first row
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.FocusedKey); // Focus moved to first row
+        Assert.AreEqual(0, node.ScrollOffset); // Scrolled to show first row
     }
 
-    [Fact]
+    [TestMethod]
     public async Task End_KeyBinding_MovesFocusToLastRow()
     {
         var data = Enumerable.Range(1, 50).Select(i => $"Row {i}").ToArray();
@@ -477,16 +477,16 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(49, node.FocusedKey); // Focus moved to last row (index 49)
-        Assert.True(node.ScrollOffset > 0, "Table should have scrolled to show last row");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(49, node.FocusedKey); // Focus moved to last row (index 49)
+        Assert.IsTrue(node.ScrollOffset > 0, "Table should have scrolled to show last row");
     }
 
     #endregion
 
     #region Selection Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Space_KeyBinding_TogglesSelection()
     {
         var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
@@ -508,23 +508,23 @@ public class TableNodeTests
         node.IsFocused = true;
         
         // Initially no selection
-        Assert.False(data[2].IsSelected);
+        Assert.IsFalse(data[2].IsSelected);
 
         // Press Space to select
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(data[2].IsSelected);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(data[2].IsSelected);
 
         // Press Space again to deselect
         result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(data[2].IsSelected);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(data[2].IsSelected);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlA_KeyBinding_SelectsAllRows()
     {
         var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
@@ -549,11 +549,11 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control);
         var result = await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(10, data.Count(item => item.IsSelected)); // All 10 rows selected
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(10, data.Count(item => item.IsSelected)); // All 10 rows selected
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftDown_KeyBinding_ExtendsSelection()
     {
         var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
@@ -579,11 +579,11 @@ public class TableNodeTests
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(3, data.Count(item => item.IsSelected)); // Rows 3, 4, 5 selected
-        Assert.Equal("Row 5", node.FocusedKey); // Focus moved to row 5
+        Assert.AreEqual(3, data.Count(item => item.IsSelected)); // Rows 3, 4, 5 selected
+        Assert.AreEqual("Row 5", node.FocusedKey); // Focus moved to row 5
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftEnd_KeyBinding_SelectsToLastRow()
     {
         var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
@@ -608,11 +608,11 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.Shift);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.Equal(5, data.Count(item => item.IsSelected)); // Rows 6, 7, 8, 9, 10 selected
-        Assert.Equal("Row 10", node.FocusedKey); // Focus at last row
+        Assert.AreEqual(5, data.Count(item => item.IsSelected)); // Rows 6, 7, 8, 9, 10 selected
+        Assert.AreEqual("Row 10", node.FocusedKey); // Focus at last row
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectionChangedCallback_IsCalled()
     {
         var data = Enumerable.Range(1, 10).Select(i => new SelectableItem { Name = $"Row {i}" }).ToList();
@@ -645,12 +645,12 @@ public class TableNodeTests
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None);
         await Input.InputRouter.RouteInputToNodeAsync(node, keyEvent);
 
-        Assert.NotNull(lastChangedItem);
-        Assert.Equal("Row 1", lastChangedItem.Name);
-        Assert.True(lastChangedState);
+        Assert.IsNotNull(lastChangedItem);
+        Assert.AreEqual("Row 1", lastChangedItem.Name);
+        Assert.IsTrue(lastChangedState);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionColumn_CellNodesAreArrangedCorrectly()
     {
         var data = new[] { "Item1", "Item2" };
@@ -670,15 +670,15 @@ public class TableNodeTests
         var headerRowNodeField = typeof(TableNode<string>).GetField("_headerRowNode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         var headerRowNode = (TableRowNode?)headerRowNodeField?.GetValue(node);
         
-        Assert.NotNull(headerRowNode);
+        Assert.IsNotNull(headerRowNode);
         // The row node should have children (border, selection column, cell content, border)
-        Assert.True(headerRowNode.Children.Count > 0, "Header row node should have children");
+        Assert.IsTrue(headerRowNode.Children.Count > 0, "Header row node should have children");
         
         // The header row itself should be arranged at the correct position
-        Assert.True(headerRowNode.Bounds.Width > 0, "Header row should have a width");
+        Assert.IsTrue(headerRowNode.Bounds.Width > 0, "Header row should have a width");
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionColumn_RendersSeparators()
     {
         var data = new[] { "Item1" };
@@ -703,25 +703,25 @@ public class TableNodeTests
         var char0 = surface[0, 1].Character;
         var char4 = surface[4, 1].Character;
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"char[0,1]='{char0}' char[4,1]='{char4}'");
+        TestContext.Current?.WriteLine($"char[0,1]='{char0}' char[4,1]='{char4}'");
         
         // Build header row text for debugging - show each position
         var headerRow = new System.Text.StringBuilder();
         for (int x = 0; x < 15; x++)
         {
             var c = surface[x, 1].Character;
-            TestContext.Current.TestOutputHelper?.WriteLine($"  [{x}] = '{c}' (len={c?.Length ?? -1})");
+            TestContext.Current?.WriteLine($"  [{x}] = '{c}' (len={c?.Length ?? -1})");
             headerRow.Append(c);
         }
-        TestContext.Current.TestOutputHelper?.WriteLine($"Header row (first 15): '{headerRow}'");
+        TestContext.Current?.WriteLine($"Header row (first 15): '{headerRow}'");
         
         // Check that we have the selection column separator at position 4
         // Expected: │ ▢ │Name...
-        Assert.True(char0 == "│", $"Expected left border '│' at position 0, got '{char0}'"); // Left border
-        Assert.True(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
+        Assert.IsTrue(char0 == "│", $"Expected left border '│' at position 0, got '{char0}'"); // Left border
+        Assert.IsTrue(char4 == "│", $"Expected separator '│' at position 4, got '{char4}'"); // Selection column separator
     }
 
-    [Fact]
+    [TestMethod]
     public void ColumnBorders_AlignAcrossHeaderRowsAndFooter()
     {
         // Arrange - table with multiple columns and alignment
@@ -764,7 +764,7 @@ public class TableNodeTests
             {
                 row.Append(surface[x, y].Character ?? " ");
             }
-            TestContext.Current.TestOutputHelper?.WriteLine($"Row {y}: '{row}'");
+            TestContext.Current?.WriteLine($"Row {y}: '{row}'");
         }
 
         // Expected column borders at positions:
@@ -774,46 +774,46 @@ public class TableNodeTests
         // 26: after Qty (5 chars) │ (right border)
         
         // Check top border has correct separators
-        Assert.Equal("┌", surface[0, 0].Character);
-        Assert.Equal("┬", surface[11, 0].Character);
-        Assert.Equal("┬", surface[20, 0].Character);
+        Assert.AreEqual("┌", surface[0, 0].Character);
+        Assert.AreEqual("┬", surface[11, 0].Character);
+        Assert.AreEqual("┬", surface[20, 0].Character);
         
         // Check header row (y=1) has vertical borders at correct positions
-        Assert.Equal("│", surface[0, 1].Character);
-        Assert.Equal("│", surface[11, 1].Character);
-        Assert.Equal("│", surface[20, 1].Character);
+        Assert.AreEqual("│", surface[0, 1].Character);
+        Assert.AreEqual("│", surface[11, 1].Character);
+        Assert.AreEqual("│", surface[20, 1].Character);
         
         // Check header separator (y=2) has correct crosses
-        Assert.Equal("├", surface[0, 2].Character);
-        Assert.Equal("┼", surface[11, 2].Character);
-        Assert.Equal("┼", surface[20, 2].Character);
+        Assert.AreEqual("├", surface[0, 2].Character);
+        Assert.AreEqual("┼", surface[11, 2].Character);
+        Assert.AreEqual("┼", surface[20, 2].Character);
         
         // Check data row 1 (y=3) has vertical borders at same positions
-        Assert.Equal("│", surface[0, 3].Character);
-        Assert.Equal("│", surface[11, 3].Character);
-        Assert.Equal("│", surface[20, 3].Character);
+        Assert.AreEqual("│", surface[0, 3].Character);
+        Assert.AreEqual("│", surface[11, 3].Character);
+        Assert.AreEqual("│", surface[20, 3].Character);
         
         // Check data row 2 (y=4) has vertical borders at same positions
-        Assert.Equal("│", surface[0, 4].Character);
-        Assert.Equal("│", surface[11, 4].Character);
-        Assert.Equal("│", surface[20, 4].Character);
+        Assert.AreEqual("│", surface[0, 4].Character);
+        Assert.AreEqual("│", surface[11, 4].Character);
+        Assert.AreEqual("│", surface[20, 4].Character);
         
         // Check footer separator (y=5) has correct crosses
-        Assert.Equal("├", surface[0, 5].Character);
-        Assert.Equal("┼", surface[11, 5].Character);
-        Assert.Equal("┼", surface[20, 5].Character);
+        Assert.AreEqual("├", surface[0, 5].Character);
+        Assert.AreEqual("┼", surface[11, 5].Character);
+        Assert.AreEqual("┼", surface[20, 5].Character);
         
         // Check footer row (y=6) has vertical borders at same positions
-        Assert.Equal("│", surface[0, 6].Character);
-        Assert.Equal("│", surface[11, 6].Character);
-        Assert.Equal("│", surface[20, 6].Character);
+        Assert.AreEqual("│", surface[0, 6].Character);
+        Assert.AreEqual("│", surface[11, 6].Character);
+        Assert.AreEqual("│", surface[20, 6].Character);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TableWithKeyboardScroll_WorksEndToEnd()
     {
         // Arrange - create a full Hex1bApp with a table
@@ -821,7 +821,7 @@ public class TableNodeTests
         
         // Create recording path
         var recordingPath = Path.Combine(Path.GetTempPath(), $"table_scroll_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        TestContext.Current?.WriteLine($"Recording to: {recordingPath}");
         
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
@@ -863,10 +863,10 @@ public class TableNodeTests
         await runTask;
         
         // Output for debugging
-        TestContext.Current.TestOutputHelper?.WriteLine("=== FINAL SCREEN ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(finalText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"\nAsciinema recording saved to: {recordingPath}");
-        TestContext.Current.TestOutputHelper?.WriteLine("Play with: asciinema play " + recordingPath);
+        TestContext.Current?.WriteLine("=== FINAL SCREEN ===");
+        TestContext.Current?.WriteLine(finalText);
+        TestContext.Current?.WriteLine($"\nAsciinema recording saved to: {recordingPath}");
+        TestContext.Current?.WriteLine("Play with: asciinema play " + recordingPath);
         
         bool product1Visible = finalText.Contains("Product 1\n") || finalText.Contains("Product 1 ") || 
                                (finalText.Contains("Product 1") && !finalText.Contains("Product 1"[..9] + "0")); // Avoid matching Product 10-19
@@ -876,8 +876,8 @@ public class TableNodeTests
         var lines = finalText.Split('\n');
         bool hasExactProduct1 = lines.Any(l => l.Contains("Product 1 ") || l.Trim().EndsWith("Product 1"));
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"Product 1 visible (exact): {hasExactProduct1}");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Product 20 visible: {product20Visible}");
+        TestContext.Current?.WriteLine($"Product 1 visible (exact): {hasExactProduct1}");
+        TestContext.Current?.WriteLine($"Product 20 visible: {product20Visible}");
 
         // If scrolling worked, Product 1 should be scrolled out and Product 20 should be visible
         // In a 10-row terminal with header+footer, we have about 5 data rows visible.
@@ -885,7 +885,7 @@ public class TableNodeTests
         // So we should NOT see Product 1 anymore, but we SHOULD see around Product 13-18
         
         // For now, let's just verify the table rendered
-        Assert.True(finalText.Contains("Product"), "Table should contain Product text");
+        Assert.IsTrue(finalText.Contains("Product"), "Table should contain Product text");
         
         // This is the key assertion - if scrolling doesn't work, Product 1 will still be visible
         // and Product 20 will not be visible
@@ -897,10 +897,10 @@ public class TableNodeTests
         }
         
         // Positive assertion - scrolling worked!
-        Assert.True(product20Visible, $"Product 20 should be visible after scrolling. Recording: {recordingPath}");
+        Assert.IsTrue(product20Visible, $"Product 20 should be visible after scrolling. Recording: {recordingPath}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TableInVStackWithButtons_ScrollingWorks()
     {
         // Test that table scrolling works when embedded in VStack with other focusable widgets
@@ -942,13 +942,13 @@ public class TableNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Verify table has focus (should be first focusable)
-        Assert.NotNull(app.FocusedNode);
+        Assert.IsNotNull(app.FocusedNode);
         Assert.Contains("TableNode", app.FocusedNode.GetType().Name);
 
         // Initial state: Product 1 visible, Product 20 not visible
         var initialSnapshot = terminal.CreateSnapshot();
-        Assert.True(initialSnapshot.ContainsText("Product 1"));
-        Assert.False(initialSnapshot.ContainsText("Product 20"));
+        Assert.IsTrue(initialSnapshot.ContainsText("Product 1"));
+        Assert.IsFalse(initialSnapshot.ContainsText("Product 20"));
 
         // Send PageDown twice to scroll
         await new Hex1bTerminalInputSequenceBuilder()
@@ -970,8 +970,7 @@ public class TableNodeTests
                                      afterText.Contains("Product 21") ||
                                      afterText.Contains("Product 25");
 
-        Assert.True(product1Gone || laterProductsVisible, 
-            $"Scrolling should have changed visible products. Screen:\n{afterText}");
+        Assert.IsTrue(product1Gone || laterProductsVisible, $"Scrolling should have changed visible products. Screen:\n{afterText}");
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -982,7 +981,7 @@ public class TableNodeTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TableFocus_CanReceiveKeyboardInput()
     {
         // This test verifies the table is focusable and receives input
@@ -1035,14 +1034,14 @@ public class TableNodeTests
         Assert.Contains("Product", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_SelectionColumn_SpaceTogglesSelection()
     {
         // Test that pressing Space toggles selection of the focused row
         using var workload = new Hex1bAppWorkloadAdapter();
         
         var recordingPath = Path.Combine(Path.GetTempPath(), $"table_selection_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        TestContext.Current?.WriteLine($"Recording to: {recordingPath}");
         
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
@@ -1087,13 +1086,13 @@ public class TableNodeTests
         // Capture initial state
         var initialSnapshot = terminal.CreateSnapshot();
         var initialText = initialSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(initialText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
+        TestContext.Current?.WriteLine("=== Initial State ===");
+        TestContext.Current?.WriteLine(initialText);
+        TestContext.Current?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
         
         // Initial state - first row focused, no selection
         Assert.Contains("▢", initialText); // Unchecked checkbox (▢)
-        Assert.Equal(0, products.Count(p => p.IsSelected));
+        Assert.AreEqual(0, products.Count(p => p.IsSelected));
 
         // Press Space to toggle selection
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1104,13 +1103,13 @@ public class TableNodeTests
 
         var afterSpaceSnapshot = terminal.CreateSnapshot();
         var afterSpaceText = afterSpaceSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Space ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterSpaceText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
+        TestContext.Current?.WriteLine("=== After Space ===");
+        TestContext.Current?.WriteLine(afterSpaceText);
+        TestContext.Current?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // After Space, first row should be selected
         Assert.Contains("▣", afterSpaceText); // Checked checkbox (▣)
-        Assert.Equal(1, products.Count(p => p.IsSelected));
+        Assert.AreEqual(1, products.Count(p => p.IsSelected));
 
         // Navigate down and select that row too
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1122,12 +1121,12 @@ public class TableNodeTests
 
         var afterDownSpaceSnapshot = terminal.CreateSnapshot();
         var afterDownSpaceText = afterDownSpaceSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Down+Space ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterDownSpaceText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
+        TestContext.Current?.WriteLine("=== After Down+Space ===");
+        TestContext.Current?.WriteLine(afterDownSpaceText);
+        TestContext.Current?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // Now two rows should be selected
-        Assert.Equal(2, products.Count(p => p.IsSelected));
+        Assert.AreEqual(2, products.Count(p => p.IsSelected));
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1137,17 +1136,17 @@ public class TableNodeTests
 
         await runTask;
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording: {recordingPath}");
+        TestContext.Current?.WriteLine($"\nRecording: {recordingPath}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_SelectionColumn_MouseClickTogglesSelection()
     {
         // Test that clicking on checkbox toggles selection
         using var workload = new Hex1bAppWorkloadAdapter();
         
         var recordingPath = Path.Combine(Path.GetTempPath(), $"table_mouse_selection_test_{DateTime.Now:yyyyMMdd_HHmmss}.cast");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Recording to: {recordingPath}");
+        TestContext.Current?.WriteLine($"Recording to: {recordingPath}");
         
         using var terminal = Hex1bTerminal.CreateBuilder()
             .WithWorkload(workload)
@@ -1199,12 +1198,12 @@ public class TableNodeTests
         // Capture initial state
         var initialSnapshot = terminal.CreateSnapshot();
         var initialText = initialSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Initial State ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(initialText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
+        TestContext.Current?.WriteLine("=== Initial State ===");
+        TestContext.Current?.WriteLine(initialText);
+        TestContext.Current?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
         
         // Initial state - no selection
-        Assert.Equal(0, products.Count(p => p.IsSelected));
+        Assert.AreEqual(0, products.Count(p => p.IsSelected));
 
         // Click on the checkbox of the first data row
         // Table structure: │ ▢ │> Laptop...
@@ -1216,7 +1215,7 @@ public class TableNodeTests
         
         // Let's try clicking more towards the center of the checkbox area
         // Position X=2 should be right in the middle of " ▢ "
-        TestContext.Current.TestOutputHelper?.WriteLine($"Clicking at (2, 3) - should be on checkbox of first data row");
+        TestContext.Current?.WriteLine($"Clicking at (2, 3) - should be on checkbox of first data row");
         
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(2, 3)  // Click on checkbox of first data row
@@ -1226,24 +1225,24 @@ public class TableNodeTests
 
         var afterClickSnapshot = terminal.CreateSnapshot();
         var afterClickText = afterClickSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Mouse Click on Checkbox ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterClickText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
+        TestContext.Current?.WriteLine("=== After Mouse Click on Checkbox ===");
+        TestContext.Current?.WriteLine(afterClickText);
+        TestContext.Current?.WriteLine($"Focus: {focusedKey}, Selected: {products.Count(p => p.IsSelected)}");
 
         // After click on checkbox, first row should be selected
         // If this fails, the mouse event might not be reaching the table
         var selectedCount = products.Count(p => p.IsSelected);
         if (selectedCount == 0)
         {
-            TestContext.Current.TestOutputHelper?.WriteLine("FAIL: Selection is still empty after click");
-            TestContext.Current.TestOutputHelper?.WriteLine("This could mean:");
-            TestContext.Current.TestOutputHelper?.WriteLine("  1. HitTest didn't find the table node");
-            TestContext.Current.TestOutputHelper?.WriteLine("  2. Mouse binding didn't match");
-            TestContext.Current.TestOutputHelper?.WriteLine("  3. HandleRowClick didn't process the click correctly");
-            TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording saved to: {recordingPath}");
+            TestContext.Current?.WriteLine("FAIL: Selection is still empty after click");
+            TestContext.Current?.WriteLine("This could mean:");
+            TestContext.Current?.WriteLine("  1. HitTest didn't find the table node");
+            TestContext.Current?.WriteLine("  2. Mouse binding didn't match");
+            TestContext.Current?.WriteLine("  3. HandleRowClick didn't process the click correctly");
+            TestContext.Current?.WriteLine($"\nRecording saved to: {recordingPath}");
         }
         
-        Assert.Equal(1, selectedCount);
+        Assert.AreEqual(1, selectedCount);
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1253,7 +1252,7 @@ public class TableNodeTests
 
         await runTask;
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"\nRecording: {recordingPath}");
+        TestContext.Current?.WriteLine($"\nRecording: {recordingPath}");
     }
 
     #endregion
@@ -1299,7 +1298,7 @@ public class TableNodeTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_NavigateDown_LoadsDataForNextRange()
     {
         // Arrange
@@ -1333,9 +1332,9 @@ public class TableNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         // Initial load should have been requested
-        Assert.NotEmpty(dataSource.LoadRequests);
+        Assert.IsNotEmpty(dataSource.LoadRequests);
         var initialRequest = dataSource.LoadRequests[0];
-        Assert.Equal(0, initialRequest.Start);
+        Assert.AreEqual(0, initialRequest.Start);
         
         // Navigate down repeatedly to reach beyond initial cache (50 items)
         var builder = new Hex1bTerminalInputSequenceBuilder();
@@ -1349,15 +1348,14 @@ public class TableNodeTests
         await runTask;
         
         // Should have loaded more data when we navigated beyond initial range
-        Assert.True(dataSource.LoadRequests.Count > 1, 
-            $"Expected additional data loads when navigating beyond cache. Only had {dataSource.LoadRequests.Count} load(s)");
+        Assert.IsTrue(dataSource.LoadRequests.Count > 1, $"Expected additional data loads when navigating beyond cache. Only had {dataSource.LoadRequests.Count} load(s)");
         
         // Focus should be on a row beyond the initial 50
-        Assert.NotNull(focusedKey);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
+        Assert.IsNotNull(focusedKey);
+        TestContext.Current?.WriteLine($"Final focus: {focusedKey}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_NavigateToEnd_LoadsLastPage()
     {
         // Arrange
@@ -1397,16 +1395,15 @@ public class TableNodeTests
         
         // Should have loaded data for the end of the list
         var lastRequest = dataSource.LoadRequests[^1];
-        TestContext.Current.TestOutputHelper?.WriteLine($"Last load request: start={lastRequest.Start}, count={lastRequest.Count}");
-        Assert.True(lastRequest.Start > 400, 
-            $"Expected load request near end of list (>400), got start={lastRequest.Start}");
+        TestContext.Current?.WriteLine($"Last load request: start={lastRequest.Start}, count={lastRequest.Count}");
+        Assert.IsTrue(lastRequest.Start > 400, $"Expected load request near end of list (>400), got start={lastRequest.Start}");
         
         // Focus should be on the last item
-        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
-        Assert.Equal("Item 00500", focusedKey);
+        TestContext.Current?.WriteLine($"Final focus: {focusedKey}");
+        Assert.AreEqual("Item 00500", focusedKey);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_NavigateDownThenUp_MaintainsCorrectFocus()
     {
         // Arrange
@@ -1449,7 +1446,7 @@ public class TableNodeTests
         await downBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         var focusAfterDown = focusedKey;
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after 60 downs: {focusAfterDown}");
+        TestContext.Current?.WriteLine($"Focus after 60 downs: {focusAfterDown}");
         
         // Now navigate up 5 rows
         var upBuilder = new Hex1bTerminalInputSequenceBuilder();
@@ -1460,7 +1457,7 @@ public class TableNodeTests
         await upBuilder.Build().ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         var focusAfterUp = focusedKey;
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after 5 ups: {focusAfterUp}");
+        TestContext.Current?.WriteLine($"Focus after 5 ups: {focusAfterUp}");
         
         // Now navigate down again - this should work
         var downAgainBuilder = new Hex1bTerminalInputSequenceBuilder();
@@ -1474,16 +1471,16 @@ public class TableNodeTests
         await runTask;
         
         var finalFocus = focusedKey;
-        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {finalFocus}");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus history count: {focusHistory.Count}");
+        TestContext.Current?.WriteLine($"Final focus: {finalFocus}");
+        TestContext.Current?.WriteLine($"Focus history count: {focusHistory.Count}");
         
         // Verify focus movements
-        Assert.Equal("Item 00061", focusAfterDown);
-        Assert.Equal("Item 00056", focusAfterUp);
-        Assert.Equal("Item 00061", finalFocus);
+        Assert.AreEqual("Item 00061", focusAfterDown);
+        Assert.AreEqual("Item 00056", focusAfterUp);
+        Assert.AreEqual("Item 00061", finalFocus);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_InitialRender_SetsFocusToFirstRow()
     {
         // Arrange - async data source with NO initial focus (null)
@@ -1521,11 +1518,11 @@ public class TableNodeTests
         await runTask;
         
         // Assert - focus should be automatically set to first row
-        TestContext.Current.TestOutputHelper?.WriteLine($"Final focus: {focusedKey}");
-        Assert.Equal("Item 00001", focusedKey);
+        TestContext.Current?.WriteLine($"Final focus: {focusedKey}");
+        Assert.AreEqual("Item 00001", focusedKey);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_AfterRender_ShowsFocusBarsOnFirstRow()
     {
         // Arrange - async data source with NO initial focus (null)
@@ -1563,8 +1560,8 @@ public class TableNodeTests
         // Capture the screen
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Screen after stabilization ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Screen after stabilization ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Check for focus bars (thick vertical borders ┃) on the first data row
         // The focused row should have ┃ characters instead of │
@@ -1579,11 +1576,10 @@ public class TableNodeTests
         await runTask;
         
         // Assert
-        Assert.True(hasFocusBars, 
-            $"Expected focus bars (┃) on first row. Focus key: {focusedKey}\nScreen:\n{screenText}");
+        Assert.IsTrue(hasFocusBars, $"Expected focus bars (┃) on first row. Focus key: {focusedKey}\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsyncDataSource_ClickOnRow_ShowsFocusBarsAfterClick()
     {
         // Arrange - async data source 
@@ -1621,9 +1617,9 @@ public class TableNodeTests
         // Capture screen before click
         var beforeSnapshot = terminal.CreateSnapshot();
         var beforeText = beforeSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Before click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(beforeText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus before click: {focusedKey}");
+        TestContext.Current?.WriteLine("=== Before click ===");
+        TestContext.Current?.WriteLine(beforeText);
+        TestContext.Current?.WriteLine($"Focus before click: {focusedKey}");
         
         // Click on row 5 (approximately y=6: top border + header + separator + rows 1-3)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1635,9 +1631,9 @@ public class TableNodeTests
         // Capture screen after click
         var afterSnapshot = terminal.CreateSnapshot();
         var afterText = afterSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after click: {focusedKey}");
+        TestContext.Current?.WriteLine("=== After click ===");
+        TestContext.Current?.WriteLine(afterText);
+        TestContext.Current?.WriteLine($"Focus after click: {focusedKey}");
         
         // Check for focus bars on the clicked row
         // Focus should have moved, and we should see ┃ on the new focused row
@@ -1652,8 +1648,7 @@ public class TableNodeTests
         await runTask;
         
         // Assert
-        Assert.True(hasFocusBars, 
-            $"Expected focus bars (┃) after click. Focus key: {focusedKey}\nScreen after click:\n{afterText}");
+        Assert.IsTrue(hasFocusBars, $"Expected focus bars (┃) after click. Focus key: {focusedKey}\nScreen after click:\n{afterText}");
     }
 
     #endregion
@@ -1747,7 +1742,7 @@ public class TableNodeTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task VirtualizedScroll_SetFocusToRowOutsideCache_UsesIndexLookup()
     {
         // Arrange
@@ -1788,7 +1783,7 @@ public class TableNodeTests
         Assert.Contains("Row 500", dataSource.IndexLookupKeys);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task VirtualizedScroll_DataSourceWithoutIndexLookup_DoesNotScrollToRowOutsideCache()
     {
         // Arrange - data source without GetIndexForKey should NOT scroll to out-of-cache row
@@ -1835,7 +1830,7 @@ public class TableNodeTests
 
     #region Focus Scroll and Click Handler Bug Fixes
 
-    [Fact]
+    [TestMethod]
     public async Task Focus_ExternalSetToRowOffScreen_ScrollsToMakeRowVisible()
     {
         // This tests the fix for: when setting FocusKey externally via TableWidget.Focus(key),
@@ -1873,8 +1868,8 @@ public class TableNodeTests
         // Capture screen to see what's visible initially
         var snapshotInitial = terminal.CreateSnapshot();
         var textInitial = snapshotInitial.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine($"=== Initial screen (focus Item 001) ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(textInitial);
+        TestContext.Current?.WriteLine($"=== Initial screen (focus Item 001) ===");
+        TestContext.Current?.WriteLine(textInitial);
         
         // Initially, should see Item 001 and possibly a few more
         Assert.Contains("Item 001", textInitial);
@@ -1903,8 +1898,8 @@ public class TableNodeTests
         // Capture the screen to verify
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine($"=== After Focus(Item 050) ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine($"=== After Focus(Item 050) ===");
+        TestContext.Current?.WriteLine(text);
         
         // Row 50 should now be visible in the rendered output
         Assert.Contains("Item 050", text);
@@ -1921,7 +1916,7 @@ public class TableNodeTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Click_AfterScrollingInVirtualizedTable_ReturnsCorrectRowData()
     {
         // This tests the fix for: clicking rows after scrolling in a virtualized table
@@ -1974,9 +1969,9 @@ public class TableNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         var snapshotBeforeClick = terminal.CreateSnapshot();
-        TestContext.Current.TestOutputHelper?.WriteLine($"=== After navigation ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(snapshotBeforeClick.GetScreenText());
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus before click: {focusedKey}");
+        TestContext.Current?.WriteLine($"=== After navigation ===");
+        TestContext.Current?.WriteLine(snapshotBeforeClick.GetScreenText());
+        TestContext.Current?.WriteLine($"Focus before click: {focusedKey}");
         
         // Now click on the first visible row (which should be around row 50)
         // The click handler should correctly map this to the right data
@@ -1988,17 +1983,16 @@ public class TableNodeTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         
         var snapshotAfter = terminal.CreateSnapshot();
-        TestContext.Current.TestOutputHelper?.WriteLine($"=== After click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(snapshotAfter.GetScreenText());
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focus after click: {focusedKey}");
+        TestContext.Current?.WriteLine($"=== After click ===");
+        TestContext.Current?.WriteLine(snapshotAfter.GetScreenText());
+        TestContext.Current?.WriteLine($"Focus after click: {focusedKey}");
         
         // The focused key should NOT be null - click should have set focus
-        Assert.NotNull(focusedKey);
+        Assert.IsNotNull(focusedKey);
         
         // The focused key should be around row 50 (the first visible row after navigation)
         // and should contain "Item 0" (since we're looking at items 50+)
-        Assert.True(focusedKey?.ToString()?.StartsWith("Item 0") == true,
-            $"Expected focus to be on an item starting with 'Item 0', but got: {focusedKey}");
+        Assert.IsTrue(focusedKey?.ToString()?.StartsWith("Item 0") == true, $"Expected focus to be on an item starting with 'Item 0', but got: {focusedKey}");
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2013,7 +2007,7 @@ public class TableNodeTests
     
     #region Table Focus Indicator Tests
 
-    [Fact(Skip = "Feature not yet implemented - table-level focus indicator")]
+    [TestMethod, Ignore("Feature not yet implemented - table-level focus indicator")]
     public async Task Table_WhenFocused_ShouldShowTableLevelFocusIndicator()
     {
         // Arrange - table with focusable rows
@@ -2048,8 +2042,8 @@ public class TableNodeTests
         
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Table with focus ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Table with focus ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2074,15 +2068,14 @@ public class TableNodeTests
             screenText.Contains("┃┃");   // Some other focus indicator
             
         // Note: This test is expected to FAIL until we implement table-level focus indicator
-        Assert.True(hasTableFocusIndicator, 
-            $"Expected table-level focus indicator when table is focused.\nScreen:\n{screenText}");
+        Assert.IsTrue(hasTableFocusIndicator, $"Expected table-level focus indicator when table is focused.\nScreen:\n{screenText}");
     }
 
     #endregion
     
     #region Table Border Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FullMode_ShouldHaveRightTeeOnRowSeparators()
     {
         // Arrange - table in Full mode should have ┤ at right edge of row separators
@@ -2114,8 +2107,8 @@ public class TableNodeTests
         
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Table in Full mode ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Table in Full mode ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2139,11 +2132,10 @@ public class TableNodeTests
         
         bool hasRightTee = screenText.Contains("┤");
         
-        Assert.True(hasRightTee, 
-            $"Expected right tee (┤) characters at right edge of row separators in Full mode.\nScreen:\n{screenText}");
+        Assert.IsTrue(hasRightTee, $"Expected right tee (┤) characters at right edge of row separators in Full mode.\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LargeTable_Virtualized_ShouldHaveCorrectBorders()
     {
         // Arrange - large virtualized table should still have correct borders
@@ -2176,8 +2168,8 @@ public class TableNodeTests
         
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Large virtualized table ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Large virtualized table ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2208,11 +2200,10 @@ public class TableNodeTests
         if (!hasLeftTee) errors.Add("Missing left tee (├) on header separator");
         if (!hasRightTee) errors.Add("Missing right tee (┤) on header separator");
         
-        Assert.True(errors.Count == 0, 
-            $"Border issues found:\n{string.Join("\n", errors)}\n\nScreen:\n{screenText}");
+        Assert.IsTrue(errors.Count == 0, $"Border issues found:\n{string.Join("\n", errors)}\n\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LargeTable_FullMode_RowSeparatorsShouldHaveRightTee()
     {
         // Arrange - large virtualized table in Full mode with row separators
@@ -2246,8 +2237,8 @@ public class TableNodeTests
         
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Large table in Full mode ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Large table in Full mode ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2278,17 +2269,16 @@ public class TableNodeTests
                 completeSeperatorLines++;
         }
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"Left tee (├) count: {leftTeeCount}");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Right tee (┤) count: {rightTeeCount}");
-        TestContext.Current.TestOutputHelper?.WriteLine($"Complete separator lines (both ├ and ┤): {completeSeperatorLines}");
+        TestContext.Current?.WriteLine($"Left tee (├) count: {leftTeeCount}");
+        TestContext.Current?.WriteLine($"Right tee (┤) count: {rightTeeCount}");
+        TestContext.Current?.WriteLine($"Complete separator lines (both ├ and ┤): {completeSeperatorLines}");
         
         // Each separator line should have both left and right tees
-        Assert.Equal(leftTeeCount, completeSeperatorLines);
-        Assert.True(completeSeperatorLines > 1, 
-            $"Expected multiple complete row separators in Full mode, found {completeSeperatorLines}.\nScreen:\n{screenText}");
+        Assert.AreEqual(leftTeeCount, completeSeperatorLines);
+        Assert.IsTrue(completeSeperatorLines > 1, $"Expected multiple complete row separators in Full mode, found {completeSeperatorLines}.\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LargeTable_FullMode_MultiColumn_RowSeparatorsShouldHaveRightTee()
     {
         // Arrange - large virtualized table in Full mode with multiple columns
@@ -2333,8 +2323,8 @@ public class TableNodeTests
         
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Large multi-column table in Full mode ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Large multi-column table in Full mode ===");
+        TestContext.Current?.WriteLine(screenText);
         
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2350,13 +2340,13 @@ public class TableNodeTests
         var lines = screenText.Split('\n');
         var separatorLines = lines.Where(l => l.Contains("├") && l.Contains("─") && l.Contains("┼")).ToList();
         
-        TestContext.Current.TestOutputHelper?.WriteLine($"\nFound {separatorLines.Count} separator lines:");
+        TestContext.Current?.WriteLine($"\nFound {separatorLines.Count} separator lines:");
         
         var linesWithWrongEnding = new List<string>();
         foreach (var line in separatorLines)
         {
             var trimmed = line.TrimEnd();
-            TestContext.Current.TestOutputHelper?.WriteLine($"  Ends with: '{trimmed[^1]}' - {trimmed[^20..]}");
+            TestContext.Current?.WriteLine($"  Ends with: '{trimmed[^1]}' - {trimmed[^20..]}");
             
             // Separator lines should have ┤ as the table's right border
             // With scrollbar: ends with ┤││ or ┤▉│ (TeeLeft + scrollbar track + scrollbar border)
@@ -2382,12 +2372,11 @@ public class TableNodeTests
             }
         }
         
-        Assert.True(linesWithWrongEnding.Count == 0, 
-            $"Found {linesWithWrongEnding.Count} separator lines with incorrect ending.\n" +
+        Assert.IsTrue(linesWithWrongEnding.Count == 0, $"Found {linesWithWrongEnding.Count} separator lines with incorrect ending.\n" +
             $"First bad line: {linesWithWrongEnding.FirstOrDefault()}\n\nScreen:\n{screenText}");
     }
 
-        [Fact]
+        [TestMethod]
     public async Task Table_WithLargeAsyncDataSource_ShouldShowScrollbar()
     {
         // Arrange - simulate 10k items
@@ -2439,10 +2428,10 @@ public class TableNodeTests
         var hasScrollbar = lines.Any(line => 
             line.Length > 0 && scrollbarChars.Contains(line[^1]));
         
-        Assert.True(hasScrollbar, $"Expected scrollbar in rightmost column.\n\nScreen:\n{screenText}");
+        Assert.IsTrue(hasScrollbar, $"Expected scrollbar in rightmost column.\n\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_WithLargeSyncDataSource_ShouldShowScrollbar()
     {
         // Arrange - 10k items with synchronous data (IReadOnlyList)
@@ -2493,7 +2482,7 @@ public class TableNodeTests
         Assert.Contains("┃", screenText, StringComparison.Ordinal);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_WindowingDemoConfig_ScrollbarAdjacentToFixedColumns()
     {
         // Reproduces the exact bug seen in the WindowingDemo sample:
@@ -2549,8 +2538,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== WindowingDemo-style table with scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== WindowingDemo-style table with scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -2561,38 +2550,37 @@ public class TableNodeTests
         // Parse separator to verify column widths match demo definitions exactly
         var lines = screenText.Split('\n');
         var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
-        Assert.NotNull(separator);
+        Assert.IsNotNull(separator);
 
         var inner = separator.TrimEnd();
         int leftIdx = inner.IndexOf('├');
         int rightIdx = inner.LastIndexOf('┤');
-        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+        Assert.IsTrue(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
 
         var columnSection = inner[(leftIdx + 1)..rightIdx];
         var columnParts = columnSection.Split('┼');
-        Assert.True(columnParts.Length >= 4, $"Expected at least 4 column parts, got {columnParts.Length}. Separator: {separator}");
+        Assert.IsTrue(columnParts.Length >= 4, $"Expected at least 4 column parts, got {columnParts.Length}. Separator: {separator}");
 
         // Fixed(18), Fixed(12), Fixed(6), Fixed(10) — must be exact
-        Assert.Equal(18, columnParts[0].Length);
-        Assert.Equal(12, columnParts[1].Length);
-        Assert.Equal(6, columnParts[2].Length);
-        Assert.Equal(10, columnParts[3].Length);
+        Assert.AreEqual(18, columnParts[0].Length);
+        Assert.AreEqual(12, columnParts[1].Length);
+        Assert.AreEqual(6, columnParts[2].Length);
+        Assert.AreEqual(10, columnParts[3].Length);
 
         // Scrollbar must be adjacent — no gap between columns and scrollbar
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
 
         // Table content width = 18+12+6+10 cols + 5 borders + 2 scrollbar = 53
         var trimmedBorder = topBorder.TrimEnd();
-        Assert.Equal(53, trimmedBorder.Length);
+        Assert.AreEqual(53, trimmedBorder.Length);
 
         // Scrollbar thumb must be present
-        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
-            $"Expected scrollbar thumb.\n\nScreen:\n{screenText}");
+        Assert.IsTrue(screenText.Contains('▉') || screenText.Contains('┃'), $"Expected scrollbar thumb.\n\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_WindowingDemoConfig_TallWindow_NoScrollbarSameWidths()
     {
         // Same column config as demo but with a tall window (no scrollbar needed).
@@ -2645,8 +2633,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== WindowingDemo-style table without scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== WindowingDemo-style table without scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -2657,20 +2645,20 @@ public class TableNodeTests
         // Parse separator to verify column widths are identical to scrollbar case
         var lines = screenText.Split('\n');
         var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
-        Assert.NotNull(separator);
+        Assert.IsNotNull(separator);
 
         var inner = separator.TrimEnd();
         int leftIdx = inner.IndexOf('├');
         int rightIdx = inner.LastIndexOf('┤');
         var columnSection = inner[(leftIdx + 1)..rightIdx];
         var columnParts = columnSection.Split('┼');
-        Assert.True(columnParts.Length >= 4, $"Expected at least 4 column parts. Separator: {separator}");
+        Assert.IsTrue(columnParts.Length >= 4, $"Expected at least 4 column parts. Separator: {separator}");
 
         // Same exact widths as scrollbar case: Fixed(18), Fixed(12), Fixed(6), Fixed(10)
-        Assert.Equal(18, columnParts[0].Length);
-        Assert.Equal(12, columnParts[1].Length);
-        Assert.Equal(6, columnParts[2].Length);
-        Assert.Equal(10, columnParts[3].Length);
+        Assert.AreEqual(18, columnParts[0].Length);
+        Assert.AreEqual(12, columnParts[1].Length);
+        Assert.AreEqual(6, columnParts[2].Length);
+        Assert.AreEqual(10, columnParts[3].Length);
 
         // No scrollbar present
         Assert.DoesNotContain("┃", screenText);
@@ -2678,12 +2666,12 @@ public class TableNodeTests
 
         // Table content width = 18+12+6+10 cols + 5 borders = 51 (no scrollbar)
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         var trimmedBorder = topBorder.TrimEnd();
-        Assert.Equal(51, trimmedBorder.Length);
+        Assert.AreEqual(51, trimmedBorder.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_AllFixedColumns_ScrollbarAdjacentToContent()
     {
         // Arrange - table with all Fixed-width columns that needs a scrollbar.
@@ -2726,8 +2714,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Table with all fixed columns + scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Table with all fixed columns + scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         // Exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -2741,7 +2729,7 @@ public class TableNodeTests
         // Incorrect: ┌────────────┬──────────┬─────┬          ─┐  (gap between columns and scrollbar)
         var lines = screenText.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
 
         // The top border should NOT have spaces between border characters
         // A gap manifests as spaces between ┬ and ─┐
@@ -2749,11 +2737,10 @@ public class TableNodeTests
         Assert.DoesNotContain("┬ ", borderContent);
 
         // Also verify the scrollbar thumb is present (table is scrollable)
-        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
-            $"Expected scrollbar thumb character in output.\n\nScreen:\n{screenText}");
+        Assert.IsTrue(screenText.Contains('▉') || screenText.Contains('┃'), $"Expected scrollbar thumb character in output.\n\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FixedColumnsWithoutScrollbar_ColumnWidthsMatchDefinitions()
     {
         // When a table has few rows (no scrollbar needed), fixed columns should have
@@ -2792,8 +2779,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns without scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Fixed columns without scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -2805,29 +2792,29 @@ public class TableNodeTests
         // The separator line looks like: ├────────────┼──────────┼─────┤
         var lines = screenText.Split('\n');
         var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
-        Assert.NotNull(separator);
+        Assert.IsNotNull(separator);
 
         // Extract column widths by splitting on ┼ (cross) characters
         // Strip left ├ and right ┤
         var inner = separator.TrimEnd();
         int leftIdx = inner.IndexOf('├');
         int rightIdx = inner.LastIndexOf('┤');
-        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+        Assert.IsTrue(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
 
         var columnSection = inner[(leftIdx + 1)..rightIdx];
         var columnParts = columnSection.Split('┼');
-        Assert.Equal(3, columnParts.Length);
+        Assert.AreEqual(3, columnParts.Length);
 
         // Each column width should match the Fixed hint
-        Assert.Equal(12, columnParts[0].Length); // Fixed(12)
-        Assert.Equal(10, columnParts[1].Length); // Fixed(10)
-        Assert.Equal(5, columnParts[2].Length);  // Fixed(5)
+        Assert.AreEqual(12, columnParts[0].Length); // Fixed(12)
+        Assert.AreEqual(10, columnParts[1].Length); // Fixed(10)
+        Assert.AreEqual(5, columnParts[2].Length);  // Fixed(5)
 
         // No scrollbar should be present
         Assert.DoesNotContain("┃", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FixedColumnsWithScrollbar_ColumnWidthsSameAsWithout()
     {
         // CRITICAL: Fixed column widths must be identical regardless of whether a scrollbar
@@ -2869,8 +2856,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns with scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Fixed columns with scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -2882,32 +2869,31 @@ public class TableNodeTests
         // Note the ┼─┤ at end is scrollbar column joining character
         var lines = screenText.Split('\n');
         var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
-        Assert.NotNull(separator);
+        Assert.IsNotNull(separator);
 
         // Extract the section between ├ and the last ┤, but note the scrollbar adds
         // an extra section at the end. Split on ┼.
         var inner = separator.TrimEnd();
         int leftIdx = inner.IndexOf('├');
         int rightIdx = inner.LastIndexOf('┤');
-        Assert.True(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
+        Assert.IsTrue(leftIdx >= 0 && rightIdx > leftIdx, $"Could not parse separator: {separator}");
 
         var columnSection = inner[(leftIdx + 1)..rightIdx];
         var columnParts = columnSection.Split('┼');
 
         // With scrollbar: 3 data columns + 1 scrollbar track section = 4 parts (or 3 + ┤ via scrollbar)
         // The first 3 should match Fixed widths exactly
-        Assert.True(columnParts.Length >= 3, $"Expected at least 3 column sections, got {columnParts.Length}. Separator: {separator}");
+        Assert.IsTrue(columnParts.Length >= 3, $"Expected at least 3 column sections, got {columnParts.Length}. Separator: {separator}");
 
-        Assert.Equal(12, columnParts[0].Length); // Fixed(12) - same as without scrollbar
-        Assert.Equal(10, columnParts[1].Length); // Fixed(10) - same as without scrollbar
-        Assert.Equal(5, columnParts[2].Length);  // Fixed(5) - same as without scrollbar
+        Assert.AreEqual(12, columnParts[0].Length); // Fixed(12) - same as without scrollbar
+        Assert.AreEqual(10, columnParts[1].Length); // Fixed(10) - same as without scrollbar
+        Assert.AreEqual(5, columnParts[2].Length);  // Fixed(5) - same as without scrollbar
 
         // Scrollbar thumb should be present
-        Assert.True(screenText.Contains('▉') || screenText.Contains('┃'),
-            $"Expected scrollbar thumb character.\n\nScreen:\n{screenText}");
+        Assert.IsTrue(screenText.Contains('▉') || screenText.Contains('┃'), $"Expected scrollbar thumb character.\n\nScreen:\n{screenText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_MixedFixedAndFillColumns_FillAbsorbsRemainingSpace()
     {
         // When a table has a mix of Fixed and Fill columns, the Fill column should
@@ -2949,8 +2935,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Mixed Fixed+Fill columns with scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Mixed Fixed+Fill columns with scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -2961,7 +2947,7 @@ public class TableNodeTests
         // Parse separator to verify Fixed columns are exactly their defined widths
         var lines = screenText.Split('\n');
         var separator = lines.FirstOrDefault(l => l.Contains('├') && l.Contains('┼'));
-        Assert.NotNull(separator);
+        Assert.IsNotNull(separator);
 
         var inner = separator.TrimEnd();
         int leftIdx = inner.IndexOf('├');
@@ -2970,27 +2956,26 @@ public class TableNodeTests
         var columnParts = columnSection.Split('┼');
 
         // Should have at least 3 data column parts
-        Assert.True(columnParts.Length >= 3, $"Expected at least 3 column sections. Separator: {separator}");
+        Assert.IsTrue(columnParts.Length >= 3, $"Expected at least 3 column sections. Separator: {separator}");
 
         // Fixed(15) column must be exactly 15
-        Assert.Equal(15, columnParts[0].Length);
+        Assert.AreEqual(15, columnParts[0].Length);
         // Fill column absorbs remaining width - just check it's > 0
-        Assert.True(columnParts[1].Length > 0, "Fill column should have non-zero width");
+        Assert.IsTrue(columnParts[1].Length > 0, "Fill column should have non-zero width");
         // Fixed(8) column must be exactly 8
-        Assert.Equal(8, columnParts[2].Length);
+        Assert.AreEqual(8, columnParts[2].Length);
 
         // Fill column should expand to absorb space (with scrollbar, total = 60)
         // borders: 4 (|col|col|col|), scrollbar: 2, fixed: 15+8=23 → fill ≈ 31
-        Assert.True(columnParts[1].Length > 20,
-            $"Fill column should absorb remaining space, got width={columnParts[1].Length}");
+        Assert.IsTrue(columnParts[1].Length > 20, $"Fill column should absorb remaining space, got width={columnParts[1].Length}");
 
         // Verify no gap - top border should have no spaces between border chars
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_AllFillColumns_WithScrollbar_NoGap()
     {
         // All Fill columns should expand to fill the available width, and the scrollbar
@@ -3030,8 +3015,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== All Fill columns with scrollbar ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== All Fill columns with scrollbar ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -3042,16 +3027,16 @@ public class TableNodeTests
         // Top border should end with ┬─┐ (scrollbar connection) with no gap
         var lines = screenText.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         Assert.DoesNotContain("┬ ", topBorder.TrimEnd());
 
         // With Fill columns, the table should fill the entire width (50 chars)
         // So the right edge of the top border should be at position 49
         var trimmedBorder = topBorder.TrimEnd();
-        Assert.Equal(50, trimmedBorder.Length);
+        Assert.AreEqual(50, trimmedBorder.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FixedColumnsNarrowWidth_ScrollbarStillAdjacentWhenTableFillsWidth()
     {
         // When the terminal is narrow enough that fixed columns + scrollbar fill almost
@@ -3092,8 +3077,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns narrow terminal ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Fixed columns narrow terminal ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -3106,17 +3091,17 @@ public class TableNodeTests
         // Scrollbar must be at position 30 (adjacent to columns), not position 35.
         var lines = screenText.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         
         var trimmedBorder = topBorder.TrimEnd();
         // Table content width = 10+8+6 (cols) + 4 (borders |c|c|c|) + 2 (scrollbar) = 30
-        Assert.Equal(30, trimmedBorder.Length);
+        Assert.AreEqual(30, trimmedBorder.Length);
         
         // Should NOT have any space before ┐
-        Assert.False(trimmedBorder.Contains(' '), $"Top border should have no spaces: [{trimmedBorder}]");
+        Assert.IsFalse(trimmedBorder.Contains(' '), $"Top border should have no spaces: [{trimmedBorder}]");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FixedColumnsWideTerminal_ScrollbarNotAtFarRightEdge()
     {
         // When the terminal is much wider than the table content, the scrollbar should
@@ -3155,8 +3140,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var screenText = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fixed columns in wide terminal ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(screenText);
+        TestContext.Current?.WriteLine("=== Fixed columns in wide terminal ===");
+        TestContext.Current?.WriteLine(screenText);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -3168,22 +3153,21 @@ public class TableNodeTests
         // The top border + scrollbar should be 21 chars, NOT 100 chars.
         var lines = screenText.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains('┌'));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
 
         var trimmedBorder = topBorder.TrimEnd();
         // Should be much smaller than terminal width
-        Assert.True(trimmedBorder.Length < 50,
-            $"Table should not stretch to terminal width. Border length={trimmedBorder.Length}, terminal=100.\nBorder: [{trimmedBorder}]");
+        Assert.IsTrue(trimmedBorder.Length < 50, $"Table should not stretch to terminal width. Border length={trimmedBorder.Length}, terminal=100.\nBorder: [{trimmedBorder}]");
 
         // Exact width check: 8+8 columns + 3 borders + 2 scrollbar = 21
-        Assert.Equal(21, trimmedBorder.Length);
+        Assert.AreEqual(21, trimmedBorder.Length);
     }
 
     #endregion
 
     #region Fill Height Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFillHeight_ExpandsToConstraintHeight()
     {
         // A table with only 2 data rows should still measure to the full
@@ -3201,10 +3185,10 @@ public class TableNodeTests
 
         // Without Fill the height would be 6 (top + header + sep + 2 rows + bottom).
         // With Fill it must expand to the constraint max height (24).
-        Assert.Equal(24, size.Height);
+        Assert.AreEqual(24, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFillHeight_EmptyData_ExpandsToConstraintHeight()
     {
         var node = new TableNode<string>
@@ -3217,10 +3201,10 @@ public class TableNodeTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 20));
 
-        Assert.Equal(20, size.Height);
+        Assert.AreEqual(20, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithoutFillHeight_UsesContentHeight()
     {
         // Baseline: without Fill, the table should use content-based height.
@@ -3235,10 +3219,10 @@ public class TableNodeTests
         var size = node.Measure(new Constraints(0, 40, 0, 24));
 
         // top (1) + header (1) + sep (1) + 2 rows (2) + bottom (1) = 6
-        Assert.Equal(6, size.Height);
+        Assert.AreEqual(6, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FillInVStack_BottomBorderAtScreenBottom()
     {
         // Integration test: a table with .Fill() inside a VStack should render
@@ -3278,16 +3262,16 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fill height test ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Fill height test ===");
+        TestContext.Current?.WriteLine(text);
 
         // The bottom-right corner character '┘' must be on the last row
         var bottomRight = snapshot.GetCell(termWidth - 1, termHeight - 1);
-        Assert.Equal("┘", bottomRight.Character);
+        Assert.AreEqual("┘", bottomRight.Character);
 
         // The bottom-left corner '└' must also be on the last row
         var bottomLeft = snapshot.GetCell(0, termHeight - 1);
-        Assert.Equal("└", bottomLeft.Character);
+        Assert.AreEqual("└", bottomLeft.Character);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -3296,7 +3280,7 @@ public class TableNodeTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_EmptyData_FillHeight_NoColumnSeparatorsInFillRows()
     {
         // When there's no data and FillHeight is set, fill rows should NOT render
@@ -3335,8 +3319,8 @@ public class TableNodeTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Empty table fill height test ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Empty table fill height test ===");
+        TestContext.Current?.WriteLine(text);
 
         // Rows below the "No data" row (rows 4..8 with 0-indexed: header separator at row 2, 
         // "No data" at row 3, fill rows at 4+, bottom border at 9) should NOT have column
@@ -3353,7 +3337,7 @@ public class TableNodeTests
                 if (cell.Character == "│")
                     verticalBarCount++;
             }
-            Assert.Equal(0, verticalBarCount);
+            Assert.AreEqual(0, verticalBarCount);
         }
 
         await new Hex1bTerminalInputSequenceBuilder()

@@ -3,17 +3,18 @@ using Microsoft.Extensions.Logging;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class CircularBufferTests
 {
-    [Fact]
+    [TestMethod]
     public void Add_SingleItem_CountIsOne()
     {
         var buffer = new CircularBuffer<int>(10);
         buffer.Add(42);
-        Assert.Equal(1, buffer.Count);
+        Assert.AreEqual(1, buffer.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_ExceedsCapacity_CountClampsToCapacity()
     {
         var buffer = new CircularBuffer<int>(3);
@@ -22,10 +23,10 @@ public class CircularBufferTests
         buffer.Add(3);
         buffer.Add(4);
 
-        Assert.Equal(3, buffer.Count);
+        Assert.AreEqual(3, buffer.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_ExceedsCapacity_OldestItemsDropped()
     {
         var buffer = new CircularBuffer<int>(3);
@@ -35,10 +36,10 @@ public class CircularBufferTests
         buffer.Add(4);
 
         var items = buffer.GetItems(0, 3);
-        Assert.Equal([2, 3, 4], items);
+        TestSeq.AreEqual([2, 3, 4], items);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetItems_ReturnsCorrectRange()
     {
         var buffer = new CircularBuffer<int>(10);
@@ -46,20 +47,20 @@ public class CircularBufferTests
             buffer.Add(i);
 
         var items = buffer.GetItems(1, 3);
-        Assert.Equal([1, 2, 3], items);
+        TestSeq.AreEqual([1, 2, 3], items);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetItems_StartBeyondCount_ReturnsEmpty()
     {
         var buffer = new CircularBuffer<int>(10);
         buffer.Add(1);
 
         var items = buffer.GetItems(5, 3);
-        Assert.Empty(items);
+        Assert.IsEmpty(items);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetItems_CountExceedsAvailable_ClampsToAvailable()
     {
         var buffer = new CircularBuffer<int>(10);
@@ -67,10 +68,10 @@ public class CircularBufferTests
         buffer.Add(2);
 
         var items = buffer.GetItems(0, 100);
-        Assert.Equal(2, items.Count);
+        Assert.AreEqual(2, items.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_ResetsCountToZero()
     {
         var buffer = new CircularBuffer<int>(10);
@@ -78,10 +79,10 @@ public class CircularBufferTests
         buffer.Add(2);
         buffer.Clear();
 
-        Assert.Equal(0, buffer.Count);
+        Assert.AreEqual(0, buffer.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void CollectionChanged_FiredOnAdd()
     {
         var buffer = new CircularBuffer<int>(10);
@@ -90,10 +91,10 @@ public class CircularBufferTests
 
         buffer.Add(1);
 
-        Assert.True(fired);
+        Assert.IsTrue(fired);
     }
 
-    [Fact]
+    [TestMethod]
     public void CollectionChanged_FiredOnClear()
     {
         var buffer = new CircularBuffer<int>(10);
@@ -103,10 +104,10 @@ public class CircularBufferTests
         buffer.CollectionChanged += (_, _) => fired = true;
         buffer.Clear();
 
-        Assert.True(fired);
+        Assert.IsTrue(fired);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_ThreadSafe_NoExceptions()
     {
         var buffer = new CircularBuffer<int>(100);
@@ -125,22 +126,23 @@ public class CircularBufferTests
         Task.WaitAll(tasks);
 
         // Buffer should have exactly capacity items (100)
-        Assert.Equal(100, buffer.Count);
+        Assert.AreEqual(100, buffer.Count);
     }
 }
 
+[TestClass]
 public class Hex1bLogStoreTests
 {
-    [Fact]
+    [TestMethod]
     public void CreateLogger_ReturnsLogger()
     {
         var store = new Hex1bLogStore();
         var logger = store.CreateLogger("TestCategory");
 
-        Assert.NotNull(logger);
+        Assert.IsNotNull(logger);
     }
 
-    [Fact]
+    [TestMethod]
     public void Logger_LogMessage_AppearsInBuffer()
     {
         var store = new Hex1bLogStore();
@@ -148,14 +150,14 @@ public class Hex1bLogStoreTests
 
         logger.LogInformation("Hello, World!");
 
-        Assert.Equal(1, store.Buffer.Count);
+        Assert.AreEqual(1, store.Buffer.Count);
         var items = store.Buffer.GetItems(0, 1);
-        Assert.Equal("Hello, World!", items[0].Message);
-        Assert.Equal("TestCategory", items[0].Category);
-        Assert.Equal(LogLevel.Information, items[0].Level);
+        Assert.AreEqual("Hello, World!", items[0].Message);
+        Assert.AreEqual("TestCategory", items[0].Category);
+        Assert.AreEqual(LogLevel.Information, items[0].Level);
     }
 
-    [Fact]
+    [TestMethod]
     public void Logger_MultipleCategories_AllAppearInBuffer()
     {
         var store = new Hex1bLogStore();
@@ -165,13 +167,13 @@ public class Hex1bLogStoreTests
         logger1.LogInformation("From A");
         logger2.LogWarning("From B");
 
-        Assert.Equal(2, store.Buffer.Count);
+        Assert.AreEqual(2, store.Buffer.Count);
         var items = store.Buffer.GetItems(0, 2);
-        Assert.Equal("Category.A", items[0].Category);
-        Assert.Equal("Category.B", items[1].Category);
+        Assert.AreEqual("Category.A", items[0].Category);
+        Assert.AreEqual("Category.B", items[1].Category);
     }
 
-    [Fact]
+    [TestMethod]
     public void DataSource_ReflectsBufferContents()
     {
         var store = new Hex1bLogStore();
@@ -181,32 +183,33 @@ public class Hex1bLogStoreTests
         logger.LogError("Entry 2");
 
         var count = store.DataSource.GetItemCountAsync().GetAwaiter().GetResult();
-        Assert.Equal(2, count);
+        Assert.AreEqual(2, count);
 
         var items = store.DataSource.GetItemsAsync(0, 2).GetAwaiter().GetResult();
-        Assert.Equal("Entry 1", items[0].Message);
-        Assert.Equal("Entry 2", items[1].Message);
+        Assert.AreEqual("Entry 1", items[0].Message);
+        Assert.AreEqual("Entry 2", items[1].Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Logger_IsEnabled_ReturnsTrueForAllLevels()
     {
         var store = new Hex1bLogStore();
         var logger = store.CreateLogger("Test");
 
-        Assert.True(logger.IsEnabled(LogLevel.Trace));
-        Assert.True(logger.IsEnabled(LogLevel.Debug));
-        Assert.True(logger.IsEnabled(LogLevel.Information));
-        Assert.True(logger.IsEnabled(LogLevel.Warning));
-        Assert.True(logger.IsEnabled(LogLevel.Error));
-        Assert.True(logger.IsEnabled(LogLevel.Critical));
-        Assert.False(logger.IsEnabled(LogLevel.None));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Trace));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Debug));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Information));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Warning));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Error));
+        Assert.IsTrue(logger.IsEnabled(LogLevel.Critical));
+        Assert.IsFalse(logger.IsEnabled(LogLevel.None));
     }
 }
 
+[TestClass]
 public class Hex1bLogTableDataSourceTests
 {
-    [Fact]
+    [TestMethod]
     public void GetItemCountAsync_ReturnsBufferCount()
     {
         var buffer = new CircularBuffer<Hex1bLogEntry>(100);
@@ -215,10 +218,10 @@ public class Hex1bLogTableDataSourceTests
         buffer.Add(new Hex1bLogEntry(DateTime.UtcNow, LogLevel.Information, "Test", "msg", default, null));
 
         var count = dataSource.GetItemCountAsync().GetAwaiter().GetResult();
-        Assert.Equal(1, count);
+        Assert.AreEqual(1, count);
     }
 
-    [Fact]
+    [TestMethod]
     public void CollectionChanged_ForwardedFromBuffer()
     {
         var buffer = new CircularBuffer<Hex1bLogEntry>(100);
@@ -228,10 +231,10 @@ public class Hex1bLogTableDataSourceTests
 
         buffer.Add(new Hex1bLogEntry(DateTime.UtcNow, LogLevel.Information, "Test", "msg", default, null));
 
-        Assert.True(fired);
+        Assert.IsTrue(fired);
     }
 
-    [Fact]
+    [TestMethod]
     public void Dispose_UnsubscribesFromBuffer()
     {
         var buffer = new CircularBuffer<Hex1bLogEntry>(100);
@@ -242,16 +245,17 @@ public class Hex1bLogTableDataSourceTests
         dataSource.Dispose();
         buffer.Add(new Hex1bLogEntry(DateTime.UtcNow, LogLevel.Information, "Test", "msg", default, null));
 
-        Assert.False(fired);
+        Assert.IsFalse(fired);
     }
 }
 
+[TestClass]
 public class LoggerPanelNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void IsFollowing_DefaultsToTrue()
     {
         var node = new LoggerPanelNode();
-        Assert.True(node.IsFollowing);
+        Assert.IsTrue(node.IsFollowing);
     }
 }

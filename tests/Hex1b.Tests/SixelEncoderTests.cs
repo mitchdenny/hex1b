@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="SixelEncoder"/> and round-trip verification with <see cref="SixelDecoder"/>.
 /// </summary>
+[TestClass]
 public class SixelEncoderTests
 {
     #region T1: Encoder/Decoder Round-Trip Tests
 
-    [Fact]
+    [TestMethod]
     public void T1_1_SolidColor_RoundTrip()
     {
         // Single solid red color
@@ -22,15 +23,15 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(10, decoded.Width);
-        Assert.Equal(12, decoded.Height);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(10, decoded.Width);
+        Assert.AreEqual(12, decoded.Height);
         
         // Check center pixel is red (allowing for quantization)
         AssertPixelSimilar(decoded, 5, 6, 255, 0, 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_2_TwoColors_RoundTrip()
     {
         // Left half red, right half blue
@@ -46,12 +47,12 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
+        Assert.IsNotNull(decoded);
         AssertPixelSimilar(decoded, 2, 6, 255, 0, 0);   // Left half - red
         AssertPixelSimilar(decoded, 15, 6, 0, 0, 255);  // Right half - blue
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_3_FullPaletteUsage()
     {
         // Create image with 256 distinct colors
@@ -71,13 +72,13 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(16, decoded.Width);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(16, decoded.Width);
         // Height may be padded to band boundary (multiple of 6)
-        Assert.True(decoded.Height >= 16);
+        Assert.IsTrue(decoded.Height >= 16);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_4_Gradient_Quantization()
     {
         // Horizontal red gradient
@@ -94,15 +95,15 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
+        Assert.IsNotNull(decoded);
         
         // Left should be dark, right should be bright
         var leftPixel = GetPixel(decoded, 5, 6);
         var rightPixel = GetPixel(decoded, 94, 6);
-        Assert.True(rightPixel.r > leftPixel.r, "Gradient should go from dark to bright");
+        Assert.IsTrue(rightPixel.r > leftPixel.r, "Gradient should go from dark to bright");
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_5_ScatteredTransparency()
     {
         // Checkerboard of opaque and transparent pixels
@@ -120,18 +121,18 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
+        Assert.IsNotNull(decoded);
         
         // Check opaque pixel
         var opaquePixel = GetPixel(decoded, 0, 0);
-        Assert.Equal(255, opaquePixel.a);
+        Assert.AreEqual(255, opaquePixel.a);
         
         // Check transparent pixel
         var transparentPixel = GetPixel(decoded, 1, 0);
-        Assert.Equal(0, transparentPixel.a);
+        Assert.AreEqual(0, transparentPixel.a);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_6_ContiguousTransparency()
     {
         // Top half opaque, bottom half transparent
@@ -146,17 +147,17 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
+        Assert.IsNotNull(decoded);
         
         // Top should be green
         AssertPixelSimilar(decoded, 10, 2, 0, 255, 0);
         
         // Bottom should be transparent
         var bottomPixel = GetPixel(decoded, 10, 10);
-        Assert.Equal(0, bottomPixel.a);
+        Assert.AreEqual(0, bottomPixel.a);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_7_SinglePixel()
     {
         var buffer = CreateSolidBuffer(1, 1, Rgba32.FromRgb(128, 128, 128));
@@ -164,13 +165,13 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(1, decoded.Width);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(1, decoded.Width);
         // Height will be padded to band boundary (6)
-        Assert.True(decoded.Height >= 1);
+        Assert.IsTrue(decoded.Height >= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_8_SingleRow()
     {
         var buffer = new SixelPixelBuffer(50, 1);
@@ -180,11 +181,11 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(50, decoded.Width);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(50, decoded.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_9_SingleColumn()
     {
         var buffer = new SixelPixelBuffer(1, 50);
@@ -194,11 +195,11 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.True(decoded.Height >= 50);
+        Assert.IsNotNull(decoded);
+        Assert.IsTrue(decoded.Height >= 50);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_10_LargeImage()
     {
         // 100x100 should work (though we won't test 1000x1000 for speed)
@@ -207,13 +208,13 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(100, decoded.Width);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(100, decoded.Width);
         // Height may be padded to band boundary (multiple of 6)
-        Assert.True(decoded.Height >= 100);
+        Assert.IsTrue(decoded.Height >= 100);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_11_NonMultipleOf6Height()
     {
         // Height 10 is not a multiple of 6 (band size)
@@ -222,12 +223,12 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(20, decoded.Width);
-        Assert.True(decoded.Height >= 10);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(20, decoded.Width);
+        Assert.IsTrue(decoded.Height >= 10);
     }
 
-    [Fact]
+    [TestMethod]
     public void T1_12_WideImage()
     {
         // Very wide image
@@ -236,15 +237,15 @@ public class SixelEncoderTests
         var encoded = SixelEncoder.Encode(buffer);
         var decoded = SixelDecoder.Decode(encoded);
         
-        Assert.NotNull(decoded);
-        Assert.Equal(500, decoded.Width);
+        Assert.IsNotNull(decoded);
+        Assert.AreEqual(500, decoded.Width);
     }
 
     #endregion
 
     #region Encoder Format Tests
 
-    [Fact]
+    [TestMethod]
     public void Encode_ContainsDcsHeader()
     {
         var buffer = CreateSolidBuffer(10, 6, Rgba32.FromRgb(255, 0, 0));
@@ -254,7 +255,7 @@ public class SixelEncoderTests
         Assert.Contains("q", encoded);        // Sixel introducer
     }
 
-    [Fact]
+    [TestMethod]
     public void Encode_ContainsStringTerminator()
     {
         var buffer = CreateSolidBuffer(10, 6, Rgba32.FromRgb(255, 0, 0));
@@ -263,7 +264,7 @@ public class SixelEncoderTests
         Assert.EndsWith("\x1b\\", encoded); // ST
     }
 
-    [Fact]
+    [TestMethod]
     public void Encode_ContainsColorDefinitions()
     {
         var buffer = CreateSolidBuffer(10, 6, Rgba32.FromRgb(255, 0, 0));
@@ -273,7 +274,7 @@ public class SixelEncoderTests
         Assert.Contains("#0;2;", encoded);
     }
 
-    [Fact]
+    [TestMethod]
     public void Encode_ContainsRasterAttributes()
     {
         var buffer = CreateSolidBuffer(20, 12, Rgba32.FromRgb(0, 255, 0));
@@ -283,7 +284,7 @@ public class SixelEncoderTests
         Assert.Contains("\"1;1;20;12", encoded);
     }
 
-    [Fact]
+    [TestMethod]
     public void Encode_UsesRleForLongRuns()
     {
         // Solid color should produce RLE sequences
@@ -294,7 +295,7 @@ public class SixelEncoderTests
         Assert.Contains("!", encoded);
     }
 
-    [Fact]
+    [TestMethod]
     public void Encode_AllTransparent_ReturnsMinimalSixel()
     {
         var buffer = new SixelPixelBuffer(10, 10);
@@ -310,7 +311,7 @@ public class SixelEncoderTests
 
     #region SixelPixelBuffer Tests
 
-    [Fact]
+    [TestMethod]
     public void SixelPixelBuffer_Crop_ReturnsCorrectRegion()
     {
         var buffer = new SixelPixelBuffer(20, 20);
@@ -322,13 +323,13 @@ public class SixelEncoderTests
         
         var cropped = buffer.Crop(5, 5, 10, 10);
         
-        Assert.Equal(10, cropped.Width);
-        Assert.Equal(10, cropped.Height);
-        Assert.Equal(Rgba32.FromRgb(255, 0, 0), cropped[0, 0]);
-        Assert.Equal(Rgba32.FromRgb(255, 0, 0), cropped[9, 9]);
+        Assert.AreEqual(10, cropped.Width);
+        Assert.AreEqual(10, cropped.Height);
+        Assert.AreEqual(Rgba32.FromRgb(255, 0, 0), cropped[0, 0]);
+        Assert.AreEqual(Rgba32.FromRgb(255, 0, 0), cropped[9, 9]);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelPixelBuffer_Crop_ClampsToValidBounds()
     {
         var buffer = new SixelPixelBuffer(10, 10);
@@ -339,52 +340,52 @@ public class SixelEncoderTests
         // Request region that extends past bounds
         var cropped = buffer.Crop(5, 5, 20, 20);
         
-        Assert.Equal(5, cropped.Width);
-        Assert.Equal(5, cropped.Height);
+        Assert.AreEqual(5, cropped.Width);
+        Assert.AreEqual(5, cropped.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelPixelBuffer_GetPixelOrTransparent_ReturnsTransparentForOutOfBounds()
     {
         var buffer = new SixelPixelBuffer(10, 10);
         buffer[5, 5] = Rgba32.FromRgb(255, 0, 0);
         
-        Assert.Equal(Rgba32.Transparent, buffer.GetPixelOrTransparent(-1, 5));
-        Assert.Equal(Rgba32.Transparent, buffer.GetPixelOrTransparent(5, -1));
-        Assert.Equal(Rgba32.Transparent, buffer.GetPixelOrTransparent(10, 5));
-        Assert.Equal(Rgba32.Transparent, buffer.GetPixelOrTransparent(5, 10));
-        Assert.Equal(Rgba32.FromRgb(255, 0, 0), buffer.GetPixelOrTransparent(5, 5));
+        Assert.AreEqual(Rgba32.Transparent, buffer.GetPixelOrTransparent(-1, 5));
+        Assert.AreEqual(Rgba32.Transparent, buffer.GetPixelOrTransparent(5, -1));
+        Assert.AreEqual(Rgba32.Transparent, buffer.GetPixelOrTransparent(10, 5));
+        Assert.AreEqual(Rgba32.Transparent, buffer.GetPixelOrTransparent(5, 10));
+        Assert.AreEqual(Rgba32.FromRgb(255, 0, 0), buffer.GetPixelOrTransparent(5, 5));
     }
 
     #endregion
 
     #region T2: PixelRect Tests
 
-    [Fact]
+    [TestMethod]
     public void T2_1_PixelRect_Properties()
     {
         var rect = new PixelRect(10, 20, 30, 40);
         
-        Assert.Equal(10, rect.X);
-        Assert.Equal(20, rect.Y);
-        Assert.Equal(30, rect.Width);
-        Assert.Equal(40, rect.Height);
-        Assert.Equal(40, rect.Right);
-        Assert.Equal(60, rect.Bottom);
-        Assert.Equal(1200, rect.Area);
-        Assert.False(rect.IsEmpty);
+        Assert.AreEqual(10, rect.X);
+        Assert.AreEqual(20, rect.Y);
+        Assert.AreEqual(30, rect.Width);
+        Assert.AreEqual(40, rect.Height);
+        Assert.AreEqual(40, rect.Right);
+        Assert.AreEqual(60, rect.Bottom);
+        Assert.AreEqual(1200, rect.Area);
+        Assert.IsFalse(rect.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_2_PixelRect_IsEmpty()
     {
-        Assert.True(new PixelRect(0, 0, 0, 10).IsEmpty);
-        Assert.True(new PixelRect(0, 0, 10, 0).IsEmpty);
-        Assert.True(new PixelRect(0, 0, -5, 10).IsEmpty);
-        Assert.False(new PixelRect(0, 0, 1, 1).IsEmpty);
+        Assert.IsTrue(new PixelRect(0, 0, 0, 10).IsEmpty);
+        Assert.IsTrue(new PixelRect(0, 0, 10, 0).IsEmpty);
+        Assert.IsTrue(new PixelRect(0, 0, -5, 10).IsEmpty);
+        Assert.IsFalse(new PixelRect(0, 0, 1, 1).IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_3_PixelRect_Intersect_Overlapping()
     {
         var a = new PixelRect(0, 0, 20, 20);
@@ -392,13 +393,13 @@ public class SixelEncoderTests
         
         var intersection = a.Intersect(b);
         
-        Assert.Equal(10, intersection.X);
-        Assert.Equal(10, intersection.Y);
-        Assert.Equal(10, intersection.Width);
-        Assert.Equal(10, intersection.Height);
+        Assert.AreEqual(10, intersection.X);
+        Assert.AreEqual(10, intersection.Y);
+        Assert.AreEqual(10, intersection.Width);
+        Assert.AreEqual(10, intersection.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_4_PixelRect_Intersect_NoOverlap()
     {
         var a = new PixelRect(0, 0, 10, 10);
@@ -406,10 +407,10 @@ public class SixelEncoderTests
         
         var intersection = a.Intersect(b);
         
-        Assert.True(intersection.IsEmpty);
+        Assert.IsTrue(intersection.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_5_PixelRect_Intersect_Contained()
     {
         var outer = new PixelRect(0, 0, 100, 100);
@@ -417,35 +418,35 @@ public class SixelEncoderTests
         
         var intersection = outer.Intersect(inner);
         
-        Assert.Equal(inner, intersection);
+        Assert.AreEqual(inner, intersection);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_6_PixelRect_Contains_Point()
     {
         var rect = new PixelRect(10, 10, 20, 20);
         
-        Assert.True(rect.Contains(10, 10));   // Top-left corner
-        Assert.True(rect.Contains(29, 29));   // Bottom-right (exclusive edge -1)
-        Assert.True(rect.Contains(20, 20));   // Center
-        Assert.False(rect.Contains(9, 10));   // Left of
-        Assert.False(rect.Contains(30, 10));  // Right edge (exclusive)
-        Assert.False(rect.Contains(10, 30));  // Bottom edge (exclusive)
+        Assert.IsTrue(rect.Contains(10, 10));   // Top-left corner
+        Assert.IsTrue(rect.Contains(29, 29));   // Bottom-right (exclusive edge -1)
+        Assert.IsTrue(rect.Contains(20, 20));   // Center
+        Assert.IsFalse(rect.Contains(9, 10));   // Left of
+        Assert.IsFalse(rect.Contains(30, 10));  // Right edge (exclusive)
+        Assert.IsFalse(rect.Contains(10, 30));  // Bottom edge (exclusive)
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_7_PixelRect_Contains_Rect()
     {
         var outer = new PixelRect(0, 0, 100, 100);
         var inner = new PixelRect(25, 25, 50, 50);
         var partial = new PixelRect(50, 50, 100, 100);
         
-        Assert.True(outer.Contains(inner));
-        Assert.False(outer.Contains(partial));
-        Assert.False(inner.Contains(outer));
+        Assert.IsTrue(outer.Contains(inner));
+        Assert.IsFalse(outer.Contains(partial));
+        Assert.IsFalse(inner.Contains(outer));
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_8_PixelRect_Subtract_NoOverlap()
     {
         var rect = new PixelRect(0, 0, 10, 10);
@@ -453,11 +454,11 @@ public class SixelEncoderTests
         
         var fragments = rect.Subtract(hole);
         
-        Assert.Single(fragments);
-        Assert.Equal(rect, fragments[0]);
+        TestSeq.Single(fragments);
+        Assert.AreEqual(rect, fragments[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_9_PixelRect_Subtract_CenterHole()
     {
         // 10x10 rectangle with 4x4 hole in center
@@ -467,14 +468,14 @@ public class SixelEncoderTests
         var fragments = rect.Subtract(hole);
         
         // Should produce 4 fragments: top, bottom, left, right
-        Assert.Equal(4, fragments.Count);
+        Assert.AreEqual(4, fragments.Count);
         
         // Verify total area equals original minus hole
         var totalArea = fragments.Sum(f => f.Area);
-        Assert.Equal(rect.Area - hole.Area, totalArea);
+        Assert.AreEqual(rect.Area - hole.Area, totalArea);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_10_PixelRect_Subtract_EdgeHole()
     {
         var rect = new PixelRect(0, 0, 10, 10);
@@ -483,12 +484,12 @@ public class SixelEncoderTests
         var fragments = rect.Subtract(hole);
         
         // Should produce 2 fragments: bottom and right
-        Assert.Equal(2, fragments.Count);
+        Assert.AreEqual(2, fragments.Count);
         var totalArea = fragments.Sum(f => f.Area);
-        Assert.Equal(rect.Area - hole.Area, totalArea);
+        Assert.AreEqual(rect.Area - hole.Area, totalArea);
     }
 
-    [Fact]
+    [TestMethod]
     public void T2_11_PixelRect_Subtract_FullyCovered()
     {
         var rect = new PixelRect(5, 5, 10, 10);
@@ -496,14 +497,14 @@ public class SixelEncoderTests
         
         var fragments = rect.Subtract(hole);
         
-        Assert.Empty(fragments);
+        Assert.IsEmpty(fragments);
     }
 
     #endregion
 
     #region T3: Fragment and Visibility Tests
 
-    [Fact]
+    [TestMethod]
     public void T3_1_Fragment_SingleRegion()
     {
         var buffer = new SixelPixelBuffer(20, 20);
@@ -514,15 +515,15 @@ public class SixelEncoderTests
         var regions = new[] { new PixelRect(5, 5, 10, 10) };
         var fragments = buffer.Fragment(regions);
         
-        Assert.Single(fragments);
-        Assert.Equal(new PixelRect(5, 5, 10, 10), fragments[0].Region);
-        Assert.Equal(10, fragments[0].Buffer.Width);
-        Assert.Equal(10, fragments[0].Buffer.Height);
+        TestSeq.Single(fragments);
+        Assert.AreEqual(new PixelRect(5, 5, 10, 10), fragments[0].Region);
+        Assert.AreEqual(10, fragments[0].Buffer.Width);
+        Assert.AreEqual(10, fragments[0].Buffer.Height);
         // First pixel should be from (5,5) in original
-        Assert.Equal(Rgba32.FromRgb(50, 50, 0), fragments[0].Buffer[0, 0]);
+        Assert.AreEqual(Rgba32.FromRgb(50, 50, 0), fragments[0].Buffer[0, 0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_2_Fragment_MultipleRegions()
     {
         var buffer = new SixelPixelBuffer(30, 30);
@@ -540,15 +541,15 @@ public class SixelEncoderTests
         
         var fragments = buffer.Fragment(regions);
         
-        Assert.Equal(4, fragments.Count);
-        Assert.All(fragments, f =>
+        Assert.AreEqual(4, fragments.Count);
+        TestSeq.All(fragments, f =>
         {
-            Assert.Equal(10, f.Buffer.Width);
-            Assert.Equal(10, f.Buffer.Height);
+            Assert.AreEqual(10, f.Buffer.Width);
+            Assert.AreEqual(10, f.Buffer.Height);
         });
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_3_Fragment_EmptyRegionSkipped()
     {
         var buffer = new SixelPixelBuffer(20, 20);
@@ -562,10 +563,10 @@ public class SixelEncoderTests
         
         var fragments = buffer.Fragment(regions);
         
-        Assert.Equal(2, fragments.Count);
+        Assert.AreEqual(2, fragments.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_4_Fragment_RegionClampedToBounds()
     {
         var buffer = new SixelPixelBuffer(10, 10);
@@ -573,24 +574,24 @@ public class SixelEncoderTests
         var regions = new[] { new PixelRect(5, 5, 100, 100) }; // Extends way past bounds
         var fragments = buffer.Fragment(regions);
         
-        Assert.Single(fragments);
-        Assert.Equal(new PixelRect(5, 5, 5, 5), fragments[0].Region);
-        Assert.Equal(5, fragments[0].Buffer.Width);
-        Assert.Equal(5, fragments[0].Buffer.Height);
+        TestSeq.Single(fragments);
+        Assert.AreEqual(new PixelRect(5, 5, 5, 5), fragments[0].Region);
+        Assert.AreEqual(5, fragments[0].Buffer.Width);
+        Assert.AreEqual(5, fragments[0].Buffer.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_5_ComputeVisibleRegions_NoOcclusions()
     {
         var buffer = new SixelPixelBuffer(100, 60);
         
         var visible = buffer.ComputeVisibleRegions(Array.Empty<PixelRect>());
         
-        Assert.Single(visible);
-        Assert.Equal(new PixelRect(0, 0, 100, 60), visible[0]);
+        TestSeq.Single(visible);
+        Assert.AreEqual(new PixelRect(0, 0, 100, 60), visible[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_6_ComputeVisibleRegions_CenterOcclusion()
     {
         var buffer = new SixelPixelBuffer(100, 60);
@@ -598,12 +599,12 @@ public class SixelEncoderTests
         
         var visible = buffer.ComputeVisibleRegions(new[] { occlusion });
         
-        Assert.Equal(4, visible.Count);
+        Assert.AreEqual(4, visible.Count);
         var totalArea = visible.Sum(r => r.Area);
-        Assert.Equal(100 * 60 - 50 * 30, totalArea);
+        Assert.AreEqual(100 * 60 - 50 * 30, totalArea);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_7_ComputeVisibleRegions_FullyOccluded()
     {
         var buffer = new SixelPixelBuffer(50, 50);
@@ -611,10 +612,10 @@ public class SixelEncoderTests
         
         var visible = buffer.ComputeVisibleRegions(new[] { occlusion });
         
-        Assert.Empty(visible);
+        Assert.IsEmpty(visible);
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_8_ComputeVisibleRegions_MultipleOcclusions()
     {
         var buffer = new SixelPixelBuffer(100, 60);
@@ -627,18 +628,18 @@ public class SixelEncoderTests
         var visible = buffer.ComputeVisibleRegions(occlusions);
         
         // Multiple fragments expected
-        Assert.True(visible.Count >= 2);
+        Assert.IsTrue(visible.Count >= 2);
         // No visible region should overlap with occlusions
         foreach (var region in visible)
         {
             foreach (var occ in occlusions)
             {
-                Assert.True(region.Intersect(occ).IsEmpty);
+                Assert.IsTrue(region.Intersect(occ).IsEmpty);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void T3_9_FragmentAndEncode_RoundTrip()
     {
         // Create a gradient buffer
@@ -664,9 +665,9 @@ public class SixelEncoderTests
             var encoded = SixelEncoder.Encode(fragmentBuffer);
             var decoded = SixelDecoder.Decode(encoded);
             
-            Assert.NotNull(decoded);
-            Assert.Equal(fragmentBuffer.Width, decoded.Width);
-            Assert.True(decoded.Height >= fragmentBuffer.Height);
+            Assert.IsNotNull(decoded);
+            Assert.AreEqual(fragmentBuffer.Width, decoded.Width);
+            Assert.IsTrue(decoded.Height >= fragmentBuffer.Height);
         }
     }
 
@@ -674,58 +675,58 @@ public class SixelEncoderTests
 
     #region T4: CellMetrics Tests
 
-    [Fact]
+    [TestMethod]
     public void T4_1_CellMetrics_Default()
     {
         var metrics = CellMetrics.Default;
         
-        Assert.Equal(10, metrics.PixelWidth);
-        Assert.Equal(20, metrics.PixelHeight);
+        Assert.AreEqual(10, metrics.PixelWidth);
+        Assert.AreEqual(20, metrics.PixelHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void T4_2_CellMetrics_CellToPixel()
     {
         var metrics = new CellMetrics(10, 20);
         
         var pixelRect = metrics.CellToPixel(5, 3, 10, 5);
         
-        Assert.Equal(50, pixelRect.X);    // 5 * 10
-        Assert.Equal(60, pixelRect.Y);    // 3 * 20
-        Assert.Equal(100, pixelRect.Width);  // 10 * 10
-        Assert.Equal(100, pixelRect.Height); // 5 * 20
+        Assert.AreEqual(50, pixelRect.X);    // 5 * 10
+        Assert.AreEqual(60, pixelRect.Y);    // 3 * 20
+        Assert.AreEqual(100, pixelRect.Width);  // 10 * 10
+        Assert.AreEqual(100, pixelRect.Height); // 5 * 20
     }
 
-    [Fact]
+    [TestMethod]
     public void T4_3_CellMetrics_PixelToCellSpan()
     {
         var metrics = new CellMetrics(10, 20);
         
         // Exact multiple
         var (w1, h1) = metrics.PixelToCellSpan(100, 60);
-        Assert.Equal(10, w1);
-        Assert.Equal(3, h1);
+        Assert.AreEqual(10, w1);
+        Assert.AreEqual(3, h1);
         
         // Rounds up
         var (w2, h2) = metrics.PixelToCellSpan(101, 61);
-        Assert.Equal(11, w2);
-        Assert.Equal(4, h2);
+        Assert.AreEqual(11, w2);
+        Assert.AreEqual(4, h2);
     }
 
-    [Fact]
+    [TestMethod]
     public void T4_4_CellMetrics_PixelToCell()
     {
         var metrics = new CellMetrics(10, 20);
         
         var cellRect = metrics.PixelToCell(new PixelRect(50, 60, 100, 100));
         
-        Assert.Equal(5, cellRect.X);   // 50 / 10
-        Assert.Equal(3, cellRect.Y);   // 60 / 20
-        Assert.Equal(10, cellRect.Width);  // 100 / 10
-        Assert.Equal(5, cellRect.Height);  // 100 / 20
+        Assert.AreEqual(5, cellRect.X);   // 50 / 10
+        Assert.AreEqual(3, cellRect.Y);   // 60 / 20
+        Assert.AreEqual(10, cellRect.Width);  // 100 / 10
+        Assert.AreEqual(5, cellRect.Height);  // 100 / 20
     }
 
-    [Fact]
+    [TestMethod]
     public void T4_5_CellMetrics_RoundTrip()
     {
         var metrics = new CellMetrics(8, 16);
@@ -735,10 +736,10 @@ public class SixelEncoderTests
         var pixel = metrics.CellToPixel(originalCell);
         var backToCell = metrics.PixelToCell(pixel);
         
-        Assert.Equal(originalCell.X, backToCell.X);
-        Assert.Equal(originalCell.Y, backToCell.Y);
-        Assert.Equal(originalCell.Width, backToCell.Width);
-        Assert.Equal(originalCell.Height, backToCell.Height);
+        Assert.AreEqual(originalCell.X, backToCell.X);
+        Assert.AreEqual(originalCell.Y, backToCell.Y);
+        Assert.AreEqual(originalCell.Width, backToCell.Width);
+        Assert.AreEqual(originalCell.Height, backToCell.Height);
     }
 
     #endregion
@@ -768,10 +769,10 @@ public class SixelEncoderTests
     {
         var (r, g, b, a) = GetPixel(image, x, y);
         
-        Assert.True(a > 0, $"Pixel at ({x}, {y}) should not be transparent");
-        Assert.True(Math.Abs(r - expectedR) <= tolerance, $"Red at ({x}, {y}): expected ~{expectedR}, got {r}");
-        Assert.True(Math.Abs(g - expectedG) <= tolerance, $"Green at ({x}, {y}): expected ~{expectedG}, got {g}");
-        Assert.True(Math.Abs(b - expectedB) <= tolerance, $"Blue at ({x}, {y}): expected ~{expectedB}, got {b}");
+        Assert.IsTrue(a > 0, $"Pixel at ({x}, {y}) should not be transparent");
+        Assert.IsTrue(Math.Abs(r - expectedR) <= tolerance, $"Red at ({x}, {y}): expected ~{expectedR}, got {r}");
+        Assert.IsTrue(Math.Abs(g - expectedG) <= tolerance, $"Green at ({x}, {y}): expected ~{expectedG}, got {g}");
+        Assert.IsTrue(Math.Abs(b - expectedB) <= tolerance, $"Blue at ({x}, {y}): expected ~{expectedB}, got {b}");
     }
 
     #endregion
@@ -780,25 +781,26 @@ public class SixelEncoderTests
 /// <summary>
 /// Tests for sixel visibility and fragment generation.
 /// </summary>
+[TestClass]
 public class SixelVisibilityTests
 {
     private readonly TrackedObjectStore _store = new();
 
     #region SixelVisibility Tests
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_InitiallyFullyVisible()
     {
         var sixelRef = CreateTestSixel(100, 60); // 100x60 pixels = 10x3 cells at 10x20 metrics
         var visibility = new SixelVisibility(sixelRef, 5, 5, 0);
         
-        Assert.True(visibility.IsFullyVisible);
-        Assert.False(visibility.IsFullyOccluded);
-        Assert.False(visibility.IsFragmented);
-        Assert.Single(visibility.VisibleRegions);
+        Assert.IsTrue(visibility.IsFullyVisible);
+        Assert.IsFalse(visibility.IsFullyOccluded);
+        Assert.IsFalse(visibility.IsFragmented);
+        TestSeq.Single(visibility.VisibleRegions);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_ApplyOcclusion_PartiallyOccludes()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -809,13 +811,13 @@ public class SixelVisibilityTests
         var occlusion = new Hex1b.Layout.Rect(4, 1, 2, 1);
         visibility.ApplyOcclusion(occlusion, metrics);
         
-        Assert.False(visibility.IsFullyVisible);
-        Assert.False(visibility.IsFullyOccluded);
+        Assert.IsFalse(visibility.IsFullyVisible);
+        Assert.IsFalse(visibility.IsFullyOccluded);
         // Should have 4 fragments: top, bottom, left, right of occlusion
-        Assert.Equal(4, visibility.VisibleRegions.Count);
+        Assert.AreEqual(4, visibility.VisibleRegions.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_ApplyOcclusion_FullyOccludes()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -826,11 +828,11 @@ public class SixelVisibilityTests
         var occlusion = new Hex1b.Layout.Rect(0, 0, 10, 3);
         visibility.ApplyOcclusion(occlusion, metrics);
         
-        Assert.True(visibility.IsFullyOccluded);
-        Assert.Empty(visibility.VisibleRegions);
+        Assert.IsTrue(visibility.IsFullyOccluded);
+        Assert.IsEmpty(visibility.VisibleRegions);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_ApplyOcclusion_NoOverlap_NoChange()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -841,11 +843,11 @@ public class SixelVisibilityTests
         var occlusion = new Hex1b.Layout.Rect(20, 20, 5, 5);
         visibility.ApplyOcclusion(occlusion, metrics);
         
-        Assert.True(visibility.IsFullyVisible);
-        Assert.Single(visibility.VisibleRegions);
+        Assert.IsTrue(visibility.IsFullyVisible);
+        TestSeq.Single(visibility.VisibleRegions);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_GenerateFragments_FullyVisible_SingleFragment()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -854,12 +856,12 @@ public class SixelVisibilityTests
         
         var fragments = visibility.GenerateFragments(metrics);
         
-        Assert.Single(fragments);
-        Assert.Equal((5, 3), fragments[0].CellPosition);
-        Assert.True(fragments[0].IsComplete);
+        TestSeq.Single(fragments);
+        Assert.AreEqual((5, 3), fragments[0].CellPosition);
+        Assert.IsTrue(fragments[0].IsComplete);
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelVisibility_GenerateFragments_Occluded_MultipleFragments()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -872,15 +874,15 @@ public class SixelVisibilityTests
         
         var fragments = visibility.GenerateFragments(metrics);
         
-        Assert.True(fragments.Count >= 2);
-        Assert.All(fragments, f => Assert.False(f.IsComplete));
+        Assert.IsTrue(fragments.Count >= 2);
+        TestSeq.All(fragments, f => Assert.IsFalse(f.IsComplete));
     }
 
     #endregion
 
     #region CompositeSurface.GetSixelFragments Tests
 
-    [Fact]
+    [TestMethod]
     public void GetSixelFragments_NoSixels_ReturnsEmpty()
     {
         var composite = new CompositeSurface(80, 24);
@@ -890,10 +892,10 @@ public class SixelVisibilityTests
         
         var fragments = composite.GetSixelFragments();
         
-        Assert.Empty(fragments);
+        Assert.IsEmpty(fragments);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetSixelFragments_UnoccludedSixel_SingleFragment()
     {
         var metrics = new CellMetrics(10, 20);
@@ -908,11 +910,11 @@ public class SixelVisibilityTests
         
         var fragments = composite.GetSixelFragments();
         
-        Assert.Single(fragments);
-        Assert.Equal((5, 3), fragments[0].CellPosition);
+        TestSeq.Single(fragments);
+        Assert.AreEqual((5, 3), fragments[0].CellPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetSixelFragments_PartiallyOccluded_MultipleFragments()
     {
         var metrics = new CellMetrics(10, 20);
@@ -934,10 +936,10 @@ public class SixelVisibilityTests
         var fragments = composite.GetSixelFragments();
         
         // Should have multiple fragments due to occlusion
-        Assert.True(fragments.Count >= 2);
+        Assert.IsTrue(fragments.Count >= 2);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetSixelFragments_FullyOccluded_ReturnsEmpty()
     {
         var metrics = new CellMetrics(10, 20);
@@ -958,10 +960,10 @@ public class SixelVisibilityTests
         
         var fragments = composite.GetSixelFragments();
         
-        Assert.Empty(fragments);
+        Assert.IsEmpty(fragments);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetSixelFragments_MultipleSixels_ReturnsAll()
     {
         var metrics = new CellMetrics(10, 20);
@@ -978,38 +980,38 @@ public class SixelVisibilityTests
         
         var fragments = composite.GetSixelFragments();
         
-        Assert.Equal(2, fragments.Count);
+        Assert.AreEqual(2, fragments.Count);
     }
 
     #endregion
 
     #region SixelFragment Tests
 
-    [Fact]
+    [TestMethod]
     public void SixelFragment_Complete_ReturnsOriginalPayload()
     {
         var sixelRef = CreateTestSixel(100, 60);
         var fragment = SixelFragment.Complete(sixelRef.Data, 0, 0);
         
-        Assert.True(fragment.IsComplete);
-        Assert.Equal(sixelRef.Data.Payload, fragment.GetPayload());
+        Assert.IsTrue(fragment.IsComplete);
+        Assert.AreEqual(sixelRef.Data.Payload, fragment.GetPayload());
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelFragment_Cropped_ReencodesPayload()
     {
         var sixelRef = CreateTestSixel(100, 60);
         var fragment = new SixelFragment(sixelRef.Data, 0, 0, new PixelRect(10, 10, 50, 30));
         
-        Assert.False(fragment.IsComplete);
+        Assert.IsFalse(fragment.IsComplete);
         
         var payload = fragment.GetPayload();
-        Assert.NotNull(payload);
-        Assert.NotEqual(sixelRef.Data.Payload, payload);
+        Assert.IsNotNull(payload);
+        Assert.AreNotEqual(sixelRef.Data.Payload, payload);
         Assert.Contains("\x1bP", payload); // Valid sixel start
     }
 
-    [Fact]
+    [TestMethod]
     public void SixelFragment_GetCellSpan_CalculatesCorrectly()
     {
         var sixelRef = CreateTestSixel(100, 60);
@@ -1018,15 +1020,15 @@ public class SixelVisibilityTests
         
         var (width, height) = fragment.GetCellSpan(metrics);
         
-        Assert.Equal(6, width);  // ceil(55/10)
-        Assert.Equal(2, height); // ceil(35/20)
+        Assert.AreEqual(6, width);  // ceil(55/10)
+        Assert.AreEqual(2, height); // ceil(35/20)
     }
 
     #endregion
 
     #region T5: Computed Cell Sixel Access Tests
 
-    [Fact]
+    [TestMethod]
     public void T5_1_HasSixelBelow_ReturnsTrueWhenSixelPresent()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1056,7 +1058,7 @@ public class SixelVisibilityTests
         Assert.Contains(true, results);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_2_HasSixelBelow_ReturnsFalseWhenNoSixel()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1079,11 +1081,11 @@ public class SixelVisibilityTests
         
         _ = composite.GetCell(10, 10);
         
-        Assert.NotNull(result);
-        Assert.False(result.Value);
+        Assert.IsNotNull(result);
+        Assert.IsFalse(result.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_3_GetSixelBelow_ReturnsValidPixelData()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1112,19 +1114,19 @@ public class SixelVisibilityTests
         
         _ = composite.GetCell(5, 5);
         
-        Assert.NotNull(access);
-        Assert.True(access.Value.IsValid);
-        Assert.Equal(10, access.Value.PixelWidth);
-        Assert.Equal(20, access.Value.PixelHeight);
+        Assert.IsNotNull(access);
+        Assert.IsTrue(access.Value.IsValid);
+        Assert.AreEqual(10, access.Value.PixelWidth);
+        Assert.AreEqual(20, access.Value.PixelHeight);
         
         // Check pixel value (should be red, with quantization tolerance)
         var pixel = access.Value.GetPixel(0, 0);
-        Assert.True(pixel.R > 240, $"Expected R ~255, got {pixel.R}"); // Allow sixel quantization error
-        Assert.True(pixel.G < 15, $"Expected G ~0, got {pixel.G}");
-        Assert.True(pixel.B < 15, $"Expected B ~0, got {pixel.B}");
+        Assert.IsTrue(pixel.R > 240, $"Expected R ~255, got {pixel.R}"); // Allow sixel quantization error
+        Assert.IsTrue(pixel.G < 15, $"Expected G ~0, got {pixel.G}");
+        Assert.IsTrue(pixel.B < 15, $"Expected B ~0, got {pixel.B}");
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_4_PixelCoordinatesMapCorrectlyToCellPosition()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1154,18 +1156,18 @@ public class SixelVisibilityTests
         
         _ = composite.GetCell(2, 1);
         
-        Assert.NotNull(access);
-        Assert.True(access.Value.IsValid);
+        Assert.IsNotNull(access);
+        Assert.IsTrue(access.Value.IsValid);
         
         // Pixel at (0,0) in cell (2,1) should be global pixel (20, 20)
         var pixel = access.Value.GetPixel(0, 0);
         // Due to sixel color quantization, values may differ slightly
         // Original would be R=20, G=20
-        Assert.True(pixel.R > 10 && pixel.R < 30, $"Expected R ~20, got {pixel.R}");
-        Assert.True(pixel.G > 10 && pixel.G < 30, $"Expected G ~20, got {pixel.G}");
+        Assert.IsTrue(pixel.R > 10 && pixel.R < 30, $"Expected R ~20, got {pixel.R}");
+        Assert.IsTrue(pixel.G > 10 && pixel.G < 30, $"Expected G ~20, got {pixel.G}");
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_5_SixelPixelAccess_WithTint_AppliesTintCorrectly()
     {
         var buffer = new SixelPixelBuffer(10, 20);
@@ -1178,16 +1180,16 @@ public class SixelVisibilityTests
         
         var tintedBuffer = access.WithTint(new Rgba32(255, 0, 0, 255), 0.5f);
         
-        Assert.NotNull(tintedBuffer);
+        Assert.IsNotNull(tintedBuffer);
         
         // Result should be blend: 100 * 0.5 + 255 * 0.5 = 177.5 for R
         var resultPixel = tintedBuffer[5, 10];
-        Assert.True(resultPixel.R > 170 && resultPixel.R < 185, $"Expected R ~177, got {resultPixel.R}");
-        Assert.True(resultPixel.G > 45 && resultPixel.G < 55, $"Expected G ~50, got {resultPixel.G}");
-        Assert.True(resultPixel.B > 45 && resultPixel.B < 55, $"Expected B ~50, got {resultPixel.B}");
+        Assert.IsTrue(resultPixel.R > 170 && resultPixel.R < 185, $"Expected R ~177, got {resultPixel.R}");
+        Assert.IsTrue(resultPixel.G > 45 && resultPixel.G < 55, $"Expected G ~50, got {resultPixel.G}");
+        Assert.IsTrue(resultPixel.B > 45 && resultPixel.B < 55, $"Expected B ~50, got {resultPixel.B}");
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_6_SixelPixelAccess_WithBrightness_AdjustsValues()
     {
         var buffer = new SixelPixelBuffer(10, 20);
@@ -1201,15 +1203,15 @@ public class SixelVisibilityTests
         // Reduce brightness by half
         var dimmedBuffer = access.WithBrightness(0.5f);
         
-        Assert.NotNull(dimmedBuffer);
+        Assert.IsNotNull(dimmedBuffer);
         
         var resultPixel = dimmedBuffer[5, 10];
-        Assert.Equal(50, resultPixel.R);
-        Assert.Equal(50, resultPixel.G);
-        Assert.Equal(50, resultPixel.B);
+        Assert.AreEqual(50, resultPixel.R);
+        Assert.AreEqual(50, resultPixel.G);
+        Assert.AreEqual(50, resultPixel.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_7_GetSixelBelowAt_ReturnsDataForDifferentPosition()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1239,11 +1241,11 @@ public class SixelVisibilityTests
         
         _ = composite.GetCell(20, 10);
         
-        Assert.NotNull(access);
-        Assert.True(access.Value.IsValid);
+        Assert.IsNotNull(access);
+        Assert.IsTrue(access.Value.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_8_SixelPixelAccess_TransparentPixels_HandledCorrectly()
     {
         var buffer = new SixelPixelBuffer(10, 20);
@@ -1262,16 +1264,16 @@ public class SixelVisibilityTests
         var metrics = new CellMetrics(10, 20);
         var access = new SixelPixelAccess(buffer, 0, 0, metrics);
         
-        Assert.True(access.HasVisiblePixels());
+        Assert.IsTrue(access.HasVisiblePixels());
         
         var transparentPixel = access.GetPixel(0, 0);
-        Assert.Equal(0, transparentPixel.A);
+        Assert.AreEqual(0, transparentPixel.A);
         
         var opaquePixel = access.GetPixel(5, 0);
-        Assert.Equal(255, opaquePixel.A);
+        Assert.AreEqual(255, opaquePixel.A);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_9_SixelPixelAccess_OutOfBoundsPixel_ReturnsTransparent()
     {
         var buffer = new SixelPixelBuffer(10, 20);
@@ -1282,10 +1284,10 @@ public class SixelVisibilityTests
         
         // Query beyond buffer bounds
         var pixel = access.GetPixel(100, 100);
-        Assert.Equal(0, pixel.A);
+        Assert.AreEqual(0, pixel.A);
     }
 
-    [Fact]
+    [TestMethod]
     public void T5_10_GetSixelBelow_InvalidAccessor_WhenNoSixel()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1305,18 +1307,18 @@ public class SixelVisibilityTests
         
         _ = composite.GetCell(5, 5);
         
-        Assert.False(access.IsValid);
+        Assert.IsFalse(access.IsValid);
         
         // GetPixel on invalid accessor should return transparent
         var pixel = access.GetPixel(0, 0);
-        Assert.Equal(0, pixel.A);
+        Assert.AreEqual(0, pixel.A);
     }
 
     #endregion
 
     #region T6: Token Generation Sixel Tests
 
-    [Fact]
+    [TestMethod]
     public void T6_1_SingleSixel_CorrectCursorPositionAndSequence()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1329,19 +1331,19 @@ public class SixelVisibilityTests
         
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
-        Assert.Equal(2, tokens.Count); // CursorPosition + sixel sequence
-        Assert.IsType<CursorPositionToken>(tokens[0]);
-        Assert.IsType<UnrecognizedSequenceToken>(tokens[1]); // Raw DCS sequence
+        Assert.AreEqual(2, tokens.Count); // CursorPosition + sixel sequence
+        TestSeq.IsType<CursorPositionToken>(tokens[0]);
+        TestSeq.IsType<UnrecognizedSequenceToken>(tokens[1]); // Raw DCS sequence
         
         var cursorToken = (CursorPositionToken)tokens[0];
-        Assert.Equal(6, cursorToken.Row);    // 1-based: 5 + 1
-        Assert.Equal(6, cursorToken.Column); // 1-based: 5 + 1
+        Assert.AreEqual(6, cursorToken.Row);    // 1-based: 5 + 1
+        Assert.AreEqual(6, cursorToken.Column); // 1-based: 5 + 1
         
         var sequenceToken = (UnrecognizedSequenceToken)tokens[1];
         Assert.StartsWith("\x1bP", sequenceToken.Sequence); // Payload already includes DCS wrapper
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_2_FragmentedSixel_MultipleCursorPositionsAndSequences()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1362,17 +1364,17 @@ public class SixelVisibilityTests
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
         // Should have multiple fragments (each with cursor + sixel sequence)
-        Assert.True(tokens.Count >= 4, $"Expected at least 4 tokens, got {tokens.Count}");
+        Assert.IsTrue(tokens.Count >= 4, $"Expected at least 4 tokens, got {tokens.Count}");
         
         // Verify alternating pattern: cursor, sixel, cursor, sixel, ...
         for (var i = 0; i < tokens.Count; i += 2)
         {
-            Assert.IsType<CursorPositionToken>(tokens[i]);
-            Assert.IsType<UnrecognizedSequenceToken>(tokens[i + 1]); // Raw DCS sequence
+            TestSeq.IsType<CursorPositionToken>(tokens[i]);
+            TestSeq.IsType<UnrecognizedSequenceToken>(tokens[i + 1]); // Raw DCS sequence
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_3_SixelUnchanged_NotReEmittedWithDiff()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1390,10 +1392,10 @@ public class SixelVisibilityTests
         var tokens = SurfaceComparer.CompositeToTokens(composite, previous);
         
         // No sixels in either, so no sixel tokens
-        Assert.All(tokens, t => Assert.IsNotType<DcsToken>(t));
+        TestSeq.All(tokens, t => Assert.IsNotInstanceOfType<DcsToken>(t));
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_4_SixelAndTextMixed_BothInOutput()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1408,16 +1410,16 @@ public class SixelVisibilityTests
         
         // Should have text tokens
         var textTokens = tokens.OfType<TextToken>().ToList();
-        Assert.Contains(textTokens, t => t.Text == "T");
+        Assert.IsTrue(textTokens.Any(t => t.Text == "T"));
         
         // Should have sixel token(s) - raw DCS sequence containing sixel data
         var sixelTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("0;1;0q")) // Sixel header pattern
             .ToList();
-        Assert.NotEmpty(sixelTokens);
+        Assert.IsNotEmpty(sixelTokens);
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_5_MultipleSixelsAtDifferentPositions()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1431,16 +1433,16 @@ public class SixelVisibilityTests
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
         // Each sixel gets cursor + dcs
-        Assert.Equal(4, tokens.Count);
+        Assert.AreEqual(4, tokens.Count);
         
         var cursor1 = (CursorPositionToken)tokens[0];
         var cursor2 = (CursorPositionToken)tokens[2];
         
         // Different positions
-        Assert.NotEqual(cursor1.Row, cursor2.Row);
+        Assert.AreNotEqual(cursor1.Row, cursor2.Row);
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_6_FullyOccludedSixel_NoTokensGenerated()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1459,10 +1461,10 @@ public class SixelVisibilityTests
         
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
-        Assert.Empty(tokens);
+        Assert.IsEmpty(tokens);
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_7_CompositeToAnsiString_IncludesSixelPayload()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1479,7 +1481,7 @@ public class SixelVisibilityTests
         Assert.Contains("\x1b\\", ansiString); // ST terminator
     }
 
-    [Fact]
+    [TestMethod]
     public void T6_8_EmptyComposite_NoSixelTokens()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1491,14 +1493,14 @@ public class SixelVisibilityTests
         
         var tokens = SurfaceComparer.SixelFragmentsToTokens(composite);
         
-        Assert.Empty(tokens);
+        Assert.IsEmpty(tokens);
     }
 
     #endregion
 
     #region T7: Edge Cases and Multiple Sixel Tests
 
-    [Fact]
+    [TestMethod]
     public void T7_1_SixelVsSixelOcclusion_UpperLayerWins()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1521,14 +1523,14 @@ public class SixelVisibilityTests
         // Should have fragments from both sixels
         // Lower sixel should be fragmented around upper sixel
         // Upper sixel should be complete or minimal fragmentation
-        Assert.True(fragments.Count >= 2);
+        Assert.IsTrue(fragments.Count >= 2);
         
         // Find the upper sixel's fragment(s) - should be at position (3, 0)
         var upperFragments = fragments.Where(f => f.CellPosition.X >= 3).ToList();
-        Assert.NotEmpty(upperFragments);
+        Assert.IsNotEmpty(upperFragments);
     }
 
-    [Fact]
+    [TestMethod]
     public void T7_2_TwoSixelsSameLayer_NoOcclusion()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1543,11 +1545,11 @@ public class SixelVisibilityTests
         var fragments = composite.GetSixelFragments();
         
         // Both sixels should be complete (no occlusion from same layer)
-        Assert.Equal(2, fragments.Count);
-        Assert.True(fragments.All(f => f.IsComplete));
+        Assert.AreEqual(2, fragments.Count);
+        Assert.IsTrue(fragments.All(f => f.IsComplete));
     }
 
-    [Fact]
+    [TestMethod]
     public void T7_3_SixelFullyHiddenByUpperSixel()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1569,11 +1571,11 @@ public class SixelVisibilityTests
         // Lower sixel at (2, 1) + 2x1 cells = covers cells (2-3, 1)
         // Upper sixel at (0, 0) + 10x3 cells = covers cells (0-9, 0-2)
         // So lower is completely inside upper's coverage
-        Assert.Single(fragments);
-        Assert.Equal((0, 0), fragments[0].CellPosition);
+        TestSeq.Single(fragments);
+        Assert.AreEqual((0, 0), fragments[0].CellPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public void T7_4_SixelAtNegativeOffset_Clipped()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1591,12 +1593,12 @@ public class SixelVisibilityTests
         // For now, just verify no crash and fragment positions are valid
         foreach (var fragment in fragments)
         {
-            Assert.True(fragment.CellPosition.X >= 0, "Fragment X should be >= 0");
-            Assert.True(fragment.CellPosition.Y >= 0, "Fragment Y should be >= 0");
+            Assert.IsTrue(fragment.CellPosition.X >= 0, "Fragment X should be >= 0");
+            Assert.IsTrue(fragment.CellPosition.Y >= 0, "Fragment Y should be >= 0");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void T7_5_ManySixels_PerformanceReasonable()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1619,7 +1621,7 @@ public class SixelVisibilityTests
         var fragments = composite.GetSixelFragments();
         
         // Each sixel should be present
-        Assert.True(fragments.Count >= 100);
+        Assert.IsTrue(fragments.Count >= 100);
     }
 
     #endregion

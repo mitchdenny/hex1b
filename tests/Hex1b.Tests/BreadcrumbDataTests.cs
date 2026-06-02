@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Tests for <see cref="BreadcrumbData"/>, <see cref="BreadcrumbSymbol"/>,
 /// and their integration with <see cref="IEditorSession"/> on <see cref="EditorNode"/>.
 /// </summary>
+[TestClass]
 public class BreadcrumbDataTests
 {
     private static IEditorSession CreateSession(string text = "test")
@@ -20,7 +21,7 @@ public class BreadcrumbDataTests
 
     // ── IEditorSession integration ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SetBreadcrumbs_WithData_StoresAndReturnsBreadcrumbs()
     {
         var session = CreateSession();
@@ -31,12 +32,12 @@ public class BreadcrumbDataTests
 
         session.SetBreadcrumbs(data);
 
-        Assert.NotNull(session.Breadcrumbs);
-        Assert.Single(session.Breadcrumbs!.Symbols);
-        Assert.Equal("Program", session.Breadcrumbs.Symbols[0].Name);
+        Assert.IsNotNull(session.Breadcrumbs);
+        TestSeq.Single(session.Breadcrumbs!.Symbols);
+        Assert.AreEqual("Program", session.Breadcrumbs.Symbols[0].Name);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetBreadcrumbs_Null_ClearsBreadcrumbs()
     {
         var session = CreateSession();
@@ -47,18 +48,18 @@ public class BreadcrumbDataTests
 
         session.SetBreadcrumbs(null);
 
-        Assert.Null(session.Breadcrumbs);
+        Assert.IsNull(session.Breadcrumbs);
     }
 
-    [Fact]
+    [TestMethod]
     public void Breadcrumbs_Default_ReturnsNull()
     {
         var session = CreateSession();
 
-        Assert.Null(session.Breadcrumbs);
+        Assert.IsNull(session.Breadcrumbs);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetBreadcrumbs_CalledTwice_ReplacesData()
     {
         var session = CreateSession();
@@ -74,14 +75,14 @@ public class BreadcrumbDataTests
         session.SetBreadcrumbs(first);
         session.SetBreadcrumbs(second);
 
-        Assert.NotNull(session.Breadcrumbs);
-        Assert.Single(session.Breadcrumbs!.Symbols);
-        Assert.Equal("Second", session.Breadcrumbs.Symbols[0].Name);
+        Assert.IsNotNull(session.Breadcrumbs);
+        TestSeq.Single(session.Breadcrumbs!.Symbols);
+        Assert.AreEqual("Second", session.Breadcrumbs.Symbols[0].Name);
     }
 
     // ── BreadcrumbSymbol construction ────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbSymbol_WithChildren_CreatesHierarchy()
     {
         var children = new List<BreadcrumbSymbol>
@@ -93,22 +94,22 @@ public class BreadcrumbDataTests
         var parent = new BreadcrumbSymbol("OuterClass", BreadcrumbSymbolKind.Class,
             new DocumentPosition(1, 1), new DocumentPosition(10, 1), children);
 
-        Assert.NotNull(parent.Children);
-        Assert.Single(parent.Children!);
-        Assert.Equal("InnerMethod", parent.Children[0].Name);
-        Assert.Equal(BreadcrumbSymbolKind.Method, parent.Children[0].Kind);
+        Assert.IsNotNull(parent.Children);
+        TestSeq.Single(parent.Children!);
+        Assert.AreEqual("InnerMethod", parent.Children[0].Name);
+        Assert.AreEqual(BreadcrumbSymbolKind.Method, parent.Children[0].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbSymbol_WithoutChildren_HasNullChildren()
     {
         var symbol = new BreadcrumbSymbol("Standalone", BreadcrumbSymbolKind.Function,
             new DocumentPosition(1, 1), new DocumentPosition(5, 1));
 
-        Assert.Null(symbol.Children);
+        Assert.IsNull(symbol.Children);
     }
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbSymbol_NestedHierarchy_ClassMethodBlock()
     {
         var block = new BreadcrumbSymbol("if-block", BreadcrumbSymbolKind.Object,
@@ -122,62 +123,62 @@ public class BreadcrumbDataTests
             new DocumentPosition(1, 1), new DocumentPosition(11, 1),
             [method]);
 
-        Assert.Equal("MyService", cls.Name);
-        Assert.Single(cls.Children!);
-        Assert.Equal("Execute", cls.Children![0].Name);
-        Assert.Single(cls.Children[0].Children!);
-        Assert.Equal("if-block", cls.Children[0].Children![0].Name);
+        Assert.AreEqual("MyService", cls.Name);
+        TestSeq.Single(cls.Children!);
+        Assert.AreEqual("Execute", cls.Children![0].Name);
+        TestSeq.Single(cls.Children[0].Children!);
+        Assert.AreEqual("if-block", cls.Children[0].Children![0].Name);
     }
 
     // ── BreadcrumbSymbolKind ─────────────────────────────────
 
-    [Theory]
-    [InlineData(BreadcrumbSymbolKind.File)]
-    [InlineData(BreadcrumbSymbolKind.Module)]
-    [InlineData(BreadcrumbSymbolKind.Namespace)]
-    [InlineData(BreadcrumbSymbolKind.Package)]
-    [InlineData(BreadcrumbSymbolKind.Class)]
-    [InlineData(BreadcrumbSymbolKind.Method)]
-    [InlineData(BreadcrumbSymbolKind.Property)]
-    [InlineData(BreadcrumbSymbolKind.Field)]
-    [InlineData(BreadcrumbSymbolKind.Constructor)]
-    [InlineData(BreadcrumbSymbolKind.Enum)]
-    [InlineData(BreadcrumbSymbolKind.Interface)]
-    [InlineData(BreadcrumbSymbolKind.Function)]
-    [InlineData(BreadcrumbSymbolKind.Variable)]
-    [InlineData(BreadcrumbSymbolKind.Constant)]
-    [InlineData(BreadcrumbSymbolKind.String)]
-    [InlineData(BreadcrumbSymbolKind.Number)]
-    [InlineData(BreadcrumbSymbolKind.Boolean)]
-    [InlineData(BreadcrumbSymbolKind.Array)]
-    [InlineData(BreadcrumbSymbolKind.Object)]
-    [InlineData(BreadcrumbSymbolKind.Key)]
-    [InlineData(BreadcrumbSymbolKind.Null)]
-    [InlineData(BreadcrumbSymbolKind.EnumMember)]
-    [InlineData(BreadcrumbSymbolKind.Struct)]
-    [InlineData(BreadcrumbSymbolKind.Event)]
-    [InlineData(BreadcrumbSymbolKind.Operator)]
-    [InlineData(BreadcrumbSymbolKind.TypeParameter)]
+    [TestMethod]
+    [DataRow(BreadcrumbSymbolKind.File)]
+    [DataRow(BreadcrumbSymbolKind.Module)]
+    [DataRow(BreadcrumbSymbolKind.Namespace)]
+    [DataRow(BreadcrumbSymbolKind.Package)]
+    [DataRow(BreadcrumbSymbolKind.Class)]
+    [DataRow(BreadcrumbSymbolKind.Method)]
+    [DataRow(BreadcrumbSymbolKind.Property)]
+    [DataRow(BreadcrumbSymbolKind.Field)]
+    [DataRow(BreadcrumbSymbolKind.Constructor)]
+    [DataRow(BreadcrumbSymbolKind.Enum)]
+    [DataRow(BreadcrumbSymbolKind.Interface)]
+    [DataRow(BreadcrumbSymbolKind.Function)]
+    [DataRow(BreadcrumbSymbolKind.Variable)]
+    [DataRow(BreadcrumbSymbolKind.Constant)]
+    [DataRow(BreadcrumbSymbolKind.String)]
+    [DataRow(BreadcrumbSymbolKind.Number)]
+    [DataRow(BreadcrumbSymbolKind.Boolean)]
+    [DataRow(BreadcrumbSymbolKind.Array)]
+    [DataRow(BreadcrumbSymbolKind.Object)]
+    [DataRow(BreadcrumbSymbolKind.Key)]
+    [DataRow(BreadcrumbSymbolKind.Null)]
+    [DataRow(BreadcrumbSymbolKind.EnumMember)]
+    [DataRow(BreadcrumbSymbolKind.Struct)]
+    [DataRow(BreadcrumbSymbolKind.Event)]
+    [DataRow(BreadcrumbSymbolKind.Operator)]
+    [DataRow(BreadcrumbSymbolKind.TypeParameter)]
     public void BreadcrumbSymbolKind_AllValues_AreValidForSymbol(BreadcrumbSymbolKind kind)
     {
         var symbol = new BreadcrumbSymbol("test", kind,
             new DocumentPosition(1, 1), new DocumentPosition(1, 5));
 
-        Assert.Equal(kind, symbol.Kind);
+        Assert.AreEqual(kind, symbol.Kind);
     }
 
     // ── BreadcrumbData construction ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbData_EmptySymbolList_IsValid()
     {
         var data = new BreadcrumbData([]);
 
-        Assert.NotNull(data.Symbols);
-        Assert.Empty(data.Symbols);
+        Assert.IsNotNull(data.Symbols);
+        Assert.IsEmpty(data.Symbols);
     }
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbData_MultipleTopLevelSymbols_PreservesAll()
     {
         var data = new BreadcrumbData([
@@ -189,15 +190,15 @@ public class BreadcrumbDataTests
                 new DocumentPosition(22, 1), new DocumentPosition(25, 1))
         ]);
 
-        Assert.Equal(3, data.Symbols.Count);
-        Assert.Equal("ClassA", data.Symbols[0].Name);
-        Assert.Equal("ClassB", data.Symbols[1].Name);
-        Assert.Equal("EnumC", data.Symbols[2].Name);
+        Assert.AreEqual(3, data.Symbols.Count);
+        Assert.AreEqual("ClassA", data.Symbols[0].Name);
+        Assert.AreEqual("ClassB", data.Symbols[1].Name);
+        Assert.AreEqual("EnumC", data.Symbols[2].Name);
     }
 
     // ── Record equality ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbSymbol_RecordEquality_EqualWhenSameValues()
     {
         var a = new BreadcrumbSymbol("Foo", BreadcrumbSymbolKind.Method,
@@ -205,10 +206,10 @@ public class BreadcrumbDataTests
         var b = new BreadcrumbSymbol("Foo", BreadcrumbSymbolKind.Method,
             new DocumentPosition(1, 1), new DocumentPosition(5, 1));
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void BreadcrumbSymbol_RecordEquality_NotEqualWhenDifferentKind()
     {
         var a = new BreadcrumbSymbol("Foo", BreadcrumbSymbolKind.Method,
@@ -216,6 +217,6 @@ public class BreadcrumbDataTests
         var b = new BreadcrumbSymbol("Foo", BreadcrumbSymbolKind.Property,
             new DocumentPosition(1, 1), new DocumentPosition(5, 1));
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 }

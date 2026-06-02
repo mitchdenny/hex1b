@@ -13,6 +13,40 @@
   </PropertyGroup>
 
   <!--
+    MSTest 4 exposes a handful of evaluation-only APIs (e.g. TestContext.Current,
+    Assert.ThrowsExactly overloads) via diagnostic id MSTESTEXP. Suppress that
+    diagnostic for test projects so they can keep using these APIs without
+    forcing every call site to <SuppressMessage> them.
+
+    CS8602/CS8604 suppression mirrors the previous xUnit1031/xUnit1051 suppression
+    posture: nuisance warnings in test code (TestContext.Current dereferences,
+    nullable string args to Assert.Contains) that xUnit's annotated overloads
+    didn't generate but MSTest 4's stricter annotations do.
+  -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <!--
+      MSTESTEXP: opt-in to experimental TestContext.Current / Assert.ThrowsExactly APIs.
+      CS8602/CS8604: nullable nuisance warnings around TestContext.Current dereferences.
+      MSTEST0014: DataRow arg type mismatch (xUnit InlineData was looser; int<->byte etc.).
+      MSTEST0030: "missing [TestClass]" — fires on attribute-only classes (custom Fact-derived).
+      MSTEST0032: "condition known to be always true" — fires on Assert.IsNotNull after capture.
+      MSTEST0057: requires CallerFilePath/LineNumber on custom TestMethodAttribute subclasses;
+                  not actionable while preserving xUnit-style constructor signatures.
+    -->
+    <NoWarn>$(NoWarn);MSTESTEXP;CS8602;CS8604;MSTEST0014;MSTEST0030;MSTEST0032;MSTEST0057</NoWarn>
+  </PropertyGroup>
+
+  <!--
+    Link the shared TestSeq helper into every test project. TestSeq bridges
+    xUnit-style Assert.Equal(collection, collection) semantics to MSTest's
+    CollectionAssert + ToList() materialisation. See eng/TestSeq.cs.
+  -->
+  <ItemGroup Condition="$(MSBuildProjectName.EndsWith('.Tests'))">
+    <Compile Include="$(MSBuildThisFileDirectory)eng\TestSeq.cs" Link="eng\TestSeq.cs" />
+    <Using Include="Hex1b.Testing" />
+  </ItemGroup>
+
+  <!--
     Wire the repository-local Hex1b.Analyzers analyzer into every project. PrivateAssets="all"
     keeps the analyzer out of the Hex1b NuGet package so it is enforced only inside this repo.
     The Condition excludes the analyzer project itself and its test project from referencing it,

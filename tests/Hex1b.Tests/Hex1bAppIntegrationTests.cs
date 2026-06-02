@@ -1,6 +1,6 @@
 using System.ComponentModel;
 using System.Threading.Tasks;
-using Xunit.Sdk;
+
 using Hex1b.Input;
 using Hex1b.Widgets;
 
@@ -9,9 +9,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Integration tests for the full Hex1bApp lifecycle using the virtual terminal.
 /// </summary>
+[TestClass]
 public class Hex1bAppIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task App_EntersAndExitsAlternateScreen()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -36,7 +37,7 @@ public class Hex1bAppIntegrationTests
         // Test passed - app entered alternate screen and exited cleanly
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_RendersInitialContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -57,10 +58,10 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.True(snapshot.ContainsText("Hello World"));
+        Assert.IsTrue(snapshot.ContainsText("Hello World"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_RespondsToInput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -92,10 +93,10 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Equal("Hi", text);
+        Assert.AreEqual("Hi", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_HandlesButtonClick()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -124,10 +125,10 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_HandlesCancellation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -155,7 +156,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_RendersVStackLayout()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -183,12 +184,12 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.True(snapshot.ContainsText("Line 1"));
-        Assert.True(snapshot.ContainsText("Line 2"));
-        Assert.True(snapshot.ContainsText("Line 3"));
+        Assert.IsTrue(snapshot.ContainsText("Line 1"));
+        Assert.IsTrue(snapshot.ContainsText("Line 2"));
+        Assert.IsTrue(snapshot.ContainsText("Line 3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_TabNavigatesBetweenWidgets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -222,11 +223,11 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Equal("a", text1);
-        Assert.Equal("b", text2);
+        Assert.AreEqual("a", text1);
+        Assert.AreEqual("b", text2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_ListNavigationWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -263,10 +264,10 @@ public class Hex1bAppIntegrationTests
         await runTask;
         
         // Verify via rendered output that third item is selected
-        Assert.True(snapshot.ContainsText("> Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_DynamicStateUpdates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -300,12 +301,12 @@ public class Hex1bAppIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Equal(2, counter);
+        Assert.AreEqual(2, counter);
         // The last render should show the updated count
-        Assert.True(snapshot.ContainsText("Count: 2"));
+        Assert.IsTrue(snapshot.ContainsText("Count: 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_Dispose_CleansUp()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -330,7 +331,7 @@ public class Hex1bAppIntegrationTests
         app.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_Invalidate_TriggersRerender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -348,7 +349,7 @@ public class Hex1bAppIntegrationTests
         
         // Wait for initial render
         await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 0"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Count: 0"));
         
         // Change state externally and invalidate
         counter = 42;
@@ -356,13 +357,13 @@ public class Hex1bAppIntegrationTests
         
         // Wait for re-render
         await Task.Delay(50, TestContext.Current.CancellationToken);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Count: 42"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Count: 42"));
         
         cts.Cancel();
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_InvalidateMultipleTimes_CoalescesRerenders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -399,8 +400,7 @@ public class Hex1bAppIntegrationTests
         
         // Should have coalesced - not 100 extra renders
         // Allow up to 20 extra renders to account for timing variations in CI
-        Assert.True(renderCount < initialRenderCount + 20, 
-            $"Expected coalesced renders, but got {renderCount - initialRenderCount} extra renders");
+        Assert.IsTrue(renderCount < initialRenderCount + 20, $"Expected coalesced renders, but got {renderCount - initialRenderCount} extra renders");
         
         // Exit the app
         await new Hex1bTerminalInputSequenceBuilder()
@@ -410,7 +410,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_DefaultCtrlCExit_ExitsApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -441,7 +441,7 @@ public class Hex1bAppIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_DefaultCtrlCExitDisabled_DoesNotExit()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -493,7 +493,7 @@ public class Hex1bAppIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task App_UserCtrlCBinding_OverridesDefault()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -531,10 +531,10 @@ public class Hex1bAppIntegrationTests
             .ApplyAsync(terminal);
         
         // The custom handler should have been called
-        Assert.True(customHandlerCalled);
+        Assert.IsTrue(customHandlerCalled);
         
         // App should still be running (not exited by default binding)
-        Assert.False(runTask.IsCompleted);
+        Assert.IsFalse(runTask.IsCompleted);
         
         cts.Cancel();
         await runTask;

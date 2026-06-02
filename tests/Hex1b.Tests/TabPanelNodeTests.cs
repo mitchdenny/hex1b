@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for TabPanelNode layout, rendering, tab switching, and keyboard navigation.
 /// </summary>
+[TestClass]
 public class TabPanelNodeTests
 {
     #region Basic Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_Renders_TabBar_And_Content()
     {
         // Arrange
@@ -41,19 +42,19 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - Tab bar shows both tabs, content shows first tab
-        Assert.True(snapshot.ContainsText("Tab One"), "Should show first tab title");
-        Assert.True(snapshot.ContainsText("Tab Two"), "Should show second tab title");
-        Assert.True(snapshot.ContainsText("Content One"), "Should show first tab content");
-        Assert.False(snapshot.ContainsText("Content Two"), "Should not show second tab content");
+        Assert.IsTrue(snapshot.ContainsText("Tab One"), "Should show first tab title");
+        Assert.IsTrue(snapshot.ContainsText("Tab Two"), "Should show second tab title");
+        Assert.IsTrue(snapshot.ContainsText("Content One"), "Should show first tab content");
+        Assert.IsFalse(snapshot.ContainsText("Content Two"), "Should not show second tab content");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_WideTabTitle_UsesDisplayWidthForSelectedIndicator()
     {
         // Arrange
         const string title = "한국어 제목";
         var expectedTabWidth = DisplayWidth.GetStringWidth(title) + 2;
-        Assert.True(expectedTabWidth > title.Length + 2, "Test title must contain wide characters.");
+        Assert.IsTrue(expectedTabWidth > title.Length + 2, "Test title must contain wide characters.");
 
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 8).Build();
@@ -78,13 +79,13 @@ public class TabPanelNodeTests
         // Assert - the selected-tab indicator spans the full display width of the wide title.
         for (var x = 0; x < expectedTabWidth; x++)
         {
-            Assert.Equal("▁", snapshot.GetCell(x, 0).Character);
+            Assert.AreEqual("▁", snapshot.GetCell(x, 0).Character);
         }
 
-        Assert.NotEqual("▁", snapshot.GetCell(expectedTabWidth, 0).Character);
+        Assert.AreNotEqual("▁", snapshot.GetCell(expectedTabWidth, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_AltRight_SwitchesToNextTab()
     {
         // Arrange
@@ -114,11 +115,11 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - Should now show second tab content
-        Assert.True(snapshot.ContainsText("Content Two"), "Should show second tab content after Alt+Right");
-        Assert.False(snapshot.ContainsText("Content One"), "Should not show first tab content after switch");
+        Assert.IsTrue(snapshot.ContainsText("Content Two"), "Should show second tab content after Alt+Right");
+        Assert.IsFalse(snapshot.ContainsText("Content One"), "Should not show first tab content after switch");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_AltLeft_SwitchesToPreviousTab()
     {
         // Arrange
@@ -151,14 +152,14 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - Should now show first tab content
-        Assert.True(snapshot.ContainsText("Content One"), "Should show first tab content after Alt+Left");
+        Assert.IsTrue(snapshot.ContainsText("Content One"), "Should show first tab content after Alt+Left");
     }
 
     #endregion
 
     #region Orientation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_InVStack_FirstPosition_TabsOnTop()
     {
         // Arrange
@@ -190,7 +191,7 @@ public class TabPanelNodeTests
         Assert.Contains("TopTab", line1);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_WithTabsOnBottom_TabsRenderAtBottom()
     {
         // Arrange
@@ -228,14 +229,14 @@ public class TabPanelNodeTests
                 break;
             }
         }
-        Assert.True(found, "Tab should be in bottom half of screen");
+        Assert.IsTrue(found, "Tab should be in bottom half of screen");
     }
 
     #endregion
 
     #region Selection Changed Event Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_OnSelectionChanged_FiresWhenTabSwitches()
     {
         // Arrange
@@ -271,15 +272,15 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert
-        Assert.True(selectionChangedFired, "Selection changed event should fire");
-        Assert.Equal(1, newIndex);
+        Assert.IsTrue(selectionChangedFired, "Selection changed event should fire");
+        Assert.AreEqual(1, newIndex);
     }
 
     #endregion
 
     #region Tab Wrapping Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_AltRight_OnLastTab_WrapsToFirst()
     {
         // Arrange
@@ -312,14 +313,14 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - Should wrap to first tab
-        Assert.True(snapshot.ContainsText("Content One"), "Should wrap to first tab");
+        Assert.IsTrue(snapshot.ContainsText("Content One"), "Should wrap to first tab");
     }
 
     #endregion
 
     #region Selector Dropdown Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_SelectorDropdown_AppearsNearTabBar()
     {
         // Arrange - Create a demo-like layout with menu bar, splitter, and tab panel
@@ -372,7 +373,7 @@ public class TabPanelNodeTests
 
         // Find the ▼ selector button position
         var selectorPosition = FindTextPosition(initialSnapshot, "▼");
-        Assert.True(selectorPosition.HasValue, "Should find selector button ▼ in the rendered output");
+        Assert.IsTrue(selectorPosition.HasValue, "Should find selector button ▼ in the rendered output");
         
         var (selectorX, selectorY) = selectorPosition!.Value;
         
@@ -391,16 +392,15 @@ public class TabPanelNodeTests
         var dropdownPosition = FindTextPosition(afterClickSnapshot, "Document1.cs", startAfterRow: selectorY);
         
         // The dropdown should contain all tab titles in a list format
-        Assert.True(afterClickSnapshot.ContainsText("Document1.cs"), "Dropdown should contain Document1.cs");
-        Assert.True(afterClickSnapshot.ContainsText("Document2.cs"), "Dropdown should contain Document2.cs");
-        Assert.True(afterClickSnapshot.ContainsText("README.md"), "Dropdown should contain README.md");
+        Assert.IsTrue(afterClickSnapshot.ContainsText("Document1.cs"), "Dropdown should contain Document1.cs");
+        Assert.IsTrue(afterClickSnapshot.ContainsText("Document2.cs"), "Dropdown should contain Document2.cs");
+        Assert.IsTrue(afterClickSnapshot.ContainsText("README.md"), "Dropdown should contain README.md");
         
         // The dropdown should appear close to the selector (within 5 rows)
         if (dropdownPosition.HasValue)
         {
             var dropdownY = dropdownPosition.Value.y;
-            Assert.True(dropdownY <= selectorY + 5, 
-                $"Dropdown should appear near selector (y={selectorY}), but appeared at y={dropdownY}");
+            Assert.IsTrue(dropdownY <= selectorY + 5, $"Dropdown should appear near selector (y={selectorY}), but appeared at y={dropdownY}");
         }
     }
 
@@ -433,7 +433,7 @@ public class TabPanelNodeTests
 
     #region Dynamic Tab Content Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_DynamicallyAddingTab_UpdatesContent()
     {
         // Arrange - Simulate the demo pattern with external state
@@ -471,7 +471,7 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+        Assert.IsTrue(snapshot1.ContainsText("No documents"), "Should show empty state initially");
 
         // Add a document (simulate what happens when user clicks in tree)
         openDocs.Add(("File1.cs", "Content of File1"));
@@ -483,8 +483,8 @@ public class TabPanelNodeTests
             .Capture("afterAdd1")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot2.ContainsText("File1.cs"), "Should show first tab");
-        Assert.True(snapshot2.ContainsText("Content of File1"), "Should show first file content");
+        Assert.IsTrue(snapshot2.ContainsText("File1.cs"), "Should show first tab");
+        Assert.IsTrue(snapshot2.ContainsText("Content of File1"), "Should show first file content");
 
         // Add another document and select it
         openDocs.Add(("File2.cs", "Content of File2"));
@@ -497,13 +497,13 @@ public class TabPanelNodeTests
             .Ctrl().Key(Hex1bKey.C)
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot3.ContainsText("File2.cs"), "Should show second tab");
-        Assert.True(snapshot3.ContainsText("Content of File2"), "Should show second file content");
+        Assert.IsTrue(snapshot3.ContainsText("File2.cs"), "Should show second tab");
+        Assert.IsTrue(snapshot3.ContainsText("Content of File2"), "Should show second file content");
 
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_TreeDoubleClick_UpdatesContent_WithoutExplicitInvalidate()
     {
         // This test replicates the actual demo pattern where:
@@ -574,13 +574,13 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
-        Assert.False(activatedCalled, "OnActivated should not be called yet");
-        Assert.False(clickedCalled, "OnClicked should not be called yet");
+        Assert.IsTrue(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+        Assert.IsFalse(activatedCalled, "OnActivated should not be called yet");
+        Assert.IsFalse(clickedCalled, "OnClicked should not be called yet");
 
         // Find File1.cs position in the tree - it should be at row 0
         var file1Pos = FindTextPosition(snapshot1, "File1.cs");
-        Assert.True(file1Pos.HasValue, "Should find File1.cs in tree");
+        Assert.IsTrue(file1Pos.HasValue, "Should find File1.cs in tree");
 
         // First try a single click to verify mouse routing works
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -591,7 +591,7 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(clickedCalled, $"OnClicked should have been called by click at ({file1Pos.Value.x}, {file1Pos.Value.y})");
+        Assert.IsTrue(clickedCalled, $"OnClicked should have been called by click at ({file1Pos.Value.x}, {file1Pos.Value.y})");
 
         // Now double-click to activate
         var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
@@ -602,9 +602,9 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(activatedCalled, "OnActivated should have been called by double-click");
-        Assert.Single(openDocs);
-        Assert.Equal("File1.cs", openDocs[0].Name);
+        Assert.IsTrue(activatedCalled, "OnActivated should have been called by double-click");
+        TestSeq.Single(openDocs);
+        Assert.AreEqual("File1.cs", openDocs[0].Name);
 
         // Now verify content update
         var snapshot4 = await new Hex1bTerminalInputSequenceBuilder()
@@ -614,13 +614,13 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot4.ContainsText("File1.cs"), "Tab should show File1.cs");
-        Assert.True(snapshot4.ContainsText("Content of File 1"), "Content area should show file content");
+        Assert.IsTrue(snapshot4.ContainsText("File1.cs"), "Tab should show File1.cs");
+        Assert.IsTrue(snapshot4.ContainsText("Content of File 1"), "Content area should show file content");
 
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_SwitchingTabs_UpdatesContent()
     {
         // Simple test: TabPanel with two tabs, switch between them
@@ -651,8 +651,8 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
-        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+        Assert.IsTrue(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.IsFalse(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
 
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -664,13 +664,13 @@ public class TabPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // THIS IS THE BUG: Content Two should be visible, Content One should not
-        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
-        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+        Assert.IsTrue(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.IsFalse(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
 
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_SwitchingTabs_WithVScrollAndWrap_UpdatesContent()
     {
         // Test with VScroll and Wrap - matches the demo's structure
@@ -709,8 +709,8 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
-        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+        Assert.IsTrue(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.IsFalse(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
 
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -722,13 +722,13 @@ public class TabPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content Two should be visible
-        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
-        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+        Assert.IsTrue(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.IsFalse(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
 
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_SwitchingTabs_WithResponsive_UpdatesContent()
     {
         // Test with Responsive widget wrapping the TabPanel - matches the demo's exact structure
@@ -769,8 +769,8 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
-        Assert.False(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
+        Assert.IsTrue(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.IsFalse(snapshot1.ContainsText("Content Two"), "Should not show Tab Two content initially");
 
         // Press Alt+Right to switch to Tab Two
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -782,13 +782,13 @@ public class TabPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Content Two should be visible
-        Assert.True(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
-        Assert.False(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
+        Assert.IsTrue(snapshot2.ContainsText("Content Two"), "Should show Tab Two content after switch");
+        Assert.IsFalse(snapshot2.ContainsText("Content One"), "Should not show Tab One content after switch");
 
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_InSplitter_SwitchingTabs_UpdatesContent()
     {
         // Test with Splitter + Responsive + TabPanel - full demo structure
@@ -836,7 +836,7 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
+        Assert.IsTrue(snapshot1.ContainsText("Content One"), "Should show Tab One content initially");
 
         // Press Alt+Right to switch to Tab Two
         // Note: TabPanel's Alt+Right binding only works when TabPanel or its content is focused
@@ -850,7 +850,7 @@ public class TabPanelNodeTests
         // Try clicking on Tab Two instead (this should work regardless of focus)
         // Find Tab Two position
         var tabTwoPos = FindTextPosition(snapshot2, "Tab Two");
-        Assert.True(tabTwoPos.HasValue, "Should find Tab Two in tab bar");
+        Assert.IsTrue(tabTwoPos.HasValue, "Should find Tab Two in tab bar");
         
         var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
             .MouseMoveTo(tabTwoPos.Value.x + 2, tabTwoPos.Value.y)
@@ -866,15 +866,13 @@ public class TabPanelNodeTests
         
         // Content Two should be visible after clicking on Tab Two
         // This verifies the content area actually updated, not just that both texts exist somewhere
-        Assert.True(snapshot3.ContainsText("Content Two"), 
-            $"Should show Tab Two content after clicking tab.\nTerminal state:\n{fullState}");
-        Assert.False(snapshot3.ContainsText("Content One"), 
-            $"Should not show Tab One content after switch.\nTerminal state:\n{fullState}");
+        Assert.IsTrue(snapshot3.ContainsText("Content Two"), $"Should show Tab Two content after clicking tab.\nTerminal state:\n{fullState}");
+        Assert.IsFalse(snapshot3.ContainsText("Content One"), $"Should not show Tab One content after switch.\nTerminal state:\n{fullState}");
 
         await runTask;
     }
 
-    [Fact(Skip = "Tree double-click in splitter is a separate issue - needs investigation")]
+    [TestMethod, Ignore("Tree double-click in splitter is a separate issue - needs investigation")]
     public async Task TabPanel_TreeInSplitter_DoubleClickUpdatesContent()
     {
         // This test more closely mirrors the TabPanelDemo structure
@@ -940,11 +938,11 @@ public class TabPanelNodeTests
             .Capture("initial")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot1.ContainsText("No documents"), "Should show empty state initially");
+        Assert.IsTrue(snapshot1.ContainsText("No documents"), "Should show empty state initially");
 
         // Find File1.cs position - should be in the left pane
         var file1Pos = FindTextPosition(snapshot1, "File1.cs");
-        Assert.True(file1Pos.HasValue, "Should find File1.cs in tree");
+        Assert.IsTrue(file1Pos.HasValue, "Should find File1.cs in tree");
 
         // Click in the middle of the filename (add offset from start)
         var clickX = file1Pos.Value.x + 3; // Click on "e1" part of File1.cs
@@ -959,9 +957,9 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(activatedCalled, $"OnActivated should have been called by double-click at ({clickX}, {clickY})");
-        Assert.Single(openDocs);
-        Assert.Equal("File1.cs", openDocs[0].Name);
+        Assert.IsTrue(activatedCalled, $"OnActivated should have been called by double-click at ({clickX}, {clickY})");
+        TestSeq.Single(openDocs);
+        Assert.AreEqual("File1.cs", openDocs[0].Name);
 
         // Now wait for content update
         var snapshot3 = await new Hex1bTerminalInputSequenceBuilder()
@@ -971,8 +969,8 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(snapshot3.ContainsText("File1.cs"), "Tab should show File1.cs");
-        Assert.True(snapshot3.ContainsText("Content of File 1"), "Content area should show file content");
+        Assert.IsTrue(snapshot3.ContainsText("File1.cs"), "Tab should show File1.cs");
+        Assert.IsTrue(snapshot3.ContainsText("Content of File 1"), "Content area should show file content");
 
         await runTask;
     }
@@ -981,7 +979,7 @@ public class TabPanelNodeTests
 
     #region Tab Bar Scrolling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_ManyTabs_NewlySelectedTab_ScrollsIntoView()
     {
         // Arrange - Create many tabs so they overflow the tab bar
@@ -1017,7 +1015,7 @@ public class TabPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(snapshot1.ContainsText("Tab1"), "Tab1 should be visible initially");
+        Assert.IsTrue(snapshot1.ContainsText("Tab1"), "Tab1 should be visible initially");
         
         // Navigate right multiple times to get to Tab8 (which should scroll into view)
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -1036,11 +1034,11 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - Tab8 should be visible in the tab bar (scrolled into view) and its content shown
-        Assert.True(snapshot2.ContainsText("Tab8"), "Tab8 should be visible in tab bar after selection");
-        Assert.True(snapshot2.ContainsText("Content 8"), "Tab8 content should be displayed");
+        Assert.IsTrue(snapshot2.ContainsText("Tab8"), "Tab8 should be visible in tab bar after selection");
+        Assert.IsTrue(snapshot2.ContainsText("Content 8"), "Tab8 content should be displayed");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_MouseWheelOnTabBar_ScrollsTabs()
     {
         // Arrange - Create many tabs so they overflow the tab bar
@@ -1074,7 +1072,7 @@ public class TabPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Verify FirstTab visible, later tabs likely not visible due to narrow width
-        Assert.True(snapshot1.ContainsText("FirstTab"), "FirstTab should be visible initially");
+        Assert.IsTrue(snapshot1.ContainsText("FirstTab"), "FirstTab should be visible initially");
         
         // Mouse wheel down (scroll right) on the tab bar (row 0)
         var snapshot2 = await new Hex1bTerminalInputSequenceBuilder()
@@ -1089,16 +1087,16 @@ public class TabPanelNodeTests
 
         // Assert - Later tabs should now be visible (scrolled into view)
         // The content should still show FirstTab's content (we didn't change selection)
-        Assert.True(snapshot2.ContainsText("Content First"), "Content should still show first tab (selection unchanged)");
+        Assert.IsTrue(snapshot2.ContainsText("Content First"), "Content should still show first tab (selection unchanged)");
         
         // At least one of the later tabs should be visible after scrolling
         var laterTabsVisible = snapshot2.ContainsText("FourthTab") || 
                                snapshot2.ContainsText("FifthTab") || 
                                snapshot2.ContainsText("SixthTab");
-        Assert.True(laterTabsVisible, "Later tabs should be visible after mouse wheel scroll");
+        Assert.IsTrue(laterTabsVisible, "Later tabs should be visible after mouse wheel scroll");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TabPanel_AddingNewTab_ScrollsToShowIt()
     {
         // Arrange - Start with many tabs, then add one more
@@ -1143,8 +1141,8 @@ public class TabPanelNodeTests
         await runTask;
 
         // Assert - The new tab should be visible and selected
-        Assert.True(snapshot2.ContainsText("NewTab"), "Newly added tab should be visible");
-        Assert.True(snapshot2.ContainsText("Content of NewTab"), "Newly added tab content should be displayed");
+        Assert.IsTrue(snapshot2.ContainsText("NewTab"), "Newly added tab should be visible");
+        Assert.IsTrue(snapshot2.ContainsText("Content of NewTab"), "Newly added tab content should be displayed");
     }
 
     #endregion

@@ -39,9 +39,10 @@ internal class TestTileDataSource : ITileDataSource
     }
 }
 
+[TestClass]
 public class TilePanelNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void EffectiveTileWidth_ZoomLevel0_ReturnsBaseSize()
     {
         var ds = new TestTileDataSource();
@@ -51,11 +52,11 @@ public class TilePanelNodeTests
         };
         node.SetDataSource(ds);
 
-        Assert.Equal(3, node.EffectiveTileWidth);
-        Assert.Equal(1, node.EffectiveTileHeight);
+        Assert.AreEqual(3, node.EffectiveTileWidth);
+        Assert.AreEqual(1, node.EffectiveTileHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void EffectiveTileWidth_ZoomLevel1_DoubleSize()
     {
         var ds = new TestTileDataSource();
@@ -65,11 +66,11 @@ public class TilePanelNodeTests
         };
         node.SetDataSource(ds);
 
-        Assert.Equal(6, node.EffectiveTileWidth);
-        Assert.Equal(2, node.EffectiveTileHeight);
+        Assert.AreEqual(6, node.EffectiveTileWidth);
+        Assert.AreEqual(2, node.EffectiveTileHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void EffectiveTileWidth_ZoomLevel2_QuadrupleSize()
     {
         var ds = new TestTileDataSource();
@@ -79,11 +80,11 @@ public class TilePanelNodeTests
         };
         node.SetDataSource(ds);
 
-        Assert.Equal(12, node.EffectiveTileWidth);
-        Assert.Equal(4, node.EffectiveTileHeight);
+        Assert.AreEqual(12, node.EffectiveTileWidth);
+        Assert.AreEqual(4, node.EffectiveTileHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetVisibleTileRange_CenteredAtOrigin_ReturnsCorrectRange()
     {
         var ds = new TestTileDataSource();
@@ -100,16 +101,16 @@ public class TilePanelNodeTests
         var (tileX, tileY, tilesWide, tilesTall) = node.GetVisibleTileRange();
 
         // With 30 chars wide, 3 chars/tile = 10 tiles + 2 = 12
-        Assert.Equal(12, tilesWide);
+        Assert.AreEqual(12, tilesWide);
         // With 10 rows, 1 char/tile = 10 tiles + 2 = 12
-        Assert.Equal(12, tilesTall);
+        Assert.AreEqual(12, tilesTall);
         // Camera at origin, viewport is 30 wide, tile is 3 wide
         // startTileX = floor(0 - 30/(2*3)) = floor(-5) = -5
-        Assert.Equal(-5, tileX);
-        Assert.Equal(-5, tileY);
+        Assert.AreEqual(-5, tileX);
+        Assert.AreEqual(-5, tileY);
     }
 
-    [Fact]
+    [TestMethod]
     public void TileToScreen_AtCameraCenter_ReturnsViewportCenter()
     {
         var ds = new TestTileDataSource();
@@ -125,11 +126,11 @@ public class TilePanelNodeTests
         var (screenX, screenY) = node.TileToScreen(0, 0);
 
         // Camera at origin, tile at origin → center of viewport
-        Assert.Equal(40, screenX);
-        Assert.Equal(12, screenY);
+        Assert.AreEqual(40, screenX);
+        Assert.AreEqual(12, screenY);
     }
 
-    [Fact]
+    [TestMethod]
     public void TileToScreen_OffsetFromCamera_ReturnsCorrectScreenPosition()
     {
         var ds = new TestTileDataSource();
@@ -144,15 +145,15 @@ public class TilePanelNodeTests
 
         // Tile at (5, 3) should be at center since camera is at (5, 3)
         var (screenX, screenY) = node.TileToScreen(5, 3);
-        Assert.Equal(40, screenX);
-        Assert.Equal(12, screenY);
+        Assert.AreEqual(40, screenX);
+        Assert.AreEqual(12, screenY);
 
         // Tile at (6, 3) should be 3 chars to the right (tileWidth = 3)
         var (screenX2, _) = node.TileToScreen(6, 3);
-        Assert.Equal(43, screenX2);
+        Assert.AreEqual(43, screenX2);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_PreservesNode()
     {
         var ds = new TestTileDataSource();
@@ -163,14 +164,14 @@ public class TilePanelNodeTests
         var node1 = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult();
         var node2 = widget2.ReconcileAsync(node1, context).GetAwaiter().GetResult();
 
-        Assert.Same(node1, node2);
+        Assert.AreSame(node1, node2);
         var tileNode = (TilePanelNode)node2;
-        Assert.Equal(5, tileNode.CameraX);
-        Assert.Equal(3, tileNode.CameraY);
-        Assert.Equal(1, tileNode.ZoomLevel);
+        Assert.AreEqual(5, tileNode.CameraX);
+        Assert.AreEqual(3, tileNode.CameraY);
+        Assert.AreEqual(1, tileNode.ZoomLevel);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_CameraChange_MarksDirty()
     {
         var ds = new TestTileDataSource();
@@ -184,10 +185,10 @@ public class TilePanelNodeTests
 
         widget2.ReconcileAsync(node1, context).GetAwaiter().GetResult();
 
-        Assert.True(tileNode.IsDirty);
+        Assert.IsTrue(tileNode.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildContent_WithNoPois_ReturnsInteractable()
     {
         var ds = new TestTileDataSource();
@@ -204,10 +205,10 @@ public class TilePanelNodeTests
         var content = node.BuildContent();
 
         // With no POIs, content is just the Interactable wrapping SurfaceWidget
-        Assert.IsType<InteractableWidget>(content);
+        TestSeq.IsType<InteractableWidget>(content);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildContent_WithPois_ReturnsZStack()
     {
         var ds = new TestTileDataSource();
@@ -223,15 +224,15 @@ public class TilePanelNodeTests
 
         var content = node.BuildContent();
 
-        Assert.IsType<ZStackWidget>(content);
+        TestSeq.IsType<ZStackWidget>(content);
         var zstack = (ZStackWidget)content;
         // ZStack with tile layer + float POI children
-        Assert.Equal(2, zstack.Children.Count);
-        Assert.IsType<InteractableWidget>(zstack.Children[0]);
-        Assert.IsType<FloatWidget>(zstack.Children[1]);
+        Assert.AreEqual(2, zstack.Children.Count);
+        TestSeq.IsType<InteractableWidget>(zstack.Children[0]);
+        TestSeq.IsType<FloatWidget>(zstack.Children[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildContent_PoiOutsideViewport_IsExcluded()
     {
         var ds = new TestTileDataSource();
@@ -248,21 +249,22 @@ public class TilePanelNodeTests
         var content = node.BuildContent();
 
         // Far-away POI should be excluded, returning just the interactable
-        Assert.IsType<InteractableWidget>(content);
+        TestSeq.IsType<InteractableWidget>(content);
     }
 
-    [Fact]
+    [TestMethod]
     public void TilePanelNode_IsNotDirectlyFocusable()
     {
         // TilePanelNode delegates focus to the InteractableNode it wraps the surface in
         var node = new TilePanelNode();
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 }
 
+[TestClass]
 public class TilePanelFocusTests
 {
-    [Fact]
+    [TestMethod]
     public void TilePanelNode_InVStack_InteractableReceivesFocus()
     {
         var ds = new TestTileDataSource();
@@ -287,22 +289,23 @@ public class TilePanelFocusTests
             }
         }
 
-        Assert.NotNull(tilePanelNode);
+        Assert.IsNotNull(tilePanelNode);
 
         // The InteractableNode inside TilePanelNode should be focusable and receive focus
         var focusables = tilePanelNode.GetFocusableNodes().ToList();
-        Assert.True(focusables.Count > 0, "TilePanelNode should have focusable descendants");
-        Assert.IsType<InteractableNode>(focusables[0]);
-        Assert.True(focusables[0].IsFocused, "InteractableNode should receive focus");
+        Assert.IsTrue(focusables.Count > 0, "TilePanelNode should have focusable descendants");
+        TestSeq.IsType<InteractableNode>(focusables[0]);
+        Assert.IsTrue(focusables[0].IsFocused, "InteractableNode should receive focus");
 
         // Verify PanCallback is wired
-        Assert.NotNull(tilePanelNode.PanCallback);
+        Assert.IsNotNull(tilePanelNode.PanCallback);
     }
 }
 
+[TestClass]
 public class TilePanelIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task TilePanel_ArrowKey_PansCamera()
     {
         var cameraX = 0.0;
@@ -343,12 +346,12 @@ public class TilePanelIntegrationTests
 
         await runTask;
 
-        Assert.True(panCount > 0, "Pan handler should have been called");
-        Assert.Equal(1.0, cameraX);
-        Assert.Equal(0.0, cameraY);
+        Assert.IsTrue(panCount > 0, "Pan handler should have been called");
+        Assert.AreEqual(1.0, cameraX);
+        Assert.AreEqual(0.0, cameraY);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TilePanel_PlusKey_Zooms()
     {
         var zoomLevel = 0;
@@ -385,11 +388,11 @@ public class TilePanelIntegrationTests
 
         await runTask;
 
-        Assert.True(zoomCount > 0, "Zoom handler should have been called");
-        Assert.Equal(1, zoomLevel);
+        Assert.IsTrue(zoomCount > 0, "Zoom handler should have been called");
+        Assert.AreEqual(1, zoomLevel);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TilePanel_MouseScroll_Zooms()
     {
         var cameraX = 0.0;
@@ -439,8 +442,8 @@ public class TilePanelIntegrationTests
 
         await runTask;
 
-        Assert.True(zoomCount > 0, "Zoom handler should have been called");
-        Assert.Equal(1, zoomLevel);
+        Assert.IsTrue(zoomCount > 0, "Zoom handler should have been called");
+        Assert.AreEqual(1, zoomLevel);
     }
 
     /// <summary>
@@ -459,9 +462,9 @@ public class TilePanelIntegrationTests
     /// don't show persistent placeholder dots due to cache eviction thrashing.
     /// The TileCache must auto-expand when the viewport requires more tiles than the max.
     /// </summary>
-    [Theory]
-    [InlineData(200, 55)]  // 202 * 57 = 11,514 tiles — exceeds 10,000
-    [InlineData(250, 60)]  // 252 * 62 = 15,624 tiles — well over limit
+    [TestMethod]
+    [DataRow(200, 55)]  // 202 * 57 = 11,514 tiles — exceeds 10,000
+    [DataRow(250, 60)]  // 252 * 62 = 15,624 tiles — well over limit
     public async Task DrawTiles_LargeViewport_NoEvictionThrashing(int width, int height)
     {
         var ds = new SingleCellTileSource();
@@ -490,8 +493,7 @@ public class TilePanelIntegrationTests
                 if (surface2[x, y].Character == "·")
                     placeholderCount++;
 
-        Assert.True(placeholderCount == 0,
-            $"Viewport {width}x{height}: Found {placeholderCount} placeholder '·' cells — " +
+        Assert.IsTrue(placeholderCount == 0, $"Viewport {width}x{height}: Found {placeholderCount} placeholder '·' cells — " +
             $"cache eviction is thrashing (viewport needs {(width + 2) * (height + 2)} tiles, " +
             $"which exceeds default MaxCachedTiles)");
     }
@@ -501,15 +503,15 @@ public class TilePanelIntegrationTests
     /// with tile content and leaves no unwritten or placeholder cells.
     /// Tests multiple viewport widths to catch rounding/alignment issues.
     /// </summary>
-    [Theory]
-    [InlineData(39)]
-    [InlineData(40)]
-    [InlineData(41)]
-    [InlineData(79)]
-    [InlineData(80)]
-    [InlineData(81)]
-    [InlineData(100)]
-    [InlineData(120)]
+    [TestMethod]
+    [DataRow(39)]
+    [DataRow(40)]
+    [DataRow(41)]
+    [DataRow(79)]
+    [DataRow(80)]
+    [DataRow(81)]
+    [DataRow(100)]
+    [DataRow(120)]
     public async Task DrawTiles_AllWidths_NoPlaceholderCells(int width)
     {
         // Use a 1x1 tile source that always returns content synchronously
@@ -548,10 +550,8 @@ public class TilePanelIntegrationTests
             }
         }
 
-        Assert.True(unwrittenCount == 0, 
-            $"Width={width}: Found {unwrittenCount} unwritten cells (should be 0 after cache is populated)");
-        Assert.True(placeholderCount == 0, 
-            $"Width={width}: Found {placeholderCount} placeholder '·' cells (should be 0 after cache is populated)");
+        Assert.IsTrue(unwrittenCount == 0, $"Width={width}: Found {unwrittenCount} unwritten cells (should be 0 after cache is populated)");
+        Assert.IsTrue(placeholderCount == 0, $"Width={width}: Found {placeholderCount} placeholder '·' cells (should be 0 after cache is populated)");
     }
 }
 

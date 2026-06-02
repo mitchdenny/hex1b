@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// Tests for OverridesCapture chord bindings — multi-step key sequences that
 /// work even when a node (e.g., TerminalWidget) has captured all input.
 /// </summary>
+[TestClass]
 public class CaptureOverrideChordTests
 {
-    [Fact]
+    [TestMethod]
     public async Task OverridesCapture_Chord_FiresWhenTerminalHasCapture()
     {
         // Arrange: TerminalWidget captures input, but Ctrl+B,D chord should still work
@@ -72,7 +73,7 @@ public class CaptureOverrideChordTests
         try { await runTask; } catch (OperationCanceledException) { }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesCapture_MultipleChordsSamePrefix_BothWork()
     {
         // Arrange: Two chords sharing Ctrl+B prefix, one ends with D, other with S
@@ -135,7 +136,7 @@ public class CaptureOverrideChordTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         await switchFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
-        Assert.False(detachFired.Task.IsCompleted, "Detach should not have fired");
+        Assert.IsFalse(detachFired.Task.IsCompleted, "Detach should not have fired");
 
         // Act - Send Ctrl+B, D chord
         await new Hex1bTerminalInputSequenceBuilder()
@@ -151,7 +152,7 @@ public class CaptureOverrideChordTests
         try { await runTask; } catch (OperationCanceledException) { }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesCapture_ChordCancelled_ByNonMatchingSecondKey()
     {
         // Arrange: Ctrl+B,D is bound, but we send Ctrl+B,X (no binding for X)
@@ -206,7 +207,7 @@ public class CaptureOverrideChordTests
 
         // Wait a bit to ensure chord doesn't fire
         await Task.Delay(200);
-        Assert.False(chordFired.Task.IsCompleted, "Chord should not fire for non-matching second key");
+        Assert.IsFalse(chordFired.Task.IsCompleted, "Chord should not fire for non-matching second key");
 
         // Act - Now send the correct chord: Ctrl+B, D — should still work after failed attempt
         await new Hex1bTerminalInputSequenceBuilder()
@@ -222,7 +223,7 @@ public class CaptureOverrideChordTests
         try { await runTask; } catch (OperationCanceledException) { }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OverridesCapture_SingleKeyBinding_StillWorks()
     {
         // Arrange: Single-key OverridesCapture binding (not a chord) should work as before

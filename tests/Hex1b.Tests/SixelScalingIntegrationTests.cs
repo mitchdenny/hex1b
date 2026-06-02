@@ -40,8 +40,8 @@ public class SixelScalingIntegrationTests
         { 12, 24, "large" }     // Large font
     };
 
-    [Theory(Skip = "Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
-    [MemberData(nameof(CellDimensions))]
+    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [DynamicData(nameof(CellDimensions))]
     public async Task SmpteColorBars_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {
         // Generate SMPTE color bar pattern (70x30 pixels = 7 bars)
@@ -105,8 +105,8 @@ public class SixelScalingIntegrationTests
         await runTask;
         
         // Verify cell dimensions are correct
-        Assert.Equal(cellWidth, snapshot.CellPixelWidth);
-        Assert.Equal(cellHeight, snapshot.CellPixelHeight);
+        Assert.AreEqual(cellWidth, snapshot.CellPixelWidth);
+        Assert.AreEqual(cellHeight, snapshot.CellPixelHeight);
         
         // Capture all formats using infrastructure
         TestCaptureHelper.Capture(snapshot, $"sixel-smpte-{scaleName}-{cellWidth}x{cellHeight}");
@@ -117,8 +117,8 @@ public class SixelScalingIntegrationTests
         TestCaptureHelper.AttachSvg($"sixel-smpte-{scaleName}-reference.svg", refSvg);
     }
 
-    [Theory(Skip = "Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
-    [MemberData(nameof(CellDimensions))]
+    [TestMethod, Ignore("Sixel is experimental and tracking in Surface mode differs from Legacy mode")]
+    [DynamicData(nameof(CellDimensions))]
     public async Task Checkerboard_RendersCorrectlyAtScale(int cellWidth, int cellHeight, string scaleName)
     {
         // Generate checkerboard pattern (64x48 pixels with 8x8 squares)
@@ -176,8 +176,8 @@ public class SixelScalingIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Equal(cellWidth, snapshot.CellPixelWidth);
-        Assert.Equal(cellHeight, snapshot.CellPixelHeight);
+        Assert.AreEqual(cellWidth, snapshot.CellPixelWidth);
+        Assert.AreEqual(cellHeight, snapshot.CellPixelHeight);
         
         TestCaptureHelper.Capture(snapshot, $"sixel-checkerboard-{scaleName}-{cellWidth}x{cellHeight}");
         

@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class NodeTypeNameSuffixAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class NodeTypeNameSuffixAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<NodeTypeNameSuffixAnalyzer>.Diagnostic(NodeTypeNameSuffixAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task NodeSuffix_NoDiagnostic()
     {
         const string source = """
@@ -25,7 +26,7 @@ public class NodeTypeNameSuffixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MissingSuffix_DirectInheritance_Reports()
     {
         const string source = """
@@ -39,7 +40,7 @@ public class NodeTypeNameSuffixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonNodeType_NoDiagnostic()
     {
         const string source = """

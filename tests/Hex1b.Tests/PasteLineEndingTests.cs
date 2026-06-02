@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Verifies that \n, \r\n, and \r are all recognized as line separators.
 /// Inspired by psmux's paste line-ending normalization tests.
 /// </summary>
+[TestClass]
 public class PasteLineEndingTests
 {
     private static async Task<List<string>> ReadPasteLinesAsync(string pasteContent)
@@ -36,64 +37,64 @@ public class PasteLineEndingTests
         while (workload.InputEvents.TryRead(out var evt))
             events.Add(evt);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var lines = new List<string>();
         await foreach (var line in paste.Paste.ReadLinesAsync())
             lines.Add(line);
         return lines;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_LfSeparator_SplitsCorrectly()
     {
         var lines = await ReadPasteLinesAsync("line1\nline2\nline3");
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_CrLfSeparator_SplitsCorrectly()
     {
         var lines = await ReadPasteLinesAsync("line1\r\nline2\r\nline3");
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_CrSeparator_SplitsCorrectly()
     {
         var lines = await ReadPasteLinesAsync("line1\rline2\rline3");
 
-        Assert.Equal(3, lines.Count);
-        Assert.Equal("line1", lines[0]);
-        Assert.Equal("line2", lines[1]);
-        Assert.Equal("line3", lines[2]);
+        Assert.AreEqual(3, lines.Count);
+        Assert.AreEqual("line1", lines[0]);
+        Assert.AreEqual("line2", lines[1]);
+        Assert.AreEqual("line3", lines[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_MixedLineEndings_SplitsCorrectly()
     {
         var lines = await ReadPasteLinesAsync("a\nb\r\nc\rd");
 
-        Assert.Equal(4, lines.Count);
-        Assert.Equal("a", lines[0]);
-        Assert.Equal("b", lines[1]);
-        Assert.Equal("c", lines[2]);
-        Assert.Equal("d", lines[3]);
+        Assert.AreEqual(4, lines.Count);
+        Assert.AreEqual("a", lines[0]);
+        Assert.AreEqual("b", lines[1]);
+        Assert.AreEqual("c", lines[2]);
+        Assert.AreEqual("d", lines[3]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadLines_NoLineEndings_ReturnsSingleLine()
     {
         var lines = await ReadPasteLinesAsync("no newlines here");
 
-        Assert.Single(lines);
-        Assert.Equal("no newlines here", lines[0]);
+        TestSeq.Single(lines);
+        Assert.AreEqual("no newlines here", lines[0]);
     }
 }

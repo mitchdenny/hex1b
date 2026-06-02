@@ -8,9 +8,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for diagnostic timing and tree output improvements.
 /// </summary>
+[TestClass]
 public class DiagnosticTimingTests
 {
-    [Fact]
+    [TestMethod]
     public void DiagnosticTiming_FromNode_ConvertsTicksToMilliseconds()
     {
         var node = new TextBlockNode { Text = "test" };
@@ -22,12 +23,12 @@ public class DiagnosticTimingTests
         var now = Stopwatch.GetTimestamp();
         var timing = DiagnosticTiming.FromNode(node, now);
 
-        Assert.InRange(timing.ReconcileMs, 0.9, 1.1);
-        Assert.InRange(timing.RenderMs, 0.4, 0.6);
-        Assert.InRange(timing.LastRenderedMsAgo, 5, 15); // ~10ms ago with tolerance
+        TestSeq.InRange(timing.ReconcileMs, 0.9, 1.1);
+        TestSeq.InRange(timing.RenderMs, 0.4, 0.6);
+        TestSeq.InRange(timing.LastRenderedMsAgo, 5, 15); // ~10ms ago with tolerance
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticTiming_FromNode_ZeroTicks_ReturnsZeros()
     {
         var node = new TextBlockNode { Text = "test" };
@@ -35,12 +36,12 @@ public class DiagnosticTimingTests
 
         var timing = DiagnosticTiming.FromNode(node, now);
 
-        Assert.Equal(0, timing.ReconcileMs);
-        Assert.Equal(0, timing.RenderMs);
-        Assert.Equal(-1, timing.LastRenderedMsAgo);
+        Assert.AreEqual(0, timing.ReconcileMs);
+        Assert.AreEqual(0, timing.RenderMs);
+        Assert.AreEqual(-1, timing.LastRenderedMsAgo);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticTiming_ToString_FormatsCorrectly()
     {
         var timing = new DiagnosticTiming
@@ -57,7 +58,7 @@ public class DiagnosticTimingTests
         Assert.Contains("last=12ms ago", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticTiming_ToString_OmitsZeroValues()
     {
         var timing = new DiagnosticTiming
@@ -74,7 +75,7 @@ public class DiagnosticTimingTests
         Assert.DoesNotContain("last=", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticNode_FromNode_IncludesTimingWhenSet()
     {
         var node = new ButtonNode { Label = "Click" };
@@ -84,12 +85,12 @@ public class DiagnosticTimingTests
 
         var diagNode = DiagnosticNode.FromNode(node);
 
-        Assert.NotNull(diagNode.Timing);
-        Assert.True(diagNode.Timing.ReconcileMs > 0);
-        Assert.True(diagNode.Timing.RenderMs > 0);
+        Assert.IsNotNull(diagNode.Timing);
+        Assert.IsTrue(diagNode.Timing.ReconcileMs > 0);
+        Assert.IsTrue(diagNode.Timing.RenderMs > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticNode_FromNode_NoTimingWhenZero()
     {
         var node = new ButtonNode { Label = "Click" };
@@ -97,10 +98,10 @@ public class DiagnosticTimingTests
 
         var diagNode = DiagnosticNode.FromNode(node);
 
-        Assert.Null(diagNode.Timing);
+        Assert.IsNull(diagNode.Timing);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticRect_ToString_IncludesCornerCoordinates()
     {
         var rect = DiagnosticRect.FromRect(new Rect(5, 10, 20, 8));
@@ -114,7 +115,7 @@ public class DiagnosticTimingTests
         Assert.Contains("(5,10 → 25,18)", str);
     }
 
-    [Fact]
+    [TestMethod]
     public void DiagnosticFrameInfo_ReportsTimingEnabled()
     {
         var frameInfo = new DiagnosticFrameInfo
@@ -125,19 +126,19 @@ public class DiagnosticTimingTests
             TimingEnabled = true
         };
 
-        Assert.True(frameInfo.TimingEnabled);
-        Assert.Equal(1.5, frameInfo.BuildMs);
-        Assert.Equal(0.3, frameInfo.ReconcileMs);
-        Assert.Equal(2.0, frameInfo.RenderMs);
+        Assert.IsTrue(frameInfo.TimingEnabled);
+        Assert.AreEqual(1.5, frameInfo.BuildMs);
+        Assert.AreEqual(0.3, frameInfo.ReconcileMs);
+        Assert.AreEqual(2.0, frameInfo.RenderMs);
     }
 
-    [Fact]
+    [TestMethod]
     public void Hex1bNode_TimingFields_DefaultToZero()
     {
         var node = new TextBlockNode { Text = "test" };
 
-        Assert.Equal(0, node.DiagReconcileTicks);
-        Assert.Equal(0, node.DiagRenderTicks);
-        Assert.Equal(0, node.DiagLastRenderedTimestamp);
+        Assert.AreEqual(0, node.DiagReconcileTicks);
+        Assert.AreEqual(0, node.DiagRenderTicks);
+        Assert.AreEqual(0, node.DiagLastRenderedTimestamp);
     }
 }

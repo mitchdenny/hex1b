@@ -3,6 +3,7 @@ using SkiaSharp;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class SvgToPngConverterTests
 {
     private const string MinimalSvg = """
@@ -15,77 +16,77 @@ public class SvgToPngConverterTests
 
     // --- Color Parsing ---
 
-    [Fact]
+    [TestMethod]
     public void ParseSvgColor_HexColor_ReturnsCorrectColor()
     {
         var color = SvgToPngConverter.ParseSvgColor("#ff6b6b");
-        Assert.Equal(new SKColor(255, 107, 107), color);
+        Assert.AreEqual(new SKColor(255, 107, 107), color);
     }
 
-    [Fact]
+    [TestMethod]
     public void ParseSvgColor_ShortHexColor_ReturnsCorrectColor()
     {
         var color = SvgToPngConverter.ParseSvgColor("#fff");
-        Assert.Equal(new SKColor(255, 255, 255), color);
+        Assert.AreEqual(new SKColor(255, 255, 255), color);
     }
 
-    [Fact]
+    [TestMethod]
     public void ParseSvgColor_RgbColor_ReturnsCorrectColor()
     {
         var color = SvgToPngConverter.ParseSvgColor("rgb(78,201,176)");
-        Assert.Equal(new SKColor(78, 201, 176), color);
+        Assert.AreEqual(new SKColor(78, 201, 176), color);
     }
 
-    [Fact]
+    [TestMethod]
     public void ParseSvgColor_RgbColorWithSpaces_ReturnsCorrectColor()
     {
         var color = SvgToPngConverter.ParseSvgColor("rgb( 78 , 201 , 176 )");
-        Assert.Equal(new SKColor(78, 201, 176), color);
+        Assert.AreEqual(new SKColor(78, 201, 176), color);
     }
 
-    [Fact]
+    [TestMethod]
     public void ParseSvgColor_InvalidColor_Throws()
     {
-        Assert.ThrowsAny<Exception>(() => SvgToPngConverter.ParseSvgColor("not-a-color"));
+        Assert.Throws<Exception>(() => SvgToPngConverter.ParseSvgColor("not-a-color"));
     }
 
     // --- SVG Text Extraction ---
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesTextPosition()
     {
         var (textElements, _, _, _, _) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
 
-        Assert.Single(textElements);
-        Assert.Equal(5.0f, textElements[0].X);
-        Assert.Equal(20.0f, textElements[0].Y);
+        Assert.HasCount(1, textElements);
+        Assert.AreEqual(5.0f, textElements[0].X);
+        Assert.AreEqual(20.0f, textElements[0].Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesFillColor()
     {
         var (textElements, _, _, _, _) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
 
-        Assert.Equal("#d4d4d4", textElements[0].Fill);
+        Assert.AreEqual("#d4d4d4", textElements[0].Fill);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesTextContent()
     {
         var (textElements, _, _, _, _) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
 
-        Assert.Equal("Hello", textElements[0].Content);
+        Assert.AreEqual("Hello", textElements[0].Content);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesFontSize()
     {
         var (_, _, fontSize, _, _) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
 
-        Assert.Equal(14f, fontSize);
+        Assert.AreEqual(14f, fontSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_DefaultsFontSizeTo14()
     {
         var svgNoStyle = """
@@ -95,19 +96,19 @@ public class SvgToPngConverterTests
             """;
 
         var (_, _, fontSize, _, _) = SvgToPngConverter.ExtractTextElements(svgNoStyle);
-        Assert.Equal(14f, fontSize);
+        Assert.AreEqual(14f, fontSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesDimensions()
     {
         var (_, _, _, width, height) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
 
-        Assert.Equal(200, width);
-        Assert.Equal(40, height);
+        Assert.AreEqual(200, width);
+        Assert.AreEqual(40, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_StripsTextFromBackgroundSvg()
     {
         var (_, bgSvg, _, _, _) = SvgToPngConverter.ExtractTextElements(MinimalSvg);
@@ -116,7 +117,7 @@ public class SvgToPngConverterTests
         Assert.Contains("<rect", bgSvg);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_ParsesStyleAttribute()
     {
         var svg = """
@@ -131,7 +132,7 @@ public class SvgToPngConverterTests
         Assert.Contains("font-style:italic", textElements[0].Style);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_HandlesRgbFillColor()
     {
         var svg = """
@@ -141,10 +142,10 @@ public class SvgToPngConverterTests
             """;
 
         var (textElements, _, _, _, _) = SvgToPngConverter.ExtractTextElements(svg);
-        Assert.Equal("rgb(78,201,176)", textElements[0].Fill);
+        Assert.AreEqual("rgb(78,201,176)", textElements[0].Fill);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExtractTextElements_HandlesMultipleTextElements()
     {
         var svg = """
@@ -157,69 +158,69 @@ public class SvgToPngConverterTests
 
         var (textElements, _, _, _, _) = SvgToPngConverter.ExtractTextElements(svg);
 
-        Assert.Equal(3, textElements.Count);
-        Assert.Equal("A", textElements[0].Content);
-        Assert.Equal("B", textElements[1].Content);
-        Assert.Equal("C", textElements[2].Content);
+        Assert.AreEqual(3, textElements.Count);
+        Assert.AreEqual("A", textElements[0].Content);
+        Assert.AreEqual("B", textElements[1].Content);
+        Assert.AreEqual("C", textElements[2].Content);
     }
 
     // --- Embedded Font ---
 
-    [Fact]
+    [TestMethod]
     public void EnsureEmbeddedFontExtracted_ReturnsFontPath()
     {
         var path = SvgToPngConverter.EnsureEmbeddedFontExtracted();
 
-        Assert.True(File.Exists(path));
+        Assert.IsTrue(File.Exists(path));
         Assert.EndsWith("CaskaydiaCoveNerdFontMono-Regular.ttf", path);
     }
 
-    [Fact]
+    [TestMethod]
     public void LoadEmbeddedTypeface_ReturnsNonNull()
     {
         using var typeface = SvgToPngConverter.LoadEmbeddedTypeface();
 
-        Assert.NotNull(typeface);
-        Assert.True(typeface.GlyphCount > 10000, $"Expected Nerd Font with many glyphs, got {typeface.GlyphCount}");
+        Assert.IsNotNull(typeface);
+        Assert.IsTrue(typeface.GlyphCount > 10000, $"Expected Nerd Font with many glyphs, got {typeface.GlyphCount}");
     }
 
-    [Fact]
+    [TestMethod]
     public void LoadEmbeddedTypeface_ContainsNerdFontGlyphs()
     {
         using var typeface = SvgToPngConverter.LoadEmbeddedTypeface()!;
 
         // Nerd Font PUA codepoints
-        Assert.NotEqual(0, typeface.GetGlyph(0xE0A0)); // git branch
-        Assert.NotEqual(0, typeface.GetGlyph(0xE0B0)); // powerline arrow
-        Assert.NotEqual(0, typeface.GetGlyph(0xF489)); // terminal icon
+        Assert.AreNotEqual(0, typeface.GetGlyph(0xE0A0)); // git branch
+        Assert.AreNotEqual(0, typeface.GetGlyph(0xE0B0)); // powerline arrow
+        Assert.AreNotEqual(0, typeface.GetGlyph(0xF489)); // terminal icon
     }
 
     // --- Full Conversion ---
 
-    [Fact]
+    [TestMethod]
     public void Convert_ProducesValidPng()
     {
         var pngBytes = SvgToPngConverter.Convert(MinimalSvg);
 
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
         // PNG magic bytes
-        Assert.Equal((byte)0x89, pngBytes[0]);
-        Assert.Equal((byte)0x50, pngBytes[1]); // P
-        Assert.Equal((byte)0x4E, pngBytes[2]); // N
-        Assert.Equal((byte)0x47, pngBytes[3]); // G
+        Assert.AreEqual((byte)0x89, pngBytes[0]);
+        Assert.AreEqual((byte)0x50, pngBytes[1]); // P
+        Assert.AreEqual((byte)0x4E, pngBytes[2]); // N
+        Assert.AreEqual((byte)0x47, pngBytes[3]); // G
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_ProducesCorrectDimensions()
     {
         var pngBytes = SvgToPngConverter.Convert(MinimalSvg);
 
         using var bmp = SKBitmap.Decode(pngBytes);
-        Assert.Equal(200, bmp.Width);
-        Assert.Equal(40, bmp.Height);
+        Assert.AreEqual(200, bmp.Width);
+        Assert.AreEqual(40, bmp.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_RendersBackgroundColor()
     {
         var pngBytes = SvgToPngConverter.Convert(MinimalSvg);
@@ -227,10 +228,10 @@ public class SvgToPngConverterTests
         using var bmp = SKBitmap.Decode(pngBytes);
         // Center pixel should be the background color #1e1e1e
         var pixel = bmp.GetPixel(100, 35);
-        Assert.Equal(new SKColor(30, 30, 30), pixel);
+        Assert.AreEqual(new SKColor(30, 30, 30), pixel);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_WithRgbColors_DoesNotThrow()
     {
         var svg = """
@@ -242,10 +243,10 @@ public class SvgToPngConverterTests
             """;
 
         var pngBytes = SvgToPngConverter.Convert(svg);
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_WithNerdFontGlyphs_ProducesOutput()
     {
         var glyph = "\ue0a0";
@@ -258,10 +259,10 @@ public class SvgToPngConverterTests
             """, glyph);
 
         var pngBytes = SvgToPngConverter.Convert(svg);
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_WithBoldStyle_ProducesOutput()
     {
         var svg = """
@@ -272,10 +273,10 @@ public class SvgToPngConverterTests
             """;
 
         var pngBytes = SvgToPngConverter.Convert(svg);
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_WithItalicStyle_ProducesOutput()
     {
         var svg = """
@@ -286,10 +287,10 @@ public class SvgToPngConverterTests
             """;
 
         var pngBytes = SvgToPngConverter.Convert(svg);
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
     }
 
-    [Fact]
+    [TestMethod]
     public void Convert_WithDimStyle_ProducesOutput()
     {
         var svg = """
@@ -300,6 +301,6 @@ public class SvgToPngConverterTests
             """;
 
         var pngBytes = SvgToPngConverter.Convert(svg);
-        Assert.NotEmpty(pngBytes);
+        Assert.IsNotEmpty(pngBytes);
     }
 }

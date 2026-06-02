@@ -7,22 +7,23 @@ namespace Hex1b.Tests.Flow;
 /// on a flow resize, how tall the active step should be and which rows the
 /// runner should clear.
 /// </summary>
+[TestClass]
 public class FlowResizeMathTests
 {
-    [Theory]
-    [InlineData(null, 24, 24)] // No max → fills terminal
-    [InlineData(10, 24, 10)]   // Max smaller than terminal → max wins
-    [InlineData(40, 24, 24)]   // Max larger than terminal → terminal wins
-    [InlineData(0, 24, 1)]     // Zero clamps to 1
-    [InlineData(-5, 24, 1)]    // Negative clamps to 1
+    [TestMethod]
+    [DataRow(null, 24, 24)] // No max → fills terminal
+    [DataRow(10, 24, 10)]   // Max smaller than terminal → max wins
+    [DataRow(40, 24, 24)]   // Max larger than terminal → terminal wins
+    [DataRow(0, 24, 1)]     // Zero clamps to 1
+    [DataRow(-5, 24, 1)]    // Negative clamps to 1
     public void ComputeStepHeight_ClampsToTerminalAndMinimumOfOne(
         int? maxHeight, int terminalHeight, int expected)
     {
         var actual = FlowResizeMath.ComputeStepHeight(maxHeight, terminalHeight);
-        Assert.Equal(expected, actual);
+        Assert.AreEqual(expected, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_LegacyPath_ClearsEntireVisibleArea()
     {
         // Legacy behaviour: cell-positioned tombstones can't survive a resize,
@@ -33,11 +34,11 @@ public class FlowResizeMathTests
             terminalHeight: 24,
             stepHeight: 5);
 
-        Assert.Equal(0, origin);
-        Assert.Equal(24, height);
+        Assert.AreEqual(0, origin);
+        Assert.AreEqual(24, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_LegacyPath_StepHeightDoesNotShrinkClear()
     {
         // Even when the step is small, the legacy path still clears the
@@ -47,11 +48,11 @@ public class FlowResizeMathTests
             terminalHeight: 100,
             stepHeight: 1);
 
-        Assert.Equal(0, origin);
-        Assert.Equal(100, height);
+        Assert.AreEqual(0, origin);
+        Assert.AreEqual(100, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_SoftWrapPath_ClearsOnlyTheActiveStepRegion()
     {
         // Soft-wrap behaviour: tombstones above the active step are real
@@ -64,11 +65,11 @@ public class FlowResizeMathTests
             terminalHeight: 24,
             stepHeight: 5);
 
-        Assert.Equal(19, origin); // 24 - 5
-        Assert.Equal(5, height);
+        Assert.AreEqual(19, origin); // 24 - 5
+        Assert.AreEqual(5, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_SoftWrapPath_StepFillsTerminal_ClearsEntireArea()
     {
         // When the step occupies the full terminal there is no tombstone
@@ -80,11 +81,11 @@ public class FlowResizeMathTests
             terminalHeight: 24,
             stepHeight: 24);
 
-        Assert.Equal(0, origin);
-        Assert.Equal(24, height);
+        Assert.AreEqual(0, origin);
+        Assert.AreEqual(24, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_SoftWrapPath_StepLargerThanTerminal_ClampsRowOriginAtZero()
     {
         // Defensive: callers should already have clamped via
@@ -95,11 +96,11 @@ public class FlowResizeMathTests
             terminalHeight: 10,
             stepHeight: 20);
 
-        Assert.Equal(0, origin);
-        Assert.Equal(20, height);
+        Assert.AreEqual(0, origin);
+        Assert.AreEqual(20, height);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeClearRegion_SoftWrapPath_PreservesTombstonesAboveOrigin()
     {
         // The crux of the fix: with a 24-row terminal and a 3-row active
@@ -111,6 +112,6 @@ public class FlowResizeMathTests
 
         // Origin is 21, so rows 0..20 are untouched — exactly the tombstone
         // history the terminal just reflowed for us.
-        Assert.Equal(21, origin);
+        Assert.AreEqual(21, origin);
     }
 }

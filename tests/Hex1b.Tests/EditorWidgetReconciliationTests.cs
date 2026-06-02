@@ -7,9 +7,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorWidgetReconciliationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NullExisting_CreatesNewEditorNode()
     {
         // NOTE: Node creation may gain initialization hooks in future.
@@ -20,10 +21,10 @@ public class EditorWidgetReconciliationTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context);
 
-        Assert.IsType<EditorNode>(node);
+        TestSeq.IsType<EditorNode>(node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ExistingEditorNode_ReusesSameInstance()
     {
         // NOTE: Instance reuse preserves scroll position and focus state.
@@ -35,10 +36,10 @@ public class EditorWidgetReconciliationTests
         var context = ReconcileContext.CreateRoot();
         var result = await widget.ReconcileAsync(existingNode, context);
 
-        Assert.Same(existingNode, result);
+        Assert.AreSame(existingNode, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesState()
     {
         // NOTE: State swapping may trigger scroll reset in future.
@@ -52,14 +53,14 @@ public class EditorWidgetReconciliationTests
 
         var context = ReconcileContext.CreateRoot();
         var node = (EditorNode)await widget1.ReconcileAsync(null, context);
-        Assert.Same(state1, node.State);
+        Assert.AreSame(state1, node.State);
 
         // Reconcile with different state
         await widget2.ReconcileAsync(node, context);
-        Assert.Same(state2, node.State);
+        Assert.AreSame(state2, node.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_WithOnTextChanged_SetsTextChangedAction()
     {
         // NOTE: TextChangedAction wiring may change with event aggregation.
@@ -71,10 +72,10 @@ public class EditorWidgetReconciliationTests
         var context = ReconcileContext.CreateRoot();
         var node = (EditorNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.TextChangedAction);
+        Assert.IsNotNull(node.TextChangedAction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_WithoutOnTextChanged_ClearsTextChangedAction()
     {
         // NOTE: Clearing action prevents stale handler references.
@@ -86,15 +87,15 @@ public class EditorWidgetReconciliationTests
             .OnTextChanged((EditorTextChangedEventArgs _) => { });
         var context = ReconcileContext.CreateRoot();
         var node = (EditorNode)await widgetWithHandler.ReconcileAsync(null, context);
-        Assert.NotNull(node.TextChangedAction);
+        Assert.IsNotNull(node.TextChangedAction);
 
         // Second reconcile without handler
         var widgetWithout = new EditorWidget(state);
         await widgetWithout.ReconcileAsync(node, context);
-        Assert.Null(node.TextChangedAction);
+        Assert.IsNull(node.TextChangedAction);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetExpectedNodeType_ReturnsEditorNodeType()
     {
         // NOTE: Node type must match for reconciliation reuse.
@@ -102,10 +103,10 @@ public class EditorWidgetReconciliationTests
         var state = new EditorState(doc);
         var widget = new EditorWidget(state);
 
-        Assert.Equal(typeof(EditorNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(EditorNode), widget.GetExpectedNodeType());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_TwoWidgetsSameState_NodesShareState()
     {
         // NOTE: Shared state enables synced cursors between views.
@@ -118,7 +119,7 @@ public class EditorWidgetReconciliationTests
         var node1 = (EditorNode)await widget1.ReconcileAsync(null, context);
         var node2 = (EditorNode)await widget2.ReconcileAsync(null, context);
 
-        Assert.Same(node1.State, node2.State);
-        Assert.Same(state, node1.State);
+        Assert.AreSame(node1.State, node2.State);
+        Assert.AreSame(state, node1.State);
     }
 }

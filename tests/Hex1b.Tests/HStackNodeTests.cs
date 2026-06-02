@@ -7,11 +7,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for HStackNode layout, rendering, and focus management.
 /// </summary>
+[TestClass]
 public class HStackNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_SumsChildWidths()
     {
         var node = new HStackNode
@@ -26,10 +27,10 @@ public class HStackNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(9, size.Width);
+        Assert.AreEqual(9, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_TakesMaxHeight()
     {
         var node = new HStackNode
@@ -45,21 +46,21 @@ public class HStackNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // All TextBlocks are 1 line tall
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyChildren_ReturnsZeroSize()
     {
         var node = new HStackNode { Children = new List<Hex1bNode>() };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxConstraints()
     {
         var node = new HStackNode
@@ -73,14 +74,14 @@ public class HStackNodeTests
 
         var size = node.Measure(new Constraints(0, 15, 0, 5));
 
-        Assert.Equal(15, size.Width);
+        Assert.AreEqual(15, size.Width);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_PositionsChildrenHorizontally()
     {
         var child1 = new TextBlockNode { Text = "AAA" };
@@ -90,11 +91,11 @@ public class HStackNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, child1.Bounds.X);
-        Assert.Equal(3, child2.Bounds.X);
+        Assert.AreEqual(0, child1.Bounds.X);
+        Assert.AreEqual(3, child2.Bounds.X);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithFillHints_DistributesWidth()
     {
         var child1 = new TextBlockNode { Text = "A" };
@@ -108,12 +109,12 @@ public class HStackNodeTests
         node.Arrange(new Rect(0, 0, 20, 10));
 
         // First child should be content-sized (1 char)
-        Assert.Equal(1, child1.Bounds.Width);
+        Assert.AreEqual(1, child1.Bounds.Width);
         // Second child should fill remaining space
-        Assert.Equal(19, child2.Bounds.Width);
+        Assert.AreEqual(19, child2.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithFixedHints_UsesExactSize()
     {
         var child1 = new TextBlockNode { Text = "Fixed1", WidthHint = SizeHint.Fixed(10) };
@@ -126,11 +127,11 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        Assert.Equal(10, child1.Bounds.Width);
-        Assert.Equal(15, child2.Bounds.Width);
+        Assert.AreEqual(10, child1.Bounds.Width);
+        Assert.AreEqual(15, child2.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithMixedHints_DistributesCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Fixed", WidthHint = SizeHint.Fixed(10) };
@@ -144,13 +145,13 @@ public class HStackNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(0, 0, 40, 10));
 
-        Assert.Equal(10, child1.Bounds.Width);
+        Assert.AreEqual(10, child1.Bounds.Width);
         // Remaining 30 units split between 2 fill children
-        Assert.Equal(15, child2.Bounds.Width);
-        Assert.Equal(15, child3.Bounds.Width);
+        Assert.AreEqual(15, child2.Bounds.Width);
+        Assert.AreEqual(15, child3.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_AtOffset_PositionsChildrenCorrectly()
     {
         var child1 = new TextBlockNode { Text = "AAA" };
@@ -160,17 +161,17 @@ public class HStackNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(5, 10, 30, 20));
 
-        Assert.Equal(5, child1.Bounds.X);
-        Assert.Equal(10, child1.Bounds.Y);
-        Assert.Equal(8, child2.Bounds.X);
-        Assert.Equal(10, child2.Bounds.Y);
+        Assert.AreEqual(5, child1.Bounds.X);
+        Assert.AreEqual(10, child1.Bounds.Y);
+        Assert.AreEqual(8, child2.Bounds.X);
+        Assert.AreEqual(10, child2.Bounds.Y);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_FindsAllFocusable()
     {
         var button1 = new ButtonNode { Label = "1" };
@@ -184,12 +185,12 @@ public class HStackNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(button1, focusables);
         Assert.Contains(button2, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Tab_MovesFocus()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = true };
@@ -206,12 +207,12 @@ public class HStackNodeTests
 
         var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(button1.IsFocused);
-        Assert.True(button2.IsFocused);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(button1.IsFocused);
+        Assert.IsTrue(button2.IsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_ShiftTab_MovesFocusBackward()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = true };
@@ -229,11 +230,11 @@ public class HStackNodeTests
         // Shift-tab from button1 should wrap to button2
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
-        Assert.False(button1.IsFocused);
-        Assert.True(button2.IsFocused);
+        Assert.IsFalse(button1.IsFocused);
+        Assert.IsTrue(button2.IsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DispatchesToFocusedChild()
     {
         var clicked = false;
@@ -248,14 +249,14 @@ public class HStackNodeTests
         // Use InputRouter to route input to the focused child
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
     #endregion
 
     #region Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RendersAllChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -285,7 +286,7 @@ public class HStackNodeTests
         Assert.Contains("Right", snapshot.GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ChildrenAppearOnSameLine()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -318,7 +319,7 @@ public class HStackNodeTests
         Assert.Contains("CCC", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InNarrowTerminal_TextWraps()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -352,7 +353,7 @@ public class HStackNodeTests
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_RendersMultipleChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -383,12 +384,12 @@ public class HStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Left"));
-        Assert.True(snapshot.ContainsText("|"));
-        Assert.True(snapshot.ContainsText("Right"));
+        Assert.IsTrue(snapshot.ContainsText("Left"));
+        Assert.IsTrue(snapshot.ContainsText("|"));
+        Assert.IsTrue(snapshot.ContainsText("Right"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_TabNavigatesThroughFocusables()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -420,11 +421,11 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(button1Clicked);
-        Assert.True(button2Clicked);
+        Assert.IsFalse(button1Clicked);
+        Assert.IsTrue(button2Clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_InNarrowTerminal_StillWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -455,12 +456,12 @@ public class HStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("A"));
-        Assert.True(snapshot.ContainsText("B"));
-        Assert.True(snapshot.ContainsText("C"));
+        Assert.IsTrue(snapshot.ContainsText("A"));
+        Assert.IsTrue(snapshot.ContainsText("B"));
+        Assert.IsTrue(snapshot.ContainsText("C"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_WithVStack_NestedLayouts()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -496,13 +497,13 @@ public class HStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Left Top"));
-        Assert.True(snapshot.ContainsText("Left Bottom"));
-        Assert.True(snapshot.ContainsText("Right Top"));
-        Assert.True(snapshot.ContainsText("Right Bottom"));
+        Assert.IsTrue(snapshot.ContainsText("Left Top"));
+        Assert.IsTrue(snapshot.ContainsText("Left Bottom"));
+        Assert.IsTrue(snapshot.ContainsText("Right Top"));
+        Assert.IsTrue(snapshot.ContainsText("Right Bottom"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_WithMixedContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -535,11 +536,11 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hi", text);
-        Assert.True(clicked);
+        Assert.AreEqual("Hi", text);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_EmptyStack_DoesNotCrash()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -565,7 +566,7 @@ public class HStackNodeTests
         // Should complete without error - test is that we didn't throw
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_LongContentInNarrowTerminal_Wraps()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -595,10 +596,10 @@ public class HStackNodeTests
         await runTask;
 
         // Content wraps at terminal boundary - use captured snapshot
-        Assert.True(snapshot.ContainsText("VeryLongWord"));
+        Assert.IsTrue(snapshot.ContainsText("VeryLongWord"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HStack_DynamicContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -626,12 +627,12 @@ public class HStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("[A]"));
-        Assert.True(snapshot.ContainsText("[B]"));
-        Assert.True(snapshot.ContainsText("[C]"));
+        Assert.IsTrue(snapshot.ContainsText("[A]"));
+        Assert.IsTrue(snapshot.ContainsText("[B]"));
+        Assert.IsTrue(snapshot.ContainsText("[C]"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TabFromSingleFocusableVStackInHStack_BubblesUpToHStack()
     {
         // Scenario: HStack with children that are VStacks, each containing only one focusable.
@@ -667,10 +668,10 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(rightButtonClicked, "Tab should have moved focus from List in left VStack to Button in right VStack");
+        Assert.IsTrue(rightButtonClicked, "Tab should have moved focus from List in left VStack to Button in right VStack");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStackWithMultipleFocusables_HandleTabInternally()
     {
         // Scenario: VStack with 2 focusables should handle Tab itself, not bubble up
@@ -702,11 +703,11 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(button1Clicked);
-        Assert.True(button2Clicked, "Tab should have moved focus from Button 1 to Button 2 within VStack");
+        Assert.IsFalse(button1Clicked);
+        Assert.IsTrue(button2Clicked, "Tab should have moved focus from Button 1 to Button 2 within VStack");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_NestedVStackWithMultipleFocusables_TabEscapesAtBoundary()
     {
         // Scenario: VStack with 2 focusables nested inside an HStack.
@@ -752,12 +753,12 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(listClicked);
-        Assert.False(addButtonClicked);
-        Assert.True(otherButtonClicked, "Tab at VStack boundary should escape to next HStack child");
+        Assert.IsFalse(listClicked);
+        Assert.IsFalse(addButtonClicked);
+        Assert.IsTrue(otherButtonClicked, "Tab at VStack boundary should escape to next HStack child");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_NestedVStackWithMultipleFocusables_ShiftTabEscapesAtBoundary()
     {
         // Scenario: Same as above but with Shift+Tab escaping at the first item.
@@ -796,7 +797,7 @@ public class HStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(listClicked, "Shift+Tab at first VStack item should escape back to previous HStack child");
+        Assert.IsTrue(listClicked, "Shift+Tab at first VStack item should escape back to previous HStack child");
     }
 
     #endregion

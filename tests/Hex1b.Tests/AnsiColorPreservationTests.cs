@@ -11,126 +11,127 @@ namespace Hex1b.Tests;
 /// (SGR 38;5;N) must be stored with their original encoding and re-emitted faithfully
 /// so that the user's terminal palette is respected.
 /// </summary>
+[TestClass]
 public class AnsiColorPreservationTests
 {
     #region Hex1bColor Kind Preservation
 
-    [Fact]
+    [TestMethod]
     public void FromStandard_PreservesKindAndIndex()
     {
         var color = Hex1bColor.FromStandard(4, 0, 0, 128);
 
-        Assert.Equal(Hex1bColorKind.Standard, color.Kind);
-        Assert.Equal(4, color.AnsiIndex);
-        Assert.Equal(0, color.R);
-        Assert.Equal(0, color.G);
-        Assert.Equal(128, color.B);
+        Assert.AreEqual(Hex1bColorKind.Standard, color.Kind);
+        Assert.AreEqual(4, color.AnsiIndex);
+        Assert.AreEqual(0, color.R);
+        Assert.AreEqual(0, color.G);
+        Assert.AreEqual(128, color.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void FromBright_PreservesKindAndIndex()
     {
         var color = Hex1bColor.FromBright(1, 255, 0, 0);
 
-        Assert.Equal(Hex1bColorKind.Bright, color.Kind);
-        Assert.Equal(1, color.AnsiIndex);
+        Assert.AreEqual(Hex1bColorKind.Bright, color.Kind);
+        Assert.AreEqual(1, color.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void FromIndexed_PreservesKindAndIndex()
     {
         var color = Hex1bColor.FromIndexed(196, 255, 0, 0);
 
-        Assert.Equal(Hex1bColorKind.Indexed, color.Kind);
-        Assert.Equal(196, color.AnsiIndex);
+        Assert.AreEqual(Hex1bColorKind.Indexed, color.Kind);
+        Assert.AreEqual(196, color.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void FromRgb_HasRgbKind()
     {
         var color = Hex1bColor.FromRgb(100, 200, 50);
 
-        Assert.Equal(Hex1bColorKind.Rgb, color.Kind);
-        Assert.Equal(0, color.AnsiIndex);
+        Assert.AreEqual(Hex1bColorKind.Rgb, color.Kind);
+        Assert.AreEqual(0, color.AnsiIndex);
     }
 
     #endregion
 
     #region Hex1bColor ANSI Serialization
 
-    [Theory]
-    [InlineData(0, "\x1b[30m")]  // Black
-    [InlineData(1, "\x1b[31m")]  // Red
-    [InlineData(2, "\x1b[32m")]  // Green
-    [InlineData(3, "\x1b[33m")]  // Yellow
-    [InlineData(4, "\x1b[34m")]  // Blue
-    [InlineData(5, "\x1b[35m")]  // Magenta
-    [InlineData(6, "\x1b[36m")]  // Cyan
-    [InlineData(7, "\x1b[37m")]  // White
+    [TestMethod]
+    [DataRow(0, "\x1b[30m")]  // Black
+    [DataRow(1, "\x1b[31m")]  // Red
+    [DataRow(2, "\x1b[32m")]  // Green
+    [DataRow(3, "\x1b[33m")]  // Yellow
+    [DataRow(4, "\x1b[34m")]  // Blue
+    [DataRow(5, "\x1b[35m")]  // Magenta
+    [DataRow(6, "\x1b[36m")]  // Cyan
+    [DataRow(7, "\x1b[37m")]  // White
     public void ToForegroundAnsi_StandardColor_EmitsOriginalCode(int index, string expected)
     {
         var color = Hex1bColor.FromStandard((byte)index, 0, 0, 0);
-        Assert.Equal(expected, color.ToForegroundAnsi());
+        Assert.AreEqual(expected, color.ToForegroundAnsi());
     }
 
-    [Theory]
-    [InlineData(0, "\x1b[40m")]
-    [InlineData(4, "\x1b[44m")]  // Blue background
+    [TestMethod]
+    [DataRow(0, "\x1b[40m")]
+    [DataRow(4, "\x1b[44m")]  // Blue background
     public void ToBackgroundAnsi_StandardColor_EmitsOriginalCode(int index, string expected)
     {
         var color = Hex1bColor.FromStandard((byte)index, 0, 0, 0);
-        Assert.Equal(expected, color.ToBackgroundAnsi());
+        Assert.AreEqual(expected, color.ToBackgroundAnsi());
     }
 
-    [Theory]
-    [InlineData(0, "\x1b[90m")]   // Bright black
-    [InlineData(1, "\x1b[91m")]   // Bright red
-    [InlineData(4, "\x1b[94m")]   // Bright blue
-    [InlineData(7, "\x1b[97m")]   // Bright white
+    [TestMethod]
+    [DataRow(0, "\x1b[90m")]   // Bright black
+    [DataRow(1, "\x1b[91m")]   // Bright red
+    [DataRow(4, "\x1b[94m")]   // Bright blue
+    [DataRow(7, "\x1b[97m")]   // Bright white
     public void ToForegroundAnsi_BrightColor_EmitsOriginalCode(int index, string expected)
     {
         var color = Hex1bColor.FromBright((byte)index, 0, 0, 0);
-        Assert.Equal(expected, color.ToForegroundAnsi());
+        Assert.AreEqual(expected, color.ToForegroundAnsi());
     }
 
-    [Theory]
-    [InlineData(0, "\x1b[100m")]
-    [InlineData(4, "\x1b[104m")]  // Bright blue background
+    [TestMethod]
+    [DataRow(0, "\x1b[100m")]
+    [DataRow(4, "\x1b[104m")]  // Bright blue background
     public void ToBackgroundAnsi_BrightColor_EmitsOriginalCode(int index, string expected)
     {
         var color = Hex1bColor.FromBright((byte)index, 0, 0, 0);
-        Assert.Equal(expected, color.ToBackgroundAnsi());
+        Assert.AreEqual(expected, color.ToBackgroundAnsi());
     }
 
-    [Fact]
+    [TestMethod]
     public void ToForegroundAnsi_IndexedColor_Emits256Code()
     {
         var color = Hex1bColor.FromIndexed(196, 255, 0, 0);
-        Assert.Equal("\x1b[38;5;196m", color.ToForegroundAnsi());
+        Assert.AreEqual("\x1b[38;5;196m", color.ToForegroundAnsi());
     }
 
-    [Fact]
+    [TestMethod]
     public void ToBackgroundAnsi_IndexedColor_Emits256Code()
     {
         var color = Hex1bColor.FromIndexed(21, 0, 0, 255);
-        Assert.Equal("\x1b[48;5;21m", color.ToBackgroundAnsi());
+        Assert.AreEqual("\x1b[48;5;21m", color.ToBackgroundAnsi());
     }
 
-    [Fact]
+    [TestMethod]
     public void ToForegroundAnsi_RgbColor_Emits24BitCode()
     {
         var color = Hex1bColor.FromRgb(100, 200, 50);
-        Assert.Equal("\x1b[38;2;100;200;50m", color.ToForegroundAnsi());
+        Assert.AreEqual("\x1b[38;2;100;200;50m", color.ToForegroundAnsi());
     }
 
     #endregion
 
     #region Terminal ProcessSgr Preservation
 
-    [Theory]
-    [InlineData("34", Hex1bColorKind.Standard, 4)]     // Blue
-    [InlineData("31", Hex1bColorKind.Standard, 1)]     // Red
-    [InlineData("37", Hex1bColorKind.Standard, 7)]     // White
+    [TestMethod]
+    [DataRow("34", Hex1bColorKind.Standard, 4)]     // Blue
+    [DataRow("31", Hex1bColorKind.Standard, 1)]     // Red
+    [DataRow("37", Hex1bColorKind.Standard, 7)]     // White
     public void ProcessSgr_StandardForeground_PreservesIndex(string sgr, Hex1bColorKind expectedKind, int expectedIndex)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -139,14 +140,14 @@ public class AnsiColorPreservationTests
         terminal.ApplyTokens([new SgrToken(sgr), new TextToken("X")]);
 
         var cell = terminal.CreateSnapshot().GetCell(0, 0);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(expectedKind, cell.Foreground.Value.Kind);
-        Assert.Equal(expectedIndex, cell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(expectedKind, cell.Foreground.Value.Kind);
+        Assert.AreEqual(expectedIndex, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Theory]
-    [InlineData("44", Hex1bColorKind.Standard, 4)]     // Blue bg
-    [InlineData("41", Hex1bColorKind.Standard, 1)]     // Red bg
+    [TestMethod]
+    [DataRow("44", Hex1bColorKind.Standard, 4)]     // Blue bg
+    [DataRow("41", Hex1bColorKind.Standard, 1)]     // Red bg
     public void ProcessSgr_StandardBackground_PreservesIndex(string sgr, Hex1bColorKind expectedKind, int expectedIndex)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -155,14 +156,14 @@ public class AnsiColorPreservationTests
         terminal.ApplyTokens([new SgrToken(sgr), new TextToken("X")]);
 
         var cell = terminal.CreateSnapshot().GetCell(0, 0);
-        Assert.NotNull(cell.Background);
-        Assert.Equal(expectedKind, cell.Background.Value.Kind);
-        Assert.Equal(expectedIndex, cell.Background.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(expectedKind, cell.Background.Value.Kind);
+        Assert.AreEqual(expectedIndex, cell.Background.Value.AnsiIndex);
     }
 
-    [Theory]
-    [InlineData("94", Hex1bColorKind.Bright, 4)]    // Bright blue
-    [InlineData("91", Hex1bColorKind.Bright, 1)]    // Bright red
+    [TestMethod]
+    [DataRow("94", Hex1bColorKind.Bright, 4)]    // Bright blue
+    [DataRow("91", Hex1bColorKind.Bright, 1)]    // Bright red
     public void ProcessSgr_BrightForeground_PreservesIndex(string sgr, Hex1bColorKind expectedKind, int expectedIndex)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -171,12 +172,12 @@ public class AnsiColorPreservationTests
         terminal.ApplyTokens([new SgrToken(sgr), new TextToken("X")]);
 
         var cell = terminal.CreateSnapshot().GetCell(0, 0);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(expectedKind, cell.Foreground.Value.Kind);
-        Assert.Equal(expectedIndex, cell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(expectedKind, cell.Foreground.Value.Kind);
+        Assert.AreEqual(expectedIndex, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void ProcessSgr_256ColorForeground_PreservesIndex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -185,12 +186,12 @@ public class AnsiColorPreservationTests
         terminal.ApplyTokens([new SgrToken("38;5;196"), new TextToken("X")]);
 
         var cell = terminal.CreateSnapshot().GetCell(0, 0);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Indexed, cell.Foreground.Value.Kind);
-        Assert.Equal(196, cell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Indexed, cell.Foreground.Value.Kind);
+        Assert.AreEqual(196, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void ProcessSgr_24BitRgb_StaysRgbKind()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -199,18 +200,18 @@ public class AnsiColorPreservationTests
         terminal.ApplyTokens([new SgrToken("38;2;100;200;50"), new TextToken("X")]);
 
         var cell = terminal.CreateSnapshot().GetCell(0, 0);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Rgb, cell.Foreground.Value.Kind);
-        Assert.Equal(100, cell.Foreground.Value.R);
-        Assert.Equal(200, cell.Foreground.Value.G);
-        Assert.Equal(50, cell.Foreground.Value.B);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Rgb, cell.Foreground.Value.Kind);
+        Assert.AreEqual(100, cell.Foreground.Value.R);
+        Assert.AreEqual(200, cell.Foreground.Value.G);
+        Assert.AreEqual(50, cell.Foreground.Value.B);
     }
 
     #endregion
 
     #region ToAnsi Round-Trip Preservation
 
-    [Fact]
+    [TestMethod]
     public void ToAnsi_StandardBlue_EmitsOriginalSgrCode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -227,7 +228,7 @@ public class AnsiColorPreservationTests
         Assert.DoesNotContain("38;2;0;0;128", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsi_BrightRed_EmitsOriginalSgrCode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -242,7 +243,7 @@ public class AnsiColorPreservationTests
         Assert.DoesNotContain("38;2;255;0;0", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsi_256Color_Emits256Code()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -256,7 +257,7 @@ public class AnsiColorPreservationTests
         Assert.Contains("38;5;196", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsi_24BitRgb_Emits24BitCode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -274,7 +275,7 @@ public class AnsiColorPreservationTests
 
     #region SurfaceComparer Preservation
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_StandardColor_EmitsOriginalCode()
     {
         var previous = new Surface(10, 1);
@@ -285,13 +286,13 @@ public class AnsiColorPreservationTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         // Should emit "34" (standard blue), not "38;2;0;0;128"
         Assert.Contains("34", sgr.Parameters.Split(';'));
         Assert.DoesNotContain("38;2", sgr.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_BrightColor_EmitsOriginalCode()
     {
         var previous = new Surface(10, 1);
@@ -302,11 +303,11 @@ public class AnsiColorPreservationTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         Assert.Contains("94", sgr.Parameters.Split(';'));
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_IndexedColor_Emits256Code()
     {
         var previous = new Surface(10, 1);
@@ -317,11 +318,11 @@ public class AnsiColorPreservationTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         Assert.Contains("38;5;196", sgr.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_RgbColor_Emits24BitCode()
     {
         var previous = new Surface(10, 1);
@@ -332,11 +333,11 @@ public class AnsiColorPreservationTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         Assert.Contains("38;2;100;200;50", sgr.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_StandardBackground_EmitsOriginalCode()
     {
         var previous = new Surface(10, 1);
@@ -347,7 +348,7 @@ public class AnsiColorPreservationTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         // Background standard red = SGR 41
         Assert.Contains("41", sgr.Parameters.Split(';'));
     }
@@ -356,7 +357,7 @@ public class AnsiColorPreservationTests
 
     #region Full Pipeline (Terminal → Surface → ANSI Output)
 
-    [Fact]
+    [TestMethod]
     public async Task EmbeddedTerminal_StandardBlue_PreservedThroughSurface()
     {
         // This tests the full rendering pipeline used by EmbeddedTerminalDemo:
@@ -378,9 +379,9 @@ public class AnsiColorPreservationTests
         // Verify the child terminal stores the color with its index
         var childSnapshot = childTerminal.CreateSnapshot();
         var childCell = childSnapshot.GetCell(0, 0);
-        Assert.NotNull(childCell.Foreground);
-        Assert.Equal(Hex1bColorKind.Standard, childCell.Foreground.Value.Kind);
-        Assert.Equal(4, childCell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(childCell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Standard, childCell.Foreground.Value.Kind);
+        Assert.AreEqual(4, childCell.Foreground.Value.AnsiIndex);
 
         // Now verify the ToAnsi output preserves it
         var ansi = childSnapshot.ToAnsi(new TerminalAnsiOptions { IncludeClearScreen = true });
@@ -388,7 +389,7 @@ public class AnsiColorPreservationTests
         Assert.DoesNotContain("38;2;0;0;128", ansi);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_StandardBlue_PreservesColorKind()
     {
         // Test that SurfaceRenderContext's ANSI parser preserves color indices
@@ -402,13 +403,13 @@ public class AnsiColorPreservationTests
 
         // The surface cell should preserve the standard blue index
         var cell = surface[0, 0];
-        Assert.Equal("B", cell.Character);
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Standard, cell.Foreground.Value.Kind);
-        Assert.Equal(4, cell.Foreground.Value.AnsiIndex);
+        Assert.AreEqual("B", cell.Character);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Standard, cell.Foreground.Value.Kind);
+        Assert.AreEqual(4, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_BrightRed_PreservesColorKind()
     {
         var surface = new Surface(20, 1);
@@ -417,12 +418,12 @@ public class AnsiColorPreservationTests
         context.WriteClipped(0, 0, "\x1b[91mRed!");
 
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Bright, cell.Foreground.Value.Kind);
-        Assert.Equal(1, cell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Bright, cell.Foreground.Value.Kind);
+        Assert.AreEqual(1, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_256Color_PreservesColorKind()
     {
         var surface = new Surface(20, 1);
@@ -431,12 +432,12 @@ public class AnsiColorPreservationTests
         context.WriteClipped(0, 0, "\x1b[38;5;196mRed!");
 
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Indexed, cell.Foreground.Value.Kind);
-        Assert.Equal(196, cell.Foreground.Value.AnsiIndex);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Indexed, cell.Foreground.Value.Kind);
+        Assert.AreEqual(196, cell.Foreground.Value.AnsiIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_24BitRgb_StaysRgbKind()
     {
         var surface = new Surface(20, 1);
@@ -445,11 +446,11 @@ public class AnsiColorPreservationTests
         context.WriteClipped(0, 0, "\x1b[38;2;100;200;50mGreen!");
 
         var cell = surface[0, 0];
-        Assert.NotNull(cell.Foreground);
-        Assert.Equal(Hex1bColorKind.Rgb, cell.Foreground.Value.Kind);
-        Assert.Equal(100, cell.Foreground.Value.R);
-        Assert.Equal(200, cell.Foreground.Value.G);
-        Assert.Equal(50, cell.Foreground.Value.B);
+        Assert.IsNotNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColorKind.Rgb, cell.Foreground.Value.Kind);
+        Assert.AreEqual(100, cell.Foreground.Value.R);
+        Assert.AreEqual(200, cell.Foreground.Value.G);
+        Assert.AreEqual(50, cell.Foreground.Value.B);
     }
 
     #endregion

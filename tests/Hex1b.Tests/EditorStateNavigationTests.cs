@@ -6,11 +6,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for EditorState navigation and selection operations with the extend pattern.
 /// </summary>
+[TestClass]
 public class EditorStateNavigationTests
 {
     // ── MoveToLineStart / MoveToLineEnd ─────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineStart_MovesToColumnOne()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -19,11 +20,11 @@ public class EditorStateNavigationTests
 
         state.MoveToLineStart();
 
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position); // start of "World"
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position); // start of "World"
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineStart_AlreadyAtStart_NoOp()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -32,10 +33,10 @@ public class EditorStateNavigationTests
 
         state.MoveToLineStart();
 
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineStart_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -44,12 +45,12 @@ public class EditorStateNavigationTests
 
         state.MoveToLineStart(extend: true);
 
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(9), state.Cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(9), state.Cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineEnd_MovesToEndOfLine()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -58,11 +59,11 @@ public class EditorStateNavigationTests
 
         state.MoveToLineEnd();
 
-        Assert.Equal(new DocumentOffset(11), state.Cursor.Position); // past "World"
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.Position); // past "World"
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineEnd_FirstLine_StopsBeforeNewline()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -71,10 +72,10 @@ public class EditorStateNavigationTests
 
         state.MoveToLineEnd();
 
-        Assert.Equal(new DocumentOffset(5), state.Cursor.Position); // end of "Hello", before \n
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.Position); // end of "Hello", before \n
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToLineEnd_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -83,14 +84,14 @@ public class EditorStateNavigationTests
 
         state.MoveToLineEnd(extend: true);
 
-        Assert.Equal(new DocumentOffset(11), state.Cursor.Position);
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(7), state.Cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.Position);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(7), state.Cursor.SelectionAnchor);
     }
 
     // ── MoveToDocumentStart / MoveToDocumentEnd ─────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentStart_MovesToZero()
     {
         var doc = new Hex1bDocument("Hello\nWorld\nFoo");
@@ -99,11 +100,11 @@ public class EditorStateNavigationTests
 
         state.MoveToDocumentStart();
 
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.Position);
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.Position);
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentEnd_MovesToLength()
     {
         var doc = new Hex1bDocument("Hello\nWorld\nFoo");
@@ -112,10 +113,10 @@ public class EditorStateNavigationTests
 
         state.MoveToDocumentEnd();
 
-        Assert.Equal(new DocumentOffset(15), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(15), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentStart_Extend_SelectsAll()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -124,12 +125,12 @@ public class EditorStateNavigationTests
 
         state.MoveToDocumentStart(extend: true);
 
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.Position);
-        Assert.Equal(new DocumentOffset(11), state.Cursor.SelectionAnchor);
-        Assert.True(state.Cursor.HasSelection);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveToDocumentEnd_Extend_SelectsAll()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -138,13 +139,13 @@ public class EditorStateNavigationTests
 
         state.MoveToDocumentEnd(extend: true);
 
-        Assert.Equal(new DocumentOffset(11), state.Cursor.Position);
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.Position);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
     }
 
     // ── MoveWordLeft / MoveWordRight ────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveWordLeft_SkipsToWordBoundary()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -154,10 +155,10 @@ public class EditorStateNavigationTests
         state.MoveWordLeft();
 
         // Should land at start of "World" (offset 6)
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordRight_SkipsToWordBoundary()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -167,10 +168,10 @@ public class EditorStateNavigationTests
         state.MoveWordRight();
 
         // Skips remaining "llo" + space → lands at start of "World" (offset 6)
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordLeft_AtDocumentStart_NoOp()
     {
         var doc = new Hex1bDocument("Hello");
@@ -179,10 +180,10 @@ public class EditorStateNavigationTests
 
         state.MoveWordLeft();
 
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.Position);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordRight_AtDocumentEnd_NoOp()
     {
         var doc = new Hex1bDocument("Hello");
@@ -191,10 +192,10 @@ public class EditorStateNavigationTests
 
         state.MoveWordRight();
 
-        Assert.Equal(new DocumentOffset(5), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordLeft_AtLineStart_MovesToPreviousLine()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -204,10 +205,10 @@ public class EditorStateNavigationTests
         state.MoveWordLeft();
 
         // Should cross the newline to end of previous line
-        Assert.Equal(new DocumentOffset(5), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordRight_AtLineEnd_MovesToNextLine()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -217,10 +218,10 @@ public class EditorStateNavigationTests
         state.MoveWordRight();
 
         // Should cross the newline to start of next line
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordLeft_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -229,11 +230,11 @@ public class EditorStateNavigationTests
 
         state.MoveWordLeft(extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(11), state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveWordRight_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -242,13 +243,13 @@ public class EditorStateNavigationTests
 
         state.MoveWordRight(extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
     }
 
     // ── MovePageUp / MovePageDown ───────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MovePageDown_MovesDownByViewportLines()
     {
         var doc = new Hex1bDocument("L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10");
@@ -258,10 +259,10 @@ public class EditorStateNavigationTests
         state.MovePageDown(5); // viewport is 5 lines, move by 4
 
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(5, pos.Line); // moved 4 lines down
+        Assert.AreEqual(5, pos.Line); // moved 4 lines down
     }
 
-    [Fact]
+    [TestMethod]
     public void MovePageUp_MovesUpByViewportLines()
     {
         var doc = new Hex1bDocument("L1\nL2\nL3\nL4\nL5\nL6\nL7\nL8\nL9\nL10");
@@ -272,10 +273,10 @@ public class EditorStateNavigationTests
         state.MovePageUp(5); // viewport is 5 lines, move by 4
 
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(4, pos.Line); // moved 4 lines up
+        Assert.AreEqual(4, pos.Line); // moved 4 lines up
     }
 
-    [Fact]
+    [TestMethod]
     public void MovePageDown_ClampsToLastLine()
     {
         var doc = new Hex1bDocument("L1\nL2\nL3");
@@ -285,10 +286,10 @@ public class EditorStateNavigationTests
         state.MovePageDown(100); // huge viewport
 
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(3, pos.Line); // clamped to last line
+        Assert.AreEqual(3, pos.Line); // clamped to last line
     }
 
-    [Fact]
+    [TestMethod]
     public void MovePageUp_ClampsToFirstLine()
     {
         var doc = new Hex1bDocument("L1\nL2\nL3");
@@ -298,10 +299,10 @@ public class EditorStateNavigationTests
         state.MovePageUp(100);
 
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(1, pos.Line);
+        Assert.AreEqual(1, pos.Line);
     }
 
-    [Fact]
+    [TestMethod]
     public void MovePageDown_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("L1\nL2\nL3\nL4\nL5");
@@ -310,13 +311,13 @@ public class EditorStateNavigationTests
 
         state.MovePageDown(3, extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
     }
 
     // ── SelectAll ───────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SelectAll_SelectsEntireDocument()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -325,12 +326,12 @@ public class EditorStateNavigationTests
 
         state.SelectAll();
 
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
-        Assert.Equal(new DocumentOffset(11), state.Cursor.Position);
-        Assert.True(state.Cursor.HasSelection);
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.Position);
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectAll_EmptyDocument_NoSelection()
     {
         var doc = new Hex1bDocument("");
@@ -339,12 +340,12 @@ public class EditorStateNavigationTests
         state.SelectAll();
 
         // Anchor is 0, position is 0 — HasSelection should be false
-        Assert.False(state.Cursor.HasSelection);
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
     // ── MoveCursor with extend ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Left_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello");
@@ -353,12 +354,12 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Left, extend: true);
 
-        Assert.Equal(new DocumentOffset(2), state.Cursor.Position);
-        Assert.Equal(new DocumentOffset(3), state.Cursor.SelectionAnchor);
-        Assert.True(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(2), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(3), state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Right_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello");
@@ -367,11 +368,11 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Right, extend: true);
 
-        Assert.Equal(new DocumentOffset(4), state.Cursor.Position);
-        Assert.Equal(new DocumentOffset(3), state.Cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(4), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(3), state.Cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Up_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -380,14 +381,14 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Up, extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(8), state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(8), state.Cursor.SelectionAnchor);
         // Cursor should be on line 1
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(1, pos.Line);
+        Assert.AreEqual(1, pos.Line);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Down_Extend_CreatesSelection()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -396,13 +397,13 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Down, extend: true);
 
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(2), state.Cursor.SelectionAnchor);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(2), state.Cursor.SelectionAnchor);
         var pos = doc.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(2, pos.Line);
+        Assert.AreEqual(2, pos.Line);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Left_WithExistingSelection_NoExtend_CollapsesToStart()
     {
         var doc = new Hex1bDocument("Hello");
@@ -412,11 +413,11 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Left); // extend: false
 
-        Assert.Equal(new DocumentOffset(1), state.Cursor.Position); // collapsed to selection start
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(1), state.Cursor.Position); // collapsed to selection start
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void MoveCursor_Right_WithExistingSelection_NoExtend_CollapsesToEnd()
     {
         var doc = new Hex1bDocument("Hello");
@@ -426,13 +427,13 @@ public class EditorStateNavigationTests
 
         state.MoveCursor(CursorDirection.Right); // extend: false
 
-        Assert.Equal(new DocumentOffset(4), state.Cursor.Position); // collapsed to selection end
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(4), state.Cursor.Position); // collapsed to selection end
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
     // ── Extend chains (multiple extends preserve anchor) ────────
 
-    [Fact]
+    [TestMethod]
     public void MultipleExtends_PreserveOriginalAnchor()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -444,12 +445,12 @@ public class EditorStateNavigationTests
         state.MoveCursor(CursorDirection.Right, extend: true);
         state.MoveCursor(CursorDirection.Right, extend: true);
 
-        Assert.Equal(new DocumentOffset(8), state.Cursor.Position);
-        Assert.Equal(new DocumentOffset(5), state.Cursor.SelectionAnchor); // anchor unchanged
-        Assert.True(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(8), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.SelectionAnchor); // anchor unchanged
+        Assert.IsTrue(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extend_ThenNoExtend_ClearsSelection()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -461,6 +462,6 @@ public class EditorStateNavigationTests
         // Now clear by moving without extend
         state.MoveCursor(CursorDirection.Right);
 
-        Assert.False(state.Cursor.HasSelection);
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 }

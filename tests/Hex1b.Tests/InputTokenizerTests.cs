@@ -7,132 +7,133 @@ namespace Hex1b.Tests;
 /// Tests for input sequence tokenization using the unified AnsiTokenizer.
 /// These sequences are typically received from the terminal (keyboard/mouse input).
 /// </summary>
+[TestClass]
 public class InputTokenizerTests
 {
     // === SS3 Sequences (ESC O) ===
     
-    [Theory]
-    [InlineData("P", 'P')] // F1
-    [InlineData("Q", 'Q')] // F2
-    [InlineData("R", 'R')] // F3
-    [InlineData("S", 'S')] // F4
-    [InlineData("A", 'A')] // Up arrow (application mode)
-    [InlineData("B", 'B')] // Down arrow (application mode)
-    [InlineData("C", 'C')] // Right arrow (application mode)
-    [InlineData("D", 'D')] // Left arrow (application mode)
-    [InlineData("H", 'H')] // Home (application mode)
-    [InlineData("F", 'F')] // End (application mode)
+    [TestMethod]
+    [DataRow("P", 'P')] // F1
+    [DataRow("Q", 'Q')] // F2
+    [DataRow("R", 'R')] // F3
+    [DataRow("S", 'S')] // F4
+    [DataRow("A", 'A')] // Up arrow (application mode)
+    [DataRow("B", 'B')] // Down arrow (application mode)
+    [DataRow("C", 'C')] // Right arrow (application mode)
+    [DataRow("D", 'D')] // Left arrow (application mode)
+    [DataRow("H", 'H')] // Home (application mode)
+    [DataRow("F", 'F')] // End (application mode)
     public void Ss3Sequence_ParsesCorrectly(string charPart, char expectedChar)
     {
         var input = $"\x1bO{charPart}";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var ss3Token = Assert.Single(tokens);
-        var token = Assert.IsType<Ss3Token>(ss3Token);
-        Assert.Equal(expectedChar, token.Character);
+        var ss3Token = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<Ss3Token>(ss3Token);
+        Assert.AreEqual(expectedChar, token.Character);
     }
     
-    [Fact]
+    [TestMethod]
     public void Ss3Sequence_Serializes_RoundTrip()
     {
         var original = "\x1bOP"; // F1
         var tokens = AnsiTokenizer.Tokenize(original);
         var serialized = AnsiTokenSerializer.Serialize(tokens);
-        Assert.Equal(original, serialized);
+        Assert.AreEqual(original, serialized);
     }
     
     // === Special Key Sequences (ESC [ n ~) ===
     
-    [Theory]
-    [InlineData("2", 2, 1)]   // Insert
-    [InlineData("3", 3, 1)]   // Delete
-    [InlineData("5", 5, 1)]   // Page Up
-    [InlineData("6", 6, 1)]   // Page Down
-    [InlineData("15", 15, 1)] // F5
-    [InlineData("17", 17, 1)] // F6
-    [InlineData("18", 18, 1)] // F7
-    [InlineData("19", 19, 1)] // F8
-    [InlineData("20", 20, 1)] // F9
-    [InlineData("21", 21, 1)] // F10
-    [InlineData("23", 23, 1)] // F11
-    [InlineData("24", 24, 1)] // F12
+    [TestMethod]
+    [DataRow("2", 2, 1)]   // Insert
+    [DataRow("3", 3, 1)]   // Delete
+    [DataRow("5", 5, 1)]   // Page Up
+    [DataRow("6", 6, 1)]   // Page Down
+    [DataRow("15", 15, 1)] // F5
+    [DataRow("17", 17, 1)] // F6
+    [DataRow("18", 18, 1)] // F7
+    [DataRow("19", 19, 1)] // F8
+    [DataRow("20", 20, 1)] // F9
+    [DataRow("21", 21, 1)] // F10
+    [DataRow("23", 23, 1)] // F11
+    [DataRow("24", 24, 1)] // F12
     public void SpecialKeySequence_ParsesCorrectly(string keyCode, int expectedCode, int expectedMod)
     {
         var input = $"\x1b[{keyCode}~";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var keyToken = Assert.Single(tokens);
-        var token = Assert.IsType<SpecialKeyToken>(keyToken);
-        Assert.Equal(expectedCode, token.KeyCode);
-        Assert.Equal(expectedMod, token.Modifiers);
+        var keyToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SpecialKeyToken>(keyToken);
+        Assert.AreEqual(expectedCode, token.KeyCode);
+        Assert.AreEqual(expectedMod, token.Modifiers);
     }
     
-    [Theory]
-    [InlineData("3;2", 3, 2)]  // Delete with Shift
-    [InlineData("3;5", 3, 5)]  // Delete with Ctrl
-    [InlineData("15;3", 15, 3)] // F5 with Alt
+    [TestMethod]
+    [DataRow("3;2", 3, 2)]  // Delete with Shift
+    [DataRow("3;5", 3, 5)]  // Delete with Ctrl
+    [DataRow("15;3", 15, 3)] // F5 with Alt
     public void SpecialKeySequence_WithModifiers_ParsesCorrectly(string params_, int expectedCode, int expectedMod)
     {
         var input = $"\x1b[{params_}~";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var keyToken = Assert.Single(tokens);
-        var token = Assert.IsType<SpecialKeyToken>(keyToken);
-        Assert.Equal(expectedCode, token.KeyCode);
-        Assert.Equal(expectedMod, token.Modifiers);
+        var keyToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SpecialKeyToken>(keyToken);
+        Assert.AreEqual(expectedCode, token.KeyCode);
+        Assert.AreEqual(expectedMod, token.Modifiers);
     }
     
-    [Fact]
+    [TestMethod]
     public void SpecialKeySequence_Serializes_RoundTrip()
     {
         var original = "\x1b[15~"; // F5
         var tokens = AnsiTokenizer.Tokenize(original);
         var serialized = AnsiTokenSerializer.Serialize(tokens);
-        Assert.Equal(original, serialized);
+        Assert.AreEqual(original, serialized);
     }
     
-    [Fact]
+    [TestMethod]
     public void SpecialKeySequence_WithModifiers_Serializes_RoundTrip()
     {
         var original = "\x1b[3;5~"; // Delete with Ctrl
         var tokens = AnsiTokenizer.Tokenize(original);
         var serialized = AnsiTokenSerializer.Serialize(tokens);
-        Assert.Equal(original, serialized);
+        Assert.AreEqual(original, serialized);
     }
     
     // === Modified Home/End (xterm format: CSI 1;m H / CSI 1;m F) ===
     
-    [Theory]
-    [InlineData(2, Hex1bModifiers.Shift)]             // Shift+End
-    [InlineData(5, Hex1bModifiers.Control)]            // Ctrl+End
-    [InlineData(6, Hex1bModifiers.Control | Hex1bModifiers.Shift)] // Ctrl+Shift+End
+    [TestMethod]
+    [DataRow(2, Hex1bModifiers.Shift)]             // Shift+End
+    [DataRow(5, Hex1bModifiers.Control)]            // Ctrl+End
+    [DataRow(6, Hex1bModifiers.Control | Hex1bModifiers.Shift)] // Ctrl+Shift+End
     public void ModifiedEnd_XtermFormat_ParsesAsSpecialKeyWithModifiers(int modCode, Hex1bModifiers expectedMod)
     {
         // CSI 1;{mod}F = End with modifiers (xterm)
         var input = $"\x1b[1;{modCode}F";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var keyToken = Assert.Single(tokens);
-        var token = Assert.IsType<SpecialKeyToken>(keyToken);
-        Assert.Equal(4, token.KeyCode); // 4 = End
-        Assert.Equal(modCode, token.Modifiers);
+        var keyToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SpecialKeyToken>(keyToken);
+        Assert.AreEqual(4, token.KeyCode); // 4 = End
+        Assert.AreEqual(modCode, token.Modifiers);
         
         // Verify the modifier decodes correctly through SpecialKeyTokenToKeyEvent
         // (indirectly: modifier code - 1 gives bits where bit0=Shift, bit1=Alt, bit2=Ctrl)
         var decodedBits = modCode - 1;
-        if (expectedMod.HasFlag(Hex1bModifiers.Shift)) Assert.NotEqual(0, decodedBits & 1);
-        if (expectedMod.HasFlag(Hex1bModifiers.Control)) Assert.NotEqual(0, decodedBits & 4);
+        if (expectedMod.HasFlag(Hex1bModifiers.Shift)) Assert.AreNotEqual(0, decodedBits & 1);
+        if (expectedMod.HasFlag(Hex1bModifiers.Control)) Assert.AreNotEqual(0, decodedBits & 4);
     }
     
-    [Fact]
+    [TestMethod]
     public void PlainEnd_CsiF_ParsesAsCursorMove()
     {
         // CSI F (no params) = Cursor Previous Line = End key
         var input = "\x1b[F";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var token = Assert.Single(tokens);
-        Assert.IsType<CursorMoveToken>(token);
+        var token = TestSeq.Single(tokens);
+        TestSeq.IsType<CursorMoveToken>(token);
     }
 
     // === Modified F1-F4 (xterm "PC keyboard" format: CSI 1;m P/Q/R/S) ===
@@ -142,242 +143,242 @@ public class InputTokenizerTests
     // emit the CSI form ESC [ 1 ; {mod} <P/Q/R/S>. The corresponding F-key codes for
     // SpecialKeyToken are 11=F1, 12=F2, 13=F3, 14=F4 (matching the CSI ~ form).
 
-    [Theory]
-    [InlineData('P', 11)] // F1
-    [InlineData('Q', 12)] // F2
-    [InlineData('R', 13)] // F3
-    [InlineData('S', 14)] // F4
+    [TestMethod]
+    [DataRow('P', 11)] // F1
+    [DataRow('Q', 12)] // F2
+    [DataRow('R', 13)] // F3
+    [DataRow('S', 14)] // F4
     public void ModifiedFunctionKey_F1ThroughF4_XtermFormat_ParsesAsSpecialKey(char terminator, int expectedCode)
     {
         // CSI 1;5{P/Q/R/S} = F1-F4 with Ctrl
         var input = $"\x1b[1;5{terminator}";
         var tokens = AnsiTokenizer.Tokenize(input);
 
-        var token = Assert.Single(tokens);
-        var special = Assert.IsType<SpecialKeyToken>(token);
-        Assert.Equal(expectedCode, special.KeyCode);
-        Assert.Equal(5, special.Modifiers); // 5 = Ctrl
+        var token = TestSeq.Single(tokens);
+        var special = TestSeq.IsType<SpecialKeyToken>(token);
+        Assert.AreEqual(expectedCode, special.KeyCode);
+        Assert.AreEqual(5, special.Modifiers); // 5 = Ctrl
     }
 
-    [Theory]
-    [InlineData(2)]  // Shift
-    [InlineData(3)]  // Alt
-    [InlineData(4)]  // Alt+Shift
-    [InlineData(5)]  // Ctrl
-    [InlineData(6)]  // Ctrl+Shift
-    [InlineData(7)]  // Alt+Ctrl
-    [InlineData(8)]  // Alt+Ctrl+Shift
+    [TestMethod]
+    [DataRow(2)]  // Shift
+    [DataRow(3)]  // Alt
+    [DataRow(4)]  // Alt+Shift
+    [DataRow(5)]  // Ctrl
+    [DataRow(6)]  // Ctrl+Shift
+    [DataRow(7)]  // Alt+Ctrl
+    [DataRow(8)]  // Alt+Ctrl+Shift
     public void ModifiedFunctionKey_F1_AllXtermModifiers_Parse(int modCode)
     {
         var input = $"\x1b[1;{modCode}P";
         var tokens = AnsiTokenizer.Tokenize(input);
 
-        var token = Assert.Single(tokens);
-        var special = Assert.IsType<SpecialKeyToken>(token);
-        Assert.Equal(11, special.KeyCode); // F1
-        Assert.Equal(modCode, special.Modifiers);
+        var token = TestSeq.Single(tokens);
+        var special = TestSeq.IsType<SpecialKeyToken>(token);
+        Assert.AreEqual(11, special.KeyCode); // F1
+        Assert.AreEqual(modCode, special.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void PlainCsiP_StillParsesAsDeleteCharacter()
     {
         // CSI P (no params or single param) = DCH; must NOT be misinterpreted as F1
         var tokens = AnsiTokenizer.Tokenize("\x1b[P");
-        Assert.IsType<DeleteCharacterToken>(Assert.Single(tokens));
+        TestSeq.IsType<DeleteCharacterToken>(TestSeq.Single(tokens));
 
         var tokens2 = AnsiTokenizer.Tokenize("\x1b[3P");
-        var dch = Assert.IsType<DeleteCharacterToken>(Assert.Single(tokens2));
-        Assert.Equal(3, dch.Count);
+        var dch = TestSeq.IsType<DeleteCharacterToken>(TestSeq.Single(tokens2));
+        Assert.AreEqual(3, dch.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void PlainCsiS_StillParsesAsScrollUp()
     {
         // CSI S (no params or single param) = SU; must NOT be misinterpreted as F4
         var tokens = AnsiTokenizer.Tokenize("\x1b[S");
-        Assert.IsType<ScrollUpToken>(Assert.Single(tokens));
+        TestSeq.IsType<ScrollUpToken>(TestSeq.Single(tokens));
 
         var tokens2 = AnsiTokenizer.Tokenize("\x1b[2S");
-        var su = Assert.IsType<ScrollUpToken>(Assert.Single(tokens2));
-        Assert.Equal(2, su.Count);
+        var su = TestSeq.IsType<ScrollUpToken>(TestSeq.Single(tokens2));
+        Assert.AreEqual(2, su.Count);
     }
 
     // === SGR Mouse Sequences (ESC [ < Cb ; Cx ; Cy M/m) ===
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_LeftClick_ParsesCorrectly()
     {
         var input = "\x1b[<0;10;5M"; // Left button press at (10,5) - 1-based
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.Equal(MouseAction.Down, token.Action);
-        Assert.Equal(9, token.X);  // 0-based
-        Assert.Equal(4, token.Y);  // 0-based
-        Assert.Equal(Hex1bModifiers.None, token.Modifiers);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.AreEqual(MouseAction.Down, token.Action);
+        Assert.AreEqual(9, token.X);  // 0-based
+        Assert.AreEqual(4, token.Y);  // 0-based
+        Assert.AreEqual(Hex1bModifiers.None, token.Modifiers);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_LeftRelease_ParsesCorrectly()
     {
         var input = "\x1b[<0;10;5m"; // Left button release at (10,5)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.Equal(MouseAction.Up, token.Action);
-        Assert.Equal(9, token.X);
-        Assert.Equal(4, token.Y);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.AreEqual(MouseAction.Up, token.Action);
+        Assert.AreEqual(9, token.X);
+        Assert.AreEqual(4, token.Y);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_RightClick_ParsesCorrectly()
     {
         var input = "\x1b[<2;1;1M"; // Right button press
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Right, token.Button);
-        Assert.Equal(MouseAction.Down, token.Action);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Right, token.Button);
+        Assert.AreEqual(MouseAction.Down, token.Action);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_MiddleClick_ParsesCorrectly()
     {
         var input = "\x1b[<1;1;1M"; // Middle button press
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Middle, token.Button);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Middle, token.Button);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_ScrollUp_ParsesCorrectly()
     {
         var input = "\x1b[<64;1;1M"; // Scroll up
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.ScrollUp, token.Button);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.ScrollUp, token.Button);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_ScrollDown_ParsesCorrectly()
     {
         var input = "\x1b[<65;1;1M"; // Scroll down
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.ScrollDown, token.Button);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.ScrollDown, token.Button);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_WithShift_ParsesCorrectly()
     {
         var input = "\x1b[<4;1;1M"; // Left + Shift (0 + 4)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.True(token.Modifiers.HasFlag(Hex1bModifiers.Shift));
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.IsTrue(token.Modifiers.HasFlag(Hex1bModifiers.Shift));
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_WithAlt_ParsesCorrectly()
     {
         var input = "\x1b[<8;1;1M"; // Left + Alt (0 + 8)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.True(token.Modifiers.HasFlag(Hex1bModifiers.Alt));
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.IsTrue(token.Modifiers.HasFlag(Hex1bModifiers.Alt));
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_WithCtrl_ParsesCorrectly()
     {
         var input = "\x1b[<16;1;1M"; // Left + Ctrl (0 + 16)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.True(token.Modifiers.HasFlag(Hex1bModifiers.Control));
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.IsTrue(token.Modifiers.HasFlag(Hex1bModifiers.Control));
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_Motion_ParsesCorrectly()
     {
         var input = "\x1b[<35;10;20M"; // Motion with no button (32 + 3=none)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseAction.Move, token.Action);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseAction.Move, token.Action);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_Drag_ParsesCorrectly()
     {
         var input = "\x1b[<32;10;20M"; // Drag with left button (32 + 0)
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var mouseToken = Assert.Single(tokens);
-        var token = Assert.IsType<SgrMouseToken>(mouseToken);
-        Assert.Equal(MouseButton.Left, token.Button);
-        Assert.Equal(MouseAction.Drag, token.Action);
+        var mouseToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<SgrMouseToken>(mouseToken);
+        Assert.AreEqual(MouseButton.Left, token.Button);
+        Assert.AreEqual(MouseAction.Drag, token.Action);
     }
     
-    [Fact]
+    [TestMethod]
     public void SgrMouse_Serializes_RoundTrip()
     {
         var original = "\x1b[<0;10;5M";
         var tokens = AnsiTokenizer.Tokenize(original);
         var serialized = AnsiTokenSerializer.Serialize(tokens);
-        Assert.Equal(original, serialized);
+        Assert.AreEqual(original, serialized);
     }
     
     // === Arrow Keys (CSI A/B/C/D) ===
     // These already work via CursorMoveToken but let's verify they still work
     
-    [Theory]
-    [InlineData("A", CursorMoveDirection.Up)]
-    [InlineData("B", CursorMoveDirection.Down)]
-    [InlineData("C", CursorMoveDirection.Forward)]
-    [InlineData("D", CursorMoveDirection.Back)]
+    [TestMethod]
+    [DataRow("A", CursorMoveDirection.Up)]
+    [DataRow("B", CursorMoveDirection.Down)]
+    [DataRow("C", CursorMoveDirection.Forward)]
+    [DataRow("D", CursorMoveDirection.Back)]
     public void ArrowKeys_ParseAsCursorMove(string direction, CursorMoveDirection expected)
     {
         var input = $"\x1b[{direction}";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        var moveToken = Assert.Single(tokens);
-        var token = Assert.IsType<CursorMoveToken>(moveToken);
-        Assert.Equal(expected, token.Direction);
-        Assert.Equal(1, token.Count);
+        var moveToken = TestSeq.Single(tokens);
+        var token = TestSeq.IsType<CursorMoveToken>(moveToken);
+        Assert.AreEqual(expected, token.Direction);
+        Assert.AreEqual(1, token.Count);
     }
     
     // === Mixed Input ===
     
-    [Fact]
+    [TestMethod]
     public void MixedInput_ParsesAllTokens()
     {
         // Simulate typing "hello" then pressing up arrow then clicking
         var input = "hello\x1b[A\x1b[<0;5;3M";
         var tokens = AnsiTokenizer.Tokenize(input);
         
-        Assert.Equal(3, tokens.Count);
-        Assert.IsType<TextToken>(tokens[0]);
-        Assert.Equal("hello", ((TextToken)tokens[0]).Text);
-        Assert.IsType<CursorMoveToken>(tokens[1]);
-        Assert.IsType<SgrMouseToken>(tokens[2]);
+        Assert.AreEqual(3, tokens.Count);
+        TestSeq.IsType<TextToken>(tokens[0]);
+        Assert.AreEqual("hello", ((TextToken)tokens[0]).Text);
+        TestSeq.IsType<CursorMoveToken>(tokens[1]);
+        TestSeq.IsType<SgrMouseToken>(tokens[2]);
     }
 }

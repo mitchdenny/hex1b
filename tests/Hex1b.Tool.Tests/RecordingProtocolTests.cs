@@ -4,9 +4,10 @@ using System.Text.Json;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class RecordingProtocolTests
 {
-    [Fact]
+    [TestMethod]
     public async Task RecordStart_StartsRecordingAndCreatesFile()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -28,35 +29,35 @@ public class RecordingProtocolTests
             var startResponse = await SendRawRequestAsync(socketPath,
                 $$$"""{"method":"record-start","filePath":"{{{outputPath.Replace("\\", "\\\\")}}}","title":"Test Recording"}""");
 
-            Assert.True(startResponse.GetProperty("success").GetBoolean(), GetError(startResponse));
-            Assert.True(startResponse.GetProperty("recording").GetBoolean());
-            Assert.Equal(outputPath, startResponse.GetProperty("recordingPath").GetString());
+            Assert.IsTrue(startResponse.GetProperty("success").GetBoolean(), GetError(startResponse));
+            Assert.IsTrue(startResponse.GetProperty("recording").GetBoolean());
+            Assert.AreEqual(outputPath, startResponse.GetProperty("recordingPath").GetString());
 
             // Check status
             var statusResponse = await SendRawRequestAsync(socketPath, """{"method":"record-status"}""");
-            Assert.True(statusResponse.GetProperty("success").GetBoolean());
-            Assert.True(statusResponse.GetProperty("recording").GetBoolean());
+            Assert.IsTrue(statusResponse.GetProperty("success").GetBoolean());
+            Assert.IsTrue(statusResponse.GetProperty("recording").GetBoolean());
 
             // Info should also reflect recording status
             var infoResponse = await SendRawRequestAsync(socketPath, """{"method":"info"}""");
-            Assert.True(infoResponse.GetProperty("success").GetBoolean());
-            Assert.True(infoResponse.GetProperty("recording").GetBoolean());
+            Assert.IsTrue(infoResponse.GetProperty("success").GetBoolean());
+            Assert.IsTrue(infoResponse.GetProperty("recording").GetBoolean());
 
             // Stop recording
             var stopResponse = await SendRawRequestAsync(socketPath, """{"method":"record-stop"}""");
-            Assert.True(stopResponse.GetProperty("success").GetBoolean(), GetError(stopResponse));
-            Assert.False(stopResponse.GetProperty("recording").GetBoolean());
-            Assert.Equal(outputPath, stopResponse.GetProperty("recordingPath").GetString());
+            Assert.IsTrue(stopResponse.GetProperty("success").GetBoolean(), GetError(stopResponse));
+            Assert.IsFalse(stopResponse.GetProperty("recording").GetBoolean());
+            Assert.AreEqual(outputPath, stopResponse.GetProperty("recordingPath").GetString());
 
             // File should exist and be valid asciicast v2
-            Assert.True(File.Exists(outputPath));
+            Assert.IsTrue(File.Exists(outputPath));
             var lines = await File.ReadAllLinesAsync(outputPath);
-            Assert.True(lines.Length >= 1);
+            Assert.IsTrue(lines.Length >= 1);
 
             using var header = JsonDocument.Parse(lines[0]);
-            Assert.Equal(2, header.RootElement.GetProperty("version").GetInt32());
-            Assert.Equal(80, header.RootElement.GetProperty("width").GetInt32());
-            Assert.Equal(24, header.RootElement.GetProperty("height").GetInt32());
+            Assert.AreEqual(2, header.RootElement.GetProperty("version").GetInt32());
+            Assert.AreEqual(80, header.RootElement.GetProperty("width").GetInt32());
+            Assert.AreEqual(24, header.RootElement.GetProperty("height").GetInt32());
         }
         finally
         {
@@ -64,7 +65,7 @@ public class RecordingProtocolTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RecordStart_WhenAlreadyRecording_ReturnsError()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -85,11 +86,11 @@ public class RecordingProtocolTests
         {
             var response1 = await SendRawRequestAsync(socketPath,
                 $$$"""{"method":"record-start","filePath":"{{{outputPath1.Replace("\\", "\\\\")}}}"}""");
-            Assert.True(response1.GetProperty("success").GetBoolean());
+            Assert.IsTrue(response1.GetProperty("success").GetBoolean());
 
             var response2 = await SendRawRequestAsync(socketPath,
                 $$$"""{"method":"record-start","filePath":"{{{outputPath2.Replace("\\", "\\\\")}}}"}""");
-            Assert.False(response2.GetProperty("success").GetBoolean());
+            Assert.IsFalse(response2.GetProperty("success").GetBoolean());
             Assert.Contains("Already recording", response2.GetProperty("error").GetString());
 
             await SendRawRequestAsync(socketPath, """{"method":"record-stop"}""");
@@ -101,7 +102,7 @@ public class RecordingProtocolTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RecordStop_WhenNotRecording_ReturnsError()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -117,7 +118,7 @@ public class RecordingProtocolTests
         await WaitForSocketAsync(socketPath);
 
         var response = await SendRawRequestAsync(socketPath, """{"method":"record-stop"}""");
-        Assert.False(response.GetProperty("success").GetBoolean());
+        Assert.IsFalse(response.GetProperty("success").GetBoolean());
         Assert.Contains("Not currently recording", response.GetProperty("error").GetString());
     }
 

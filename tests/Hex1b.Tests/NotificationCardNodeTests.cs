@@ -10,9 +10,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for NotificationCardNode rendering and behavior.
 /// </summary>
+[TestClass]
 public class NotificationCardNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void NotificationCardNode_Measure_ReturnsReasonableSize()
     {
         var notification = new Notification("Test Title", "Test body text");
@@ -26,11 +27,11 @@ public class NotificationCardNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Should have non-zero dimensions
-        Assert.True(size.Width > 0, "Width should be positive");
-        Assert.True(size.Height > 0, "Height should be positive");
+        Assert.IsTrue(size.Width > 0, "Width should be positive");
+        Assert.IsTrue(size.Height > 0, "Height should be positive");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCardNode_WithAction_CreatesChildrenViaReconciliation()
     {
         var notification = new Notification("Title", "Body")
@@ -44,12 +45,12 @@ public class NotificationCardNodeTests
         var node = (NotificationCardNode)await cardWidget.ReconcileAsync(null, context);
 
         // Verify children were created
-        Assert.NotNull(node.DismissButton);
-        Assert.NotNull(node.ActionButton);
-        Assert.Equal("View Details", node.ActionButton.PrimaryLabel);
+        Assert.IsNotNull(node.DismissButton);
+        Assert.IsNotNull(node.ActionButton);
+        Assert.AreEqual("View Details", node.ActionButton.PrimaryLabel);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCardNode_WithAction_MeasuresWithChildren()
     {
         var notification = new Notification("Title", "Body")
@@ -65,10 +66,10 @@ public class NotificationCardNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // With title + body + action + progress, should have reasonable height
-        Assert.True(size.Height >= 3, $"Height should be at least 3, was {size.Height}");
+        Assert.IsTrue(size.Height >= 3, $"Height should be at least 3, was {size.Height}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCardNode_Children_ContainsButtonsAfterReconciliation()
     {
         var notification = new Notification("Title", "Body")
@@ -83,12 +84,12 @@ public class NotificationCardNodeTests
 
         // GetChildren should return the button nodes
         var children = node.GetChildren().ToList();
-        Assert.NotEmpty(children);
-        Assert.Contains(children, c => c is ButtonNode);
-        Assert.Contains(children, c => c is SplitButtonNode);
+        Assert.IsNotEmpty(children);
+        Assert.IsTrue(children.Any(c => c is ButtonNode));
+        Assert.IsTrue(children.Any(c => c is SplitButtonNode));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCardNode_DismissButton_AlwaysCreated()
     {
         // Even without primary action, dismiss button should exist
@@ -100,11 +101,11 @@ public class NotificationCardNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = (NotificationCardNode)await cardWidget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.DismissButton);
-        Assert.Null(node.ActionButton); // No action button without primary action
+        Assert.IsNotNull(node.DismissButton);
+        Assert.IsNull(node.ActionButton); // No action button without primary action
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCard_RendersActionButtonLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -148,11 +149,11 @@ public class NotificationCardNodeTests
         await runTask;
 
         // Verify notification content and action button are visible
-        Assert.True(snapshot.ContainsText("Test Alert"), "Should show notification title");
-        Assert.True(snapshot.ContainsText("View Details"), "Should show action button label");
+        Assert.IsTrue(snapshot.ContainsText("Test Alert"), "Should show notification title");
+        Assert.IsTrue(snapshot.ContainsText("View Details"), "Should show action button label");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCard_SplitButtonDropdown_OpensSuccessfully()
     {
         // This test verifies that the dropdown on a SplitButton inside a NotificationCard
@@ -215,7 +216,7 @@ public class NotificationCardNodeTests
         await runTask;
 
         // Verify notification was actually posted
-        Assert.True(notificationPosted, "Notification should have been posted");
+        Assert.IsTrue(notificationPosted, "Notification should have been posted");
         
         // Verify no "popup host" exception was thrown - the parent chain is correctly set up
         if (caughtException != null)
@@ -224,7 +225,7 @@ public class NotificationCardNodeTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationPanel_AltN_TogglesDrawer()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -272,12 +273,12 @@ public class NotificationCardNodeTests
 
         await runTask;
 
-        Assert.True(notificationPosted, "Notification should have been posted");
+        Assert.IsTrue(notificationPosted, "Notification should have been posted");
         // Drawer should show "Notifications (1)" header
-        Assert.True(snapshot.ContainsText("Notifications (1)"), "Drawer should show notification count");
+        Assert.IsTrue(snapshot.ContainsText("Notifications (1)"), "Drawer should show notification count");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationIcon_OutsidePanel_CanAccessNotifications()
     {
         // This test verifies the core architectural requirement:
@@ -349,16 +350,16 @@ public class NotificationCardNodeTests
         await runTask;
 
         // Verify no exception was thrown accessing notifications
-        Assert.Null(caughtException);
+        Assert.IsNull(caughtException);
         
         // Verify notification was actually posted
-        Assert.True(notificationPosted, "Notification handler should have been called");
+        Assert.IsTrue(notificationPosted, "Notification handler should have been called");
         
         // Verify notification appears on screen
-        Assert.True(snapshot.ContainsText("Test Alert"), "Notification should appear");
+        Assert.IsTrue(snapshot.ContainsText("Test Alert"), "Notification should appear");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationIcon_Click_TogglesRegisteredPanel()
     {
         // Verifies that clicking NotificationIcon toggles the panel visibility
@@ -415,12 +416,10 @@ public class NotificationCardNodeTests
         await runTask;
 
         // Drawer should be visible with notification count header
-        Assert.True(
-            snapshot.ContainsText("Notifications (1)") || snapshot.ContainsText("Notifications(1)"),
-            $"Drawer should show with count. Screen:\n{snapshot}");
+        Assert.IsTrue(snapshot.ContainsText("Notifications (1)") || snapshot.ContainsText("Notifications(1)"), $"Drawer should show with count. Screen:\n{snapshot}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationDrawer_ClickOutside_CollapsesDrawer()
     {
         // Verifies that clicking outside the drawer collapses it
@@ -483,12 +482,10 @@ public class NotificationCardNodeTests
         await runTask;
 
         // Drawer should have collapsed - "Notifications (1)" header should be gone
-        Assert.False(
-            snapshot.ContainsText("Notifications (1)"),
-            $"Drawer should have collapsed after clicking outside. Screen:\n{snapshot.GetText()}");
+        Assert.IsFalse(snapshot.ContainsText("Notifications (1)"), $"Drawer should have collapsed after clicking outside. Screen:\n{snapshot.GetText()}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationCard_DrawerMode_HidesProgressBar()
     {
         // Verifies that notifications in the drawer don't show progress bars
@@ -543,17 +540,15 @@ public class NotificationCardNodeTests
         await runTask;
 
         // The notification should be visible in the drawer
-        Assert.True(snapshot.ContainsText("Drawer Test"),
-            $"Drawer view should show notification. Screen:\n{snapshot.GetText()}");
-        Assert.True(snapshot.ContainsText("Notifications (1)"),
-            "Drawer header should be visible");
+        Assert.IsTrue(snapshot.ContainsText("Drawer Test"), $"Drawer view should show notification. Screen:\n{snapshot.GetText()}");
+        Assert.IsTrue(snapshot.ContainsText("Notifications (1)"), "Drawer header should be visible");
         
         // The test validates that ShowProgressBar=false is applied to drawer cards
         // by checking that the drawer renders correctly without the progress bar row
         // (which would cause layout issues if not handled properly)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NotificationDrawer_ClickOnCardButton_DismissesNotification()
     {
         // Verifies that clicking on the dismiss button inside a drawer card works
@@ -618,8 +613,7 @@ public class NotificationCardNodeTests
         var hitTestDebug = app.LastHitTestDebug ?? "no debug info";
 
         // Notification should be dismissed - header should show 0 or drawer should close
-        Assert.False(snapshot.ContainsText("Dismiss Test"),
-            $"Notification should have been dismissed.\nHitTest: {hitTestDebug}\nScreen:\n{snapshot.GetText()}");
+        Assert.IsFalse(snapshot.ContainsText("Dismiss Test"), $"Notification should have been dismissed.\nHitTest: {hitTestDebug}\nScreen:\n{snapshot.GetText()}");
     }
 }
 
@@ -627,6 +621,7 @@ public class NotificationCardNodeTests
 /// <summary>
 /// Tests for notification panel hit testing behavior.
 /// </summary>
+[TestClass]
 public class NotificationPanelHitTestTests
 {
     /// <summary>
@@ -634,7 +629,7 @@ public class NotificationPanelHitTestTests
     /// clicking on notification cards should NOT pass through to the content below.
     /// The drawer should have priority in hit testing.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task NotificationPanel_DrawerExpanded_BlocksHitTestToContentBelow()
     {
         // Arrange - Create a notification panel with buttons underneath
@@ -704,18 +699,16 @@ public class NotificationPanelHitTestTests
 
         // The content button should NOT have been clicked
         // Focus should stay on drawer elements, not pass through to content
-        Assert.False(contentButtonClicked,
-            $"Content button should NOT be clicked when drawer is expanded. Screen:\n{snapshot}");
+        Assert.IsFalse(contentButtonClicked, $"Content button should NOT be clicked when drawer is expanded. Screen:\n{snapshot}");
         
         // The drawer should still be visible
-        Assert.True(snapshot.ContainsText("Notifications"),
-            $"Drawer should still be visible. Screen:\n{snapshot}");
+        Assert.IsTrue(snapshot.ContainsText("Notifications"), $"Drawer should still be visible. Screen:\n{snapshot}");
     }
 
     /// <summary>
     /// Test that when drawer is collapsed, content buttons are accessible.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task NotificationPanel_DrawerCollapsed_ContentIsAccessible()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -763,14 +756,13 @@ public class NotificationPanelHitTestTests
         await runTask;
 
         // Content button should be clicked when drawer is collapsed
-        Assert.True(contentButtonClicked,
-            $"Content button SHOULD be clickable when drawer is collapsed. Screen:\n{snapshot}");
+        Assert.IsTrue(contentButtonClicked, $"Content button SHOULD be clickable when drawer is collapsed. Screen:\n{snapshot}");
     }
 
     /// <summary>
     /// Test that floating notifications have priority over content.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task NotificationPanel_FloatingNotification_HasPriorityOverContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -818,9 +810,7 @@ public class NotificationPanelHitTestTests
         await runTask;
 
         // Floating notification should be visible on top
-        Assert.True(snapshot.ContainsText("Alert"),
-            $"Floating notification should be visible. Screen:\n{snapshot.GetDisplayText()}");
-        Assert.True(snapshot.ContainsText("Important message"),
-            $"Notification body should be visible. Screen:\n{snapshot.GetDisplayText()}");
+        Assert.IsTrue(snapshot.ContainsText("Alert"), $"Floating notification should be visible. Screen:\n{snapshot.GetDisplayText()}");
+        Assert.IsTrue(snapshot.ContainsText("Important message"), $"Notification body should be visible. Screen:\n{snapshot.GetDisplayText()}");
     }
 }

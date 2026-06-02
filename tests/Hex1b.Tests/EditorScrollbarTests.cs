@@ -11,6 +11,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorScrollbarTests
 {
     // ── Helpers ──────────────────────────────────────────────────
@@ -76,25 +77,25 @@ public class EditorScrollbarTests
     // SECTION 1: Vertical scrollbar visibility & rendering
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void VScrollbar_AppearsWhenContentExceedsViewport()
     {
         // 50 lines in 10-line viewport → scrollbar
         var node = CreateNode(MakeLines(50), 30, 10);
-        Assert.Equal(29, node.ViewportColumns); // 30 - 1 for scrollbar
-        Assert.Equal(10, node.ViewportLines);
+        Assert.AreEqual(29, node.ViewportColumns); // 30 - 1 for scrollbar
+        Assert.AreEqual(10, node.ViewportLines);
     }
 
-    [Fact]
+    [TestMethod]
     public void VScrollbar_AbsentWhenContentFits()
     {
         // 5 lines in 10-line viewport → no scrollbar
         var node = CreateNode(MakeLines(5), 30, 10);
-        Assert.Equal(30, node.ViewportColumns);
-        Assert.Equal(10, node.ViewportLines);
+        Assert.AreEqual(30, node.ViewportColumns);
+        Assert.AreEqual(10, node.ViewportLines);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task VScrollbar_RendersTrackAndThumb()
     {
         var text = MakeLines(50);
@@ -134,31 +135,31 @@ public class EditorScrollbarTests
             if (ch == thumbChar) hasThumb = true;
         }
 
-        Assert.True(hasTrack, "Should have track characters on rightmost column");
-        Assert.True(hasThumb, "Should have thumb characters on rightmost column");
+        Assert.IsTrue(hasTrack, "Should have track characters on rightmost column");
+        Assert.IsTrue(hasThumb, "Should have thumb characters on rightmost column");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 2: Horizontal scrollbar visibility & rendering
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void HScrollbar_AppearsWhenLinesExceedViewportWidth()
     {
         // 5 lines, each 80 chars, in 30-wide viewport → h-scrollbar
         var node = CreateNode(MakeWideLines(5, 80), 30, 10);
-        Assert.Equal(9, node.ViewportLines); // 10 - 1 for h-scrollbar
+        Assert.AreEqual(9, node.ViewportLines); // 10 - 1 for h-scrollbar
     }
 
-    [Fact]
+    [TestMethod]
     public void HScrollbar_AbsentWhenContentFitsWidth()
     {
         // 5 lines, each 10 chars, in 30-wide viewport → no h-scrollbar
         var node = CreateNode(MakeWideLines(5, 10), 30, 10);
-        Assert.Equal(10, node.ViewportLines);
+        Assert.AreEqual(10, node.ViewportLines);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HScrollbar_RendersOnBottomRow()
     {
         var text = MakeWideLines(3, 80); // 3 lines, 80 chars each
@@ -195,23 +196,23 @@ public class EditorScrollbarTests
             if (ch == trackChar || ch == thumbChar) hasTrackOrThumb = true;
         }
 
-        Assert.True(hasTrackOrThumb, "Horizontal scrollbar should appear on bottom row");
+        Assert.IsTrue(hasTrackOrThumb, "Horizontal scrollbar should appear on bottom row");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 3: Both scrollbars (wide + tall content)
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void BothScrollbars_WideAndTallContent()
     {
         // 50 lines, each 80 chars → both scrollbars
         var node = CreateNode(MakeWideLines(50, 80), 30, 10);
-        Assert.Equal(29, node.ViewportColumns); // -1 for v-scrollbar
-        Assert.Equal(9, node.ViewportLines);    // -1 for h-scrollbar
+        Assert.AreEqual(29, node.ViewportColumns); // -1 for v-scrollbar
+        Assert.AreEqual(9, node.ViewportLines);    // -1 for h-scrollbar
     }
 
-    [Fact]
+    [TestMethod]
     public async Task BothScrollbars_RenderCorrectly()
     {
         var text = MakeWideLines(50, 80);
@@ -258,7 +259,7 @@ public class EditorScrollbarTests
             var ch = snapshot.GetCell(29, row).Character;
             if (ch == vTrack || ch == vThumb) hasVScrollbar = true;
         }
-        Assert.True(hasVScrollbar, "Vertical scrollbar should render on col 29");
+        Assert.IsTrue(hasVScrollbar, "Vertical scrollbar should render on col 29");
 
         // Horizontal scrollbar on row 9, cols 0-28 (not col 29 — that's the corner)
         var hasHScrollbar = false;
@@ -267,14 +268,14 @@ public class EditorScrollbarTests
             var ch = snapshot.GetCell(col, 9).Character;
             if (ch == hTrack || ch == hThumb) hasHScrollbar = true;
         }
-        Assert.True(hasHScrollbar, "Horizontal scrollbar should render on row 9");
+        Assert.IsTrue(hasHScrollbar, "Horizontal scrollbar should render on row 9");
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 4: Cursor position & scroll at document edges
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task CursorAtDocStart_ContentShowsFirstLines()
     {
         var text = MakeLines(50);
@@ -294,7 +295,7 @@ public class EditorScrollbarTests
         Assert.Contains("L002", snapshot.GetLineTrimmed(1));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CursorAtDocEnd_ContentShowsLastLines()
     {
         var text = MakeLines(50);
@@ -322,10 +323,10 @@ public class EditorScrollbarTests
                 break;
             }
         }
-        Assert.True(foundLast, "Last line L050 should be visible after Ctrl+End");
+        Assert.IsTrue(foundLast, "Last line L050 should be visible after Ctrl+End");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CursorAtEndOfLongLine_HScrollShowsEnd()
     {
         var text = MakeWideLines(5, 80);
@@ -366,29 +367,29 @@ public class EditorScrollbarTests
     // SECTION 5: Scroll-does-NOT-flick-back (stability)
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void ScrollManually_DoesNotFlickBackOnReArrange()
     {
         // Core invariant: Setting scroll offset without moving cursor must be stable
         // across multiple Arrange passes.
         var node = CreateNode(MakeLines(50), 30, 10);
-        Assert.Equal(1, node.ScrollOffset); // starts at top
+        Assert.AreEqual(1, node.ScrollOffset); // starts at top
 
         // Simulate scrollbar/wheel: change scroll without cursor move
         node.ScrollOffset = 25;
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(25, node.ScrollOffset);
+        Assert.AreEqual(25, node.ScrollOffset);
 
         // Arrange again — should STILL be at 25
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(25, node.ScrollOffset);
+        Assert.AreEqual(25, node.ScrollOffset);
 
         // And a third time
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(25, node.ScrollOffset);
+        Assert.AreEqual(25, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollWheel_ThenWait_DoesNotFlickBack()
     {
         // Integration test: scroll down with wheel, then wait — should stay scrolled.
@@ -426,11 +427,11 @@ public class EditorScrollbarTests
         using (var snapshotAfterWait = terminal.CreateSnapshot())
             line0AfterWait = snapshotAfterWait.GetLineTrimmed(0);
 
-        Assert.Equal(line0After, line0AfterWait);
+        Assert.AreEqual(line0After, line0AfterWait);
         Assert.DoesNotContain("L001", line0AfterWait);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollWheel_ThenTypeChar_SnapsBackToCursor()
     {
         // After scrolling away, typing should snap back to cursor position.
@@ -467,10 +468,10 @@ public class EditorScrollbarTests
                 break;
             }
         }
-        Assert.True(foundX, "After typing, viewport should snap back to show cursor + typed text");
+        Assert.IsTrue(foundX, "After typing, viewport should snap back to show cursor + typed text");
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterManyLines_ThenScrollUp_StaysScrolled()
     {
         // Exact repro of the user's bug: press Enter N times, scroll up, it flicks back.
@@ -486,27 +487,27 @@ public class EditorScrollbarTests
 
         // Cursor is at line 31, scroll shows lines around 22-31
         var scrollAfterEnters = node.ScrollOffset;
-        Assert.True(scrollAfterEnters > 20, $"Should have scrolled down, at {scrollAfterEnters}");
+        Assert.IsTrue(scrollAfterEnters > 20, $"Should have scrolled down, at {scrollAfterEnters}");
 
         // Now scroll up via ScrollOffset (simulates wheel/scrollbar)
         node.ScrollOffset = 1;
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
 
         // Re-arrange again — must NOT flick back
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
 
         // Third arrange — still stable
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
     }
 
     // ═══════════════════════════════════════════════════════════
     // SECTION 6: Mouse wheel scrolling
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task WheelDown_ScrollsContentDown()
     {
         var text = MakeLines(50);
@@ -538,7 +539,7 @@ public class EditorScrollbarTests
         Assert.DoesNotContain("L001", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WheelUp_ScrollsContentUp()
     {
         var text = MakeLines(50);
@@ -571,7 +572,7 @@ public class EditorScrollbarTests
     // SECTION 7: Scrollbar click (page jump)
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task VScrollbarClick_BelowThumb_PagesDown()
     {
         var text = MakeLines(100);
@@ -599,7 +600,7 @@ public class EditorScrollbarTests
         Assert.DoesNotContain("L001", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HScrollbarClick_RightOfThumb_PagesRight()
     {
         var text = MakeWideLines(3, 120); // very wide lines
@@ -632,7 +633,7 @@ public class EditorScrollbarTests
     // SECTION 8: Scrollbar thumb drag
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task VScrollbarDrag_ThumbDown_ScrollsContent()
     {
         var text = MakeLines(100);
@@ -660,7 +661,7 @@ public class EditorScrollbarTests
         Assert.DoesNotContain("L001", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task VScrollbarDrag_IsStable_DoesNotFlickBack()
     {
         // After dragging the scrollbar thumb, the scroll position must remain stable.
@@ -693,7 +694,7 @@ public class EditorScrollbarTests
         var snapshotAfterWait = terminal.CreateSnapshot();
         var line0AfterWait = snapshotAfterWait.GetLineTrimmed(0);
 
-        Assert.Equal(line0After, line0AfterWait);
+        Assert.AreEqual(line0After, line0AfterWait);
         Assert.DoesNotContain("L001", line0AfterWait);
     }
 
@@ -701,7 +702,7 @@ public class EditorScrollbarTests
     // SECTION 9: Predicted content verification
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollTo_SpecificLine_ShowsExpectedContent()
     {
         // 50 lines: L001..L050, viewport 30x10. After Ctrl+End, viewport should
@@ -730,12 +731,12 @@ public class EditorScrollbarTests
             seenLines.Add(snapshot.GetLineTrimmed(row));
         }
 
-        Assert.Contains(seenLines, l => l.Contains("L050"));
+        Assert.IsTrue(seenLines.Any(l => l.Contains("L050")));
         // L001 should NOT be visible
-        Assert.DoesNotContain(seenLines, l => l.Contains("L001"));
+        Assert.IsFalse(seenLines.Any(l => l.Contains("L001")));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageDown_ThenPageUp_ReturnsToOriginalContent()
     {
         var text = MakeLines(50);
@@ -775,7 +776,7 @@ public class EditorScrollbarTests
     // SECTION 10: Horizontal scroll stability
     // ═══════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void HScrollManually_DoesNotFlickBackOnReArrange()
     {
         var node = CreateNode(MakeWideLines(5, 80), 30, 10);
@@ -783,14 +784,14 @@ public class EditorScrollbarTests
         // Set horizontal scroll
         node.HorizontalScrollOffset = 20;
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(20, node.HorizontalScrollOffset);
+        Assert.AreEqual(20, node.HorizontalScrollOffset);
 
         // Re-arrange — must stay
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(20, node.HorizontalScrollOffset);
+        Assert.AreEqual(20, node.HorizontalScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void CursorMove_SnapsHorizontalScroll()
     {
         // After horizontal scroll, moving cursor to beginning should snap back.
@@ -800,12 +801,12 @@ public class EditorScrollbarTests
         node.State.MoveToLineEnd();
         node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.True(node.HorizontalScrollOffset > 0, "Should have scrolled right");
+        Assert.IsTrue(node.HorizontalScrollOffset > 0, "Should have scrolled right");
 
         // Now Home (triggers cursor move back to column 0)
         node.State.MoveToLineStart();
         node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 30, 10));
-        Assert.Equal(0, node.HorizontalScrollOffset);
+        Assert.AreEqual(0, node.HorizontalScrollOffset);
     }
 }

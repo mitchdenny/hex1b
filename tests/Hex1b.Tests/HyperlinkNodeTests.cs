@@ -7,31 +7,32 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class HyperlinkNodeTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsTextWidth()
     {
         var node = new HyperlinkNode { Text = "Click here", Uri = "https://example.com" };
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(10, size.Width); // "Click here" is 10 characters
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(10, size.Width); // "Click here" is 10 characters
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithEmptyText_ReturnsZeroWidth()
     {
         var node = new HyperlinkNode { Text = "", Uri = "https://example.com" };
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(0, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxConstraints()
     {
         var node = new HyperlinkNode { Text = "This is a very long hyperlink text", Uri = "https://example.com" };
@@ -39,18 +40,18 @@ public class HyperlinkNodeTests
         
         var size = node.Measure(constraints);
         
-        Assert.Equal(10, size.Width); // Clamped to max
+        Assert.AreEqual(10, size.Width); // Clamped to max
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new HyperlinkNode();
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocused_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode();
@@ -58,10 +59,10 @@ public class HyperlinkNodeTests
         
         node.IsFocused = true;
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsHovered_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode();
@@ -69,10 +70,10 @@ public class HyperlinkNodeTests
         
         node.IsHovered = true;
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Text_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Text = "Initial" };
@@ -80,10 +81,10 @@ public class HyperlinkNodeTests
         
         node.Text = "Changed";
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Uri_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Uri = "https://old.com" };
@@ -91,10 +92,10 @@ public class HyperlinkNodeTests
         
         node.Uri = "https://new.com";
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Parameters_WhenChanged_MarksDirty()
     {
         var node = new HyperlinkNode { Parameters = "" };
@@ -102,10 +103,10 @@ public class HyperlinkNodeTests
         
         node.Parameters = "id=test";
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_OutputsOsc8Sequences()
     {
         var node = new HyperlinkNode 
@@ -132,7 +133,7 @@ public class HyperlinkNodeTests
         Assert.Contains("Link", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithParameters_IncludesParametersInSequence()
     {
         var node = new HyperlinkNode 
@@ -159,7 +160,7 @@ public class HyperlinkNodeTests
         Assert.Contains("Link", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_TriggersClickAction()
     {
         var clicked = false;
@@ -173,11 +174,11 @@ public class HyperlinkNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_DoesNotClick()
     {
         var clicked = false;
@@ -191,11 +192,11 @@ public class HyperlinkNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.False(clicked);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.IsFalse(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NullClickAction_DoesNotThrow()
     {
         var node = new HyperlinkNode 
@@ -209,58 +210,59 @@ public class HyperlinkNodeTests
         // With no ClickAction, no bindings are registered, so Enter falls through
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 }
 
+[TestClass]
 public class HyperlinkWidgetTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Constructor_SetsTextAndUri()
     {
         var widget = new HyperlinkWidget("Click me", "https://example.com");
         
-        Assert.Equal("Click me", widget.Text);
-        Assert.Equal("https://example.com", widget.Uri);
+        Assert.AreEqual("Click me", widget.Text);
+        Assert.AreEqual("https://example.com", widget.Uri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Parameters_SetsParameters()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .Parameters("id=test");
         
-        Assert.Equal("id=test", widget.ParameterString);
+        Assert.AreEqual("id=test", widget.ParameterString);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Id_SetsIdParameter()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .Id("unique123");
         
-        Assert.Equal("id=unique123", widget.ParameterString);
+        Assert.AreEqual("id=unique123", widget.ParameterString);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnClick_SetsClickHandler()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .OnClick(_ => { });
         
-        Assert.NotNull(widget.ClickHandler);
+        Assert.IsNotNull(widget.ClickHandler);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnClick_Async_SetsClickHandler()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com")
             .OnClick(async _ => { await Task.Delay(1); });
         
-        Assert.NotNull(widget.ClickHandler);
+        Assert.IsNotNull(widget.ClickHandler);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesNewNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
@@ -268,13 +270,13 @@ public class HyperlinkWidgetTests
         
         var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
         
-        Assert.IsType<HyperlinkNode>(node);
+        TestSeq.IsType<HyperlinkNode>(node);
         var hyperlinkNode = (HyperlinkNode)node;
-        Assert.Equal("Link", hyperlinkNode.Text);
-        Assert.Equal("https://example.com", hyperlinkNode.Uri);
+        Assert.AreEqual("Link", hyperlinkNode.Text);
+        Assert.AreEqual("https://example.com", hyperlinkNode.Uri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReusesExistingNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
@@ -283,10 +285,10 @@ public class HyperlinkWidgetTests
         
         var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
         
-        Assert.Same(existingNode, node);
+        Assert.AreSame(existingNode, node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesNodeProperties()
     {
         var widget = new HyperlinkWidget("New Text", "https://new.com")
@@ -302,23 +304,24 @@ public class HyperlinkWidgetTests
         var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
         
         var hyperlinkNode = (HyperlinkNode)node;
-        Assert.Equal("New Text", hyperlinkNode.Text);
-        Assert.Equal("https://new.com", hyperlinkNode.Uri);
-        Assert.Equal("id=new", hyperlinkNode.Parameters);
+        Assert.AreEqual("New Text", hyperlinkNode.Text);
+        Assert.AreEqual("https://new.com", hyperlinkNode.Uri);
+        Assert.AreEqual("id=new", hyperlinkNode.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetExpectedNodeType_ReturnsHyperlinkNode()
     {
         var widget = new HyperlinkWidget("Link", "https://example.com");
         
-        Assert.Equal(typeof(HyperlinkNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(HyperlinkNode), widget.GetExpectedNodeType());
     }
 }
 
+[TestClass]
 public class HyperlinkIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Integration_Hyperlink_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -342,10 +345,10 @@ public class HyperlinkIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("GitHub"));
+        Assert.IsTrue(snapshot.ContainsText("GitHub"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Hyperlink_Enter_TriggersAction()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -375,11 +378,11 @@ public class HyperlinkIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
-        Assert.Equal("https://example.com", clickedUri);
+        Assert.IsTrue(clicked);
+        Assert.AreEqual("https://example.com", clickedUri);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultipleHyperlinks_TabNavigates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -409,11 +412,11 @@ public class HyperlinkIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(link1Clicked);
-        Assert.True(link2Clicked);
+        Assert.IsFalse(link1Clicked);
+        Assert.IsTrue(link2Clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HyperlinkWithButton_TabBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -443,8 +446,8 @@ public class HyperlinkIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(linkClicked);
-        Assert.True(buttonClicked);
+        Assert.IsFalse(linkClicked);
+        Assert.IsTrue(buttonClicked);
     }
 }
 

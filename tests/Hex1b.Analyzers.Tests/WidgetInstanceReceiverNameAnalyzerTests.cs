@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetInstanceReceiverNameAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetInstanceReceiverNameAnalyzer>.Diagnostic(WidgetInstanceReceiverNameAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_RoleNamed_OnConcreteWidget_Reports()
     {
         const string source = """
@@ -30,7 +31,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("editor", "LanguageServer"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_NamedWidget_OnConcreteWidget_NoDiagnostic()
     {
         const string source = """
@@ -49,7 +50,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_GenericWidgetConstrained_NamedNonWidget_Reports()
     {
         const string source = """
@@ -68,7 +69,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("w", "InputBindings"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_GenericWidgetConstrained_NamedWidget_NoDiagnostic()
     {
         const string source = """
@@ -87,7 +88,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WidgetContextReceiver_NoDiagnostic()
     {
         // WidgetContext<T> is HEX1B0006 territory; this analyzer must stay silent.
@@ -109,7 +110,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetReceiver_NoDiagnostic()
     {
         const string source = """
@@ -124,7 +125,7 @@ public class WidgetInstanceReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonExtensionMethod_NoDiagnostic()
     {
         const string source = """

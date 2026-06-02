@@ -22,6 +22,7 @@ namespace Hex1b.Tests;
 /// 2. Render to the terminal once per category (not per character)
 /// 3. Verify the right border column is consistent across all rows
 /// </summary>
+[TestClass]
 public class UnicodeBorderAlignmentTests
 {
     private const int TerminalWidth = 80;
@@ -281,8 +282,7 @@ public class UnicodeBorderAlignmentTests
             var details = string.Join("\n", borderPositions.Select(p => 
                 $"  Line {p.lineNum}: border at column {p.column}"));
             
-            Assert.Fail(
-                $"Border misalignment detected for '{charDescription}' (char: {testChar})\n" +
+            Assert.Fail($"Border misalignment detected for '{charDescription}' (char: {testChar})\n" +
                 $"Expected all borders at column {expectedPosition}, but found:\n{details}\n\n" +
                 $"Screen:\n{snapshot.GetText()}");
         }
@@ -446,8 +446,7 @@ public class UnicodeBorderAlignmentTests
             var details = string.Join("\n", misaligned.Select(p => 
                 $"  Line {p.lineNum} (col {p.column}): {p.lineContent.Substring(0, Math.Min(50, p.lineContent.Length))}..."));
             
-            Assert.Fail(
-                $"Border misalignment in '{categoryName}'\n" +
+            Assert.Fail($"Border misalignment in '{categoryName}'\n" +
                 $"Expected all borders at column {expectedPosition}\n\n" +
                 $"Failed characters:\n{string.Join("\n", failedChars)}\n\n" +
                 $"Misaligned lines:\n{details}\n\n" +
@@ -474,13 +473,13 @@ public class UnicodeBorderAlignmentTests
     
     #region Category Tests
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_AsciiCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(AsciiChars, "ASCII", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_KnownProblematicChars_AlignCorrectly()
     {
         // This is the most important test - these are characters that have been
@@ -488,103 +487,103 @@ public class UnicodeBorderAlignmentTests
         await AssertBorderAlignmentBatchAsync(KnownProblematicChars, "Known Problematic", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_SimpleEmoji_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(SimpleEmoji, "Simple Emoji", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_SkinToneEmoji_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(SkinToneEmoji, "Skin Tone Emoji", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_ZwjEmoji_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(ZwjEmoji, "ZWJ Emoji", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_FlagEmoji_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(FlagEmoji, "Flag Emoji", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_CjkCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(CjkChars, "CJK", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_CombiningCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(CombiningChars, "Combining Characters", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_KeycapEmoji_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(KeycapEmoji, "Keycap Emoji", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_VariationSelectors_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(VariationSelectors, "Variation Selectors", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_BoxDrawing_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(BoxDrawing, "Box Drawing", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_MathSymbols_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(MathSymbols, "Math Symbols", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_CurrencySymbols_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(CurrencySymbols, "Currency Symbols", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_GreekLetters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(GreekLetters, "Greek Letters", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_FullWidthCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(FullWidthChars, "Full Width", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_HalfWidthKatakana_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(HalfWidthKatakana, "Half Width Katakana", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_ThaiCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(ThaiChars, "Thai", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_ArabicCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(ArabicChars, "Arabic", TestContext.Current.CancellationToken);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_HebrewCharacters_AlignCorrectly()
     {
         await AssertBorderAlignmentBatchAsync(HebrewChars, "Hebrew", TestContext.Current.CancellationToken);
@@ -594,7 +593,7 @@ public class UnicodeBorderAlignmentTests
     
     #region Mixed Content Tests
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_MixedAsciiAndEmoji_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -635,7 +634,7 @@ public class UnicodeBorderAlignmentTests
         AssertRightBorderAligned(snapshot, "Mixed ASCII and Emoji", "mixed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_MultipleEmojiPerLine_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -676,7 +675,7 @@ public class UnicodeBorderAlignmentTests
         AssertRightBorderAligned(snapshot, "Multiple Emoji Per Line", "multiple emoji");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_CjkMixedWithAscii_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -721,7 +720,7 @@ public class UnicodeBorderAlignmentTests
     
     #region Edge Cases
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_EmptyString_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -762,7 +761,7 @@ public class UnicodeBorderAlignmentTests
         AssertRightBorderAligned(snapshot, "Empty String", "empty");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_OnlySpaces_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -802,7 +801,7 @@ public class UnicodeBorderAlignmentTests
         AssertRightBorderAligned(snapshot, "Only Spaces", "spaces");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task BorderAlignment_LongTextWithEmoji_AlignCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -851,22 +850,22 @@ public class UnicodeBorderAlignmentTests
     /// Tests a range of Unicode codepoints for border alignment.
     /// Uses batch testing - all characters in a range are tested in a single render.
     /// </summary>
-    [Theory]
-    [InlineData(0x0080, 0x00FF, "Latin-1 Supplement")]           // Accented chars, symbols
-    [InlineData(0x0100, 0x017F, "Latin Extended-A")]             // European Latin
-    [InlineData(0x0370, 0x03FF, "Greek and Coptic")]             // Greek
-    [InlineData(0x0400, 0x04FF, "Cyrillic")]                     // Russian, etc.
-    [InlineData(0x2000, 0x206F, "General Punctuation")]          // Special spaces, dashes
-    [InlineData(0x2190, 0x21FF, "Arrows")]                       // Arrow symbols
-    [InlineData(0x2200, 0x22FF, "Mathematical Operators")]       // Math symbols
-    [InlineData(0x2300, 0x23FF, "Miscellaneous Technical")]      // Technical symbols
-    [InlineData(0x2500, 0x257F, "Box Drawing")]                  // Box chars
-    [InlineData(0x2580, 0x259F, "Block Elements")]               // Block chars
-    [InlineData(0x25A0, 0x25FF, "Geometric Shapes")]             // Shapes
-    [InlineData(0x2600, 0x26FF, "Miscellaneous Symbols")]        // Misc symbols
-    [InlineData(0x2700, 0x27BF, "Dingbats")]                     // Dingbats
-    [InlineData(0x3000, 0x303F, "CJK Symbols and Punctuation")]  // CJK punctuation
-    [InlineData(0x4E00, 0x4E50, "CJK Unified Ideographs (sample)")] // CJK chars (sample)
+    [TestMethod]
+    [DataRow(0x0080, 0x00FF, "Latin-1 Supplement")]           // Accented chars, symbols
+    [DataRow(0x0100, 0x017F, "Latin Extended-A")]             // European Latin
+    [DataRow(0x0370, 0x03FF, "Greek and Coptic")]             // Greek
+    [DataRow(0x0400, 0x04FF, "Cyrillic")]                     // Russian, etc.
+    [DataRow(0x2000, 0x206F, "General Punctuation")]          // Special spaces, dashes
+    [DataRow(0x2190, 0x21FF, "Arrows")]                       // Arrow symbols
+    [DataRow(0x2200, 0x22FF, "Mathematical Operators")]       // Math symbols
+    [DataRow(0x2300, 0x23FF, "Miscellaneous Technical")]      // Technical symbols
+    [DataRow(0x2500, 0x257F, "Box Drawing")]                  // Box chars
+    [DataRow(0x2580, 0x259F, "Block Elements")]               // Block chars
+    [DataRow(0x25A0, 0x25FF, "Geometric Shapes")]             // Shapes
+    [DataRow(0x2600, 0x26FF, "Miscellaneous Symbols")]        // Misc symbols
+    [DataRow(0x2700, 0x27BF, "Dingbats")]                     // Dingbats
+    [DataRow(0x3000, 0x303F, "CJK Symbols and Punctuation")]  // CJK punctuation
+    [DataRow(0x4E00, 0x4E50, "CJK Unified Ideographs (sample)")] // CJK chars (sample)
     public async Task BorderAlignment_UnicodeRange_AlignCorrectly(
         int startCodepoint, 
         int endCodepoint, 
@@ -910,7 +909,7 @@ public class UnicodeBorderAlignmentTests
     
     #region Debug Tests
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_VariationSelectorEmoji_CellStorage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -953,13 +952,13 @@ public class UnicodeBorderAlignmentTests
         // Cell 2: "" (continuation cell for ⚠️)
         // Cell 3: B (width 1)
         
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("⚠️", snapshot.GetCell(1, 0).Character);  // Full emoji with VS16
-        Assert.Equal("", snapshot.GetCell(2, 0).Character);    // Continuation
-        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("⚠️", snapshot.GetCell(1, 0).Character);  // Full emoji with VS16
+        Assert.AreEqual("", snapshot.GetCell(2, 0).Character);    // Continuation
+        Assert.AreEqual("B", snapshot.GetCell(3, 0).Character);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_DesktopComputerEmoji_CellStorage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1002,16 +1001,16 @@ public class UnicodeBorderAlignmentTests
         // Cell 2: "" (continuation cell for 🖥️)
         // Cell 3: B (width 1)
         
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
         // Check that cell 1 is the full emoji with VS16, not just the base character
         var cell1 = snapshot.GetCell(1, 0).Character;
         _output.WriteLine($"Cell1 codepoints: {string.Join("+", cell1?.EnumerateRunes().Select(r => $"U+{r.Value:X4}") ?? [])}");
-        Assert.True(cell1?.Contains("\uFE0F") ?? false, $"Expected VS16 (FE0F) in cell 1, got: {cell1}");
-        Assert.Equal("", snapshot.GetCell(2, 0).Character);    // Continuation
-        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+        Assert.IsTrue(cell1?.Contains("\uFE0F") ?? false, $"Expected VS16 (FE0F) in cell 1, got: {cell1}");
+        Assert.AreEqual("", snapshot.GetCell(2, 0).Character);    // Continuation
+        Assert.AreEqual("B", snapshot.GetCell(3, 0).Character);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_BorderAlignment_CellPositions()
     {
         const int width = 20;
@@ -1070,7 +1069,7 @@ public class UnicodeBorderAlignmentTests
         
         // Now check specific assertions
         // Row 0 is top border (┌───┐)
-        Assert.Equal("┐", snapshot.GetCell(rightBorderColumn, 0).Character);
+        Assert.AreEqual("┐", snapshot.GetCell(rightBorderColumn, 0).Character);
         
         cts.Cancel();
         try { await runTask; } catch (OperationCanceledException) { }
@@ -1078,11 +1077,11 @@ public class UnicodeBorderAlignmentTests
     
     #endregion
     
-    private readonly ITestOutputHelper _output;
-    
-    public UnicodeBorderAlignmentTests(ITestOutputHelper output)
+    private readonly TestContextOutput _output = new();
+
+    private sealed class TestContextOutput
     {
-        _output = output;
+        public void WriteLine(string message) => System.Console.WriteLine(message);
     }
 
     #region Grapheme Cluster Regression Tests
@@ -1091,7 +1090,7 @@ public class UnicodeBorderAlignmentTests
     /// Regression test for the grapheme cluster bug where emoji with variation selectors
     /// were split into separate cells, causing border misalignment.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Surface_EmojiWithVariationSelector_GraphemeClusterKeptTogether()
     {
         // Regression test: emoji with VS16 should occupy 2 cells (main + continuation)
@@ -1103,17 +1102,17 @@ public class UnicodeBorderAlignmentTests
         context.Write("🖥️");  // U+1F5A5 + U+FE0F (desktop computer with variation selector)
         
         // Cell 0 should have the complete emoji (including VS16)
-        Assert.Equal("🖥️", surface[0, 0].Character);
-        Assert.Equal(2, surface[0, 0].DisplayWidth);
+        Assert.AreEqual("🖥️", surface[0, 0].Character);
+        Assert.AreEqual(2, surface[0, 0].DisplayWidth);
         
         // Cell 1 should be a continuation cell
-        Assert.True(surface[1, 0].IsContinuation);
+        Assert.IsTrue(surface[1, 0].IsContinuation);
     }
     
     /// <summary>
     /// Regression test: border at column 29 should not be affected by emoji in content.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void Surface_BorderWithEmoji_RightBorderAtCorrectPosition()
     {
         var surface = new Surfaces.Surface(40, 10);
@@ -1137,8 +1136,8 @@ public class UnicodeBorderAlignmentTests
         context.Write("Test 🖥️ char");  // Text with VS16 emoji
         
         // Right border should still be at column 29
-        Assert.Equal("│", surface[0, 2].Character);   // Left border
-        Assert.Equal("│", surface[29, 2].Character);  // Right border
+        Assert.AreEqual("│", surface[0, 2].Character);   // Left border
+        Assert.AreEqual("│", surface[29, 2].Character);  // Right border
     }
     
     #endregion
@@ -1173,7 +1172,7 @@ public class UnicodeBorderAlignmentTests
     /// <summary>
     /// Integration test: border with emoji content renders correctly.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BorderWithEmojiContent_RightBorderAligned()
     {
         const int width = 30;
@@ -1205,10 +1204,10 @@ public class UnicodeBorderAlignmentTests
         var rightBorderColumn = width - 1;  // Column 29
         
         // All rows should have the border at column 29
-        Assert.Equal("┐", snapshot.GetCell(rightBorderColumn, 0).Character);  // top border
-        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 1).Character);  // Plain ASCII line
-        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 2).Character);  // 🖥️ line - key test
-        Assert.Equal("│", snapshot.GetCell(rightBorderColumn, 3).Character);  // After line
+        Assert.AreEqual("┐", snapshot.GetCell(rightBorderColumn, 0).Character);  // top border
+        Assert.AreEqual("│", snapshot.GetCell(rightBorderColumn, 1).Character);  // Plain ASCII line
+        Assert.AreEqual("│", snapshot.GetCell(rightBorderColumn, 2).Character);  // 🖥️ line - key test
+        Assert.AreEqual("│", snapshot.GetCell(rightBorderColumn, 3).Character);  // After line
         
         cts.Cancel();
         try { await runTask; } catch (OperationCanceledException) { }

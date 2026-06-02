@@ -2,16 +2,17 @@ using System.Text;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class ConsolePresentationAdapterTests
 {
-    [Theory]
-    [InlineData(0x45, '\0', false, false, false, "e")]
-    [InlineData(0x45, '\0', false, false, true, "E")]
-    [InlineData(0x31, '\0', false, false, false, "1")]
-    [InlineData(0x31, '\0', false, false, true, "!")]
-    [InlineData(0xBF, '\0', false, false, false, "/")]
-    [InlineData(0xBF, '\0', false, false, true, "?")]
-    [InlineData(0x20, '\0', false, false, false, " ")]
+    [TestMethod]
+    [DataRow(0x45, '\0', false, false, false, "e")]
+    [DataRow(0x45, '\0', false, false, true, "E")]
+    [DataRow(0x31, '\0', false, false, false, "1")]
+    [DataRow(0x31, '\0', false, false, true, "!")]
+    [DataRow(0xBF, '\0', false, false, false, "/")]
+    [DataRow(0xBF, '\0', false, false, true, "?")]
+    [DataRow(0x20, '\0', false, false, false, " ")]
     public void WindowsConsoleDriver_GetPrintableText_FallsBackToVirtualKeyMapping(
         int virtualKey,
         char unicodeChar,
@@ -22,12 +23,12 @@ public class ConsolePresentationAdapterTests
     {
         var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, unicodeChar, hasCtrl, hasAlt, hasShift);
 
-        Assert.Equal(expected, text);
+        Assert.AreEqual(expected, text);
     }
 
-    [Theory]
-    [InlineData(0x45, true, false)]
-    [InlineData(0x45, false, true)]
+    [TestMethod]
+    [DataRow(0x45, true, false)]
+    [DataRow(0x45, false, true)]
     public void WindowsConsoleDriver_GetPrintableText_DoesNotInventModifiedCharacters(
         int virtualKey,
         bool hasCtrl,
@@ -35,33 +36,33 @@ public class ConsolePresentationAdapterTests
     {
         var text = WindowsConsoleDriver.GetPrintableText((ushort)virtualKey, '\0', hasCtrl, hasAlt, hasShift: false);
 
-        Assert.Null(text);
+        Assert.IsNull(text);
     }
 
-    [Theory]
-    [InlineData("\x1b[65;30;97;1;0;1_", "a")]
-    [InlineData("\x1b[13;28;13;1;0;1_", "\r")]
-    [InlineData("\x1b[65;30;97;1;0;3_", "aaa")]
+    [TestMethod]
+    [DataRow("\x1b[65;30;97;1;0;1_", "a")]
+    [DataRow("\x1b[13;28;13;1;0;1_", "\r")]
+    [DataRow("\x1b[65;30;97;1;0;3_", "aaa")]
     public void WindowsConsoleDriver_TryTranslateWin32InputSequence_DecodesForwardedKeyboardInput(
         string sequence,
         string expected)
     {
         var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence(sequence, out var bytes);
 
-        Assert.True(handled);
-        Assert.Equal(expected, Encoding.UTF8.GetString(bytes));
+        Assert.IsTrue(handled);
+        Assert.AreEqual(expected, Encoding.UTF8.GetString(bytes));
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowsConsoleDriver_TryTranslateWin32InputSequence_IgnoresKeyUpFrames()
     {
         var handled = WindowsConsoleDriver.TryTranslateWin32InputSequence("\x1b[65;30;97;0;0;1_", out var bytes);
 
-        Assert.True(handled);
-        Assert.Empty(bytes);
+        Assert.IsTrue(handled);
+        Assert.IsEmpty(bytes);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_OnUnsupportedPlatform_ThrowsPlatformNotSupportedException()
     {
         // This test verifies the factory pattern works correctly
@@ -70,7 +71,7 @@ public class ConsolePresentationAdapterTests
         
         if (!OperatingSystem.IsLinux() && !OperatingSystem.IsMacOS())
         {
-            Assert.Throws<PlatformNotSupportedException>(() => 
+            Assert.ThrowsExactly<PlatformNotSupportedException>(() => 
                 new ConsolePresentationAdapter(enableMouse: false));
         }
         else
@@ -81,7 +82,7 @@ public class ConsolePresentationAdapterTests
             try
             {
                 var adapter = new ConsolePresentationAdapter(enableMouse: false);
-                Assert.NotNull(adapter);
+                Assert.IsNotNull(adapter);
                 // Clean up - must use async dispose
                 await adapter.DisposeAsync();
             }
@@ -93,7 +94,7 @@ public class ConsolePresentationAdapterTests
         }
     }
     
-    [Fact]
+    [TestMethod]
     public void UnixConsoleDriver_OnlyAvailableOnUnixPlatforms()
     {
         if (OperatingSystem.IsLinux())
@@ -102,7 +103,7 @@ public class ConsolePresentationAdapterTests
             try
             {
                 using var driver = new UnixConsoleDriver();
-                Assert.NotNull(driver);
+                Assert.IsNotNull(driver);
             }
             catch (Exception ex) when (ex.Message.Contains("TTY") || ex.Message.Contains("tcgetattr"))
             {
@@ -115,7 +116,7 @@ public class ConsolePresentationAdapterTests
             try
             {
                 using var driver = new UnixConsoleDriver();
-                Assert.NotNull(driver);
+                Assert.IsNotNull(driver);
             }
             catch (Exception ex) when (ex.Message.Contains("TTY") || ex.Message.Contains("tcgetattr"))
             {
@@ -127,12 +128,12 @@ public class ConsolePresentationAdapterTests
             // On Windows, the driver should throw or not be available
             // Suppress CA1416 - we're intentionally testing that this throws on unsupported platforms
 #pragma warning disable CA1416
-            Assert.Throws<PlatformNotSupportedException>(() => new UnixConsoleDriver());
+            Assert.ThrowsExactly<PlatformNotSupportedException>(() => new UnixConsoleDriver());
 #pragma warning restore CA1416
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterRawModeAsync_WhenKgpQueryResponds_EnablesKgpSupport()
     {
         using var driver = new FakeConsoleDriver($"\x1b_Gi=2147483647;OK\x1b\\");
@@ -140,15 +141,15 @@ public class ConsolePresentationAdapterTests
             driver,
             kgpProbeTimeout: TimeSpan.FromMilliseconds(25));
 
-        Assert.False(adapter.Capabilities.SupportsKgp);
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(adapter.Capabilities.SupportsKgp);
+        Assert.IsTrue(adapter.Capabilities.SupportsKgp);
         Assert.Contains("\x1b_Gi=2147483647,s=1,v=1,a=q,t=d,f=24;AAAA\x1b\\", driver.WrittenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterRawModeAsync_WhenProbeTimesOut_LeavesKgpDisabled()
     {
         using var driver = new FakeConsoleDriver();
@@ -158,10 +159,10 @@ public class ConsolePresentationAdapterTests
 
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
 
-        Assert.False(adapter.Capabilities.SupportsKgp);
+        Assert.IsFalse(adapter.Capabilities.SupportsKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterRawModeAsync_WhenProbeReadsMixedInput_PreservesNonProbeBytes()
     {
         using var driver = new FakeConsoleDriver($"\x1b_Gi=2147483647;OK\x1b\\abc");
@@ -172,10 +173,10 @@ public class ConsolePresentationAdapterTests
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
         var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
 
-        Assert.Equal("abc", Encoding.ASCII.GetString(input.Span));
+        Assert.AreEqual("abc", Encoding.ASCII.GetString(input.Span));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterRawModeAsync_WhenProbeResponseIsSplitAcrossReads_EnablesKgpAndPreservesTrailingBytes()
     {
         using var driver = new FakeConsoleDriver("\x1b_Gi=2147483647", ";OK\x1b\\abc");
@@ -186,14 +187,15 @@ public class ConsolePresentationAdapterTests
         await adapter.EnterRawModeAsync(TestContext.Current.CancellationToken);
         var input = await adapter.ReadInputAsync(TestContext.Current.CancellationToken);
 
-        Assert.True(adapter.Capabilities.SupportsKgp);
-        Assert.Equal("abc", Encoding.ASCII.GetString(input.Span));
+        Assert.IsTrue(adapter.Capabilities.SupportsKgp);
+        Assert.AreEqual("abc", Encoding.ASCII.GetString(input.Span));
     }
 }
 
+[TestClass]
 public class Hex1bTerminalTests_Workload
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_HeadlessMode_CreatesWorkloadAdapter()
     {
         // Headless terminal (no presentation adapter)
@@ -202,21 +204,21 @@ public class Hex1bTerminalTests_Workload
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         // WorkloadAdapter should implement the interface
-        Assert.IsAssignableFrom<IHex1bAppTerminalWorkloadAdapter>(workload);
+        TestSeq.IsType<IHex1bAppTerminalWorkloadAdapter>(workload);
     }
     
-    [Fact]
+    [TestMethod]
     public void GetSize_ReturnsConfiguredSize()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(100, 50).Build();
         
-        Assert.Equal(100, terminal.Width);
-        Assert.Equal(50, terminal.Height);
+        Assert.AreEqual(100, terminal.Width);
+        Assert.AreEqual(50, terminal.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Write_CapturesOutput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -229,10 +231,10 @@ public class Hex1bTerminalTests_Workload
             .Build()
             .ApplyAsync(terminal);
         
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Hello"));
     }
     
-    [Fact]
+    [TestMethod]
     public void InputEvents_ReturnsChannelReader()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -240,10 +242,10 @@ public class Hex1bTerminalTests_Workload
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var reader = workload.InputEvents;
-        Assert.NotNull(reader);
+        Assert.IsNotNull(reader);
     }
     
-    [Fact]
+    [TestMethod]
     public void Capabilities_ReturnsDefaults()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -251,9 +253,9 @@ public class Hex1bTerminalTests_Workload
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(80, 24).Build();
         
         var caps = workload.Capabilities;
-        Assert.NotNull(caps);
-        Assert.True(caps.SupportsMouse);
-        Assert.True(caps.SupportsTrueColor);
+        Assert.IsNotNull(caps);
+        Assert.IsTrue(caps.SupportsMouse);
+        Assert.IsTrue(caps.SupportsTrueColor);
     }
 }
 

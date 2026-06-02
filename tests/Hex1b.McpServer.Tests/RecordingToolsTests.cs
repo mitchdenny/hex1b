@@ -7,6 +7,7 @@ namespace Hex1b.McpServer.Tests;
 /// <summary>
 /// Integration tests for the asciinema recording MCP tools.
 /// </summary>
+[TestClass]
 public class RecordingToolsTests : McpServerTestBase
 {
     private readonly List<string> _tempFiles = new();
@@ -53,7 +54,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
 
         var createText = GetTextContent(createResult);
-        Assert.NotNull(createText);
+        Assert.IsNotNull(createText);
 
         var createResponse = JsonSerializer.Deserialize<JsonElement>(createText);
         var success = createResponse.TryGetProperty("success", out var successValue) && successValue.GetBoolean();
@@ -61,8 +62,8 @@ public class RecordingToolsTests : McpServerTestBase
             ? messageValue.GetString()
             : null;
 
-        Assert.True(success, message ?? $"Expected {StartTerminalToolName} to succeed.");
-        Assert.True(
+        Assert.IsTrue(success, message ?? $"Expected {StartTerminalToolName} to succeed.");
+        Assert.IsTrue(
             createResponse.TryGetProperty("sessionId", out var sessionIdValue)
             && !string.IsNullOrWhiteSpace(sessionIdValue.GetString()),
             $"Expected terminal start response to include a sessionId. Response: {createText}");
@@ -70,7 +71,7 @@ public class RecordingToolsTests : McpServerTestBase
         return sessionIdValue.GetString()!;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsciinemaRecording_ValidSession_StartsRecording()
     {
         // Arrange
@@ -91,17 +92,17 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
 
         // Assert
-        Assert.NotNull(startResult);
+        Assert.IsNotNull(startResult);
         var startText = GetTextContent(startResult);
-        Assert.NotNull(startText);
+        Assert.IsNotNull(startText);
         var startResponse = JsonSerializer.Deserialize<JsonElement>(startText);
-        Assert.True(startResponse.GetProperty("success").GetBoolean());
+        Assert.IsTrue(startResponse.GetProperty("success").GetBoolean());
         // File path includes .cast extension enforcement
         Assert.Contains(".cast", startResponse.GetProperty("filePath").GetString());
         
         // Verify file was created
         var actualPath = startResponse.GetProperty("filePath").GetString()!;
-        Assert.True(File.Exists(actualPath), "Recording file should exist");
+        Assert.IsTrue(File.Exists(actualPath), "Recording file should exist");
 
         // Cleanup - remove the session
         await client.CallToolAsync(
@@ -110,7 +111,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StopAsciinemaRecording_ActiveRecording_StopsAndFinalizesFile()
     {
         // Arrange
@@ -131,7 +132,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
         
         var startText = GetTextContent(startResult);
-        Assert.NotNull(startText);
+        Assert.IsNotNull(startText);
         var startResp = JsonSerializer.Deserialize<JsonElement>(startText);
         var recordingPath = startResp.GetProperty("filePath").GetString()!;
 
@@ -145,23 +146,23 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
 
         // Assert
-        Assert.NotNull(stopResult);
+        Assert.IsNotNull(stopResult);
         var stopText = GetTextContent(stopResult);
-        Assert.NotNull(stopText);
+        Assert.IsNotNull(stopText);
         var stopResponse = JsonSerializer.Deserialize<JsonElement>(stopText);
-        Assert.True(stopResponse.GetProperty("success").GetBoolean());
-        Assert.True(stopResponse.GetProperty("wasRecording").GetBoolean());
+        Assert.IsTrue(stopResponse.GetProperty("success").GetBoolean());
+        Assert.IsTrue(stopResponse.GetProperty("wasRecording").GetBoolean());
 
         // Verify file contains valid asciinema content
         var content = await File.ReadAllTextAsync(recordingPath);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length >= 1, "Should have at least a header");
+        Assert.IsTrue(lines.Length >= 1, "Should have at least a header");
         
         // Verify header is valid JSON with asciinema format
         var header = JsonSerializer.Deserialize<JsonElement>(lines[0]);
-        Assert.Equal(2, header.GetProperty("version").GetInt32());
-        Assert.Equal(80, header.GetProperty("width").GetInt32());
-        Assert.Equal(24, header.GetProperty("height").GetInt32());
+        Assert.AreEqual(2, header.GetProperty("version").GetInt32());
+        Assert.AreEqual(80, header.GetProperty("width").GetInt32());
+        Assert.AreEqual(24, header.GetProperty("height").GetInt32());
 
         // Cleanup
         await client.CallToolAsync(
@@ -170,7 +171,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListTerminals_WithRecording_ShowsRecordingStatus()
     {
         // Arrange
@@ -198,14 +199,14 @@ public class RecordingToolsTests : McpServerTestBase
 
         // Assert
         var listText = GetTextContent(listResult);
-        Assert.NotNull(listText);
+        Assert.IsNotNull(listText);
         var listResponse = JsonSerializer.Deserialize<JsonElement>(listText);
         var sessions = listResponse.GetProperty("sessions");
-        Assert.Equal(1, sessions.GetArrayLength());
+        Assert.AreEqual(1, sessions.GetArrayLength());
         
         var session = sessions[0];
-        Assert.True(session.GetProperty("isRecording").GetBoolean());
-        Assert.NotNull(session.GetProperty("activeRecordingPath").GetString());
+        Assert.IsTrue(session.GetProperty("isRecording").GetBoolean());
+        Assert.IsNotNull(session.GetProperty("activeRecordingPath").GetString());
 
         // Cleanup
         await client.CallToolAsync(
@@ -214,7 +215,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsciinemaRecording_InvalidSessionId_ReturnsError()
     {
         // Arrange
@@ -234,13 +235,13 @@ public class RecordingToolsTests : McpServerTestBase
 
         // Assert
         var text = GetTextContent(result);
-        Assert.NotNull(text);
+        Assert.IsNotNull(text);
         var response = JsonSerializer.Deserialize<JsonElement>(text);
-        Assert.False(response.GetProperty("success").GetBoolean());
+        Assert.IsFalse(response.GetProperty("success").GetBoolean());
         Assert.Contains("not found", response.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StartAsciinemaRecording_AlreadyRecording_ReturnsError()
     {
         // Arrange
@@ -273,9 +274,9 @@ public class RecordingToolsTests : McpServerTestBase
 
         // Assert
         var text = GetTextContent(result);
-        Assert.NotNull(text);
+        Assert.IsNotNull(text);
         var response = JsonSerializer.Deserialize<JsonElement>(text);
-        Assert.False(response.GetProperty("success").GetBoolean());
+        Assert.IsFalse(response.GetProperty("success").GetBoolean());
         Assert.Contains("already recording", response.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
 
         // Cleanup
@@ -285,7 +286,7 @@ public class RecordingToolsTests : McpServerTestBase
             cancellationToken: TestCancellationToken);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StopAsciinemaRecording_NotRecording_ReturnsGracefully()
     {
         // Arrange
@@ -302,10 +303,10 @@ public class RecordingToolsTests : McpServerTestBase
 
         // Assert - this is considered success, just wasRecording is false
         var text = GetTextContent(result);
-        Assert.NotNull(text);
+        Assert.IsNotNull(text);
         var response = JsonSerializer.Deserialize<JsonElement>(text);
-        Assert.True(response.GetProperty("success").GetBoolean());
-        Assert.False(response.GetProperty("wasRecording").GetBoolean());
+        Assert.IsTrue(response.GetProperty("success").GetBoolean());
+        Assert.IsFalse(response.GetProperty("wasRecording").GetBoolean());
         Assert.Contains("not recording", response.GetProperty("message").GetString(), StringComparison.OrdinalIgnoreCase);
 
         // Cleanup

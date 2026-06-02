@@ -10,11 +10,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for ToggleSwitchNode rendering and input handling.
 /// </summary>
+[TestClass]
 public class ToggleSwitchNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectSize_ThreeOptions()
     {
         var node = new ToggleSwitchNode
@@ -25,11 +26,11 @@ public class ToggleSwitchNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Per-option chips: " Manual " (8) + " Auto " (6) + " Delayed " (9) = 23
-        Assert.Equal(23, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(23, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyOptions_ReturnsZeroWidth()
     {
         var node = new ToggleSwitchNode
@@ -39,11 +40,11 @@ public class ToggleSwitchNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_SingleOption_ReturnsCorrectSize()
     {
         var node = new ToggleSwitchNode
@@ -54,11 +55,11 @@ public class ToggleSwitchNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // " Only " = 1 + 4 + 1 = 6
-        Assert.Equal(6, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(6, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_TwoOptions_ReturnsCorrectSize()
     {
         var node = new ToggleSwitchNode
@@ -69,11 +70,11 @@ public class ToggleSwitchNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // " On " (4) + " Off " (5) = 9
-        Assert.Equal(9, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(9, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_CJKCharacters_CorrectSize()
     {
         var node = new ToggleSwitchNode
@@ -84,11 +85,11 @@ public class ToggleSwitchNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Per-option chips: " 汉字 " (6) + " Auto " (6) + " 한글 " (6) = 18
-        Assert.Equal(18, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(18, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new ToggleSwitchNode
@@ -98,14 +99,14 @@ public class ToggleSwitchNodeTests
 
         var size = node.Measure(new Constraints(0, 20, 0, 5));
 
-        Assert.Equal(20, size.Width);
+        Assert.AreEqual(20, size.Width);
     }
 
     #endregion
 
     #region Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_ShowsOptions()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -132,7 +133,7 @@ public class ToggleSwitchNodeTests
         Assert.Contains("C", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_ContainsAnsiCodes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -155,10 +156,10 @@ public class ToggleSwitchNodeTests
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.IsTrue(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
         using var focusedWorkload = new Hex1bAppWorkloadAdapter();
@@ -200,7 +201,7 @@ public class ToggleSwitchNodeTests
 
         // Focused toggle should have different styling (colors or attributes)
         var focusedMatch = focusedTerminal.CreateSnapshot().SearchPattern(pattern).First;
-        Assert.NotNull(focusedMatch);
+        Assert.IsNotNull(focusedMatch);
         
         var focusedCells = focusedMatch.Cells;
         var focusedHasStyling = focusedCells.Any(c => 
@@ -208,10 +209,10 @@ public class ToggleSwitchNodeTests
             c.Cell.Foreground.HasValue || 
             c.Cell.Background.HasValue);
         
-        Assert.True(focusedHasStyling, "Focused toggle should have styling applied");
+        Assert.IsTrue(focusedHasStyling, "Focused toggle should have styling applied");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyOptions_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -225,12 +226,12 @@ public class ToggleSwitchNodeTests
         };
         node.Arrange(new Rect(0, 0, 40, 1));
 
-        var exception = Record.Exception(() => node.Render(context));
+        var exception = TestSeq.RecordException(() => node.Render(context));
 
-        Assert.Null(exception);
+        Assert.IsNull(exception);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_UnselectedOption_PaintsUnselectedBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -257,14 +258,14 @@ public class ToggleSwitchNodeTests
         // sit on the unselected background.
         for (var x = 4; x <= 8; x++)
         {
-            Assert.Equal(expectedUnselectedBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedUnselectedBg, snapshot.GetCell(x, 0).Background);
         }
-        Assert.Equal("O", snapshot.GetCell(5, 0).Character);
-        Assert.Equal("f", snapshot.GetCell(6, 0).Character);
-        Assert.Equal("f", snapshot.GetCell(7, 0).Character);
+        Assert.AreEqual("O", snapshot.GetCell(5, 0).Character);
+        Assert.AreEqual("f", snapshot.GetCell(6, 0).Character);
+        Assert.AreEqual("f", snapshot.GetCell(7, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_FocusedSelectedOption_PaintsFocusedSelectedBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -292,15 +293,15 @@ public class ToggleSwitchNodeTests
         // Chip 0 ("On", selected, focused) — every cell sits on the focused selected background.
         for (var x = 0; x <= 3; x++)
         {
-            Assert.Equal(expectedSelectedBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedSelectedBg, snapshot.GetCell(x, 0).Background);
         }
-        Assert.Equal("O", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("n", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("O", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("n", snapshot.GetCell(2, 0).Character);
 
         // Chip 1 ("Off", unselected) — sits on the unselected background.
         for (var x = 4; x <= 8; x++)
         {
-            Assert.Equal(expectedUnselectedBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedUnselectedBg, snapshot.GetCell(x, 0).Background);
         }
     }
 
@@ -308,7 +309,7 @@ public class ToggleSwitchNodeTests
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_MovesToNextOption()
     {
         var node = new ToggleSwitchNode
@@ -320,11 +321,11 @@ public class ToggleSwitchNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_MovesToPreviousOption()
     {
         var node = new ToggleSwitchNode
@@ -336,11 +337,11 @@ public class ToggleSwitchNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_WrapsToFirstOption()
     {
         var node = new ToggleSwitchNode
@@ -352,11 +353,11 @@ public class ToggleSwitchNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_WrapsToLastOption()
     {
         var node = new ToggleSwitchNode
@@ -368,11 +369,11 @@ public class ToggleSwitchNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(2, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(2, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_NotHandled()
     {
         var node = new ToggleSwitchNode
@@ -384,11 +385,11 @@ public class ToggleSwitchNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WhenNotFocused_BindingsStillExecute()
     {
         // Note: With the new input binding architecture, bindings execute at the node level
@@ -403,11 +404,11 @@ public class ToggleSwitchNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Bindings execute regardless of focus state when using RouteInputToNode
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);  // Selection changed
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);  // Selection changed
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_SelectionChanged_CallsCallback()
     {
         var callbackInvoked = false;
@@ -431,28 +432,28 @@ public class ToggleSwitchNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(callbackInvoked);
-        Assert.Equal(1, callbackIndex);
-        Assert.Equal("Auto", callbackValue);
+        Assert.IsTrue(callbackInvoked);
+        Assert.AreEqual(1, callbackIndex);
+        Assert.AreEqual("Auto", callbackValue);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ToggleSwitchNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new ToggleSwitchNode
@@ -463,14 +464,14 @@ public class ToggleSwitchNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region State Tests
 
-    [Fact]
+    [TestMethod]
     public async Task SelectedOption_ReturnsCorrectValue()
     {
         var node = new ToggleSwitchNode
@@ -479,10 +480,10 @@ public class ToggleSwitchNodeTests
             SelectedIndex = 1
         };
 
-        Assert.Equal("Auto", node.SelectedOption);
+        Assert.AreEqual("Auto", node.SelectedOption);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectedOption_EmptyOptions_ReturnsNull()
     {
         var node = new ToggleSwitchNode
@@ -490,14 +491,14 @@ public class ToggleSwitchNodeTests
             Options = []
         };
 
-        Assert.Null(node.SelectedOption);
+        Assert.IsNull(node.SelectedOption);
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ToggleSwitch_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -524,12 +525,12 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Manual"));
-        Assert.True(snapshot.ContainsText("Auto"));
-        Assert.True(snapshot.ContainsText("Delayed"));
+        Assert.IsTrue(snapshot.ContainsText("Manual"));
+        Assert.IsTrue(snapshot.ContainsText("Auto"));
+        Assert.IsTrue(snapshot.ContainsText("Delayed"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ToggleSwitch_ArrowNavigates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -557,10 +558,10 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("On", selectedOption);
+        Assert.AreEqual("On", selectedOption);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ToggleSwitch_MultipleNavigations()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -588,10 +589,10 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("High", selectedOption);
+        Assert.AreEqual("High", selectedOption);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ToggleSwitch_WithOtherWidgets_TabNavigates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -622,11 +623,11 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("B", selectedOption);
-        Assert.True(buttonClicked);
+        Assert.AreEqual("B", selectedOption);
+        Assert.IsTrue(buttonClicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ToggleSwitch_CallbackTriggered()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -654,14 +655,14 @@ public class ToggleSwitchNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Mode2", lastSelectedValue);
+        Assert.AreEqual("Mode2", lastSelectedValue);
     }
 
     #endregion
 
     #region Mouse Click Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_SelectsClickedOption()
     {
         // Layout: " Manual  Auto  Delayed " — per-option chips:
@@ -677,11 +678,11 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(10, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_FirstOption_SelectsIndex0()
     {
         // Layout: " On  Off " — chip 0 covers cells 0-3, chip 1 covers cells 4-8
@@ -697,11 +698,11 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 1, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(1, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_OnLeadingPadding_SelectsFirstOption()
     {
         // Padding cells are part of their owning chip, so clicking the
@@ -718,11 +719,11 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(0, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_CJKCharacters_UsesDisplayWidth()
     {
         // Layout: " 汉字  Off " — chip 0 covers cells 0-5 because
@@ -738,11 +739,11 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 4, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(4, 0, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_PastLastChip_ReturnsNotHandled()
     {
         var node = new ToggleSwitchNode
@@ -756,10 +757,10 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 12, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(12, 0, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_EmptyOptions_ReturnsNotHandled()
     {
         var node = new ToggleSwitchNode
@@ -772,7 +773,7 @@ public class ToggleSwitchNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 0, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, 0, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion

@@ -8,11 +8,12 @@ namespace Hex1b.Tests;
 /// Tests for InfoBarWidget rendering, theming, and composition.
 /// Uses full terminal stack testing as per writing-unit-tests skill.
 /// </summary>
+[TestClass]
 public class InfoBarWidgetTests
 {
     #region Basic Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_SingleSection_RendersText()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -32,10 +33,10 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Ready"));
+        Assert.IsTrue(snapshot.ContainsText("Ready"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_MultipleSections_RendersAll()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -62,13 +63,13 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Mode: Insert"));
-        Assert.True(snapshot.ContainsText("|"));
-        Assert.True(snapshot.ContainsText("UTF-8"));
-        Assert.True(snapshot.ContainsText("Ln 42"));
+        Assert.IsTrue(snapshot.ContainsText("Mode: Insert"));
+        Assert.IsTrue(snapshot.ContainsText("|"));
+        Assert.IsTrue(snapshot.ContainsText("UTF-8"));
+        Assert.IsTrue(snapshot.ContainsText("Ln 42"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_Divider_InsertsDividersBetweenSections()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -102,7 +103,7 @@ public class InfoBarWidgetTests
 
     #region Spacer Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_WithSpacer_PushesContentApart()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -127,15 +128,15 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Left"));
-        Assert.True(snapshot.ContainsText("Right"));
+        Assert.IsTrue(snapshot.ContainsText("Left"));
+        Assert.IsTrue(snapshot.ContainsText("Right"));
     }
 
     #endregion
 
     #region Color Inversion Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_WithInvertColors_SwapsForegroundAndBackground()
     {
         var theme = new Hex1bTheme("Test")
@@ -162,11 +163,11 @@ public class InfoBarWidgetTests
         await runTask;
 
         // With inversion: white foreground becomes background, black background becomes foreground
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), "Should have white background");
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 0, 0)), "Should have black foreground");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 255)), "Should have white background");
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 0, 0)), "Should have black foreground");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_WithInvertColorsFalse_RendersText()
     {
         var theme = new Hex1bTheme("Test")
@@ -193,14 +194,14 @@ public class InfoBarWidgetTests
         await runTask;
 
         // Verify text renders (color assertions removed - they depend on terminal color capture which can be flaky)
-        Assert.True(snapshot.ContainsText("Normal"));
+        Assert.IsTrue(snapshot.ContainsText("Normal"));
     }
 
     #endregion
 
     #region Section Theme Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_SectionWithTheme_AppliesCustomColors()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -226,18 +227,18 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Normal"));
-        Assert.True(snapshot.ContainsText("Error"));
+        Assert.IsTrue(snapshot.ContainsText("Normal"));
+        Assert.IsTrue(snapshot.ContainsText("Error"));
         // Error section should have custom colors
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0)), "Should have red foreground for Error");
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 0)), "Should have yellow background for Error");
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 0, 0)), "Should have red foreground for Error");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 255, 0)), "Should have yellow background for Error");
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_InVStack_PositionedCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -261,14 +262,14 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Main Content"));
-        Assert.True(snapshot.ContainsText("Status Bar"));
+        Assert.IsTrue(snapshot.ContainsText("Main Content"));
+        Assert.IsTrue(snapshot.ContainsText("Status Bar"));
     }
 
-    [Theory]
-    [InlineData(40, 5)]
-    [InlineData(80, 24)]
-    [InlineData(120, 40)]
+    [TestMethod]
+    [DataRow(40, 5)]
+    [DataRow(80, 24)]
+    [DataRow(120, 40)]
     public async Task InfoBar_VariousTerminalSizes_RendersCorrectly(int width, int height)
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -293,15 +294,15 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Mode"));
-        Assert.True(snapshot.ContainsText("Ready"));
+        Assert.IsTrue(snapshot.ContainsText("Mode"));
+        Assert.IsTrue(snapshot.ContainsText("Ready"));
     }
 
     #endregion
 
     #region Theming Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_WithInfoBarTheme_AppliesCorrectly()
     {
         var theme = Hex1bThemes.Default.Clone()
@@ -327,14 +328,14 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Themed"));
+        Assert.IsTrue(snapshot.ContainsText("Themed"));
     }
 
     #endregion
 
     #region Widget Content Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InfoBar_SectionWithWidgetContent_RendersWidget()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -360,8 +361,8 @@ public class InfoBarWidgetTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Status:"));
-        Assert.True(snapshot.ContainsText("OK"));
+        Assert.IsTrue(snapshot.ContainsText("Status:"));
+        Assert.IsTrue(snapshot.ContainsText("OK"));
     }
 
     #endregion

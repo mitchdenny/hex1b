@@ -8,73 +8,74 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="SurfaceCell"/> record struct.
 /// </summary>
+[TestClass]
 public class SurfaceCellTests
 {
     #region Construction and Equality
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_DefaultValues_AreCorrect()
     {
         var cell = new SurfaceCell("A", null, null);
         
-        Assert.Equal("A", cell.Character);
-        Assert.Null(cell.Foreground);
-        Assert.Null(cell.Background);
-        Assert.Equal(CellAttributes.None, cell.Attributes);
-        Assert.Equal(1, cell.DisplayWidth);
-        Assert.Null(cell.Sixel);
-        Assert.Null(cell.Hyperlink);
+        Assert.AreEqual("A", cell.Character);
+        Assert.IsNull(cell.Foreground);
+        Assert.IsNull(cell.Background);
+        Assert.AreEqual(CellAttributes.None, cell.Attributes);
+        Assert.AreEqual(1, cell.DisplayWidth);
+        Assert.IsNull(cell.Sixel);
+        Assert.IsNull(cell.Hyperlink);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_WithColors_StoresCorrectly()
     {
         var fg = Hex1bColor.Red;
         var bg = Hex1bColor.Blue;
         var cell = new SurfaceCell("X", fg, bg, CellAttributes.Bold);
         
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(fg, cell.Foreground);
-        Assert.Equal(bg, cell.Background);
-        Assert.Equal(CellAttributes.Bold, cell.Attributes);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(fg, cell.Foreground);
+        Assert.AreEqual(bg, cell.Background);
+        Assert.AreEqual(CellAttributes.Bold, cell.Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_Equality_WorksCorrectly()
     {
         var cell1 = new SurfaceCell("A", Hex1bColor.Red, null, CellAttributes.Bold, 1);
         var cell2 = new SurfaceCell("A", Hex1bColor.Red, null, CellAttributes.Bold, 1);
         var cell3 = new SurfaceCell("B", Hex1bColor.Red, null, CellAttributes.Bold, 1);
         
-        Assert.Equal(cell1, cell2);
-        Assert.NotEqual(cell1, cell3);
+        Assert.AreEqual(cell1, cell2);
+        Assert.AreNotEqual(cell1, cell3);
     }
 
     #endregion
 
     #region Properties
 
-    [Fact]
+    [TestMethod]
     public void IsContinuation_WhenDisplayWidthIsZero_ReturnsTrue()
     {
         var continuation = new SurfaceCell("", null, null, DisplayWidth: 0);
         var normal = new SurfaceCell("A", null, null, DisplayWidth: 1);
         
-        Assert.True(continuation.IsContinuation);
-        Assert.False(normal.IsContinuation);
+        Assert.IsTrue(continuation.IsContinuation);
+        Assert.IsFalse(normal.IsContinuation);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsWide_WhenDisplayWidthIsTwo_ReturnsTrue()
     {
         var wide = new SurfaceCell("日", null, null, DisplayWidth: 2);
         var normal = new SurfaceCell("A", null, null, DisplayWidth: 1);
         
-        Assert.True(wide.IsWide);
-        Assert.False(normal.IsWide);
+        Assert.IsTrue(wide.IsWide);
+        Assert.IsFalse(normal.IsWide);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsTransparent_WhenBothColorsNull_ReturnsTrue()
     {
         var transparent = new SurfaceCell("A", null, null);
@@ -82,67 +83,67 @@ public class SurfaceCellTests
         var withBg = new SurfaceCell("A", null, Hex1bColor.Blue);
         var withBoth = new SurfaceCell("A", Hex1bColor.Red, Hex1bColor.Blue);
         
-        Assert.True(transparent.IsTransparent);
-        Assert.False(withFg.IsTransparent);
-        Assert.False(withBg.IsTransparent);
-        Assert.False(withBoth.IsTransparent);
+        Assert.IsTrue(transparent.IsTransparent);
+        Assert.IsFalse(withFg.IsTransparent);
+        Assert.IsFalse(withBg.IsTransparent);
+        Assert.IsFalse(withBoth.IsTransparent);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasTransparentBackground_WhenBackgroundNull_ReturnsTrue()
     {
         var transparentBg = new SurfaceCell("A", Hex1bColor.Red, null);
         var opaqueBg = new SurfaceCell("A", null, Hex1bColor.Blue);
         
-        Assert.True(transparentBg.HasTransparentBackground);
-        Assert.False(opaqueBg.HasTransparentBackground);
+        Assert.IsTrue(transparentBg.HasTransparentBackground);
+        Assert.IsFalse(opaqueBg.HasTransparentBackground);
     }
 
     #endregion
 
     #region With Methods
 
-    [Fact]
+    [TestMethod]
     public void WithForeground_CreatesNewCellWithUpdatedForeground()
     {
         var original = new SurfaceCell("A", null, Hex1bColor.Blue, CellAttributes.Bold);
         var updated = original.WithForeground(Hex1bColor.Red);
         
-        Assert.Null(original.Foreground);
-        Assert.Equal(Hex1bColor.Red, updated.Foreground);
-        Assert.Equal(original.Background, updated.Background);
-        Assert.Equal(original.Attributes, updated.Attributes);
+        Assert.IsNull(original.Foreground);
+        Assert.AreEqual(Hex1bColor.Red, updated.Foreground);
+        Assert.AreEqual(original.Background, updated.Background);
+        Assert.AreEqual(original.Attributes, updated.Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void WithBackground_CreatesNewCellWithUpdatedBackground()
     {
         var original = new SurfaceCell("A", Hex1bColor.Red, null, CellAttributes.Bold);
         var updated = original.WithBackground(Hex1bColor.Blue);
         
-        Assert.Null(original.Background);
-        Assert.Equal(Hex1bColor.Blue, updated.Background);
-        Assert.Equal(original.Foreground, updated.Foreground);
+        Assert.IsNull(original.Background);
+        Assert.AreEqual(Hex1bColor.Blue, updated.Background);
+        Assert.AreEqual(original.Foreground, updated.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAttributes_CreatesNewCellWithUpdatedAttributes()
     {
         var original = new SurfaceCell("A", null, null, CellAttributes.Bold);
         var updated = original.WithAttributes(CellAttributes.Italic);
         
-        Assert.Equal(CellAttributes.Bold, original.Attributes);
-        Assert.Equal(CellAttributes.Italic, updated.Attributes);
+        Assert.AreEqual(CellAttributes.Bold, original.Attributes);
+        Assert.AreEqual(CellAttributes.Italic, updated.Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAddedAttributes_CombinesAttributes()
     {
         var original = new SurfaceCell("A", null, null, CellAttributes.Bold);
         var updated = original.WithAddedAttributes(CellAttributes.Italic);
         
-        Assert.Equal(CellAttributes.Bold, original.Attributes);
-        Assert.Equal(CellAttributes.Bold | CellAttributes.Italic, updated.Attributes);
+        Assert.AreEqual(CellAttributes.Bold, original.Attributes);
+        Assert.AreEqual(CellAttributes.Bold | CellAttributes.Italic, updated.Attributes);
     }
 
     #endregion
@@ -151,72 +152,74 @@ public class SurfaceCellTests
 /// <summary>
 /// Tests for <see cref="SurfaceCells"/> static class.
 /// </summary>
+[TestClass]
 public class SurfaceCellsTests
 {
-    [Fact]
+    [TestMethod]
     public void Empty_IsUnwrittenMarkerWithNoColors()
     {
         var empty = SurfaceCells.Empty;
         
         // Empty uses a special unwritten marker character to distinguish from written spaces
-        Assert.Equal(SurfaceCells.UnwrittenMarker, empty.Character);
-        Assert.Null(empty.Foreground);
-        Assert.Null(empty.Background);
-        Assert.Equal(CellAttributes.None, empty.Attributes);
-        Assert.Equal(1, empty.DisplayWidth);
+        Assert.AreEqual(SurfaceCells.UnwrittenMarker, empty.Character);
+        Assert.IsNull(empty.Foreground);
+        Assert.IsNull(empty.Background);
+        Assert.AreEqual(CellAttributes.None, empty.Attributes);
+        Assert.AreEqual(1, empty.DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Continuation_HasZeroDisplayWidth()
     {
         var continuation = SurfaceCells.Continuation;
         
-        Assert.Equal(string.Empty, continuation.Character);
-        Assert.Equal(0, continuation.DisplayWidth);
-        Assert.True(continuation.IsContinuation);
+        Assert.AreEqual(string.Empty, continuation.Character);
+        Assert.AreEqual(0, continuation.DisplayWidth);
+        Assert.IsTrue(continuation.IsContinuation);
     }
 
-    [Fact]
+    [TestMethod]
     public void Char_CreatesCorrectCell()
     {
         var cell = SurfaceCells.Char('X', Hex1bColor.Red, Hex1bColor.Blue, CellAttributes.Bold);
         
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(Hex1bColor.Red, cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);
-        Assert.Equal(CellAttributes.Bold, cell.Attributes);
-        Assert.Equal(1, cell.DisplayWidth);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);
+        Assert.AreEqual(CellAttributes.Bold, cell.Attributes);
+        Assert.AreEqual(1, cell.DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Space_WithBackground_CreatesSpaceCell()
     {
         var cell = SurfaceCells.Space(Hex1bColor.Blue);
         
-        Assert.Equal(" ", cell.Character);
-        Assert.Null(cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);
+        Assert.AreEqual(" ", cell.Character);
+        Assert.IsNull(cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);
     }
 }
 
 /// <summary>
 /// Tests for <see cref="Surface"/> class.
 /// </summary>
+[TestClass]
 public class SurfaceTests
 {
     #region Construction
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithValidDimensions_CreatesSurface()
     {
         var surface = new Surface(80, 24);
         
-        Assert.Equal(80, surface.Width);
-        Assert.Equal(24, surface.Height);
-        Assert.Equal(80 * 24, surface.CellCount);
+        Assert.AreEqual(80, surface.Width);
+        Assert.AreEqual(24, surface.Height);
+        Assert.AreEqual(80 * 24, surface.CellCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_InitializesAllCellsToEmpty()
     {
         var surface = new Surface(10, 5);
@@ -225,45 +228,45 @@ public class SurfaceTests
         {
             for (var x = 0; x < surface.Width; x++)
             {
-                Assert.Equal(SurfaceCells.Empty, surface[x, y]);
+                Assert.AreEqual(SurfaceCells.Empty, surface[x, y]);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithZeroWidth_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(0, 10));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Surface(0, 10));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithZeroHeight_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(10, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Surface(10, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithNegativeDimensions_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(-1, 10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new Surface(10, -1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Surface(-1, 10));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new Surface(10, -1));
     }
 
     #endregion
 
     #region Indexer
 
-    [Fact]
+    [TestMethod]
     public void Indexer_Get_ReturnsCorrectCell()
     {
         var surface = new Surface(10, 5);
         var cell = new SurfaceCell("X", Hex1bColor.Red, null);
         surface[3, 2] = cell;
         
-        Assert.Equal(cell, surface[3, 2]);
+        Assert.AreEqual(cell, surface[3, 2]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Indexer_Set_UpdatesCell()
     {
         var surface = new Surface(10, 5);
@@ -271,25 +274,25 @@ public class SurfaceTests
         
         surface[5, 3] = cell;
         
-        Assert.Equal(cell, surface[5, 3]);
+        Assert.AreEqual(cell, surface[5, 3]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Indexer_OutOfBounds_Throws()
     {
         var surface = new Surface(10, 5);
         
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface[-1, 0]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface[0, -1]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface[10, 0]);
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface[0, 5]);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface[-1, 0]);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface[0, -1]);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface[10, 0]);
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface[0, 5]);
     }
 
     #endregion
 
     #region TryGetCell / TrySetCell
 
-    [Fact]
+    [TestMethod]
     public void TryGetCell_InBounds_ReturnsTrueAndCell()
     {
         var surface = new Surface(10, 5);
@@ -298,22 +301,22 @@ public class SurfaceTests
         
         var result = surface.TryGetCell(2, 1, out var retrieved);
         
-        Assert.True(result);
-        Assert.Equal(cell, retrieved);
+        Assert.IsTrue(result);
+        Assert.AreEqual(cell, retrieved);
     }
 
-    [Fact]
+    [TestMethod]
     public void TryGetCell_OutOfBounds_ReturnsFalse()
     {
         var surface = new Surface(10, 5);
         
-        Assert.False(surface.TryGetCell(-1, 0, out _));
-        Assert.False(surface.TryGetCell(10, 0, out _));
-        Assert.False(surface.TryGetCell(0, -1, out _));
-        Assert.False(surface.TryGetCell(0, 5, out _));
+        Assert.IsFalse(surface.TryGetCell(-1, 0, out _));
+        Assert.IsFalse(surface.TryGetCell(10, 0, out _));
+        Assert.IsFalse(surface.TryGetCell(0, -1, out _));
+        Assert.IsFalse(surface.TryGetCell(0, 5, out _));
     }
 
-    [Fact]
+    [TestMethod]
     public void TrySetCell_InBounds_ReturnsTrueAndSetsCell()
     {
         var surface = new Surface(10, 5);
@@ -321,50 +324,50 @@ public class SurfaceTests
         
         var result = surface.TrySetCell(4, 2, cell);
         
-        Assert.True(result);
-        Assert.Equal(cell, surface[4, 2]);
+        Assert.IsTrue(result);
+        Assert.AreEqual(cell, surface[4, 2]);
     }
 
-    [Fact]
+    [TestMethod]
     public void TrySetCell_OutOfBounds_ReturnsFalse()
     {
         var surface = new Surface(10, 5);
         var cell = new SurfaceCell("C", null, null);
         
-        Assert.False(surface.TrySetCell(-1, 0, cell));
-        Assert.False(surface.TrySetCell(10, 0, cell));
+        Assert.IsFalse(surface.TrySetCell(-1, 0, cell));
+        Assert.IsFalse(surface.TrySetCell(10, 0, cell));
     }
 
     #endregion
 
     #region IsInBounds
 
-    [Fact]
+    [TestMethod]
     public void IsInBounds_ValidPositions_ReturnsTrue()
     {
         var surface = new Surface(10, 5);
         
-        Assert.True(surface.IsInBounds(0, 0));
-        Assert.True(surface.IsInBounds(9, 4));
-        Assert.True(surface.IsInBounds(5, 2));
+        Assert.IsTrue(surface.IsInBounds(0, 0));
+        Assert.IsTrue(surface.IsInBounds(9, 4));
+        Assert.IsTrue(surface.IsInBounds(5, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsInBounds_InvalidPositions_ReturnsFalse()
     {
         var surface = new Surface(10, 5);
         
-        Assert.False(surface.IsInBounds(-1, 0));
-        Assert.False(surface.IsInBounds(0, -1));
-        Assert.False(surface.IsInBounds(10, 0));
-        Assert.False(surface.IsInBounds(0, 5));
+        Assert.IsFalse(surface.IsInBounds(-1, 0));
+        Assert.IsFalse(surface.IsInBounds(0, -1));
+        Assert.IsFalse(surface.IsInBounds(10, 0));
+        Assert.IsFalse(surface.IsInBounds(0, 5));
     }
 
     #endregion
 
     #region Clear
 
-    [Fact]
+    [TestMethod]
     public void Clear_ResetsAllCellsToEmpty()
     {
         var surface = new Surface(5, 3);
@@ -377,12 +380,12 @@ public class SurfaceTests
         {
             for (var x = 0; x < surface.Width; x++)
             {
-                Assert.Equal(SurfaceCells.Empty, surface[x, y]);
+                Assert.AreEqual(SurfaceCells.Empty, surface[x, y]);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_WithCell_FillsWithSpecifiedCell()
     {
         var surface = new Surface(5, 3);
@@ -394,7 +397,7 @@ public class SurfaceTests
         {
             for (var x = 0; x < surface.Width; x++)
             {
-                Assert.Equal(fillCell, surface[x, y]);
+                Assert.AreEqual(fillCell, surface[x, y]);
             }
         }
     }
@@ -403,7 +406,7 @@ public class SurfaceTests
 
     #region Fill
 
-    [Fact]
+    [TestMethod]
     public void Fill_Region_FillsCorrectCells()
     {
         var surface = new Surface(10, 5);
@@ -417,17 +420,17 @@ public class SurfaceTests
         {
             for (var x = 2; x < 5; x++)
             {
-                Assert.Equal(fillCell, surface[x, y]);
+                Assert.AreEqual(fillCell, surface[x, y]);
             }
         }
         
         // Check surrounding cells remain empty
-        Assert.Equal(SurfaceCells.Empty, surface[0, 0]);
-        Assert.Equal(SurfaceCells.Empty, surface[1, 1]);
-        Assert.Equal(SurfaceCells.Empty, surface[5, 1]);
+        Assert.AreEqual(SurfaceCells.Empty, surface[0, 0]);
+        Assert.AreEqual(SurfaceCells.Empty, surface[1, 1]);
+        Assert.AreEqual(SurfaceCells.Empty, surface[5, 1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Fill_RegionOutsideBounds_ClipsCorrectly()
     {
         var surface = new Surface(5, 5);
@@ -437,32 +440,32 @@ public class SurfaceTests
         surface.Fill(region, fillCell);
         
         // Only cells within bounds should be filled
-        Assert.Equal(fillCell, surface[0, 0]);
-        Assert.Equal(fillCell, surface[2, 2]);
-        Assert.Equal(SurfaceCells.Empty, surface[3, 0]);
-        Assert.Equal(SurfaceCells.Empty, surface[0, 3]);
+        Assert.AreEqual(fillCell, surface[0, 0]);
+        Assert.AreEqual(fillCell, surface[2, 2]);
+        Assert.AreEqual(SurfaceCells.Empty, surface[3, 0]);
+        Assert.AreEqual(SurfaceCells.Empty, surface[0, 3]);
     }
 
     #endregion
 
     #region WriteText - Basic
 
-    [Fact]
+    [TestMethod]
     public void WriteText_SimpleAscii_WritesCorrectly()
     {
         var surface = new Surface(20, 5);
         
         surface.WriteText(0, 0, "Hello");
         
-        Assert.Equal("H", surface[0, 0].Character);
-        Assert.Equal("e", surface[1, 0].Character);
-        Assert.Equal("l", surface[2, 0].Character);
-        Assert.Equal("l", surface[3, 0].Character);
-        Assert.Equal("o", surface[4, 0].Character);
-        Assert.Equal(SurfaceCells.UnwrittenMarker, surface[5, 0].Character); // Unchanged (unwritten)
+        Assert.AreEqual("H", surface[0, 0].Character);
+        Assert.AreEqual("e", surface[1, 0].Character);
+        Assert.AreEqual("l", surface[2, 0].Character);
+        Assert.AreEqual("l", surface[3, 0].Character);
+        Assert.AreEqual("o", surface[4, 0].Character);
+        Assert.AreEqual(SurfaceCells.UnwrittenMarker, surface[5, 0].Character); // Unchanged (unwritten)
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_WithColors_AppliesColors()
     {
         var surface = new Surface(20, 5);
@@ -471,100 +474,100 @@ public class SurfaceTests
         
         surface.WriteText(0, 0, "AB", fg, bg);
         
-        Assert.Equal(fg, surface[0, 0].Foreground);
-        Assert.Equal(bg, surface[0, 0].Background);
-        Assert.Equal(fg, surface[1, 0].Foreground);
-        Assert.Equal(bg, surface[1, 0].Background);
+        Assert.AreEqual(fg, surface[0, 0].Foreground);
+        Assert.AreEqual(bg, surface[0, 0].Background);
+        Assert.AreEqual(fg, surface[1, 0].Foreground);
+        Assert.AreEqual(bg, surface[1, 0].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_WithAttributes_AppliesAttributes()
     {
         var surface = new Surface(20, 5);
         
         surface.WriteText(0, 0, "Bold", null, null, CellAttributes.Bold);
         
-        Assert.Equal(CellAttributes.Bold, surface[0, 0].Attributes);
-        Assert.Equal(CellAttributes.Bold, surface[3, 0].Attributes);
+        Assert.AreEqual(CellAttributes.Bold, surface[0, 0].Attributes);
+        Assert.AreEqual(CellAttributes.Bold, surface[3, 0].Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_ReturnsColumnsWritten()
     {
         var surface = new Surface(20, 5);
         
         var written = surface.WriteText(0, 0, "Hello");
         
-        Assert.Equal(5, written);
+        Assert.AreEqual(5, written);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_EmptyString_ReturnsZero()
     {
         var surface = new Surface(20, 5);
         
         var written = surface.WriteText(0, 0, "");
         
-        Assert.Equal(0, written);
+        Assert.AreEqual(0, written);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_NullString_ReturnsZero()
     {
         var surface = new Surface(20, 5);
         
         var written = surface.WriteText(0, 0, null!);
         
-        Assert.Equal(0, written);
+        Assert.AreEqual(0, written);
     }
 
     #endregion
 
     #region WriteText - Clipping
 
-    [Fact]
+    [TestMethod]
     public void WriteText_ClipsAtRightEdge()
     {
         var surface = new Surface(5, 1);
         
         var written = surface.WriteText(0, 0, "HelloWorld");
         
-        Assert.Equal(5, written);
-        Assert.Equal("H", surface[0, 0].Character);
-        Assert.Equal("o", surface[4, 0].Character);
+        Assert.AreEqual(5, written);
+        Assert.AreEqual("H", surface[0, 0].Character);
+        Assert.AreEqual("o", surface[4, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_StartingOutsideRight_WritesNothing()
     {
         var surface = new Surface(5, 1);
         
         var written = surface.WriteText(10, 0, "Hello");
         
-        Assert.Equal(0, written);
+        Assert.AreEqual(0, written);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_StartingOutsideTop_WritesNothing()
     {
         var surface = new Surface(20, 5);
         
         var written = surface.WriteText(0, -1, "Hello");
         
-        Assert.Equal(0, written);
+        Assert.AreEqual(0, written);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_StartingOutsideBottom_WritesNothing()
     {
         var surface = new Surface(20, 5);
         
         var written = surface.WriteText(0, 5, "Hello");
         
-        Assert.Equal(0, written);
+        Assert.AreEqual(0, written);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_StartingNegativeX_SkipsClippedChars()
     {
         var surface = new Surface(10, 1);
@@ -572,28 +575,28 @@ public class SurfaceTests
         surface.WriteText(-2, 0, "Hello");
         
         // "He" should be clipped, "llo" should be visible starting at x=0
-        Assert.Equal("l", surface[0, 0].Character);
-        Assert.Equal("l", surface[1, 0].Character);
-        Assert.Equal("o", surface[2, 0].Character);
+        Assert.AreEqual("l", surface[0, 0].Character);
+        Assert.AreEqual("l", surface[1, 0].Character);
+        Assert.AreEqual("o", surface[2, 0].Character);
     }
 
     #endregion
 
     #region WriteText - Wide Characters
 
-    [Fact]
+    [TestMethod]
     public void WriteText_WideCharacter_SetsContinuation()
     {
         var surface = new Surface(10, 1);
         
         surface.WriteText(0, 0, "日");
         
-        Assert.Equal("日", surface[0, 0].Character);
-        Assert.Equal(2, surface[0, 0].DisplayWidth);
-        Assert.True(surface[1, 0].IsContinuation);
+        Assert.AreEqual("日", surface[0, 0].Character);
+        Assert.AreEqual(2, surface[0, 0].DisplayWidth);
+        Assert.IsTrue(surface[1, 0].IsContinuation);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_WideCharacterSequence_HandlesCorrectly()
     {
         var surface = new Surface(10, 1);
@@ -601,30 +604,30 @@ public class SurfaceTests
         surface.WriteText(0, 0, "日本");
         
         // First character
-        Assert.Equal("日", surface[0, 0].Character);
-        Assert.True(surface[1, 0].IsContinuation);
+        Assert.AreEqual("日", surface[0, 0].Character);
+        Assert.IsTrue(surface[1, 0].IsContinuation);
         // Second character
-        Assert.Equal("本", surface[2, 0].Character);
-        Assert.True(surface[3, 0].IsContinuation);
+        Assert.AreEqual("本", surface[2, 0].Character);
+        Assert.IsTrue(surface[3, 0].IsContinuation);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_MixedWidthCharacters_HandlesCorrectly()
     {
         var surface = new Surface(10, 1);
         
         surface.WriteText(0, 0, "A日B");
         
-        Assert.Equal("A", surface[0, 0].Character);
-        Assert.Equal(1, surface[0, 0].DisplayWidth);
-        Assert.Equal("日", surface[1, 0].Character);
-        Assert.Equal(2, surface[1, 0].DisplayWidth);
-        Assert.True(surface[2, 0].IsContinuation);
-        Assert.Equal("B", surface[3, 0].Character);
-        Assert.Equal(1, surface[3, 0].DisplayWidth);
+        Assert.AreEqual("A", surface[0, 0].Character);
+        Assert.AreEqual(1, surface[0, 0].DisplayWidth);
+        Assert.AreEqual("日", surface[1, 0].Character);
+        Assert.AreEqual(2, surface[1, 0].DisplayWidth);
+        Assert.IsTrue(surface[2, 0].IsContinuation);
+        Assert.AreEqual("B", surface[3, 0].Character);
+        Assert.AreEqual(1, surface[3, 0].DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_WideCharacterAtEdge_ClipsWithSpace()
     {
         var surface = new Surface(4, 1);  // Only 4 columns - "日" won't fit after "ABC"
@@ -632,59 +635,59 @@ public class SurfaceTests
         // "ABC" takes 3 columns, "日" would need 2 more but only 1 remains
         surface.WriteText(0, 0, "ABC日");
         
-        Assert.Equal("A", surface[0, 0].Character);
-        Assert.Equal("B", surface[1, 0].Character);
-        Assert.Equal("C", surface[2, 0].Character);
+        Assert.AreEqual("A", surface[0, 0].Character);
+        Assert.AreEqual("B", surface[1, 0].Character);
+        Assert.AreEqual("C", surface[2, 0].Character);
         // Wide char doesn't fully fit, remaining space filled with space
-        Assert.Equal(" ", surface[3, 0].Character);
+        Assert.AreEqual(" ", surface[3, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteText_Emoji_HandlesAsWideCharacter()
     {
         var surface = new Surface(10, 1);
         
         surface.WriteText(0, 0, "😀");
         
-        Assert.Equal("😀", surface[0, 0].Character);
-        Assert.Equal(2, surface[0, 0].DisplayWidth);
-        Assert.True(surface[1, 0].IsContinuation);
+        Assert.AreEqual("😀", surface[0, 0].Character);
+        Assert.AreEqual(2, surface[0, 0].DisplayWidth);
+        Assert.IsTrue(surface[1, 0].IsContinuation);
     }
 
     #endregion
 
     #region WriteChar
 
-    [Fact]
+    [TestMethod]
     public void WriteChar_InBounds_WritesAndReturnsTrue()
     {
         var surface = new Surface(10, 5);
         
         var result = surface.WriteChar(3, 2, 'X', Hex1bColor.Red, Hex1bColor.Blue, CellAttributes.Bold);
         
-        Assert.True(result);
-        Assert.Equal("X", surface[3, 2].Character);
-        Assert.Equal(Hex1bColor.Red, surface[3, 2].Foreground);
-        Assert.Equal(Hex1bColor.Blue, surface[3, 2].Background);
-        Assert.Equal(CellAttributes.Bold, surface[3, 2].Attributes);
+        Assert.IsTrue(result);
+        Assert.AreEqual("X", surface[3, 2].Character);
+        Assert.AreEqual(Hex1bColor.Red, surface[3, 2].Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, surface[3, 2].Background);
+        Assert.AreEqual(CellAttributes.Bold, surface[3, 2].Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void WriteChar_OutOfBounds_ReturnsFalse()
     {
         var surface = new Surface(10, 5);
         
-        Assert.False(surface.WriteChar(-1, 0, 'X'));
-        Assert.False(surface.WriteChar(10, 0, 'X'));
-        Assert.False(surface.WriteChar(0, -1, 'X'));
-        Assert.False(surface.WriteChar(0, 5, 'X'));
+        Assert.IsFalse(surface.WriteChar(-1, 0, 'X'));
+        Assert.IsFalse(surface.WriteChar(10, 0, 'X'));
+        Assert.IsFalse(surface.WriteChar(0, -1, 'X'));
+        Assert.IsFalse(surface.WriteChar(0, 5, 'X'));
     }
 
     #endregion
 
     #region Composite
 
-    [Fact]
+    [TestMethod]
     public void Composite_CopiesCellsToDestination()
     {
         var dest = new Surface(10, 5);
@@ -695,12 +698,12 @@ public class SurfaceTests
         
         dest.Composite(src, 2, 1);
         
-        Assert.Equal("A", dest[2, 1].Character);
-        Assert.Equal("B", dest[3, 1].Character);
-        Assert.Equal("C", dest[4, 1].Character);
+        Assert.AreEqual("A", dest[2, 1].Character);
+        Assert.AreEqual("B", dest[3, 1].Character);
+        Assert.AreEqual("C", dest[4, 1].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_WithOffset_PlacesCorrectly()
     {
         var dest = new Surface(10, 5);
@@ -710,11 +713,11 @@ public class SurfaceTests
         
         dest.Composite(src, 5, 3);
         
-        Assert.Equal("1", dest[5, 3].Character);
-        Assert.Equal("2", dest[6, 4].Character);
+        Assert.AreEqual("1", dest[5, 3].Character);
+        Assert.AreEqual("2", dest[6, 4].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_ClipsToDestinationBounds()
     {
         var dest = new Surface(5, 5);
@@ -727,12 +730,12 @@ public class SurfaceTests
         dest.Composite(src, 4, 0);
         
         // Only one column should be visible
-        Assert.Equal("X", dest[4, 0].Character);
-        Assert.Equal("X", dest[4, 1].Character);
-        Assert.Equal("X", dest[4, 2].Character);
+        Assert.AreEqual("X", dest[4, 0].Character);
+        Assert.AreEqual("X", dest[4, 1].Character);
+        Assert.AreEqual("X", dest[4, 2].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_TransparentBackground_ShowsDestinationBackground()
     {
         var dest = new Surface(10, 5);
@@ -744,12 +747,12 @@ public class SurfaceTests
         dest.Composite(src, 2, 1);
         
         var result = dest[3, 2];
-        Assert.Equal("X", result.Character);
-        Assert.Equal(Hex1bColor.Red, result.Foreground);
-        Assert.Equal(Hex1bColor.Blue, result.Background); // From destination
+        Assert.AreEqual("X", result.Character);
+        Assert.AreEqual(Hex1bColor.Red, result.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, result.Background); // From destination
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_WithClipRect_OnlyAffectsClippedRegion()
     {
         var dest = new Surface(10, 5);
@@ -762,22 +765,22 @@ public class SurfaceTests
         dest.Composite(src, 0, 0, clip);
         
         // Only cells within clip should be affected
-        Assert.Equal("X", dest[2, 1].Character);
-        Assert.Equal("X", dest[3, 1].Character);
-        Assert.Equal("X", dest[2, 2].Character);
-        Assert.Equal("X", dest[3, 2].Character);
+        Assert.AreEqual("X", dest[2, 1].Character);
+        Assert.AreEqual("X", dest[3, 1].Character);
+        Assert.AreEqual("X", dest[2, 2].Character);
+        Assert.AreEqual("X", dest[3, 2].Character);
         
         // Cells outside clip should be empty
-        Assert.Equal(SurfaceCells.Empty, dest[0, 0]);
-        Assert.Equal(SurfaceCells.Empty, dest[1, 1]);
-        Assert.Equal(SurfaceCells.Empty, dest[4, 1]);
+        Assert.AreEqual(SurfaceCells.Empty, dest[0, 0]);
+        Assert.AreEqual(SurfaceCells.Empty, dest[1, 1]);
+        Assert.AreEqual(SurfaceCells.Empty, dest[4, 1]);
     }
 
     #endregion
 
     #region Clone and Span
 
-    [Fact]
+    [TestMethod]
     public void Clone_CreatesIndependentCopy()
     {
         var original = new Surface(5, 3);
@@ -786,11 +789,11 @@ public class SurfaceTests
         var clone = original.Clone();
         clone[2, 1] = new SurfaceCell("Y", Hex1bColor.Blue, null);
         
-        Assert.Equal("X", original[2, 1].Character);
-        Assert.Equal("Y", clone[2, 1].Character);
+        Assert.AreEqual("X", original[2, 1].Character);
+        Assert.AreEqual("Y", clone[2, 1].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void AsSpan_ReturnsAllCells()
     {
         var surface = new Surface(3, 2);
@@ -799,12 +802,12 @@ public class SurfaceTests
         
         var span = surface.AsSpan();
         
-        Assert.Equal(6, span.Length);
-        Assert.Equal("A", span[0].Character);
-        Assert.Equal("B", span[5].Character); // Row-major: [2, 1] = 1*3 + 2 = 5
+        Assert.AreEqual(6, span.Length);
+        Assert.AreEqual("A", span[0].Character);
+        Assert.AreEqual("B", span[5].Character); // Row-major: [2, 1] = 1*3 + 2 = 5
     }
 
-    [Fact]
+    [TestMethod]
     public void GetRow_ReturnsCorrectRow()
     {
         var surface = new Surface(5, 3);
@@ -812,42 +815,42 @@ public class SurfaceTests
         
         var row = surface.GetRow(1);
         
-        Assert.Equal(5, row.Length);
-        Assert.Equal("H", row[0].Character);
-        Assert.Equal("o", row[4].Character);
+        Assert.AreEqual(5, row.Length);
+        Assert.AreEqual("H", row[0].Character);
+        Assert.AreEqual("o", row[4].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetRow_OutOfBounds_Throws()
     {
         var surface = new Surface(5, 3);
         
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface.GetRow(-1));
-        Assert.Throws<ArgumentOutOfRangeException>(() => surface.GetRow(3));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface.GetRow(-1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => surface.GetRow(3));
     }
 
     #endregion
 
     #region CellMetrics
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithoutMetrics_UsesDefault()
     {
         var surface = new Surface(10, 10);
         
-        Assert.Equal(CellMetrics.Default, surface.CellMetrics);
+        Assert.AreEqual(CellMetrics.Default, surface.CellMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithMetrics_StoresMetrics()
     {
         var metrics = new CellMetrics(8, 16);
         var surface = new Surface(10, 10, metrics);
         
-        Assert.Equal(metrics, surface.CellMetrics);
+        Assert.AreEqual(metrics, surface.CellMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clone_PreservesMetrics()
     {
         var metrics = new CellMetrics(12, 24);
@@ -855,19 +858,19 @@ public class SurfaceTests
         
         var clone = surface.Clone();
         
-        Assert.Equal(metrics, clone.CellMetrics);
+        Assert.AreEqual(metrics, clone.CellMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSixels_WhenNoSixels_ReturnsFalse()
     {
         var surface = new Surface(10, 10);
         surface.WriteText(0, 0, "Hello");
         
-        Assert.False(surface.HasSixels);
+        Assert.IsFalse(surface.HasSixels);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSixels_WhenSixelsPresent_ReturnsTrue()
     {
         var surface = new Surface(10, 10);
@@ -877,10 +880,10 @@ public class SurfaceTests
         
         surface[0, 0] = sixelCell;
         
-        Assert.True(surface.HasSixels);
+        Assert.IsTrue(surface.HasSixels);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSixels_WhenSixelRemoved_ReturnsFalse()
     {
         var surface = new Surface(10, 10);
@@ -889,13 +892,13 @@ public class SurfaceTests
         var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
         
         surface[0, 0] = sixelCell;
-        Assert.True(surface.HasSixels);
+        Assert.IsTrue(surface.HasSixels);
         
         surface[0, 0] = SurfaceCells.Empty;
-        Assert.False(surface.HasSixels);
+        Assert.IsFalse(surface.HasSixels);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_WithMatchingMetrics_Succeeds()
     {
         var metrics = new CellMetrics(8, 16);
@@ -915,7 +918,7 @@ public class SurfaceTests
         target.Composite(source, 5, 5);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_WithMismatchedMetrics_NoSixels_Succeeds()
     {
         var target = new Surface(20, 20, new CellMetrics(10, 20));
@@ -925,7 +928,7 @@ public class SurfaceTests
         target.Composite(source, 0, 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_WithMismatchedMetrics_WithSixels_Throws()
     {
         var target = new Surface(20, 20, new CellMetrics(10, 20));
@@ -937,11 +940,11 @@ public class SurfaceTests
         var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
         source[0, 0] = sixelCell;
         
-        var ex = Assert.Throws<InvalidOperationException>(() => target.Composite(source, 0, 0));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => target.Composite(source, 0, 0));
         Assert.Contains("CellMetrics differ", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_SixelExtendsRightEdge_ClipsSixel()
     {
         var metrics = new CellMetrics(10, 20);
@@ -964,15 +967,15 @@ public class SurfaceTests
         
         // The sixel should be clipped to fit within bounds
         var resultCell = target[9, 0];
-        Assert.True(resultCell.HasSixel);
-        Assert.NotNull(resultCell.Sixel);
+        Assert.IsTrue(resultCell.HasSixel);
+        Assert.IsNotNull(resultCell.Sixel);
         
         // Clipped sixel should only span 1 cell (10 pixels) instead of 2 (20 pixels)
-        Assert.Equal(1, resultCell.Sixel.Data.WidthInCells);
-        Assert.Equal(10, resultCell.Sixel.Data.PixelWidth);
+        Assert.AreEqual(1, resultCell.Sixel.Data.WidthInCells);
+        Assert.AreEqual(10, resultCell.Sixel.Data.PixelWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_SixelExtendsBottomEdge_ClipsSixel()
     {
         var metrics = new CellMetrics(10, 20);
@@ -994,15 +997,15 @@ public class SurfaceTests
         target.Composite(source, 0, 9);
         
         var resultCell = target[0, 9];
-        Assert.True(resultCell.HasSixel);
-        Assert.NotNull(resultCell.Sixel);
+        Assert.IsTrue(resultCell.HasSixel);
+        Assert.IsNotNull(resultCell.Sixel);
         
         // Clipped sixel should only span 1 cell (20 pixels) instead of 2 (40 pixels)
-        Assert.Equal(1, resultCell.Sixel.Data.HeightInCells);
-        Assert.Equal(20, resultCell.Sixel.Data.PixelHeight);
+        Assert.AreEqual(1, resultCell.Sixel.Data.HeightInCells);
+        Assert.AreEqual(20, resultCell.Sixel.Data.PixelHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_SixelExtendsBothEdges_ClipsBothDimensions()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1024,17 +1027,17 @@ public class SurfaceTests
         target.Composite(source, 8, 8);
         
         var resultCell = target[8, 8];
-        Assert.True(resultCell.HasSixel);
-        Assert.NotNull(resultCell.Sixel);
+        Assert.IsTrue(resultCell.HasSixel);
+        Assert.IsNotNull(resultCell.Sixel);
         
         // Clipped sixel should span 2x2 cells
-        Assert.Equal(2, resultCell.Sixel.Data.WidthInCells);
-        Assert.Equal(2, resultCell.Sixel.Data.HeightInCells);
-        Assert.Equal(20, resultCell.Sixel.Data.PixelWidth);
-        Assert.Equal(40, resultCell.Sixel.Data.PixelHeight);
+        Assert.AreEqual(2, resultCell.Sixel.Data.WidthInCells);
+        Assert.AreEqual(2, resultCell.Sixel.Data.HeightInCells);
+        Assert.AreEqual(20, resultCell.Sixel.Data.PixelWidth);
+        Assert.AreEqual(40, resultCell.Sixel.Data.PixelHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_SixelFitsWithinBounds_NoClipping()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1056,15 +1059,15 @@ public class SurfaceTests
         target.Composite(source, 0, 0);
         
         var resultCell = target[0, 0];
-        Assert.True(resultCell.HasSixel);
+        Assert.IsTrue(resultCell.HasSixel);
         
         // Original sixel should be preserved (same reference)
-        Assert.Same(sixelRef, resultCell.Sixel);
-        Assert.Equal(2, resultCell.Sixel!.Data.WidthInCells);
-        Assert.Equal(20, resultCell.Sixel.Data.PixelWidth);
+        Assert.AreSame(sixelRef, resultCell.Sixel);
+        Assert.AreEqual(2, resultCell.Sixel!.Data.WidthInCells);
+        Assert.AreEqual(20, resultCell.Sixel.Data.PixelWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_SixelCompletelyOutsideBounds_RemovedFromCell()
     {
         var metrics = new CellMetrics(10, 20);
@@ -1084,7 +1087,7 @@ public class SurfaceTests
         // Nothing should be placed in target
         for (int y = 0; y < 10; y++)
             for (int x = 0; x < 10; x++)
-                Assert.False(target[x, y].HasSixel);
+                Assert.IsFalse(target[x, y].HasSixel);
     }
 
     #endregion
@@ -1093,32 +1096,33 @@ public class SurfaceTests
 /// <summary>
 /// Tests for <see cref="CompositeSurface"/> class.
 /// </summary>
+[TestClass]
 public class CompositeSurfaceTests
 {
     #region Construction
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithValidDimensions_CreatesCompositeSurface()
     {
         var composite = new CompositeSurface(80, 24);
         
-        Assert.Equal(80, composite.Width);
-        Assert.Equal(24, composite.Height);
-        Assert.Equal(0, composite.LayerCount);
+        Assert.AreEqual(80, composite.Width);
+        Assert.AreEqual(24, composite.Height);
+        Assert.AreEqual(0, composite.LayerCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithZeroDimensions_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CompositeSurface(0, 10));
-        Assert.Throws<ArgumentOutOfRangeException>(() => new CompositeSurface(10, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new CompositeSurface(0, 10));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new CompositeSurface(10, 0));
     }
 
     #endregion
 
     #region AddLayer
 
-    [Fact]
+    [TestMethod]
     public void AddLayer_IncreasesLayerCount()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1126,13 +1130,13 @@ public class CompositeSurfaceTests
         var layer2 = new Surface(5, 5);
         
         composite.AddLayer(layer1, 0, 0);
-        Assert.Equal(1, composite.LayerCount);
+        Assert.AreEqual(1, composite.LayerCount);
         
         composite.AddLayer(layer2, 2, 2);
-        Assert.Equal(2, composite.LayerCount);
+        Assert.AreEqual(2, composite.LayerCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_RemovesAllLayers()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1141,24 +1145,24 @@ public class CompositeSurfaceTests
         
         composite.Clear();
         
-        Assert.Equal(0, composite.LayerCount);
+        Assert.AreEqual(0, composite.LayerCount);
     }
 
     #endregion
 
     #region GetCell
 
-    [Fact]
+    [TestMethod]
     public void GetCell_NoLayers_ReturnsEmpty()
     {
         var composite = new CompositeSurface(10, 10);
         
         var cell = composite.GetCell(5, 5);
         
-        Assert.Equal(SurfaceCells.Empty, cell);
+        Assert.AreEqual(SurfaceCells.Empty, cell);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetCell_SingleLayer_ReturnsCellFromLayer()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1167,11 +1171,11 @@ public class CompositeSurfaceTests
         
         composite.AddLayer(layer, 0, 0);
         
-        Assert.Equal("X", composite.GetCell(2, 2).Character);
-        Assert.Equal(Hex1bColor.Red, composite.GetCell(2, 2).Foreground);
+        Assert.AreEqual("X", composite.GetCell(2, 2).Character);
+        Assert.AreEqual(Hex1bColor.Red, composite.GetCell(2, 2).Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetCell_WithOffset_ReturnsCorrectCell()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1181,24 +1185,24 @@ public class CompositeSurfaceTests
         composite.AddLayer(layer, 5, 5);
         
         // Layer starts at (5, 5), so layer[0,0] is at composite[5,5]
-        Assert.Equal("A", composite.GetCell(5, 5).Character);
-        Assert.Equal(SurfaceCells.Empty, composite.GetCell(0, 0));
+        Assert.AreEqual("A", composite.GetCell(5, 5).Character);
+        Assert.AreEqual(SurfaceCells.Empty, composite.GetCell(0, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void GetCell_OutOfBounds_Throws()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.Throws<ArgumentOutOfRangeException>(() => composite.GetCell(-1, 0));
-        Assert.Throws<ArgumentOutOfRangeException>(() => composite.GetCell(10, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => composite.GetCell(-1, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => composite.GetCell(10, 0));
     }
 
     #endregion
 
     #region Layer Ordering
 
-    [Fact]
+    [TestMethod]
     public void GetCell_OverlappingLayers_TopLayerWins()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1213,11 +1217,11 @@ public class CompositeSurfaceTests
         composite.AddLayer(top, 0, 0);     // Added second = top
         
         var cell = composite.GetCell(2, 2);
-        Assert.Equal("T", cell.Character);
-        Assert.Equal(Hex1bColor.Red, cell.Foreground);
+        Assert.AreEqual("T", cell.Character);
+        Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetCell_TransparentTopLayer_ShowsBottomBackground()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1232,12 +1236,12 @@ public class CompositeSurfaceTests
         composite.AddLayer(top, 0, 0);
         
         var cell = composite.GetCell(2, 2);
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(Hex1bColor.Red, cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);  // From bottom layer
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);  // From bottom layer
     }
 
-    [Fact]
+    [TestMethod]
     public void GetCell_PartiallyOverlappingLayers_ResolvesCorrectly()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1251,30 +1255,30 @@ public class CompositeSurfaceTests
         composite.AddLayer(layer1, 0, 0);
         composite.AddLayer(layer2, 3, 3);  // Overlaps from (3,3) to (5,5)
         
-        Assert.Equal("1", composite.GetCell(0, 0).Character);  // Only layer1
-        Assert.Equal("1", composite.GetCell(2, 2).Character);  // Only layer1
-        Assert.Equal("2", composite.GetCell(3, 3).Character);  // layer2 on top
-        Assert.Equal("2", composite.GetCell(5, 5).Character);  // Only layer2
-        Assert.Equal(SurfaceCells.Empty, composite.GetCell(6, 6));  // No layers
+        Assert.AreEqual("1", composite.GetCell(0, 0).Character);  // Only layer1
+        Assert.AreEqual("1", composite.GetCell(2, 2).Character);  // Only layer1
+        Assert.AreEqual("2", composite.GetCell(3, 3).Character);  // layer2 on top
+        Assert.AreEqual("2", composite.GetCell(5, 5).Character);  // Only layer2
+        Assert.AreEqual(SurfaceCells.Empty, composite.GetCell(6, 6));  // No layers
     }
 
     #endregion
 
     #region Flatten
 
-    [Fact]
+    [TestMethod]
     public void Flatten_NoLayers_ReturnsEmptySurface()
     {
         var composite = new CompositeSurface(5, 5);
         
         var result = composite.Flatten();
         
-        Assert.Equal(5, result.Width);
-        Assert.Equal(5, result.Height);
-        Assert.Equal(SurfaceCells.Empty, result[0, 0]);
+        Assert.AreEqual(5, result.Width);
+        Assert.AreEqual(5, result.Height);
+        Assert.AreEqual(SurfaceCells.Empty, result[0, 0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Flatten_SingleLayer_CopiesContent()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1284,12 +1288,12 @@ public class CompositeSurfaceTests
         composite.AddLayer(layer, 2, 3);
         var result = composite.Flatten();
         
-        Assert.Equal("H", result[2, 3].Character);
-        Assert.Equal("o", result[6, 3].Character);
-        Assert.Equal(Hex1bColor.Red, result[2, 3].Foreground);
+        Assert.AreEqual("H", result[2, 3].Character);
+        Assert.AreEqual("o", result[6, 3].Character);
+        Assert.AreEqual(Hex1bColor.Red, result[2, 3].Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Flatten_MultipleLayers_CompositesCorrectly()
     {
         var composite = new CompositeSurface(10, 5);
@@ -1306,14 +1310,14 @@ public class CompositeSurfaceTests
         var result = composite.Flatten();
         
         // Background visible outside content
-        Assert.Equal(Hex1bColor.DarkGray, result[0, 0].Background);
+        Assert.AreEqual(Hex1bColor.DarkGray, result[0, 0].Background);
         
         // Content visible at offset
-        Assert.Equal("T", result[2, 1].Character);
-        Assert.Equal(Hex1bColor.Blue, result[2, 1].Background);
+        Assert.AreEqual("T", result[2, 1].Character);
+        Assert.AreEqual(Hex1bColor.Blue, result[2, 1].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void Flatten_ReturnsIndependentSurface()
     {
         var composite = new CompositeSurface(5, 5);
@@ -1327,14 +1331,14 @@ public class CompositeSurfaceTests
         layer[2, 2] = new SurfaceCell("B", null, null);
         
         // Result should be unchanged
-        Assert.Equal("A", result[2, 2].Character);
+        Assert.AreEqual("A", result[2, 2].Character);
     }
 
     #endregion
 
     #region Nested Composition
 
-    [Fact]
+    [TestMethod]
     public void GetCell_NestedCompositeSurface_ResolvesRecursively()
     {
         // Create an inner composite
@@ -1349,11 +1353,11 @@ public class CompositeSurfaceTests
         
         // Inner layer[1,1] is at inner[2,2] is at outer[4,4]
         var cell = outer.GetCell(4, 4);
-        Assert.Equal("I", cell.Character);
-        Assert.Equal(Hex1bColor.Green, cell.Foreground);
+        Assert.AreEqual("I", cell.Character);
+        Assert.AreEqual(Hex1bColor.Green, cell.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Flatten_NestedCompositeSurface_FlattensAll()
     {
         var inner = new CompositeSurface(5, 5);
@@ -1370,16 +1374,16 @@ public class CompositeSurfaceTests
         
         var result = outer.Flatten();
         
-        Assert.Equal(Hex1bColor.Gray, result[0, 0].Background);  // Background
-        Assert.Equal("I", result[3, 3].Character);  // Inner content
-        Assert.Equal("r", result[7, 3].Character);  // "Inner" at offset
+        Assert.AreEqual(Hex1bColor.Gray, result[0, 0].Background);  // Background
+        Assert.AreEqual("I", result[3, 3].Character);  // Inner content
+        Assert.AreEqual("r", result[7, 3].Character);  // "Inner" at offset
     }
 
     #endregion
 
     #region ISurfaceSource Interface
 
-    [Fact]
+    [TestMethod]
     public void TryGetCell_InBounds_ReturnsTrueAndCell()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1389,40 +1393,40 @@ public class CompositeSurfaceTests
         
         var result = composite.TryGetCell(2, 2, out var cell);
         
-        Assert.True(result);
-        Assert.Equal("X", cell.Character);
+        Assert.IsTrue(result);
+        Assert.AreEqual("X", cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void TryGetCell_OutOfBounds_ReturnsFalse()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.False(composite.TryGetCell(-1, 0, out _));
-        Assert.False(composite.TryGetCell(10, 0, out _));
+        Assert.IsFalse(composite.TryGetCell(-1, 0, out _));
+        Assert.IsFalse(composite.TryGetCell(10, 0, out _));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsInBounds_ValidPositions_ReturnsTrue()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.True(composite.IsInBounds(0, 0));
-        Assert.True(composite.IsInBounds(9, 9));
-        Assert.True(composite.IsInBounds(5, 5));
+        Assert.IsTrue(composite.IsInBounds(0, 0));
+        Assert.IsTrue(composite.IsInBounds(9, 9));
+        Assert.IsTrue(composite.IsInBounds(5, 5));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsInBounds_InvalidPositions_ReturnsFalse()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.False(composite.IsInBounds(-1, 0));
-        Assert.False(composite.IsInBounds(10, 0));
-        Assert.False(composite.IsInBounds(0, 10));
+        Assert.IsFalse(composite.IsInBounds(-1, 0));
+        Assert.IsFalse(composite.IsInBounds(10, 0));
+        Assert.IsFalse(composite.IsInBounds(0, 10));
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_Composite_AcceptsCompositeSurface()
     {
         var dest = new Surface(10, 10);
@@ -1435,41 +1439,41 @@ public class CompositeSurfaceTests
         // Composite a CompositeSurface onto a Surface
         dest.Composite(composite, 2, 2);
         
-        Assert.Equal("T", dest[2, 2].Character);
-        Assert.Equal("t", dest[5, 2].Character);
-        Assert.Equal(Hex1bColor.Red, dest[2, 2].Foreground);
+        Assert.AreEqual("T", dest[2, 2].Character);
+        Assert.AreEqual("t", dest[5, 2].Character);
+        Assert.AreEqual(Hex1bColor.Red, dest[2, 2].Foreground);
     }
 
     #endregion
 
     #region CellMetrics
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithoutMetrics_UsesDefault()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.Equal(CellMetrics.Default, composite.CellMetrics);
+        Assert.AreEqual(CellMetrics.Default, composite.CellMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithMetrics_StoresMetrics()
     {
         var metrics = new CellMetrics(8, 16);
         var composite = new CompositeSurface(10, 10, metrics);
         
-        Assert.Equal(metrics, composite.CellMetrics);
+        Assert.AreEqual(metrics, composite.CellMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSixels_WhenNoLayers_ReturnsFalse()
     {
         var composite = new CompositeSurface(10, 10);
         
-        Assert.False(composite.HasSixels);
+        Assert.IsFalse(composite.HasSixels);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSixels_WhenLayerWithSixels_ReturnsTrue()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1482,10 +1486,10 @@ public class CompositeSurfaceTests
         
         composite.AddLayer(layer, 0, 0);
         
-        Assert.True(composite.HasSixels);
+        Assert.IsTrue(composite.HasSixels);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddLayer_WithMatchingMetrics_Succeeds()
     {
         var metrics = new CellMetrics(8, 16);
@@ -1499,10 +1503,10 @@ public class CompositeSurfaceTests
         
         // Should not throw
         composite.AddLayer(layer, 0, 0);
-        Assert.Equal(1, composite.LayerCount);
+        Assert.AreEqual(1, composite.LayerCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddLayer_WithMismatchedMetrics_NoSixels_Succeeds()
     {
         var composite = new CompositeSurface(20, 20, new CellMetrics(10, 20));
@@ -1510,10 +1514,10 @@ public class CompositeSurfaceTests
         
         // No sixels - should succeed
         composite.AddLayer(layer, 0, 0);
-        Assert.Equal(1, composite.LayerCount);
+        Assert.AreEqual(1, composite.LayerCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddLayer_WithMismatchedMetrics_WithSixels_Throws()
     {
         var composite = new CompositeSurface(20, 20, new CellMetrics(10, 20));
@@ -1524,7 +1528,7 @@ public class CompositeSurfaceTests
         var sixelCell = new SurfaceCell(" ", null, null, Sixel: sixelRef);
         layer[0, 0] = sixelCell;
         
-        var ex = Assert.Throws<InvalidOperationException>(() => composite.AddLayer(layer, 0, 0));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => composite.AddLayer(layer, 0, 0));
         Assert.Contains("CellMetrics differ", ex.Message);
     }
 
@@ -1534,21 +1538,22 @@ public class CompositeSurfaceTests
 /// <summary>
 /// Tests for computed cells in <see cref="CompositeSurface"/>.
 /// </summary>
+[TestClass]
 public class ComputedCellTests
 {
     #region Basic Computed Cells
 
-    [Fact]
+    [TestMethod]
     public void AddComputedLayer_CreatesLayerWithCompute()
     {
         var composite = new CompositeSurface(10, 10);
         
         composite.AddComputedLayer(5, 5, ctx => new SurfaceCell("C", Hex1bColor.Red, null), 0, 0);
         
-        Assert.Equal(1, composite.LayerCount);
+        Assert.AreEqual(1, composite.LayerCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_ReturnsComputedCells()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1556,12 +1561,12 @@ public class ComputedCellTests
         composite.AddComputedLayer(5, 5, ctx => 
             new SurfaceCell($"{ctx.X},{ctx.Y}", Hex1bColor.Green, null), 0, 0);
         
-        Assert.Equal("0,0", composite.GetCell(0, 0).Character);
-        Assert.Equal("2,3", composite.GetCell(2, 3).Character);
-        Assert.Equal(Hex1bColor.Green, composite.GetCell(0, 0).Foreground);
+        Assert.AreEqual("0,0", composite.GetCell(0, 0).Character);
+        Assert.AreEqual("2,3", composite.GetCell(2, 3).Character);
+        Assert.AreEqual(Hex1bColor.Green, composite.GetCell(0, 0).Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_WithOffset_ComputesAtCorrectPosition()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1571,22 +1576,22 @@ public class ComputedCellTests
             new SurfaceCell("X", Hex1bColor.Blue, null), 3, 3);
         
         // Outside computed layer bounds
-        Assert.Equal(SurfaceCells.Empty, composite.GetCell(0, 0));
-        Assert.Equal(SurfaceCells.Empty, composite.GetCell(2, 2));
+        Assert.AreEqual(SurfaceCells.Empty, composite.GetCell(0, 0));
+        Assert.AreEqual(SurfaceCells.Empty, composite.GetCell(2, 2));
         
         // Inside computed layer bounds
-        Assert.Equal("X", composite.GetCell(3, 3).Character);
-        Assert.Equal("X", composite.GetCell(7, 7).Character);
+        Assert.AreEqual("X", composite.GetCell(3, 3).Character);
+        Assert.AreEqual("X", composite.GetCell(7, 7).Character);
         
         // Just outside computed layer
-        Assert.Equal(SurfaceCells.Empty, composite.GetCell(8, 8));
+        Assert.AreEqual(SurfaceCells.Empty, composite.GetCell(8, 8));
     }
 
     #endregion
 
     #region GetBelow
 
-    [Fact]
+    [TestMethod]
     public void GetBelow_ReturnsContentFromLayerBelow()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1604,12 +1609,12 @@ public class ComputedCellTests
         }, 0, 0);
         
         var cell = composite.GetCell(5, 5);
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(Hex1bColor.White, cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);  // From layer below
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(Hex1bColor.White, cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);  // From layer below
     }
 
-    [Fact]
+    [TestMethod]
     public void GetBelow_WithMultipleLayers_CompositesAllBelow()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1632,13 +1637,13 @@ public class ComputedCellTests
         }, 0, 0);
         
         // At (2, 2): green from layer1 (on top of red from layer0)
-        Assert.Equal(Hex1bColor.Green, composite.GetCell(2, 2).Background);
+        Assert.AreEqual(Hex1bColor.Green, composite.GetCell(2, 2).Background);
         
         // At (7, 7): red from layer0 (layer1 doesn't cover this)
-        Assert.Equal(Hex1bColor.Red, composite.GetCell(7, 7).Background);
+        Assert.AreEqual(Hex1bColor.Red, composite.GetCell(7, 7).Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetBelowAt_ReturnsContentAtDifferentPosition()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1658,16 +1663,16 @@ public class ComputedCellTests
         
         // Any position should have the content from (5, 5) below
         var result = composite.GetCell(0, 0);
-        Assert.Equal("B", result.Character);
-        Assert.Equal(Hex1bColor.Red, result.Foreground);
-        Assert.Equal(Hex1bColor.Blue, result.Background);
+        Assert.AreEqual("B", result.Character);
+        Assert.AreEqual(Hex1bColor.Red, result.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, result.Background);
     }
 
     #endregion
 
     #region GetAdjacent
 
-    [Fact]
+    [TestMethod]
     public void GetAdjacent_ReturnsNeighborCell()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1685,12 +1690,12 @@ public class ComputedCellTests
         }, 0, 0);
         
         // Cell at (0, 0) should have character from below at (1, 0) = "B"
-        Assert.Equal("B", composite.GetCell(0, 0).Character);
-        Assert.Equal("C", composite.GetCell(1, 0).Character);
-        Assert.Equal("D", composite.GetCell(2, 0).Character);
+        Assert.AreEqual("B", composite.GetCell(0, 0).Character);
+        Assert.AreEqual("C", composite.GetCell(1, 0).Character);
+        Assert.AreEqual("D", composite.GetCell(2, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetAdjacent_OnMixedLayer_ReturnsStaticNeighbor()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1707,11 +1712,11 @@ public class ComputedCellTests
         // other cells on the same layer. The GetBelowAt test above covers the main use case.
         
         // Verify the static layer is accessible
-        Assert.Equal("H", composite.GetCell(0, 0).Character);
-        Assert.Equal("e", composite.GetCell(1, 0).Character);
+        Assert.AreEqual("H", composite.GetCell(0, 0).Character);
+        Assert.AreEqual("e", composite.GetCell(1, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetAdjacent_OutOfBounds_ReturnsEmpty()
     {
         var composite = new CompositeSurface(5, 5);
@@ -1726,14 +1731,14 @@ public class ComputedCellTests
         
         // At x=0, there's no cell to the left, should return empty (unwritten marker)
         var result = composite.GetCell(0, 0);
-        Assert.Equal(SurfaceCells.UnwrittenMarker, result.Character);  // Empty cell uses unwritten marker
+        Assert.AreEqual(SurfaceCells.UnwrittenMarker, result.Character);  // Empty cell uses unwritten marker
     }
 
     #endregion
 
     #region Cycle Detection
 
-    [Fact]
+    [TestMethod]
     public void ComputedCell_SelfReference_ReturnsFallback()
     {
         var composite = new CompositeSurface(5, 5);
@@ -1748,10 +1753,10 @@ public class ComputedCellTests
         
         // Should not throw and should return a value
         var result = composite.GetCell(2, 2);
-        Assert.Equal("X", result.Character);
+        Assert.AreEqual("X", result.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedCell_MutualReference_ReturnsFallback()
     {
         var composite = new CompositeSurface(10, 5);
@@ -1766,18 +1771,18 @@ public class ComputedCellTests
         
         // At x=9, the cell to the right is out of bounds (empty/unwritten marker)
         var rightmost = composite.GetCell(9, 0);
-        Assert.Equal($"[{SurfaceCells.UnwrittenMarker}]", rightmost.Character);  // Empty cell has unwritten marker
+        Assert.AreEqual($"[{SurfaceCells.UnwrittenMarker}]", rightmost.Character);  // Empty cell has unwritten marker
         
         // At x=8, it reads from x=9
         var cell8 = composite.GetCell(8, 0);
-        Assert.Equal($"[[{SurfaceCells.UnwrittenMarker}]]", cell8.Character);
+        Assert.AreEqual($"[[{SurfaceCells.UnwrittenMarker}]]", cell8.Character);
     }
 
     #endregion
 
     #region CellEffects
 
-    [Fact]
+    [TestMethod]
     public void DropShadow_DarkensBackground()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1793,13 +1798,13 @@ public class ComputedCellTests
         var cell = composite.GetCell(5, 5);
         
         // White (255, 255, 255) darkened by 50% = (127, 127, 127)
-        Assert.NotNull(cell.Background);
-        Assert.Equal(127, cell.Background.Value.R);
-        Assert.Equal(127, cell.Background.Value.G);
-        Assert.Equal(127, cell.Background.Value.B);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(127, cell.Background.Value.R);
+        Assert.AreEqual(127, cell.Background.Value.G);
+        Assert.AreEqual(127, cell.Background.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tint_AppliesColorOverlay()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1818,13 +1823,13 @@ public class ComputedCellTests
         // R: 255 * 0.5 + 255 * 0.5 = 255
         // G: 255 * 0.5 + 0 * 0.5 = 127
         // B: 255 * 0.5 + 0 * 0.5 = 127
-        Assert.NotNull(cell.Background);
-        Assert.Equal(255, cell.Background.Value.R);
-        Assert.Equal(127, cell.Background.Value.G);
-        Assert.Equal(127, cell.Background.Value.B);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(255, cell.Background.Value.R);
+        Assert.AreEqual(127, cell.Background.Value.G);
+        Assert.AreEqual(127, cell.Background.Value.B);
     }
 
-    [Fact]
+    [TestMethod]
     public void Passthrough_ReturnsCellBelow()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1838,12 +1843,12 @@ public class ComputedCellTests
         composite.AddComputedLayer(10, 10, CellEffects.Passthrough(), 0, 0);
         
         var cell = composite.GetCell(5, 5);
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(Hex1bColor.Red, cell.Foreground);
-        Assert.Equal(Hex1bColor.Blue, cell.Background);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, cell.Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void Conditional_AppliesCorrectEffect()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1864,15 +1869,15 @@ public class ComputedCellTests
         var evenCell = composite.GetCell(0, 0);  // 0+0=0, even
         var oddCell = composite.GetCell(1, 0);   // 1+0=1, odd
         
-        Assert.Equal(127, evenCell.Background!.Value.R);  // Darkened
-        Assert.Equal(255, oddCell.Background!.Value.R);   // Unchanged
+        Assert.AreEqual(127, evenCell.Background!.Value.R);  // Darkened
+        Assert.AreEqual(255, oddCell.Background!.Value.R);   // Unchanged
     }
 
     #endregion
 
     #region Flatten with Computed Cells
 
-    [Fact]
+    [TestMethod]
     public void Flatten_IncludesComputedCells()
     {
         var composite = new CompositeSurface(5, 5);
@@ -1888,12 +1893,12 @@ public class ComputedCellTests
         
         var result = composite.Flatten();
         
-        Assert.Equal("C", result[2, 2].Character);
-        Assert.Equal(Hex1bColor.White, result[2, 2].Foreground);
-        Assert.Equal(Hex1bColor.Blue, result[2, 2].Background);
+        Assert.AreEqual("C", result[2, 2].Character);
+        Assert.AreEqual(Hex1bColor.White, result[2, 2].Foreground);
+        Assert.AreEqual(Hex1bColor.Blue, result[2, 2].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void Flatten_ComputedLayerAtOffset_PositionsCorrectly()
     {
         var composite = new CompositeSurface(10, 10);
@@ -1905,15 +1910,15 @@ public class ComputedCellTests
         var result = composite.Flatten();
         
         // Outside computed region
-        Assert.Equal(SurfaceCells.Empty, result[0, 0]);
-        Assert.Equal(SurfaceCells.Empty, result[3, 3]);
+        Assert.AreEqual(SurfaceCells.Empty, result[0, 0]);
+        Assert.AreEqual(SurfaceCells.Empty, result[3, 3]);
         
         // Inside computed region
-        Assert.Equal("X", result[4, 4].Character);
-        Assert.Equal("X", result[6, 6].Character);
+        Assert.AreEqual("X", result[4, 4].Character);
+        Assert.AreEqual("X", result[6, 6].Character);
         
         // Just outside
-        Assert.Equal(SurfaceCells.Empty, result[7, 7]);
+        Assert.AreEqual(SurfaceCells.Empty, result[7, 7]);
     }
 
     #endregion
@@ -1922,25 +1927,26 @@ public class ComputedCellTests
 /// <summary>
 /// Tests for <see cref="SurfaceDiff"/> and <see cref="SurfaceComparer"/>.
 /// </summary>
+[TestClass]
 public class SurfaceDiffTests
 {
     #region SurfaceDiff Construction
 
-    [Fact]
+    [TestMethod]
     public void SurfaceDiff_Empty_HasNoChangedCells()
     {
         var diff = SurfaceDiff.Empty;
 
-        Assert.True(diff.IsEmpty);
-        Assert.Equal(0, diff.Count);
-        Assert.Empty(diff.ChangedCells);
+        Assert.IsTrue(diff.IsEmpty);
+        Assert.AreEqual(0, diff.Count);
+        Assert.IsEmpty(diff.ChangedCells);
     }
 
     #endregion
 
     #region SurfaceComparer.Compare
 
-    [Fact]
+    [TestMethod]
     public void Compare_IdenticalSurfaces_ReturnsEmptyDiff()
     {
         var surface1 = new Surface(5, 5);
@@ -1951,10 +1957,10 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.Compare(surface1, surface2);
 
-        Assert.True(diff.IsEmpty);
+        Assert.IsTrue(diff.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_SingleCellChanged_ReturnsOneCellInDiff()
     {
         var previous = new Surface(5, 5);
@@ -1966,13 +1972,13 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Equal(1, diff.Count);
-        Assert.Equal(2, diff.ChangedCells[0].X);
-        Assert.Equal(2, diff.ChangedCells[0].Y);
-        Assert.Equal("B", diff.ChangedCells[0].Cell.Character);
+        Assert.AreEqual(1, diff.Count);
+        Assert.AreEqual(2, diff.ChangedCells[0].X);
+        Assert.AreEqual(2, diff.ChangedCells[0].Y);
+        Assert.AreEqual("B", diff.ChangedCells[0].Cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_MultipleCellsChanged_ReturnsSortedByRowThenColumn()
     {
         var previous = new Surface(5, 5);
@@ -1986,16 +1992,16 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Equal(4, diff.Count);
+        Assert.AreEqual(4, diff.Count);
         
         // Should be sorted by Y then X
-        Assert.Equal((0, 0), (diff.ChangedCells[0].X, diff.ChangedCells[0].Y)); // Z
-        Assert.Equal((2, 1), (diff.ChangedCells[1].X, diff.ChangedCells[1].Y)); // W
-        Assert.Equal((3, 1), (diff.ChangedCells[2].X, diff.ChangedCells[2].Y)); // X
-        Assert.Equal((1, 2), (diff.ChangedCells[3].X, diff.ChangedCells[3].Y)); // Y
+        Assert.AreEqual((0, 0), (diff.ChangedCells[0].X, diff.ChangedCells[0].Y)); // Z
+        Assert.AreEqual((2, 1), (diff.ChangedCells[1].X, diff.ChangedCells[1].Y)); // W
+        Assert.AreEqual((3, 1), (diff.ChangedCells[2].X, diff.ChangedCells[2].Y)); // X
+        Assert.AreEqual((1, 2), (diff.ChangedCells[3].X, diff.ChangedCells[3].Y)); // Y
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_ColorChange_DetectsAsChange()
     {
         var previous = new Surface(3, 3);
@@ -2006,11 +2012,11 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Equal(1, diff.Count);
-        Assert.Equal(Hex1bColor.Blue, diff.ChangedCells[0].Cell.Foreground);
+        Assert.AreEqual(1, diff.Count);
+        Assert.AreEqual(Hex1bColor.Blue, diff.ChangedCells[0].Cell.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_AttributeChange_DetectsAsChange()
     {
         var previous = new Surface(3, 3);
@@ -2021,20 +2027,20 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Equal(1, diff.Count);
-        Assert.Equal(CellAttributes.Bold, diff.ChangedCells[0].Cell.Attributes);
+        Assert.AreEqual(1, diff.Count);
+        Assert.AreEqual(CellAttributes.Bold, diff.ChangedCells[0].Cell.Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_DifferentSizes_ThrowsArgumentException()
     {
         var surface1 = new Surface(5, 5);
         var surface2 = new Surface(3, 3);
 
-        Assert.Throws<ArgumentException>(() => SurfaceComparer.Compare(surface1, surface2));
+        Assert.ThrowsExactly<ArgumentException>(() => SurfaceComparer.Compare(surface1, surface2));
     }
 
-    [Fact]
+    [TestMethod]
     public void CompareToEmpty_NonEmptySurface_ReturnsAllNonEmptyCells()
     {
         var surface = new Surface(3, 3);
@@ -2043,42 +2049,42 @@ public class SurfaceDiffTests
 
         var diff = SurfaceComparer.CompareToEmpty(surface);
 
-        Assert.Equal(2, diff.Count);
+        Assert.AreEqual(2, diff.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompareToEmpty_EmptySurface_ReturnsEmptyDiff()
     {
         var surface = new Surface(3, 3);
 
         var diff = SurfaceComparer.CompareToEmpty(surface);
 
-        Assert.True(diff.IsEmpty);
+        Assert.IsTrue(diff.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void CreateFullDiff_ReturnsAllCells()
     {
         var surface = new Surface(3, 3);
 
         var diff = SurfaceComparer.CreateFullDiff(surface);
 
-        Assert.Equal(9, diff.Count);
+        Assert.AreEqual(9, diff.Count);
     }
 
     #endregion
 
     #region SurfaceComparer.ToTokens
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_EmptyDiff_ReturnsEmptyList()
     {
         var tokens = SurfaceComparer.ToTokens(SurfaceDiff.Empty);
 
-        Assert.Empty(tokens);
+        Assert.IsEmpty(tokens);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_SingleCell_GeneratesPositionAndText()
     {
         var previous = new Surface(5, 5);
@@ -2089,11 +2095,11 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         // Should have: CursorPosition, SGR (for reset), Text
-        Assert.Contains(tokens, t => t is CursorPositionToken pos && pos.Row == 4 && pos.Column == 3); // 1-based
-        Assert.Contains(tokens, t => t is TextToken txt && txt.Text == "X");
+        Assert.IsTrue(tokens.Any(t => t is CursorPositionToken pos && pos.Row == 4 && pos.Column == 3)); // 1-based
+        Assert.IsTrue(tokens.Any(t => t is TextToken txt && txt.Text == "X"));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_ConsecutiveCellsOnRow_OmitsExtraCursorPositions()
     {
         var previous = new Surface(10, 1);
@@ -2107,12 +2113,12 @@ public class SurfaceDiffTests
 
         // Should only have 1 cursor position for the start
         var cursorPositions = tokens.OfType<CursorPositionToken>().ToList();
-        Assert.Single(cursorPositions);
-        Assert.Equal(1, cursorPositions[0].Row);
-        Assert.Equal(1, cursorPositions[0].Column);
+        TestSeq.Single(cursorPositions);
+        Assert.AreEqual(1, cursorPositions[0].Row);
+        Assert.AreEqual(1, cursorPositions[0].Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_CellWithColors_GeneratesSgrWithColors()
     {
         var previous = new Surface(5, 5);
@@ -2123,13 +2129,13 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         // Should contain foreground (38;2;255;0;0) and background (48;2;0;0;255)
         Assert.Contains("38;2;255;0;0", sgr.Parameters);
         Assert.Contains("48;2;0;0;255", sgr.Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_CellWithBoldAttribute_GeneratesSgrWithBold()
     {
         var previous = new Surface(5, 5);
@@ -2140,12 +2146,12 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         // Bold is SGR code 1
         Assert.Contains("1", sgr.Parameters.Split(';'));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_SameAttributesConsecutive_DoesNotRepeatSgr()
     {
         var previous = new Surface(10, 1);
@@ -2159,10 +2165,10 @@ public class SurfaceDiffTests
 
         // Only 1 SGR token needed since all cells have same attributes
         var sgrTokens = tokens.OfType<SgrToken>().ToList();
-        Assert.Single(sgrTokens);
+        TestSeq.Single(sgrTokens);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_WideCharacter_SkipsContinuationCell()
     {
         var previous = new Surface(10, 1);
@@ -2174,11 +2180,11 @@ public class SurfaceDiffTests
 
         // Should only have one text token with "你", not the continuation
         var textTokens = tokens.OfType<TextToken>().ToList();
-        Assert.Single(textTokens);
-        Assert.Equal("你", textTokens[0].Text);
+        TestSeq.Single(textTokens);
+        Assert.AreEqual("你", textTokens[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_WideCharacter_AdvancesCursorCorrectly()
     {
         var previous = new Surface(10, 1);
@@ -2191,22 +2197,22 @@ public class SurfaceDiffTests
         // Should only have 1 cursor position (at start)
         // Because after "你" (width 2), cursor is at 2, which is where "好" is
         var cursorPositions = tokens.OfType<CursorPositionToken>().ToList();
-        Assert.Single(cursorPositions);
+        TestSeq.Single(cursorPositions);
     }
 
     #endregion
 
     #region SurfaceComparer.ToAnsiString
 
-    [Fact]
+    [TestMethod]
     public void ToAnsiString_EmptyDiff_ReturnsEmptyString()
     {
         var result = SurfaceComparer.ToAnsiString(SurfaceDiff.Empty);
 
-        Assert.Equal(string.Empty, result);
+        Assert.AreEqual(string.Empty, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsiString_SingleCell_ContainsCorrectSequences()
     {
         var previous = new Surface(5, 5);
@@ -2222,7 +2228,7 @@ public class SurfaceDiffTests
         Assert.Contains("X", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToAnsiString_CellWithRed_ContainsColorSequence()
     {
         var previous = new Surface(3, 3);
@@ -2240,7 +2246,7 @@ public class SurfaceDiffTests
 
     #region SGR Parameter Generation
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_MultipleAttributes_CombinesInSingleSgr()
     {
         var previous = new Surface(3, 3);
@@ -2251,13 +2257,13 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         var parts = sgr.Parameters.Split(';');
         Assert.Contains("1", parts); // Bold
         Assert.Contains("4", parts); // Underline
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_AttributeTurnedOff_ResetsFirst()
     {
         // Simulate state where we're transitioning from bold to no-bold
@@ -2271,13 +2277,13 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgrTokens = tokens.OfType<SgrToken>().ToList();
-        Assert.True(sgrTokens.Count >= 2); // At least 2: one for bold, one for reset
+        Assert.IsTrue(sgrTokens.Count >= 2); // At least 2: one for bold, one for reset
         
         // Second SGR should start with reset (0)
         Assert.StartsWith("0", sgrTokens[1].Parameters);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_ItalicAttribute_UsesSgrCode3()
     {
         var previous = new Surface(3, 3);
@@ -2288,11 +2294,11 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         Assert.Contains("3", sgr.Parameters.Split(';'));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_StrikethroughAttribute_UsesSgrCode9()
     {
         var previous = new Surface(3, 3);
@@ -2303,7 +2309,7 @@ public class SurfaceDiffTests
         var tokens = SurfaceComparer.ToTokens(diff);
 
         var sgr = tokens.OfType<SgrToken>().FirstOrDefault();
-        Assert.NotNull(sgr);
+        Assert.IsNotNull(sgr);
         Assert.Contains("9", sgr.Parameters.Split(';'));
     }
 

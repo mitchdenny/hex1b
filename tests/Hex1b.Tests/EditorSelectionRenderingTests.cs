@@ -11,6 +11,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorSelectionRenderingTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -53,7 +54,7 @@ public class EditorSelectionRenderingTests
 
     // ── Single-line selection ───────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SelectionOnSingleLine_HighlightsSelectedCells()
     {
         // NOTE: Selection color may change with theme updates.
@@ -81,47 +82,42 @@ public class EditorSelectionRenderingTests
 
         // 'H' at col 0 should be normal text color
         var hCell = snapshot.GetCell(0, 0);
-        Assert.Equal("H", hCell.Character);
-        Assert.True(ColorEquals(colors.TextFg, hCell.Foreground),
-            $"H fg: expected {colors.TextFg}, got {hCell.Foreground}");
+        Assert.AreEqual("H", hCell.Character);
+        Assert.IsTrue(ColorEquals(colors.TextFg, hCell.Foreground), $"H fg: expected {colors.TextFg}, got {hCell.Foreground}");
 
         // 'e' at col 1 should be selection color (start of selection)
         var eCell = snapshot.GetCell(1, 0);
-        Assert.Equal("e", eCell.Character);
-        Assert.True(ColorEquals(colors.SelectionFg, eCell.Foreground),
-            $"e fg: expected {colors.SelectionFg}, got {eCell.Foreground}");
-        Assert.True(ColorEquals(colors.SelectionBg, eCell.Background),
-            $"e bg: expected {colors.SelectionBg}, got {eCell.Background}");
+        Assert.AreEqual("e", eCell.Character);
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, eCell.Foreground), $"e fg: expected {colors.SelectionFg}, got {eCell.Foreground}");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, eCell.Background), $"e bg: expected {colors.SelectionBg}, got {eCell.Background}");
 
         // 'l' at col 2 should be selection color
         var lCell = snapshot.GetCell(2, 0);
-        Assert.Equal("l", lCell.Character);
-        Assert.True(ColorEquals(colors.SelectionFg, lCell.Foreground));
-        Assert.True(ColorEquals(colors.SelectionBg, lCell.Background));
+        Assert.AreEqual("l", lCell.Character);
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, lCell.Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, lCell.Background));
 
         // 'o' at col 4 should be selection color (last selected char)
         var oCell = snapshot.GetCell(4, 0);
-        Assert.Equal("o", oCell.Character);
-        Assert.True(ColorEquals(colors.SelectionFg, oCell.Foreground));
-        Assert.True(ColorEquals(colors.SelectionBg, oCell.Background));
+        Assert.AreEqual("o", oCell.Character);
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, oCell.Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, oCell.Background));
 
         // ' ' at col 5 should be cursor (cursor position is at end of selection)
         var spaceCell = snapshot.GetCell(5, 0);
-        Assert.True(ColorEquals(colors.CursorFg, spaceCell.Foreground),
-            $"cursor fg: expected {colors.CursorFg}, got {spaceCell.Foreground}");
-        Assert.True(ColorEquals(colors.CursorBg, spaceCell.Background),
-            $"cursor bg: expected {colors.CursorBg}, got {spaceCell.Background}");
+        Assert.IsTrue(ColorEquals(colors.CursorFg, spaceCell.Foreground), $"cursor fg: expected {colors.CursorFg}, got {spaceCell.Foreground}");
+        Assert.IsTrue(ColorEquals(colors.CursorBg, spaceCell.Background), $"cursor bg: expected {colors.CursorBg}, got {spaceCell.Background}");
 
         // 'W' at col 6 should be normal
         var wCell = snapshot.GetCell(6, 0);
-        Assert.Equal("W", wCell.Character);
-        Assert.True(ColorEquals(colors.TextFg, wCell.Foreground));
+        Assert.AreEqual("W", wCell.Character);
+        Assert.IsTrue(ColorEquals(colors.TextFg, wCell.Foreground));
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SelectionReversed_SameHighlighting()
     {
         // NOTE: Reverse selection (anchor after cursor) should highlight the same range.
@@ -147,20 +143,20 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'a' at col 0 should be normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
 
         // Cursor at col 1 — cursor takes priority over selection
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(1, 0).Foreground));
 
         // 'c' at col 2 should be selection
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(2, 0).Background));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(2, 0).Background));
 
         // 'd' at col 3 should be selection
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(3, 0).Foreground));
 
         // 'e' at col 4 should be normal (selection end is exclusive)
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -168,7 +164,7 @@ public class EditorSelectionRenderingTests
 
     // ── Multi-line selection ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiLineSelection_HighlightsAcrossLines()
     {
         // NOTE: Multi-line selection colors the end of line 1 and start of line 2.
@@ -201,19 +197,19 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 1 (row 0): "abc" — 'a' normal, 'b','c' selected
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground)); // 'a' normal
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground)); // 'b' selected
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground)); // 'c' selected
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground)); // 'a' normal
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground)); // 'b' selected
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground)); // 'c' selected
 
         // Line 2 (row 1): "def" — 'd' selected, cursor at 'e' (offset 5 = line 2 col 2)
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 1).Foreground)); // 'd' selected
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(1, 1).Foreground)); // 'e' = cursor
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 1).Foreground)); // 'd' selected
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(1, 1).Foreground)); // 'e' = cursor
 
         // 'f' at col 2 should be normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(2, 1).Foreground)); // 'f' normal
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(2, 1).Foreground)); // 'f' normal
 
         // Line 3 (row 2): "ghi" — all normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(0, 2).Foreground)); // 'g' normal
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(0, 2).Foreground)); // 'g' normal
 
         workload.Dispose();
         terminal.Dispose();
@@ -221,7 +217,7 @@ public class EditorSelectionRenderingTests
 
     // ── No selection when unfocused ─────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_NoSelectionHighlighting()
     {
         // NOTE: Unfocused editors should not show selection or cursor highlighting.
@@ -245,8 +241,7 @@ public class EditorSelectionRenderingTests
         // All cells should be normal text color — no selection, no cursor
         for (var col = 0; col < 5; col++)
         {
-            Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(col, 0).Foreground),
-                $"Col {col}: expected normal fg, got {snapshot.GetCell(col, 0).Foreground}");
+            Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(col, 0).Foreground), $"Col {col}: expected normal fg, got {snapshot.GetCell(col, 0).Foreground}");
         }
 
         workload.Dispose();
@@ -255,7 +250,7 @@ public class EditorSelectionRenderingTests
 
     // ── SelectAll rendering ─────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SelectAll_HighlightsEntireDocument()
     {
         // NOTE: SelectAll should highlight all text, cursor at end.
@@ -279,12 +274,12 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // All 3 chars selected
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground)); // 'a'
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground)); // 'b'
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground)); // 'c'
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground)); // 'a'
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground)); // 'b'
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground)); // 'c'
 
         // Cursor at col 3 (after text)
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -292,7 +287,7 @@ public class EditorSelectionRenderingTests
 
     // ── Multi-cursor selection ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiCursorWithSelection_HighlightsBothSelections()
     {
         // NOTE: Multiple cursors each with their own selection should all render.
@@ -321,24 +316,24 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // "aaa" selected (cols 0,1,2)
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
 
         // Cursor at col 3 (end of "aaa")
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
 
         // " bbb " normal (cols 4..7)
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(5, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(5, 0).Foreground));
 
         // "ccc" selected (cols 8,9,10)
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(8, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(9, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(10, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(8, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(9, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(10, 0).Foreground));
 
         // Cursor at col 11 (end of "ccc")
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(11, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(11, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -346,7 +341,7 @@ public class EditorSelectionRenderingTests
 
     // ── Cursor overrides selection ──────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorInsideSelection_CursorTakesPriority()
     {
         // NOTE: When cursor is within a selected range, cursor color should win.
@@ -372,21 +367,21 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'a' at col 0 — normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
 
         // 'b' at col 1 — normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(1, 0).Foreground));
 
         // 'c' at col 2 — cursor (overrides selection)
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
-        Assert.True(ColorEquals(colors.CursorBg, snapshot.GetCell(2, 0).Background));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorBg, snapshot.GetCell(2, 0).Background));
 
         // 'd' at col 3 — selection
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(3, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(3, 0).Background));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(3, 0).Background));
 
         // 'e' at col 4 — selection
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(4, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -394,7 +389,7 @@ public class EditorSelectionRenderingTests
 
     // ── Empty selection (no highlight) ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NoSelection_NoHighlighting()
     {
         // NOTE: Without any selection, only cursor should be highlighted.
@@ -419,15 +414,15 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'H' and 'e' normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(1, 0).Foreground));
 
         // 'l' at col 2 — cursor
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
 
         // 'l' at col 3, 'o' at col 4 — normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(3, 0).Foreground));
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -435,7 +430,7 @@ public class EditorSelectionRenderingTests
 
     // ── Selection on padded area ────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SelectionDoesNotExtendBeyondText()
     {
         // NOTE: Selection should not highlight the padding area beyond actual text.
@@ -460,15 +455,15 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'a' and 'b' selected (cols 0,1)
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
 
         // Cursor at col 2
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(2, 0).Foreground));
 
         // Padding beyond text (col 3+) should be normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(3, 0).Foreground));
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
 
         workload.Dispose();
         terminal.Dispose();
@@ -476,7 +471,7 @@ public class EditorSelectionRenderingTests
 
     // ── Shift+Right integration test ────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ShiftRight_CreatesVisibleSelection()
     {
         // NOTE: This integration test verifies that Shift+Right through the app
@@ -527,15 +522,15 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'H','e','l' should be selected (cols 0,1,2)
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
-        Assert.True(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(0, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(1, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.SelectionFg, snapshot.GetCell(2, 0).Foreground));
 
         // Cursor at col 3 ('l')
-        Assert.True(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.CursorFg, snapshot.GetCell(3, 0).Foreground));
 
         // 'o' at col 4 should be normal
-        Assert.True(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
+        Assert.IsTrue(ColorEquals(colors.TextFg, snapshot.GetCell(4, 0).Foreground));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -545,7 +540,7 @@ public class EditorSelectionRenderingTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectAll_WithTextBeyondViewport_DoesNotCrash()
     {
         // Regression: selecting text longer than the viewport caused IndexOutOfRangeException
@@ -576,15 +571,13 @@ public class EditorSelectionRenderingTests
         for (int col = 0; col < 20; col++)
         {
             var cell = snapshot.GetCell(col, 0);
-            Assert.True(
-                ColorEquals(colors.SelectionBg, cell.Background) || ColorEquals(colors.CursorBg, cell.Background),
-                $"Cell ({col},0) should be selected or cursor, got bg={cell.Background}");
+            Assert.IsTrue(ColorEquals(colors.SelectionBg, cell.Background) || ColorEquals(colors.CursorBg, cell.Background), $"Cell ({col},0) should be selected or cursor, got bg={cell.Background}");
         }
     }
 
     // ── Multi-line selection does NOT highlight past end-of-line ──
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiLineSelectAll_DoesNotHighlightPastEndOfLine()
     {
         // "Hi\nBye" — select all, verify padding past line content is NOT highlighted.
@@ -607,28 +600,26 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0 "Hi\n": cols 0,1 = content selected, cols 2+ = NOT highlighted (no newline indicator)
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'H' should be selected");
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1 'i' should be selected");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'H' should be selected");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1 'i' should be selected");
         for (int col = 2; col < 20; col++)
         {
             var cell = snapshot.GetCell(col, 0);
-            Assert.False(ColorEquals(colors.SelectionBg, cell.Background),
-                $"Row 0 col {col} should NOT have selection bg (past 'Hi\\n')");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, cell.Background), $"Row 0 col {col} should NOT have selection bg (past 'Hi\\n')");
         }
 
         // Row 1 "Bye": cursor is at end of doc (col 3), cols 4+ MUST NOT be selected
         for (int col = 4; col < 20; col++)
         {
             var cell = snapshot.GetCell(col, 1);
-            Assert.False(ColorEquals(colors.SelectionBg, cell.Background),
-                $"Row 1 col {col} should NOT have selection bg (past 'Bye')");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, cell.Background), $"Row 1 col {col} should NOT have selection bg (past 'Bye')");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiLineVaryingLengths_NoExcessHighlight()
     {
         // "AB\nC\nDEFG" — select from start through "C\n" (offset 0 to 5)
@@ -654,34 +645,31 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0 "AB": cols 0,1 selected, cols 2+ NOT selected
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0");
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(1, 0).Background), "Row 0 col 1");
         for (int col = 2; col < 20; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
-                $"Row 0 col {col} should NOT be selected (past 'AB\\n')");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background), $"Row 0 col {col} should NOT be selected (past 'AB\\n')");
         }
 
         // Row 1 "C": col 0 selected, cols 1+ NOT selected
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 1).Background), "Row 1 col 0");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 1).Background), "Row 1 col 0");
         for (int col = 1; col < 20; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
-                $"Row 1 col {col} should NOT be selected (past 'C\\n')");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background), $"Row 1 col {col} should NOT be selected (past 'C\\n')");
         }
 
         // Row 2 "DEFG": cursor at col 0, rest NOT selected
         for (int col = 1; col < 20; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background),
-                $"Row 2 col {col} should NOT be selected (unselected line)");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background), $"Row 2 col {col} should NOT be selected (unselected line)");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyLineInSelection_OnlyHighlightsNewline()
     {
         // "A\n\nB" — empty middle line
@@ -704,32 +692,29 @@ public class EditorSelectionRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0 "A": col 0 selected, cols 1+ NOT selected
-        Assert.True(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'A'");
+        Assert.IsTrue(ColorEquals(colors.SelectionBg, snapshot.GetCell(0, 0).Background), "Row 0 col 0 'A'");
         for (int col = 1; col < 15; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background),
-                $"Row 0 col {col} should NOT be selected");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 0).Background), $"Row 0 col {col} should NOT be selected");
         }
 
         // Row 1 "": empty line — no content, cols 0+ NOT selected
         for (int col = 0; col < 15; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background),
-                $"Row 1 col {col} should NOT be selected (empty line)");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 1).Background), $"Row 1 col {col} should NOT be selected (empty line)");
         }
 
         // Row 2 "B": cols 1+ NOT selected
         for (int col = 2; col < 15; col++)
         {
-            Assert.False(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background),
-                $"Row 2 col {col} should NOT be selected");
+            Assert.IsFalse(ColorEquals(colors.SelectionBg, snapshot.GetCell(col, 2).Background), $"Row 2 col {col} should NOT be selected");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectAll_ThenDelete_DoesNotCrashOnArrange()
     {
         // Regression: after Ctrl+A then Delete, cursor position could exceed document length,

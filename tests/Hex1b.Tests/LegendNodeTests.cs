@@ -5,6 +5,7 @@ using Hex1b.Surfaces;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class LegendNodeTests
 {
     private static LegendNode<ChartItem> CreateNode(
@@ -35,58 +36,58 @@ public class LegendNodeTests
 
     #region Measure Tests — Vertical
 
-    [Fact]
+    [TestMethod]
     public void Measure_Vertical_HeightEqualsItemCount()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(new Constraints(0, 40, 0, 30));
 
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_Vertical_WidthFitsLabels()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(Constraints.Unbounded);
 
         // "■ " (2) + longest label "Rust" (4) = 6 minimum
-        Assert.True(size.Width >= 6);
+        Assert.IsTrue(size.Width >= 6);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_Vertical_RespectsMaxHeight()
     {
         var node = CreateNode(SampleData);
         var size = node.Measure(new Constraints(0, 40, 0, 2));
 
-        Assert.True(size.Height <= 2);
+        Assert.IsTrue(size.Height <= 2);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptyData_ReturnsZeroSize()
     {
         var node = CreateNode([]);
         var size = node.Measure(new Constraints(0, 40, 0, 30));
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
     #endregion
 
     #region Measure Tests — Horizontal
 
-    [Fact]
+    [TestMethod]
     public void Measure_Horizontal_HeightIsOne()
     {
         var node = CreateNode(SampleData, horizontal: true);
         var size = node.Measure(new Constraints(0, 100, 0, 30));
 
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_Horizontal_WidthAccommodatesAllItems()
     {
         var node = CreateNode(SampleData, horizontal: true);
@@ -94,14 +95,14 @@ public class LegendNodeTests
 
         // Each item: swatch(1) + space(1) + label. Plus spacing(2) between items.
         // "■ Go" (4) + "  " (2) + "■ Rust" (6) + "  " (2) + "■ C#" (4) = 18
-        Assert.True(size.Width >= 18);
+        Assert.IsTrue(size.Width >= 18);
     }
 
     #endregion
 
     #region Render Tests — Vertical
 
-    [Fact]
+    [TestMethod]
     public void Render_Vertical_ShowsLabels()
     {
         var node = CreateNode(SampleData);
@@ -113,31 +114,31 @@ public class LegendNodeTests
         Assert.Contains("C#", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Vertical_ShowsSwatchCharacter()
     {
         var node = CreateNode(SampleData);
         var (surface, _) = RenderNode(node, 40, 10);
 
         // First column should have swatch character ■
-        Assert.Equal("■", surface[0, 0].Character);
-        Assert.Equal("■", surface[0, 1].Character);
-        Assert.Equal("■", surface[0, 2].Character);
+        Assert.AreEqual("■", surface[0, 0].Character);
+        Assert.AreEqual("■", surface[0, 1].Character);
+        Assert.AreEqual("■", surface[0, 2].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Vertical_SwatchHasForegroundColor()
     {
         var node = CreateNode(SampleData);
         var (surface, _) = RenderNode(node, 40, 10);
 
         // Swatch should use foreground color (not background)
-        Assert.NotNull(surface[0, 0].Foreground);
-        Assert.NotNull(surface[0, 1].Foreground);
-        Assert.NotNull(surface[0, 2].Foreground);
+        Assert.IsNotNull(surface[0, 0].Foreground);
+        Assert.IsNotNull(surface[0, 1].Foreground);
+        Assert.IsNotNull(surface[0, 2].Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Vertical_DifferentSwatchColors()
     {
         var node = CreateNode(SampleData);
@@ -148,11 +149,11 @@ public class LegendNodeTests
         var color2 = surface[0, 2].Foreground;
 
         // All three segments should have different colors
-        Assert.NotEqual(color0, color1);
-        Assert.NotEqual(color1, color2);
+        Assert.AreNotEqual(color0, color1);
+        Assert.AreNotEqual(color1, color2);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ShowValues_DisplaysValues()
     {
         var node = CreateNode(SampleData, showValues: true);
@@ -163,7 +164,7 @@ public class LegendNodeTests
         Assert.Contains("28", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ShowPercentages_DisplaysPercent()
     {
         var node = CreateNode(SampleData, showPercentages: true);
@@ -173,7 +174,7 @@ public class LegendNodeTests
         Assert.Contains("%", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ShowBoth_DisplaysValuesAndPercentages()
     {
         var node = CreateNode(SampleData, showValues: true, showPercentages: true);
@@ -184,7 +185,7 @@ public class LegendNodeTests
         Assert.Contains("%", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_CustomFormatter_UsedInOutput()
     {
         var node = CreateNode(SampleData, showValues: true, valueFormatter: v => $"${v:F0}");
@@ -198,7 +199,7 @@ public class LegendNodeTests
 
     #region Render Tests — Horizontal
 
-    [Fact]
+    [TestMethod]
     public void Render_Horizontal_AllItemsOnOneRow()
     {
         var node = CreateNode(SampleData, horizontal: true);
@@ -210,17 +211,17 @@ public class LegendNodeTests
         Assert.Contains("C#", row);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Horizontal_ShowsSwatches()
     {
         var node = CreateNode(SampleData, horizontal: true);
         var (surface, _) = RenderNode(node, 60, 1);
 
         // First character should be swatch
-        Assert.Equal("■", surface[0, 0].Character);
+        Assert.AreEqual("■", surface[0, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Horizontal_WithPercentages()
     {
         var node = CreateNode(SampleData, showPercentages: true, horizontal: true);
@@ -234,7 +235,7 @@ public class LegendNodeTests
 
     #region Edge Cases
 
-    [Fact]
+    [TestMethod]
     public void Render_NullData_DoesNotCrash()
     {
         var node = new LegendNode<ChartItem>
@@ -252,7 +253,7 @@ public class LegendNodeTests
         // Should not throw
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_ZeroValues_Excluded()
     {
         var data = new ChartItem[]
@@ -269,7 +270,7 @@ public class LegendNodeTests
         Assert.DoesNotContain("Zero", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_SingleItem_Works()
     {
         var node = CreateNode([new("Only", 100)]);
@@ -279,7 +280,7 @@ public class LegendNodeTests
         Assert.Contains("Only", allText);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_VeryNarrowWidth_DoesNotCrash()
     {
         var node = CreateNode(SampleData);

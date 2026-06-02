@@ -4,9 +4,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MouseBindingTests
 {
-    [Fact]
+    [TestMethod]
     public void MouseBinding_MatchesCorrectEvent()
     {
         var binding = new MouseBinding(
@@ -20,11 +21,11 @@ public class MouseBindingTests
         var matchingEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
         var nonMatchingEvent = new Hex1bMouseEvent(MouseButton.Right, MouseAction.Down, 10, 10, Hex1bModifiers.None);
         
-        Assert.True(binding.Matches(matchingEvent));
-        Assert.False(binding.Matches(nonMatchingEvent));
+        Assert.IsTrue(binding.Matches(matchingEvent));
+        Assert.IsFalse(binding.Matches(nonMatchingEvent));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MouseBinding_Execute_InvokesHandler()
     {
         var executed = false;
@@ -39,10 +40,10 @@ public class MouseBindingTests
         var actionContext = new InputBindingActionContext(new FocusRing());
         await binding.ExecuteAsync(actionContext);
         
-        Assert.True(executed);
+        Assert.IsTrue(executed);
     }
     
-    [Fact]
+    [TestMethod]
     public void MouseBinding_WithModifiers_MatchesCorrectly()
     {
         var binding = new MouseBinding(
@@ -56,24 +57,24 @@ public class MouseBindingTests
         var ctrlClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.Control);
         var plainClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
         
-        Assert.True(binding.Matches(ctrlClick));
-        Assert.False(binding.Matches(plainClick));
+        Assert.IsTrue(binding.Matches(ctrlClick));
+        Assert.IsFalse(binding.Matches(plainClick));
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_Mouse_AddsBinding()
     {
         var builder = new InputBindingsBuilder();
         
         builder.Mouse(MouseButton.Left).Action(_ => { return Task.CompletedTask; }, "Click");
         
-        Assert.Single(builder.MouseBindings);
-        Assert.Equal(MouseButton.Left, builder.MouseBindings[0].Button);
-        Assert.Equal(MouseAction.Down, builder.MouseBindings[0].Action);
-        Assert.Equal("Click", builder.MouseBindings[0].Description);
+        TestSeq.Single(builder.MouseBindings);
+        Assert.AreEqual(MouseButton.Left, builder.MouseBindings[0].Button);
+        Assert.AreEqual(MouseAction.Down, builder.MouseBindings[0].Action);
+        Assert.AreEqual("Click", builder.MouseBindings[0].Description);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_Mouse_WithModifiers()
     {
         var builder = new InputBindingsBuilder();
@@ -81,10 +82,10 @@ public class MouseBindingTests
         builder.Mouse(MouseButton.Left).Ctrl().Action(_ => Task.CompletedTask, "Ctrl+Click");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(Hex1bModifiers.Control, binding.Modifiers);
+        Assert.AreEqual(Hex1bModifiers.Control, binding.Modifiers);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_Mouse_OnRelease()
     {
         var builder = new InputBindingsBuilder();
@@ -92,10 +93,10 @@ public class MouseBindingTests
         builder.Mouse(MouseButton.Left).OnRelease().Action(_ => Task.CompletedTask, "Release");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(MouseAction.Up, binding.Action);
+        Assert.AreEqual(MouseAction.Up, binding.Action);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_BuildsMultipleMouseBindings()
     {
         var builder = new InputBindingsBuilder();
@@ -104,25 +105,26 @@ public class MouseBindingTests
         builder.Mouse(MouseButton.Right).Ctrl().Action(_ => Task.CompletedTask, "Ctrl+Right");
         builder.Mouse(MouseButton.Middle).OnRelease().Action(_ => Task.CompletedTask, "Middle Release");
         
-        Assert.Equal(3, builder.MouseBindings.Count);
+        Assert.AreEqual(3, builder.MouseBindings.Count);
         
-        Assert.Equal(MouseButton.Left, builder.MouseBindings[0].Button);
-        Assert.Equal(MouseAction.Down, builder.MouseBindings[0].Action);
-        Assert.Equal(Hex1bModifiers.None, builder.MouseBindings[0].Modifiers);
+        Assert.AreEqual(MouseButton.Left, builder.MouseBindings[0].Button);
+        Assert.AreEqual(MouseAction.Down, builder.MouseBindings[0].Action);
+        Assert.AreEqual(Hex1bModifiers.None, builder.MouseBindings[0].Modifiers);
         
-        Assert.Equal(MouseButton.Right, builder.MouseBindings[1].Button);
-        Assert.Equal(MouseAction.Down, builder.MouseBindings[1].Action);
-        Assert.Equal(Hex1bModifiers.Control, builder.MouseBindings[1].Modifiers);
+        Assert.AreEqual(MouseButton.Right, builder.MouseBindings[1].Button);
+        Assert.AreEqual(MouseAction.Down, builder.MouseBindings[1].Action);
+        Assert.AreEqual(Hex1bModifiers.Control, builder.MouseBindings[1].Modifiers);
         
-        Assert.Equal(MouseButton.Middle, builder.MouseBindings[2].Button);
-        Assert.Equal(MouseAction.Up, builder.MouseBindings[2].Action);
-        Assert.Equal(Hex1bModifiers.None, builder.MouseBindings[2].Modifiers);
+        Assert.AreEqual(MouseButton.Middle, builder.MouseBindings[2].Button);
+        Assert.AreEqual(MouseAction.Up, builder.MouseBindings[2].Action);
+        Assert.AreEqual(Hex1bModifiers.None, builder.MouseBindings[2].Modifiers);
     }
 }
 
+[TestClass]
 public class DoubleClickBindingTests
 {
-    [Fact]
+    [TestMethod]
     public void MouseBinding_WithClickCount_MatchesCorrectEvent()
     {
         var binding = new MouseBinding(
@@ -135,18 +137,18 @@ public class DoubleClickBindingTests
         
         // Single click should NOT match a double-click binding
         var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
-        Assert.False(binding.Matches(singleClick));
+        Assert.IsFalse(binding.Matches(singleClick));
         
         // Double click should match
         var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
-        Assert.True(binding.Matches(doubleClick));
+        Assert.IsTrue(binding.Matches(doubleClick));
         
         // Triple click should also match (>= 2)
         var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
-        Assert.True(binding.Matches(tripleClick));
+        Assert.IsTrue(binding.Matches(tripleClick));
     }
     
-    [Fact]
+    [TestMethod]
     public void MouseBinding_SingleClick_MatchesAllClickCounts()
     {
         var binding = new MouseBinding(
@@ -162,12 +164,12 @@ public class DoubleClickBindingTests
         var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
         var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
         
-        Assert.True(binding.Matches(singleClick));
-        Assert.True(binding.Matches(doubleClick));
-        Assert.True(binding.Matches(tripleClick));
+        Assert.IsTrue(binding.Matches(singleClick));
+        Assert.IsTrue(binding.Matches(doubleClick));
+        Assert.IsTrue(binding.Matches(tripleClick));
     }
     
-    [Fact]
+    [TestMethod]
     public void MouseBinding_TripleClick_RequiresThreeClicks()
     {
         var binding = new MouseBinding(
@@ -182,12 +184,12 @@ public class DoubleClickBindingTests
         var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
         var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
         
-        Assert.False(binding.Matches(singleClick));
-        Assert.False(binding.Matches(doubleClick));
-        Assert.True(binding.Matches(tripleClick));
+        Assert.IsFalse(binding.Matches(singleClick));
+        Assert.IsFalse(binding.Matches(doubleClick));
+        Assert.IsTrue(binding.Matches(tripleClick));
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_DoubleClick_SetsClickCount()
     {
         var builder = new InputBindingsBuilder();
@@ -195,10 +197,10 @@ public class DoubleClickBindingTests
         builder.Mouse(MouseButton.Left).DoubleClick().Action(_ => Task.CompletedTask, "Double-click");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(2, binding.ClickCount);
+        Assert.AreEqual(2, binding.ClickCount);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_TripleClick_SetsClickCount()
     {
         var builder = new InputBindingsBuilder();
@@ -206,10 +208,10 @@ public class DoubleClickBindingTests
         builder.Mouse(MouseButton.Left).TripleClick().Action(_ => Task.CompletedTask, "Triple-click");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(3, binding.ClickCount);
+        Assert.AreEqual(3, binding.ClickCount);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputBindingsBuilder_DoubleClick_WithModifiers()
     {
         var builder = new InputBindingsBuilder();
@@ -217,71 +219,72 @@ public class DoubleClickBindingTests
         builder.Mouse(MouseButton.Left).Ctrl().DoubleClick().Action(_ => Task.CompletedTask, "Ctrl+Double-click");
         
         var binding = builder.MouseBindings[0];
-        Assert.Equal(Hex1bModifiers.Control, binding.Modifiers);
-        Assert.Equal(2, binding.ClickCount);
+        Assert.AreEqual(Hex1bModifiers.Control, binding.Modifiers);
+        Assert.AreEqual(2, binding.ClickCount);
         
         // Should match Ctrl+double-click
         var ctrlDoubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.Control, ClickCount: 2);
-        Assert.True(binding.Matches(ctrlDoubleClick));
+        Assert.IsTrue(binding.Matches(ctrlDoubleClick));
         
         // Should NOT match plain double-click
         var plainDoubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
-        Assert.False(binding.Matches(plainDoubleClick));
+        Assert.IsFalse(binding.Matches(plainDoubleClick));
     }
     
-    [Fact]
+    [TestMethod]
     public void Hex1bMouseEvent_ClickCount_DefaultsToOne()
     {
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None);
-        Assert.Equal(1, mouseEvent.ClickCount);
+        Assert.AreEqual(1, mouseEvent.ClickCount);
     }
     
-    [Fact]
+    [TestMethod]
     public void Hex1bMouseEvent_IsDoubleClick_ReturnsTrueForClickCountTwo()
     {
         var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
         var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
         var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
         
-        Assert.False(singleClick.IsDoubleClick);
-        Assert.True(doubleClick.IsDoubleClick);
-        Assert.False(tripleClick.IsDoubleClick);
+        Assert.IsFalse(singleClick.IsDoubleClick);
+        Assert.IsTrue(doubleClick.IsDoubleClick);
+        Assert.IsFalse(tripleClick.IsDoubleClick);
     }
     
-    [Fact]
+    [TestMethod]
     public void Hex1bMouseEvent_IsTripleClick_ReturnsTrueForClickCountThree()
     {
         var singleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 1);
         var doubleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 2);
         var tripleClick = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 10, 10, Hex1bModifiers.None, ClickCount: 3);
         
-        Assert.False(singleClick.IsTripleClick);
-        Assert.False(doubleClick.IsTripleClick);
-        Assert.True(tripleClick.IsTripleClick);
+        Assert.IsFalse(singleClick.IsTripleClick);
+        Assert.IsFalse(doubleClick.IsTripleClick);
+        Assert.IsTrue(tripleClick.IsTripleClick);
     }
     
-    [Fact]
+    [TestMethod]
     public void Hex1bMouseEvent_WithClickCount_CreatesNewEvent()
     {
         var original = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 10, Hex1bModifiers.Control);
         var modified = original.WithClickCount(2);
         
         // Original should be unchanged
-        Assert.Equal(1, original.ClickCount);
+        Assert.AreEqual(1, original.ClickCount);
         
         // Modified should have new click count but same other properties
-        Assert.Equal(2, modified.ClickCount);
-        Assert.Equal(MouseButton.Left, modified.Button);
-        Assert.Equal(MouseAction.Down, modified.Action);
-        Assert.Equal(5, modified.X);
-        Assert.Equal(10, modified.Y);
-        Assert.Equal(Hex1bModifiers.Control, modified.Modifiers);
+        Assert.AreEqual(2, modified.ClickCount);
+        Assert.AreEqual(MouseButton.Left, modified.Button);
+        Assert.AreEqual(MouseAction.Down, modified.Action);
+        Assert.AreEqual(5, modified.X);
+        Assert.AreEqual(10, modified.Y);
+        Assert.AreEqual(Hex1bModifiers.Control, modified.Modifiers);
     }
 }
 
+[TestClass]
 public class FocusRingHitTestTests
 {
-    [Fact]
+    [TestMethod]
     public void HitTest_ReturnsNodeAtPosition()
     {
         var button = new ButtonNode { Label = "Test" };
@@ -293,14 +296,14 @@ public class FocusRingHitTestTests
         
         // Hit inside bounds
         var hit = focusRing.HitTest(7, 5);
-        Assert.Same(button, hit);
+        Assert.AreSame(button, hit);
         
         // Miss - outside bounds
         var miss = focusRing.HitTest(0, 0);
-        Assert.Null(miss);
+        Assert.IsNull(miss);
     }
     
-    [Fact]
+    [TestMethod]
     public void HitTest_ReturnsTopmostNode_WhenOverlapping()
     {
         // Create a VStack with two buttons
@@ -320,21 +323,21 @@ public class FocusRingHitTestTests
         
         // Hit test on button1's row
         var hit1 = focusRing.HitTest(5, 0);
-        Assert.Same(button1, hit1);
+        Assert.AreSame(button1, hit1);
         
         // Hit test on button2's row
         var hit2 = focusRing.HitTest(5, 1);
-        Assert.Same(button2, hit2);
+        Assert.AreSame(button2, hit2);
     }
     
-    [Fact]
+    [TestMethod]
     public void HitTest_ReturnsNull_WhenNoFocusables()
     {
         var focusRing = new FocusRing();
         focusRing.Rebuild(null);
         
         var hit = focusRing.HitTest(5, 5);
-        Assert.Null(hit);
+        Assert.IsNull(hit);
     }
     
     // Simple test container that returns children as focusables
@@ -363,69 +366,70 @@ public class FocusRingHitTestTests
     }
 }
 
+[TestClass]
 public class HoverStateTests
 {
-    [Fact]
+    [TestMethod]
     public void IsHovered_DefaultsToFalse()
     {
         var button = new ButtonNode { Label = "Test" };
-        Assert.False(button.IsHovered);
+        Assert.IsFalse(button.IsHovered);
     }
     
-    [Fact]
+    [TestMethod]
     public void IsHovered_CanBeSet()
     {
         var button = new ButtonNode { Label = "Test" };
         button.IsHovered = true;
-        Assert.True(button.IsHovered);
+        Assert.IsTrue(button.IsHovered);
         
         button.IsHovered = false;
-        Assert.False(button.IsHovered);
+        Assert.IsFalse(button.IsHovered);
     }
     
-    [Fact]
+    [TestMethod]
     public void TextBoxNode_IsHovered_CanBeSet()
     {
         var textBox = new TextBoxNode { State = new TextBoxState { Text = "Hello" } };
-        Assert.False(textBox.IsHovered);
+        Assert.IsFalse(textBox.IsHovered);
         
         textBox.IsHovered = true;
-        Assert.True(textBox.IsHovered);
+        Assert.IsTrue(textBox.IsHovered);
     }
     
-    [Fact]
+    [TestMethod]
     public void ListNode_IsHovered_CanBeSet()
     {
         var list = new ListNode { Items = ["Item 1", "Item 2"] };
-        Assert.False(list.IsHovered);
+        Assert.IsFalse(list.IsHovered);
         
         list.IsHovered = true;
-        Assert.True(list.IsHovered);
+        Assert.IsTrue(list.IsHovered);
     }
     
-    [Fact]
+    [TestMethod]
     public void ToggleSwitchNode_IsHovered_CanBeSet()
     {
         var toggle = new ToggleSwitchNode { Options = ["A", "B"] };
-        Assert.False(toggle.IsHovered);
+        Assert.IsFalse(toggle.IsHovered);
         
         toggle.IsHovered = true;
-        Assert.True(toggle.IsHovered);
+        Assert.IsTrue(toggle.IsHovered);
     }
     
-    [Fact]
+    [TestMethod]
     public void NonFocusableNode_IsHovered_ReturnsFalse()
     {
         // Create a simple non-focusable node
         var textBlock = new TextBlockNode { Text = "Hello" };
-        Assert.False(textBlock.IsHovered);
+        Assert.IsFalse(textBlock.IsHovered);
         
         // Setting should be ignored (default implementation does nothing)
         textBlock.IsHovered = true;
-        Assert.False(textBlock.IsHovered);
+        Assert.IsFalse(textBlock.IsHovered);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseStepBuilder_TriggersActionId_AliasesPreviouslyRegisteredHandler()
     {
         // Mirror of the AgenticPromptDemo Ctrl+wheel scenario: a widget's
@@ -447,40 +451,39 @@ public class HoverStateTests
         // User aliases it to Ctrl+ScrollUp without re-supplying the handler.
         bindings.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(actionId);
 
-        Assert.Equal(2, bindings.MouseBindings.Count);
+        Assert.AreEqual(2, bindings.MouseBindings.Count);
 
         var plainBinding = bindings.MouseBindings[0];
         var ctrlBinding = bindings.MouseBindings[1];
 
-        Assert.Equal(actionId, plainBinding.ActionId);
-        Assert.Equal(actionId, ctrlBinding.ActionId);
-        Assert.Equal(Hex1bModifiers.None, plainBinding.Modifiers);
-        Assert.Equal(Hex1bModifiers.Control, ctrlBinding.Modifiers);
-        Assert.Equal("Scroll up", ctrlBinding.Description);
+        Assert.AreEqual(actionId, plainBinding.ActionId);
+        Assert.AreEqual(actionId, ctrlBinding.ActionId);
+        Assert.AreEqual(Hex1bModifiers.None, plainBinding.Modifiers);
+        Assert.AreEqual(Hex1bModifiers.Control, ctrlBinding.Modifiers);
+        Assert.AreEqual("Scroll up", ctrlBinding.Description);
 
         var ctx = new InputBindingActionContext(new FocusRing());
         var plainEvent = new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, 0, 0, Hex1bModifiers.None);
         var ctrlEvent = new Hex1bMouseEvent(MouseButton.ScrollUp, MouseAction.Down, 0, 0, Hex1bModifiers.Control);
 
-        Assert.True(plainBinding.Matches(plainEvent));
-        Assert.False(plainBinding.Matches(ctrlEvent));
-        Assert.True(ctrlBinding.Matches(ctrlEvent));
-        Assert.False(ctrlBinding.Matches(plainEvent));
+        Assert.IsTrue(plainBinding.Matches(plainEvent));
+        Assert.IsFalse(plainBinding.Matches(ctrlEvent));
+        Assert.IsTrue(ctrlBinding.Matches(ctrlEvent));
+        Assert.IsFalse(ctrlBinding.Matches(plainEvent));
 
         await plainBinding.ExecuteAsync(ctx);
         await ctrlBinding.ExecuteAsync(ctx);
 
-        Assert.Equal(2, invocations);
+        Assert.AreEqual(2, invocations);
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseStepBuilder_TriggersActionId_ThrowsWhenActionUnregistered()
     {
         var bindings = new InputBindingsBuilder();
         var unregistered = new ActionId("Test.NotRegistered");
 
-        var ex = Assert.Throws<InvalidOperationException>(
-            () => bindings.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(unregistered));
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => bindings.Mouse(MouseButton.ScrollUp).Ctrl().Triggers(unregistered));
         Assert.Contains(unregistered.Value, ex.Message);
     }
 }

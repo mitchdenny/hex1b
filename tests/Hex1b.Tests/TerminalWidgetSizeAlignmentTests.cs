@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// at the initial WithDimensions() size (e.g., 80x24) instead of the actual
 /// layout bounds (e.g., 120x40), causing rendering glitches for full-screen apps.
 /// </summary>
+[TestClass]
 public class TerminalWidgetSizeAlignmentTests
 {
     /// <summary>
@@ -18,7 +19,7 @@ public class TerminalWidgetSizeAlignmentTests
     /// all components should agree on dimensions. This test verifies the dimension
     /// chain: handle → terminal → workload (child process).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task AllComponents_ShouldAgreeOnDimensions_AfterStartupAndArrange()
     {
         // Simulate: terminal created at 80x24, widget laid out at 120x40
@@ -54,7 +55,7 @@ public class TerminalWidgetSizeAlignmentTests
         {
             await Task.Delay(10);
         }
-        Assert.Equal(TerminalState.Running, handle.State);
+        Assert.AreEqual(TerminalState.Running, handle.State);
 
         // Simulate what ArrangeCore does: resize the handle to layout bounds
         handle.Resize(LayoutWidth, LayoutHeight);
@@ -63,10 +64,10 @@ public class TerminalWidgetSizeAlignmentTests
         await Task.Delay(100);
 
         // Verify ALL components agree on the new dimensions
-        Assert.Equal(LayoutWidth, handle.Width);
-        Assert.Equal(LayoutHeight, handle.Height);
-        Assert.Equal(LayoutWidth, terminal.Width);
-        Assert.Equal(LayoutHeight, terminal.Height);
+        Assert.AreEqual(LayoutWidth, handle.Width);
+        Assert.AreEqual(LayoutHeight, handle.Height);
+        Assert.AreEqual(LayoutWidth, terminal.Width);
+        Assert.AreEqual(LayoutHeight, terminal.Height);
 
         // Clean up
         cts.Cancel();
@@ -80,7 +81,7 @@ public class TerminalWidgetSizeAlignmentTests
     /// This test creates a real PTY process to check if the workload's stored
     /// dimensions match after resize.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task WorkloadDimensions_ShouldMatchLayout_AfterResize()
     {
         const int InitialWidth = 80;
@@ -116,8 +117,8 @@ public class TerminalWidgetSizeAlignmentTests
         var workload = terminal.Workload;
         if (workload is Hex1bTerminalChildProcess childProcess)
         {
-            Assert.Equal(LayoutWidth, childProcess.Width);
-            Assert.Equal(LayoutHeight, childProcess.Height);
+            Assert.AreEqual(LayoutWidth, childProcess.Width);
+            Assert.AreEqual(LayoutHeight, childProcess.Height);
         }
 
         cts.Cancel();
@@ -130,7 +131,7 @@ public class TerminalWidgetSizeAlignmentTests
     /// propagates to the terminal and workload dimensions.
     /// This simulates the case where ArrangeCore runs first (race won by UI thread).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ResizeBeforeStart_ShouldPropagateToAllComponents()
     {
         const int InitialWidth = 80;
@@ -150,8 +151,8 @@ public class TerminalWidgetSizeAlignmentTests
         handle.Resize(LayoutWidth, LayoutHeight);
         
         // Verify terminal got the resize
-        Assert.Equal(LayoutWidth, terminal.Width);
-        Assert.Equal(LayoutHeight, terminal.Height);
+        Assert.AreEqual(LayoutWidth, terminal.Width);
+        Assert.AreEqual(LayoutHeight, terminal.Height);
         
         // Now start
         var runTask = Task.Run(async () =>
@@ -165,10 +166,10 @@ public class TerminalWidgetSizeAlignmentTests
             await Task.Delay(10);
 
         // Dimensions should still match after startup
-        Assert.Equal(LayoutWidth, handle.Width);
-        Assert.Equal(LayoutHeight, handle.Height);
-        Assert.Equal(LayoutWidth, terminal.Width);
-        Assert.Equal(LayoutHeight, terminal.Height);
+        Assert.AreEqual(LayoutWidth, handle.Width);
+        Assert.AreEqual(LayoutHeight, handle.Height);
+        Assert.AreEqual(LayoutWidth, terminal.Width);
+        Assert.AreEqual(LayoutHeight, terminal.Height);
 
         cts.Cancel();
         try { await runTask; } catch { }
@@ -180,7 +181,7 @@ public class TerminalWidgetSizeAlignmentTests
     /// Creates a TerminalNode, arranges it at different bounds than the handle's
     /// initial size, and verifies the handle gets resized.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ArrangeCore_ResizesHandle_ToMatchLayoutBounds()
     {
         var handle = new TerminalWidgetHandle(80, 24);
@@ -197,15 +198,15 @@ public class TerminalWidgetSizeAlignmentTests
         // First arrange at 120x40 (simulates first layout pass)
         node.Arrange(new Rect(0, 0, 120, 40));
         
-        Assert.Equal(120, handle.Width);
-        Assert.Equal(40, handle.Height);
+        Assert.AreEqual(120, handle.Width);
+        Assert.AreEqual(40, handle.Height);
     }
     
     /// <summary>
     /// Tests that ArrangeCore resizes the handle even when terminal is NotStarted
     /// and a fallback child exists. This was previously broken (early return skipped resize).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ArrangeCore_ResizesHandle_EvenWhenShowingFallback()
     {
         var handle = new TerminalWidgetHandle(80, 24);
@@ -223,8 +224,8 @@ public class TerminalWidgetSizeAlignmentTests
         node.Arrange(new Rect(0, 0, 120, 40));
         
         // Handle should be resized even though fallback is shown
-        Assert.Equal(120, handle.Width);
-        Assert.Equal(40, handle.Height);
+        Assert.AreEqual(120, handle.Width);
+        Assert.AreEqual(40, handle.Height);
     }
 
     /// <summary>
@@ -234,7 +235,7 @@ public class TerminalWidgetSizeAlignmentTests
     /// - Widget arranged at larger size
     /// - Verifies that after a brief settle, dimensions are consistent
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ScrollbackDemoPattern_DimensionsShouldConverge()
     {
         const int InitialWidth = 80;
@@ -270,10 +271,10 @@ public class TerminalWidgetSizeAlignmentTests
         await Task.Delay(200);
 
         // ALL dimensions should agree on the layout size
-        Assert.Equal(LayoutWidth, handle.Width);
-        Assert.Equal(LayoutHeight, handle.Height);
-        Assert.Equal(LayoutWidth, terminal.Width);
-        Assert.Equal(LayoutHeight, terminal.Height);
+        Assert.AreEqual(LayoutWidth, handle.Width);
+        Assert.AreEqual(LayoutHeight, handle.Height);
+        Assert.AreEqual(LayoutWidth, terminal.Width);
+        Assert.AreEqual(LayoutHeight, terminal.Height);
 
         cts.Cancel();
         await terminal.DisposeAsync();

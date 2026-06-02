@@ -11,9 +11,10 @@ namespace Hex1b.Tests;
 /// in its underline state was treated as unchanged - the diff would skip it
 /// and the host terminal would keep displaying stale underline state.
 /// </summary>
+[TestClass]
 public class SurfaceComparerUnderlineDiffTests
 {
-    [Fact]
+    [TestMethod]
     public void Compare_CellWithChangedUnderlineStyleOnly_IsIncludedInDiff()
     {
         var previous = new Surface(1, 1);
@@ -30,11 +31,11 @@ public class SurfaceComparerUnderlineDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Single(diff.ChangedCells);
-        Assert.Equal(UnderlineStyle.Curly, diff.ChangedCells[0].Cell.UnderlineStyle);
+        TestSeq.Single(diff.ChangedCells);
+        Assert.AreEqual(UnderlineStyle.Curly, diff.ChangedCells[0].Cell.UnderlineStyle);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_CellWithChangedUnderlineColorOnly_IsIncludedInDiff()
     {
         var previous = new Surface(1, 1);
@@ -52,11 +53,11 @@ public class SurfaceComparerUnderlineDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Single(diff.ChangedCells);
-        Assert.Equal(Hex1bColor.Blue, diff.ChangedCells[0].Cell.UnderlineColor);
+        TestSeq.Single(diff.ChangedCells);
+        Assert.AreEqual(Hex1bColor.Blue, diff.ChangedCells[0].Cell.UnderlineColor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_CellWithIdenticalUnderlineState_IsNotInDiff()
     {
         var previous = new Surface(1, 1);
@@ -74,6 +75,6 @@ public class SurfaceComparerUnderlineDiffTests
 
         var diff = SurfaceComparer.Compare(previous, current);
 
-        Assert.Empty(diff.ChangedCells);
+        Assert.IsEmpty(diff.ChangedCells);
     }
 }

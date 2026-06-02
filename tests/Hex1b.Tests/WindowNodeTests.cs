@@ -7,11 +7,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for WindowNode measurement, arrangement, and rendering.
 /// </summary>
+[TestClass]
 public class WindowNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithEntry_ReturnsEntrySize()
     {
         var manager = new WindowManager();
@@ -24,11 +25,11 @@ public class WindowNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(50, size.Width);
-        Assert.Equal(20, size.Height);
+        Assert.AreEqual(50, size.Width);
+        Assert.AreEqual(20, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithSmallEntry_EnforcesMinimumSize()
     {
         var manager = new WindowManager();
@@ -42,11 +43,11 @@ public class WindowNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Minimum size is 10x5 for border + title bar
-        Assert.True(size.Width >= 10);
-        Assert.True(size.Height >= 5);
+        Assert.IsTrue(size.Width >= 10);
+        Assert.IsTrue(size.Height >= 5);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsConstraints()
     {
         var manager = new WindowManager();
@@ -59,15 +60,15 @@ public class WindowNodeTests
 
         var size = node.Measure(new Constraints(0, 60, 0, 30));
 
-        Assert.True(size.Width <= 60);
-        Assert.True(size.Height <= 30);
+        Assert.IsTrue(size.Width <= 60);
+        Assert.IsTrue(size.Height <= 30);
     }
 
     #endregion
 
     #region Arrangement Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SetsNodeBounds()
     {
         var manager = new WindowManager();
@@ -81,13 +82,13 @@ public class WindowNodeTests
 
         node.Arrange(new Rect(10, 5, 40, 15));
 
-        Assert.Equal(10, node.Bounds.X);
-        Assert.Equal(5, node.Bounds.Y);
-        Assert.Equal(40, node.Bounds.Width);
-        Assert.Equal(15, node.Bounds.Height);
+        Assert.AreEqual(10, node.Bounds.X);
+        Assert.AreEqual(5, node.Bounds.Y);
+        Assert.AreEqual(40, node.Bounds.Width);
+        Assert.AreEqual(15, node.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_PositionsContentInInnerArea()
     {
         var content = new TextBlockNode { Text = "Content" };
@@ -104,15 +105,15 @@ public class WindowNodeTests
         // Content should be inside the window (accounting for border and title bar)
         // X: 10 + 1 = 11 (inside left border)
         // Y: 5 + 2 = 7 (below top border and title bar)
-        Assert.Equal(11, content.Bounds.X);
-        Assert.Equal(7, content.Bounds.Y);
+        Assert.AreEqual(11, content.Bounds.X);
+        Assert.AreEqual(7, content.Bounds.Y);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_ReturnsWindowNodeAndContentFocusables()
     {
         var button = new ButtonNode { Label = "Click Me" };
@@ -127,12 +128,12 @@ public class WindowNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // WindowNode itself is focusable (first) plus the button (second)
-        Assert.Equal(2, focusables.Count);
-        Assert.Same(node, focusables[0]);
-        Assert.Same(button, focusables[1]);
+        Assert.AreEqual(2, focusables.Count);
+        Assert.AreSame(node, focusables[0]);
+        Assert.AreSame(button, focusables[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithNoContent_ReturnsWindowNodeOnly()
     {
         var manager = new WindowManager();
@@ -145,15 +146,15 @@ public class WindowNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // WindowNode itself is focusable
-        Assert.Single(focusables);
-        Assert.Same(node, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(node, focusables[0]);
     }
 
     #endregion
 
     #region ClipRect Tests
 
-    [Fact]
+    [TestMethod]
     public void ClipRect_ReturnsInnerContentArea()
     {
         var manager = new WindowManager();
@@ -173,17 +174,17 @@ public class WindowNodeTests
         // Y: 5 + 2 = 7 (accounting for border and title bar)
         // Width: 40 - 2 = 38
         // Height: 15 - 3 = 12 (accounting for borders and title bar)
-        Assert.Equal(11, clipRect.X);
-        Assert.Equal(7, clipRect.Y);
-        Assert.Equal(38, clipRect.Width);
-        Assert.Equal(12, clipRect.Height);
+        Assert.AreEqual(11, clipRect.X);
+        Assert.AreEqual(7, clipRect.Y);
+        Assert.AreEqual(38, clipRect.Width);
+        Assert.AreEqual(12, clipRect.Height);
     }
 
     #endregion
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsContent()
     {
         var content = new TextBlockNode { Text = "Hello" };
@@ -196,11 +197,11 @@ public class WindowNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(content, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(content, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithNoContent_ReturnsEmpty()
     {
         var manager = new WindowManager();
@@ -212,42 +213,42 @@ public class WindowNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     #endregion
 
     #region Property Tests
 
-    [Fact]
+    [TestMethod]
     public void IsActive_DefaultsFalse()
     {
         var node = new WindowNode();
 
-        Assert.False(node.IsActive);
+        Assert.IsFalse(node.IsActive);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsModal_DefaultsFalse()
     {
         var node = new WindowNode();
 
-        Assert.False(node.IsModal);
+        Assert.IsFalse(node.IsModal);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsResizable_DefaultsFalse()
     {
         var node = new WindowNode();
 
-        Assert.False(node.IsResizable);
+        Assert.IsFalse(node.IsResizable);
     }
 
     #endregion
 
     #region SyncFocusIndex Tests
 
-    [Fact]
+    [TestMethod]
     public void SyncFocusIndex_BringsWindowToFront_WhenChildIsFocused()
     {
         var manager = new WindowManager();
@@ -272,17 +273,17 @@ public class WindowNodeTests
         node2.Content = content2;
 
         // Initially, window 2 should have higher z-index
-        Assert.True(entry2.ZIndex > entry1.ZIndex);
+        Assert.IsTrue(entry2.ZIndex > entry1.ZIndex);
 
         // Simulate focusing a child of window 1 - this triggers SyncFocusIndex
         button1.IsFocused = true;
         node1.SyncFocusIndex();
 
         // Now window 1 should have higher z-index
-        Assert.True(entry1.ZIndex > entry2.ZIndex);
+        Assert.IsTrue(entry1.ZIndex > entry2.ZIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void SyncFocusIndex_DoesNothing_WhenNoChildIsFocused()
     {
         var manager = new WindowManager();
@@ -303,48 +304,48 @@ public class WindowNodeTests
         // SyncFocusIndex with no focused child should not change z-order
         node.SyncFocusIndex();
 
-        Assert.Equal(initialZ1, entry1.ZIndex);
-        Assert.Equal(initialZ2, entry2.ZIndex);
+        Assert.AreEqual(initialZ1, entry1.ZIndex);
+        Assert.AreEqual(initialZ2, entry2.ZIndex);
     }
 
     #endregion
 
     #region Phase 3: Title Bar and Actions Tests
 
-    [Fact]
+    [TestMethod]
     public void ShowTitleBar_DefaultsToTrue()
     {
         var node = new WindowNode();
 
-        Assert.True(node.ShowTitleBar);
+        Assert.IsTrue(node.ShowTitleBar);
     }
 
-    [Fact]
+    [TestMethod]
     public void RightTitleBarActions_DefaultsToCloseAction()
     {
         var node = new WindowNode();
 
-        Assert.Single(node.RightTitleBarActions);
-        Assert.Equal("×", node.RightTitleBarActions[0].Icon);
+        TestSeq.Single(node.RightTitleBarActions);
+        Assert.AreEqual("×", node.RightTitleBarActions[0].Icon);
     }
 
-    [Fact]
+    [TestMethod]
     public void LeftTitleBarActions_DefaultsToEmpty()
     {
         var node = new WindowNode();
 
-        Assert.Empty(node.LeftTitleBarActions);
+        Assert.IsEmpty(node.LeftTitleBarActions);
     }
 
-    [Fact]
+    [TestMethod]
     public void EscapeBehavior_DefaultsToClose()
     {
         var node = new WindowNode();
 
-        Assert.Equal(WindowEscapeBehavior.Close, node.EscapeBehavior);
+        Assert.AreEqual(WindowEscapeBehavior.Close, node.EscapeBehavior);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithNoTitleBar_HasSmallerMinimumHeight()
     {
         var manager = new WindowManager();
@@ -359,11 +360,11 @@ public class WindowNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Minimum height without title bar is 3 (top border, content, bottom border)
-        Assert.Equal(10, size.Width);
-        Assert.True(size.Height >= 3);
+        Assert.AreEqual(10, size.Width);
+        Assert.IsTrue(size.Height >= 3);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipRect_WithNoTitleBar_StartsAtY1()
     {
         var manager = new WindowManager();
@@ -380,12 +381,12 @@ public class WindowNodeTests
         var clipRect = node.ClipRect;
 
         // Without title bar: Y is bounds.Y + 1 (just border)
-        Assert.Equal(1, clipRect.Y);
-        Assert.Equal(38, clipRect.Width);
-        Assert.Equal(8, clipRect.Height); // 10 - 2 (borders only)
+        Assert.AreEqual(1, clipRect.Y);
+        Assert.AreEqual(38, clipRect.Width);
+        Assert.AreEqual(8, clipRect.Height); // 10 - 2 (borders only)
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipRect_WithTitleBar_HasContentOffset()
     {
         var manager = new WindowManager();
@@ -401,17 +402,17 @@ public class WindowNodeTests
         var clipRect = node.ClipRect;
 
         // Title bar + border: Y is bounds.Y + 2
-        Assert.Equal(11, clipRect.X);
-        Assert.Equal(7, clipRect.Y);
-        Assert.Equal(38, clipRect.Width);
-        Assert.Equal(12, clipRect.Height);
+        Assert.AreEqual(11, clipRect.X);
+        Assert.AreEqual(7, clipRect.Y);
+        Assert.AreEqual(38, clipRect.Width);
+        Assert.AreEqual(12, clipRect.Height);
     }
 
     #endregion
 
     #region Phase 4: Drag Tests
 
-    [Fact]
+    [TestMethod]
     public void IsInTitleBar_ReturnsTrue_ForValidTitleBarPosition()
     {
         var manager = new WindowManager();
@@ -430,10 +431,10 @@ public class WindowNodeTests
         
         // The IsInTitleBar method is private, so we test via ConfigureDefaultBindings behavior
         // We can't directly test it, but we can verify the drag triggers only in title bar
-        Assert.True(true); // Placeholder - actual drag tests need integration testing
+        Assert.IsTrue(true); // Placeholder - actual drag tests need integration testing
     }
 
-    [Fact]
+    [TestMethod]
     public void NoTitleBar_DisablesTitleBarDrag()
     {
         var manager = new WindowManager();
@@ -449,14 +450,14 @@ public class WindowNodeTests
 
         // With no title bar, there's no area to drag
         // The window should still be focusable but not draggable
-        Assert.False(node.ShowTitleBar);
+        Assert.IsFalse(node.ShowTitleBar);
     }
 
     #endregion
 
     #region Phase 5: Resize Tests
 
-    [Fact]
+    [TestMethod]
     public void IsResizable_CanBeSetToTrue()
     {
         var manager = new WindowManager();
@@ -467,10 +468,10 @@ public class WindowNodeTests
         
         var node = new WindowNode { Entry = entry, IsResizable = true };
 
-        Assert.True(node.IsResizable);
+        Assert.IsTrue(node.IsResizable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Entry_HasMinMaxConstraints()
     {
         var manager = new WindowManager();
@@ -479,13 +480,13 @@ public class WindowNodeTests
             .Resizable(minWidth: 20, minHeight: 10, maxWidth: 100, maxHeight: 50);
         var entry = manager.Open(handle);
 
-        Assert.Equal(20, entry.MinWidth);
-        Assert.Equal(10, entry.MinHeight);
-        Assert.Equal(100, entry.MaxWidth);
-        Assert.Equal(50, entry.MaxHeight);
+        Assert.AreEqual(20, entry.MinWidth);
+        Assert.AreEqual(10, entry.MinHeight);
+        Assert.AreEqual(100, entry.MaxWidth);
+        Assert.AreEqual(50, entry.MaxHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void Entry_MinConstraints_HaveDefaults()
     {
         var manager = new WindowManager();
@@ -494,14 +495,14 @@ public class WindowNodeTests
         var entry = manager.Open(handle);
 
         // Default min values
-        Assert.Equal(10, entry.MinWidth);
-        Assert.Equal(5, entry.MinHeight);
+        Assert.AreEqual(10, entry.MinWidth);
+        Assert.AreEqual(5, entry.MinHeight);
         // Max values default to null (unbounded)
-        Assert.Null(entry.MaxWidth);
-        Assert.Null(entry.MaxHeight);
+        Assert.IsNull(entry.MaxWidth);
+        Assert.IsNull(entry.MaxHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowManager_UpdateSize_AppliesMinConstraints()
     {
         var manager = new WindowManager();
@@ -515,11 +516,11 @@ public class WindowNodeTests
         manager.UpdateSize(entry, 10, 5);
 
         // Should be constrained to minimum
-        Assert.Equal(20, entry.Width);
-        Assert.Equal(15, entry.Height);
+        Assert.AreEqual(20, entry.Width);
+        Assert.AreEqual(15, entry.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowManager_UpdateSize_AppliesMaxConstraints()
     {
         var manager = new WindowManager();
@@ -533,11 +534,11 @@ public class WindowNodeTests
         manager.UpdateSize(entry, 100, 80);
 
         // Should be constrained to maximum
-        Assert.Equal(60, entry.Width);
-        Assert.Equal(40, entry.Height);
+        Assert.AreEqual(60, entry.Width);
+        Assert.AreEqual(40, entry.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowManager_UpdateSize_AllowsSizeWithinConstraints()
     {
         var manager = new WindowManager();
@@ -550,11 +551,11 @@ public class WindowNodeTests
         // Resize within allowed range
         manager.UpdateSize(entry, 40, 25);
 
-        Assert.Equal(40, entry.Width);
-        Assert.Equal(25, entry.Height);
+        Assert.AreEqual(40, entry.Width);
+        Assert.AreEqual(25, entry.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void WindowManager_UpdateSize_RaisesChangedEvent()
     {
         var manager = new WindowManager();
@@ -567,7 +568,7 @@ public class WindowNodeTests
 
         manager.UpdateSize(entry, 60, 40);
 
-        Assert.Equal(1, changedCount);
+        Assert.AreEqual(1, changedCount);
     }
 
     #endregion

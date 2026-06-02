@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Integration tests for the Progress widget using Hex1bApp.
 /// Tests various scenarios, layout conditions, and exports SVG, HTML, ANSI, and asciinema recordings.
 /// </summary>
+[TestClass]
 public class ProgressIntegrationTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -31,7 +32,7 @@ public class ProgressIntegrationTests : IDisposable
 
     #region Basic Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RendersBasicDeterminateBar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -57,11 +58,10 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
 
         // Verify the progress bar characters are present
-        Assert.True(snapshot.ContainsText("█") || snapshot.ContainsText("░"), 
-            "Progress bar should contain filled or empty characters");
+        Assert.IsTrue(snapshot.ContainsText("█") || snapshot.ContainsText("░"), "Progress bar should contain filled or empty characters");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RendersZeroPercent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -87,7 +87,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_Renders100Percent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -113,7 +113,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RendersCustomRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -139,7 +139,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RendersNegativeRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -165,7 +165,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RendersIndeterminate()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -195,7 +195,7 @@ public class ProgressIntegrationTests : IDisposable
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_FillsAvailableWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -221,7 +221,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RespectsFixedWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -247,7 +247,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_InHStackWithFill()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -276,7 +276,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_MultipleInVStack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -310,7 +310,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_InBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -339,11 +339,11 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Theory]
-    [InlineData(40)]
-    [InlineData(60)]
-    [InlineData(80)]
-    [InlineData(120)]
+    [TestMethod]
+    [DataRow(40)]
+    [DataRow(60)]
+    [DataRow(80)]
+    [DataRow(120)]
     public async Task Progress_RespondsToTerminalWidth(int width)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -373,7 +373,7 @@ public class ProgressIntegrationTests : IDisposable
 
     #region Dynamic Update Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_UpdatesDynamically()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -408,7 +408,7 @@ public class ProgressIntegrationTests : IDisposable
         var snapshot = terminal.CreateSnapshot();
         TestCaptureHelper.Capture(snapshot, "progress-dynamic-update");
 
-        Assert.True(snapshot.ContainsText("Progress: 100%"));
+        Assert.IsTrue(snapshot.ContainsText("Progress: 100%"));
 
         cts.Cancel();
         await runTask;
@@ -418,7 +418,7 @@ public class ProgressIntegrationTests : IDisposable
 
     #region Theming Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RespectsCustomTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -458,7 +458,7 @@ public class ProgressIntegrationTests : IDisposable
 
     #region Asciinema Recording Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RecordsAnimatedIndeterminate()
     {
         var tempFile = GetTempFile();
@@ -503,7 +503,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RecordsDownloadSimulation()
     {
         var tempFile = GetTempFile();
@@ -581,7 +581,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RecordsMultipleProgressBars()
     {
         var tempFile = GetTempFile();
@@ -661,7 +661,7 @@ public class ProgressIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Progress_RecordsResizeScenario()
     {
         var tempFile = GetTempFile();

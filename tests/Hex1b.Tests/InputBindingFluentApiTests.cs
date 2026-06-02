@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// Tests for input bindings using the fluent API, ensuring all keys fire correctly
 /// after reconciliation has occurred.
 /// </summary>
+[TestClass]
 public class InputBindingFluentApiTests
 {
     /// <summary>
@@ -28,8 +29,8 @@ public class InputBindingFluentApiTests
         }
     }
 
-    [Theory]
-    [MemberData(nameof(AllHex1bKeys))]
+    [TestMethod]
+    [DynamicData(nameof(AllHex1bKeys))]
     public async Task InputBinding_FluentApi_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
@@ -86,15 +87,15 @@ public class InputBindingFluentApiTests
         await bindingFired.Task.WaitAsync(TimeSpan.FromSeconds(2), TestContext.Current.CancellationToken);
 
         // Verify the correct key was received
-        Assert.Equal(key, firedKey);
+        Assert.AreEqual(key, firedKey);
 
         // Clean up
         cts.Cancel();
         await runTask;
     }
 
-    [Theory]
-    [MemberData(nameof(AllHex1bKeys))]
+    [TestMethod]
+    [DynamicData(nameof(AllHex1bKeys))]
     public async Task InputBinding_FluentApi_WithCtrlModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
@@ -147,8 +148,8 @@ public class InputBindingFluentApiTests
         await runTask;
     }
 
-    [Theory]
-    [MemberData(nameof(AllHex1bKeys))]
+    [TestMethod]
+    [DynamicData(nameof(AllHex1bKeys))]
     public async Task InputBinding_FluentApi_WithShiftModifier_FiresForAllKeys(Hex1bKey key)
     {
         // Arrange
@@ -201,7 +202,7 @@ public class InputBindingFluentApiTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InputBinding_FluentApi_MultipleBindings_EachFiresCorrectly()
     {
         // Arrange
@@ -255,7 +256,7 @@ public class InputBindingFluentApiTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBinding_InputBindings_SetsConfiguratorOnWidget()
     {
         // Verify that InputBindings actually sets the configurator on the widget
@@ -271,20 +272,20 @@ public class InputBindingFluentApiTests
         // Check that BindingsConfigurator is set (internal property)
         var configuratorField = typeof(Hex1bWidget).GetProperty("BindingsConfigurator", 
             System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
-        Assert.NotNull(configuratorField);
+        Assert.IsNotNull(configuratorField);
         
         var configurator = configuratorField!.GetValue(widget) as Action<InputBindingsBuilder>;
-        Assert.NotNull(configurator);
+        Assert.IsNotNull(configurator);
         
         // Invoke it and verify it runs
         var builder = new InputBindingsBuilder();
         configurator!(builder);
         
-        Assert.True(configured, "The configurator callback should have been invoked");
-        Assert.True(builder.Bindings.Count >= 1, "At least one binding should have been added");
+        Assert.IsTrue(configured, "The configurator callback should have been invoked");
+        Assert.IsTrue(builder.Bindings.Count >= 1, "At least one binding should have been added");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task InputBinding_DiagnosticTest_VerifyBindingsAreSet()
     {
         // This test verifies that user bindings configured via InputBindings work
@@ -333,7 +334,7 @@ public class InputBindingFluentApiTests
         await runTask;
     }
     
-    [Fact]
+    [TestMethod]
     public async Task InputBinding_DiagnosticTest_UserBindingWithCtrlCDisabled()
     {
         // Test with CTRL-C disabled to isolate user bindings
@@ -382,7 +383,7 @@ public class InputBindingFluentApiTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InputBinding_FluentApi_ChordBinding_FiresOnSecondKey()
     {
         // Arrange
@@ -437,7 +438,7 @@ public class InputBindingFluentApiTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InputBinding_ReconciliationPreservesBindings()
     {
         // Arrange - verify that bindings are preserved across reconciliation
@@ -485,7 +486,7 @@ public class InputBindingFluentApiTests
             .WaitUntil(_ => Volatile.Read(ref reconcileCount) >= 1, TimeSpan.FromSeconds(1), "initial reconciliation")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(reconcileCount >= 1, "Expected at least one reconciliation");
+        Assert.IsTrue(reconcileCount >= 1, "Expected at least one reconciliation");
 
         // Fire binding before re-render
         await new Hex1bTerminalInputSequenceBuilder()
@@ -493,7 +494,7 @@ public class InputBindingFluentApiTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await firstBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(1, bindingFireCount);
+        Assert.AreEqual(1, bindingFireCount);
 
         // Force a re-render by invalidating
         app.Invalidate();
@@ -501,7 +502,7 @@ public class InputBindingFluentApiTests
             .WaitUntil(_ => Volatile.Read(ref reconcileCount) >= 2, TimeSpan.FromSeconds(1), "reconciliation after invalidate")
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(reconcileCount >= 2, "Expected second reconciliation after invalidate");
+        Assert.IsTrue(reconcileCount >= 2, "Expected second reconciliation after invalidate");
 
         // Fire binding again after re-render
         await new Hex1bTerminalInputSequenceBuilder()
@@ -509,7 +510,7 @@ public class InputBindingFluentApiTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await secondBindingFired.Task.WaitAsync(TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
-        Assert.Equal(2, bindingFireCount);
+        Assert.AreEqual(2, bindingFireCount);
 
         cts.Cancel();
         await runTask;

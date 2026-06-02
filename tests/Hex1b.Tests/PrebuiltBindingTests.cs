@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// <see cref="CharacterBinding"/>, and <see cref="DragBinding"/> instances. Covers issue
 /// <see href="https://github.com/mitchdenny/hex1b/issues/292">#292</see>.
 /// </summary>
+[TestClass]
 public class PrebuiltBindingTests
 {
     /// <summary>
@@ -36,39 +37,39 @@ public class PrebuiltBindingTests
 
     #region 1. Null guards
 
-    [Fact]
+    [TestMethod]
     public void Add_NullInputBinding_ThrowsArgumentNullException()
     {
         var builder = new InputBindingsBuilder();
-        Assert.Throws<ArgumentNullException>(() => builder.Add((InputBinding)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => builder.Add((InputBinding)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_NullMouseBinding_ThrowsArgumentNullException()
     {
         var builder = new InputBindingsBuilder();
-        Assert.Throws<ArgumentNullException>(() => builder.Add((MouseBinding)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => builder.Add((MouseBinding)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_NullCharacterBinding_ThrowsArgumentNullException()
     {
         var builder = new InputBindingsBuilder();
-        Assert.Throws<ArgumentNullException>(() => builder.Add((CharacterBinding)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => builder.Add((CharacterBinding)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_NullDragBinding_ThrowsArgumentNullException()
     {
         var builder = new InputBindingsBuilder();
-        Assert.Throws<ArgumentNullException>(() => builder.Add((DragBinding)null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => builder.Add((DragBinding)null!));
     }
 
     #endregion
 
     #region 2. Round-trip via the public Bindings/MouseBindings/etc. lists
 
-    [Fact]
+    [TestMethod]
     public void Add_PrebuiltInputBinding_AppearsInBindingsList()
     {
         var builder = new InputBindingsBuilder();
@@ -79,14 +80,14 @@ public class PrebuiltBindingTests
 
         builder.Add(binding);
 
-        var actual = Assert.Single(builder.Bindings);
-        Assert.Same(binding, actual);
-        Assert.Empty(builder.MouseBindings);
-        Assert.Empty(builder.CharacterBindings);
-        Assert.Empty(builder.DragBindings);
+        var actual = TestSeq.Single(builder.Bindings);
+        Assert.AreSame(binding, actual);
+        Assert.IsEmpty(builder.MouseBindings);
+        Assert.IsEmpty(builder.CharacterBindings);
+        Assert.IsEmpty(builder.DragBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_PrebuiltMouseBinding_AppearsInMouseBindingsList()
     {
         var builder = new InputBindingsBuilder();
@@ -94,11 +95,11 @@ public class PrebuiltBindingTests
 
         builder.Add(binding);
 
-        var actual = Assert.Single(builder.MouseBindings);
-        Assert.Same(binding, actual);
+        var actual = TestSeq.Single(builder.MouseBindings);
+        Assert.AreSame(binding, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_PrebuiltCharacterBinding_AppearsInCharacterBindingsList()
     {
         var builder = new InputBindingsBuilder();
@@ -106,11 +107,11 @@ public class PrebuiltBindingTests
 
         builder.Add(binding);
 
-        var actual = Assert.Single(builder.CharacterBindings);
-        Assert.Same(binding, actual);
+        var actual = TestSeq.Single(builder.CharacterBindings);
+        Assert.AreSame(binding, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_PrebuiltDragBinding_AppearsInDragBindingsList()
     {
         var builder = new InputBindingsBuilder();
@@ -122,15 +123,15 @@ public class PrebuiltBindingTests
 
         builder.Add(binding);
 
-        var actual = Assert.Single(builder.DragBindings);
-        Assert.Same(binding, actual);
+        var actual = TestSeq.Single(builder.DragBindings);
+        Assert.AreSame(binding, actual);
     }
 
     #endregion
 
     #region 3. End-to-end routing through Add(prebuilt)
 
-    [Fact]
+    [TestMethod]
     public async Task Add_PrebuiltCtrlShiftInputBinding_FiresEndToEnd()
     {
         // RULE: A Ctrl+Shift+Key binding constructed externally and registered via
@@ -167,7 +168,7 @@ public class PrebuiltBindingTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(bindingFired, "Prebuilt Ctrl+Shift+LeftArrow binding should fire end-to-end");
+        Assert.IsTrue(bindingFired, "Prebuilt Ctrl+Shift+LeftArrow binding should fire end-to-end");
 
         cts.Cancel();
         await runTask;
@@ -177,7 +178,7 @@ public class PrebuiltBindingTests
 
     #region 4. Constructor parameter flow-through
 
-    [Fact]
+    [TestMethod]
     public void InputBinding_ConstructedWithActionId_ExposesActionId()
     {
         var actionId = new ActionId("Test.Foo");
@@ -188,11 +189,11 @@ public class PrebuiltBindingTests
             isGlobal: false,
             actionId: actionId);
 
-        Assert.Equal(actionId, binding.ActionId);
-        Assert.False(binding.OverridesCapture);
+        Assert.AreEqual(actionId, binding.ActionId);
+        Assert.IsFalse(binding.OverridesCapture);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputBinding_ConstructedWithOverridesCapture_ExposesFlag()
     {
         var binding = new InputBinding(
@@ -203,11 +204,11 @@ public class PrebuiltBindingTests
             actionId: null,
             overridesCapture: true);
 
-        Assert.True(binding.OverridesCapture);
-        Assert.Null(binding.ActionId);
+        Assert.IsTrue(binding.OverridesCapture);
+        Assert.IsNull(binding.ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseBinding_ConstructedWithActionId_ExposesActionId()
     {
         var actionId = new ActionId("Test.Click");
@@ -219,10 +220,10 @@ public class PrebuiltBindingTests
             "click",
             actionId);
 
-        Assert.Equal(actionId, binding.ActionId);
+        Assert.AreEqual(actionId, binding.ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void CharacterBinding_ConstructedWithActionId_ExposesActionId()
     {
         var actionId = new ActionId("Test.Type");
@@ -232,10 +233,10 @@ public class PrebuiltBindingTests
             "type",
             actionId);
 
-        Assert.Equal(actionId, binding.ActionId);
+        Assert.AreEqual(actionId, binding.ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragBinding_ConstructedWithActionId_ExposesActionId()
     {
         var actionId = new ActionId("Test.Drag");
@@ -246,14 +247,14 @@ public class PrebuiltBindingTests
             "drag",
             actionId);
 
-        Assert.Equal(actionId, binding.ActionId);
+        Assert.AreEqual(actionId, binding.ActionId);
     }
 
     #endregion
 
     #region 5. ActionId enables Remove(ActionId) for prebuilt bindings
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_RemovesPrebuiltMouseBinding()
     {
         var builder = new InputBindingsBuilder();
@@ -261,14 +262,14 @@ public class PrebuiltBindingTests
         var binding = new MouseBinding(MouseButton.Left, MouseAction.Down, Hex1bModifiers.None, () => { }, "click", actionId);
 
         builder.Add(binding);
-        Assert.Single(builder.MouseBindings);
+        TestSeq.Single(builder.MouseBindings);
 
         builder.Remove(actionId);
 
-        Assert.Empty(builder.MouseBindings);
+        Assert.IsEmpty(builder.MouseBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_RemovesPrebuiltInputBinding()
     {
         var builder = new InputBindingsBuilder();
@@ -276,18 +277,18 @@ public class PrebuiltBindingTests
         var binding = new InputBinding([new KeyStep(Hex1bKey.A)], () => { }, "foo", false, actionId);
 
         builder.Add(binding);
-        Assert.Single(builder.Bindings);
+        TestSeq.Single(builder.Bindings);
 
         builder.Remove(actionId);
 
-        Assert.Empty(builder.Bindings);
+        Assert.IsEmpty(builder.Bindings);
     }
 
     #endregion
 
     #region 6. End-to-end OverridesCapture flag honored
 
-    [Fact]
+    [TestMethod]
     public async Task Add_PrebuiltOverridesCaptureBinding_FiresWhenCaptured()
     {
         // RULE: A prebuilt InputBinding constructed with overridesCapture: true must
@@ -355,7 +356,7 @@ public class PrebuiltBindingTests
 
     #region 7. End-to-end character binding via Add(prebuilt)
 
-    [Fact]
+    [TestMethod]
     public async Task Add_PrebuiltCharacterBinding_FiresOnTextInput()
     {
         // RULE: A CharacterBinding constructed externally and registered via
@@ -383,15 +384,15 @@ public class PrebuiltBindingTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("x", received);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("x", received);
     }
 
     #endregion
 
     #region 8. End-to-end drag binding via Add(prebuilt)
 
-    [Fact]
+    [TestMethod]
     public void Add_PrebuiltDragBinding_FactoryInvokedByStartDrag()
     {
         // RULE: A DragBinding constructed externally and registered via
@@ -418,18 +419,18 @@ public class PrebuiltBindingTests
         var builder = new InputBindingsBuilder();
         builder.Add(binding);
 
-        var added = Assert.Single(builder.DragBindings);
-        Assert.True(added.Matches(new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1)));
+        var added = TestSeq.Single(builder.DragBindings);
+        Assert.IsTrue(added.Matches(new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 0, 0, Hex1bModifiers.None, ClickCount: 1)));
         added.StartDrag(7, 11);
 
-        Assert.Equal((7, 11), startedAt);
+        Assert.AreEqual((7, 11), startedAt);
     }
 
     #endregion
 
     #region 9. Conflict detection still applies to prebuilt globals
 
-    [Fact]
+    [TestMethod]
     public async Task Add_PrebuiltGlobalBinding_ConflictingDefaultGlobal_Throws()
     {
         // RULE: When two global bindings claim the same first key step, the input
@@ -472,7 +473,7 @@ public class PrebuiltBindingTests
         await new Hex1bTerminalInputSequenceBuilder().Key(Hex1bKey.X).Wait(100).Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        var ex = await Assert.ThrowsAsync<InvalidOperationException>(async () => await runTask);
+        var ex = await Assert.ThrowsExactlyAsync<InvalidOperationException>(async () => await runTask);
         Assert.Contains("Global binding conflict", ex.Message);
 
         cts.Cancel();
@@ -482,7 +483,7 @@ public class PrebuiltBindingTests
 
     #region 10. Defensive copy of Steps
 
-    [Fact]
+    [TestMethod]
     public void InputBinding_StepsListMutatedAfterConstruction_DoesNotAffectBinding()
     {
         // RULE: InputBinding must defensively copy its steps list so that callers
@@ -499,16 +500,16 @@ public class PrebuiltBindingTests
         steps.Clear();
         steps.Add(new KeyStep(Hex1bKey.RightArrow, Hex1bModifiers.None));
 
-        var step = Assert.Single(binding.Steps);
-        Assert.Equal(Hex1bKey.LeftArrow, step.Key);
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
+        var step = TestSeq.Single(binding.Steps);
+        Assert.AreEqual(Hex1bKey.LeftArrow, step.Key);
+        Assert.AreEqual(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
     }
 
     #endregion
 
     #region 11. ActionId via ctor does NOT register for Triggers(actionId) rebinding
 
-    [Fact]
+    [TestMethod]
     public void Triggers_ByActionId_AfterAddPrebuiltOnly_ThrowsInvalidOperation()
     {
         // RULE: An ActionId supplied via the InputBinding ctor identifies the binding
@@ -531,10 +532,10 @@ public class PrebuiltBindingTests
         builder.Add(prebuilt);
 
         // Sanity check: the binding is queryable by its ActionId for inspection/removal.
-        Assert.Single(builder.GetBindings(actionId));
+        TestSeq.Single(builder.GetBindings(actionId));
 
         // But the rebinding registry was NOT seeded, so Triggers(actionId) fails predictably.
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             builder.Key(Hex1bKey.B).Triggers(actionId));
         Assert.Contains(actionId.Value, ex.Message);
         Assert.Contains("has not been registered", ex.Message);

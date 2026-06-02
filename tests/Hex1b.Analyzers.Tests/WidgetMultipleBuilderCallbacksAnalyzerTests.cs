@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetMultipleBuilderCallbacksAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetMultipleBuilderCallbacksAnalyzer>.Diagnostic(WidgetMultipleBuilderCallbacksAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task TwoBuilders_OnWidgetContextExtension_Reports()
     {
         const string source = """
@@ -37,7 +38,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("HSplitter", 2));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThreeBuilders_Reports()
     {
         const string source = """
@@ -67,7 +68,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("Tri", 3));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_NoDiagnostic()
     {
         const string source = """
@@ -92,7 +93,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NoBuilder_NoDiagnostic()
     {
         const string source = """
@@ -113,7 +114,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SuppressMessage_OnMultiBuilderMethod_NoDiagnostic()
     {
         const string source = """
@@ -141,7 +142,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TwoBuilders_OnWidgetInstanceExtension_Reports()
     {
         const string source = """
@@ -170,7 +171,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("HeaderAndFooter", 2));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TwoActionConfigures_NoDiagnostic()
     {
         // Two Action<T> callbacks aren't builder callbacks; rule must stay silent.
@@ -191,7 +192,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnXMethod_TwoHandlerCallbacks_NoDiagnostic()
     {
         // 'On*' methods host handler callbacks, not widget-tree builders, so HEX1B0009 must
@@ -216,7 +217,7 @@ public class WidgetMultipleBuilderCallbacksAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetExtension_NoDiagnostic()
     {
         const string source = """

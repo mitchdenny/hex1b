@@ -2,20 +2,21 @@ using Hex1b.Tool.Infrastructure;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class TerminalIdResolverTests
 {
-    [Fact]
+    [TestMethod]
     public void Resolve_NoTerminals_ReturnsError()
     {
         var resolver = CreateResolver([]);
 
         var result = resolver.Resolve("123");
 
-        Assert.False(result.Success);
+        Assert.IsFalse(result.Success);
         Assert.Contains("No terminals found", result.Error);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resolve_ExactMatch_ReturnsTerminal()
     {
         var resolver = CreateResolver([
@@ -24,15 +25,15 @@ public class TerminalIdResolverTests
 
         var result = resolver.Resolve("12345");
 
-        Assert.True(result.Success);
-        Assert.Equal("12345", result.Id);
-        Assert.NotNull(result.SocketPath);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("12345", result.Id);
+        Assert.IsNotNull(result.SocketPath);
         Assert.EndsWith(".diagnostics.socket", result.SocketPath);
-        Assert.Equal("tui", result.Type);
-        Assert.Null(result.Error);
+        Assert.AreEqual("tui", result.Type);
+        Assert.IsNull(result.Error);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resolve_PrefixMatch_ReturnsTerminal()
     {
         var resolver = CreateResolver([
@@ -42,11 +43,11 @@ public class TerminalIdResolverTests
 
         var result = resolver.Resolve("123");
 
-        Assert.True(result.Success);
-        Assert.Equal("12345", result.Id);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("12345", result.Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resolve_AmbiguousPrefix_ReturnsError()
     {
         var resolver = CreateResolver([
@@ -56,13 +57,13 @@ public class TerminalIdResolverTests
 
         var result = resolver.Resolve("123");
 
-        Assert.False(result.Success);
+        Assert.IsFalse(result.Success);
         Assert.Contains("Ambiguous", result.Error);
         Assert.Contains("12345", result.Error);
         Assert.Contains("12399", result.Error);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resolve_NoMatch_ReturnsError()
     {
         var resolver = CreateResolver([
@@ -71,11 +72,11 @@ public class TerminalIdResolverTests
 
         var result = resolver.Resolve("999");
 
-        Assert.False(result.Success);
+        Assert.IsFalse(result.Success);
         Assert.Contains("No terminal found matching '999'", result.Error);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resolve_CaseInsensitive_MatchesPrefix()
     {
         var resolver = CreateResolver([
@@ -84,8 +85,8 @@ public class TerminalIdResolverTests
 
         var result = resolver.Resolve("abc");
 
-        Assert.True(result.Success);
-        Assert.Equal("ABC123", result.Id);
+        Assert.IsTrue(result.Success);
+        Assert.AreEqual("ABC123", result.Id);
     }
 
     /// <summary>

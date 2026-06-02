@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for WaitUntilTimeoutException diagnostics.
 /// </summary>
+[TestClass]
 public class WaitUntilTimeoutTests
 {
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_ThrowsWaitUntilTimeoutException()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -18,7 +19,7 @@ public class WaitUntilTimeoutTests
             .WithDimensions(40, 10)
             .Build();
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("This text will never appear"), TimeSpan.FromMilliseconds(250))
@@ -27,10 +28,10 @@ public class WaitUntilTimeoutTests
         });
 
         // Should still be catchable as TimeoutException
-        Assert.IsAssignableFrom<TimeoutException>(ex);
+        TestSeq.IsType<TimeoutException>(ex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_MessageContainsPredicateExpression()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -39,7 +40,7 @@ public class WaitUntilTimeoutTests
             .WithDimensions(40, 10)
             .Build();
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("NonExistent"), TimeSpan.FromMilliseconds(250))
@@ -52,7 +53,7 @@ public class WaitUntilTimeoutTests
         Assert.Contains("ContainsText(\"NonExistent\")", ex.ConditionDescription);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_MessageContainsExplicitDescription()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -61,7 +62,7 @@ public class WaitUntilTimeoutTests
             .WithDimensions(40, 10)
             .Build();
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("Nope"), TimeSpan.FromMilliseconds(250), "my custom description")
@@ -71,10 +72,10 @@ public class WaitUntilTimeoutTests
 
         // Explicit description should take priority over predicate expression
         Assert.Contains("my custom description", ex.Message);
-        Assert.Equal("my custom description", ex.ConditionDescription);
+        Assert.AreEqual("my custom description", ex.ConditionDescription);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_MessageContainsCallerLocation()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -83,7 +84,7 @@ public class WaitUntilTimeoutTests
             .WithDimensions(40, 10)
             .Build();
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("Nope"), TimeSpan.FromMilliseconds(250))
@@ -93,12 +94,12 @@ public class WaitUntilTimeoutTests
 
         // Should contain the test file name and a line number
         Assert.Contains("WaitUntilTimeoutTests.cs", ex.Message);
-        Assert.NotNull(ex.CallerFilePath);
+        Assert.IsNotNull(ex.CallerFilePath);
         Assert.Contains("WaitUntilTimeoutTests.cs", ex.CallerFilePath);
-        Assert.True(ex.CallerLineNumber > 0);
+        Assert.IsTrue(ex.CallerLineNumber > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_MessageContainsFullTerminalGrid()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -121,7 +122,7 @@ public class WaitUntilTimeoutTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("Nope"), TimeSpan.FromMilliseconds(250))
@@ -142,7 +143,7 @@ public class WaitUntilTimeoutTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_ExposesTerminalSnapshot()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -165,7 +166,7 @@ public class WaitUntilTimeoutTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("Nope"), TimeSpan.FromMilliseconds(250))
@@ -174,10 +175,10 @@ public class WaitUntilTimeoutTests
         });
 
         // Exception should expose the snapshot as a structured property
-        Assert.NotNull(ex.TerminalSnapshot);
-        Assert.Equal(40, ex.TerminalSnapshot.Width);
-        Assert.Equal(10, ex.TerminalSnapshot.Height);
-        Assert.True(ex.TerminalSnapshot.ContainsText("Snapshot Test"));
+        Assert.IsNotNull(ex.TerminalSnapshot);
+        Assert.AreEqual(40, ex.TerminalSnapshot.Width);
+        Assert.AreEqual(10, ex.TerminalSnapshot.Height);
+        Assert.IsTrue(ex.TerminalSnapshot.ContainsText("Snapshot Test"));
 
         // Clean exit
         await new Hex1bTerminalInputSequenceBuilder()
@@ -187,7 +188,7 @@ public class WaitUntilTimeoutTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntil_Timeout_MessageContainsTimeoutDuration()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -197,7 +198,7 @@ public class WaitUntilTimeoutTests
             .Build();
 
         var timeout = TimeSpan.FromMilliseconds(250);
-        var ex = await Assert.ThrowsAsync<WaitUntilTimeoutException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<WaitUntilTimeoutException>(async () =>
         {
             await new Hex1bTerminalInputSequenceBuilder()
                 .WaitUntil(s => s.ContainsText("Nope"), timeout)
@@ -206,6 +207,6 @@ public class WaitUntilTimeoutTests
         });
 
         Assert.Contains(timeout.ToString(), ex.Message);
-        Assert.Equal(timeout, ex.Timeout);
+        Assert.AreEqual(timeout, ex.Timeout);
     }
 }

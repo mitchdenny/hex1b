@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Tests for <see cref="FigletTextNode"/> covering measurement, render-time vertical truncation,
 /// cache invalidation on property changes, and end-to-end rendering through Hex1bTerminal.
 /// </summary>
+[TestClass]
 public class FigletTextNodeTests
 {
     /// <summary>Single-row 1-cell-per-letter font for predictable measurement.</summary>
@@ -53,46 +54,46 @@ public class FigletTextNodeTests
 
     // ----- Measurement ------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsRenderedWidthAndHeight()
     {
         var node = new FigletTextNode { Text = "ABC", Font = new TinyFont(height: 1) };
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(3, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(3, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_MultiRowFont_ReturnsFontHeight()
     {
         var node = new FigletTextNode { Text = "AB", Font = new TinyFont(height: 4) };
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(2, size.Width);
-        Assert.Equal(4, size.Height);
+        Assert.AreEqual(2, size.Width);
+        Assert.AreEqual(4, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptyText_ReturnsFontHeightZeroWidth()
     {
         var node = new FigletTextNode { Text = "", Font = new TinyFont(height: 3) };
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsMaxWidth()
     {
         var node = new FigletTextNode { Text = "ABCDE", Font = new TinyFont(height: 1) };
         var size = node.Measure(new Constraints(0, 3, 0, int.MaxValue));
 
-        Assert.Equal(3, size.Width);
+        Assert.AreEqual(3, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_Wrap_MultipleRowsWhenTextExceedsWrapWidth()
     {
         var node = new FigletTextNode
@@ -106,10 +107,10 @@ public class FigletTextNodeTests
 
         // wrapWidth = 3 → "AB" fits (2 cols), "AB CD" = 5 cols > 3 → second word wraps.
         // 2 rows × 1 row each = 2 lines.
-        Assert.Equal(2, size.Height);
+        Assert.AreEqual(2, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Render_Wrap_RewrapsToActualArrangedWidthWhenMeasuredUnbounded()
     {
         // Regression: when a parent measures children with int.MaxValue (e.g. HStack/VStack/Border
@@ -138,37 +139,37 @@ public class FigletTextNodeTests
         // Verify the cache now reflects the arranged width: each rendered row must be ≤5 cols.
         var field = typeof(FigletTextNode).GetField("_cachedLines", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
         var lines = (IReadOnlyList<string>)field.GetValue(node)!;
-        Assert.NotEmpty(lines);
-        Assert.All(lines, line => Assert.True(line.Length <= 5, $"Line '{line}' exceeds wrap width 5"));
+        Assert.IsNotEmpty(lines);
+        TestSeq.All(lines, line => Assert.IsTrue(line.Length <= 5, $"Line '{line}' exceeds wrap width 5"));
     }
 
     // ----- Cache invalidation -----------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Text_Change_InvalidatesCache()
     {
         var node = new FigletTextNode { Text = "AB", Font = new TinyFont() };
         var first = node.Measure(Constraints.Unbounded);
-        Assert.Equal(2, first.Width);
+        Assert.AreEqual(2, first.Width);
 
         node.Text = "ABCD";
         var second = node.Measure(Constraints.Unbounded);
-        Assert.Equal(4, second.Width);
+        Assert.AreEqual(4, second.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Font_Change_InvalidatesCache()
     {
         var node = new FigletTextNode { Text = "AB", Font = new TinyFont(height: 1) };
         var first = node.Measure(Constraints.Unbounded);
-        Assert.Equal(1, first.Height);
+        Assert.AreEqual(1, first.Height);
 
         node.Font = new TinyFont(height: 3);
         var second = node.Measure(Constraints.Unbounded);
-        Assert.Equal(3, second.Height);
+        Assert.AreEqual(3, second.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalLayout_Change_InvalidatesCache()
     {
         var node = new FigletTextNode { Text = "AB", Font = new TinyFont(height: 1) };
@@ -178,10 +179,10 @@ public class FigletTextNodeTests
         node.HorizontalLayout = FigletLayoutMode.FullWidth;
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(2, size.Width);
+        Assert.AreEqual(2, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalOverflow_Change_InvalidatesCache()
     {
         var node = new FigletTextNode
@@ -194,12 +195,12 @@ public class FigletTextNodeTests
         node.HorizontalOverflow = FigletHorizontalOverflow.Wrap;
         var sizeAfter = node.Measure(new Constraints(0, 3, 0, int.MaxValue));
 
-        Assert.Equal(2, sizeAfter.Height);
+        Assert.AreEqual(2, sizeAfter.Height);
     }
 
     // ----- Render-time vertical truncation ---------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Truncate_DropsPartialBottomRow()
     {
         // A 3-row font rendered into 5 rows of available height with truncate → only 1 full FIGlet
@@ -212,15 +213,15 @@ public class FigletTextNodeTests
         };
 
         var natural = node.Measure(Constraints.Unbounded);
-        Assert.Equal(6, natural.Height); // two stacked FIGlet rows of 3
+        Assert.AreEqual(6, natural.Height); // two stacked FIGlet rows of 3
         node.Arrange(new Rect(0, 0, 10, 5));
 
         // Internal state: render writes only fittable rows. We can't easily inspect without
         // hooking RenderContext, but Measure should still report natural height.
-        Assert.Equal(6, natural.Height);
+        Assert.AreEqual(6, natural.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Truncate_FullHeightFits_RendersAllRows()
     {
         var node = new FigletTextNode
@@ -230,12 +231,12 @@ public class FigletTextNodeTests
             VerticalOverflow = FigletVerticalOverflow.Truncate,
         };
         var size = node.Measure(Constraints.Unbounded);
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(3, size.Height);
     }
 
     // ----- End-to-end rendering through Hex1bTerminal -----------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SmallFont_AppearsInTerminal()
     {
         // Use the bundled small font so we can assert against well-known output.
@@ -259,7 +260,7 @@ public class FigletTextNodeTests
         Assert.Contains("_", firstLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Empty_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -276,65 +277,65 @@ public class FigletTextNodeTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.AreEqual("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
     // ----- Extension API (fluent setters) ----------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public void Widget_DefaultsToStandardFont()
     {
         var widget = new FigletTextWidget("Hello");
-        Assert.Equal("Hello", widget.Text);
-        Assert.Same(FigletFonts.Standard, widget.Font);
-        Assert.Equal(FigletLayoutMode.Default, widget.HorizontalLayout);
-        Assert.Equal(FigletHorizontalOverflow.Clip, widget.HorizontalOverflow);
-        Assert.Equal(FigletVerticalOverflow.Clip, widget.VerticalOverflow);
+        Assert.AreEqual("Hello", widget.Text);
+        Assert.AreSame(FigletFonts.Standard, widget.Font);
+        Assert.AreEqual(FigletLayoutMode.Default, widget.HorizontalLayout);
+        Assert.AreEqual(FigletHorizontalOverflow.Clip, widget.HorizontalOverflow);
+        Assert.AreEqual(FigletVerticalOverflow.Clip, widget.VerticalOverflow);
     }
 
-    [Fact]
+    [TestMethod]
     public void Font_Extension_SetsFont()
     {
         var custom = new TinyFont();
         var widget = new FigletTextWidget("X").Font(custom);
-        Assert.Same(custom, widget.Font);
+        Assert.AreSame(custom, widget.Font);
     }
 
-    [Fact]
+    [TestMethod]
     public void Layout_Extension_SetsBothAxes()
     {
         var widget = new FigletTextWidget("X").Layout(FigletLayoutMode.Smushed);
-        Assert.Equal(FigletLayoutMode.Smushed, widget.HorizontalLayout);
-        Assert.Equal(FigletLayoutMode.Smushed, widget.VerticalLayout);
+        Assert.AreEqual(FigletLayoutMode.Smushed, widget.HorizontalLayout);
+        Assert.AreEqual(FigletLayoutMode.Smushed, widget.VerticalLayout);
     }
 
-    [Fact]
+    [TestMethod]
     public void Horizontal_Extension_SetsOnlyHorizontal()
     {
         var widget = new FigletTextWidget("X").Horizontal(FigletLayoutMode.Smushed);
-        Assert.Equal(FigletLayoutMode.Smushed, widget.HorizontalLayout);
-        Assert.Equal(FigletLayoutMode.Default, widget.VerticalLayout);
+        Assert.AreEqual(FigletLayoutMode.Smushed, widget.HorizontalLayout);
+        Assert.AreEqual(FigletLayoutMode.Default, widget.VerticalLayout);
     }
 
-    [Fact]
+    [TestMethod]
     public void Vertical_Extension_SetsOnlyVertical()
     {
         var widget = new FigletTextWidget("X").Vertical(FigletLayoutMode.FullWidth);
-        Assert.Equal(FigletLayoutMode.Default, widget.HorizontalLayout);
-        Assert.Equal(FigletLayoutMode.FullWidth, widget.VerticalLayout);
+        Assert.AreEqual(FigletLayoutMode.Default, widget.HorizontalLayout);
+        Assert.AreEqual(FigletLayoutMode.FullWidth, widget.VerticalLayout);
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalOverflow_Extension_SetsHorizontalOverflow()
     {
         var widget = new FigletTextWidget("X").HorizontalOverflow(FigletHorizontalOverflow.Wrap);
-        Assert.Equal(FigletHorizontalOverflow.Wrap, widget.HorizontalOverflow);
+        Assert.AreEqual(FigletHorizontalOverflow.Wrap, widget.HorizontalOverflow);
     }
 
-    [Fact]
+    [TestMethod]
     public void VerticalOverflow_Extension_SetsVerticalOverflow()
     {
         var widget = new FigletTextWidget("X").VerticalOverflow(FigletVerticalOverflow.Truncate);
-        Assert.Equal(FigletVerticalOverflow.Truncate, widget.VerticalOverflow);
+        Assert.AreEqual(FigletVerticalOverflow.Truncate, widget.VerticalOverflow);
     }
 }

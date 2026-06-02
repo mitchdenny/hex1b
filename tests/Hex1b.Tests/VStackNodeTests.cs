@@ -7,11 +7,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Integration tests for VStackNode layout and focus management.
 /// </summary>
+[TestClass]
 public class VStackNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_SumsChildHeights()
     {
         var node = new VStackNode
@@ -26,10 +27,10 @@ public class VStackNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_TakesMaxWidth()
     {
         var node = new VStackNode
@@ -44,21 +45,21 @@ public class VStackNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(18, size.Width);
+        Assert.AreEqual(18, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyChildren_ReturnsZeroSize()
     {
         var node = new VStackNode { Children = new List<Hex1bNode>() };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxConstraints()
     {
         var node = new VStackNode
@@ -72,15 +73,15 @@ public class VStackNodeTests
 
         var size = node.Measure(new Constraints(0, 20, 0, 1));
 
-        Assert.Equal(20, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_PositionsChildrenVertically()
     {
         var child1 = new TextBlockNode { Text = "Line 1" };
@@ -90,11 +91,11 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(80, 24));
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, child1.Bounds.Y);
-        Assert.Equal(1, child2.Bounds.Y);
+        Assert.AreEqual(0, child1.Bounds.Y);
+        Assert.AreEqual(1, child2.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithFillHints_DistributesSpace()
     {
         var child1 = new TextBlockNode { Text = "Fixed" };
@@ -108,12 +109,12 @@ public class VStackNodeTests
         node.Arrange(new Rect(0, 0, 80, 10));
 
         // First child should be content-sized (1 line)
-        Assert.Equal(1, child1.Bounds.Height);
+        Assert.AreEqual(1, child1.Bounds.Height);
         // Second child should fill remaining space
-        Assert.Equal(9, child2.Bounds.Height);
+        Assert.AreEqual(9, child2.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithFixedHints_UsesExactSize()
     {
         var child1 = new TextBlockNode { Text = "Fixed", HeightHint = SizeHint.Fixed(3) };
@@ -126,11 +127,11 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(80, 20));
         node.Arrange(new Rect(0, 0, 80, 20));
 
-        Assert.Equal(3, child1.Bounds.Height);
-        Assert.Equal(5, child2.Bounds.Height);
+        Assert.AreEqual(3, child1.Bounds.Height);
+        Assert.AreEqual(5, child2.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithMixedHints_DistributesCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Fixed", HeightHint = SizeHint.Fixed(2) };
@@ -144,13 +145,13 @@ public class VStackNodeTests
         node.Measure(Constraints.Tight(80, 12));
         node.Arrange(new Rect(0, 0, 80, 12));
 
-        Assert.Equal(2, child1.Bounds.Height);
+        Assert.AreEqual(2, child1.Bounds.Height);
         // Remaining 10 units split between 2 fill children
-        Assert.Equal(5, child2.Bounds.Height);
-        Assert.Equal(5, child3.Bounds.Height);
+        Assert.AreEqual(5, child2.Bounds.Height);
+        Assert.AreEqual(5, child3.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_AtOffset_PositionsChildrenCorrectly()
     {
         var child1 = new TextBlockNode { Text = "Line 1" };
@@ -160,17 +161,17 @@ public class VStackNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(5, 10, 30, 20));
 
-        Assert.Equal(5, child1.Bounds.X);
-        Assert.Equal(10, child1.Bounds.Y);
-        Assert.Equal(5, child2.Bounds.X);
-        Assert.Equal(11, child2.Bounds.Y);
+        Assert.AreEqual(5, child1.Bounds.X);
+        Assert.AreEqual(10, child1.Bounds.Y);
+        Assert.AreEqual(5, child2.Bounds.X);
+        Assert.AreEqual(11, child2.Bounds.Y);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_FindsAllFocusable()
     {
         var textBox1 = new TextBoxNode();
@@ -185,13 +186,13 @@ public class VStackNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Equal(3, focusables.Count);
+        Assert.AreEqual(3, focusables.Count);
         Assert.Contains(textBox1, focusables);
         Assert.Contains(button, focusables);
         Assert.Contains(textBox2, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Tab_MovesFocus()
     {
         var textBox1 = new TextBoxNode { IsFocused = true };
@@ -209,12 +210,12 @@ public class VStackNodeTests
 
         var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(textBox1.IsFocused);
-        Assert.True(textBox2.IsFocused);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(textBox1.IsFocused);
+        Assert.IsTrue(textBox2.IsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_ShiftTab_MovesFocusBackward()
     {
         var textBox1 = new TextBoxNode { IsFocused = false };
@@ -232,11 +233,11 @@ public class VStackNodeTests
         // textBox2 starts focused at index 1, shift-tab moves back to index 0
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.Shift), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
-        Assert.True(textBox1.IsFocused);
-        Assert.False(textBox2.IsFocused);
+        Assert.IsTrue(textBox1.IsFocused);
+        Assert.IsFalse(textBox2.IsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DispatchesToFocusedChild()
     {
         var textBox = new TextBoxNode { Text = "hello", IsFocused = true };
@@ -251,10 +252,10 @@ public class VStackNodeTests
         // Use InputRouter to route input to the focused child
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.X, 'X', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("helloX", textBox.Text);
+        Assert.AreEqual("helloX", textBox.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Tab_WrapsAroundToFirst()
     {
         var button1 = new ButtonNode { Label = "1", IsFocused = false };
@@ -272,15 +273,15 @@ public class VStackNodeTests
         // button2 starts focused at index 1, one Tab wraps to index 0
         await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), focusRing, routerState2, null, TestContext.Current.CancellationToken);
 
-        Assert.True(button1.IsFocused);
-        Assert.False(button2.IsFocused);
+        Assert.IsTrue(button1.IsFocused);
+        Assert.IsFalse(button2.IsFocused);
     }
 
     #endregion
 
     #region Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RendersAllChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -310,7 +311,7 @@ public class VStackNodeTests
         Assert.Contains("Second", snapshot.GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ChildrenAppearOnDifferentLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -349,7 +350,7 @@ public class VStackNodeTests
             .ApplyAsync(terminal);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InNarrowTerminal_TextClipsAtEdge()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -375,16 +376,16 @@ public class VStackNodeTests
         await runTask;
         
         // Text clips at terminal edge (not wraps)
-        Assert.Equal("LongTextHe", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("LongTextHe", snapshot.GetLineTrimmed(0));
         // Second line should be empty (no wrapping)
-        Assert.Equal("", snapshot.GetLineTrimmed(1));
+        Assert.AreEqual("", snapshot.GetLineTrimmed(1));
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_RendersMultipleChildren()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -415,12 +416,12 @@ public class VStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Header"));
-        Assert.True(snapshot.ContainsText("Body Content"));
-        Assert.True(snapshot.ContainsText("Footer"));
+        Assert.IsTrue(snapshot.ContainsText("Header"));
+        Assert.IsTrue(snapshot.ContainsText("Body Content"));
+        Assert.IsTrue(snapshot.ContainsText("Footer"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_TabNavigatesThroughFocusables()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -461,12 +462,12 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("1", text1);
-        Assert.Equal("2", text2);
-        Assert.Equal("3", text3);
+        Assert.AreEqual("1", text1);
+        Assert.AreEqual("2", text2);
+        Assert.AreEqual("3", text3);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_ShiftTabNavigatesBackward()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -499,11 +500,11 @@ public class VStackNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("A", text1);
-        Assert.Equal("", text2);
+        Assert.AreEqual("A", text1);
+        Assert.AreEqual("", text2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_InNarrowTerminal_StillWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -534,12 +535,12 @@ public class VStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Short"));
-        Assert.True(snapshot.ContainsText("Medium text"));
-        Assert.True(snapshot.ContainsText("Very long text"));
+        Assert.IsTrue(snapshot.ContainsText("Short"));
+        Assert.IsTrue(snapshot.ContainsText("Medium text"));
+        Assert.IsTrue(snapshot.ContainsText("Very long text"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_WithMixedContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -574,11 +575,11 @@ public class VStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(clicked);
-        Assert.True(snapshot.ContainsText("Title"));
+        Assert.IsTrue(clicked);
+        Assert.IsTrue(snapshot.ContainsText("Title"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_NestedVStacks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -612,13 +613,13 @@ public class VStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Outer 1"));
-        Assert.True(snapshot.ContainsText("Inner 1"));
-        Assert.True(snapshot.ContainsText("Inner 2"));
-        Assert.True(snapshot.ContainsText("Outer 2"));
+        Assert.IsTrue(snapshot.ContainsText("Outer 1"));
+        Assert.IsTrue(snapshot.ContainsText("Inner 1"));
+        Assert.IsTrue(snapshot.ContainsText("Inner 2"));
+        Assert.IsTrue(snapshot.ContainsText("Outer 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_EmptyStack_DoesNotCrash()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -644,7 +645,7 @@ public class VStackNodeTests
         // Test passes if we get here without throwing
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VStack_DynamicContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -672,16 +673,16 @@ public class VStackNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Item 1"));
-        Assert.True(snapshot.ContainsText("Item 2"));
-        Assert.True(snapshot.ContainsText("Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("Item 3"));
     }
 
     #endregion
 
     #region Orphan Tracking Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_FewerChildren_TracksOrphanedBounds()
     {
         // Arrange - create a VStack with 5 children
@@ -696,8 +697,8 @@ public class VStackNodeTests
         
         var context = ReconcileContext.CreateRoot();
         var node = initialWidget.ReconcileAsync(null, context).GetAwaiter().GetResult() as VStackNode;
-        Assert.NotNull(node);
-        Assert.Equal(5, node.Children.Count);
+        Assert.IsNotNull(node);
+        Assert.AreEqual(5, node.Children.Count);
         
         // Set up bounds for each child (simulating what Arrange would do)
         node.Arrange(new Rect(0, 0, 50, 5));
@@ -719,20 +720,20 @@ public class VStackNodeTests
         var reconciledNode = fewerWidget.ReconcileAsync(node, context).GetAwaiter().GetResult() as VStackNode;
         
         // Assert - orphaned bounds should be tracked
-        Assert.Same(node, reconciledNode); // Same node reused
-        Assert.Single(reconciledNode!.Children);
-        Assert.NotNull(reconciledNode.OrphanedChildBounds);
-        Assert.Equal(4, reconciledNode.OrphanedChildBounds.Count); // Children 1-4 were orphaned
-        Assert.True(reconciledNode.IsDirty); // Should be marked dirty
+        Assert.AreSame(node, reconciledNode); // Same node reused
+        TestSeq.Single(reconciledNode!.Children);
+        Assert.IsNotNull(reconciledNode.OrphanedChildBounds);
+        Assert.AreEqual(4, reconciledNode.OrphanedChildBounds.Count); // Children 1-4 were orphaned
+        Assert.IsTrue(reconciledNode.IsDirty); // Should be marked dirty
         
         // Verify the orphaned bounds match the old children's positions
-        Assert.Equal(new Rect(0, 1, 50, 1), reconciledNode.OrphanedChildBounds[0]);
-        Assert.Equal(new Rect(0, 2, 50, 1), reconciledNode.OrphanedChildBounds[1]);
-        Assert.Equal(new Rect(0, 3, 50, 1), reconciledNode.OrphanedChildBounds[2]);
-        Assert.Equal(new Rect(0, 4, 50, 1), reconciledNode.OrphanedChildBounds[3]);
+        Assert.AreEqual(new Rect(0, 1, 50, 1), reconciledNode.OrphanedChildBounds[0]);
+        Assert.AreEqual(new Rect(0, 2, 50, 1), reconciledNode.OrphanedChildBounds[1]);
+        Assert.AreEqual(new Rect(0, 3, 50, 1), reconciledNode.OrphanedChildBounds[2]);
+        Assert.AreEqual(new Rect(0, 4, 50, 1), reconciledNode.OrphanedChildBounds[3]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SameOrMoreChildren_NoOrphanedBounds()
     {
         // Arrange - create a VStack with 2 children
@@ -744,7 +745,7 @@ public class VStackNodeTests
         
         var context = ReconcileContext.CreateRoot();
         var node = initialWidget.ReconcileAsync(null, context).GetAwaiter().GetResult() as VStackNode;
-        Assert.NotNull(node);
+        Assert.IsNotNull(node);
         node.Arrange(new Rect(0, 0, 50, 2));
         
         // Act - reconcile with same number of children
@@ -756,7 +757,7 @@ public class VStackNodeTests
         var reconciledNode = sameWidget.ReconcileAsync(node, context).GetAwaiter().GetResult() as VStackNode;
         
         // Assert - no orphaned bounds
-        Assert.Null(reconciledNode!.OrphanedChildBounds);
+        Assert.IsNull(reconciledNode!.OrphanedChildBounds);
     }
 
     #endregion

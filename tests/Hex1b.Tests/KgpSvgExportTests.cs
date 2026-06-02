@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// Verifies that KGP images are correctly captured in snapshots and rendered
 /// in the SVG output with proper positioning, z-order, and data encoding.
 /// </summary>
+[TestClass]
 public class KgpSvgExportTests
 {
     private static readonly TerminalCapabilities KgpCapabilities = new()
@@ -30,7 +31,7 @@ public class KgpSvgExportTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_WithKgpImage_ContainsImageElement()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -52,7 +53,7 @@ public class KgpSvgExportTests
         Assert.Contains("style=\"image-rendering: pixelated;\"", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_WithKgpImage_CorrectPositioning()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -78,7 +79,7 @@ public class KgpSvgExportTests
         Assert.Contains($"y=\"{expectedY}\"", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_WithKgpImage_ThreePassStructure()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -107,13 +108,11 @@ public class KgpSvgExportTests
         var imagesIndex = svg.IndexOf("class=\"terminal-images\"");
         var textIndex = svg.IndexOf("class=\"terminal-text\"");
 
-        Assert.True(bgIndex < imagesIndex,
-            "terminal-bg should appear before terminal-images in SVG");
-        Assert.True(imagesIndex < textIndex,
-            "terminal-images should appear before terminal-text in SVG");
+        Assert.IsTrue(bgIndex < imagesIndex, "terminal-bg should appear before terminal-images in SVG");
+        Assert.IsTrue(imagesIndex < textIndex, "terminal-images should appear before terminal-text in SVG");
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_WithoutKgpImages_NoImageElements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -135,7 +134,7 @@ public class KgpSvgExportTests
         Assert.Contains("class=\"terminal-text\"", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_MultipleKgpImages_AllRendered()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -160,10 +159,10 @@ public class KgpSvgExportTests
 
         // Count <image occurrences
         var imageCount = CountOccurrences(svg, "<image ");
-        Assert.Equal(2, imageCount);
+        Assert.AreEqual(2, imageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_KgpImage_ZOrderBetweenBgAndText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -188,13 +187,11 @@ public class KgpSvgExportTests
         var imageElementIndex = svg.IndexOf("<image ");
         var textGroupStart = svg.IndexOf("class=\"terminal-text\"");
 
-        Assert.True(imageElementIndex > bgGroupEnd,
-            "Image element should appear after the background group ends");
-        Assert.True(imageElementIndex < textGroupStart,
-            "Image element should appear before the text group starts");
+        Assert.IsTrue(imageElementIndex > bgGroupEnd, "Image element should appear after the background group ends");
+        Assert.IsTrue(imageElementIndex < textGroupStart, "Image element should appear before the text group starts");
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgExport_KgpImage_Rgb24_ProducesValidBmp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -220,18 +217,18 @@ public class KgpSvgExportTests
 
         // Decode and validate BMP structure
         var bmpBytes = Convert.FromBase64String(base64Part);
-        Assert.True(bmpBytes.Length >= 54, "BMP should have at least a 54-byte header");
-        Assert.Equal((byte)'B', bmpBytes[0]);
-        Assert.Equal((byte)'M', bmpBytes[1]);
+        Assert.IsTrue(bmpBytes.Length >= 54, "BMP should have at least a 54-byte header");
+        Assert.AreEqual((byte)'B', bmpBytes[0]);
+        Assert.AreEqual((byte)'M', bmpBytes[1]);
 
         // Validate dimensions in BMP header (offset 18=width, 22=height)
         var bmpWidth = BitConverter.ToInt32(bmpBytes, 18);
         var bmpHeight = BitConverter.ToInt32(bmpBytes, 22);
-        Assert.Equal(1, bmpWidth);
-        Assert.Equal(1, bmpHeight);
+        Assert.AreEqual(1, bmpWidth);
+        Assert.AreEqual(1, bmpHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgSnapshot_CapturesKgpState()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -245,12 +242,9 @@ public class KgpSvgExportTests
         var snapshot = terminal.CreateSnapshot();
         TestCaptureHelper.CaptureSvg(snapshot, "kgp-snapshot-state");
 
-        Assert.True(snapshot.KgpPlacements.Count > 0,
-            "Snapshot should capture KGP placements");
-        Assert.True(snapshot.KgpImages.Count > 0,
-            "Snapshot should capture KGP image data");
-        Assert.True(snapshot.KgpImages.ContainsKey(42),
-            "Snapshot should contain the transmitted image ID");
+        Assert.IsTrue(snapshot.KgpPlacements.Count > 0, "Snapshot should capture KGP placements");
+        Assert.IsTrue(snapshot.KgpImages.Count > 0, "Snapshot should capture KGP image data");
+        Assert.IsTrue(snapshot.KgpImages.ContainsKey(42), "Snapshot should contain the transmitted image ID");
     }
 
     private static int CountOccurrences(string text, string pattern)

@@ -7,14 +7,15 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// overwriting wide chars, spacer cells, and single-width terminals.
 /// Translated from Ghostty's Terminal.zig test suite.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyPrintWideEdgeCaseConformanceTests
 {
     // ═══════════════════════════════════════════════════════════════
     // Print wide char at edge
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void PrintWideCharAtEdge_CreatesSpacerAndWraps()
     {
         // Ghostty: "Terminal: print wide char at edge creates spacer head"
@@ -26,25 +27,23 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\U0001F600");      // 😀 wide emoji
 
         // Cursor should wrap to row 1, col 2 (after the wide char)
-        Assert.Equal(1, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(1, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         // Col 9 on row 0 should be empty (spacer head)
         var spacerCell = GhosttyTestFixture.GetCell(t, 0, 9);
-        Assert.True(spacerCell.Character == " " || spacerCell.Character == "",
-            $"Expected empty spacer at edge, got '{spacerCell.Character}'");
+        Assert.IsTrue(spacerCell.Character == " " || spacerCell.Character == "", $"Expected empty spacer at edge, got '{spacerCell.Character}'");
 
         // Row 1, col 0 should have the emoji (wide char)
         var wideCell = GhosttyTestFixture.GetCell(t, 1, 0);
-        Assert.Equal("\U0001F600", wideCell.Character);
+        Assert.AreEqual("\U0001F600", wideCell.Character);
 
         // Row 1, col 1 should be continuation (spacer tail)
         var tailCell = GhosttyTestFixture.GetCell(t, 1, 1);
-        Assert.True(tailCell.Character == " " || tailCell.Character == "",
-            $"Expected continuation cell, got '{tailCell.Character}'");
+        Assert.IsTrue(tailCell.Character == " " || tailCell.Character == "", $"Expected continuation cell, got '{tailCell.Character}'");
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintWideCharInSingleWidthTerminal_PrintsSpace()
     {
         // Ghostty: "Terminal: print wide char in single-width terminal"
@@ -55,16 +54,15 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\U0001F600");  // 😀
 
         // Cursor stays at row 0, col 0 (with pending wrap)
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(0, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(0, t.CursorX);
 
         // Cell should be empty (wide char was dropped)
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.True(cell.Character == " " || cell.Character == "" || cell.Character == "\0",
-            $"Expected empty cell in 1-col terminal, got '{cell.Character}'");
+        Assert.IsTrue(cell.Character == " " || cell.Character == "" || cell.Character == "\0", $"Expected empty cell in 1-col terminal, got '{cell.Character}'");
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintWideCharWithOneColWidth_Truncated()
     {
         // Ghostty: "Terminal: print wide char with 1-column width"
@@ -75,15 +73,14 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         // Cell should be empty
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.True(cell.Character == " " || cell.Character == "" || cell.Character == "\0",
-            $"Expected empty cell, got '{cell.Character}'");
+        Assert.IsTrue(cell.Character == " " || cell.Character == "" || cell.Character == "\0", $"Expected empty cell, got '{cell.Character}'");
     }
 
     // ═══════════════════════════════════════════════════════════════
     // Overwrite wide char
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void PrintOverWideCharAt00()
     {
         // Ghostty: "Terminal: print over wide char at 0,0"
@@ -95,20 +92,19 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H");      // CUP(1,1) → col 0
         GhosttyTestFixture.Feed(t, "A");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         // Col 0 should be 'A' (narrow)
         var cell0 = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("A", cell0.Character);
+        Assert.AreEqual("A", cell0.Character);
 
         // Col 1 should be blank (former continuation cleared)
         var cell1 = GhosttyTestFixture.GetCell(t, 0, 1);
-        Assert.True(cell1.Character == " " || cell1.Character == "" || cell1.Character == "\0",
-            $"Expected cleared continuation, got '{cell1.Character}'");
+        Assert.IsTrue(cell1.Character == " " || cell1.Character == "" || cell1.Character == "\0", $"Expected cleared continuation, got '{cell1.Character}'");
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintOverWideSpacerTail()
     {
         // Ghostty: "Terminal: print over wide spacer tail"
@@ -122,22 +118,21 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         // Col 0 should be blank (wide char destroyed when tail overwritten)
         var cell0 = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.True(cell0.Character == " " || cell0.Character == "",
-            $"Expected blank at col 0, got '{cell0.Character}'");
+        Assert.IsTrue(cell0.Character == " " || cell0.Character == "", $"Expected blank at col 0, got '{cell0.Character}'");
 
         // Col 1 should be 'X'
         var cell1 = GhosttyTestFixture.GetCell(t, 0, 1);
-        Assert.Equal("X", cell1.Character);
+        Assert.AreEqual("X", cell1.Character);
 
         // Full line content
-        Assert.Equal(" X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual(" X", GhosttyTestFixture.GetLine(t, 0));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // Grapheme with combining mark (narrow)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void PrintGrapheme_OWithCombiningGrave_IsNarrow()
     {
         // Ghostty: "Terminal: print grapheme ò (o with nonspacing mark) should be narrow"
@@ -147,20 +142,19 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "o\u0300");  // o + combining grave
 
         // Should take 1 cell
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         // Cell 0 should contain the composed character (may be NFC composed "ò" or decomposed "o\u0300")
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.False(string.IsNullOrWhiteSpace(cell.Character),
-            "Expected grapheme character, got empty/whitespace");
+        Assert.IsFalse(string.IsNullOrWhiteSpace(cell.Character), "Expected grapheme character, got empty/whitespace");
     }
 
     // ═══════════════════════════════════════════════════════════════
     // Invalid VS16 (VS16 on non-emoji base)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void PrintInvalidVS16_NonGrapheme_RemainsNarrow()
     {
         // Ghostty: "Terminal: print invalid VS16 non-grapheme"
@@ -170,15 +164,15 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "x\uFE0F");
 
         // Should have 1 cell, narrow
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         // Cell 0 should be 'x'
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("x", cell.Character);
+        Assert.AreEqual("x", cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintInvalidVS16_Grapheme_RemainsNarrow()
     {
         // Ghostty: "Terminal: print invalid VS16 grapheme"
@@ -187,14 +181,14 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         GhosttyTestFixture.Feed(t, "x\uFE0F");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("x", cell.Character);
+        Assert.AreEqual("x", cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintInvalidVS16_WithSecondChar_TwoNarrowCells()
     {
         // Ghostty: "Terminal: print invalid VS16 with second char"
@@ -203,17 +197,17 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         GhosttyTestFixture.Feed(t, "x\uFE0Fy");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         var cell0 = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("x", cell0.Character);
+        Assert.AreEqual("x", cell0.Character);
 
         var cell1 = GhosttyTestFixture.GetCell(t, 0, 1);
-        Assert.Equal("y", cell1.Character);
+        Assert.AreEqual("y", cell1.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintInvalidVS16_WithCombiningChar_CombinesWithBase()
     {
         // Ghostty: "Terminal: print invalid VS16 with second char (combining)"
@@ -222,8 +216,8 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         GhosttyTestFixture.Feed(t, "n\uFE0F\u0303");
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
         // Should contain 'n' with combining tilde
@@ -234,7 +228,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // VS15 (text presentation selector — makes emoji narrow)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void VS15_MakesNarrowCharacter()
     {
         // Ghostty: "Terminal: VS15 to make narrow character"
@@ -242,16 +236,16 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         var t = GhosttyTestFixture.CreateTerminal(5, 5);
 
         GhosttyTestFixture.Feed(t, "\u2614");   // ☔ umbrella (wide)
-        Assert.Equal(2, t.CursorX);             // Wide: takes 2 cols
+        Assert.AreEqual(2, t.CursorX);             // Wide: takes 2 cols
 
         GhosttyTestFixture.Feed(t, "\uFE0E");   // VS15 → narrow
 
         // After VS15, cursor should move back to col 1 (narrow = 1 cell)
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void VS15_OnAlreadyNarrowEmoji()
     {
         // Ghostty: "Terminal: VS15 on already narrow emoji"
@@ -261,11 +255,11 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\u26C8");   // ⛈ thunder cloud (narrow)
         GhosttyTestFixture.Feed(t, "\uFE0E");   // VS15
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void VS15_WithPendingWrap_ClearsPendingWrap()
     {
         // Ghostty: "Terminal: VS15 to make narrow character with pending wrap"
@@ -277,20 +271,20 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\u2614");       // ☔ umbrella (wide, cols 2-3)
 
         // Should be at row 0 with pending wrap
-        Assert.Equal(0, t.CursorY);
+        Assert.AreEqual(0, t.CursorY);
 
         GhosttyTestFixture.Feed(t, "\uFE0E");       // VS15 → narrow
 
         // Should still be on row 0, pending wrap cleared
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(3, t.CursorX);  // col 2 (narrow umbrella) + 1
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(3, t.CursorX);  // col 2 (narrow umbrella) + 1
 
         // First cell should still be lemon
         var lemonCell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("\U0001F34B", lemonCell.Character);
+        Assert.AreEqual("\U0001F34B", lemonCell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void PrintInvalidVS15_FollowingEmoji_StaysWide()
     {
         // Ghostty: "Terminal: print invalid VS15 following emoji is wide"
@@ -299,18 +293,18 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         GhosttyTestFixture.Feed(t, "\U0001F9E0\uFE0E");  // 🧠 + VS15
 
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);  // Still wide
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);  // Still wide
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.Equal("\U0001F9E0", cell.Character);
+        Assert.AreEqual("\U0001F9E0", cell.Character);
     }
 
     // ═══════════════════════════════════════════════════════════════
     // VS16 on next line (wrapping due to widening)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void VS16_MakesWideOnNextLine()
     {
         // Ghostty: "Terminal: VS16 to make wide character on next line"
@@ -321,18 +315,17 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;3H");  // CUP(1,3) → col 2
         GhosttyTestFixture.Feed(t, "#");              // Narrow char at col 2
 
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(2, t.CursorX);
 
         GhosttyTestFixture.Feed(t, "\uFE0F");         // VS16 → wide
 
         // Should wrap to next line
-        Assert.Equal(1, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(1, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         // Col 2 on row 0 should be spacer head (empty)
         var spacerCell = GhosttyTestFixture.GetCell(t, 0, 2);
-        Assert.True(spacerCell.Character == " " || spacerCell.Character == "",
-            $"Expected spacer head, got '{spacerCell.Character}'");
+        Assert.IsTrue(spacerCell.Character == " " || spacerCell.Character == "", $"Expected spacer head, got '{spacerCell.Character}'");
 
         // Row 1, col 0 should be '#' (wide, with emoji presentation)
         var hashCell = GhosttyTestFixture.GetCell(t, 1, 0);
@@ -343,7 +336,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // Keypad sequences with VS15/VS16
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void KeypadSequenceVS15_NarrowPresentation()
     {
         // Ghostty: "Terminal: keypad sequence VS15"
@@ -353,14 +346,14 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "#\uFE0E");
 
         // Should be 1 cell (narrow)
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(1, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(1, t.CursorX);
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
         Assert.Contains("#", cell.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void KeypadSequenceVS16_WidePresentation()
     {
         // Ghostty: "Terminal: keypad sequence VS16"
@@ -370,8 +363,8 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "#\uFE0F");
 
         // Should be 2 cells (wide)
-        Assert.Equal(0, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(0, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         var cell = GhosttyTestFixture.GetCell(t, 0, 0);
         Assert.Contains("#", cell.Character);
@@ -381,7 +374,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
     // Alt screen mode 47/1047 cursor copying
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void Mode47_CopiesCursorBothDirections()
     {
         // Ghostty: "Terminal: mode 47 copies cursor both directions"
@@ -400,7 +393,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
 
         var altCell = GhosttyTestFixture.GetCell(t, 0, 0);
         // Verify alt screen has the green color
-        Assert.NotNull(altCell.Foreground);
+        Assert.IsNotNull(altCell.Foreground);
 
         // Exit alt screen
         GhosttyTestFixture.Feed(t, "\u001b[?47l");
@@ -408,10 +401,10 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         // Primary screen should have the green foreground (copied back)
         GhosttyTestFixture.Feed(t, "Y");
         var primaryCell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.NotNull(primaryCell.Foreground);
+        Assert.IsNotNull(primaryCell.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Mode1047_CopiesCursorBothDirections()
     {
         // Ghostty: "Terminal: mode 1047 copies cursor both directions"
@@ -429,7 +422,7 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "X");
 
         var altCell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.NotNull(altCell.Foreground);
+        Assert.IsNotNull(altCell.Foreground);
 
         // Exit alt screen
         GhosttyTestFixture.Feed(t, "\u001b[?1047l");
@@ -437,10 +430,10 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         // Primary screen should have the green foreground (copied back)
         GhosttyTestFixture.Feed(t, "Y");
         var primaryCell = GhosttyTestFixture.GetCell(t, 0, 0);
-        Assert.NotNull(primaryCell.Foreground);
+        Assert.IsNotNull(primaryCell.Foreground);
     }
 
-    [Fact]
+    [TestMethod]
     public void Mode1047_AltScreenPreservesContent()
     {
         // Ghostty: "Terminal: mode 1047 alt screen plain"
@@ -453,20 +446,20 @@ public class GhosttyPrintWideEdgeCaseConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[?1047h");
 
         // Alt screen should be empty
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
 
         // Print on alt, cursor position carried over from primary (col 2)
         GhosttyTestFixture.Feed(t, "2B");
-        Assert.Equal("  2B", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  2B", GhosttyTestFixture.GetLine(t, 0));
 
         // Exit alt screen
         GhosttyTestFixture.Feed(t, "\u001b[?1047l");
 
         // Primary should still have original content
-        Assert.Equal("1A", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("1A", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
 
         // Re-enter alt screen — should be blank again
         GhosttyTestFixture.Feed(t, "\u001b[?1047h");
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0).TrimEnd());
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using Hex1b;
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -9,7 +8,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Tests hyperlink attachment to cells, preservation through scrolling,
 /// clearing on overwrite, and interaction with insert/delete operations.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyHyperlinkConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols, int rows) => GhosttyTestFixture.CreateTerminal(cols, rows);
@@ -32,7 +32,7 @@ public class GhosttyHyperlinkConformanceTests
     #region Basic Hyperlink Printing
 
     // Ghostty: "Terminal: print with hyperlink"
-    [Fact]
+    [TestMethod]
     public void PrintWithHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -44,13 +44,13 @@ public class GhosttyHyperlinkConformanceTests
         for (int x = 0; x < 6; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
     }
 
     // Ghostty: "Terminal: print over cell with same hyperlink"
-    [Fact]
+    [TestMethod]
     public void PrintOverCellWithSameHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -63,13 +63,13 @@ public class GhosttyHyperlinkConformanceTests
         for (int x = 0; x < 6; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
     }
 
     // Ghostty: "Terminal: print and end hyperlink"
-    [Fact]
+    [TestMethod]
     public void PrintAndEndHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -83,20 +83,20 @@ public class GhosttyHyperlinkConformanceTests
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
 
         // Next 3 cells do NOT have hyperlink
         for (int x = 3; x < 6; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData, $"Cell at col {x} should NOT have hyperlink");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at col {x} should NOT have hyperlink");
         }
     }
 
     // Ghostty: "Terminal: print and change hyperlink"
-    [Fact]
+    [TestMethod]
     public void PrintAndChangeHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -110,22 +110,22 @@ public class GhosttyHyperlinkConformanceTests
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
-            Assert.Equal("http://one.example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://one.example.com", cell.HyperlinkData!.Uri);
         }
 
         // Next 3 cells have second hyperlink
         for (int x = 3; x < 6; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
-            Assert.Equal("http://two.example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://two.example.com", cell.HyperlinkData!.Uri);
         }
     }
 
     // Ghostty: "Terminal: overwrite hyperlink"
     // Writing non-hyperlinked text over hyperlinked cells clears the hyperlink.
-    [Fact]
+    [TestMethod]
     public void OverwriteHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -140,12 +140,12 @@ public class GhosttyHyperlinkConformanceTests
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData, $"Cell at col {x} should NOT have hyperlink after overwrite");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at col {x} should NOT have hyperlink after overwrite");
         }
     }
 
     // Ghostty: "Terminal: print wide char at right edge with hyperlink"
-    [Fact]
+    [TestMethod]
     public void PrintWideCharAtRightEdgeWithHyperlink()
     {
         using var t = CreateTerminal(cols: 10, rows: 5);
@@ -157,24 +157,21 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u4E2D");
 
         // Cursor should be on row 1 after the wide char
-        Assert.Equal(1, t.CursorY);
-        Assert.Equal(2, t.CursorX);
+        Assert.AreEqual(1, t.CursorY);
+        Assert.AreEqual(2, t.CursorX);
 
         // Row 0, col 9: spacer head should have hyperlink
         var spacerHead = GetCell(t, 0, 9);
-        Assert.True(spacerHead.HasHyperlinkData,
-            "Spacer head at right edge should have hyperlink");
+        Assert.IsTrue(spacerHead.HasHyperlinkData, "Spacer head at right edge should have hyperlink");
 
         // Row 1, col 0: the wide char should have hyperlink
         var wideCell = GetCell(t, 1, 0);
-        Assert.True(wideCell.HasHyperlinkData,
-            "Wide char should have hyperlink");
-        Assert.Equal("http://example.com", wideCell.HyperlinkData!.Uri);
+        Assert.IsTrue(wideCell.HasHyperlinkData, "Wide char should have hyperlink");
+        Assert.AreEqual("http://example.com", wideCell.HyperlinkData!.Uri);
 
         // Row 1, col 1: spacer tail should have hyperlink
         var spacerTail = GetCell(t, 1, 1);
-        Assert.True(spacerTail.HasHyperlinkData,
-            "Spacer tail should have hyperlink");
+        Assert.IsTrue(spacerTail.HasHyperlinkData, "Spacer tail should have hyperlink");
     }
 
     #endregion
@@ -182,7 +179,7 @@ public class GhosttyHyperlinkConformanceTests
     #region Scrolling with Hyperlinks
 
     // Ghostty: "Terminal: scrollUp moves hyperlink"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_MovesHyperlink()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -197,30 +194,28 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001b[2;2H"); // CUP(2,2)
         Feed(t, "\u001b[S");     // SU 1 (scroll up)
 
-        Assert.Equal("DEF", GetLine(t, 0).TrimEnd());
-        Assert.Equal("GHI", GetLine(t, 1).TrimEnd());
+        Assert.AreEqual("DEF", GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("GHI", GetLine(t, 1).TrimEnd());
 
         // Row 0 should have hyperlinks (the DEF row moved up)
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData,
-                $"Cell at (0,{x}) should have hyperlink after scroll");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at (0,{x}) should have hyperlink after scroll");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
 
         // Row 1 should NOT have hyperlinks (GHI was plain text)
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 1, x);
-            Assert.False(cell.HasHyperlinkData,
-                $"Cell at (1,{x}) should NOT have hyperlink");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at (1,{x}) should NOT have hyperlink");
         }
     }
 
     // Ghostty: "Terminal: scrollUp clears hyperlink"
     // When a row with hyperlinks scrolls off the top, the hyperlinks are cleared.
-    [Fact]
+    [TestMethod]
     public void ScrollUp_ClearsHyperlink()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -235,20 +230,19 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001b[2;2H"); // CUP(2,2)
         Feed(t, "\u001b[S");     // SU 1
 
-        Assert.Equal("DEF", GetLine(t, 0).TrimEnd());
-        Assert.Equal("GHI", GetLine(t, 1).TrimEnd());
+        Assert.AreEqual("DEF", GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("GHI", GetLine(t, 1).TrimEnd());
 
         // Row 0 (was DEF, no hyperlink) should not have hyperlinks
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData,
-                $"Cell at (0,{x}) should NOT have hyperlink");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at (0,{x}) should NOT have hyperlink");
         }
     }
 
     // Ghostty: "Terminal: scrollDown hyperlink moves"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_HyperlinkMoves()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -263,24 +257,22 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001b[2;2H"); // CUP(2,2)
         Feed(t, "\u001b[T");     // SD 1 (scroll down)
 
-        Assert.Equal("ABC", GetLine(t, 1).TrimEnd());
-        Assert.Equal("DEF", GetLine(t, 2).TrimEnd());
+        Assert.AreEqual("ABC", GetLine(t, 1).TrimEnd());
+        Assert.AreEqual("DEF", GetLine(t, 2).TrimEnd());
 
         // Row 1 should have hyperlinks (ABC moved down)
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 1, x);
-            Assert.True(cell.HasHyperlinkData,
-                $"Cell at (1,{x}) should have hyperlink after scroll down");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Cell at (1,{x}) should have hyperlink after scroll down");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
 
         // Row 0 (new blank row) should NOT have hyperlinks
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData,
-                $"Cell at (0,{x}) should NOT have hyperlink (new blank row)");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at (0,{x}) should NOT have hyperlink (new blank row)");
         }
     }
 
@@ -289,7 +281,7 @@ public class GhosttyHyperlinkConformanceTests
     #region Index with Hyperlinks
 
     // Ghostty: "Terminal: index scrolling with hyperlink"
-    [Fact]
+    [TestMethod]
     public void Index_ScrollingWithHyperlink()
     {
         using var t = CreateTerminal(cols: 2, rows: 5);
@@ -302,21 +294,21 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001bD");   // IND (index — scroll up if at bottom)
         Feed(t, "B");
 
-        Assert.Equal("A", GetLine(t, 3).TrimEnd());
-        Assert.Equal("B", GetLine(t, 4).TrimEnd());
+        Assert.AreEqual("A", GetLine(t, 3).TrimEnd());
+        Assert.AreEqual("B", GetLine(t, 4).TrimEnd());
 
         // Row 3, col 0 should have hyperlink (A moved up by index)
         var cellA = GetCell(t, 3, 0);
-        Assert.True(cellA.HasHyperlinkData, "Cell A should have hyperlink");
-        Assert.Equal("http://example.com", cellA.HyperlinkData!.Uri);
+        Assert.IsTrue(cellA.HasHyperlinkData, "Cell A should have hyperlink");
+        Assert.AreEqual("http://example.com", cellA.HyperlinkData!.Uri);
 
         // Row 4, col 0 should NOT have hyperlink (B printed without hyperlink)
         var cellB = GetCell(t, 4, 0);
-        Assert.False(cellB.HasHyperlinkData, "Cell B should NOT have hyperlink");
+        Assert.IsFalse(cellB.HasHyperlinkData, "Cell B should NOT have hyperlink");
     }
 
     // Ghostty: "Terminal: index bottom of scroll region with hyperlinks"
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScrollRegion_WithHyperlinks()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -332,21 +324,21 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\r");          // CR
         Feed(t, "C");
 
-        Assert.Equal("B", GetLine(t, 0).TrimEnd());
-        Assert.Equal("C", GetLine(t, 1).TrimEnd());
+        Assert.AreEqual("B", GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("C", GetLine(t, 1).TrimEnd());
 
         // Row 0 (B) should have hyperlink
         var cellB = GetCell(t, 0, 0);
-        Assert.True(cellB.HasHyperlinkData, "Cell B should have hyperlink");
-        Assert.Equal("http://example.com", cellB.HyperlinkData!.Uri);
+        Assert.IsTrue(cellB.HasHyperlinkData, "Cell B should have hyperlink");
+        Assert.AreEqual("http://example.com", cellB.HyperlinkData!.Uri);
 
         // Row 1 (C) should NOT have hyperlink
         var cellC = GetCell(t, 1, 0);
-        Assert.False(cellC.HasHyperlinkData, "Cell C should NOT have hyperlink");
+        Assert.IsFalse(cellC.HasHyperlinkData, "Cell C should NOT have hyperlink");
     }
 
     // Ghostty: "Terminal: index bottom of scroll region clear hyperlinks"
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScrollRegion_ClearsHyperlinks()
     {
         using var t = CreateTerminal(cols: 5, rows: 5);
@@ -363,15 +355,14 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\r");
         Feed(t, "C");
 
-        Assert.Equal("B", GetLine(t, 1).TrimEnd());
-        Assert.Equal("C", GetLine(t, 2).TrimEnd());
+        Assert.AreEqual("B", GetLine(t, 1).TrimEnd());
+        Assert.AreEqual("C", GetLine(t, 2).TrimEnd());
 
         // Rows 1-2 should NOT have hyperlinks (A scrolled off)
         for (int y = 1; y <= 2; y++)
         {
             var cell = GetCell(t, y, 0);
-            Assert.False(cell.HasHyperlinkData,
-                $"Cell at ({y},0) should NOT have hyperlink");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at ({y},0) should NOT have hyperlink");
         }
     }
 
@@ -380,7 +371,7 @@ public class GhosttyHyperlinkConformanceTests
     #region InsertBlanks with Hyperlinks
 
     // Ghostty: "Terminal: insertBlanks shifts hyperlinks"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_ShiftsHyperlinks()
     {
         using var t = CreateTerminal(cols: 10, rows: 2);
@@ -390,28 +381,26 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001b[1;1H"); // CUP back to start
         Feed(t, "\u001b[2@");    // ICH 2 (insert 2 blanks)
 
-        Assert.Equal("  ABC", GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("  ABC", GetLine(t, 0).TrimEnd());
 
         // Shifted cells (cols 2-4) should have hyperlink
         for (int x = 2; x < 5; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.True(cell.HasHyperlinkData,
-                $"Shifted cell at col {x} should have hyperlink");
-            Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+            Assert.IsTrue(cell.HasHyperlinkData, $"Shifted cell at col {x} should have hyperlink");
+            Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
         }
 
         // Inserted blank cells (cols 0-1) should NOT have hyperlink
         for (int x = 0; x < 2; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData,
-                $"Blank cell at col {x} should NOT have hyperlink");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Blank cell at col {x} should NOT have hyperlink");
         }
     }
 
     // Ghostty: "Terminal: insertBlanks pushes hyperlink off end completely"
-    [Fact]
+    [TestMethod]
     public void InsertBlanks_PushesHyperlinkOffEndCompletely()
     {
         using var t = CreateTerminal(cols: 3, rows: 2);
@@ -421,14 +410,13 @@ public class GhosttyHyperlinkConformanceTests
         Feed(t, "\u001b[1;1H"); // CUP back to start
         Feed(t, "\u001b[3@");    // ICH 3 — pushes all hyperlinked chars off
 
-        Assert.Equal("", GetLine(t, 0).TrimEnd());
+        Assert.AreEqual("", GetLine(t, 0).TrimEnd());
 
         // All cells should have NO hyperlink
         for (int x = 0; x < 3; x++)
         {
             var cell = GetCell(t, 0, x);
-            Assert.False(cell.HasHyperlinkData,
-                $"Cell at col {x} should NOT have hyperlink after push-off");
+            Assert.IsFalse(cell.HasHyperlinkData, $"Cell at col {x} should NOT have hyperlink after push-off");
         }
     }
 
@@ -437,7 +425,7 @@ public class GhosttyHyperlinkConformanceTests
     #region Save/Restore and Reset
 
     // Ghostty: "Terminal: saveCursor doesn't modify hyperlink state"
-    [Fact]
+    [TestMethod]
     public void SaveCursor_DoesNotModifyHyperlinkState()
     {
         using var t = CreateTerminal(cols: 3, rows: 3);
@@ -450,12 +438,12 @@ public class GhosttyHyperlinkConformanceTests
         // Hyperlink should still be active — print and verify
         Feed(t, "A");
         var cell = GetCell(t, 0, 0);
-        Assert.True(cell.HasHyperlinkData, "Hyperlink should still be active after save/restore");
-        Assert.Equal("http://example.com", cell.HyperlinkData!.Uri);
+        Assert.IsTrue(cell.HasHyperlinkData, "Hyperlink should still be active after save/restore");
+        Assert.AreEqual("http://example.com", cell.HyperlinkData!.Uri);
     }
 
     // Ghostty: "Terminal: fullReset hyperlink"
-    [Fact]
+    [TestMethod]
     public void FullReset_ClearsHyperlink()
     {
         using var t = CreateTerminal(cols: 80, rows: 80);
@@ -466,7 +454,7 @@ public class GhosttyHyperlinkConformanceTests
         // After reset, hyperlink should be cleared — printing should not have hyperlink
         Feed(t, "A");
         var cell = GetCell(t, 0, 0);
-        Assert.False(cell.HasHyperlinkData, "Hyperlink should be cleared after RIS");
+        Assert.IsFalse(cell.HasHyperlinkData, "Hyperlink should be cleared after RIS");
     }
 
     #endregion

@@ -10,11 +10,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for InteractableNode and InteractableWidget.
 /// </summary>
+[TestClass]
 public class InteractableNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Hello" };
@@ -23,22 +24,22 @@ public class InteractableNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // ButtonNode: " Hello " = 2 + 5 = 7 (Phase 2 chip layout)
-        Assert.Equal(7, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(7, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_NullChild_ReturnsZero()
     {
         var node = new InteractableNode { Child = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_PassesConstraintsToChild()
     {
         var child = new ButtonNode { Label = "A Very Long Label" };
@@ -47,14 +48,14 @@ public class InteractableNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.True(size.Width <= 10);
+        Assert.IsTrue(size.Width <= 10);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Test" };
@@ -63,11 +64,11 @@ public class InteractableNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
-        Assert.Equal(bounds, child.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
+        Assert.AreEqual(bounds, child.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_NullChild_DoesNotThrow()
     {
         var node = new InteractableNode { Child = null };
@@ -75,22 +76,22 @@ public class InteractableNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = new InteractableNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_SetTrue_InvokesFocusChangedCallback()
     {
         bool? focusState = null;
@@ -101,10 +102,10 @@ public class InteractableNodeTests
 
         node.IsFocused = true;
 
-        Assert.True(focusState);
+        Assert.IsTrue(focusState);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_SetFalse_InvokesFocusChangedCallback()
     {
         bool? focusState = null;
@@ -114,10 +115,10 @@ public class InteractableNodeTests
 
         node.IsFocused = false;
 
-        Assert.False(focusState);
+        Assert.IsFalse(focusState);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_SetSameValue_DoesNotInvokeCallback()
     {
         var callCount = 0;
@@ -128,10 +129,10 @@ public class InteractableNodeTests
 
         node.IsFocused = false; // Already false, no change
 
-        Assert.Equal(0, callCount);
+        Assert.AreEqual(0, callCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_ReturnsOnlySelf()
     {
         // Even with a focusable child, interactable captures focus
@@ -140,15 +141,15 @@ public class InteractableNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(node, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(node, focusables[0]);
     }
 
     #endregion
 
     #region Hover Tests
 
-    [Fact]
+    [TestMethod]
     public void IsHovered_SetTrue_InvokesHoverChangedCallback()
     {
         bool? hoverState = null;
@@ -159,10 +160,10 @@ public class InteractableNodeTests
 
         node.IsHovered = true;
 
-        Assert.True(hoverState);
+        Assert.IsTrue(hoverState);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsHovered_SetSameValue_DoesNotInvokeCallback()
     {
         var callCount = 0;
@@ -173,14 +174,14 @@ public class InteractableNodeTests
 
         node.IsHovered = false; // Already false
 
-        Assert.Equal(0, callCount);
+        Assert.AreEqual(0, callCount);
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_TriggersClickAction()
     {
         var clicked = false;
@@ -196,11 +197,11 @@ public class InteractableNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Space_TriggersClickAction()
     {
         var clicked = false;
@@ -216,11 +217,11 @@ public class InteractableNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NullClickAction_DoesNotThrow()
     {
         var node = new InteractableNode
@@ -235,10 +236,10 @@ public class InteractableNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_DoesNotClick()
     {
         var clicked = false;
@@ -254,29 +255,29 @@ public class InteractableNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.False(clicked);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.IsFalse(clicked);
     }
 
     #endregion
 
     #region HitTest Tests
 
-    [Fact]
+    [TestMethod]
     public void HitTestBounds_ReturnsBounds()
     {
         var node = new InteractableNode();
         var bounds = new Rect(5, 10, 20, 3);
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.HitTestBounds);
+        Assert.AreEqual(bounds, node.HitTestBounds);
     }
 
     #endregion
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithChild_ReturnsChild()
     {
         var child = new ButtonNode { Label = "Child" };
@@ -284,25 +285,25 @@ public class InteractableNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_NullChild_ReturnsEmpty()
     {
         var node = new InteractableNode { Child = null };
 
         var children = node.GetChildren().ToList();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     #endregion
 
     #region Widget Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_CreatesNode()
     {
         var widget = new InteractableWidget(ic => new TextBlockWidget("Hello"));
@@ -310,12 +311,12 @@ public class InteractableNodeTests
 
         var node = await widget.ReconcileAsync(null, context);
 
-        Assert.IsType<InteractableNode>(node);
+        TestSeq.IsType<InteractableNode>(node);
         var interactable = (InteractableNode)node;
-        Assert.NotNull(interactable.Child);
+        Assert.IsNotNull(interactable.Child);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_ReusesExistingNode()
     {
         var widget = new InteractableWidget(ic => new TextBlockWidget("Hello"));
@@ -324,10 +325,10 @@ public class InteractableNodeTests
 
         var node = await widget.ReconcileAsync(existingNode, context);
 
-        Assert.Same(existingNode, node);
+        Assert.AreSame(existingNode, node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_ContextReflectsNodeState()
     {
         bool? contextIsFocused = null;
@@ -342,10 +343,10 @@ public class InteractableNodeTests
 
         await widget.ReconcileAsync(existingNode, context);
 
-        Assert.True(contextIsFocused);
+        Assert.IsTrue(contextIsFocused);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_ContextDefaultsFalse()
     {
         bool? contextIsFocused = null;
@@ -360,11 +361,11 @@ public class InteractableNodeTests
 
         await widget.ReconcileAsync(null, context);
 
-        Assert.False(contextIsFocused);
-        Assert.False(contextIsHovered);
+        Assert.IsFalse(contextIsFocused);
+        Assert.IsFalse(contextIsHovered);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_OnClick_WiresUpClickAction()
     {
         var widget = new InteractableWidget(ic => new TextBlockWidget("Hello"))
@@ -373,10 +374,10 @@ public class InteractableNodeTests
 
         var node = (InteractableNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.ClickAction);
+        Assert.IsNotNull(node.ClickAction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_OnFocusChanged_WiresUpCallback()
     {
         bool? focusState = null;
@@ -386,12 +387,12 @@ public class InteractableNodeTests
 
         var node = (InteractableNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.FocusChangedAction);
+        Assert.IsNotNull(node.FocusChangedAction);
         node.IsFocused = true;
-        Assert.True(focusState);
+        Assert.IsTrue(focusState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_OnHoverChanged_WiresUpCallback()
     {
         bool? hoverState = null;
@@ -401,25 +402,25 @@ public class InteractableNodeTests
 
         var node = (InteractableNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.HoverChangedAction);
+        Assert.IsNotNull(node.HoverChangedAction);
         node.IsHovered = true;
-        Assert.True(hoverState);
+        Assert.IsTrue(hoverState);
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Interactable_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Interactable(ic => new TextBlockWidget("Hello"));
 
-        Assert.IsType<InteractableWidget>(widget);
+        TestSeq.IsType<InteractableWidget>(widget);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extensions_InteractableArray_CreatesWidgetWithVStack()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -429,7 +430,7 @@ public class InteractableNodeTests
             new TextBlockWidget("Line 2"),
         });
 
-        Assert.IsType<InteractableWidget>(widget);
+        TestSeq.IsType<InteractableWidget>(widget);
     }
 
     #endregion

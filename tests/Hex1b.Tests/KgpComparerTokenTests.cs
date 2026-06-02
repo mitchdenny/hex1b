@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for KGP token emission from SurfaceComparer.ToTokens().
 /// </summary>
+[TestClass]
 public class KgpComparerTokenTests
 {
     private static readonly CellMetrics DefaultMetrics = new(10, 20);
@@ -40,7 +41,7 @@ public class KgpComparerTokenTests
 
     #region ToTokens KGP Emission
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_NewKgpImage_EmitsSequence()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -53,10 +54,10 @@ public class KgpComparerTokenTests
         var tokens = SurfaceComparer.ToTokens(diff, curr);
 
         // Should contain at least one UnrecognizedSequenceToken with KGP payload
-        Assert.Contains(tokens, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G"));
+        Assert.IsTrue(tokens.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpBelowText_EmittedBeforeTextTokens()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -83,12 +84,12 @@ public class KgpComparerTokenTests
                 textIndex = i;
         }
 
-        Assert.True(kgpIndex >= 0, "Expected KGP token");
-        Assert.True(textIndex >= 0, "Expected text token");
-        Assert.True(kgpIndex < textIndex, "Below-text KGP should appear before text tokens");
+        Assert.IsTrue(kgpIndex >= 0, "Expected KGP token");
+        Assert.IsTrue(textIndex >= 0, "Expected text token");
+        Assert.IsTrue(kgpIndex < textIndex, "Below-text KGP should appear before text tokens");
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpAboveText_EmittedAfterTextTokens()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -114,12 +115,12 @@ public class KgpComparerTokenTests
                 kgpIndex = i;
         }
 
-        Assert.True(textIndex >= 0, "Expected text token");
-        Assert.True(kgpIndex >= 0, "Expected KGP token");
-        Assert.True(kgpIndex > textIndex, "Above-text KGP should appear after text tokens");
+        Assert.IsTrue(textIndex >= 0, "Expected text token");
+        Assert.IsTrue(kgpIndex >= 0, "Expected KGP token");
+        Assert.IsTrue(kgpIndex > textIndex, "Above-text KGP should appear after text tokens");
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpUnchanged_NoDiff()
     {
         var kgpData = CreateKgpData();
@@ -132,10 +133,10 @@ public class KgpComparerTokenTests
         curr[1, 1] = new SurfaceCell(" ", null, null, Kgp: tracked);
 
         var diff = SurfaceComparer.Compare(prev, curr);
-        Assert.True(diff.IsEmpty);
+        Assert.IsTrue(diff.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpClipped_PlacementHasClipParams()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -151,14 +152,14 @@ public class KgpComparerTokenTests
         // Placement token is separate from transmit — find the a=p token
         var placementToken = tokens.OfType<UnrecognizedSequenceToken>()
             .FirstOrDefault(t => t.Sequence.Contains("a=p"));
-        Assert.NotNull(placementToken);
+        Assert.IsNotNull(placementToken);
         Assert.Contains("x=10", placementToken!.Sequence);
         Assert.Contains("y=20", placementToken.Sequence);
         Assert.Contains("w=30", placementToken.Sequence);
         Assert.Contains("h=40", placementToken.Sequence);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpImageChanged_EmitsNewPayload()
     {
         var kgp1 = CreateKgpData("image-A");
@@ -171,13 +172,13 @@ public class KgpComparerTokenTests
         curr[1, 1] = new SurfaceCell(" ", null, null, Kgp: Track(kgp2));
 
         var diff = SurfaceComparer.Compare(prev, curr);
-        Assert.False(diff.IsEmpty, "Different KGP content should produce a diff");
+        Assert.IsFalse(diff.IsEmpty, "Different KGP content should produce a diff");
 
         var tokens = SurfaceComparer.ToTokens(diff, curr);
-        Assert.Contains(tokens, t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G"));
+        Assert.IsTrue(tokens.Any(t => t is UnrecognizedSequenceToken ust && ust.Sequence.Contains("_G")));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpWithPositionToken()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -195,14 +196,14 @@ public class KgpComparerTokenTests
             .Select(p => p.i)
             .FirstOrDefault(-1);
         
-        Assert.True(kgpIdx > 0, "KGP should not be the first token");
-        Assert.IsType<CursorPositionToken>(tokens[kgpIdx - 1]);
+        Assert.IsTrue(kgpIdx > 0, "KGP should not be the first token");
+        TestSeq.IsType<CursorPositionToken>(tokens[kgpIdx - 1]);
         var pos = (CursorPositionToken)tokens[kgpIdx - 1];
-        Assert.Equal(3, pos.Row); // 1-based: row 2 → 3
-        Assert.Equal(4, pos.Column); // 1-based: col 3 → 4
+        Assert.AreEqual(3, pos.Row); // 1-based: row 2 → 3
+        Assert.AreEqual(4, pos.Column); // 1-based: col 3 → 4
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_MultipleKgpPlacements_AllEmitted()
     {
         var prev = new Surface(20, 5, DefaultMetrics);
@@ -221,10 +222,10 @@ public class KgpComparerTokenTests
             .Where(t => t.Sequence.Contains("_G"))
             .ToList();
         
-        Assert.Equal(4, kgpTokens.Count); // 2 images × (transmit + placement)
+        Assert.AreEqual(4, kgpTokens.Count); // 2 images × (transmit + placement)
     }
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpCellCoveredByText_TextRenderedOverKgp()
     {
         var prev = new Surface(10, 5, DefaultMetrics);
@@ -241,7 +242,7 @@ public class KgpComparerTokenTests
         var tokens = SurfaceComparer.ToTokens(diff, curr);
 
         // Text "T" should still be emitted since text overrides below-text KGP
-        Assert.Contains(tokens, t => t is TextToken tt && tt.Text == "T");
+        Assert.IsTrue(tokens.Any(t => t is TextToken tt && tt.Text == "T"));
     }
 
     #endregion
@@ -269,7 +270,7 @@ public class KgpComparerTokenTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize(escapeSequence));
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgRoundTrip_KgpBelowText_ImageBelowTextInSvg()
     {
         var terminal = CreateTerminal();
@@ -292,7 +293,7 @@ public class KgpComparerTokenTests
         Assert.Contains(">i<", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgRoundTrip_KgpAboveText_ImageAboveTextInSvg()
     {
         var terminal = CreateTerminal();
@@ -308,7 +309,7 @@ public class KgpComparerTokenTests
         Assert.Contains("<image", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public void SvgRoundTrip_KgpZOrder_NegativeBeforePositive()
     {
         var terminal = CreateTerminal();
@@ -329,13 +330,14 @@ public class KgpComparerTokenTests
         
         // Both images should be in the SVG
         var imageCount = svg.Split("<image").Length - 1;
-        Assert.True(imageCount >= 2, $"Expected 2+ images in SVG, got {imageCount}");
+        Assert.IsTrue(imageCount >= 2, $"Expected 2+ images in SVG, got {imageCount}");
     }
 
     #endregion
 }
 
 // Temporary test class for KGP move scenario
+[TestClass]
 public class KgpMoveTests
 {
     private static readonly CellMetrics DefaultMetrics = new(10, 20);
@@ -365,7 +367,7 @@ public class KgpMoveTests
     private static TrackedObject<KgpCellData> Track(KgpCellData data)
         => new(data, _ => { });
 
-    [Fact]
+    [TestMethod]
     public void ToTokens_KgpMoved_EmitsDeleteAndNewPlacement()
     {
         // Frame N: KGP at (2, 1)
@@ -388,7 +390,7 @@ public class KgpMoveTests
                     curr[5 + dx, 1 + dy] = new SurfaceCell(" ", null, null);
 
         var diff = SurfaceComparer.Compare(prev, curr);
-        Assert.False(diff.IsEmpty, "Moving KGP should produce a diff");
+        Assert.IsFalse(diff.IsEmpty, "Moving KGP should produce a diff");
 
         var tokens = SurfaceComparer.ToTokens(diff, curr, prev);
 
@@ -411,13 +413,13 @@ public class KgpMoveTests
         var deleteTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("a=d"))
             .ToList();
-        Assert.True(deleteTokens.Count > 0, "Expected KGP delete command for moved image");
+        Assert.IsTrue(deleteTokens.Count > 0, "Expected KGP delete command for moved image");
 
         // 2. Should have a placement at the NEW position (row=2, col=6 in 1-based)
         var placementTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("a=p"))
             .ToList();
-        Assert.True(placementTokens.Count > 0, "Expected KGP placement at new position");
+        Assert.IsTrue(placementTokens.Count > 0, "Expected KGP placement at new position");
 
         // 3. Should have a cursor position token before the placement pointing to (5,1) = row 2, col 6
         var cursorBeforePlacement = false;
@@ -432,16 +434,16 @@ public class KgpMoveTests
                 }
             }
         }
-        Assert.True(cursorBeforePlacement, "Expected cursor position (2, 6) before KGP placement tokens");
+        Assert.IsTrue(cursorBeforePlacement, "Expected cursor position (2, 6) before KGP placement tokens");
 
         // 4. Verify the transmit token has the correct image ID
         var transmitTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("a=t"))
             .ToList();
-        Assert.True(transmitTokens.Count > 0, "Expected transmit token for image re-transmission");
+        Assert.IsTrue(transmitTokens.Count > 0, "Expected transmit token for image re-transmission");
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpSurvivesCompositingAtDifferentOffsets()
     {
         // Simulate window drag: child surface has KGP, composited at different parent offsets
@@ -456,39 +458,39 @@ public class KgpMoveTests
         parentA.Composite(child, 5, 3);
 
         // Verify KGP landed at (5, 3) in parent
-        Assert.True(parentA[5, 3].HasKgp, "KGP should be at (5,3) in parentA after compositing");
-        Assert.Equal(kgpData.ImageId, parentA[5, 3].Kgp!.Data.ImageId);
+        Assert.IsTrue(parentA[5, 3].HasKgp, "KGP should be at (5,3) in parentA after compositing");
+        Assert.AreEqual(kgpData.ImageId, parentA[5, 3].Kgp!.Data.ImageId);
 
         // Frame N+1: composite same child at offset (8, 3) — window moved right
         var parentB = new Surface(30, 15, DefaultMetrics);
         parentB.Composite(child, 8, 3);
 
         // Verify KGP landed at (8, 3) in parent
-        Assert.True(parentB[8, 3].HasKgp, "KGP should be at (8,3) in parentB after compositing");
-        Assert.Equal(kgpData.ImageId, parentB[8, 3].Kgp!.Data.ImageId);
+        Assert.IsTrue(parentB[8, 3].HasKgp, "KGP should be at (8,3) in parentB after compositing");
+        Assert.AreEqual(kgpData.ImageId, parentB[8, 3].Kgp!.Data.ImageId);
 
         // Compare and verify tokens
         var diff = SurfaceComparer.Compare(parentA, parentB);
-        Assert.False(diff.IsEmpty, "Moving KGP via compositing should produce a diff");
+        Assert.IsFalse(diff.IsEmpty, "Moving KGP via compositing should produce a diff");
 
         var tokens = SurfaceComparer.ToTokens(diff, parentB, parentA);
 
         // Should have delete for old position + placement at new position
         var deleteTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("a=d")).ToList();
-        Assert.True(deleteTokens.Count > 0, "Expected KGP delete for moved image");
+        Assert.IsTrue(deleteTokens.Count > 0, "Expected KGP delete for moved image");
 
         var placementTokens = tokens.OfType<UnrecognizedSequenceToken>()
             .Where(t => t.Sequence.Contains("a=p")).ToList();
-        Assert.True(placementTokens.Count > 0, "Expected KGP placement at new position");
+        Assert.IsTrue(placementTokens.Count > 0, "Expected KGP placement at new position");
 
         // Cursor should point to new position (8, 3) = row 4, col 9 (1-based)
         var cursorTokens = tokens.OfType<CursorPositionToken>()
             .Where(t => t.Row == 4 && t.Column == 9).ToList();
-        Assert.True(cursorTokens.Count > 0, "Expected cursor position (4, 9) for new KGP location");
+        Assert.IsTrue(cursorTokens.Count > 0, "Expected cursor position (4, 9) for new KGP location");
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpSurvivesNestedCompositing()
     {
         // Simulate: KGP in window content → window surface → WindowPanel surface → root surface
@@ -503,28 +505,28 @@ public class KgpMoveTests
         windowPanel.Composite(windowContent, 3, 2);
 
         // Verify KGP at (3+1, 2+1) = (4, 3)
-        Assert.True(windowPanel[4, 3].HasKgp, "KGP should be at (4,3) after first compositing");
+        Assert.IsTrue(windowPanel[4, 3].HasKgp, "KGP should be at (4,3) after first compositing");
 
         // Level 3: WindowPanel composited at (0, 1) into root surface
         var root = new Surface(40, 20, DefaultMetrics);
         root.Composite(windowPanel, 0, 1);
 
         // Verify KGP at (0+4, 1+3) = (4, 4)
-        Assert.True(root[4, 4].HasKgp, "KGP should be at (4,4) after nested compositing");
-        Assert.NotNull(root[4, 4].Kgp?.Data.TransmitPayload);
-        Assert.Equal(kgpData.ImageId, root[4, 4].Kgp!.Data.ImageId);
+        Assert.IsTrue(root[4, 4].HasKgp, "KGP should be at (4,4) after nested compositing");
+        Assert.IsNotNull(root[4, 4].Kgp?.Data.TransmitPayload);
+        Assert.AreEqual(kgpData.ImageId, root[4, 4].Kgp!.Data.ImageId);
 
         // Verify the transmit payload survived all compositing steps
         var rootKgpData = root[4, 4].Kgp!.Data;
         var chunks = rootKgpData.BuildTransmitChunks();
-        Assert.True(chunks.Count > 0, "TransmitPayload should survive compositing (needed for emission)");
+        Assert.IsTrue(chunks.Count > 0, "TransmitPayload should survive compositing (needed for emission)");
     }
 
     /// <summary>
     /// Full round-trip test: Surface diff → tokens → serialize → Hex1bTerminal → verify placements.
     /// This exercises the exact bytes that would be sent to a real terminal during a window drag.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void RoundTrip_KgpMoveSequence_TerminalSeesCorrectPlacements()
     {
         // Create a 4-pixel RGBA test image (2x2)
@@ -567,7 +569,7 @@ public class KgpMoveTests
         frame2[5, 1] = new SurfaceCell(" ", null, null, Kgp: Track(kgpData2));
 
         var diff2 = SurfaceComparer.Compare(frame1, frame2);
-        Assert.False(diff2.IsEmpty, "Moving KGP should produce a diff");
+        Assert.IsFalse(diff2.IsEmpty, "Moving KGP should produce a diff");
 
         var tokens2 = SurfaceComparer.ToTokens(diff2, frame2, frame1);
         var bytes2 = Hex1b.Tokens.AnsiTokenUtf8Serializer.Serialize(tokens2);
@@ -576,8 +578,8 @@ public class KgpMoveTests
         var hasDelete = tokens2.OfType<UnrecognizedSequenceToken>().Any(t => t.Sequence.Contains("a=d"));
         var hasTransmit = tokens2.OfType<UnrecognizedSequenceToken>().Any(t => t.Sequence.Contains("a=t"));
         var hasPlacement = tokens2.OfType<UnrecognizedSequenceToken>().Any(t => t.Sequence.Contains("a=p"));
-        Assert.True(hasDelete, "Frame 2 should emit KGP delete");
-        Assert.True(hasTransmit || hasPlacement, "Frame 2 should emit KGP transmit or placement");
+        Assert.IsTrue(hasDelete, "Frame 2 should emit KGP delete");
+        Assert.IsTrue(hasTransmit || hasPlacement, "Frame 2 should emit KGP transmit or placement");
 
         // Feed frame 2 to terminal
         var text2 = System.Text.Encoding.UTF8.GetString(bytes2.ToArray());

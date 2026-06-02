@@ -5,11 +5,12 @@ using Hex1b.LanguageServer.Protocol;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class FeatureIntegrationTests
 {
     // ── DocumentHighlight → RangeHighlight ───────────────────
 
-    [Fact]
+    [TestMethod]
     public void DocumentHighlightsToRangeHighlights_ConvertsPositions()
     {
         var highlights = new[]
@@ -27,12 +28,12 @@ public class FeatureIntegrationTests
 
         var result = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(highlights);
 
-        Assert.Single(result);
-        Assert.Equal(new DocumentPosition(1, 6), result[0].Start);
-        Assert.Equal(new DocumentPosition(1, 11), result[0].End);
+        TestSeq.Single(result);
+        Assert.AreEqual(new DocumentPosition(1, 6), result[0].Start);
+        Assert.AreEqual(new DocumentPosition(1, 11), result[0].End);
     }
 
-    [Fact]
+    [TestMethod]
     public void DocumentHighlightsToRangeHighlights_MapsKinds()
     {
         var highlights = new[]
@@ -45,23 +46,23 @@ public class FeatureIntegrationTests
 
         var result = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(highlights);
 
-        Assert.Equal(4, result.Count);
-        Assert.Equal(RangeHighlightKind.Default, result[0].Kind);
-        Assert.Equal(RangeHighlightKind.ReadAccess, result[1].Kind);
-        Assert.Equal(RangeHighlightKind.WriteAccess, result[2].Kind);
-        Assert.Equal(RangeHighlightKind.Default, result[3].Kind);
+        Assert.AreEqual(4, result.Count);
+        Assert.AreEqual(RangeHighlightKind.Default, result[0].Kind);
+        Assert.AreEqual(RangeHighlightKind.ReadAccess, result[1].Kind);
+        Assert.AreEqual(RangeHighlightKind.WriteAccess, result[2].Kind);
+        Assert.AreEqual(RangeHighlightKind.Default, result[3].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void DocumentHighlightsToRangeHighlights_NullReturnsEmpty()
     {
         var result = LanguageServerDecorationProvider.DocumentHighlightsToRangeHighlights(null);
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
     // ── SignatureHelp → SignaturePanel ────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SignatureHelpToPanel_ConvertsSingleSignature()
     {
         var help = new SignatureHelp
@@ -86,14 +87,14 @@ public class FeatureIntegrationTests
 
         var panel = LanguageServerDecorationProvider.SignatureHelpToPanel(help);
 
-        Assert.NotNull(panel);
-        Assert.Single(panel.Signatures);
-        Assert.Equal("void Foo(int x)", panel.Signatures[0].Label);
-        Assert.Single(panel.Signatures[0].Parameters);
-        Assert.Equal("int x", panel.Signatures[0].Parameters[0].Label);
+        Assert.IsNotNull(panel);
+        TestSeq.Single(panel.Signatures);
+        Assert.AreEqual("void Foo(int x)", panel.Signatures[0].Label);
+        TestSeq.Single(panel.Signatures[0].Parameters);
+        Assert.AreEqual("int x", panel.Signatures[0].Parameters[0].Label);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignatureHelpToPanel_PreservesActiveParameter()
     {
         var help = new SignatureHelp
@@ -116,22 +117,22 @@ public class FeatureIntegrationTests
 
         var panel = LanguageServerDecorationProvider.SignatureHelpToPanel(help);
 
-        Assert.NotNull(panel);
-        Assert.Equal(0, panel.ActiveSignature);
-        Assert.Equal(1, panel.ActiveParameter);
+        Assert.IsNotNull(panel);
+        Assert.AreEqual(0, panel.ActiveSignature);
+        Assert.AreEqual(1, panel.ActiveParameter);
     }
 
-    [Fact]
+    [TestMethod]
     public void SignatureHelpToPanel_NullReturnsNull()
     {
-        Assert.Null(LanguageServerDecorationProvider.SignatureHelpToPanel(null));
-        Assert.Null(LanguageServerDecorationProvider.SignatureHelpToPanel(
+        Assert.IsNull(LanguageServerDecorationProvider.SignatureHelpToPanel(null));
+        Assert.IsNull(LanguageServerDecorationProvider.SignatureHelpToPanel(
             new SignatureHelp { Signatures = [] }));
     }
 
     // ── DocumentSymbol → BreadcrumbData ──────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DocumentSymbolsToBreadcrumbs_ConvertsHierarchy()
     {
         var symbols = new[]
@@ -157,19 +158,19 @@ public class FeatureIntegrationTests
 
         var breadcrumbs = LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(symbols);
 
-        Assert.NotNull(breadcrumbs);
-        Assert.Single(breadcrumbs.Symbols);
-        Assert.Equal("MyClass", breadcrumbs.Symbols[0].Name);
-        Assert.Equal(BreadcrumbSymbolKind.Class, breadcrumbs.Symbols[0].Kind);
-        Assert.Equal(new DocumentPosition(1, 1), breadcrumbs.Symbols[0].Start);
-        Assert.Equal(new DocumentPosition(11, 1), breadcrumbs.Symbols[0].End);
-        Assert.NotNull(breadcrumbs.Symbols[0].Children);
-        Assert.Single(breadcrumbs.Symbols[0].Children!);
-        Assert.Equal("MyMethod", breadcrumbs.Symbols[0].Children![0].Name);
-        Assert.Equal(BreadcrumbSymbolKind.Method, breadcrumbs.Symbols[0].Children![0].Kind);
+        Assert.IsNotNull(breadcrumbs);
+        TestSeq.Single(breadcrumbs.Symbols);
+        Assert.AreEqual("MyClass", breadcrumbs.Symbols[0].Name);
+        Assert.AreEqual(BreadcrumbSymbolKind.Class, breadcrumbs.Symbols[0].Kind);
+        Assert.AreEqual(new DocumentPosition(1, 1), breadcrumbs.Symbols[0].Start);
+        Assert.AreEqual(new DocumentPosition(11, 1), breadcrumbs.Symbols[0].End);
+        Assert.IsNotNull(breadcrumbs.Symbols[0].Children);
+        TestSeq.Single(breadcrumbs.Symbols[0].Children!);
+        Assert.AreEqual("MyMethod", breadcrumbs.Symbols[0].Children![0].Name);
+        Assert.AreEqual(BreadcrumbSymbolKind.Method, breadcrumbs.Symbols[0].Children![0].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void DocumentSymbolsToBreadcrumbs_MapsSymbolKinds()
     {
         var symbols = new[]
@@ -182,24 +183,24 @@ public class FeatureIntegrationTests
 
         var breadcrumbs = LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(symbols);
 
-        Assert.NotNull(breadcrumbs);
-        Assert.Equal(4, breadcrumbs.Symbols.Count);
-        Assert.Equal(BreadcrumbSymbolKind.Function, breadcrumbs.Symbols[0].Kind);
-        Assert.Equal(BreadcrumbSymbolKind.Interface, breadcrumbs.Symbols[1].Kind);
-        Assert.Equal(BreadcrumbSymbolKind.Enum, breadcrumbs.Symbols[2].Kind);
-        Assert.Equal(BreadcrumbSymbolKind.Struct, breadcrumbs.Symbols[3].Kind);
+        Assert.IsNotNull(breadcrumbs);
+        Assert.AreEqual(4, breadcrumbs.Symbols.Count);
+        Assert.AreEqual(BreadcrumbSymbolKind.Function, breadcrumbs.Symbols[0].Kind);
+        Assert.AreEqual(BreadcrumbSymbolKind.Interface, breadcrumbs.Symbols[1].Kind);
+        Assert.AreEqual(BreadcrumbSymbolKind.Enum, breadcrumbs.Symbols[2].Kind);
+        Assert.AreEqual(BreadcrumbSymbolKind.Struct, breadcrumbs.Symbols[3].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void DocumentSymbolsToBreadcrumbs_NullReturnsNull()
     {
-        Assert.Null(LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(null));
-        Assert.Null(LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs([]));
+        Assert.IsNull(LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs(null));
+        Assert.IsNull(LanguageServerDecorationProvider.DocumentSymbolsToBreadcrumbs([]));
     }
 
     // ── FoldingRange → FoldingRegion ─────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void FoldingRangesToRegions_ConvertsToOneBased()
     {
         var ranges = new[]
@@ -210,14 +211,14 @@ public class FeatureIntegrationTests
 
         var regions = LanguageServerDecorationProvider.FoldingRangesToRegions(ranges);
 
-        Assert.Equal(2, regions.Count);
-        Assert.Equal(1, regions[0].StartLine);
-        Assert.Equal(6, regions[0].EndLine);
-        Assert.Equal(11, regions[1].StartLine);
-        Assert.Equal(21, regions[1].EndLine);
+        Assert.AreEqual(2, regions.Count);
+        Assert.AreEqual(1, regions[0].StartLine);
+        Assert.AreEqual(6, regions[0].EndLine);
+        Assert.AreEqual(11, regions[1].StartLine);
+        Assert.AreEqual(21, regions[1].EndLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRangesToRegions_MapsKinds()
     {
         var ranges = new[]
@@ -230,16 +231,16 @@ public class FeatureIntegrationTests
 
         var regions = LanguageServerDecorationProvider.FoldingRangesToRegions(ranges);
 
-        Assert.Equal(4, regions.Count);
-        Assert.Equal(FoldingRegionKind.Comment, regions[0].Kind);
-        Assert.Equal(FoldingRegionKind.Imports, regions[1].Kind);
-        Assert.Equal(FoldingRegionKind.Region, regions[2].Kind);
-        Assert.Equal(FoldingRegionKind.Region, regions[3].Kind);
+        Assert.AreEqual(4, regions.Count);
+        Assert.AreEqual(FoldingRegionKind.Comment, regions[0].Kind);
+        Assert.AreEqual(FoldingRegionKind.Imports, regions[1].Kind);
+        Assert.AreEqual(FoldingRegionKind.Region, regions[2].Kind);
+        Assert.AreEqual(FoldingRegionKind.Region, regions[3].Kind);
     }
 
     // ── InlayHint → InlineHint ───────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void InlayHintsToInlineHints_ConvertsPositions()
     {
         var hints = new[]
@@ -253,14 +254,14 @@ public class FeatureIntegrationTests
 
         var result = LanguageServerDecorationProvider.InlayHintsToInlineHints(hints);
 
-        Assert.Single(result);
-        Assert.Equal(new DocumentPosition(5, 11), result[0].Position);
-        Assert.Equal("string", result[0].Text);
+        TestSeq.Single(result);
+        Assert.AreEqual(new DocumentPosition(5, 11), result[0].Position);
+        Assert.AreEqual("string", result[0].Text);
     }
 
     // ── CodeLens → GutterDecoration ──────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void CodeLensToGutterDecorations_ConvertsCommandTitle()
     {
         var lenses = new[]
@@ -274,10 +275,10 @@ public class FeatureIntegrationTests
 
         var result = LanguageServerDecorationProvider.CodeLensToGutterDecorations(lenses);
 
-        Assert.Single(result);
-        Assert.Equal(4, result[0].Line);
-        Assert.Equal('5', result[0].Character);
-        Assert.Equal(GutterDecorationKind.Info, result[0].Kind);
+        TestSeq.Single(result);
+        Assert.AreEqual(4, result[0].Line);
+        Assert.AreEqual('5', result[0].Character);
+        Assert.AreEqual(GutterDecorationKind.Info, result[0].Kind);
     }
 
     // ── Helpers ──────────────────────────────────────────────

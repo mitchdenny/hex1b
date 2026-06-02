@@ -6,11 +6,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the terminal reflow engine — re-wrapping soft-wrapped lines on resize.
 /// </summary>
+[TestClass]
 public class TerminalReflowTests
 {
     #region Basic Reflow
 
-    [Fact]
+    [TestMethod]
     public void Reflow_NarrowToWider_MergesSoftWrappedRows()
     {
         // Arrange: 5-column terminal with xterm reflow
@@ -23,19 +24,19 @@ public class TerminalReflowTests
         terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
 
         var snap1 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", snap1.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", snap1.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDE", snap1.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", snap1.GetLine(1).TrimEnd());
 
         // Act: Resize to 10 columns
         terminal.Resize(10, 3);
 
         // Assert: Should merge into 1 row
         var snap2 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap2.GetLine(0).TrimEnd());
-        Assert.Equal("", snap2.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snap2.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_WiderToNarrow_SplitsSoftWrappedRows()
     {
         // Arrange: 10-column terminal with xterm reflow
@@ -48,7 +49,7 @@ public class TerminalReflowTests
         terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
 
         var snap1 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
 
         // Act: Resize to 5 columns — now the "J" triggers wrap back, 
         // but the 10 chars need to re-wrap to 5-wide
@@ -56,11 +57,11 @@ public class TerminalReflowTests
 
         // Assert: Should split into 2 rows
         var snap2 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", snap2.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", snap2.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDE", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", snap2.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_HardWrappedLines_NotMerged()
     {
         // Arrange: 10-column terminal with xterm reflow
@@ -77,11 +78,11 @@ public class TerminalReflowTests
         terminal.Resize(20, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snap.GetLine(0).TrimEnd());
-        Assert.Equal("World", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("Hello", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("World", snap.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_NoReflowStrategy_CropsOnly()
     {
         // Arrange: 10-column terminal with NO reflow
@@ -98,11 +99,11 @@ public class TerminalReflowTests
 
         // Assert: First 5 chars visible, rest cropped (not re-wrapped)
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", snap.GetLine(0).TrimEnd());
-        Assert.Equal("", snap.GetLine(1).TrimEnd()); // No overflow to row 1
+        Assert.AreEqual("ABCDE", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(1).TrimEnd()); // No overflow to row 1
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_SameWidth_NoChange()
     {
         var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
@@ -114,10 +115,10 @@ public class TerminalReflowTests
         terminal.Resize(10, 3);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("Hello", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("Hello", snap.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_MultipleWraps_RewrapCorrectly()
     {
         // Arrange: 3-column terminal
@@ -133,15 +134,15 @@ public class TerminalReflowTests
         terminal.Resize(9, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHI", snap.GetLine(0).TrimEnd());
-        Assert.Equal("", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDEFGHI", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(1).TrimEnd());
     }
 
     #endregion
 
     #region Scrollback Promotion/Demotion
 
-    [Fact]
+    [TestMethod]
     public void Reflow_NarrowingPushesRowsToScrollback()
     {
         // Arrange: 10-col, 3-row terminal with scrollback
@@ -165,10 +166,10 @@ public class TerminalReflowTests
         // 10 chars at 5 cols = 2 rows per line. 3 lines = 6 rows. Screen = 3. Scrollback gets 3.
         var screenLine0 = snap.GetLine(0).TrimEnd();
         var screenLine2 = snap.GetLine(2).TrimEnd();
-        Assert.False(string.IsNullOrEmpty(screenLine0), "Screen should have content after narrowing");
+        Assert.IsFalse(string.IsNullOrEmpty(screenLine0), "Screen should have content after narrowing");
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_WideningPullsRowsFromScrollback()
     {
         // Arrange: 5-col, 3-row terminal with scrollback, xterm reflow
@@ -183,22 +184,22 @@ public class TerminalReflowTests
 
         // Verify some content is on screen
         var snap1 = terminal.CreateSnapshot();
-        Assert.False(string.IsNullOrEmpty(snap1.GetLine(0).TrimEnd()));
+        Assert.IsFalse(string.IsNullOrEmpty(snap1.GetLine(0).TrimEnd()));
 
         // Act: Resize to 10 — 20 chars at width 10 = 2 rows. Should pull from scrollback.
         terminal.Resize(10, 3);
 
         // Assert: All content should be visible on screen (2 rows of 10)
         var snap2 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap2.GetLine(0).TrimEnd());
-        Assert.Equal("KLMNOPQRST", snap2.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("KLMNOPQRST", snap2.GetLine(1).TrimEnd());
     }
 
     #endregion
 
     #region Cursor Preservation
 
-    [Fact]
+    [TestMethod]
     public void Reflow_CursorPositionPreserved()
     {
         // Arrange: 5-col terminal with xterm reflow
@@ -211,8 +212,8 @@ public class TerminalReflowTests
         terminal.ApplyTokens([new TextToken("ABCDEFGH")]);
 
         var snap1 = terminal.CreateSnapshot();
-        Assert.Equal(3, snap1.CursorX); // After "FGH", cursor at col 3
-        Assert.Equal(1, snap1.CursorY); // Row 1
+        Assert.AreEqual(3, snap1.CursorX); // After "FGH", cursor at col 3
+        Assert.AreEqual(1, snap1.CursorY); // Row 1
 
         // Act: Resize to 10 columns — "ABCDEFGH" fits in 1 row
         terminal.Resize(10, 5);
@@ -220,14 +221,14 @@ public class TerminalReflowTests
         var snap2 = terminal.CreateSnapshot();
         // Cursor should be at position 8 (after "ABCDEFGH") in the single row
         // That's col 8, row 0
-        Assert.Equal("ABCDEFGH", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGH", snap2.GetLine(0).TrimEnd());
     }
 
     #endregion
 
     #region Edge Cases
 
-    [Fact]
+    [TestMethod]
     public void Reflow_EmptyScreen_HandlesGracefully()
     {
         var adapter = new HeadlessPresentationAdapter(10, 3).WithReflow(AlacrittyReflowStrategy.Instance);
@@ -239,10 +240,10 @@ public class TerminalReflowTests
         terminal.Resize(20, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_AbsolutePositioning_BreaksChain()
     {
         // Arrange: 5-col terminal with xterm reflow (clears SoftWrap on CUP)
@@ -257,8 +258,8 @@ public class TerminalReflowTests
 
         // Verify soft-wraps are set
         var snap1 = terminal.CreateSnapshot();
-        Assert.True((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0, "Row 0 should have SoftWrap");
-        Assert.True((snap1.GetCell(4, 1).Attributes & CellAttributes.SoftWrap) != 0, "Row 1 should have SoftWrap");
+        Assert.IsTrue((snap1.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0, "Row 0 should have SoftWrap");
+        Assert.IsTrue((snap1.GetCell(4, 1).Attributes & CellAttributes.SoftWrap) != 0, "Row 1 should have SoftWrap");
 
         // Now write one more char to move to row 3, then CUP from row 3
         // This clears SoftWrap on the row the cursor departs from (row 3)
@@ -269,8 +270,7 @@ public class TerminalReflowTests
 
         // Rows 0 and 1 should still have SoftWrap (CUP clears departure row, not arbitrary rows)
         var snap2 = terminal.CreateSnapshot();
-        Assert.True((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0,
-            "Row 0 SoftWrap should be preserved (CUP clears departure row only)");
+        Assert.IsTrue((snap2.GetCell(4, 0).Attributes & CellAttributes.SoftWrap) != 0, "Row 0 SoftWrap should be preserved (CUP clears departure row only)");
 
         // Now write content on row 0 that overwrites the SoftWrap cell
         terminal.ApplyTokens([
@@ -290,11 +290,10 @@ public class TerminalReflowTests
         // At width 15, the content should be:
         // "ABCDX" + "FGHIJ" + "KLMNO" were originally on rows 0-2
         // But CUP broke things up, so exact layout depends on which SoftWraps survived
-        Assert.False(string.IsNullOrEmpty(snap4.GetLine(0).TrimEnd()),
-            "Content should be present after reflow");
+        Assert.IsFalse(string.IsNullOrEmpty(snap4.GetLine(0).TrimEnd()), "Content should be present after reflow");
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_KittyStrategy_AnchorsCursorRow()
     {
         // Arrange: 5-col, 5-row terminal with kitty reflow
@@ -311,10 +310,10 @@ public class TerminalReflowTests
 
         // Assert: Content should be present (exact cursor row behavior is kitty-specific)
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGH", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGH", snap.GetLine(0).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_SoftWrapAttributeSetCorrectlyAfterReflow()
     {
         // Arrange: 10-col terminal
@@ -330,25 +329,23 @@ public class TerminalReflowTests
         terminal.Resize(5, 3);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", snap.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDE", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", snap.GetLine(1).TrimEnd());
 
         // The last cell of row 0 should have SoftWrap (it continues to row 1)
         var lastCellRow0 = snap.GetCell(4, 0);
-        Assert.True((lastCellRow0.Attributes & CellAttributes.SoftWrap) != 0,
-            "After reflow to narrower width, new wrap points should have SoftWrap");
+        Assert.IsTrue((lastCellRow0.Attributes & CellAttributes.SoftWrap) != 0, "After reflow to narrower width, new wrap points should have SoftWrap");
 
         // Last cell of row 1 should NOT have SoftWrap (content ends here)
         var lastCellRow1 = snap.GetCell(4, 1);
-        Assert.True((lastCellRow1.Attributes & CellAttributes.SoftWrap) == 0,
-            "Last row of content should not have SoftWrap");
+        Assert.IsTrue((lastCellRow1.Attributes & CellAttributes.SoftWrap) == 0, "Last row of content should not have SoftWrap");
     }
 
     #endregion
 
     #region Strategy Comparison
 
-    [Fact]
+    [TestMethod]
     public void Reflow_XtermVsKitty_DivergeWithMidScreenCursor()
     {
         // When NARROWING, soft-wrapped rows split into more rows, pushing content
@@ -391,14 +388,12 @@ public class TerminalReflowTests
 
         // Xterm bottom-fills: screen shows rows 11-15, cursor at row 0 (clamped)
         // Kitty anchors cursor: screen shows rows 7-11, cursor stays at row 1
-        Assert.Equal(0, xtermResult.CursorY);
-        Assert.Equal(1, kittyResult.CursorY);
-        Assert.NotEqual(xtermResult.CursorY, kittyResult.CursorY);
+        Assert.AreEqual(0, xtermResult.CursorY);
+        Assert.AreEqual(1, kittyResult.CursorY);
+        Assert.AreNotEqual(xtermResult.CursorY, kittyResult.CursorY);
 
         // Verify screen content actually differs
-        Assert.NotEqual(
-            GetRowText(xtermResult.ScreenRows[0]),
-            GetRowText(kittyResult.ScreenRows[0]));
+        Assert.AreNotEqual(GetRowText(xtermResult.ScreenRows[0]), GetRowText(kittyResult.ScreenRows[0]));
     }
 
     private static string GetRowText(TerminalCell[] row)
@@ -413,7 +408,7 @@ public class TerminalReflowTests
 
     #region Round-Trip Resize
 
-    [Fact]
+    [TestMethod]
     public void Reflow_NarrowThenWiden_RestoresOriginalContent()
     {
         // Arrange: 10-column terminal with two lines of content
@@ -425,8 +420,8 @@ public class TerminalReflowTests
         terminal.ApplyTokens([new TextToken("ABCDEFGHIJ"), ControlCharacterToken.LineFeed, ControlCharacterToken.CarriageReturn, new TextToken("1234567890")]);
 
         var original = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", original.GetLine(0).TrimEnd());
-        Assert.Equal("1234567890", original.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", original.GetLine(0).TrimEnd());
+        Assert.AreEqual("1234567890", original.GetLine(1).TrimEnd());
 
         // Act: Narrow to 5, then widen back to 10
         terminal.Resize(5, 5);
@@ -434,12 +429,12 @@ public class TerminalReflowTests
 
         // Assert: Content should be restored exactly
         var restored = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", restored.GetLine(0).TrimEnd());
-        Assert.Equal("1234567890", restored.GetLine(1).TrimEnd());
-        Assert.Equal("", restored.GetLine(2).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", restored.GetLine(0).TrimEnd());
+        Assert.AreEqual("1234567890", restored.GetLine(1).TrimEnd());
+        Assert.AreEqual("", restored.GetLine(2).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_WidenThenNarrow_RestoresOriginalContent()
     {
         // Arrange: 5-column terminal with wrapped content
@@ -451,8 +446,8 @@ public class TerminalReflowTests
         terminal.ApplyTokens([new TextToken("ABCDEFGHIJ")]);
 
         var original = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", original.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", original.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDE", original.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", original.GetLine(1).TrimEnd());
 
         // Act: Widen to 10, then narrow back to 5
         terminal.Resize(10, 5);
@@ -460,12 +455,12 @@ public class TerminalReflowTests
 
         // Assert: Content should be restored exactly
         var restored = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", restored.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", restored.GetLine(1).TrimEnd());
-        Assert.Equal("", restored.GetLine(2).TrimEnd());
+        Assert.AreEqual("ABCDE", restored.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", restored.GetLine(1).TrimEnd());
+        Assert.AreEqual("", restored.GetLine(2).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_MultipleResizeCycles_ContentStaysConsistent()
     {
         // Arrange: 10-column terminal
@@ -484,16 +479,16 @@ public class TerminalReflowTests
 
         // Assert: Should return to original layout
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap.GetLine(0).TrimEnd());
-        Assert.Equal("KLMNOPQRST", snap.GetLine(1).TrimEnd());
-        Assert.Equal("", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("KLMNOPQRST", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(2).TrimEnd());
     }
 
     #endregion
 
     #region Alternate Screen Buffer
 
-    [Fact]
+    [TestMethod]
     public void Reflow_InAlternateScreen_DoesNotReflow()
     {
         // Arrange: Terminal with reflow enabled, enter alt screen
@@ -511,7 +506,7 @@ public class TerminalReflowTests
 
         // Verify alt screen content before resize
         var snap1 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
 
         // Act: Resize while in alt screen — should crop, not reflow
         terminal.Resize(5, 5);
@@ -519,12 +514,12 @@ public class TerminalReflowTests
         // Assert: Content should be cropped (not reflowed)
         var snap2 = terminal.CreateSnapshot();
         // In crop mode, the first 5 chars survive, the rest are lost
-        Assert.Equal("ABCDE", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDE", snap2.GetLine(0).TrimEnd());
         // Second row should NOT have "FGHIJ" (that would be reflow behavior)
-        Assert.Equal("", snap2.GetLine(1).TrimEnd());
+        Assert.AreEqual("", snap2.GetLine(1).TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public void Reflow_AlternateScreenExit_NormalBufferReflowsCorrectly()
     {
         // Arrange: Write to main buffer, enter alt screen, resize, exit alt screen
@@ -544,15 +539,15 @@ public class TerminalReflowTests
 
         // Verify main buffer content is back
         var snap1 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
+        Assert.AreEqual("ABCDEFGHIJ", snap1.GetLine(0).TrimEnd());
 
         // Act: Resize in normal mode — should reflow
         terminal.Resize(5, 5);
 
         // Assert: Reflow should work normally
         var snap2 = terminal.CreateSnapshot();
-        Assert.Equal("ABCDE", snap2.GetLine(0).TrimEnd());
-        Assert.Equal("FGHIJ", snap2.GetLine(1).TrimEnd());
+        Assert.AreEqual("ABCDE", snap2.GetLine(0).TrimEnd());
+        Assert.AreEqual("FGHIJ", snap2.GetLine(1).TrimEnd());
     }
 
     #endregion

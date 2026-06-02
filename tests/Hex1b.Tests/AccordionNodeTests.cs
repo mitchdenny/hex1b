@@ -5,6 +5,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AccordionNodeTests
 {
     private static AccordionNode CreateNode(int sectionCount, bool[] expanded)
@@ -26,7 +27,7 @@ public class AccordionNodeTests
         return node;
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_AllCollapsed_ReturnsHeaderHeightOnly()
     {
         var node = CreateNode(3, [false, false, false]);
@@ -34,11 +35,11 @@ public class AccordionNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.Equal(40, size.Width);
-        Assert.Equal(3, size.Height); // 3 headers, 1 row each
+        Assert.AreEqual(40, size.Width);
+        Assert.AreEqual(3, size.Height); // 3 headers, 1 row each
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableHeight()
     {
         var node = CreateNode(3, [true, false, false]);
@@ -46,41 +47,41 @@ public class AccordionNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.Equal(40, size.Width);
-        Assert.Equal(20, size.Height); // fills available
+        Assert.AreEqual(40, size.Width);
+        Assert.AreEqual(20, size.Height); // fills available
     }
 
-    [Fact]
+    [TestMethod]
     public void SectionCount_ReturnsCorrectCount()
     {
         var node = CreateNode(3, [true, false, true]);
 
-        Assert.Equal(3, node.SectionCount);
+        Assert.AreEqual(3, node.SectionCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsSectionExpanded_ReturnsCorrectState()
     {
         var node = CreateNode(3, [true, false, true]);
 
-        Assert.True(node.IsSectionExpanded(0));
-        Assert.False(node.IsSectionExpanded(1));
-        Assert.True(node.IsSectionExpanded(2));
+        Assert.IsTrue(node.IsSectionExpanded(0));
+        Assert.IsFalse(node.IsSectionExpanded(1));
+        Assert.IsTrue(node.IsSectionExpanded(2));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToggleSection_ChangesExpandedState()
     {
         var node = CreateNode(3, [true, false, false]);
 
         node.ToggleSection(0);
-        Assert.False(node.IsSectionExpanded(0));
+        Assert.IsFalse(node.IsSectionExpanded(0));
 
         node.ToggleSection(1);
-        Assert.True(node.IsSectionExpanded(1));
+        Assert.IsTrue(node.IsSectionExpanded(1));
     }
 
-    [Fact]
+    [TestMethod]
     public void SetSectionExpanded_CollapseOthers_WhenMultipleNotAllowed()
     {
         var node = CreateNode(3, [true, false, false]);
@@ -88,12 +89,12 @@ public class AccordionNodeTests
 
         node.SetSectionExpanded(2, true);
 
-        Assert.False(node.IsSectionExpanded(0)); // collapsed
-        Assert.False(node.IsSectionExpanded(1));
-        Assert.True(node.IsSectionExpanded(2));
+        Assert.IsFalse(node.IsSectionExpanded(0)); // collapsed
+        Assert.IsFalse(node.IsSectionExpanded(1));
+        Assert.IsTrue(node.IsSectionExpanded(2));
     }
 
-    [Fact]
+    [TestMethod]
     public void SetSectionExpanded_KeepsOthers_WhenMultipleAllowed()
     {
         var node = CreateNode(3, [true, false, false]);
@@ -101,12 +102,12 @@ public class AccordionNodeTests
 
         node.SetSectionExpanded(2, true);
 
-        Assert.True(node.IsSectionExpanded(0));
-        Assert.False(node.IsSectionExpanded(1));
-        Assert.True(node.IsSectionExpanded(2));
+        Assert.IsTrue(node.IsSectionExpanded(0));
+        Assert.IsFalse(node.IsSectionExpanded(1));
+        Assert.IsTrue(node.IsSectionExpanded(2));
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_WhenSet_MarksDirty()
     {
         var node = CreateNode(1, [true]);
@@ -114,45 +115,45 @@ public class AccordionNodeTests
 
         node.IsFocused = true;
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = CreateNode(1, [true]);
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void ManagesChildFocus_ReturnsTrue()
     {
         var node = CreateNode(1, [true]);
 
-        Assert.True(node.ManagesChildFocus);
+        Assert.IsTrue(node.ManagesChildFocus);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsOnlyContentNodes()
     {
         var node = CreateNode(3, [true, false, true]);
 
         // No content nodes set, so no children
         var children = node.GetChildren().ToList();
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsSectionExpanded_OutOfRange_ReturnsFalse()
     {
         var node = CreateNode(2, [true, false]);
 
-        Assert.False(node.IsSectionExpanded(-1));
-        Assert.False(node.IsSectionExpanded(5));
+        Assert.IsFalse(node.IsSectionExpanded(-1));
+        Assert.IsFalse(node.IsSectionExpanded(5));
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_DistributesContentHeightEqually()
     {
         var node = CreateNode(2, [true, true]);
@@ -162,141 +163,142 @@ public class AccordionNodeTests
 
         // 2 headers (2 rows) + 10 remaining / 2 expanded = 5 each
         // Verify via GetChildren - content nodes would have bounds if set
-        Assert.Equal(2, node.SectionCount);
+        Assert.AreEqual(2, node.SectionCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_Title_SetsTitle()
     {
         var section = new AccordionSectionWidget(s => []).Title("Test Title");
 
-        Assert.Equal("Test Title", section.SectionTitle);
+        Assert.AreEqual("Test Title", section.SectionTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_Expanded_SetsFlag()
     {
         var section = new AccordionSectionWidget(s => []).Expanded();
 
-        Assert.True(section.IsExpanded);
+        Assert.IsTrue(section.IsExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_ExpandedFalse_SetsFlag()
     {
         var section = new AccordionSectionWidget(s => []).Expanded(false);
 
-        Assert.False(section.IsExpanded);
+        Assert.IsFalse(section.IsExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_DirectReconcile_Throws()
     {
         var section = new AccordionSectionWidget(s => []);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             section.ReconcileAsync(null, null!).GetAwaiter().GetResult());
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_LeftActions_SetsActions()
     {
         var section = new AccordionSectionWidget(s => [])
             .LeftActions(a => [a.Icon("+")]);
 
-        Assert.Single(section.LeftSectionActions);
-        Assert.Equal("+", section.LeftSectionActions[0].Icon);
+        TestSeq.Single(section.LeftSectionActions);
+        Assert.AreEqual("+", section.LeftSectionActions[0].Icon);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_RightActions_SetsActions()
     {
         var section = new AccordionSectionWidget(s => [])
             .RightActions(a => [a.Icon("×"), a.Icon("⟳")]);
 
-        Assert.Equal(2, section.RightSectionActions.Count);
+        Assert.AreEqual(2, section.RightSectionActions.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionWidget_LeftActions_Toggle_SetsIsToggle()
     {
         var section = new AccordionSectionWidget(s => [])
             .LeftActions(a => [a.Toggle("▶", "▼")]);
 
-        Assert.Single(section.LeftSectionActions);
-        Assert.True(section.LeftSectionActions[0].IsToggle);
+        TestSeq.Single(section.LeftSectionActions);
+        Assert.IsTrue(section.LeftSectionActions[0].IsToggle);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionWidget_MultipleExpanded_DefaultsToFalse()
     {
         var widget = new AccordionWidget([]);
 
-        Assert.False(widget.AllowMultipleExpanded);
+        Assert.IsFalse(widget.AllowMultipleExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionWidget_MultipleExpanded_CanBeEnabled()
     {
         var widget = new AccordionWidget([]).MultipleExpanded(true);
 
-        Assert.True(widget.AllowMultipleExpanded);
+        Assert.IsTrue(widget.AllowMultipleExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionContext_Section_CreatesWidget()
     {
         var ctx = new AccordionContext();
         var section = ctx.Section(s => []);
 
-        Assert.NotNull(section);
-        Assert.Equal("", section.SectionTitle);
+        Assert.IsNotNull(section);
+        Assert.AreEqual("", section.SectionTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionContext_SectionWithTitle_CreatesWidget()
     {
         var ctx = new AccordionContext();
         var section = ctx.Section("My Title", s => []);
 
-        Assert.Equal("My Title", section.SectionTitle);
+        Assert.AreEqual("My Title", section.SectionTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionActionContext_Toggle_ChangesState()
     {
         var node = CreateNode(2, [true, false]);
         var actionCtx = new AccordionSectionActionContext(node, 0);
 
-        Assert.True(actionCtx.IsExpanded);
+        Assert.IsTrue(actionCtx.IsExpanded);
         actionCtx.Toggle();
-        Assert.False(actionCtx.IsExpanded);
+        Assert.IsFalse(actionCtx.IsExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionActionContext_Collapse_CollapsesSection()
     {
         var node = CreateNode(2, [true, false]);
         var actionCtx = new AccordionSectionActionContext(node, 0);
 
         actionCtx.Collapse();
-        Assert.False(actionCtx.IsExpanded);
+        Assert.IsFalse(actionCtx.IsExpanded);
     }
 
-    [Fact]
+    [TestMethod]
     public void AccordionSectionActionContext_Expand_ExpandsSection()
     {
         var node = CreateNode(2, [false, false]);
         var actionCtx = new AccordionSectionActionContext(node, 1);
 
         actionCtx.Expand();
-        Assert.True(actionCtx.IsExpanded);
+        Assert.IsTrue(actionCtx.IsExpanded);
     }
 }
 
+[TestClass]
 public class AccordionIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Accordion_BasicRender_ShowsSectionTitles()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -319,14 +321,15 @@ public class AccordionIntegrationTests
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Section A"));
-        Assert.True(snapshot.ContainsText("Section B"));
+        Assert.IsTrue(snapshot.ContainsText("Section A"));
+        Assert.IsTrue(snapshot.ContainsText("Section B"));
     }
 }
 
+[TestClass]
 public class AccordionKeyboardTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Accordion_EnterKey_TogglesSections()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -358,13 +361,14 @@ public class AccordionKeyboardTests
         await runTask;
 
         // After expanding second, "Content B" should be visible
-        Assert.True(snapshot.ContainsText("Content B"));
+        Assert.IsTrue(snapshot.ContainsText("Content B"));
     }
 }
 
+[TestClass]
 public class AccordionLayoutTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Accordion_InVStackWithBorder_Renders()
     {
         // Regression: VStack measures children with maxHeight=int.MaxValue,
@@ -410,7 +414,7 @@ public class AccordionLayoutTests
         var screenDump = string.Join("\n", lines);
         if (!snapshot.ContainsText("EXPLORER"))
             Assert.Fail($"Missing EXPLORER.\nScreen:\n{screenDump}");
-        Assert.True(snapshot.ContainsText("OUTLINE"));
-        Assert.True(snapshot.ContainsText("SOURCE CONTROL"));
+        Assert.IsTrue(snapshot.ContainsText("OUTLINE"));
+        Assert.IsTrue(snapshot.ContainsText("SOURCE CONTROL"));
     }
 }

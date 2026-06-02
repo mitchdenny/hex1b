@@ -1,17 +1,18 @@
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DockerContainerArgBuilderTests
 {
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_MinimalOptions_StartsWithRun()
     {
         var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test-ctr");
 
-        Assert.Equal("run", args[0]);
+        Assert.AreEqual("run", args[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_MinimalOptions_IncludesInteractiveFlag()
     {
         var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
@@ -20,7 +21,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("-it", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_AutoRemoveTrue_IncludesRmFlag()
     {
         var options = new DockerContainerOptions { AutoRemove = true };
@@ -29,7 +30,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("--rm", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_AutoRemoveFalse_OmitsRmFlag()
     {
         var options = new DockerContainerOptions { AutoRemove = false };
@@ -38,18 +39,18 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("--rm", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_IncludesContainerName()
     {
         var options = new DockerContainerOptions();
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "my-container");
 
         var nameIndex = Array.IndexOf(args, "--name");
-        Assert.True(nameIndex >= 0, "Expected --name flag");
-        Assert.Equal("my-container", args[nameIndex + 1]);
+        Assert.IsTrue(nameIndex >= 0, "Expected --name flag");
+        Assert.AreEqual("my-container", args[nameIndex + 1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithEnvironment_AddsEnvFlags()
     {
         var options = new DockerContainerOptions();
@@ -62,7 +63,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("BAZ=qux", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithEnvironment_EachVarHasOwnFlag()
     {
         var options = new DockerContainerOptions();
@@ -72,10 +73,10 @@ public class DockerContainerArgBuilderTests
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
         var envFlagCount = args.Count(a => a == "-e");
-        Assert.Equal(3, envFlagCount);
+        Assert.AreEqual(3, envFlagCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithVolumes_AddsVolumeFlags()
     {
         var options = new DockerContainerOptions();
@@ -86,7 +87,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("/host/path:/container/path", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithMultipleVolumes_EachHasOwnFlag()
     {
         var options = new DockerContainerOptions();
@@ -95,10 +96,10 @@ public class DockerContainerArgBuilderTests
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
         var volumeFlagCount = args.Count(a => a == "-v");
-        Assert.Equal(2, volumeFlagCount);
+        Assert.AreEqual(2, volumeFlagCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_MountDockerSocket_AddsSocketVolume()
     {
         var options = new DockerContainerOptions { MountDockerSocket = true };
@@ -107,7 +108,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("/var/run/docker.sock:/var/run/docker.sock", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_MountDockerSocketFalse_NoSocketVolume()
     {
         var options = new DockerContainerOptions { MountDockerSocket = false };
@@ -116,7 +117,7 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("/var/run/docker.sock:/var/run/docker.sock", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_MountDockerSocket_WithExistingVolumes_IncludesBoth()
     {
         var options = new DockerContainerOptions { MountDockerSocket = true };
@@ -127,18 +128,18 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("/var/run/docker.sock:/var/run/docker.sock", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithWorkingDirectory_AddsWorkdirFlag()
     {
         var options = new DockerContainerOptions { WorkingDirectory = "/app" };
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
         var wIndex = Array.IndexOf(args, "-w");
-        Assert.True(wIndex >= 0, "Expected -w flag");
-        Assert.Equal("/app", args[wIndex + 1]);
+        Assert.IsTrue(wIndex >= 0, "Expected -w flag");
+        Assert.AreEqual("/app", args[wIndex + 1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_NoWorkingDirectory_OmitsWorkdirFlag()
     {
         var options = new DockerContainerOptions();
@@ -147,18 +148,18 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("-w", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithNetwork_AddsNetworkFlag()
     {
         var options = new DockerContainerOptions { Network = "host" };
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
         var netIndex = Array.IndexOf(args, "--network");
-        Assert.True(netIndex >= 0, "Expected --network flag");
-        Assert.Equal("host", args[netIndex + 1]);
+        Assert.IsTrue(netIndex >= 0, "Expected --network flag");
+        Assert.AreEqual("host", args[netIndex + 1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_NoNetwork_OmitsNetworkFlag()
     {
         var options = new DockerContainerOptions();
@@ -167,7 +168,7 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("--network", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_ImageIsAfterFlags()
     {
         var options = new DockerContainerOptions
@@ -183,11 +184,11 @@ public class DockerContainerArgBuilderTests
         var nameIndex = Array.IndexOf(args, "--name");
         var networkIndex = Array.IndexOf(args, "--network");
 
-        Assert.True(imageIndex > nameIndex, "Image should come after --name");
-        Assert.True(imageIndex > networkIndex, "Image should come after --network");
+        Assert.IsTrue(imageIndex > nameIndex, "Image should come after --name");
+        Assert.IsTrue(imageIndex > networkIndex, "Image should come after --network");
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_ShellFollowsImage()
     {
         var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
@@ -196,10 +197,10 @@ public class DockerContainerArgBuilderTests
         var imageIndex = Array.IndexOf(args, "ubuntu:24.04");
         var shellIndex = Array.IndexOf(args, "/bin/bash");
 
-        Assert.Equal(imageIndex + 1, shellIndex);
+        Assert.AreEqual(imageIndex + 1, shellIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_ShellArgsFollowShell()
     {
         var options = new DockerContainerOptions
@@ -211,11 +212,11 @@ public class DockerContainerArgBuilderTests
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
         var shellIndex = Array.IndexOf(args, "/bin/bash");
-        Assert.Equal("--norc", args[shellIndex + 1]);
-        Assert.Equal("--noprofile", args[shellIndex + 2]);
+        Assert.AreEqual("--norc", args[shellIndex + 1]);
+        Assert.AreEqual("--noprofile", args[shellIndex + 2]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_ShellArgsAreLastElements()
     {
         var options = new DockerContainerOptions
@@ -225,20 +226,20 @@ public class DockerContainerArgBuilderTests
         };
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
-        Assert.Equal("-i", args[^1]);
-        Assert.Equal("/bin/sh", args[^2]);
+        Assert.AreEqual("-i", args[^1]);
+        Assert.AreEqual("/bin/sh", args[^2]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_EmptyShellArgs_ShellIsLast()
     {
         var options = new DockerContainerOptions { ShellArgs = [] };
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
 
-        Assert.Equal(options.Shell, args[^1]);
+        Assert.AreEqual(options.Shell, args[^1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_CustomShell_UsesCustomShell()
     {
         var options = new DockerContainerOptions
@@ -252,7 +253,7 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("/bin/bash", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_AllOptions_ProducesValidArgs()
     {
         var options = new DockerContainerOptions
@@ -272,7 +273,7 @@ public class DockerContainerArgBuilderTests
 
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "full-test");
 
-        Assert.Equal("run", args[0]);
+        Assert.AreEqual("run", args[0]);
         Assert.Contains("-it", args);
         Assert.Contains("--rm", args);
         Assert.Contains("--name", args);
@@ -293,7 +294,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("-l", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_ManyEnvironmentVars_AllIncluded()
     {
         var options = new DockerContainerOptions();
@@ -302,13 +303,13 @@ public class DockerContainerArgBuilderTests
 
         var args = DockerContainerArgBuilder.BuildRunArgs(options, "test");
         var envCount = args.Count(a => a == "-e");
-        Assert.Equal(10, envCount);
+        Assert.AreEqual(10, envCount);
 
         for (int i = 0; i < 10; i++)
             Assert.Contains($"VAR_{i}=val_{i}", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_EnvironmentWithSpecialChars_PreservedExactly()
     {
         var options = new DockerContainerOptions();
@@ -323,7 +324,7 @@ public class DockerContainerArgBuilderTests
 
     // --- BuildBuildArgs tests ---
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_StartsWithBuild()
     {
         var options = new DockerContainerOptions
@@ -333,10 +334,10 @@ public class DockerContainerArgBuilderTests
         };
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc123");
 
-        Assert.Equal("build", args[0]);
+        Assert.AreEqual("build", args[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_IncludesDockerfilePath()
     {
         var options = new DockerContainerOptions
@@ -347,11 +348,11 @@ public class DockerContainerArgBuilderTests
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
         var fIndex = Array.IndexOf(args, "-f");
-        Assert.True(fIndex >= 0, "Expected -f flag");
-        Assert.Equal("./test/Dockerfile", args[fIndex + 1]);
+        Assert.IsTrue(fIndex >= 0, "Expected -f flag");
+        Assert.AreEqual("./test/Dockerfile", args[fIndex + 1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_IncludesTag()
     {
         var options = new DockerContainerOptions
@@ -361,12 +362,12 @@ public class DockerContainerArgBuilderTests
         };
         var (args, imageTag) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc123");
 
-        Assert.Equal("hex1b-test-abc123", imageTag);
+        Assert.AreEqual("hex1b-test-abc123", imageTag);
         Assert.Contains("-t", args);
         Assert.Contains("hex1b-test-abc123", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_IncludesBuildContext()
     {
         var options = new DockerContainerOptions
@@ -376,10 +377,10 @@ public class DockerContainerArgBuilderTests
         };
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
-        Assert.Equal("./my-context", args[^1]);
+        Assert.AreEqual("./my-context", args[^1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_NullBuildContext_UsesDockerfileDirectory()
     {
         var options = new DockerContainerOptions
@@ -389,10 +390,10 @@ public class DockerContainerArgBuilderTests
         };
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
-        Assert.Equal(Path.GetDirectoryName(options.DockerfilePath), args[^1]);
+        Assert.AreEqual(Path.GetDirectoryName(options.DockerfilePath), args[^1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_WithBuildArgs_AddsBuildArgFlags()
     {
         var options = new DockerContainerOptions
@@ -410,7 +411,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("VARIANT=alpine", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_WithMultipleBuildArgs_EachHasOwnFlag()
     {
         var options = new DockerContainerOptions
@@ -425,10 +426,10 @@ public class DockerContainerArgBuilderTests
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
         var flagCount = args.Count(a => a == "--build-arg");
-        Assert.Equal(3, flagCount);
+        Assert.AreEqual(3, flagCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_NoBuildArgs_OmitsBuildArgFlag()
     {
         var options = new DockerContainerOptions
@@ -441,7 +442,7 @@ public class DockerContainerArgBuilderTests
         Assert.DoesNotContain("--build-arg", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildBuildArgs_BuildContextIsLastArg()
     {
         var options = new DockerContainerOptions
@@ -453,77 +454,77 @@ public class DockerContainerArgBuilderTests
 
         var (args, _) = DockerContainerArgBuilder.BuildBuildArgs(options, "abc");
 
-        Assert.Equal("/context", args[^1]);
+        Assert.AreEqual("/context", args[^1]);
     }
 
     // --- Hash computation tests ---
 
-    [Fact]
+    [TestMethod]
     public void ComputeDockerfileHash_SameContent_SameHash()
     {
         var hash1 = DockerContainerArgBuilder.ComputeDockerfileHash("FROM ubuntu:24.04\nRUN apt-get update");
         var hash2 = DockerContainerArgBuilder.ComputeDockerfileHash("FROM ubuntu:24.04\nRUN apt-get update");
-        Assert.Equal(hash1, hash2);
+        Assert.AreEqual(hash1, hash2);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeDockerfileHash_DifferentContent_DifferentHash()
     {
         var hash1 = DockerContainerArgBuilder.ComputeDockerfileHash("FROM ubuntu:24.04");
         var hash2 = DockerContainerArgBuilder.ComputeDockerfileHash("FROM alpine:3.21");
-        Assert.NotEqual(hash1, hash2);
+        Assert.AreNotEqual(hash1, hash2);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeDockerfileHash_Returns12Chars()
     {
         var hash = DockerContainerArgBuilder.ComputeDockerfileHash("FROM ubuntu:24.04");
-        Assert.Equal(12, hash.Length);
+        Assert.AreEqual(12, hash.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeDockerfileHash_ReturnsLowercaseHex()
     {
         var hash = DockerContainerArgBuilder.ComputeDockerfileHash("FROM ubuntu:24.04");
-        Assert.Matches("^[0-9a-f]{12}$", hash);
+        TestSeq.Matches("^[0-9a-f]{12}$", hash);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputeDockerfileHash_EmptyContent_DoesNotThrow()
     {
         var hash = DockerContainerArgBuilder.ComputeDockerfileHash("");
-        Assert.Equal(12, hash.Length);
+        Assert.AreEqual(12, hash.Length);
     }
 
     // --- Container name generation tests ---
 
-    [Fact]
+    [TestMethod]
     public void GenerateContainerName_StartsWithPrefix()
     {
         var name = DockerContainerArgBuilder.GenerateContainerName();
         Assert.StartsWith("hex1b-test-", name);
     }
 
-    [Fact]
+    [TestMethod]
     public void GenerateContainerName_HasFixedLength()
     {
         var name = DockerContainerArgBuilder.GenerateContainerName();
-        Assert.Equal(32, name.Length);
+        Assert.AreEqual(32, name.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void GenerateContainerName_IsUnique()
     {
         var names = Enumerable.Range(0, 100)
             .Select(_ => DockerContainerArgBuilder.GenerateContainerName())
             .ToHashSet();
 
-        Assert.Equal(100, names.Count);
+        Assert.AreEqual(100, names.Count);
     }
 
     // --- AdditionalRunArgs tests ---
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithAdditionalRunArgs_IncludesArgs()
     {
         var options = new DockerContainerOptions();
@@ -533,7 +534,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("--privileged", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_WithMultipleAdditionalRunArgs_IncludesAll()
     {
         var options = new DockerContainerOptions();
@@ -544,7 +545,7 @@ public class DockerContainerArgBuilderTests
         Assert.Contains("--cgroupns=host", args);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_AdditionalRunArgs_BeforeImage()
     {
         var options = new DockerContainerOptions { Image = "alpine:3.21" };
@@ -553,10 +554,10 @@ public class DockerContainerArgBuilderTests
 
         var privilegedIndex = Array.IndexOf(args, "--privileged");
         var imageIndex = Array.IndexOf(args, "alpine:3.21");
-        Assert.True(privilegedIndex < imageIndex, "Additional args should come before the image");
+        Assert.IsTrue(privilegedIndex < imageIndex, "Additional args should come before the image");
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_EmptyAdditionalRunArgs_NoExtraArgs()
     {
         var options = new DockerContainerOptions { Image = "ubuntu:24.04" };
@@ -566,10 +567,10 @@ public class DockerContainerArgBuilderTests
         var optionsWithEmpty = new DockerContainerOptions { Image = "ubuntu:24.04" };
         var argsWith = DockerContainerArgBuilder.BuildRunArgs(optionsWithEmpty, "test");
 
-        Assert.Equal(argsWithout.Length, argsWith.Length);
+        Assert.AreEqual(argsWithout.Length, argsWith.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildRunArgs_AllOptions_IncludesAdditionalRunArgs()
     {
         var options = new DockerContainerOptions

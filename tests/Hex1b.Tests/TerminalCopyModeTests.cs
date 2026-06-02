@@ -6,6 +6,7 @@ namespace Hex1b.Tests;
 /// Tests for copy mode on TerminalWidgetHandle — output queuing, enter/exit lifecycle,
 /// selection integration, and text extraction.
 /// </summary>
+[TestClass]
 public class TerminalCopyModeTests
 {
     private static TerminalWidgetHandle CreateHandle(int width = 80, int height = 24)
@@ -28,40 +29,40 @@ public class TerminalCopyModeTests
         };
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterCopyMode_SetsIsInCopyMode()
     {
         var handle = CreateHandle();
-        Assert.False(handle.IsInCopyMode);
+        Assert.IsFalse(handle.IsInCopyMode);
         
         handle.EnterCopyMode();
-        Assert.True(handle.IsInCopyMode);
+        Assert.IsTrue(handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterCopyMode_CreatesSelection()
     {
         var handle = CreateHandle(80, 24);
         handle.EnterCopyMode();
         
-        Assert.NotNull(handle.Selection);
+        Assert.IsNotNull(handle.Selection);
         // Cursor should be at terminal's current cursor position (0,0 for fresh handle)
-        Assert.Equal(0, handle.Selection!.Cursor.Row);
-        Assert.Equal(0, handle.Selection.Cursor.Column);
+        Assert.AreEqual(0, handle.Selection!.Cursor.Row);
+        Assert.AreEqual(0, handle.Selection.Cursor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExitCopyMode_ClearsState()
     {
         var handle = CreateHandle();
         handle.EnterCopyMode();
         handle.ExitCopyMode();
         
-        Assert.False(handle.IsInCopyMode);
-        Assert.Null(handle.Selection);
+        Assert.IsFalse(handle.IsInCopyMode);
+        Assert.IsNull(handle.Selection);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterCopyMode_DoubleEntry_NoOp()
     {
         var handle = CreateHandle();
@@ -69,17 +70,17 @@ public class TerminalCopyModeTests
         var selection1 = handle.Selection;
         
         handle.EnterCopyMode(); // should be no-op
-        Assert.Same(selection1, handle.Selection);
+        Assert.AreSame(selection1, handle.Selection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OutputQueuing_WhenInCopyMode_DoesNotApplyToBuffer()
     {
         var handle = CreateHandle(10, 5);
         
         // Write initial content
         await handle.WriteOutputWithImpactsAsync(MakeCellImpacts("Hello", row: 0));
-        Assert.Equal("H", handle.GetCell(0, 0).Character);
+        Assert.AreEqual("H", handle.GetCell(0, 0).Character);
         
         // Enter copy mode
         handle.EnterCopyMode();
@@ -88,10 +89,10 @@ public class TerminalCopyModeTests
         await handle.WriteOutputWithImpactsAsync(MakeCellImpacts("World", row: 0));
         
         // Buffer should still show original content
-        Assert.Equal("H", handle.GetCell(0, 0).Character);
+        Assert.AreEqual("H", handle.GetCell(0, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OutputQueuing_OnExit_FlushesQueuedOutput()
     {
         var handle = CreateHandle(10, 5);
@@ -106,11 +107,11 @@ public class TerminalCopyModeTests
         // Exit copy mode — queued output should be flushed
         handle.ExitCopyMode();
         
-        Assert.Equal("W", handle.GetCell(0, 0).Character);
-        Assert.Equal("o", handle.GetCell(1, 0).Character);
+        Assert.AreEqual("W", handle.GetCell(0, 0).Character);
+        Assert.AreEqual("o", handle.GetCell(1, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OutputQueuing_MultipleChunks_AllFlushedInOrder()
     {
         var handle = CreateHandle(10, 5);
@@ -122,11 +123,11 @@ public class TerminalCopyModeTests
         handle.ExitCopyMode();
         
         // Second write should overwrite first
-        Assert.Equal("B", handle.GetCell(0, 0).Character);
-        Assert.Equal("B", handle.GetCell(1, 0).Character);
+        Assert.AreEqual("B", handle.GetCell(0, 0).Character);
+        Assert.AreEqual("B", handle.GetCell(1, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void CopyModeChanged_FiredOnEnterAndExit()
     {
         var handle = CreateHandle();
@@ -136,12 +137,12 @@ public class TerminalCopyModeTests
         handle.EnterCopyMode();
         handle.ExitCopyMode();
         
-        Assert.Equal(2, events.Count);
-        Assert.True(events[0]);   // enter
-        Assert.False(events[1]);  // exit
+        Assert.AreEqual(2, events.Count);
+        Assert.IsTrue(events[0]);   // enter
+        Assert.IsFalse(events[1]);  // exit
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopySelection_ExtractsTextAndExits()
     {
         var handle = CreateHandle(10, 3);
@@ -164,12 +165,12 @@ public class TerminalCopyModeTests
         
         var result = handle.CopySelection();
         
-        Assert.Equal("Hello!", result);
-        Assert.Equal("Hello!", copiedText);
-        Assert.False(handle.IsInCopyMode);
+        Assert.AreEqual("Hello!", result);
+        Assert.AreEqual("Hello!", copiedText);
+        Assert.IsFalse(handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public void CopySelection_NoSelection_ReturnsNull()
     {
         var handle = CreateHandle();
@@ -177,19 +178,19 @@ public class TerminalCopyModeTests
         // Don't start selection
         
         var result = handle.CopySelection();
-        Assert.Null(result);
-        Assert.False(handle.IsInCopyMode);
+        Assert.IsNull(result);
+        Assert.IsFalse(handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public void VirtualBufferHeight_ReturnsScrollbackPlusScreen()
     {
         var handle = CreateHandle(80, 24);
         // No scrollback configured (no terminal attached), so scrollback count = 0
-        Assert.Equal(24, handle.VirtualBufferHeight);
+        Assert.AreEqual(24, handle.VirtualBufferHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetVirtualCell_ScreenRegion_ReturnsCorrectCell()
     {
         var handle = CreateHandle(10, 5);
@@ -197,42 +198,42 @@ public class TerminalCopyModeTests
         
         // Screen rows start at scrollbackCount (0 when no terminal attached)
         var cell = handle.GetVirtualCell(2, 0);
-        Assert.NotNull(cell);
-        Assert.Equal("A", cell!.Value.Character);
+        Assert.IsNotNull(cell);
+        Assert.AreEqual("A", cell!.Value.Character);
         
         var cell2 = handle.GetVirtualCell(2, 2);
-        Assert.NotNull(cell2);
-        Assert.Equal("C", cell2!.Value.Character);
+        Assert.IsNotNull(cell2);
+        Assert.AreEqual("C", cell2!.Value.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetVirtualCell_OutOfBounds_ReturnsNull()
     {
         var handle = CreateHandle(10, 5);
         
-        Assert.Null(handle.GetVirtualCell(-1, 0));
-        Assert.Null(handle.GetVirtualCell(0, -1));
-        Assert.Null(handle.GetVirtualCell(0, 10)); // width = 10
-        Assert.Null(handle.GetVirtualCell(5, 0));  // height = 5
+        Assert.IsNull(handle.GetVirtualCell(-1, 0));
+        Assert.IsNull(handle.GetVirtualCell(0, -1));
+        Assert.IsNull(handle.GetVirtualCell(0, 10)); // width = 10
+        Assert.IsNull(handle.GetVirtualCell(5, 0));  // height = 5
     }
 
-    [Fact]
+    [TestMethod]
     public void CopyModeCursorPosition_WhenNotInCopyMode_ReturnsNull()
     {
         var handle = CreateHandle();
-        Assert.Null(handle.CopyModeCursorPosition);
+        Assert.IsNull(handle.CopyModeCursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public void CopyModeCursorPosition_WhenInCopyMode_ReturnsCursorPos()
     {
         var handle = CreateHandle(80, 24);
         handle.EnterCopyMode();
         
         var pos = handle.CopyModeCursorPosition;
-        Assert.NotNull(pos);
+        Assert.IsNotNull(pos);
         // Fresh handle has cursor at (0,0)
-        Assert.Equal(0, pos!.Value.Row);
-        Assert.Equal(0, pos.Value.Column);
+        Assert.AreEqual(0, pos!.Value.Row);
+        Assert.AreEqual(0, pos.Value.Column);
     }
 }

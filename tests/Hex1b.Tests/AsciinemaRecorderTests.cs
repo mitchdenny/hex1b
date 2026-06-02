@@ -8,6 +8,7 @@ using Microsoft.Extensions.Time.Testing;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AsciinemaRecorderTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -27,7 +28,7 @@ public class AsciinemaRecorderTests : IDisposable
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_WritesValidAsciicastV2Format()
     {
         // Arrange
@@ -55,23 +56,23 @@ public class AsciinemaRecorderTests : IDisposable
         // Assert
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length >= 2, "Should have header and at least one event");
+        Assert.IsTrue(lines.Length >= 2, "Should have header and at least one event");
 
         var header = JsonDocument.Parse(lines[0]);
-        Assert.Equal(2, header.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(80, header.RootElement.GetProperty("width").GetInt32());
-        Assert.Equal(24, header.RootElement.GetProperty("height").GetInt32());
-        Assert.Equal("Test Recording", header.RootElement.GetProperty("title").GetString());
+        Assert.AreEqual(2, header.RootElement.GetProperty("version").GetInt32());
+        Assert.AreEqual(80, header.RootElement.GetProperty("width").GetInt32());
+        Assert.AreEqual(24, header.RootElement.GetProperty("height").GetInt32());
+        Assert.AreEqual("Test Recording", header.RootElement.GetProperty("title").GetString());
 
         // Check for output event
         var eventArray = JsonDocument.Parse(lines[1]);
-        Assert.Equal(JsonValueKind.Array, eventArray.RootElement.ValueKind);
-        Assert.Equal(3, eventArray.RootElement.GetArrayLength());
-        Assert.Equal("o", eventArray.RootElement[1].GetString());
+        Assert.AreEqual(JsonValueKind.Array, eventArray.RootElement.ValueKind);
+        Assert.AreEqual(3, eventArray.RootElement.GetArrayLength());
+        Assert.AreEqual("o", eventArray.RootElement[1].GetString());
         Assert.Contains("Hello", eventArray.RootElement[2].GetString());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_RecordsResizeEvents()
     {
         // Arrange
@@ -104,16 +105,16 @@ public class AsciinemaRecorderTests : IDisposable
             var evt = JsonDocument.Parse(line);
             if (evt.RootElement[1].GetString() == "r")
             {
-                Assert.Equal("100x40", evt.RootElement[2].GetString());
+                Assert.AreEqual("100x40", evt.RootElement[2].GetString());
                 foundResize = true;
                 break;
             }
         }
 
-        Assert.True(foundResize, "Should have recorded a resize event");
+        Assert.IsTrue(foundResize, "Should have recorded a resize event");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_CapturesInputWhenEnabled()
     {
         // Arrange
@@ -139,14 +140,14 @@ public class AsciinemaRecorderTests : IDisposable
         // Assert
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length >= 2);
+        Assert.IsTrue(lines.Length >= 2);
 
         var evt = JsonDocument.Parse(lines[1]);
-        Assert.Equal("i", evt.RootElement[1].GetString());
-        Assert.Equal("hello", evt.RootElement[2].GetString());
+        Assert.AreEqual("i", evt.RootElement[1].GetString());
+        Assert.AreEqual("hello", evt.RootElement[2].GetString());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_DoesNotCaptureInputByDefault()
     {
         // Arrange
@@ -174,10 +175,10 @@ public class AsciinemaRecorderTests : IDisposable
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
         // Should be only header (input not captured)
-        Assert.Single(lines);
+        TestSeq.Single(lines);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AddMarker_AddsMarkerEvent()
     {
         // Arrange
@@ -197,10 +198,10 @@ public class AsciinemaRecorderTests : IDisposable
         recorder.AddMarker("Chapter 1", TimeSpan.FromSeconds(5));
 
         // Assert
-        Assert.Equal(1, recorder.PendingEventCount);
+        Assert.AreEqual(1, recorder.PendingEventCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_IncludesMarkerEvents()
     {
         // Arrange
@@ -236,12 +237,12 @@ public class AsciinemaRecorderTests : IDisposable
             }
         }
 
-        Assert.Equal(2, markers.Count);
-        Assert.Equal("Start", markers[0]);
-        Assert.Equal("Chapter 1", markers[1]);
+        Assert.AreEqual(2, markers.Count);
+        Assert.AreEqual("Start", markers[0]);
+        Assert.AreEqual("Chapter 1", markers[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_IncludesEnvironmentWhenEnabled()
     {
         // Arrange
@@ -263,14 +264,14 @@ public class AsciinemaRecorderTests : IDisposable
         // Assert
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.NotEmpty(lines);
+        Assert.IsNotEmpty(lines);
 
         var header = JsonDocument.Parse(lines[0]);
-        Assert.True(header.RootElement.TryGetProperty("env", out var env));
-        Assert.True(env.TryGetProperty("TERM", out _));
+        Assert.IsTrue(header.RootElement.TryGetProperty("env", out var env));
+        Assert.IsTrue(env.TryGetProperty("TERM", out _));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_ExcludesEnvironmentWhenDisabled()
     {
         // Arrange
@@ -292,13 +293,13 @@ public class AsciinemaRecorderTests : IDisposable
         // Assert
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.NotEmpty(lines);
+        Assert.IsNotEmpty(lines);
 
         var header = JsonDocument.Parse(lines[0]);
-        Assert.False(header.RootElement.TryGetProperty("env", out _));
+        Assert.IsFalse(header.RootElement.TryGetProperty("env", out _));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearPending_RemovesPendingEvents()
     {
         // Arrange
@@ -308,16 +309,16 @@ public class AsciinemaRecorderTests : IDisposable
         await filter.OnSessionStartAsync(80, 24, DateTimeOffset.UtcNow, TestContext.Current.CancellationToken);
         await filter.OnOutputAsync(Hex1b.Tokens.AnsiTokenizer.Tokenize("test"), TimeSpan.FromSeconds(1), TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, recorder.PendingEventCount);
+        Assert.AreEqual(1, recorder.PendingEventCount);
 
         // Act
         recorder.ClearPending();
 
         // Assert
-        Assert.Equal(0, recorder.PendingEventCount);
+        Assert.AreEqual(0, recorder.PendingEventCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FlushAsync_WritesToFile()
     {
         // Arrange
@@ -343,14 +344,14 @@ public class AsciinemaRecorderTests : IDisposable
         await recorder.FlushAsync(TestContext.Current.CancellationToken);
 
         // Assert
-        Assert.True(File.Exists(tempFile));
+        Assert.IsTrue(File.Exists(tempFile));
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("\"version\":2", content);
         Assert.Contains("File Test", content);
         Assert.Contains("Hello!", content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CaptureCast_AttachesToTestResults()
     {
         // Arrange
@@ -376,7 +377,7 @@ public class AsciinemaRecorderTests : IDisposable
         await TestCaptureHelper.CaptureCastAsync(recorder, "demo", TestContext.Current.CancellationToken);
 
         // Assert - check that the file was written
-        Assert.True(File.Exists(tempFile));
+        Assert.IsTrue(File.Exists(tempFile));
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("Green bold text", content);
     }
@@ -386,7 +387,7 @@ public class AsciinemaRecorderTests : IDisposable
     /// with resizes, navigation, text input, and button interactions.
     /// The generated .cast file can be played back with asciinema.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task RecordResponsiveTodoSession_10Seconds()
     {
         // === Setup: Create a responsive todo app similar to the website example ===
@@ -585,11 +586,11 @@ public class AsciinemaRecorderTests : IDisposable
         var content = await File.ReadAllTextAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         // Surface mode is more efficient, producing fewer events than Legacy mode
-        Assert.True(lines.Length > 30, $"Should have many events, got {lines.Length}");
+        Assert.IsTrue(lines.Length > 30, $"Should have many events, got {lines.Length}");
         
         // Verify the new todos were added
-        Assert.Contains(state.Items, t => t.Title == "Buy holiday gifts");
-        Assert.Contains(state.Items, t => t.Title == "Call mom");
+        Assert.IsTrue(state.Items.Any(t => t.Title == "Buy holiday gifts"));
+        Assert.IsTrue(state.Items.Any(t => t.Title == "Call mom"));
     }
 
     // === Helper classes and methods for the responsive todo test ===

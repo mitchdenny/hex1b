@@ -9,13 +9,14 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for table clipping when inside a window that is resized.
 /// </summary>
+[TestClass]
 public class TableClippingTests
 {
     /// <summary>
     /// When a window containing a table is resized so the table is clipped,
     /// the table borders should NOT render outside the window border.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Table_InsideResizedWindow_ClippedToWindowBounds()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -111,7 +112,7 @@ public class TableClippingTests
 
         await runTask;
         
-        Assert.False(clippingFailed, $"Table content rendered outside window bounds.\n{diagnostics}");
+        Assert.IsFalse(clippingFailed, $"Table content rendered outside window bounds.\n{diagnostics}");
     }
     
     private record Employee(int Id, string Name, string Department);

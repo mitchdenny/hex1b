@@ -2,9 +2,10 @@ namespace Hex1b.Tests;
 
 using Hex1b.Animation;
 
+[TestClass]
 public class AnimationTimerTests
 {
-    [Fact]
+    [TestMethod]
     public void Schedule_AddsTimer()
     {
         var timer = new AnimationTimer();
@@ -12,19 +13,19 @@ public class AnimationTimerTests
         
         timer.Schedule(TimeSpan.FromMilliseconds(100), () => fired = true);
         
-        Assert.True(timer.HasScheduledTimers);
-        Assert.False(fired);
+        Assert.IsTrue(timer.HasScheduledTimers);
+        Assert.IsFalse(fired);
     }
     
-    [Fact]
+    [TestMethod]
     public void GetTimeUntilNextDue_ReturnsNullWhenNoTimers()
     {
         var timer = new AnimationTimer();
         
-        Assert.Null(timer.GetTimeUntilNextDue());
+        Assert.IsNull(timer.GetTimeUntilNextDue());
     }
     
-    [Fact]
+    [TestMethod]
     public void GetTimeUntilNextDue_ReturnsTimeWhenTimerScheduled()
     {
         var timer = new AnimationTimer();
@@ -32,12 +33,12 @@ public class AnimationTimerTests
         
         var timeUntil = timer.GetTimeUntilNextDue();
         
-        Assert.NotNull(timeUntil);
-        Assert.True(timeUntil.Value.TotalMilliseconds > 0);
-        Assert.True(timeUntil.Value.TotalMilliseconds <= 100);
+        Assert.IsNotNull(timeUntil);
+        Assert.IsTrue(timeUntil.Value.TotalMilliseconds > 0);
+        Assert.IsTrue(timeUntil.Value.TotalMilliseconds <= 100);
     }
     
-    [Fact]
+    [TestMethod]
     public void FireDue_FiresExpiredTimers()
     {
         var timer = new AnimationTimer();
@@ -51,11 +52,11 @@ public class AnimationTimerTests
         
         timer.FireDue();
         
-        Assert.True(fired);
-        Assert.False(timer.HasScheduledTimers);
+        Assert.IsTrue(fired);
+        Assert.IsFalse(timer.HasScheduledTimers);
     }
     
-    [Fact]
+    [TestMethod]
     public void FireDue_DoesNotFireFutureTimers()
     {
         var timer = new AnimationTimer();
@@ -64,11 +65,11 @@ public class AnimationTimerTests
         timer.Schedule(TimeSpan.FromSeconds(10), () => fired = true);
         timer.FireDue();
         
-        Assert.False(fired);
-        Assert.True(timer.HasScheduledTimers);
+        Assert.IsFalse(fired);
+        Assert.IsTrue(timer.HasScheduledTimers);
     }
     
-    [Fact]
+    [TestMethod]
     public void Schedule_ClampsToMinimum16ms()
     {
         var timer = new AnimationTimer();
@@ -77,11 +78,11 @@ public class AnimationTimerTests
         var timeUntil = timer.GetTimeUntilNextDue();
         
         // Should be close to 16ms minimum, not 1ms
-        Assert.NotNull(timeUntil);
-        Assert.True(timeUntil.Value.TotalMilliseconds >= 15); // Allow 1ms tolerance
+        Assert.IsNotNull(timeUntil);
+        Assert.IsTrue(timeUntil.Value.TotalMilliseconds >= 15); // Allow 1ms tolerance
     }
     
-    [Fact]
+    [TestMethod]
     public void FireDue_FiresMultipleExpiredTimers()
     {
         var timer = new AnimationTimer();
@@ -94,11 +95,11 @@ public class AnimationTimerTests
         Thread.Sleep(50);
         timer.FireDue();
         
-        Assert.Equal(3, count);
-        Assert.False(timer.HasScheduledTimers);
+        Assert.AreEqual(3, count);
+        Assert.IsFalse(timer.HasScheduledTimers);
     }
     
-    [Fact]
+    [TestMethod]
     public void GetTimeUntilNextDue_ReturnsZeroWhenTimerPastDue()
     {
         var timer = new AnimationTimer();
@@ -109,11 +110,11 @@ public class AnimationTimerTests
         
         var timeUntil = timer.GetTimeUntilNextDue();
         
-        Assert.NotNull(timeUntil);
-        Assert.Equal(TimeSpan.Zero, timeUntil.Value);
+        Assert.IsNotNull(timeUntil);
+        Assert.AreEqual(TimeSpan.Zero, timeUntil.Value);
     }
     
-    [Fact]
+    [TestMethod]
     public void MultipleTimers_GetTimeReturnsEarliest()
     {
         var timer = new AnimationTimer();
@@ -124,8 +125,8 @@ public class AnimationTimerTests
         
         var timeUntil = timer.GetTimeUntilNextDue();
         
-        Assert.NotNull(timeUntil);
+        Assert.IsNotNull(timeUntil);
         // Should be ~100ms or less (whichever is minimum after clamping)
-        Assert.True(timeUntil.Value.TotalMilliseconds <= 100);
+        Assert.IsTrue(timeUntil.Value.TotalMilliseconds <= 100);
     }
 }

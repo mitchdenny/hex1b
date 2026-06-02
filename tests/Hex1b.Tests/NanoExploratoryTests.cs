@@ -7,33 +7,44 @@ namespace Hex1b.Tests;
 /// Custom xUnit Fact attribute that skips Unix PTY exploratory tests on Windows
 /// or when the required shell/tool is unavailable.
 /// </summary>
-public sealed class UnixPtyFactAttribute : FactAttribute
+public sealed class UnixPtyFactAttribute : TestMethodAttribute
 {
     private static readonly bool s_bashAvailable = CheckCommandAvailable("bash", "--version");
     private static readonly bool s_nanoAvailable = CheckCommandAvailable("nano", "--version");
 
-    public UnixPtyFactAttribute(
-        bool requiresNano = false,
-        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
-        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
-        : base(sourceFilePath, sourceLineNumber)
+    private readonly string? _skipReason;
+
+    public UnixPtyFactAttribute(bool requiresNano = false)
     {
         if (OperatingSystem.IsWindows())
         {
-            Skip = "Requires Unix PTY behavior; skip on Windows.";
+            _skipReason = "Requires Unix PTY behavior; skip on Windows.";
             return;
         }
 
         if (!s_bashAvailable)
         {
-            Skip = "bash is not available on this machine.";
+            _skipReason = "bash is not available on this machine.";
             return;
         }
 
         if (requiresNano && !s_nanoAvailable)
         {
-            Skip = "nano is not available on this machine.";
+            _skipReason = "nano is not available on this machine.";
         }
+    }
+
+    public override Task<TestResult[]> ExecuteAsync(ITestMethod testMethod)
+    {
+        if (_skipReason is not null)
+        {
+            return Task.FromResult<TestResult[]>([new TestResult
+            {
+                Outcome = UnitTestOutcome.Inconclusive,
+                TestFailureException = new AssertInconclusiveException(_skipReason),
+            }]);
+        }
+        return base.ExecuteAsync(testMethod);
     }
 
     private static bool CheckCommandAvailable(string command, string versionArg)
@@ -78,6 +89,7 @@ public sealed class UnixPtyFactAttribute : FactAttribute
 /// 2. Or if it's a rendering issue in TerminalNode
 /// </para>
 /// </remarks>
+[TestClass]
 public class NanoExploratoryTests
 {
     /// <summary>
@@ -267,7 +279,7 @@ public class NanoExploratoryTests
     /// This test helps us understand what the buffer looks like after nano starts.
     /// Expected: Nano header at top, empty edit area, help at bottom.
     /// </remarks>
-    [Fact(Skip = "Exploratory test - run manually")]
+    [TestMethod, Ignore("Exploratory test - run manually")]
     public async Task Nano_InitialScreen_ShowsCorrectLayout()
     {
         // Arrange
@@ -306,7 +318,7 @@ public class NanoExploratoryTests
     /// This is the key test - we type "hello" and see if it appears in the correct location.
     /// The bug is that typed text appears to overwrite the header bar.
     /// </remarks>
-    [Fact(Skip = "Exploratory test - run manually")]
+    [TestMethod, Ignore("Exploratory test - run manually")]
     public async Task Nano_TypeText_AppearsInEditArea()
     {
         // Arrange
@@ -363,7 +375,7 @@ public class NanoExploratoryTests
     /// Exploratory test: Test origin mode behavior in isolation.
     /// Origin mode works correctly - row 1 in origin mode maps to scroll_top.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void OriginMode_PositionsRelativeToScrollRegion()
     {
         // Create terminal
@@ -388,7 +400,7 @@ public class NanoExploratoryTests
         var row0 = GetRowText(buffer, 0);
         var row2 = GetRowText(buffer, 2);
         
-        Assert.Equal("Title at row 0", row0);
+        Assert.AreEqual("Title at row 0", row0);
         Assert.Contains("Edit area text", row2);
         
         static string GetRowText(TerminalCell[,] buffer, int row)
@@ -446,8 +458,7 @@ public class NanoExploratoryTests
         var row4Text = GetRowText(buffer, 4);
         
         // Throw diagnostics if assertion fails
-        Assert.True(row4Text.Contains("Hello at row 5"), 
-            $"Expected row 4 to contain 'Hello at row 5', but got:\n{sb}");
+        Assert.IsTrue(row4Text.Contains("Hello at row 5"), $"Expected row 4 to contain 'Hello at row 5', but got:\n{sb}");
         
         static string GetRowText(TerminalCell[,] buffer, int row)
         {
@@ -531,10 +542,8 @@ public class NanoExploratoryTests
         
         // Verify nano's UI is in the correct positions
         // Title should be at row 0 and should contain "nano" or "GNU"
-        Assert.True(
-            row0.Contains("nano", StringComparison.OrdinalIgnoreCase) || 
-            row0.Contains("GNU", StringComparison.OrdinalIgnoreCase),
-            $"Expected row 0 to contain nano title, but got:\n{sb}");
+        Assert.IsTrue(row0.Contains("nano", StringComparison.OrdinalIgnoreCase) || 
+            row0.Contains("GNU", StringComparison.OrdinalIgnoreCase), $"Expected row 0 to contain nano title, but got:\n{sb}");
         
         static string GetRowText(TerminalCell[,] buffer, int row)
         {
@@ -555,7 +564,7 @@ public class NanoExploratoryTests
     /// Nano uses scroll regions (DECSTBM) to limit scrolling to the edit area.
     /// If scroll regions aren't handled correctly, content might render in wrong places.
     /// </remarks>
-    [Fact(Skip = "Exploratory test - run manually")]
+    [TestMethod, Ignore("Exploratory test - run manually")]
     public async Task Nano_ScrollRegion_IsRespected()
     {
         // Arrange
@@ -592,7 +601,7 @@ public class NanoExploratoryTests
     /// <summary>
     /// Quick test to verify bash works correctly (baseline).
     /// </summary>
-    [Fact(Skip = "Exploratory test - run manually")]
+    [TestMethod, Ignore("Exploratory test - run manually")]
     public async Task Bash_Echo_WorksCorrectly()
     {
         // Arrange

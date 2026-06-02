@@ -5,9 +5,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class Hex1bMetricsTests
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_CreatesAllInstruments()
     {
         using var metrics = new Hex1bMetrics();
@@ -52,7 +53,7 @@ public class Hex1bMetricsTests
         }
     }
     
-    [Fact]
+    [TestMethod]
     public void Instances_AreIsolated()
     {
         using var metrics1 = new Hex1bMetrics();
@@ -89,18 +90,18 @@ public class Hex1bMetricsTests
         metrics2.FrameCount.Add(1);
         metrics2.FrameCount.Add(1);
         
-        Assert.Single(values1);
-        Assert.Equal(2, values2.Count);
+        TestSeq.Single(values1);
+        Assert.AreEqual(2, values2.Count);
     }
     
-    [Fact]
+    [TestMethod]
     public void Default_IsSingleton()
     {
-        Assert.Same(Hex1bMetrics.Default, Hex1bMetrics.Default);
-        Assert.NotNull(Hex1bMetrics.Default.Meter);
+        Assert.AreSame(Hex1bMetrics.Default, Hex1bMetrics.Default);
+        Assert.IsNotNull(Hex1bMetrics.Default.Meter);
     }
     
-    [Fact]
+    [TestMethod]
     public void FrameDuration_RecordsValues()
     {
         using var metrics = new Hex1bMetrics();
@@ -121,12 +122,12 @@ public class Hex1bMetricsTests
         metrics.FrameDuration.Record(16.5);
         metrics.FrameDuration.Record(8.2);
         
-        Assert.Equal(2, recorded.Count);
-        Assert.Equal(16.5, recorded[0]);
-        Assert.Equal(8.2, recorded[1]);
+        Assert.AreEqual(2, recorded.Count);
+        Assert.AreEqual(16.5, recorded[0]);
+        Assert.AreEqual(8.2, recorded[1]);
     }
     
-    [Fact]
+    [TestMethod]
     public void InputCount_RecordsWithTags()
     {
         using var metrics = new Hex1bMetrics();
@@ -155,13 +156,13 @@ public class Hex1bMetricsTests
         metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "mouse"));
         metrics.InputCount.Add(1, new KeyValuePair<string, object?>("type", "resize"));
         
-        Assert.Equal(3, tagValues.Count);
-        Assert.Equal("key", tagValues[0]);
-        Assert.Equal("mouse", tagValues[1]);
-        Assert.Equal("resize", tagValues[2]);
+        Assert.AreEqual(3, tagValues.Count);
+        Assert.AreEqual("key", tagValues[0]);
+        Assert.AreEqual("mouse", tagValues[1]);
+        Assert.AreEqual("resize", tagValues[2]);
     }
     
-    [Fact]
+    [TestMethod]
     public void OutputCellsChanged_RecordsIntValues()
     {
         using var metrics = new Hex1bMetrics();
@@ -183,13 +184,13 @@ public class Hex1bMetricsTests
         metrics.OutputCellsChanged.Record(5);     // Incremental update
         metrics.OutputCellsChanged.Record(0);     // No changes
         
-        Assert.Equal(3, recorded.Count);
-        Assert.Equal(1920, recorded[0]);
-        Assert.Equal(5, recorded[1]);
-        Assert.Equal(0, recorded[2]);
+        Assert.AreEqual(3, recorded.Count);
+        Assert.AreEqual(1920, recorded[0]);
+        Assert.AreEqual(5, recorded[1]);
+        Assert.AreEqual(0, recorded[2]);
     }
     
-    [Fact]
+    [TestMethod]
     public void NoListener_DoesNotThrow()
     {
         // Verify metrics work without any listener attached (zero-cost path)
@@ -209,7 +210,7 @@ public class Hex1bMetricsTests
         metrics.TerminalInputEvents.Add(1, new KeyValuePair<string, object?>("type", "key"));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Integration_MetricsRecordedDuringRender()
     {
         using var metrics = new Hex1bMetrics();
@@ -265,34 +266,34 @@ public class Hex1bMetricsTests
         
         await runTask;
         
-        Assert.True(Interlocked.Read(ref frameCount) > 0, "Expected at least one frame");
-        Assert.NotEmpty(frameDurations);
-        Assert.All(frameDurations, d => Assert.True(d > 0, $"Frame duration {d}ms should be > 0"));
-        Assert.NotEmpty(cellsCounts);
-        Assert.True(cellsCounts[0] > 0, "First frame should have changed cells");
+        Assert.IsTrue(Interlocked.Read(ref frameCount) > 0, "Expected at least one frame");
+        Assert.IsNotEmpty(frameDurations);
+        TestSeq.All(frameDurations, d => Assert.IsTrue(d > 0, $"Frame duration {d}ms should be > 0"));
+        Assert.IsNotEmpty(cellsCounts);
+        Assert.IsTrue(cellsCounts[0] > 0, "First frame should have changed cells");
     }
     
     // --- Per-node metrics tests ---
     
-    [Fact]
+    [TestMethod]
     public void PerNodeMetrics_DisabledByDefault()
     {
         using var metrics = new Hex1bMetrics();
-        Assert.Null(metrics.NodeMeasureDuration);
-        Assert.Null(metrics.NodeArrangeDuration);
-        Assert.Null(metrics.NodeRenderDuration);
-        Assert.Null(metrics.NodeReconcileDuration);
-        Assert.Null(metrics.SurfaceFlattenDuration);
-        Assert.Null(metrics.SurfaceCompositeDuration);
-        Assert.Null(metrics.SurfaceLayerCount);
-        Assert.Null(metrics.SurfaceLayerDuration);
+        Assert.IsNull(metrics.NodeMeasureDuration);
+        Assert.IsNull(metrics.NodeArrangeDuration);
+        Assert.IsNull(metrics.NodeRenderDuration);
+        Assert.IsNull(metrics.NodeReconcileDuration);
+        Assert.IsNull(metrics.SurfaceFlattenDuration);
+        Assert.IsNull(metrics.SurfaceCompositeDuration);
+        Assert.IsNull(metrics.SurfaceLayerCount);
+        Assert.IsNull(metrics.SurfaceLayerDuration);
     }
     
-    [Fact]
+    [TestMethod]
     public void PerNodeMetrics_CreatesInstrumentsWhenEnabled()
     {
         using var metrics = new Hex1bMetrics(options: new Hex1bMetricsOptions { EnablePerNodeMetrics = true });
-        Assert.NotNull(metrics.NodeMeasureDuration);
+        Assert.IsNotNull(metrics.NodeMeasureDuration);
         
         var instrumentNames = new List<string>();
         using var listener = new MeterListener();
@@ -316,14 +317,14 @@ public class Hex1bMetricsTests
         Assert.Contains("hex1b.surface.layer.duration", instrumentNames);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricName_FluentExtension_SetsProperty()
     {
         var widget = new TextBlockWidget("test").MetricName("sidebar");
-        Assert.Equal("sidebar", widget.MetricName);
+        Assert.AreEqual("sidebar", widget.MetricName);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_AutoGenerated_UsesTypeAndIndex()
     {
         var parent = new VStackNode();
@@ -334,26 +335,26 @@ public class Hex1bMetricsTests
         Assert.Contains("TextBlock[2]", path);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_WithUserName_UsesNameInsteadOfType()
     {
         var parent = new VStackNode { MetricName = "root" };
         var child = new TextBlockNode { Parent = parent, MetricName = "title", MetricChildIndex = 0 };
         
         var path = child.GetMetricPath();
-        Assert.Equal("root.title", path);
+        Assert.AreEqual("root.title", path);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_Cached_ReturnsSameInstance()
     {
         var node = new TextBlockNode { MetricName = "test" };
         var path1 = node.GetMetricPath();
         var path2 = node.GetMetricPath();
-        Assert.Same(path1, path2);
+        Assert.AreSame(path1, path2);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_InvalidatedOnNameChange()
     {
         var node = new TextBlockNode { MetricName = "old" };
@@ -363,21 +364,21 @@ public class Hex1bMetricsTests
         node.InvalidateMetricPath();
         var path2 = node.GetMetricPath();
         
-        Assert.NotEqual(path1, path2);
-        Assert.Equal("new", path2);
+        Assert.AreNotEqual(path1, path2);
+        Assert.AreEqual("new", path2);
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_Hierarchical_ComposesFromAncestors()
     {
         var root = new VStackNode { MetricName = "root" };
         var sidebar = new VStackNode { Parent = root, MetricName = "sidebar", MetricChildIndex = 0 };
         var table = new TextBlockNode { Parent = sidebar, MetricName = "orders", MetricChildIndex = 0 };
         
-        Assert.Equal("root.sidebar.orders", table.GetMetricPath());
+        Assert.AreEqual("root.sidebar.orders", table.GetMetricPath());
     }
     
-    [Fact]
+    [TestMethod]
     public void MetricPath_MixedAutoAndNamed()
     {
         var root = new VStackNode { MetricName = "root" };
@@ -385,10 +386,10 @@ public class Hex1bMetricsTests
         var leaf = new TextBlockNode { Parent = child, MetricName = "label", MetricChildIndex = 0 };
         
         var path = leaf.GetMetricPath();
-        Assert.Equal("root.HStack[1].label", path);
+        Assert.AreEqual("root.HStack[1].label", path);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Integration_PerNodeMetrics_RecordsDurations()
     {
         var options = new Hex1bMetricsOptions { EnablePerNodeMetrics = true };
@@ -445,14 +446,14 @@ public class Hex1bMetricsTests
         await runTask;
         
         // Should have per-node measurements with the metric paths
-        Assert.NotEmpty(nodePaths);
+        Assert.IsNotEmpty(nodePaths);
         // Verify at least the root and named children appear
-        Assert.Contains(nodePaths, p => p.Contains("root"));
-        Assert.Contains(nodePaths, p => p.Contains("title"));
-        Assert.Contains(nodePaths, p => p.Contains("body"));
+        Assert.IsTrue(nodePaths.Any(p => p.Contains("root")));
+        Assert.IsTrue(nodePaths.Any(p => p.Contains("title")));
+        Assert.IsTrue(nodePaths.Any(p => p.Contains("body")));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Integration_PerNodeMetrics_DisabledByDefault_NoNodeMetricsEmitted()
     {
         // Default metrics — per-node NOT enabled
@@ -503,10 +504,10 @@ public class Hex1bMetricsTests
         await runTask;
         
         // No per-node metrics should have been emitted
-        Assert.Empty(nodeMetrics);
+        Assert.IsEmpty(nodeMetrics);
     }
 
-    [Fact]
+    [TestMethod]
     public void WithMetricsCallback_CreatesMetricsWithPerNodeEnabled()
     {
         // Regression: WithMetrics(configure) must flow options into ResolveMetrics
@@ -535,14 +536,14 @@ public class Hex1bMetricsTests
         using var metrics = new Hex1bMetrics(options: options);
 
         // Per-node instruments must have been created
-        Assert.NotNull(metrics.NodeMeasureDuration);
-        Assert.NotNull(metrics.NodeArrangeDuration);
-        Assert.NotNull(metrics.NodeRenderDuration);
-        Assert.NotNull(metrics.NodeReconcileDuration);
+        Assert.IsNotNull(metrics.NodeMeasureDuration);
+        Assert.IsNotNull(metrics.NodeArrangeDuration);
+        Assert.IsNotNull(metrics.NodeRenderDuration);
+        Assert.IsNotNull(metrics.NodeReconcileDuration);
 
         // Record a measurement to verify the instruments are functional
         metrics.NodeMeasureDuration!.Record(1.0, new KeyValuePair<string, object?>("node", "test.Widget"));
 
-        Assert.Contains(nodePaths, p => p.Contains("test.Widget"));
+        Assert.IsTrue(nodePaths.Any(p => p.Contains("test.Widget")));
     }
 }

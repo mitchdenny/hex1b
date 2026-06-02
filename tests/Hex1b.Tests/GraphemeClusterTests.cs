@@ -24,6 +24,7 @@ namespace Hex1b.Tests;
 /// 4. Select by grapheme cluster boundaries
 /// 5. Never split a cluster, which would result in broken/invalid text
 /// </summary>
+[TestClass]
 public class GraphemeClusterTests
 {
     #region Test Data
@@ -56,68 +57,68 @@ public class GraphemeClusterTests
 
     #region StringInfo Baseline Tests (verify our understanding)
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_SimpleEmoji_IsOneGrapheme()
     {
         var info = new StringInfo(Emoji);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.Equal(2, Emoji.Length); // But 2 chars in UTF-16
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.AreEqual(2, Emoji.Length); // But 2 chars in UTF-16
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_EmojiWithSkinTone_IsOneGrapheme()
     {
         var info = new StringInfo(EmojiWithSkinTone);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.True(EmojiWithSkinTone.Length >= 4); // 4+ chars in UTF-16
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.IsTrue(EmojiWithSkinTone.Length >= 4); // 4+ chars in UTF-16
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_FamilyEmoji_IsOneGrapheme()
     {
         var info = new StringInfo(FamilyEmoji);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.True(FamilyEmoji.Length >= 8); // 8+ chars in UTF-16
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.IsTrue(FamilyEmoji.Length >= 8); // 8+ chars in UTF-16
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_FlagEmoji_IsOneGrapheme()
     {
         var info = new StringInfo(FlagEmoji);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.Equal(4, FlagEmoji.Length); // 4 chars (2 regional indicators, each 2 chars)
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.AreEqual(4, FlagEmoji.Length); // 4 chars (2 regional indicators, each 2 chars)
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_CombiningCharacter_IsOneGrapheme()
     {
         var info = new StringInfo(CombiningE);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.Equal(2, CombiningE.Length); // e + combining accent
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.AreEqual(2, CombiningE.Length); // e + combining accent
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_MultipleCombining_IsOneGrapheme()
     {
         var info = new StringInfo(MultipleCombining);
-        Assert.Equal(1, info.LengthInTextElements);
-        Assert.Equal(3, MultipleCombining.Length); // a + 2 combining marks
+        Assert.AreEqual(1, info.LengthInTextElements);
+        Assert.AreEqual(3, MultipleCombining.Length); // a + 2 combining marks
     }
 
-    [Fact]
+    [TestMethod]
     public void StringInfo_MixedText_CountsCorrectly()
     {
         var text = "Hi" + Emoji + "!"; // 4 graphemes: H, i, 😀, !
         var info = new StringInfo(text);
-        Assert.Equal(4, info.LengthInTextElements);
-        Assert.Equal(5, text.Length); // 2 + 2 + 1 chars
+        Assert.AreEqual(4, info.LengthInTextElements);
+        Assert.AreEqual(5, text.Length); // 2 + 2 + 1 chars
     }
 
     #endregion
 
     #region Insert Text Tests
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_SimpleEmoji_InsertsAsAtomicUnit()
     {
         var state = new TextBoxState { Text = "Hello", CursorPosition = 5 };
@@ -125,11 +126,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello" + Emoji, state.Text);
-        Assert.Equal(7, state.CursorPosition); // Moved by 2 chars
+        Assert.AreEqual("Hello" + Emoji, state.Text);
+        Assert.AreEqual(7, state.CursorPosition); // Moved by 2 chars
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_EmojiWithSkinTone_InsertsAsAtomicUnit()
     {
         var state = new TextBoxState { Text = "Test", CursorPosition = 4 };
@@ -137,11 +138,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Test" + EmojiWithSkinTone, state.Text);
-        Assert.Equal(4 + EmojiWithSkinTone.Length, state.CursorPosition);
+        Assert.AreEqual("Test" + EmojiWithSkinTone, state.Text);
+        Assert.AreEqual(4 + EmojiWithSkinTone.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_FamilyEmoji_InsertsAsAtomicUnit()
     {
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
@@ -149,11 +150,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FamilyEmoji), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(FamilyEmoji, state.Text);
-        Assert.Equal(FamilyEmoji.Length, state.CursorPosition);
+        Assert.AreEqual(FamilyEmoji, state.Text);
+        Assert.AreEqual(FamilyEmoji.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_MultipleEmojis_InsertsAll()
     {
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
@@ -163,10 +164,10 @@ public class GraphemeClusterTests
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(EmojiWithSkinTone), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(Emoji + FlagEmoji + EmojiWithSkinTone, state.Text);
+        Assert.AreEqual(Emoji + FlagEmoji + EmojiWithSkinTone, state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_CombiningCharacter_InsertsAsAtomicUnit()
     {
         var state = new TextBoxState { Text = "cafe", CursorPosition = 4 };
@@ -176,10 +177,10 @@ public class GraphemeClusterTests
         state.CursorPosition = 3;
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(CombiningE), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("caf" + CombiningE + "e", state.Text);
+        Assert.AreEqual("caf" + CombiningE + "e", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InsertText_InMiddleOfText_InsertsCorrectly()
     {
         var state = new TextBoxState { Text = "AB", CursorPosition = 1 };
@@ -187,15 +188,15 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(Emoji), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("A" + Emoji + "B", state.Text);
-        Assert.Equal(1 + Emoji.Length, state.CursorPosition);
+        Assert.AreEqual("A" + Emoji + "B", state.Text);
+        Assert.AreEqual(1 + Emoji.Length, state.CursorPosition);
     }
 
     #endregion
 
     #region Delete Backward (Backspace) Tests
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_SimpleEmoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
@@ -203,11 +204,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("AB", state.Text);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual("AB", state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_EmojiWithSkinTone_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "X" + EmojiWithSkinTone, CursorPosition = 1 + EmojiWithSkinTone.Length };
@@ -215,11 +216,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("X", state.Text);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual("X", state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_FamilyEmoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
@@ -227,11 +228,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_FlagEmoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "Flag: " + FlagEmoji, CursorPosition = 6 + FlagEmoji.Length };
@@ -239,11 +240,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Flag: ", state.Text);
-        Assert.Equal(6, state.CursorPosition);
+        Assert.AreEqual("Flag: ", state.Text);
+        Assert.AreEqual(6, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_CombiningCharacter_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "caf" + CombiningE, CursorPosition = 3 + CombiningE.Length };
@@ -251,11 +252,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("caf", state.Text);
-        Assert.Equal(3, state.CursorPosition);
+        Assert.AreEqual("caf", state.Text);
+        Assert.AreEqual(3, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_MultipleCombining_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = MultipleCombining, CursorPosition = MultipleCombining.Length };
@@ -263,11 +264,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_NeverSplitsCluster()
     {
         // Even if cursor is somehow in middle of cluster (shouldn't happen),
@@ -286,11 +287,11 @@ public class GraphemeClusterTests
         {
             var textElement = (string)enumerator.Current;
             // Each text element should be valid (no isolated surrogates)
-            Assert.True(textElement.Length > 0);
+            Assert.IsTrue(textElement.Length > 0);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_AsciiBeforeEmoji_DeletesOnlyAscii()
     {
         var state = new TextBoxState { Text = "AB" + Emoji, CursorPosition = 2 };
@@ -298,11 +299,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("A" + Emoji, state.Text);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual("A" + Emoji, state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteBackward_MultipleBackspaces_DeletesCorrectly()
     {
         var state = new TextBoxState { Text = "X" + Emoji + FlagEmoji, CursorPosition = 1 + Emoji.Length + FlagEmoji.Length };
@@ -310,22 +311,22 @@ public class GraphemeClusterTests
 
         // Delete flag
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
-        Assert.Equal("X" + Emoji, state.Text);
+        Assert.AreEqual("X" + Emoji, state.Text);
 
         // Delete emoji
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
-        Assert.Equal("X", state.Text);
+        Assert.AreEqual("X", state.Text);
 
         // Delete X
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
-        Assert.Equal("", state.Text);
+        Assert.AreEqual("", state.Text);
     }
 
     #endregion
 
     #region Delete Forward (Delete key) Tests
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteForward_SimpleEmoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = Emoji + "B", CursorPosition = 0 };
@@ -333,11 +334,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("B", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("B", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteForward_EmojiWithSkinTone_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "X" + EmojiWithSkinTone + "Y", CursorPosition = 1 };
@@ -345,11 +346,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("XY", state.Text);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual("XY", state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteForward_FamilyEmoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = FamilyEmoji + "!", CursorPosition = 0 };
@@ -357,11 +358,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("!", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("!", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteForward_CombiningCharacter_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = CombiningE + "x", CursorPosition = 0 };
@@ -369,11 +370,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("x", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("x", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DeleteForward_AsciiAfterEmoji_DeletesOnlyAscii()
     {
         var state = new TextBoxState { Text = Emoji + "AB", CursorPosition = Emoji.Length };
@@ -381,15 +382,15 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(Emoji + "B", state.Text);
-        Assert.Equal(Emoji.Length, state.CursorPosition);
+        Assert.AreEqual(Emoji + "B", state.Text);
+        Assert.AreEqual(Emoji.Length, state.CursorPosition);
     }
 
     #endregion
 
     #region Cursor Movement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task MoveLeft_OverEmoji_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
@@ -398,10 +399,10 @@ public class GraphemeClusterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Cursor should be before the emoji, not in the middle of it
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveRight_OverEmoji_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
@@ -410,10 +411,10 @@ public class GraphemeClusterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
         // Cursor should be after the emoji
-        Assert.Equal(1 + Emoji.Length, state.CursorPosition);
+        Assert.AreEqual(1 + Emoji.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveLeft_OverFamilyEmoji_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
@@ -421,10 +422,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveRight_OverFamilyEmoji_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = 0 };
@@ -432,10 +433,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(FamilyEmoji.Length, state.CursorPosition);
+        Assert.AreEqual(FamilyEmoji.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveLeft_OverCombiningCharacter_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = "a" + CombiningE + "b", CursorPosition = 1 + CombiningE.Length };
@@ -443,10 +444,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1, state.CursorPosition);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveRight_OverCombiningCharacter_MovesEntireCluster()
     {
         var state = new TextBoxState { Text = "a" + CombiningE + "b", CursorPosition = 1 };
@@ -454,10 +455,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(1 + CombiningE.Length, state.CursorPosition);
+        Assert.AreEqual(1 + CombiningE.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveLeft_ThroughMixedText_NeverLandsMidCluster()
     {
         var text = "A" + Emoji + FlagEmoji + "B";
@@ -474,7 +475,7 @@ public class GraphemeClusterTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MoveRight_ThroughMixedText_NeverLandsMidCluster()
     {
         var text = "A" + Emoji + FlagEmoji + "B";
@@ -495,7 +496,7 @@ public class GraphemeClusterTests
 
     #region Selection Tests
 
-    [Fact]
+    [TestMethod]
     public async Task SelectLeft_OverEmoji_SelectsEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 + Emoji.Length };
@@ -503,12 +504,12 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(state.HasSelection);
-        Assert.Equal(Emoji, state.SelectedText);
-        Assert.Equal(1, state.CursorPosition);
+        Assert.IsTrue(state.HasSelection);
+        Assert.AreEqual(Emoji, state.SelectedText);
+        Assert.AreEqual(1, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectRight_OverEmoji_SelectsEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
@@ -516,12 +517,12 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(state.HasSelection);
-        Assert.Equal(Emoji, state.SelectedText);
-        Assert.Equal(1 + Emoji.Length, state.CursorPosition);
+        Assert.IsTrue(state.HasSelection);
+        Assert.AreEqual(Emoji, state.SelectedText);
+        Assert.AreEqual(1 + Emoji.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectLeft_OverFamilyEmoji_SelectsEntireCluster()
     {
         var state = new TextBoxState { Text = FamilyEmoji, CursorPosition = FamilyEmoji.Length };
@@ -529,11 +530,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(state.HasSelection);
-        Assert.Equal(FamilyEmoji, state.SelectedText);
+        Assert.IsTrue(state.HasSelection);
+        Assert.AreEqual(FamilyEmoji, state.SelectedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectAndDelete_Emoji_DeletesEntireCluster()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
@@ -545,12 +546,12 @@ public class GraphemeClusterTests
         // Delete selection
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("AB", state.Text);
-        Assert.Equal(1, state.CursorPosition);
-        Assert.False(state.HasSelection);
+        Assert.AreEqual("AB", state.Text);
+        Assert.AreEqual(1, state.CursorPosition);
+        Assert.IsFalse(state.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectAndDelete_MultipleEmojis_DeletesAll()
     {
         var text = "A" + Emoji + FlagEmoji + "B";
@@ -561,15 +562,15 @@ public class GraphemeClusterTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.Shift), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(Emoji + FlagEmoji, state.SelectedText);
+        Assert.AreEqual(Emoji + FlagEmoji, state.SelectedText);
 
         // Delete selection
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("AB", state.Text);
+        Assert.AreEqual("AB", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectAll_WithEmojis_SelectsCorrectly()
     {
         var text = Emoji + "Hello" + FamilyEmoji;
@@ -578,11 +579,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.Control), null, null, TestContext.Current.CancellationToken);
 
-        Assert.True(state.HasSelection);
-        Assert.Equal(text, state.SelectedText);
+        Assert.IsTrue(state.HasSelection);
+        Assert.AreEqual(text, state.SelectedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypeOverSelection_WithEmoji_ReplacesCorrectly()
     {
         var state = new TextBoxState { Text = "A" + Emoji + "B", CursorPosition = 1 };
@@ -594,16 +595,16 @@ public class GraphemeClusterTests
         // Type replacement text
         await InputRouter.RouteInputToNodeAsync(node, Hex1bKeyEvent.FromText(FlagEmoji), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("A" + FlagEmoji + "B", state.Text);
-        Assert.Equal(1 + FlagEmoji.Length, state.CursorPosition);
-        Assert.False(state.HasSelection);
+        Assert.AreEqual("A" + FlagEmoji + "B", state.Text);
+        Assert.AreEqual(1 + FlagEmoji.Length, state.CursorPosition);
+        Assert.IsFalse(state.HasSelection);
     }
 
     #endregion
 
     #region Edge Cases and Invariant Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TextAlwaysValid_AfterAnyOperation()
     {
         var operations = new Func<TextBoxNode, Task>[]
@@ -638,7 +639,7 @@ public class GraphemeClusterTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EmptyText_DeleteBackward_DoesNothing()
     {
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
@@ -646,11 +647,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Backspace, '\b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EmptyText_DeleteForward_DoesNothing()
     {
         var state = new TextBoxState { Text = "", CursorPosition = 0 };
@@ -658,11 +659,11 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Delete, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal("", state.Text);
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual("", state.Text);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CursorAtStart_MoveLeft_StaysAtStart()
     {
         var state = new TextBoxState { Text = Emoji, CursorPosition = 0 };
@@ -670,10 +671,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CursorAtEnd_MoveRight_StaysAtEnd()
     {
         var state = new TextBoxState { Text = Emoji, CursorPosition = Emoji.Length };
@@ -681,10 +682,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(Emoji.Length, state.CursorPosition);
+        Assert.AreEqual(Emoji.Length, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Home_WithEmojis_MovesToStart()
     {
         var text = Emoji + FamilyEmoji + "Test";
@@ -693,10 +694,10 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, state.CursorPosition);
+        Assert.AreEqual(0, state.CursorPosition);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task End_WithEmojis_MovesToEnd()
     {
         var text = Emoji + FamilyEmoji + "Test";
@@ -705,7 +706,7 @@ public class GraphemeClusterTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(text.Length, state.CursorPosition);
+        Assert.AreEqual(text.Length, state.CursorPosition);
     }
 
     #endregion
@@ -735,8 +736,7 @@ public class GraphemeClusterTests
         {
             if (char.IsHighSurrogate(text[i]))
             {
-                Assert.True(i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]),
-                    $"Isolated high surrogate at position {i}");
+                Assert.IsTrue(i + 1 < text.Length && char.IsLowSurrogate(text[i + 1]), $"Isolated high surrogate at position {i}");
                 i++; // Skip the low surrogate
             }
             else if (char.IsLowSurrogate(text[i]))
@@ -750,90 +750,90 @@ public class GraphemeClusterTests
 
     #region Word Boundary Tests
 
-    [Theory]
-    [InlineData("hello world", 11, 6)]   // End of "world" -> start of "world"
-    [InlineData("hello world", 6, 0)]    // Start of "world" -> start of "hello"
-    [InlineData("hello world", 5, 0)]    // Space after "hello" -> start of "hello"
-    [InlineData("hello world", 3, 0)]    // Middle of "hello" -> start of "hello"
-    [InlineData("hello world", 0, 0)]    // Already at start -> stays at start
+    [TestMethod]
+    [DataRow("hello world", 11, 6)]   // End of "world" -> start of "world"
+    [DataRow("hello world", 6, 0)]    // Start of "world" -> start of "hello"
+    [DataRow("hello world", 5, 0)]    // Space after "hello" -> start of "hello"
+    [DataRow("hello world", 3, 0)]    // Middle of "hello" -> start of "hello"
+    [DataRow("hello world", 0, 0)]    // Already at start -> stays at start
     public void GetPreviousWordBoundary_ReturnsCorrectPosition(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Theory]
-    [InlineData("hello world", 0, 6)]    // Start of "hello" -> start of "world"
-    [InlineData("hello world", 3, 6)]    // Middle of "hello" -> start of "world"
-    [InlineData("hello world", 5, 6)]    // Space after "hello" -> start of "world"
-    [InlineData("hello world", 6, 11)]   // Start of "world" -> end of string
-    [InlineData("hello world", 11, 11)]  // Already at end -> stays at end
+    [TestMethod]
+    [DataRow("hello world", 0, 6)]    // Start of "hello" -> start of "world"
+    [DataRow("hello world", 3, 6)]    // Middle of "hello" -> start of "world"
+    [DataRow("hello world", 5, 6)]    // Space after "hello" -> start of "world"
+    [DataRow("hello world", 6, 11)]   // Start of "world" -> end of string
+    [DataRow("hello world", 11, 11)]  // Already at end -> stays at end
     public void GetNextWordBoundary_ReturnsCorrectPosition(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Theory]
-    [InlineData("hello, world!", 13, 7)]  // End -> start of "world"
-    [InlineData("hello, world!", 7, 0)]   // Start of "world" -> start of "hello"
-    [InlineData("hello, world!", 6, 0)]   // Space before "world" -> start of "hello"
-    [InlineData("hello, world!", 5, 0)]   // Comma after "hello" -> start of "hello"
+    [TestMethod]
+    [DataRow("hello, world!", 13, 7)]  // End -> start of "world"
+    [DataRow("hello, world!", 7, 0)]   // Start of "world" -> start of "hello"
+    [DataRow("hello, world!", 6, 0)]   // Space before "world" -> start of "hello"
+    [DataRow("hello, world!", 5, 0)]   // Comma after "hello" -> start of "hello"
     public void GetPreviousWordBoundary_WithPunctuation_SkipsPunctuation(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Theory]
-    [InlineData("hello, world!", 0, 7)]   // Start -> start of "world" (skips comma and space)
-    [InlineData("hello, world!", 5, 7)]   // End of "hello" -> start of "world"
-    [InlineData("hello, world!", 7, 13)]  // Start of "world" -> end (skips "!")
+    [TestMethod]
+    [DataRow("hello, world!", 0, 7)]   // Start -> start of "world" (skips comma and space)
+    [DataRow("hello, world!", 5, 7)]   // End of "hello" -> start of "world"
+    [DataRow("hello, world!", 7, 13)]  // Start of "world" -> end (skips "!")
     public void GetNextWordBoundary_WithPunctuation_SkipsPunctuation(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetPreviousWordBoundary_EmptyString_ReturnsZero()
     {
-        Assert.Equal(0, GraphemeHelper.GetPreviousWordBoundary("", 0));
-        Assert.Equal(0, GraphemeHelper.GetPreviousWordBoundary("", 5));
+        Assert.AreEqual(0, GraphemeHelper.GetPreviousWordBoundary("", 0));
+        Assert.AreEqual(0, GraphemeHelper.GetPreviousWordBoundary("", 5));
     }
 
-    [Fact]
+    [TestMethod]
     public void GetNextWordBoundary_EmptyString_ReturnsZero()
     {
-        Assert.Equal(0, GraphemeHelper.GetNextWordBoundary("", 0));
-        Assert.Equal(0, GraphemeHelper.GetNextWordBoundary("", 5));
+        Assert.AreEqual(0, GraphemeHelper.GetNextWordBoundary("", 0));
+        Assert.AreEqual(0, GraphemeHelper.GetNextWordBoundary("", 5));
     }
 
-    [Theory]
-    [InlineData("hello   world", 13, 8)]  // End -> start of "world"
-    [InlineData("hello   world", 8, 0)]   // Start of "world" -> start of "hello"
+    [TestMethod]
+    [DataRow("hello   world", 13, 8)]  // End -> start of "world"
+    [DataRow("hello   world", 8, 0)]   // Start of "world" -> start of "hello"
     public void GetPreviousWordBoundary_MultipleSpaces_SkipsAllSpaces(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Theory]
-    [InlineData("hello   world", 0, 8)]   // Start -> start of "world"
-    [InlineData("hello   world", 5, 8)]   // After "hello" -> start of "world"
+    [TestMethod]
+    [DataRow("hello   world", 0, 8)]   // Start -> start of "world"
+    [DataRow("hello   world", 5, 8)]   // After "hello" -> start of "world"
     public void GetNextWordBoundary_MultipleSpaces_SkipsAllSpaces(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetNextWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
-    [Theory]
-    [InlineData("test123", 7, 0)]  // End -> start (alphanumeric is one word)
-    [InlineData("test_var", 8, 0)] // End -> start (underscore is word char)
+    [TestMethod]
+    [DataRow("test123", 7, 0)]  // End -> start (alphanumeric is one word)
+    [DataRow("test_var", 8, 0)] // End -> start (underscore is word char)
     public void GetPreviousWordBoundary_AlphanumericAndUnderscore_TreatedAsWordChars(string text, int cursor, int expected)
     {
         var result = GraphemeHelper.GetPreviousWordBoundary(text, cursor);
-        Assert.Equal(expected, result);
+        Assert.AreEqual(expected, result);
     }
 
     #endregion

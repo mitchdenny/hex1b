@@ -2,179 +2,178 @@ using Hex1b.Documents;
 
 namespace Hex1b.Tests.Documents;
 
+[TestClass]
 public class DocumentPositionTests
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_ValidLineAndColumn_Succeeds()
     {
         var pos = new DocumentPosition(1, 1);
-        Assert.Equal(1, pos.Line);
-        Assert.Equal(1, pos.Column);
+        Assert.AreEqual(1, pos.Line);
+        Assert.AreEqual(1, pos.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_LargeValues_Succeeds()
     {
         var pos = new DocumentPosition(10000, 500);
-        Assert.Equal(10000, pos.Line);
-        Assert.Equal(500, pos.Column);
+        Assert.AreEqual(10000, pos.Line);
+        Assert.AreEqual(500, pos.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_ZeroLine_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new DocumentPosition(0, 1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new DocumentPosition(0, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_NegativeLine_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new DocumentPosition(-1, 1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new DocumentPosition(-1, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_ZeroColumn_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new DocumentPosition(1, 0));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new DocumentPosition(1, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_NegativeColumn_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() => new DocumentPosition(1, -1));
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() => new DocumentPosition(1, -1));
     }
 
     // --- Comparison ---
 
-    [Fact]
+    [TestMethod]
     public void CompareTo_SameLine_ComparesByColumn()
     {
         var a = new DocumentPosition(1, 3);
         var b = new DocumentPosition(1, 5);
-        Assert.True(a.CompareTo(b) < 0);
+        Assert.IsTrue(a.CompareTo(b) < 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompareTo_DifferentLines_ComparesByLine()
     {
         var a = new DocumentPosition(1, 100);
         var b = new DocumentPosition(2, 1);
-        Assert.True(a.CompareTo(b) < 0);
+        Assert.IsTrue(a.CompareTo(b) < 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompareTo_Equal_ReturnsZero()
     {
         var a = new DocumentPosition(3, 7);
-        Assert.Equal(0, a.CompareTo(new DocumentPosition(3, 7)));
+        Assert.AreEqual(0, a.CompareTo(new DocumentPosition(3, 7)));
     }
 
-    [Fact]
+    [TestMethod]
     public void LessThan_DifferentLines_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(1, 5) < new DocumentPosition(2, 1));
+        Assert.IsTrue(new DocumentPosition(1, 5) < new DocumentPosition(2, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void LessThan_SameLineSmallerCol_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(1, 3) < new DocumentPosition(1, 5));
+        Assert.IsTrue(new DocumentPosition(1, 3) < new DocumentPosition(1, 5));
     }
 
-    [Fact]
+    [TestMethod]
     public void LessThan_Equal_ReturnsFalse()
     {
-        Assert.False(new DocumentPosition(1, 1) < new DocumentPosition(1, 1));
+        Assert.IsFalse(new DocumentPosition(1, 1) < new DocumentPosition(1, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void GreaterThan_DifferentLines_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(3, 1) > new DocumentPosition(2, 99));
+        Assert.IsTrue(new DocumentPosition(3, 1) > new DocumentPosition(2, 99));
     }
 
-    [Fact]
+    [TestMethod]
     public void GreaterThan_SameLineLargerCol_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(1, 5) > new DocumentPosition(1, 3));
+        Assert.IsTrue(new DocumentPosition(1, 5) > new DocumentPosition(1, 3));
     }
 
-    [Fact]
+    [TestMethod]
     public void LessThanOrEqual_Equal_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(2, 3) <= new DocumentPosition(2, 3));
+        Assert.IsTrue(new DocumentPosition(2, 3) <= new DocumentPosition(2, 3));
     }
 
-    [Fact]
+    [TestMethod]
     public void GreaterThanOrEqual_Equal_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(2, 3) >= new DocumentPosition(2, 3));
+        Assert.IsTrue(new DocumentPosition(2, 3) >= new DocumentPosition(2, 3));
     }
 
     // --- Equality ---
 
-    [Fact]
+    [TestMethod]
     public void Equals_SameValues_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(2, 3).Equals(new DocumentPosition(2, 3)));
+        Assert.IsTrue(new DocumentPosition(2, 3).Equals(new DocumentPosition(2, 3)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_DifferentLine_ReturnsFalse()
     {
-        Assert.False(new DocumentPosition(1, 3).Equals(new DocumentPosition(2, 3)));
+        Assert.IsFalse(new DocumentPosition(1, 3).Equals(new DocumentPosition(2, 3)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_DifferentColumn_ReturnsFalse()
     {
-        Assert.False(new DocumentPosition(2, 3).Equals(new DocumentPosition(2, 4)));
+        Assert.IsFalse(new DocumentPosition(2, 3).Equals(new DocumentPosition(2, 4)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_BoxedSameValue_ReturnsTrue()
     {
         object boxed = new DocumentPosition(2, 3);
-        Assert.True(new DocumentPosition(2, 3).Equals(boxed));
+        Assert.IsTrue(new DocumentPosition(2, 3).Equals(boxed));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_BoxedDifferentType_ReturnsFalse()
     {
-        Assert.False(new DocumentPosition(2, 3).Equals(42));
+        Assert.IsFalse(new DocumentPosition(2, 3).Equals(42));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_Null_ReturnsFalse()
     {
-        Assert.False(new DocumentPosition(2, 3).Equals(null));
+        Assert.IsFalse(new DocumentPosition(2, 3).Equals(null));
     }
 
-    [Fact]
+    [TestMethod]
     public void OperatorEquals_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(2, 3) == new DocumentPosition(2, 3));
+        Assert.IsTrue(new DocumentPosition(2, 3) == new DocumentPosition(2, 3));
     }
 
-    [Fact]
+    [TestMethod]
     public void OperatorNotEquals_ReturnsTrue()
     {
-        Assert.True(new DocumentPosition(2, 3) != new DocumentPosition(2, 4));
+        Assert.IsTrue(new DocumentPosition(2, 3) != new DocumentPosition(2, 4));
     }
 
     // --- GetHashCode / ToString ---
 
-    [Fact]
+    [TestMethod]
     public void GetHashCode_SameValues_SameHash()
     {
-        Assert.Equal(
-            new DocumentPosition(2, 3).GetHashCode(),
-            new DocumentPosition(2, 3).GetHashCode());
+        Assert.AreEqual(new DocumentPosition(2, 3).GetHashCode(), new DocumentPosition(2, 3).GetHashCode());
     }
 
-    [Fact]
+    [TestMethod]
     public void ToString_FormatsCorrectly()
     {
-        Assert.Equal("(2,3)", new DocumentPosition(2, 3).ToString());
+        Assert.AreEqual("(2,3)", new DocumentPosition(2, 3).ToString());
     }
 }

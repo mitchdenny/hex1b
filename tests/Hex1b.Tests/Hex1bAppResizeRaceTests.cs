@@ -5,9 +5,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class Hex1bAppResizeRaceTests
 {
-    [Fact]
+    [TestMethod]
     public async Task RenderFrame_WhenTerminalSizeChangesMidFrame_UsesCapturedFrameSize()
     {
         await using var workload = new RacingDimensionsWorkloadAdapter(

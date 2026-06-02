@@ -10,11 +10,12 @@ namespace Hex1b.Tests;
 /// Tests for the InputOverrideWidget, which provides centralized
 /// keybinding overrides for all descendant widgets of a specified type.
 /// </summary>
+[TestClass]
 public class InputOverrideTests
 {
     #region Unit Tests — Override application via reconciliation
 
-    [Fact]
+    [TestMethod]
     public async Task Override_AppliesTo_MatchingWidgetType()
     {
         // An InputOverride with Override<ListWidget> should affect ListWidget descendants.
@@ -31,22 +32,22 @@ public class InputOverrideTests
         var context = ReconcileContext.CreateRoot();
         var overrideNode = await overrideWidget.ReconcileAsync(null, context) as InputOverrideNode;
 
-        Assert.NotNull(overrideNode);
-        Assert.NotNull(overrideNode!.Child);
+        Assert.IsNotNull(overrideNode);
+        Assert.IsNotNull(overrideNode!.Child);
 
         // The override configurator should have been wired into the child's BindingsConfigurator
         // by ReconcileChildAsync. Invoke BuildBindings to trigger it.
         var childNode = overrideNode.Child!;
         var bindings = childNode.BuildBindings();
 
-        Assert.True(overrideCalled, "Override configurator should run during BuildBindings");
+        Assert.IsTrue(overrideCalled, "Override configurator should run during BuildBindings");
 
         // Verify MoveUp was removed by the override
         var actionIds = bindings.GetAllActionIds();
         Assert.DoesNotContain(ListWidget.MoveUp, actionIds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_DoesNotApplyTo_NonMatchingWidgetType()
     {
         // An Override<ListWidget> should NOT affect a ButtonWidget.
@@ -68,7 +69,7 @@ public class InputOverrideTests
         Assert.Contains(ButtonWidget.Activate, actionIds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_CascadesToDeepDescendants()
     {
         // An InputOverride wrapping a VStack containing a ListWidget should
@@ -89,13 +90,13 @@ public class InputOverrideTests
 
         // Walk down to find the ListNode
         var vstackNode = (overrideNode as InputOverrideNode)?.Child as VStackNode;
-        Assert.NotNull(vstackNode);
+        Assert.IsNotNull(vstackNode);
 
         var listNode = vstackNode!.Children.OfType<ListNode>().FirstOrDefault();
-        Assert.NotNull(listNode);
+        Assert.IsNotNull(listNode);
 
         var bindings = listNode!.BuildBindings();
-        Assert.True(overrideCalled, "Override should cascade to nested ListWidget");
+        Assert.IsTrue(overrideCalled, "Override should cascade to nested ListWidget");
 
         // MoveDown should have been removed
         var actionIds = bindings.GetAllActionIds();
@@ -104,7 +105,7 @@ public class InputOverrideTests
         Assert.Contains(ListWidget.MoveUp, actionIds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_MultipleTypes_AppliesCorrectly()
     {
         // Override<ListWidget> and Override<ButtonWidget> should each apply to the correct type.
@@ -138,11 +139,11 @@ public class InputOverrideTests
         listNode.BuildBindings();
         buttonNode.BuildBindings();
 
-        Assert.True(listOverrideCalled);
-        Assert.True(buttonOverrideCalled);
+        Assert.IsTrue(listOverrideCalled);
+        Assert.IsTrue(buttonOverrideCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_ChainedFluentCalls_AccumulateOverrides()
     {
         // Multiple Override<T> calls on the same InputOverrideWidget should all be present.
@@ -154,12 +155,12 @@ public class InputOverrideTests
         .Override<CheckboxWidget>(b => b.Remove(CheckboxWidget.ToggleActionId));
 
         // Both overrides should be in the dictionary
-        Assert.Equal(2, overrideWidget.Overrides.Count);
-        Assert.True(overrideWidget.Overrides.ContainsKey(typeof(ListWidget)));
-        Assert.True(overrideWidget.Overrides.ContainsKey(typeof(CheckboxWidget)));
+        Assert.AreEqual(2, overrideWidget.Overrides.Count);
+        Assert.IsTrue(overrideWidget.Overrides.ContainsKey(typeof(ListWidget)));
+        Assert.IsTrue(overrideWidget.Overrides.ContainsKey(typeof(CheckboxWidget)));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_SameType_LastWins()
     {
         // Calling Override<ListWidget> twice — second call should replace the first.
@@ -175,11 +176,11 @@ public class InputOverrideTests
         var listNode = (overrideNode as InputOverrideNode)?.Child as ListNode;
         listNode!.BuildBindings();
 
-        Assert.False(firstCalled, "First override should be replaced by second");
-        Assert.True(secondCalled, "Second override should be the one that runs");
+        Assert.IsFalse(firstCalled, "First override should be replaced by second");
+        Assert.IsTrue(secondCalled, "Second override should be the one that runs");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_RunsAfterWidgetInputBindings()
     {
         // Per-instance InputBindings should run BEFORE the override.
@@ -196,12 +197,12 @@ public class InputOverrideTests
         var listNode = (overrideNode as InputOverrideNode)?.Child as ListNode;
         listNode!.BuildBindings();
 
-        Assert.Equal(2, callOrder.Count);
-        Assert.Equal("per-instance", callOrder[0]);
-        Assert.Equal("override", callOrder[1]);
+        Assert.AreEqual(2, callOrder.Count);
+        Assert.AreEqual("per-instance", callOrder[0]);
+        Assert.AreEqual("override", callOrder[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Override_RebindingPattern_Works()
     {
         // The classic remap pattern: remove default, rebind to new key.
@@ -224,22 +225,22 @@ public class InputOverrideTests
 
         // There should be a binding for K with MoveUp action
         var moveUpBindings = bindings.GetBindings(ListWidget.MoveUp);
-        Assert.Single(moveUpBindings);
-        Assert.Equal(Hex1bKey.K, moveUpBindings[0].Steps[0].Key);
+        TestSeq.Single(moveUpBindings);
+        Assert.AreEqual(Hex1bKey.K, moveUpBindings[0].Steps[0].Key);
     }
 
     #endregion
 
     #region Unit Tests — Node pass-through behavior
 
-    [Fact]
+    [TestMethod]
     public void InputOverrideNode_IsFocusable_ReturnsFalse()
     {
         var node = new InputOverrideNode();
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputOverrideNode_Measure_DelegatesToChild()
     {
         var node = new InputOverrideNode();
@@ -247,23 +248,23 @@ public class InputOverrideTests
         node.Child = child;
 
         var size = node.Measure(new Constraints(0, 100, 0, 10));
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void InputOverrideNode_Measure_NoChild_ReturnsZero()
     {
         var node = new InputOverrideNode();
         var size = node.Measure(new Constraints(0, 100, 0, 10));
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
     #endregion
 
     #region Integration Tests — Full app pipeline
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Override_RebindsKeyForFocusedWidget()
     {
         // Full integration test: InputOverride rebinds ListWidget.MoveDown from DownArrow to J.
@@ -308,7 +309,7 @@ public class InputOverrideTests
 
     #region Nested InputOverride Tests
 
-    [Fact]
+    [TestMethod]
     public async Task NestedOverride_InnerWins_ForSameWidgetType()
     {
         // Nested InputOverrideWidgets — inner override should take precedence.
@@ -329,16 +330,16 @@ public class InputOverrideTests
         // Navigate to the list node
         var innerOverrideNode = (outerNode as InputOverrideNode)?.Child as InputOverrideNode;
         var listNode = innerOverrideNode?.Child as ListNode;
-        Assert.NotNull(listNode);
+        Assert.IsNotNull(listNode);
 
         listNode!.BuildBindings();
 
         // Inner override should win for the same type
-        Assert.True(innerCalled, "Inner override should run");
-        Assert.False(outerCalled, "Outer override should be replaced by inner for same type");
+        Assert.IsTrue(innerCalled, "Inner override should run");
+        Assert.IsFalse(outerCalled, "Outer override should be replaced by inner for same type");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NestedOverride_DifferentTypes_BothApply()
     {
         // Outer overrides ListWidget, inner overrides ButtonWidget — both should apply.
@@ -368,23 +369,23 @@ public class InputOverrideTests
         listNode.BuildBindings();
         buttonNode.BuildBindings();
 
-        Assert.True(listOverrideCalled, "Outer ListWidget override should cascade through inner");
-        Assert.True(buttonOverrideCalled, "Inner ButtonWidget override should apply");
+        Assert.IsTrue(listOverrideCalled, "Outer ListWidget override should cascade through inner");
+        Assert.IsTrue(buttonOverrideCalled, "Inner ButtonWidget override should apply");
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void ExtensionMethod_CreatesInputOverrideWidget()
     {
         // Verify the extension method creates an InputOverrideWidget with the correct content.
         var content = new ButtonWidget("OK");
         var widget = new InputOverrideWidget(content);
 
-        Assert.Equal(content, widget.Content);
-        Assert.Empty(widget.Overrides);
+        Assert.AreEqual(content, widget.Content);
+        Assert.IsEmpty(widget.Overrides);
     }
 
     #endregion

@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// These tests verify that SpecialKeyToken(200/201) markers are correctly detected
 /// and paste data is streamed through a PasteContext.
 /// </summary>
+[TestClass]
 public class PasteStreamingTests
 {
     /// <summary>
@@ -40,7 +41,7 @@ public class PasteStreamingTests
         return events;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SmallPaste_EmitsPasteEvent()
     {
         var tokens = new AnsiToken[]
@@ -52,13 +53,13 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var pasteEvent = Assert.Single(events);
-        var paste = Assert.IsType<Hex1bPasteEvent>(pasteEvent);
+        var pasteEvent = TestSeq.Single(events);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(pasteEvent);
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("hello", text);
+        Assert.AreEqual("hello", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EmptyPaste_EmitsPasteEventWithEmptyText()
     {
         var tokens = new AnsiToken[]
@@ -69,13 +70,13 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var pasteEvent = Assert.Single(events);
-        var paste = Assert.IsType<Hex1bPasteEvent>(pasteEvent);
+        var pasteEvent = TestSeq.Single(events);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(pasteEvent);
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("", text);
+        Assert.AreEqual("", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleCharPaste_EmitsPasteEvent()
     {
         var tokens = new AnsiToken[]
@@ -87,12 +88,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("x", text);
+        Assert.AreEqual("x", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultiLinePaste_PreservesNewlines()
     {
         var tokens = new AnsiToken[]
@@ -109,12 +110,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("line1\nline2\r\nline3", text);
+        Assert.AreEqual("line1\nline2\r\nline3", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PasteWithTabs_PreservesTabs()
     {
         var tokens = new AnsiToken[]
@@ -128,12 +129,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("col1\tcol2", text);
+        Assert.AreEqual("col1\tcol2", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonPasteInputDuringPaste_DispatchedNormally()
     {
         // Mouse event during paste should still be dispatched as normal
@@ -148,17 +149,17 @@ public class PasteStreamingTests
         var events = await DispatchTokensAsync(tokens);
 
         // Should have both the paste event and the mouse event
-        Assert.Equal(2, events.Count);
-        Assert.IsType<Hex1bPasteEvent>(events[0]);
-        Assert.IsType<Hex1bMouseEvent>(events[1]);
+        Assert.AreEqual(2, events.Count);
+        TestSeq.IsType<Hex1bPasteEvent>(events[0]);
+        TestSeq.IsType<Hex1bMouseEvent>(events[1]);
 
         // Paste should have the text data only
         var paste = (Hex1bPasteEvent)events[0];
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("paste data", text);
+        Assert.AreEqual("paste data", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NormalInput_NotAffectedByPasteSupport()
     {
         // Regular text input (not bracketed) should still work as before
@@ -170,11 +171,11 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        Assert.Equal(2, events.Count);
-        Assert.All(events, e => Assert.IsType<Hex1bKeyEvent>(e));
+        Assert.AreEqual(2, events.Count);
+        TestSeq.All(events, e => TestSeq.IsType<Hex1bKeyEvent>(e));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultipleChunks_StreamedCorrectly()
     {
         var tokens = new AnsiToken[]
@@ -188,12 +189,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("chunk1chunk2chunk3", text);
+        Assert.AreEqual("chunk1chunk2chunk3", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PasteFollowedByNormalInput()
     {
         var tokens = new AnsiToken[]
@@ -206,16 +207,16 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        Assert.Equal(2, events.Count);
-        var paste = Assert.IsType<Hex1bPasteEvent>(events[0]);
+        Assert.AreEqual(2, events.Count);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(events[0]);
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("pasted", text);
+        Assert.AreEqual("pasted", text);
 
-        var keyEvent = Assert.IsType<Hex1bKeyEvent>(events[1]);
-        Assert.Equal("typed", keyEvent.Text);
+        var keyEvent = TestSeq.IsType<Hex1bKeyEvent>(events[1]);
+        Assert.AreEqual("typed", keyEvent.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NormalInputFollowedByPaste()
     {
         var tokens = new AnsiToken[]
@@ -228,12 +229,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        Assert.Equal(2, events.Count);
-        Assert.IsType<Hex1bKeyEvent>(events[0]);
-        Assert.IsType<Hex1bPasteEvent>(events[1]);
+        Assert.AreEqual(2, events.Count);
+        TestSeq.IsType<Hex1bKeyEvent>(events[0]);
+        TestSeq.IsType<Hex1bPasteEvent>(events[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TwoConsecutivePastes_TwoSeparateEvents()
     {
         var tokens = new AnsiToken[]
@@ -248,15 +249,15 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        Assert.Equal(2, events.Count);
-        var paste1 = Assert.IsType<Hex1bPasteEvent>(events[0]);
-        var paste2 = Assert.IsType<Hex1bPasteEvent>(events[1]);
+        Assert.AreEqual(2, events.Count);
+        var paste1 = TestSeq.IsType<Hex1bPasteEvent>(events[0]);
+        var paste2 = TestSeq.IsType<Hex1bPasteEvent>(events[1]);
 
-        Assert.Equal("first", await paste1.Paste.ReadToEndAsync());
-        Assert.Equal("second", await paste2.Paste.ReadToEndAsync());
+        Assert.AreEqual("first", await paste1.Paste.ReadToEndAsync());
+        Assert.AreEqual("second", await paste2.Paste.ReadToEndAsync());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LargePaste_StreamsCorrectly()
     {
         // 1MB paste — should stream without issues
@@ -270,12 +271,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync(maxCharacters: 2 * 1024 * 1024);
-        Assert.Equal(1024 * 1024, text.Length);
+        Assert.AreEqual(1024 * 1024, text.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PasteContext_IsCompleted_AfterEndMarker()
     {
         var tokens = new AnsiToken[]
@@ -287,12 +288,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
-        Assert.True(paste.Paste.IsCompleted);
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
+        Assert.IsTrue(paste.Paste.IsCompleted);
         await paste.Paste.Completed; // Should not hang
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterTuiMode_EnablesBracketedPaste_WhenSupported()
     {
         var caps = new TerminalCapabilities
@@ -305,14 +306,14 @@ public class PasteStreamingTests
         workload.EnterTuiMode();
 
         // Read the output to verify the bracketed paste enable sequence was written
-        Assert.True(workload.Capabilities.SupportsBracketedPaste);
+        Assert.IsTrue(workload.Capabilities.SupportsBracketedPaste);
 
         // Drain the output channel and check for the mode 2004 sequence
         var output = DrainOutputText(workload);
         Assert.Contains("\x1b[?2004h", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void ExitTuiMode_DisablesBracketedPaste_WhenSupported()
     {
         var caps = new TerminalCapabilities
@@ -330,7 +331,7 @@ public class PasteStreamingTests
         Assert.Contains("\x1b[?2004l", output);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnterTuiMode_NoBracketedPaste_WhenNotSupported()
     {
         var caps = new TerminalCapabilities
@@ -356,7 +357,7 @@ public class PasteStreamingTests
         return sb.ToString();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UnicodeInPaste_PreservedCorrectly()
     {
         var tokens = new AnsiToken[]
@@ -368,12 +369,12 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var text = await paste.Paste.ReadToEndAsync();
-        Assert.Equal("こんにちは 🌍 café", text);
+        Assert.AreEqual("こんにちは 🌍 café", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PasteReadLines_AcrossTokenBoundaries()
     {
         // Line break split across two TextTokens
@@ -387,15 +388,15 @@ public class PasteStreamingTests
 
         var events = await DispatchTokensAsync(tokens);
 
-        var paste = Assert.IsType<Hex1bPasteEvent>(Assert.Single(events));
+        var paste = TestSeq.IsType<Hex1bPasteEvent>(TestSeq.Single(events));
         var lines = new List<string>();
         await foreach (var line in paste.Paste.ReadLinesAsync())
         {
             lines.Add(line);
         }
 
-        Assert.Equal(2, lines.Count);
-        Assert.Equal("hello world", lines[0]);
-        Assert.Equal("bye", lines[1]);
+        Assert.AreEqual(2, lines.Count);
+        Assert.AreEqual("hello world", lines[0]);
+        Assert.AreEqual("bye", lines[1]);
     }
 }

@@ -1,6 +1,5 @@
 using System;
 using Hex1b;
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -8,7 +7,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Ghostty conformance tests — Phase 2 Tier 2 Batch 2:
 /// Scroll up/down, index/reverseIndex with margins, setLeftAndRightMargin, insertLines with L/R margins.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyScrollMarginConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols, int rows) => GhosttyTestFixture.CreateTerminal(cols, rows);
@@ -18,7 +18,7 @@ public class GhosttyScrollMarginConformanceTests
     #region scrollUp (CSI n S)
 
     // Ghostty: test "Terminal: scrollUp simple"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_Simple()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -26,17 +26,17 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2) → row 1, col 1
         Feed(terminal, "\x1b[1S"); // SU(1)
 
-        Assert.Equal("DEF", GetLine(terminal, 0));
-        Assert.Equal("GHI", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
+        Assert.AreEqual("DEF", GetLine(terminal, 0));
+        Assert.AreEqual("GHI", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
 
         // Cursor position should be preserved
-        Assert.Equal(1, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(1, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
     }
 
     // Ghostty: test "Terminal: scrollUp top/bottom scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_TopBottomScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -45,13 +45,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1) → top
         Feed(terminal, "\x1b[1S"); // SU(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("GHI", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("GHI", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: scrollUp left/right scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_LeftRightScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -61,13 +61,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1S"); // SU(1)
 
-        Assert.Equal("AEF423", GetLine(terminal, 0));
-        Assert.Equal("DHI756", GetLine(terminal, 1));
-        Assert.Equal("G   89", GetLine(terminal, 2));
+        Assert.AreEqual("AEF423", GetLine(terminal, 0));
+        Assert.AreEqual("DHI756", GetLine(terminal, 1));
+        Assert.AreEqual("G   89", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: scrollUp preserves pending wrap"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_PreservesPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -80,14 +80,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1S"); // SU(1)
         Feed(terminal, "X"); // Should wrap to next line since pending wrap preserved
 
-        Assert.Equal("    B", GetLine(terminal, 0));
-        Assert.Equal("    C", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("X", GetLine(terminal, 3));
+        Assert.AreEqual("    B", GetLine(terminal, 0));
+        Assert.AreEqual("    C", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("X", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: scrollUp full top/bottom region"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_FullTopBottomRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -97,13 +97,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;5r"); // DECSTBM(2,5)
         Feed(terminal, "\x1b[4S"); // SU(4) — scroll up 4 times within region
 
-        Assert.Equal("top", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
+        Assert.AreEqual("top", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: scrollUp full top/bottomleft/right scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollUp_FullTopBottomLeftRightRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -115,11 +115,11 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;4s"); // DECSLRM(2,4)
         Feed(terminal, "\x1b[4S"); // SU(4)
 
-        Assert.Equal("top", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("", GetLine(terminal, 3));
-        Assert.Equal("A   E", GetLine(terminal, 4));
+        Assert.AreEqual("top", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 3));
+        Assert.AreEqual("A   E", GetLine(terminal, 4));
     }
 
     #endregion
@@ -127,7 +127,7 @@ public class GhosttyScrollMarginConformanceTests
     #region scrollDown (CSI n T)
 
     // Ghostty: test "Terminal: scrollDown simple"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_Simple()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -135,18 +135,18 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1T"); // SD(1)
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("ABC", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("ABC", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
 
         // Cursor preserved
-        Assert.Equal(1, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(1, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
     }
 
     // Ghostty: test "Terminal: scrollDown outside of scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_OutsideScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -155,14 +155,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2) → inside margin
         Feed(terminal, "\x1b[1T"); // SD(1)
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("DEF", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("DEF", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: scrollDown left/right scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_LeftRightScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -172,14 +172,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1T"); // SD(1)
 
-        Assert.Equal("A   23", GetLine(terminal, 0));
-        Assert.Equal("DBC156", GetLine(terminal, 1));
-        Assert.Equal("GEF489", GetLine(terminal, 2));
-        Assert.Equal(" HI7", GetLine(terminal, 3));
+        Assert.AreEqual("A   23", GetLine(terminal, 0));
+        Assert.AreEqual("DBC156", GetLine(terminal, 1));
+        Assert.AreEqual("GEF489", GetLine(terminal, 2));
+        Assert.AreEqual(" HI7", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: scrollDown outside of left/right scroll region"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_OutsideLeftRightScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -190,14 +190,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1T"); // SD(1)
 
         // Ghostty: same as inside since scrollDown affects the region regardless of cursor column
-        Assert.Equal("A   23", GetLine(terminal, 0));
-        Assert.Equal("DBC156", GetLine(terminal, 1));
-        Assert.Equal("GEF489", GetLine(terminal, 2));
-        Assert.Equal(" HI7", GetLine(terminal, 3));
+        Assert.AreEqual("A   23", GetLine(terminal, 0));
+        Assert.AreEqual("DBC156", GetLine(terminal, 1));
+        Assert.AreEqual("GEF489", GetLine(terminal, 2));
+        Assert.AreEqual(" HI7", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: scrollDown preserves pending wrap"
-    [Fact]
+    [TestMethod]
     public void ScrollDown_PreservesPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 10);
@@ -210,10 +210,10 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1T"); // SD(1)
         Feed(terminal, "X"); // Should wrap due to preserved pending wrap
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("    A", GetLine(terminal, 1));
-        Assert.Equal("    B", GetLine(terminal, 2));
-        Assert.Equal("X   C", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("    A", GetLine(terminal, 1));
+        Assert.AreEqual("    B", GetLine(terminal, 2));
+        Assert.AreEqual("X   C", GetLine(terminal, 3));
     }
 
     #endregion
@@ -221,7 +221,7 @@ public class GhosttyScrollMarginConformanceTests
     #region setLeftAndRightMargin (DECSLRM)
 
     // Ghostty: test "Terminal: setLeftAndRightMargin simple"
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_Simple()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -231,12 +231,12 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1)
         Feed(terminal, "\x1b[1X"); // ECH(1)
 
-        Assert.Equal(" BC", GetLine(terminal, 0));
-        Assert.Equal("DEF", GetLine(terminal, 1));
+        Assert.AreEqual(" BC", GetLine(terminal, 0));
+        Assert.AreEqual("DEF", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: setLeftAndRightMargin left only"
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftOnly()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -246,14 +246,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2) → col 1
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("DBC", GetLine(terminal, 1));
-        Assert.Equal("GEF", GetLine(terminal, 2));
-        Assert.Equal(" HI", GetLine(terminal, 3));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("DBC", GetLine(terminal, 1));
+        Assert.AreEqual("GEF", GetLine(terminal, 2));
+        Assert.AreEqual(" HI", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setLeftAndRightMargin left and right"
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftAndRight()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -263,14 +263,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2) → col 1
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("  C", GetLine(terminal, 0));
-        Assert.Equal("ABF", GetLine(terminal, 1));
-        Assert.Equal("DEI", GetLine(terminal, 2));
-        Assert.Equal("GH", GetLine(terminal, 3));
+        Assert.AreEqual("  C", GetLine(terminal, 0));
+        Assert.AreEqual("ABF", GetLine(terminal, 1));
+        Assert.AreEqual("DEI", GetLine(terminal, 2));
+        Assert.AreEqual("GH", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setLeftAndRightMargin left equal right"
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_LeftEqualRight()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -280,14 +280,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2)
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("ABC", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("ABC", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: setLeftAndRightMargin mode 69 unset"
-    [Fact]
+    [TestMethod]
     public void SetLeftAndRightMargin_Mode69Unset()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -297,10 +297,10 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2) → col 1
         Feed(terminal, "\x1b[1L"); // IL(1) — should use full width
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("ABC", GetLine(terminal, 1));
-        Assert.Equal("DEF", GetLine(terminal, 2));
-        Assert.Equal("GHI", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("ABC", GetLine(terminal, 1));
+        Assert.AreEqual("DEF", GetLine(terminal, 2));
+        Assert.AreEqual("GHI", GetLine(terminal, 3));
     }
 
     #endregion
@@ -308,7 +308,7 @@ public class GhosttyScrollMarginConformanceTests
     #region insertLines with L/R scroll region
 
     // Ghostty: test "Terminal: insertLines left/right scroll region"
-    [Fact]
+    [TestMethod]
     public void InsertLines_LeftRightScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 10);
@@ -318,10 +318,10 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;2H"); // CUP(2,2)
         Feed(terminal, "\x1b[1L"); // IL(1)
 
-        Assert.Equal("ABC123", GetLine(terminal, 0));
-        Assert.Equal("D   56", GetLine(terminal, 1));
-        Assert.Equal("GEF489", GetLine(terminal, 2));
-        Assert.Equal(" HI7", GetLine(terminal, 3));
+        Assert.AreEqual("ABC123", GetLine(terminal, 0));
+        Assert.AreEqual("D   56", GetLine(terminal, 1));
+        Assert.AreEqual("GEF489", GetLine(terminal, 2));
+        Assert.AreEqual(" HI7", GetLine(terminal, 3));
     }
 
     #endregion
@@ -329,7 +329,7 @@ public class GhosttyScrollMarginConformanceTests
     #region index (ESC D / IND)
 
     // Ghostty: test "Terminal: index no scroll region, top of screen"
-    [Fact]
+    [TestMethod]
     public void Index_NoScrollRegion_TopOfScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -337,12 +337,12 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\u001bD"); // IND
         Feed(terminal, "X");
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal(" X", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual(" X", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: index bottom of primary screen"
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfPrimaryScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -351,15 +351,15 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\u001bD"); // IND — scrolls
         Feed(terminal, "X");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("A", GetLine(terminal, 3));
-        Assert.Equal(" X", GetLine(terminal, 4));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("A", GetLine(terminal, 3));
+        Assert.AreEqual(" X", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: index inside scroll region"
-    [Fact]
+    [TestMethod]
     public void Index_InsideScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -368,24 +368,24 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\u001bD"); // IND
         Feed(terminal, "X");
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal(" X", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual(" X", GetLine(terminal, 1));
     }
 
     // Ghostty: test "Terminal: index outside of scrolling region"
-    [Fact]
+    [TestMethod]
     public void Index_OutsideOfScrollingRegion()
     {
         using var terminal = CreateTerminal(cols: 2, rows: 5);
         Feed(terminal, "\x1b[2;5r"); // DECSTBM(2,5) — cursor at row 0 is outside
         Feed(terminal, "\u001bD"); // IND — should just move down (outside region)
 
-        Assert.Equal(0, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
     }
 
     // Ghostty: test "Terminal: index from the bottom outside of scroll region"
-    [Fact]
+    [TestMethod]
     public void Index_FromBottomOutsideScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 2, rows: 5);
@@ -395,15 +395,15 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\u001bD"); // IND — at bottom, outside scroll region, no scroll
         Feed(terminal, "B");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("", GetLine(terminal, 3));
-        Assert.Equal("AB", GetLine(terminal, 4));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 3));
+        Assert.AreEqual("AB", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: index bottom of primary screen with scroll region"
-    [Fact]
+    [TestMethod]
     public void Index_BottomWithScrollRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -414,14 +414,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[3;1H"); // CUP(3,1)
         Feed(terminal, "\u001bD"); // IND — at bottom of scroll region, scrolls within region
 
-        Assert.Equal("2", GetLine(terminal, 0));
-        Assert.Equal("3", GetLine(terminal, 1));
-        Assert.Equal("", GetLine(terminal, 2));
-        Assert.Equal("X", GetLine(terminal, 3));
+        Assert.AreEqual("2", GetLine(terminal, 0));
+        Assert.AreEqual("3", GetLine(terminal, 1));
+        Assert.AreEqual("", GetLine(terminal, 2));
+        Assert.AreEqual("X", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: index outside left/right margin"
-    [Fact]
+    [TestMethod]
     public void Index_OutsideLeftRightMargin()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -435,13 +435,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "X");
 
         // Cursor stays at row 2 (no scroll since outside L/R), X printed at row 2 col 0
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("X A", GetLine(terminal, 2));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("X A", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: index inside left/right margin"
-    [Fact]
+    [TestMethod]
     public void Index_InsideLeftRightMargin()
     {
         using var terminal = CreateTerminal(cols: 10, rows: 5);
@@ -452,12 +452,12 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[3;1H"); // CUP(3,1) → bottom of scroll region, inside margin
         Feed(terminal, "\u001bD"); // IND — scrolls within L/R margin region
 
-        Assert.Equal(2, terminal.CursorY);
-        Assert.Equal(0, terminal.CursorX);
+        Assert.AreEqual(2, terminal.CursorY);
+        Assert.AreEqual(0, terminal.CursorX);
 
-        Assert.Equal("AAAAAA", GetLine(terminal, 0));
-        Assert.Equal("AAAAAA", GetLine(terminal, 1));
-        Assert.Equal("   AAA", GetLine(terminal, 2));
+        Assert.AreEqual("AAAAAA", GetLine(terminal, 0));
+        Assert.AreEqual("AAAAAA", GetLine(terminal, 1));
+        Assert.AreEqual("   AAA", GetLine(terminal, 2));
     }
 
     #endregion
@@ -465,7 +465,7 @@ public class GhosttyScrollMarginConformanceTests
     #region reverseIndex (ESC M / RI)
 
     // Ghostty: test "Terminal: reverseIndex top of scrolling region"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_TopOfScrollingRegion()
     {
         using var terminal = CreateTerminal(cols: 2, rows: 10);
@@ -476,15 +476,15 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1bM"); // RI — reverse index at top of scroll region → scroll down
         Feed(terminal, "X");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("X", GetLine(terminal, 1));
-        Assert.Equal("A", GetLine(terminal, 2));
-        Assert.Equal("B", GetLine(terminal, 3));
-        Assert.Equal("C", GetLine(terminal, 4));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("X", GetLine(terminal, 1));
+        Assert.AreEqual("A", GetLine(terminal, 2));
+        Assert.AreEqual("B", GetLine(terminal, 3));
+        Assert.AreEqual("C", GetLine(terminal, 4));
     }
 
     // Ghostty: test "Terminal: reverseIndex top of screen"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_TopOfScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -497,14 +497,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1bM"); // RI — at row 0, scrolls down
         Feed(terminal, "X");
 
-        Assert.Equal("X", GetLine(terminal, 0));
-        Assert.Equal("A", GetLine(terminal, 1));
-        Assert.Equal("B", GetLine(terminal, 2));
-        Assert.Equal("C", GetLine(terminal, 3));
+        Assert.AreEqual("X", GetLine(terminal, 0));
+        Assert.AreEqual("A", GetLine(terminal, 1));
+        Assert.AreEqual("B", GetLine(terminal, 2));
+        Assert.AreEqual("C", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: reverseIndex not top of screen"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_NotTopOfScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -517,13 +517,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1bM"); // RI — not at top, just moves up
         Feed(terminal, "X");
 
-        Assert.Equal("X", GetLine(terminal, 0));
-        Assert.Equal("B", GetLine(terminal, 1));
-        Assert.Equal("C", GetLine(terminal, 2));
+        Assert.AreEqual("X", GetLine(terminal, 0));
+        Assert.AreEqual("B", GetLine(terminal, 1));
+        Assert.AreEqual("C", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: reverseIndex top/bottom margins"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_TopBottomMargins()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -536,13 +536,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[2;1H"); // CUP(2,1) → top of margin
         Feed(terminal, "\x1bM"); // RI — at top of margin, scrolls within margin
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("", GetLine(terminal, 1));
-        Assert.Equal("B", GetLine(terminal, 2));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("", GetLine(terminal, 1));
+        Assert.AreEqual("B", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: reverseIndex outside top/bottom margins"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_OutsideTopBottomMargins()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -555,13 +555,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1) → above margin
         Feed(terminal, "\x1bM"); // RI — outside margin, no scroll, just clamp
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("B", GetLine(terminal, 1));
-        Assert.Equal("C", GetLine(terminal, 2));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("B", GetLine(terminal, 1));
+        Assert.AreEqual("C", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: reverseIndex left/right margins"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_LeftRightMargins()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -575,14 +575,14 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;2H"); // CUP(1,2) → inside margin, at top
         Feed(terminal, "\x1bM"); // RI — at top with L/R margins
 
-        Assert.Equal("A", GetLine(terminal, 0));
-        Assert.Equal("DBC", GetLine(terminal, 1));
-        Assert.Equal("GEF", GetLine(terminal, 2));
-        Assert.Equal(" HI", GetLine(terminal, 3));
+        Assert.AreEqual("A", GetLine(terminal, 0));
+        Assert.AreEqual("DBC", GetLine(terminal, 1));
+        Assert.AreEqual("GEF", GetLine(terminal, 2));
+        Assert.AreEqual(" HI", GetLine(terminal, 3));
     }
 
     // Ghostty: test "Terminal: reverseIndex outside left/right margins"
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_OutsideLeftRightMargins()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -596,13 +596,13 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\x1b[1;1H"); // CUP(1,1) → outside left margin
         Feed(terminal, "\x1bM"); // RI — outside L/R margin, no scroll
 
-        Assert.Equal("ABC", GetLine(terminal, 0));
-        Assert.Equal("DEF", GetLine(terminal, 1));
-        Assert.Equal("GHI", GetLine(terminal, 2));
+        Assert.AreEqual("ABC", GetLine(terminal, 0));
+        Assert.AreEqual("DEF", GetLine(terminal, 1));
+        Assert.AreEqual("GHI", GetLine(terminal, 2));
     }
 
     // Ghostty: test "Terminal: index bottom of scroll region no scrollback"
-    [Fact]
+    [TestMethod]
     public void Index_BottomOfScrollRegion_NoScrollback()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -614,10 +614,10 @@ public class GhosttyScrollMarginConformanceTests
         Feed(terminal, "\u001bD"); // IND — at bottom of scroll region
         Feed(terminal, "X");
 
-        Assert.Equal("", GetLine(terminal, 0));
-        Assert.Equal("A", GetLine(terminal, 1));
-        Assert.Equal(" X", GetLine(terminal, 2));
-        Assert.Equal("B", GetLine(terminal, 3));
+        Assert.AreEqual("", GetLine(terminal, 0));
+        Assert.AreEqual("A", GetLine(terminal, 1));
+        Assert.AreEqual(" X", GetLine(terminal, 2));
+        Assert.AreEqual("B", GetLine(terminal, 3));
     }
 
     #endregion

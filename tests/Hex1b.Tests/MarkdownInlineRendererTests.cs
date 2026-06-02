@@ -3,26 +3,27 @@ using Hex1b.Theming;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MarkdownInlineRendererTests
 {
     // ==========================================================================
     // FlattenInlines
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_PlainText_SingleRun()
     {
         var inlines = new MarkdownInline[] { new TextInline("Hello world") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("Hello world", run.Text);
-        Assert.Null(run.Foreground);
-        Assert.Null(run.Background);
-        Assert.Equal(CellAttributes.None, run.Attributes);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("Hello world", run.Text);
+        Assert.IsNull(run.Foreground);
+        Assert.IsNull(run.Background);
+        Assert.AreEqual(CellAttributes.None, run.Attributes);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Bold_SetsBoldAttribute()
     {
         var inlines = new MarkdownInline[]
@@ -31,12 +32,12 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("bold", run.Text);
-        Assert.True((run.Attributes & CellAttributes.Bold) != 0);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("bold", run.Text);
+        Assert.IsTrue((run.Attributes & CellAttributes.Bold) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Italic_SetsItalicAttribute()
     {
         var inlines = new MarkdownInline[]
@@ -45,12 +46,12 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("italic", run.Text);
-        Assert.True((run.Attributes & CellAttributes.Italic) != 0);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("italic", run.Text);
+        Assert.IsTrue((run.Attributes & CellAttributes.Italic) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_NestedBoldItalic_ComposesAttributes()
     {
         // ***bold italic***
@@ -62,50 +63,50 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("both", run.Text);
-        Assert.True((run.Attributes & CellAttributes.Bold) != 0);
-        Assert.True((run.Attributes & CellAttributes.Italic) != 0);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("both", run.Text);
+        Assert.IsTrue((run.Attributes & CellAttributes.Bold) != 0);
+        Assert.IsTrue((run.Attributes & CellAttributes.Italic) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_CodeSpan_SetsColorAndBackground()
     {
         var inlines = new MarkdownInline[] { new CodeInline("x = 0") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("x = 0", run.Text);
-        Assert.NotNull(run.Foreground);
-        Assert.NotNull(run.Background);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("x = 0", run.Text);
+        Assert.IsNotNull(run.Foreground);
+        Assert.IsNotNull(run.Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Link_SetsUnderlineColorAndUrl()
     {
         var inlines = new MarkdownInline[] { new LinkInline("click", "https://example.com") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("click", run.Text);
-        Assert.True((run.Attributes & CellAttributes.Underline) != 0);
-        Assert.NotNull(run.Foreground);
-        Assert.Equal("https://example.com", run.Url);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("click", run.Text);
+        Assert.IsTrue((run.Attributes & CellAttributes.Underline) != 0);
+        Assert.IsNotNull(run.Foreground);
+        Assert.AreEqual("https://example.com", run.Url);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Image_SetsAltTextWithBracketsAndUrl()
     {
         var inlines = new MarkdownInline[] { new ImageInline("logo", "img.png") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        var run = Assert.Single(runs);
-        Assert.Equal("[logo]", run.Text);
-        Assert.True((run.Attributes & CellAttributes.Italic) != 0);
-        Assert.Equal("img.png", run.Url);
+        var run = TestSeq.Single(runs);
+        Assert.AreEqual("[logo]", run.Text);
+        Assert.IsTrue((run.Attributes & CellAttributes.Italic) != 0);
+        Assert.AreEqual("img.png", run.Url);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_HardBreak_EmitsNewline()
     {
         var inlines = new MarkdownInline[]
@@ -116,13 +117,13 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Equal(3, runs.Count);
-        Assert.Equal("first", runs[0].Text);
-        Assert.Equal("\n", runs[1].Text);
-        Assert.Equal("second", runs[2].Text);
+        Assert.AreEqual(3, runs.Count);
+        Assert.AreEqual("first", runs[0].Text);
+        Assert.AreEqual("\n", runs[1].Text);
+        Assert.AreEqual("second", runs[2].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_SoftBreak_EmitsSpace()
     {
         var inlines = new MarkdownInline[]
@@ -133,11 +134,11 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Equal(3, runs.Count);
-        Assert.Equal(" ", runs[1].Text);
+        Assert.AreEqual(3, runs.Count);
+        Assert.AreEqual(" ", runs[1].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_MixedContent_ProducesMultipleRuns()
     {
         // "Hello **bold** and `code` here"
@@ -151,44 +152,44 @@ public class MarkdownInlineRendererTests
         };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Equal(5, runs.Count);
-        Assert.Equal("Hello ", runs[0].Text);
-        Assert.Equal("bold", runs[1].Text);
-        Assert.True((runs[1].Attributes & CellAttributes.Bold) != 0);
-        Assert.Equal(" and ", runs[2].Text);
-        Assert.Equal("code", runs[3].Text);
-        Assert.NotNull(runs[3].Background); // code has bg
-        Assert.Equal(" here", runs[4].Text);
+        Assert.AreEqual(5, runs.Count);
+        Assert.AreEqual("Hello ", runs[0].Text);
+        Assert.AreEqual("bold", runs[1].Text);
+        Assert.IsTrue((runs[1].Attributes & CellAttributes.Bold) != 0);
+        Assert.AreEqual(" and ", runs[2].Text);
+        Assert.AreEqual("code", runs[3].Text);
+        Assert.IsNotNull(runs[3].Background); // code has bg
+        Assert.AreEqual(" here", runs[4].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_WithBaseAttributes_AppliedToAll()
     {
         var inlines = new MarkdownInline[] { new TextInline("text") };
         var runs = MarkdownInlineRenderer.FlattenInlines(
             inlines, baseAttributes: CellAttributes.Bold);
 
-        var run = Assert.Single(runs);
-        Assert.True((run.Attributes & CellAttributes.Bold) != 0);
+        var run = TestSeq.Single(runs);
+        Assert.IsTrue((run.Attributes & CellAttributes.Bold) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_WithBaseForeground_AppliedToPlainText()
     {
         var fg = Hex1bColor.FromRgb(255, 0, 0);
         var inlines = new MarkdownInline[] { new TextInline("text") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines, baseForeground: fg);
 
-        var run = Assert.Single(runs);
-        Assert.NotNull(run.Foreground);
-        Assert.Equal(255, run.Foreground!.Value.R);
+        var run = TestSeq.Single(runs);
+        Assert.IsNotNull(run.Foreground);
+        Assert.AreEqual(255, run.Foreground!.Value.R);
     }
 
     // ==========================================================================
     // SplitIntoWords
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_SingleWord_OneStyledWord()
     {
         var runs = new List<MarkdownTextRun>
@@ -197,14 +198,14 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        var word = Assert.Single(words);
-        Assert.Single(word.Fragments);
-        Assert.Equal("hello", word.Fragments[0].Text);
-        Assert.Equal(5, word.DisplayWidth);
-        Assert.False(word.PrecededBySpace);
+        var word = TestSeq.Single(words);
+        TestSeq.Single(word.Fragments);
+        Assert.AreEqual("hello", word.Fragments[0].Text);
+        Assert.AreEqual(5, word.DisplayWidth);
+        Assert.IsFalse(word.PrecededBySpace);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_TwoWordsInOneRun_TwoStyledWords()
     {
         var runs = new List<MarkdownTextRun>
@@ -213,14 +214,14 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        Assert.Equal(2, words.Count);
-        Assert.Equal("hello", words[0].Fragments[0].Text);
-        Assert.False(words[0].PrecededBySpace);
-        Assert.Equal("world", words[1].Fragments[0].Text);
-        Assert.True(words[1].PrecededBySpace);
+        Assert.AreEqual(2, words.Count);
+        Assert.AreEqual("hello", words[0].Fragments[0].Text);
+        Assert.IsFalse(words[0].PrecededBySpace);
+        Assert.AreEqual("world", words[1].Fragments[0].Text);
+        Assert.IsTrue(words[1].PrecededBySpace);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_PartialWordStyling_OneWordMultipleFragments()
     {
         // par**tial**ly → one word with 3 fragments
@@ -232,16 +233,16 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        var word = Assert.Single(words);
-        Assert.Equal(3, word.Fragments.Count);
-        Assert.Equal("par", word.Fragments[0].Text);
-        Assert.Equal("tial", word.Fragments[1].Text);
-        Assert.True((word.Fragments[1].Attributes & CellAttributes.Bold) != 0);
-        Assert.Equal("ly", word.Fragments[2].Text);
-        Assert.Equal(9, word.DisplayWidth);
+        var word = TestSeq.Single(words);
+        Assert.AreEqual(3, word.Fragments.Count);
+        Assert.AreEqual("par", word.Fragments[0].Text);
+        Assert.AreEqual("tial", word.Fragments[1].Text);
+        Assert.IsTrue((word.Fragments[1].Attributes & CellAttributes.Bold) != 0);
+        Assert.AreEqual("ly", word.Fragments[2].Text);
+        Assert.AreEqual(9, word.DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_SpaceBetweenRuns_SeparateWords()
     {
         // "Hello **bold world** end"
@@ -253,16 +254,16 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        Assert.Equal(4, words.Count);
-        Assert.Equal("Hello", words[0].Fragments[0].Text);
-        Assert.Equal("bold", words[1].Fragments[0].Text);
-        Assert.True((words[1].Fragments[0].Attributes & CellAttributes.Bold) != 0);
-        Assert.Equal("world", words[2].Fragments[0].Text);
-        Assert.True((words[2].Fragments[0].Attributes & CellAttributes.Bold) != 0);
-        Assert.Equal("end", words[3].Fragments[0].Text);
+        Assert.AreEqual(4, words.Count);
+        Assert.AreEqual("Hello", words[0].Fragments[0].Text);
+        Assert.AreEqual("bold", words[1].Fragments[0].Text);
+        Assert.IsTrue((words[1].Fragments[0].Attributes & CellAttributes.Bold) != 0);
+        Assert.AreEqual("world", words[2].Fragments[0].Text);
+        Assert.IsTrue((words[2].Fragments[0].Attributes & CellAttributes.Bold) != 0);
+        Assert.AreEqual("end", words[3].Fragments[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_BoldWordPlusPlainPunctuation_OneWord()
     {
         // Hello **world**!
@@ -274,16 +275,16 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        Assert.Equal(2, words.Count);
-        Assert.Equal("Hello", words[0].Fragments[0].Text);
+        Assert.AreEqual(2, words.Count);
+        Assert.AreEqual("Hello", words[0].Fragments[0].Text);
         // "world" + "!" grouped into one word
-        Assert.Equal(2, words[1].Fragments.Count);
-        Assert.Equal("world", words[1].Fragments[0].Text);
-        Assert.Equal("!", words[1].Fragments[1].Text);
-        Assert.Equal(6, words[1].DisplayWidth);
+        Assert.AreEqual(2, words[1].Fragments.Count);
+        Assert.AreEqual("world", words[1].Fragments[0].Text);
+        Assert.AreEqual("!", words[1].Fragments[1].Text);
+        Assert.AreEqual(6, words[1].DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_CodeSpan_NeverSplit()
     {
         // Code spans have background color and should not be split
@@ -293,12 +294,12 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        var word = Assert.Single(words);
-        Assert.Equal("int x = 0", word.Fragments[0].Text);
-        Assert.Equal(9, word.DisplayWidth);
+        var word = TestSeq.Single(words);
+        Assert.AreEqual("int x = 0", word.Fragments[0].Text);
+        Assert.AreEqual(9, word.DisplayWidth);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_NewlineRun_CreatesNewlineWord()
     {
         var runs = new List<MarkdownTextRun>
@@ -309,25 +310,25 @@ public class MarkdownInlineRendererTests
         };
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
-        Assert.Equal(3, words.Count);
-        Assert.Equal("first", words[0].Fragments[0].Text);
-        Assert.Equal("\n", words[1].Fragments[0].Text);
-        Assert.Equal("second", words[2].Fragments[0].Text);
+        Assert.AreEqual(3, words.Count);
+        Assert.AreEqual("first", words[0].Fragments[0].Text);
+        Assert.AreEqual("\n", words[1].Fragments[0].Text);
+        Assert.AreEqual("second", words[2].Fragments[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void SplitIntoWords_EmptyRuns_EmptyResult()
     {
         var runs = new List<MarkdownTextRun>();
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
-        Assert.Empty(words);
+        Assert.IsEmpty(words);
     }
 
     // ==========================================================================
     // WrapLines
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_ShortText_SingleLine()
     {
         var words = new List<StyledWord>
@@ -337,12 +338,12 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 20);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("Hello", line);
         Assert.Contains("world", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_WrapsAtWordBoundary()
     {
         // "Hello world" at width 8 → "Hello" / "world"
@@ -353,12 +354,12 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 8);
 
-        Assert.Equal(2, lines.Count);
+        Assert.AreEqual(2, lines.Count);
         Assert.Contains("Hello", lines[0]);
         Assert.Contains("world", lines[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_OversizedWord_CharacterBreaks()
     {
         // "abcdefghij" at width 4 → "abcd" / "efgh" / "ij"
@@ -368,10 +369,10 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 4);
 
-        Assert.True(lines.Count >= 2);
+        Assert.IsTrue(lines.Count >= 2);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_BoldText_ContainsAnsiCodes()
     {
         var words = new List<StyledWord>
@@ -380,13 +381,13 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 20);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("\x1b[1m", line);  // Bold on
         Assert.Contains("bold", line);
         Assert.Contains("\x1b[0m", line);  // Reset
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_MultiFragmentWord_AllFragmentsRendered()
     {
         // par**tial**ly as one word
@@ -400,14 +401,14 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 20);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("par", line);
         Assert.Contains("tial", line);
         Assert.Contains("ly", line);
         Assert.Contains("\x1b[1m", line); // Bold for "tial"
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_ExplicitNewline_ForcesLineBreak()
     {
         var words = new List<StyledWord>
@@ -418,24 +419,24 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.WrapLines(words, 80);
 
-        Assert.Equal(2, lines.Count);
+        Assert.AreEqual(2, lines.Count);
         Assert.Contains("first", lines[0]);
         Assert.Contains("second", lines[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLines_EmptyInput_SingleEmptyLine()
     {
         var lines = MarkdownInlineRenderer.WrapLines([], 20);
-        var line = Assert.Single(lines);
-        Assert.Equal("", line);
+        var line = TestSeq.Single(lines);
+        Assert.AreEqual("", line);
     }
 
     // ==========================================================================
     // RenderFragmentsToAnsi
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_PlainText_NoAnsi()
     {
         var fragments = new MarkdownTextRun[]
@@ -443,10 +444,10 @@ public class MarkdownInlineRendererTests
             new("hello", null, null, CellAttributes.None)
         };
         var result = MarkdownInlineRenderer.RenderFragmentsToAnsi(fragments);
-        Assert.Equal("hello", result);
+        Assert.AreEqual("hello", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_BoldText_WrappedInSgr()
     {
         var fragments = new MarkdownTextRun[]
@@ -459,7 +460,7 @@ public class MarkdownInlineRendererTests
         Assert.EndsWith("\x1b[0m", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_ItalicText_WrappedInSgr()
     {
         var fragments = new MarkdownTextRun[]
@@ -471,7 +472,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("italic", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_BoldAndItalic_BothCodes()
     {
         var fragments = new MarkdownTextRun[]
@@ -483,7 +484,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b[3m", result); // Italic
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_ForegroundColor_EmitsRgb()
     {
         var fg = Hex1bColor.FromRgb(255, 128, 0);
@@ -495,7 +496,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b[38;2;255;128;0m", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_BackgroundColor_EmitsRgb()
     {
         var bg = Hex1bColor.FromRgb(50, 50, 50);
@@ -507,7 +508,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b[48;2;50;50;50m", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_AdjacentSameStyle_NoExtraResets()
     {
         var fragments = new MarkdownTextRun[]
@@ -520,7 +521,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("hello world", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_StyleTransition_ResetsAndReapplies()
     {
         var fragments = new MarkdownTextRun[]
@@ -535,28 +536,28 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b[0m", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_Empty_EmptyString()
     {
         var result = MarkdownInlineRenderer.RenderFragmentsToAnsi([]);
-        Assert.Equal("", result);
+        Assert.AreEqual("", result);
     }
 
     // ==========================================================================
     // RenderLines (full pipeline)
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_PlainParagraph_SingleLine()
     {
         var inlines = new MarkdownInline[] { new TextInline("Hello world") };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 80);
 
-        var line = Assert.Single(lines);
-        Assert.Equal("Hello world", line);
+        var line = TestSeq.Single(lines);
+        Assert.AreEqual("Hello world", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_BoldInParagraph_ContainsAnsi()
     {
         var inlines = new MarkdownInline[]
@@ -567,12 +568,12 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 80);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("\x1b[1m", line);
         Assert.Contains("bold", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_WrappingPreservesStyle()
     {
         // "Hello **bold text** end" at width 12
@@ -586,10 +587,10 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 12);
 
-        Assert.True(lines.Count >= 2, $"Expected 2+ lines, got {lines.Count}");
+        Assert.IsTrue(lines.Count >= 2, $"Expected 2+ lines, got {lines.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_HeadingWithBaseFg_AppliesColor()
     {
         var fg = Hex1bColor.FromRgb(100, 200, 255);
@@ -597,22 +598,22 @@ public class MarkdownInlineRendererTests
         var lines = MarkdownInlineRenderer.RenderLines(
             inlines, 80, baseForeground: fg, baseAttributes: CellAttributes.Bold);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("\x1b[1m", line);  // Bold
         Assert.Contains("\x1b[38;2;100;200;255m", line);  // Heading color
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_ZeroWidth_EmptyLine()
     {
         var inlines = new MarkdownInline[] { new TextInline("text") };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 0);
 
-        var line = Assert.Single(lines);
-        Assert.Equal("", line);
+        var line = TestSeq.Single(lines);
+        Assert.AreEqual("", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_MultiWordLink_EachWordStyled()
     {
         var inlines = new MarkdownInline[]
@@ -621,13 +622,13 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 80);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("click", line);
         Assert.Contains("here", line);
         Assert.Contains("\x1b[4m", line);  // Underline
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_MultiWordLink_SpaceBetweenWordsIsUnderlined()
     {
         var inlines = new MarkdownInline[]
@@ -638,12 +639,12 @@ public class MarkdownInlineRendererTests
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
         var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80);
 
-        var line = Assert.Single(result.Lines);
+        var line = TestSeq.Single(result.Lines);
 
         // The space between "click" and "here" should be styled as part of the link.
         // Strip all ANSI escapes (SGR and OSC 8) and verify plain text is "click here"
         var plain = System.Text.RegularExpressions.Regex.Replace(line, @"\x1b(\[[^a-zA-Z]*[a-zA-Z]|\][^\x1b]*\x1b\\)", "");
-        Assert.Equal("click here", plain);
+        Assert.AreEqual("click here", plain);
 
         // The OSC 8 hyperlink should NOT be closed and reopened between words.
         // With continuous styling, there's only one OSC 8 open + one close.
@@ -651,11 +652,11 @@ public class MarkdownInlineRendererTests
         var osc8End = "\x1b]8;;\x1b\\";
         var startCount = CountOccurrences(line, osc8Start);
         var endCount = CountOccurrences(line, osc8End);
-        Assert.Equal(1, startCount);
-        Assert.Equal(1, endCount);
+        Assert.AreEqual(1, startCount);
+        Assert.AreEqual(1, endCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_MultiWordLink_SpaceHasLinkId()
     {
         var inlines = new MarkdownInline[]
@@ -669,12 +670,12 @@ public class MarkdownInlineRendererTests
         var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80);
 
         // The link region width should include the space (5 + 1 + 4 = 10)
-        var link = Assert.Single(result.LinkRegions);
-        Assert.Equal("click here", link.Text);
-        Assert.Equal(10, link.DisplayWidth); // "click" + space + "here"
+        var link = TestSeq.Single(result.LinkRegions);
+        Assert.AreEqual("click here", link.Text);
+        Assert.AreEqual(10, link.DisplayWidth); // "click" + space + "here"
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_MultiWordLink_FocusHighlightsSpace()
     {
         var inlines = new MarkdownInline[]
@@ -687,7 +688,7 @@ public class MarkdownInlineRendererTests
 
         // Render with focus on this link
         var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 80, focusedLinkId: linkId);
-        var line = Assert.Single(result.Lines);
+        var line = TestSeq.Single(result.Lines);
 
         // Bold is applied for focus. There should be no style gap between "click" and "here".
         // Count reset codes — if the space inherits link styling, we won't see
@@ -715,7 +716,7 @@ public class MarkdownInlineRendererTests
         return count;
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_CodeSpanNotSplit()
     {
         // Code span "int x = 0" at width 6 should not split on spaces
@@ -724,15 +725,15 @@ public class MarkdownInlineRendererTests
         var words = MarkdownInlineRenderer.SplitIntoWords(runs);
 
         // Should be a single word (code spans are atomic)
-        var word = Assert.Single(words);
-        Assert.Equal("int x", word.Fragments[0].Text);
+        var word = TestSeq.Single(words);
+        Assert.AreEqual("int x", word.Fragments[0].Text);
     }
 
     // ==========================================================================
     // OSC 8 Clickable Links
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_LinkFragment_EmitsOsc8()
     {
         var fragments = new MarkdownTextRun[]
@@ -747,7 +748,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b]8;;\x1b\\", result);  // OSC 8 end
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_PlainThenLink_TransitionsOsc8()
     {
         var fragments = new MarkdownTextRun[]
@@ -765,19 +766,19 @@ public class MarkdownInlineRendererTests
         var startIdx = result.IndexOf(osc8Start);
         var endIdx = result.IndexOf(osc8End, startIdx);
 
-        Assert.True(startIdx >= 0, "OSC 8 start sequence not found");
-        Assert.True(endIdx > startIdx, "OSC 8 end sequence not found after start");
+        Assert.IsTrue(startIdx >= 0, "OSC 8 start sequence not found");
+        Assert.IsTrue(endIdx > startIdx, "OSC 8 end sequence not found after start");
 
         // "Hello" should be before OSC 8 start
         var helloIdx = result.IndexOf("Hello");
-        Assert.True(helloIdx < startIdx, "Hello should be before OSC 8 start");
+        Assert.IsTrue(helloIdx < startIdx, "Hello should be before OSC 8 start");
 
         // "world" should be after OSC 8 end
         var worldIdx = result.IndexOf("world");
-        Assert.True(worldIdx > endIdx, "world should be after OSC 8 end");
+        Assert.IsTrue(worldIdx > endIdx, "world should be after OSC 8 end");
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_AdjacentLinkFragments_ShareOsc8()
     {
         // Two fragments with same URL should share the OSC 8 wrapper
@@ -798,10 +799,10 @@ public class MarkdownInlineRendererTests
             count++;
             idx += osc8Start.Length;
         }
-        Assert.Equal(1, count);
+        Assert.AreEqual(1, count);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_DifferentUrls_SeparateOsc8()
     {
         var fragments = new MarkdownTextRun[]
@@ -815,7 +816,7 @@ public class MarkdownInlineRendererTests
         Assert.Contains("\x1b]8;;https://second.com\x1b\\", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderFragmentsToAnsi_NoUrl_NoOsc8()
     {
         var fragments = new MarkdownTextRun[]
@@ -827,7 +828,7 @@ public class MarkdownInlineRendererTests
         Assert.DoesNotContain("\x1b]8", result);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_Link_ContainsOsc8()
     {
         var inlines = new MarkdownInline[]
@@ -838,13 +839,13 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 80);
 
-        var line = Assert.Single(lines);
+        var line = TestSeq.Single(lines);
         Assert.Contains("\x1b]8;;https://example.com\x1b\\", line);
         Assert.Contains("example", line);
         Assert.Contains("\x1b]8;;\x1b\\", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderLines_MultiWordLink_WrappedLines_EachHasOsc8()
     {
         // "click here" at width 8 should wrap — each line should have its own OSC 8
@@ -854,7 +855,7 @@ public class MarkdownInlineRendererTests
         };
         var lines = MarkdownInlineRenderer.RenderLines(inlines, 8);
 
-        Assert.Equal(2, lines.Count);
+        Assert.AreEqual(2, lines.Count);
         // Each line should have its own OSC 8 start and end
         foreach (var line in lines)
         {
@@ -863,20 +864,20 @@ public class MarkdownInlineRendererTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_PlainText_NoUrl()
     {
         var inlines = new MarkdownInline[] { new TextInline("hello") };
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Null(Assert.Single(runs).Url);
+        Assert.IsNull(TestSeq.Single(runs).Url);
     }
 
     // ==========================================================================
     // HangingIndent
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_HangingIndent_FirstLineFullWidth()
     {
         var runs = MarkdownInlineRenderer.FlattenInlines(
@@ -886,10 +887,10 @@ public class MarkdownInlineRendererTests
         var lines = result.Lines;
 
         // Should produce multiple lines
-        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+        Assert.IsTrue(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
 
         // First line uses full width
-        Assert.True(DisplayWidth.GetStringWidth(lines[0]) <= 15);
+        Assert.IsTrue(DisplayWidth.GetStringWidth(lines[0]) <= 15);
 
         // Continuation lines have 2-char space prefix (after ANSI reset codes)
         // The raw ANSI string may have escape codes before the spaces, but
@@ -897,11 +898,11 @@ public class MarkdownInlineRendererTests
         for (int i = 1; i < lines.Count; i++)
         {
             var lineWidth = DisplayWidth.GetStringWidth(lines[i]);
-            Assert.True(lineWidth <= 15, $"Line {i} exceeds maxWidth: {lineWidth}");
+            Assert.IsTrue(lineWidth <= 15, $"Line {i} exceeds maxWidth: {lineWidth}");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_HangingIndent_ContinuationReducedWidth()
     {
         // "1. " = 3 chars indent; maxWidth=12 → continuation lines use 9 chars
@@ -911,17 +912,17 @@ public class MarkdownInlineRendererTests
         var result = MarkdownInlineRenderer.WrapLinesWithLinks(words, 12, hangingIndent: 3);
         var lines = result.Lines;
 
-        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+        Assert.IsTrue(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
 
         // Each line should not exceed maxWidth
         foreach (var line in lines)
         {
             var w = DisplayWidth.GetStringWidth(line);
-            Assert.True(w <= 12, $"Line exceeds maxWidth 12: width={w}");
+            Assert.IsTrue(w <= 12, $"Line exceeds maxWidth 12: width={w}");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_NoHangingIndent_DefaultBehavior()
     {
         var runs = MarkdownInlineRenderer.FlattenInlines([new TextInline("one two three four")]);
@@ -930,14 +931,14 @@ public class MarkdownInlineRendererTests
         var resultDefault = MarkdownInlineRenderer.WrapLinesWithLinks(words, 10);
 
         // With hangingIndent=0, behavior should be identical to default
-        Assert.Equal(result0.Lines.Count, resultDefault.Lines.Count);
+        Assert.AreEqual(result0.Lines.Count, resultDefault.Lines.Count);
         for (int i = 0; i < result0.Lines.Count; i++)
         {
-            Assert.Equal(result0.Lines[i], resultDefault.Lines[i]);
+            Assert.AreEqual(result0.Lines[i], resultDefault.Lines[i]);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_HangingIndent_LongFirstWord_CharacterBreaks()
     {
         // "• " (2 chars) + "Accessibility" (13 chars) = 15 > maxWidth 14
@@ -950,14 +951,13 @@ public class MarkdownInlineRendererTests
 
         // First line should have the marker AND some of the word (not marker alone)
         var firstLineWidth = DisplayWidth.GetStringWidth(lines[0]);
-        Assert.True(firstLineWidth > 2,
-            $"First line should have marker + partial word, not marker alone. Width={firstLineWidth}");
+        Assert.IsTrue(firstLineWidth > 2, $"First line should have marker + partial word, not marker alone. Width={firstLineWidth}");
 
         // All lines fit within maxWidth
         foreach (var line in lines)
         {
             var w = DisplayWidth.GetStringWidth(line);
-            Assert.True(w <= 14, $"Line exceeds maxWidth: width={w}");
+            Assert.IsTrue(w <= 14, $"Line exceeds maxWidth: width={w}");
         }
     }
 
@@ -965,7 +965,7 @@ public class MarkdownInlineRendererTests
     // ContinuationPrefix
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_ContinuationPrefix_AppearsOnAllWrappedLines()
     {
         // Simulate block quote: "│ " prefix on first inline, hanging indent 2, continuation prefix "│ "
@@ -976,7 +976,7 @@ public class MarkdownInlineRendererTests
             words, 15, hangingIndent: 2, continuationPrefix: "│ ");
         var lines = result.Lines;
 
-        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+        Assert.IsTrue(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
 
         // Every line (including continuation) should start with "│ "
         foreach (var line in lines)
@@ -986,7 +986,7 @@ public class MarkdownInlineRendererTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_ContinuationPrefix_LinesRespectMaxWidth()
     {
         var runs = MarkdownInlineRenderer.FlattenInlines(
@@ -999,11 +999,11 @@ public class MarkdownInlineRendererTests
         foreach (var line in lines)
         {
             var w = DisplayWidth.GetStringWidth(line);
-            Assert.True(w <= 12, $"Line exceeds maxWidth 12: width={w}");
+            Assert.IsTrue(w <= 12, $"Line exceeds maxWidth 12: width={w}");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void WrapLinesWithLinks_NoContinuationPrefix_UsesSpaces()
     {
         // Without continuation prefix, continuation lines should use spaces (existing behavior)
@@ -1014,14 +1014,14 @@ public class MarkdownInlineRendererTests
             words, 15, hangingIndent: 2, continuationPrefix: null);
         var lines = result.Lines;
 
-        Assert.True(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
+        Assert.IsTrue(lines.Count >= 2, $"Expected wrapping, got {lines.Count} lines");
 
         // Continuation lines should start with spaces, not "│ "
         for (int i = 1; i < lines.Count; i++)
         {
             var stripped = StripAnsi(lines[i]);
             Assert.StartsWith("  ", stripped);
-            Assert.False(stripped.StartsWith("│"), $"Line {i} should not start with │");
+            Assert.IsFalse(stripped.StartsWith("│"), $"Line {i} should not start with │");
         }
     }
 
@@ -1034,7 +1034,7 @@ public class MarkdownInlineRendererTests
     // Strikethrough
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_Strikethrough_SetsStrikethroughAttribute()
     {
         var inlines = new MarkdownInline[]
@@ -1044,12 +1044,12 @@ public class MarkdownInlineRendererTests
 
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Single(runs);
-        Assert.Equal("deleted", runs[0].Text);
-        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
+        TestSeq.Single(runs);
+        Assert.AreEqual("deleted", runs[0].Text);
+        Assert.IsTrue(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_StrikethroughWithBold_CombinesAttributes()
     {
         var inlines = new MarkdownInline[]
@@ -1061,13 +1061,13 @@ public class MarkdownInlineRendererTests
 
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Single(runs);
-        Assert.Equal("bold+strike", runs[0].Text);
-        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
-        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Bold));
+        TestSeq.Single(runs);
+        Assert.AreEqual("bold+strike", runs[0].Text);
+        Assert.IsTrue(runs[0].Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsTrue(runs[0].Attributes.HasFlag(CellAttributes.Bold));
     }
 
-    [Fact]
+    [TestMethod]
     public void FlattenInlines_StrikethroughContainingLink_ExtractsLink()
     {
         var inlines = new MarkdownInline[]
@@ -1079,9 +1079,9 @@ public class MarkdownInlineRendererTests
 
         var runs = MarkdownInlineRenderer.FlattenInlines(inlines);
 
-        Assert.Single(runs);
-        Assert.Equal("click", runs[0].Text);
-        Assert.Equal("https://example.com", runs[0].Url);
-        Assert.True(runs[0].Attributes.HasFlag(CellAttributes.Underline));
+        TestSeq.Single(runs);
+        Assert.AreEqual("click", runs[0].Text);
+        Assert.AreEqual("https://example.com", runs[0].Url);
+        Assert.IsTrue(runs[0].Attributes.HasFlag(CellAttributes.Underline));
     }
 }

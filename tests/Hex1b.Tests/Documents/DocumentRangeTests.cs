@@ -2,230 +2,229 @@ using Hex1b.Documents;
 
 namespace Hex1b.Tests.Documents;
 
+[TestClass]
 public class DocumentRangeTests
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_ValidRange_Succeeds()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.Equal(new DocumentOffset(2), range.Start);
-        Assert.Equal(new DocumentOffset(5), range.End);
+        Assert.AreEqual(new DocumentOffset(2), range.Start);
+        Assert.AreEqual(new DocumentOffset(5), range.End);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_EmptyRange_Succeeds()
     {
         var range = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
-        Assert.Equal(new DocumentOffset(3), range.Start);
-        Assert.Equal(new DocumentOffset(3), range.End);
+        Assert.AreEqual(new DocumentOffset(3), range.Start);
+        Assert.AreEqual(new DocumentOffset(3), range.End);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_EndBeforeStart_Throws()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.ThrowsExactly<ArgumentException>(() =>
             new DocumentRange(new DocumentOffset(5), new DocumentOffset(3)));
     }
 
     // --- Properties ---
 
-    [Fact]
+    [TestMethod]
     public void Length_ReturnsCorrectLength()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(7));
-        Assert.Equal(5, range.Length);
+        Assert.AreEqual(5, range.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void Length_EmptyRange_ReturnsZero()
     {
         var range = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
-        Assert.Equal(0, range.Length);
+        Assert.AreEqual(0, range.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsEmpty_EmptyRange_ReturnsTrue()
     {
         var range = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
-        Assert.True(range.IsEmpty);
+        Assert.IsTrue(range.IsEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsEmpty_NonEmptyRange_ReturnsFalse()
     {
         var range = new DocumentRange(new DocumentOffset(3), new DocumentOffset(4));
-        Assert.False(range.IsEmpty);
+        Assert.IsFalse(range.IsEmpty);
     }
 
     // --- Contains ---
 
-    [Fact]
+    [TestMethod]
     public void Contains_OffsetInside_ReturnsTrue()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.True(range.Contains(new DocumentOffset(3)));
+        Assert.IsTrue(range.Contains(new DocumentOffset(3)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Contains_OffsetAtStart_ReturnsTrue()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.True(range.Contains(new DocumentOffset(2)));
+        Assert.IsTrue(range.Contains(new DocumentOffset(2)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Contains_OffsetAtEnd_ReturnsFalse()
     {
         // Ranges are [start, end) — exclusive end
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(range.Contains(new DocumentOffset(5)));
+        Assert.IsFalse(range.Contains(new DocumentOffset(5)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Contains_OffsetBefore_ReturnsFalse()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(range.Contains(new DocumentOffset(1)));
+        Assert.IsFalse(range.Contains(new DocumentOffset(1)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Contains_OffsetAfter_ReturnsFalse()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(range.Contains(new DocumentOffset(6)));
+        Assert.IsFalse(range.Contains(new DocumentOffset(6)));
     }
 
-    [Fact]
+    [TestMethod]
     public void Contains_EmptyRange_NeverContains()
     {
         var range = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
-        Assert.False(range.Contains(new DocumentOffset(3)));
+        Assert.IsFalse(range.Contains(new DocumentOffset(3)));
     }
 
     // --- Overlaps ---
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_PartialOverlap_ReturnsTrue()
     {
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(4), new DocumentOffset(7));
-        Assert.True(a.Overlaps(b));
-        Assert.True(b.Overlaps(a)); // Symmetric
+        Assert.IsTrue(a.Overlaps(b));
+        Assert.IsTrue(b.Overlaps(a)); // Symmetric
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_FullyContained_ReturnsTrue()
     {
         var outer = new DocumentRange(new DocumentOffset(1), new DocumentOffset(10));
         var inner = new DocumentRange(new DocumentOffset(3), new DocumentOffset(5));
-        Assert.True(outer.Overlaps(inner));
-        Assert.True(inner.Overlaps(outer));
+        Assert.IsTrue(outer.Overlaps(inner));
+        Assert.IsTrue(inner.Overlaps(outer));
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_Adjacent_ReturnsFalse()
     {
         // [2,5) and [5,8) — they share boundary but no overlapping character
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(5), new DocumentOffset(8));
-        Assert.False(a.Overlaps(b));
-        Assert.False(b.Overlaps(a));
+        Assert.IsFalse(a.Overlaps(b));
+        Assert.IsFalse(b.Overlaps(a));
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_Disjoint_ReturnsFalse()
     {
         var a = new DocumentRange(new DocumentOffset(1), new DocumentOffset(3));
         var b = new DocumentRange(new DocumentOffset(5), new DocumentOffset(8));
-        Assert.False(a.Overlaps(b));
+        Assert.IsFalse(a.Overlaps(b));
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_EmptyRange_ReturnsFalse()
     {
         var a = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
         var b = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(a.Overlaps(b));
+        Assert.IsFalse(a.Overlaps(b));
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlaps_BothEmpty_ReturnsFalse()
     {
         var a = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
         var b = new DocumentRange(new DocumentOffset(3), new DocumentOffset(3));
-        Assert.False(a.Overlaps(b));
+        Assert.IsFalse(a.Overlaps(b));
     }
 
     // --- Equality ---
 
-    [Fact]
+    [TestMethod]
     public void Equals_SameValues_ReturnsTrue()
     {
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.True(a.Equals(b));
+        Assert.IsTrue(a.Equals(b));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_DifferentStart_ReturnsFalse()
     {
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(3), new DocumentOffset(5));
-        Assert.False(a.Equals(b));
+        Assert.IsFalse(a.Equals(b));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_DifferentEnd_ReturnsFalse()
     {
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(2), new DocumentOffset(6));
-        Assert.False(a.Equals(b));
+        Assert.IsFalse(a.Equals(b));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_BoxedDifferentType_ReturnsFalse()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(range.Equals("not a range"));
+        Assert.IsFalse(range.Equals("not a range"));
     }
 
-    [Fact]
+    [TestMethod]
     public void Equals_Null_ReturnsFalse()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.False(range.Equals(null));
+        Assert.IsFalse(range.Equals(null));
     }
 
-    [Fact]
+    [TestMethod]
     public void OperatorEquals_SameValues_ReturnsTrue()
     {
-        Assert.True(
-            new DocumentRange(new DocumentOffset(2), new DocumentOffset(5)) ==
+        Assert.IsTrue(new DocumentRange(new DocumentOffset(2), new DocumentOffset(5)) ==
             new DocumentRange(new DocumentOffset(2), new DocumentOffset(5)));
     }
 
-    [Fact]
+    [TestMethod]
     public void OperatorNotEquals_DifferentValues_ReturnsTrue()
     {
-        Assert.True(
-            new DocumentRange(new DocumentOffset(2), new DocumentOffset(5)) !=
+        Assert.IsTrue(new DocumentRange(new DocumentOffset(2), new DocumentOffset(5)) !=
             new DocumentRange(new DocumentOffset(2), new DocumentOffset(6)));
     }
 
     // --- GetHashCode / ToString ---
 
-    [Fact]
+    [TestMethod]
     public void GetHashCode_SameValues_SameHash()
     {
         var a = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
         var b = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.Equal(a.GetHashCode(), b.GetHashCode());
+        Assert.AreEqual(a.GetHashCode(), b.GetHashCode());
     }
 
-    [Fact]
+    [TestMethod]
     public void ToString_FormatsCorrectly()
     {
         var range = new DocumentRange(new DocumentOffset(2), new DocumentOffset(5));
-        Assert.Equal("[2..5)", range.ToString());
+        Assert.AreEqual("[2..5)", range.ToString());
     }
 }

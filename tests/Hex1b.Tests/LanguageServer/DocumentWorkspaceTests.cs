@@ -8,6 +8,7 @@ namespace Hex1b.Tests.LanguageServer;
 /// Tests for <see cref="Hex1bDocumentWorkspace"/> — document management,
 /// file persistence, dirty tracking, server mapping, and provider resolution.
 /// </summary>
+[TestClass]
 public class DocumentWorkspaceTests : IDisposable
 {
     private readonly string _tempDir;
@@ -25,7 +26,7 @@ public class DocumentWorkspaceTests : IDisposable
 
     // ── Document management ──────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task OpenDocumentAsync_LoadsFileContent()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "Hello, World!");
@@ -33,12 +34,12 @@ public class DocumentWorkspaceTests : IDisposable
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
         var doc = await workspace.OpenDocumentAsync("test.cs");
 
-        Assert.Equal("Hello, World!", doc.GetText());
-        Assert.Equal(Path.Combine(_tempDir, "test.cs"), doc.FilePath);
-        Assert.False(doc.IsDirty);
+        Assert.AreEqual("Hello, World!", doc.GetText());
+        Assert.AreEqual(Path.Combine(_tempDir, "test.cs"), doc.FilePath);
+        Assert.IsFalse(doc.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OpenDocumentAsync_ReturnsSameInstanceForSamePath()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "content");
@@ -47,32 +48,32 @@ public class DocumentWorkspaceTests : IDisposable
         var doc1 = await workspace.OpenDocumentAsync("test.cs");
         var doc2 = await workspace.OpenDocumentAsync("test.cs");
 
-        Assert.Same(doc1, doc2);
+        Assert.AreSame(doc1, doc2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CreateDocument_WithPath_SetsFilePath()
     {
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
         var doc = workspace.CreateDocument("initial", "new-file.cs");
 
-        Assert.Equal(Path.Combine(_tempDir, "new-file.cs"), doc.FilePath);
-        Assert.Equal("initial", doc.GetText());
+        Assert.AreEqual(Path.Combine(_tempDir, "new-file.cs"), doc.FilePath);
+        Assert.AreEqual("initial", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CreateDocument_WithoutPath_HasNoFilePath()
     {
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
         var doc = workspace.CreateDocument("in memory");
 
-        Assert.Null(doc.FilePath);
-        Assert.False(doc.IsDirty);
+        Assert.IsNull(doc.FilePath);
+        Assert.IsFalse(doc.IsDirty);
     }
 
     // ── Dirty tracking ───────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task IsDirty_TrueAfterEdit()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "original");
@@ -80,14 +81,14 @@ public class DocumentWorkspaceTests : IDisposable
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
         var doc = await workspace.OpenDocumentAsync("test.cs");
 
-        Assert.False(doc.IsDirty);
+        Assert.IsFalse(doc.IsDirty);
 
         doc.Apply(new InsertOperation(new DocumentOffset(0), "inserted "));
 
-        Assert.True(doc.IsDirty);
+        Assert.IsTrue(doc.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsDirty_FalseAfterSave()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "original");
@@ -96,13 +97,13 @@ public class DocumentWorkspaceTests : IDisposable
         var doc = await workspace.OpenDocumentAsync("test.cs");
 
         doc.Apply(new InsertOperation(new DocumentOffset(0), "inserted "));
-        Assert.True(doc.IsDirty);
+        Assert.IsTrue(doc.IsDirty);
 
         await doc.SaveAsync();
-        Assert.False(doc.IsDirty);
+        Assert.IsFalse(doc.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SaveAsync_WritesToFile()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "original");
@@ -114,19 +115,19 @@ public class DocumentWorkspaceTests : IDisposable
         await doc.SaveAsync();
 
         var saved = File.ReadAllText(Path.Combine(_tempDir, "test.cs"));
-        Assert.Equal("modified", saved);
+        Assert.AreEqual("modified", saved);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SaveAsync_ThrowsForInMemoryDocument()
     {
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
         var doc = workspace.CreateDocument("no path");
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => doc.SaveAsync());
+        await Assert.ThrowsExactlyAsync<InvalidOperationException>(() => doc.SaveAsync());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SaveAllAsync_SavesDirtyDocuments()
     {
         File.WriteAllText(Path.Combine(_tempDir, "a.cs"), "aaa");
@@ -141,23 +142,23 @@ public class DocumentWorkspaceTests : IDisposable
 
         await workspace.SaveAllAsync();
 
-        Assert.Equal("AAA", File.ReadAllText(Path.Combine(_tempDir, "a.cs")));
-        Assert.Equal("bbb", File.ReadAllText(Path.Combine(_tempDir, "b.cs"))); // unchanged
-        Assert.False(a.IsDirty);
+        Assert.AreEqual("AAA", File.ReadAllText(Path.Combine(_tempDir, "a.cs")));
+        Assert.AreEqual("bbb", File.ReadAllText(Path.Combine(_tempDir, "b.cs"))); // unchanged
+        Assert.IsFalse(a.IsDirty);
     }
 
     // ── Language server mapping ──────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task MapLanguageServer_ThrowsForUnregisteredServer()
     {
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             workspace.MapLanguageServer("*.cs", "nonexistent"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetProvider_ResolvesServerByGlob()
     {
         var server = new TestLanguageServer();
@@ -174,10 +175,10 @@ public class DocumentWorkspaceTests : IDisposable
         var doc = await workspace.OpenDocumentAsync("test.cs");
         var provider = workspace.GetProvider(doc);
 
-        Assert.NotNull(provider);
+        Assert.IsNotNull(provider);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetProvider_ReturnsSameProviderForSameDocument()
     {
         var server = new TestLanguageServer();
@@ -195,10 +196,10 @@ public class DocumentWorkspaceTests : IDisposable
         var p1 = workspace.GetProvider(doc);
         var p2 = workspace.GetProvider(doc);
 
-        Assert.Same(p1, p2);
+        Assert.AreSame(p1, p2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetProvider_ReturnsNullForUnmappedExtension()
     {
         File.WriteAllText(Path.Combine(_tempDir, "readme.txt"), "hello");
@@ -211,10 +212,10 @@ public class DocumentWorkspaceTests : IDisposable
         var doc = await workspace.OpenDocumentAsync("readme.txt");
         var provider = workspace.GetProvider(doc);
 
-        Assert.Null(provider);
+        Assert.IsNull(provider);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetProvider_ReturnsNullForInMemoryDocument()
     {
         await using var workspace = new Hex1bDocumentWorkspace(_tempDir);
@@ -222,12 +223,12 @@ public class DocumentWorkspaceTests : IDisposable
 
         var provider = workspace.GetProvider(doc);
 
-        Assert.Null(provider);
+        Assert.IsNull(provider);
     }
 
     // ── Dispose semantics ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task DisposeAsync_ClearsDocuments()
     {
         File.WriteAllText(Path.Combine(_tempDir, "test.cs"), "content");
@@ -235,10 +236,10 @@ public class DocumentWorkspaceTests : IDisposable
         var workspace = new Hex1bDocumentWorkspace(_tempDir);
         await workspace.OpenDocumentAsync("test.cs");
 
-        Assert.Single(workspace.OpenDocuments);
+        TestSeq.Single(workspace.OpenDocuments);
 
         await workspace.DisposeAsync();
 
-        Assert.Empty(workspace.OpenDocuments);
+        Assert.IsEmpty(workspace.OpenDocuments);
     }
 }

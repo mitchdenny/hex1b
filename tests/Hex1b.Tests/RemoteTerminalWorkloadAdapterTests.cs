@@ -6,11 +6,11 @@ using Hex1b;
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.Logging;
-using Xunit;
 
 namespace Hex1b.Tests;
 
-public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
+[TestClass]
+public class RemoteTerminalWorkloadAdapterTests
 {
     private WebApplication? _server;
     private int _port;
@@ -19,13 +19,15 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
     // Signal so the server handler stays alive until test cleanup
     private readonly TaskCompletionSource _serverDone = new();
 
-    public async ValueTask InitializeAsync()
+    [TestInitialize]
+    public async Task InitializeAsync()
     {
         _port = Random.Shared.Next(19000, 19999);
         _server = await StartMockServerAsync(_port);
     }
 
-    public async ValueTask DisposeAsync()
+    [TestCleanup]
+    public async Task DisposeAsync()
     {
         // Signal server handlers to exit
         _serverDone.TrySetResult();
@@ -44,30 +46,30 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
 
     private Uri WsUri => new($"ws://localhost:{_port}/ws/attach");
 
-    [Fact]
+    [TestMethod]
     public async Task Constructor_WithValidUri_CreatesAdapter()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(new Uri("ws://localhost:9999/ws/attach"));
-        Assert.NotNull(adapter);
+        Assert.IsNotNull(adapter);
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_WithNullUri_ThrowsArgumentNull()
     {
-        Assert.Throws<ArgumentNullException>(() => new RemoteTerminalWorkloadAdapter(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new RemoteTerminalWorkloadAdapter(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConnectAsync_ReceivesHandshake_SetsRemoteDimensions()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
         await adapter.ConnectAsync(CancellationToken.None);
 
-        Assert.Equal(120, adapter.RemoteWidth);
-        Assert.Equal(30, adapter.RemoteHeight);
+        Assert.AreEqual(120, adapter.RemoteWidth);
+        Assert.AreEqual(30, adapter.RemoteHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConnectAsync_ClaimsLeadership()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -80,10 +82,10 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
         // The adapter sends {"type":"lead"} after handshake
         var msg = await ReceiveTextAsync(serverWs);
         using var doc = JsonDocument.Parse(msg);
-        Assert.Equal("lead", doc.RootElement.GetProperty("type").GetString());
+        Assert.AreEqual("lead", doc.RootElement.GetProperty("type").GetString());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_ReceivesBinaryFrames_ReturnsData()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -106,10 +108,10 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
         // Read from adapter
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await adapter.ReadOutputAsync(cts.Token);
-        Assert.Equal("Hello from remote!", Encoding.UTF8.GetString(received.Span));
+        Assert.AreEqual("Hello from remote!", Encoding.UTF8.GetString(received.Span));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WriteInputAsync_SendsBinaryFrameToServer()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -128,11 +130,11 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
         // Verify server received it as binary
         var buffer = new byte[4096];
         var result = await serverWs.ReceiveAsync(buffer, CancellationToken.None);
-        Assert.Equal(WebSocketMessageType.Binary, result.MessageType);
-        Assert.Equal("ls -la\n", Encoding.UTF8.GetString(buffer, 0, result.Count));
+        Assert.AreEqual(WebSocketMessageType.Binary, result.MessageType);
+        Assert.AreEqual("ls -la\n", Encoding.UTF8.GetString(buffer, 0, result.Count));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_SendsJsonResizeFrame()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -150,12 +152,12 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
         // Verify server received JSON resize
         var msg = await ReceiveTextAsync(serverWs);
         using var doc = JsonDocument.Parse(msg);
-        Assert.Equal("resize", doc.RootElement.GetProperty("type").GetString());
-        Assert.Equal(200, doc.RootElement.GetProperty("cols").GetInt32());
-        Assert.Equal(50, doc.RootElement.GetProperty("rows").GetInt32());
+        Assert.AreEqual("resize", doc.RootElement.GetProperty("type").GetString());
+        Assert.AreEqual(200, doc.RootElement.GetProperty("cols").GetInt32());
+        Assert.AreEqual(50, doc.RootElement.GetProperty("rows").GetInt32());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Disconnected_FiredWhenServerCloses()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -172,10 +174,10 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
 
         // Wait for Disconnected event
         await Task.WhenAny(disconnectedFired.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.True(disconnectedFired.Task.IsCompletedSuccessfully, "Disconnected event should fire when server closes");
+        Assert.IsTrue(disconnectedFired.Task.IsCompletedSuccessfully, "Disconnected event should fire when server closes");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_ReturnsInitialScreenData()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -184,10 +186,10 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
         // The mock server sends initial data "Welcome" in the handshake
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var first = await adapter.ReadOutputAsync(cts.Token);
-        Assert.Equal("Welcome", Encoding.UTF8.GetString(first.Span));
+        Assert.AreEqual("Welcome", Encoding.UTF8.GetString(first.Span));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExitFrame_TriggersDisconnect()
     {
         await using var adapter = new RemoteTerminalWorkloadAdapter(WsUri);
@@ -208,7 +210,7 @@ public class RemoteTerminalWorkloadAdapterTests : IAsyncLifetime
             Encoding.UTF8.GetBytes(exitJson), WebSocketMessageType.Text, true, CancellationToken.None);
 
         await Task.WhenAny(disconnectedFired.Task, Task.Delay(TimeSpan.FromSeconds(5)));
-        Assert.True(disconnectedFired.Task.IsCompletedSuccessfully, "Exit frame should trigger Disconnected");
+        Assert.IsTrue(disconnectedFired.Task.IsCompletedSuccessfully, "Exit frame should trigger Disconnected");
     }
 
     // --- Mock WebSocket Server ---

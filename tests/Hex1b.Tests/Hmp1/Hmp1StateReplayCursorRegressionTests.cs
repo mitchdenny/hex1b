@@ -36,11 +36,12 @@ namespace Hex1b.Tests.Hmp1;
 /// place the cursor).
 /// </para>
 /// </remarks>
+[TestClass]
 public class Hmp1StateReplayCursorRegressionTests
 {
     private static readonly TimeSpan TestTimeout = TimeSpan.FromSeconds(5);
 
-    [Fact]
+    [TestMethod]
     public async Task StateSync_DoesNotEndWithTrailingNewline_SoCursorStaysWherePainterPutIt()
     {
         await using var server = new Hmp1PresentationAdapter(80, 24);
@@ -80,12 +81,12 @@ public class Hmp1StateReplayCursorRegressionTests
         await Hmp1Protocol.WriteClientHelloAsync(s2, displayName: "regression", defaultRole: null, cts.Token);
 
         var helloFrame = await Hmp1Protocol.ReadFrameAsync(s2, cts.Token)
-            ?? throw new Xunit.Sdk.XunitException("Server closed the stream before sending Hello.");
-        Assert.Equal(Hmp1FrameType.Hello, helloFrame.Type);
+            ?? throw new AssertFailedException("Server closed the stream before sending Hello.");
+        Assert.AreEqual(Hmp1FrameType.Hello, helloFrame.Type);
 
         var stateSyncFrame = await Hmp1Protocol.ReadFrameAsync(s2, cts.Token)
-            ?? throw new Xunit.Sdk.XunitException("Server closed the stream before sending StateSync.");
-        Assert.Equal(Hmp1FrameType.StateSync, stateSyncFrame.Type);
+            ?? throw new AssertFailedException("Server closed the stream before sending StateSync.");
+        Assert.AreEqual(Hmp1FrameType.StateSync, stateSyncFrame.Type);
 
         // Drain the AddClient task so any post-handshake observer doesn't
         // race with test teardown.
@@ -93,7 +94,7 @@ public class Hmp1StateReplayCursorRegressionTests
         await using var handleDispose = handle;
 
         var payload = stateSyncFrame.Payload;
-        Assert.False(payload.IsEmpty, "StateSync payload should carry the screen snapshot.");
+        Assert.IsFalse(payload.IsEmpty, "StateSync payload should carry the screen snapshot.");
 
         // Core regression assertion: a trailing \n (or \r\n) here would
         // scroll the cursor down one row past wherever the cursor-position
@@ -101,9 +102,7 @@ public class Hmp1StateReplayCursorRegressionTests
         // last byte explicitly so a future tweak that re-introduces
         // IncludeTrailingNewline = true fails this loud and clear.
         var lastByte = payload.Span[^1];
-        Assert.True(
-            lastByte != (byte)'\n',
-            $"StateSync payload ended with LF (0x0A). The cursor-position sequence emitted by ToAnsi "
+        Assert.IsTrue(lastByte != (byte)'\n', $"StateSync payload ended with LF (0x0A). The cursor-position sequence emitted by ToAnsi "
             + "would be invalidated by a trailing newline (cursor scrolls down one row). "
             + "If you re-enabled IncludeTrailingNewline = true in Hmp1PresentationAdapter, "
             + "PSReadLine and other readline-style consumers will mis-place the first "
@@ -115,7 +114,7 @@ public class Hmp1StateReplayCursorRegressionTests
         // branch. The exact form is `\x1b[{n}G` (column-only when we're on
         // the bottom row already) or `\x1b[{m}A\x1b[{n}G`. In either case
         // the trailing token is `G`.
-        Assert.Equal((byte)'G', lastByte);
+        Assert.AreEqual((byte)'G', lastByte);
     }
 
     private sealed class NullWorkloadAdapter : IHex1bTerminalWorkloadAdapter

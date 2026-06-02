@@ -14,6 +14,7 @@ namespace Hex1b.Tests;
 /// drags inside the demo-style layout where SelectionPanel is a non-focusable
 /// descendant of a focusable ScrollPanel.
 /// </summary>
+[TestClass]
 public class SelectionPanelMouseDragIntegrationTests
 {
     private static (Hex1bAppWorkloadAdapter workload, Hex1bTerminal terminal, Hex1bApp app,
@@ -75,14 +76,14 @@ public class SelectionPanelMouseDragIntegrationTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftDrag_OverPanelContent_EntersCopyMode_AndAnchorsAtDownPosition()
     {
         var (workload, terminal, app, panel, _) = Setup();
         using var _w = workload; using var _t = terminal; using var _a = app;
 
-        Assert.NotNull(panel);
-        Assert.False(panel.IsInCopyMode);
+        Assert.IsNotNull(panel);
+        Assert.IsFalse(panel.IsInCopyMode);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Drag(fromX: 2, fromY: 1, toX: 7, toY: 3)
@@ -91,22 +92,22 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel.IsInCopyMode);
-        Assert.True(panel.HasSelection);
-        Assert.Equal(SelectionMode.Character, panel.CursorSelectionMode);
-        Assert.Equal(1, panel.AnchorRow);
-        Assert.Equal(2, panel.AnchorCol);
-        Assert.Equal(3, panel.CursorRow);
-        Assert.Equal(7, panel.CursorCol);
+        Assert.IsTrue(panel.IsInCopyMode);
+        Assert.IsTrue(panel.HasSelection);
+        Assert.AreEqual(SelectionMode.Character, panel.CursorSelectionMode);
+        Assert.AreEqual(1, panel.AnchorRow);
+        Assert.AreEqual(2, panel.AnchorCol);
+        Assert.AreEqual(3, panel.CursorRow);
+        Assert.AreEqual(7, panel.CursorCol);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftClick_WithoutMovement_DoesNotEnterCopyMode()
     {
         var (workload, terminal, app, panel, _) = Setup();
         using var _w = workload; using var _t = terminal; using var _a = app;
 
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(5, 2)
@@ -114,16 +115,16 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(panel.IsInCopyMode);
+        Assert.IsFalse(panel.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftDrag_StartsLineSelection()
     {
         var (workload, terminal, app, panel, _) = Setup();
         using var _w = workload; using var _t = terminal; using var _a = app;
 
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Shift().Drag(fromX: 3, fromY: 1, toX: 6, toY: 2)
@@ -132,8 +133,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel.IsInCopyMode);
-        Assert.Equal(SelectionMode.Line, panel.CursorSelectionMode);
+        Assert.IsTrue(panel.IsInCopyMode);
+        Assert.AreEqual(SelectionMode.Line, panel.CursorSelectionMode);
     }
 
     /// <summary>
@@ -144,13 +145,13 @@ public class SelectionPanelMouseDragIntegrationTests
     /// OS-level selection, so Ctrl+drag is the cross-platform reliable
     /// modifier.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task CtrlDrag_StartsLineSelection()
     {
         var (workload, terminal, app, panel, _) = Setup();
         using var _w = workload; using var _t = terminal; using var _a = app;
 
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Drag(fromX: 3, fromY: 1, toX: 6, toY: 2)
@@ -159,8 +160,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel.IsInCopyMode);
-        Assert.Equal(SelectionMode.Line, panel.CursorSelectionMode);
+        Assert.IsTrue(panel.IsInCopyMode);
+        Assert.AreEqual(SelectionMode.Line, panel.CursorSelectionMode);
     }
 
     /// <summary>
@@ -170,7 +171,7 @@ public class SelectionPanelMouseDragIntegrationTests
     /// click misses the scrollbar so the framework falls through and arms the
     /// SelectionPanel's bubble drag.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task LeftDrag_OverPanelInsideScrollPanel_EntersCopyMode()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -203,8 +204,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var panel = FindPanel(app);
-        Assert.NotNull(panel);
-        Assert.False(panel!.IsInCopyMode);
+        Assert.IsNotNull(panel);
+        Assert.IsFalse(panel!.IsInCopyMode);
 
         // Drag in the middle of the content (away from the scrollbar at the
         // far right edge).
@@ -215,8 +216,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel.IsInCopyMode);
-        Assert.True(panel.HasSelection);
+        Assert.IsTrue(panel.IsInCopyMode);
+        Assert.IsTrue(panel.HasSelection);
     }
 
     /// <summary>
@@ -227,7 +228,7 @@ public class SelectionPanelMouseDragIntegrationTests
     /// scrollbar, and the focus ring containing focusables on both sides of
     /// the splitter plus the InfoBar wrapper.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task LeftDrag_OverPanelInDemoStyleLayout_EntersCopyMode()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -276,7 +277,7 @@ public class SelectionPanelMouseDragIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var panel = FindPanel(app);
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Drag in the middle of the LEFT side (transcript area).
         await new Hex1bTerminalInputSequenceBuilder()
@@ -286,7 +287,7 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel!.IsInCopyMode);
+        Assert.IsTrue(panel!.IsInCopyMode);
     }
 
     /// <summary>
@@ -297,7 +298,7 @@ public class SelectionPanelMouseDragIntegrationTests
     /// path the right-click would route through normal hit-testing and
     /// miss the non-focusable SelectionPanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task RightClick_AfterDragSelection_CommitsCopy_AndExitsCopyMode()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -327,7 +328,7 @@ public class SelectionPanelMouseDragIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var panel = FindPanel(app);
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Drag to enter copy mode and create a selection.
         await new Hex1bTerminalInputSequenceBuilder()
@@ -337,8 +338,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel!.IsInCopyMode);
-        Assert.True(panel.HasSelection);
+        Assert.IsTrue(panel!.IsInCopyMode);
+        Assert.IsTrue(panel.HasSelection);
 
         // Right-click anywhere within the panel commits the copy.
         await new Hex1bTerminalInputSequenceBuilder()
@@ -348,10 +349,10 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(captured);
-        Assert.False(string.IsNullOrEmpty(captured!.Text));
-        Assert.False(panel.IsInCopyMode);
-        Assert.False(panel.HasSelection);
+        Assert.IsNotNull(captured);
+        Assert.IsFalse(string.IsNullOrEmpty(captured!.Text));
+        Assert.IsFalse(panel.IsInCopyMode);
+        Assert.IsFalse(panel.HasSelection);
     }
 
     /// <summary>
@@ -365,7 +366,7 @@ public class SelectionPanelMouseDragIntegrationTests
     /// user start a selection on visible content and drag it onto content
     /// that was off-screen at drag-start.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task WheelDuringDrag_ScrollsContainer_AndExtendsSelectionToNewlyVisibleContent()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -397,10 +398,10 @@ public class SelectionPanelMouseDragIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var panel = FindPanel(app);
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
         var scroll = FindScrollPanel(app);
-        Assert.NotNull(scroll);
-        Assert.Equal(0, scroll!.Offset);
+        Assert.IsNotNull(scroll);
+        Assert.AreEqual(0, scroll!.Offset);
 
         // Press at terminal row 1 (panel-local row 1, since not scrolled yet)
         // and drag to row 3 to enter copy mode with an active drag.
@@ -414,9 +415,9 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel!.IsInCopyMode);
-        Assert.Equal(1, panel.AnchorRow);
-        Assert.Equal(3, panel.CursorRow);
+        Assert.IsTrue(panel!.IsInCopyMode);
+        Assert.AreEqual(1, panel.AnchorRow);
+        Assert.AreEqual(3, panel.CursorRow);
 
         // Mouse stays at terminal row 3. Scroll the wheel to bring later
         // content into view — the SelectionPanel slides up, and the cell
@@ -428,19 +429,16 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(scroll!.Offset > 0,
-            $"ScrollPanel.Offset expected > 0 after wheel-down, got {scroll.Offset}");
-        Assert.True(panel.CursorRow > 3,
-            $"panel.CursorRow expected > 3 (anchor row + extension into newly-visible content), got {panel.CursorRow}");
+        Assert.IsTrue(scroll!.Offset > 0, $"ScrollPanel.Offset expected > 0 after wheel-down, got {scroll.Offset}");
+        Assert.IsTrue(panel.CursorRow > 3, $"panel.CursorRow expected > 3 (anchor row + extension into newly-visible content), got {panel.CursorRow}");
         // Anchor unchanged — selection EXTENDS, not moves.
-        Assert.Equal(1, panel.AnchorRow);
+        Assert.AreEqual(1, panel.AnchorRow);
         // Cursor must extend at least as far as the original mouseY (3) plus
         // some scroll-driven offset, proving that scroll-during-drag actually
         // brought new content under the mouse and the synthetic drag-move
         // followed it. Exact value depends on input batching / coalescing
         // ordering between scroll ticks and is not part of the contract.
-        Assert.True(panel.CursorRow >= 3 + 3,
-            $"panel.CursorRow expected >= 6 (mouseY + at least one scroll tick), got {panel.CursorRow}");
+        Assert.IsTrue(panel.CursorRow >= 3 + 3, $"panel.CursorRow expected >= 6 (mouseY + at least one scroll tick), got {panel.CursorRow}");
 
         // Releasing the mouse leaves copy mode active for keyboard refinement.
         await new Hex1bTerminalInputSequenceBuilder()
@@ -449,8 +447,8 @@ public class SelectionPanelMouseDragIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel.IsInCopyMode);
-        Assert.True(panel.HasSelection);
+        Assert.IsTrue(panel.IsInCopyMode);
+        Assert.IsTrue(panel.HasSelection);
     }
 
     private static ScrollPanelNode? FindScrollPanel(Hex1bApp app)
@@ -479,7 +477,7 @@ public class SelectionPanelMouseDragIntegrationTests
     /// the guard, the detached SelectionPanel would enter copy mode and
     /// start mutating selection state on a node nothing is rendering.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task PendingBubbleDrag_NodeUnmountedBeforeFirstMove_DoesNotActivateStaleDrag()
     {
         var workload = new Hex1bAppWorkloadAdapter();
@@ -522,8 +520,8 @@ public class SelectionPanelMouseDragIntegrationTests
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
             var originalPanel = FindPanel(app);
-            Assert.NotNull(originalPanel);
-            Assert.False(originalPanel!.IsInCopyMode, "panel must start outside copy mode");
+            Assert.IsNotNull(originalPanel);
+            Assert.IsFalse(originalPanel!.IsInCopyMode, "panel must start outside copy mode");
 
             // Step 1: mouse Down arms the pending bubble drag for the
             // SelectionPanel (the click hits the non-focusable container).
@@ -536,8 +534,7 @@ public class SelectionPanelMouseDragIntegrationTests
 
             // Pending bubble drag is armed but NOT activated yet (no Move
             // has arrived). Panel still not in copy mode.
-            Assert.False(originalPanel.IsInCopyMode,
-                "Down alone must not enter copy mode (bubble drag activates on Move)");
+            Assert.IsFalse(originalPanel.IsInCopyMode, "Down alone must not enter copy mode (bubble drag activates on Move)");
 
             // Step 2: rebuild the tree without the SelectionPanel. Wait
             // for the panel to actually leave the live node tree before
@@ -569,10 +566,8 @@ public class SelectionPanelMouseDragIntegrationTests
             // been pushed into copy mode behind our backs. Pre-fix this
             // would be true (handler.OnMove invoked → EnterCopyMode +
             // anchor + cursor mutation on a node nobody renders).
-            Assert.False(originalPanel.IsInCopyMode,
-                "Stale pending drag must not enter copy mode on a detached panel");
-            Assert.False(originalPanel.HasSelection,
-                "Stale pending drag must not start a selection on a detached panel");
+            Assert.IsFalse(originalPanel.IsInCopyMode, "Stale pending drag must not enter copy mode on a detached panel");
+            Assert.IsFalse(originalPanel.HasSelection, "Stale pending drag must not start a selection on a detached panel");
 
             // Sanity: app is still alive and accepting input after the
             // sequence (no crash from operating on stale state).
@@ -582,7 +577,7 @@ public class SelectionPanelMouseDragIntegrationTests
                 .Build()
                 .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-            Assert.True(snapshot.ContainsText("PANEL REMOVED"));
+            Assert.IsTrue(snapshot.ContainsText("PANEL REMOVED"));
         }
         finally
         {

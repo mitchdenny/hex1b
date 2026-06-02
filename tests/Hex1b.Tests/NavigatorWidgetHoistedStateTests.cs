@@ -10,12 +10,13 @@ namespace Hex1b.Tests;
 /// <see cref="IStatefulWidget{TSelf, TState}"/> contract. Mirrors the suite
 /// already in place for <see cref="TextBoxWidget"/>.
 /// </summary>
+[TestClass]
 public class NavigatorWidgetHoistedStateTests
 {
     private static NavigatorRoute CreateRoute(string id) =>
         new(id, _ => new TextBlockWidget($"Screen: {id}"));
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_RoutesParentInstanceIntoNode()
     {
         var state = new NavigatorState(CreateRoute("home"));
@@ -25,11 +26,11 @@ public class NavigatorWidgetHoistedStateTests
 
         var node = (NavigatorNode)await new NavigatorWidget(state).ReconcileAsync(null, context);
 
-        Assert.Same(state, node.State);
-        Assert.Equal("home", node.State.CurrentRoute.Id);
+        Assert.AreSame(state, node.State);
+        Assert.AreEqual("home", node.State.CurrentRoute.Id);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PreservedAcrossReconciles()
     {
         var state = new NavigatorState(CreateRoute("home"));
@@ -38,16 +39,16 @@ public class NavigatorWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (NavigatorNode)await new NavigatorWidget(state).ReconcileAsync(null, context);
-        Assert.Same(state, node.State);
+        Assert.AreSame(state, node.State);
 
         context.IsNew = false;
         var node2 = (NavigatorNode)await new NavigatorWidget(state).ReconcileAsync(node, context);
 
-        Assert.Same(node, node2);
-        Assert.Same(state, node2.State);
+        Assert.AreSame(node, node2);
+        Assert.AreSame(state, node2.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_ParentMutationVisibleAfterReconcile()
     {
         var state = new NavigatorState(CreateRoute("home"));
@@ -56,7 +57,7 @@ public class NavigatorWidgetHoistedStateTests
         context.IsNew = true;
 
         var node = (NavigatorNode)await new NavigatorWidget(state).ReconcileAsync(null, context);
-        Assert.Equal("home", node.State.CurrentRoute.Id);
+        Assert.AreEqual("home", node.State.CurrentRoute.Id);
 
         // Parent pushes a new route from outside the widget tree, then
         // reconciles. The node should observe the new current route.
@@ -65,11 +66,11 @@ public class NavigatorWidgetHoistedStateTests
         context.IsNew = false;
         await new NavigatorWidget(state).ReconcileAsync(node, context);
 
-        Assert.Equal("details", node.State.CurrentRoute.Id);
-        Assert.Equal(2, node.State.Depth);
+        Assert.AreEqual("details", node.State.CurrentRoute.Id);
+        Assert.AreEqual(2, node.State.Depth);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_HoistedState_PeerInstancesAreIndependent()
     {
         var stateA = new NavigatorState(CreateRoute("home-a"));
@@ -83,12 +84,12 @@ public class NavigatorWidgetHoistedStateTests
 
         stateA.Push(CreateRoute("nested"));
 
-        Assert.Equal("nested", nodeA.State.CurrentRoute.Id);
-        Assert.Equal("home-b", nodeB.State.CurrentRoute.Id);
-        Assert.NotSame(nodeA.State, nodeB.State);
+        Assert.AreEqual("nested", nodeA.State.CurrentRoute.Id);
+        Assert.AreEqual("home-b", nodeB.State.CurrentRoute.Id);
+        Assert.AreNotSame(nodeA.State, nodeB.State);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_FluentState_OverridesCtorState()
     {
         // The fluent .State(...) overload must replace whatever state was
@@ -102,7 +103,7 @@ public class NavigatorWidgetHoistedStateTests
         context.IsNew = true;
         var node = (NavigatorNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(hoistedState, node.State);
-        Assert.Equal("hoist-home", node.State.CurrentRoute.Id);
+        Assert.AreSame(hoistedState, node.State);
+        Assert.AreEqual("hoist-home", node.State.CurrentRoute.Id);
     }
 }

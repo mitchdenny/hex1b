@@ -6,7 +6,6 @@ using Hex1b;
 using Hex1b.Flow;
 using Hex1b.Input;
 using Hex1b.Widgets;
-using Xunit;
 
 namespace Hex1b.Tests.Flow;
 
@@ -24,9 +23,10 @@ namespace Hex1b.Tests.Flow;
 /// resize-handling discipline without being noised up by the inner app's
 /// continuous render output.
 /// </remarks>
+[TestClass]
 public class FlowRunnerResizeHarnessTests
 {
-    [Fact]
+    [TestMethod]
     public async Task PerEventDuringDrag_DoesNotEmitBytesThatWouldScrollHostTerminal()
     {
         var adapter = new RecordingParentAdapter(width: 80, height: 24);
@@ -83,9 +83,7 @@ public class FlowRunnerResizeHarnessTests
         Assert.DoesNotContain("\x1b[J", duringBurst);
         Assert.DoesNotContain("\x1b[2K", duringBurst);
         Assert.DoesNotContain("\x1b[K", duringBurst);
-        Assert.False(
-            Regex.IsMatch(duringBurst, @"\x1b\[\d+;\d+H"),
-            "Runner must not emit CUP (cursor position) during a resize burst.");
+        Assert.IsFalse(Regex.IsMatch(duringBurst, @"\x1b\[\d+;\d+H"), "Runner must not emit CUP (cursor position) during a resize burst.");
 
         // Let settle fire.
         await Task.Delay(150);
@@ -94,7 +92,7 @@ public class FlowRunnerResizeHarnessTests
         await runTask.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DuringDrag_RunnerDisablesDECAWM_SoStaleInnerAppOutputCannotScrollTombstones()
     {
         // The inner Hex1bApp keeps emitting frames during a drag (focus

@@ -2,8 +2,7 @@ using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.IO.Pipelines;
 using Hex1b;
-using Xunit.Sdk;
-using Xunit.v3;
+
 
 namespace Hex1b.Tests.Hmp1;
 
@@ -23,6 +22,7 @@ namespace Hex1b.Tests.Hmp1;
 /// all wire up end-to-end.
 /// </para>
 /// </summary>
+[TestClass]
 public class Hmp1MultiHeadHarnessTests
 {
     private static readonly TimeSpan ShortTimeout = TimeSpan.FromSeconds(5);
@@ -30,7 +30,7 @@ public class Hmp1MultiHeadHarnessTests
 
     // ---- Layer A: bare adapter pairs ----------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task RoundRobin_PrimaryHandoff_AllPeersConverge()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 4);
@@ -50,7 +50,7 @@ public class Hmp1MultiHeadHarnessTests
 
             await peer.Adapter.RequestPrimaryAsync(cols, rows);
             var ok = await peer.Adapter.WaitForRoleAsync(primary: true, ShortTimeout, CancellationToken.None);
-            Assert.True(ok, $"Peer {i} did not become primary within timeout.");
+            Assert.IsTrue(ok, $"Peer {i} did not become primary within timeout.");
 
             await harness.WaitUntilAsync(
                 () => harness.Peers.All(p => p.Adapter.PrimaryPeerId == peer.Adapter.PeerId)
@@ -62,7 +62,7 @@ public class Hmp1MultiHeadHarnessTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConcurrentTakeOver_AllPeersConvergeOnSomeWinner()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 4);
@@ -90,11 +90,11 @@ public class Hmp1MultiHeadHarnessTests
             () => "Peers failed to converge on a single winner. " + harness.DescribeState());
 
         var winner = harness.Server.PrimaryPeerId;
-        Assert.NotNull(winner);
-        Assert.Contains(harness.Peers, p => p.Adapter.PeerId == winner);
+        Assert.IsNotNull(winner);
+        Assert.IsTrue(harness.Peers.Any(p => p.Adapter.PeerId == winner));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RequestPrimary_InterleavedWithPrimaryResize_ConvergesOnTakeover()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 2);
@@ -147,7 +147,7 @@ public class Hmp1MultiHeadHarnessTests
             () => "Peers did not converge on challenger. " + harness.DescribeState());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PrimaryDisconnect_NoAutoPromotion()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 3);
@@ -165,17 +165,17 @@ public class Hmp1MultiHeadHarnessTests
 
         // Remaining peers should also see PrimaryPeerId become null.
         var remaining = harness.Peers.Where(p => p.IsConnected).ToList();
-        Assert.NotEmpty(remaining);
+        Assert.IsNotEmpty(remaining);
         await harness.WaitUntilAsync(
             () => remaining.All(p => p.Adapter.PrimaryPeerId is null),
             ShortTimeout,
             () => "Remaining peers did not observe primary clear. " + harness.DescribeState());
 
         // No peer was auto-promoted.
-        Assert.All(remaining, p => Assert.False(p.Adapter.IsPrimary));
+        TestSeq.All(remaining, p => Assert.IsFalse(p.Adapter.IsPrimary));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RosterChurn_PeerCountsConverge()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 1);
@@ -207,7 +207,7 @@ public class Hmp1MultiHeadHarnessTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitForRoleAsync_TimesOutWhenNotPromoted()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 2);
@@ -216,10 +216,10 @@ public class Hmp1MultiHeadHarnessTests
         // time out within a short budget.
         var ok = await harness.Peers[0].Adapter.WaitForRoleAsync(
             primary: true, TimeSpan.FromMilliseconds(200), CancellationToken.None);
-        Assert.False(ok);
+        Assert.IsFalse(ok);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PrimaryResize_BroadcastsCurrentDimsToAllPeers()
     {
         await using var harness = await BareHarness.CreateAsync(peerCount: 3);
@@ -237,7 +237,7 @@ public class Hmp1MultiHeadHarnessTests
             () => "Resize broadcast did not converge. " + harness.DescribeState());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StressLoop_Invariants_HoldThroughout()
     {
         var iterations = ParseEnvInt("HEX1B_MULTIHEAD_STRESS_ITERATIONS", defaultValue: 25);
@@ -289,7 +289,7 @@ public class Hmp1MultiHeadHarnessTests
             }
         }
 
-        Assert.True(failures.Count == 0, $"Stress run had {failures.Count} failures (seed {seed}):\n  " + string.Join("\n  ", failures));
+        Assert.IsTrue(failures.Count == 0, $"Stress run had {failures.Count} failures (seed {seed}):\n  " + string.Join("\n  ", failures));
 
         // Final convergence: every peer agrees on whoever the producer says is
         // primary. Per rubber-duck guidance, do not assert a specific winner —
@@ -313,7 +313,7 @@ public class Hmp1MultiHeadHarnessTests
 
     // ---- Layer B: one full Hex1bTerminal --------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task LayerB_Hex1bTerminalSmokeTest_DrivesHmp1WorkloadAdapter()
     {
         var server = new Hmp1PresentationAdapter(80, 24);
@@ -349,17 +349,17 @@ public class Hmp1MultiHeadHarnessTests
             ShortTimeout,
             () => "Hmp1 peer id never assigned.");
 
-        Assert.False(adapter.IsPrimary);
-        Assert.Null(adapter.PrimaryPeerId);
+        Assert.IsFalse(adapter.IsPrimary);
+        Assert.IsNull(adapter.PrimaryPeerId);
 
         // Take primary through the full Hex1bTerminal pipeline and verify it
         // reaches the producer's authoritative state.
         await adapter.RequestPrimaryAsync(110, 35);
         await adapter.WaitForRoleAsync(primary: true, ShortTimeout, CancellationToken.None);
 
-        Assert.Equal(adapter.PeerId, server.PrimaryPeerId);
-        Assert.Equal(110, server.Width);
-        Assert.Equal(35, server.Height);
+        Assert.AreEqual(adapter.PeerId, server.PrimaryPeerId);
+        Assert.AreEqual(110, server.Width);
+        Assert.AreEqual(35, server.Height);
 
         // Tear down cooperatively.
         await ctsRun.CancelAsync();
@@ -391,7 +391,7 @@ public class Hmp1MultiHeadHarnessTests
         }
         if (!predicate())
         {
-            throw new Xunit.Sdk.XunitException("Predicate failed: " + describeFailure());
+            throw new AssertFailedException("Predicate failed: " + describeFailure());
         }
     }
 

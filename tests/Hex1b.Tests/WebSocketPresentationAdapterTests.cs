@@ -2,9 +2,10 @@ using System.Net.WebSockets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class WebSocketPresentationAdapterTests
 {
-    [Fact]
+    [TestMethod]
     public void Resize_WithInvalidTracePath_DoesNotThrow()
     {
         using var webSocket = new StubWebSocket();
@@ -20,8 +21,8 @@ public class WebSocketPresentationAdapterTests
 
             adapter.Resize(120, 40, 9, 18, 9.5);
 
-            Assert.Equal(120, adapter.Width);
-            Assert.Equal(40, adapter.Height);
+            Assert.AreEqual(120, adapter.Width);
+            Assert.AreEqual(40, adapter.Height);
         }
         finally
         {

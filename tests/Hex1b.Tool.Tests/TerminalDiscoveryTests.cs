@@ -2,9 +2,10 @@ using Hex1b.Tool.Infrastructure;
 
 namespace Hex1b.Tool.Tests;
 
+[TestClass]
 public class TerminalDiscoveryTests
 {
-    [Fact]
+    [TestMethod]
     public void Scan_DiagnosticsSocket_ParsesAsTui()
     {
         using var dir = new TempSocketDirectory();
@@ -13,13 +14,13 @@ public class TerminalDiscoveryTests
         var discovery = new TerminalDiscovery(dir.Path);
         var terminals = discovery.Scan();
 
-        Assert.Single(terminals);
-        Assert.Equal("12345", terminals[0].Id);
-        Assert.Equal("tui", terminals[0].Type);
+        Assert.HasCount(1, terminals);
+        Assert.AreEqual("12345", terminals[0].Id);
+        Assert.AreEqual("tui", terminals[0].Type);
         Assert.EndsWith(".diagnostics.socket", terminals[0].SocketPath);
     }
 
-    [Fact]
+    [TestMethod]
     public void Scan_TerminalSocket_ParsesAsHost()
     {
         using var dir = new TempSocketDirectory();
@@ -28,12 +29,12 @@ public class TerminalDiscoveryTests
         var discovery = new TerminalDiscovery(dir.Path);
         var terminals = discovery.Scan();
 
-        Assert.Single(terminals);
-        Assert.Equal("67890", terminals[0].Id);
-        Assert.Equal("host", terminals[0].Type);
+        Assert.HasCount(1, terminals);
+        Assert.AreEqual("67890", terminals[0].Id);
+        Assert.AreEqual("host", terminals[0].Type);
     }
 
-    [Fact]
+    [TestMethod]
     public void Scan_MixedSocketTypes_ReturnsBoth()
     {
         using var dir = new TempSocketDirectory();
@@ -43,12 +44,12 @@ public class TerminalDiscoveryTests
         var discovery = new TerminalDiscovery(dir.Path);
         var terminals = discovery.Scan();
 
-        Assert.Equal(2, terminals.Count);
-        Assert.Contains(terminals, t => t.Id == "111" && t.Type == "tui");
-        Assert.Contains(terminals, t => t.Id == "222" && t.Type == "host");
+        Assert.AreEqual(2, terminals.Count);
+        Assert.IsTrue(terminals.Any(t => t.Id == "111" && t.Type == "tui"));
+        Assert.IsTrue(terminals.Any(t => t.Id == "222" && t.Type == "host"));
     }
 
-    [Fact]
+    [TestMethod]
     public void Scan_UnknownSocketPattern_Ignored()
     {
         using var dir = new TempSocketDirectory();
@@ -59,11 +60,11 @@ public class TerminalDiscoveryTests
         var discovery = new TerminalDiscovery(dir.Path);
         var terminals = discovery.Scan();
 
-        Assert.Single(terminals);
-        Assert.Equal("12345", terminals[0].Id);
+        Assert.HasCount(1, terminals);
+        Assert.AreEqual("12345", terminals[0].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void Scan_EmptyDirectory_ReturnsEmpty()
     {
         using var dir = new TempSocketDirectory();
@@ -71,16 +72,16 @@ public class TerminalDiscoveryTests
 
         var terminals = discovery.Scan();
 
-        Assert.Empty(terminals);
+        Assert.IsEmpty(terminals);
     }
 
-    [Fact]
+    [TestMethod]
     public void Scan_NonexistentDirectory_ReturnsEmpty()
     {
         var discovery = new TerminalDiscovery("/tmp/nonexistent-hex1b-test-" + Guid.NewGuid());
         var terminals = discovery.Scan();
 
-        Assert.Empty(terminals);
+        Assert.IsEmpty(terminals);
     }
 
     private sealed class TempSocketDirectory : IDisposable

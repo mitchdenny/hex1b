@@ -9,9 +9,10 @@ using Microsoft.Extensions.Logging;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class BackgroundBleedThroughTests
 {
-    [Fact]
+    [TestMethod]
     public void Composite_TransparentBgPicksUpDestBackground()
     {
         var bg = Hex1bColor.FromRgb(10, 20, 30);
@@ -20,30 +21,30 @@ public class BackgroundBleedThroughTests
         var src = new Surface(10, 1);
         src[0, 0] = new SurfaceCell("H", null, null, CellAttributes.None, 1);
         dest.Composite(src, 0, 0);
-        Assert.Equal("H", dest[0, 0].Character);
-        Assert.Equal(bg, dest[0, 0].Background);
+        Assert.AreEqual("H", dest[0, 0].Character);
+        Assert.AreEqual(bg, dest[0, 0].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void FillBackground_ReplacesTransparentBg()
     {
         var bg = Hex1bColor.FromRgb(10, 20, 30);
         var surface = new Surface(5, 1);
         surface[0, 0] = new SurfaceCell("H", null, null, CellAttributes.None, 1);
         surface.FillBackground(bg);
-        Assert.Equal(bg, surface[0, 0].Background);
+        Assert.AreEqual(bg, surface[0, 0].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public void FillBackground_FillsEmptyCells()
     {
         var bg = Hex1bColor.FromRgb(10, 20, 30);
         var surface = new Surface(5, 1);
         surface.FillBackground(bg);
-        Assert.Equal(bg, surface[0, 0].Background);
+        Assert.AreEqual(bg, surface[0, 0].Background);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task BackgroundPanel_TextBlock_HasPanelBackground()
     {
         var panelBg = Hex1bColor.FromRgb(10, 20, 30);
@@ -63,9 +64,8 @@ public class BackgroundBleedThroughTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         var cell = snapshot.GetCell(0, 0);
-        Assert.True(cell.Background.HasValue,
-            $"'H' should have bg. Row:\n{DumpRow(snapshot, 0, 20)}");
-        Assert.Equal(panelBg, cell.Background.Value);
+        Assert.IsTrue(cell.Background.HasValue, $"'H' should have bg. Row:\n{DumpRow(snapshot, 0, 20)}");
+        Assert.AreEqual(panelBg, cell.Background.Value);
     }
 
     /// <summary>
@@ -73,7 +73,7 @@ public class BackgroundBleedThroughTests
     /// On top of a RED background in a ZStack. The table header and data rows
     /// must have the BLACK bg from the panel, NOT red bleed-through.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BackgroundPanel_WithLoggerTable_NoBleedThrough()
     {
         var windowBg = Hex1bColor.FromRgb(255, 0, 0);  // RED
@@ -159,15 +159,15 @@ public class BackgroundBleedThroughTests
         report += $"\nRow 0 detail:\n{DumpRow(snapshot, 0, 50)}";
         report += $"\nRow 1 detail:\n{DumpRow(snapshot, 1, 50)}";
 
-        Assert.True(redCells.Count == 0, $"RED bleed-through detected!\n{report}");
-        Assert.True(nullBgCells.Count == 0, $"Null bg = potential bleed-through!\n{report}");
+        Assert.IsTrue(redCells.Count == 0, $"RED bleed-through detected!\n{report}");
+        Assert.IsTrue(nullBgCells.Count == 0, $"Null bg = potential bleed-through!\n{report}");
     }
 
     /// <summary>
     /// Deep nesting: ZStack → VStack → Border → BackgroundPanel → VStack → DragBarPanel → LoggerPanel.
     /// Matches the popup rendering chain depth.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BackgroundPanel_DeeplyNested_WithDragBarAndLoggerTable()
     {
         var windowBg = Hex1bColor.FromRgb(255, 0, 0);
@@ -228,8 +228,8 @@ public class BackgroundBleedThroughTests
             }
 
         var screen = DumpScreen(snapshot, 20, 100);
-        Assert.True(redCells.Count == 0, $"RED bleed!\n{string.Join(", ", redCells.Take(20))}\n{screen}");
-        Assert.True(nullBgCells.Count == 0, $"Null bg!\n{string.Join(", ", nullBgCells.Take(20))}\n{screen}");
+        Assert.IsTrue(redCells.Count == 0, $"RED bleed!\n{string.Join(", ", redCells.Take(20))}\n{screen}");
+        Assert.IsTrue(nullBgCells.Count == 0, $"Null bg!\n{string.Join(", ", nullBgCells.Take(20))}\n{screen}");
     }
 
     private static string DumpRow(Hex1b.Automation.IHex1bTerminalRegion snap, int row, int cols)

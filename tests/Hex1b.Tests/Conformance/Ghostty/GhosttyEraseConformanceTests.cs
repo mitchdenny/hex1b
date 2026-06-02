@@ -6,7 +6,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Conformance tests for eraseDisplay (ED) and eraseLine (EL) operations,
 /// translated from Ghostty's Terminal.zig.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyEraseConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 5, int rows = 5)
@@ -18,19 +19,19 @@ public class GhosttyEraseConformanceTests
         for (int i = 0; i < expectedLines.Length; i++)
         {
             var actualLine = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal(expectedLines[i], actualLine);
+            Assert.AreEqual(expectedLines[i], actualLine);
         }
         for (int i = expectedLines.Length; i < terminal.Height; i++)
         {
             var line = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal("", line);
+            Assert.AreEqual("", line);
         }
     }
 
     // ── EraseDisplay (ED) ────────────────────────────────────────────────
 
     // Ghostty: test "eraseDisplay: simple erase below"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_EraseBelow_ErasesFromCursorDown()
     {
         using var terminal = CreateTerminal();
@@ -44,7 +45,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseDisplay: simple erase above"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_EraseAbove_ErasesFromCursorUp()
     {
         using var terminal = CreateTerminal();
@@ -58,7 +59,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseDisplay: erase complete"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_EraseComplete_ClearsAllContent()
     {
         using var terminal = CreateTerminal();
@@ -71,15 +72,15 @@ public class GhosttyEraseConformanceTests
         // All lines should be empty
         for (int i = 0; i < terminal.Height; i++)
         {
-            Assert.Equal("", GhosttyTestFixture.GetLine(terminal, i));
+            Assert.AreEqual("", GhosttyTestFixture.GetLine(terminal, i));
         }
         // Cursor should NOT move
-        Assert.Equal(1, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(1, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
     }
 
     // Ghostty: test "eraseDisplay: erase below preserves cursor"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_EraseBelow_PreservesCursorPosition()
     {
         using var terminal = CreateTerminal();
@@ -89,15 +90,15 @@ public class GhosttyEraseConformanceTests
         // ED 0
         GhosttyTestFixture.Feed(terminal, "\u001b[J");
 
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(1, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(1, terminal.CursorY);
         AssertPlainText(terminal, "ABC\nDE");
     }
 
     // ── EraseLine (EL) ──────────────────────────────────────────────────
 
     // Ghostty: test "eraseLine: simple erase right"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_ErasesFromCursorToEnd()
     {
         using var terminal = CreateTerminal();
@@ -111,7 +112,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseLine: erase right preserves cursor"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_PreservesCursorPosition()
     {
         using var terminal = CreateTerminal();
@@ -121,12 +122,12 @@ public class GhosttyEraseConformanceTests
         // EL 0
         GhosttyTestFixture.Feed(terminal, "\u001b[K");
 
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     // Ghostty: test "eraseLine: simple erase left"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseLeft_ErasesFromCursorToStart()
     {
         using var terminal = CreateTerminal();
@@ -140,7 +141,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseLine: erase complete"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseComplete_ClearsEntireLine()
     {
         using var terminal = CreateTerminal();
@@ -151,13 +152,13 @@ public class GhosttyEraseConformanceTests
         GhosttyTestFixture.Feed(terminal, "\u001b[2K");
 
         AssertPlainText(terminal, "");
-        Assert.Equal(2, terminal.CursorX);
-        Assert.Equal(0, terminal.CursorY);
+        Assert.AreEqual(2, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorY);
     }
 
     // Ghostty: test "eraseLine: erase right preserves background SGR"
     // BUG: Hex1b's EL doesn't apply current background SGR to erased cells
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_PreservesBackgroundSgr()
     {
         using var terminal = CreateTerminal(10, 10);
@@ -169,17 +170,17 @@ public class GhosttyEraseConformanceTests
         GhosttyTestFixture.Feed(terminal, "\u001b[K");
 
         // Cols 0-1 survive ("AB"), cols 2+ erased with red background
-        Assert.Equal("AB", GhosttyTestFixture.GetLine(terminal, 0));
+        Assert.AreEqual("AB", GhosttyTestFixture.GetLine(terminal, 0));
 
         // Erased cell (0,2) should have red background
         var cell = GhosttyTestFixture.GetCell(terminal, 0, 2);
-        Assert.NotNull(cell.Background);
-        Assert.Equal(Hex1bColor.FromRgb(255, 0, 0), cell.Background);
+        Assert.IsNotNull(cell.Background);
+        Assert.AreEqual(Hex1bColor.FromRgb(255, 0, 0), cell.Background);
     }
 
     // Ghostty: test "eraseLine: erase right with wide character"
     // BUG: When EL starts at a wide char spacer cell, the leading half should also be cleared
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_WithWideCharacter()
     {
         using var terminal = CreateTerminal();
@@ -194,7 +195,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseLine: resets pending wrap"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal();
@@ -209,7 +210,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseLine: resets wrap marker"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseRight_ResetsWrapMarker()
     {
         using var terminal = CreateTerminal();
@@ -228,7 +229,7 @@ public class GhosttyEraseConformanceTests
     // ── Edge Cases ──────────────────────────────────────────────────────
 
     // Ghostty: test "eraseDisplay: scrollback (ED 3)"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_ClearScrollback_NotImplemented()
     {
         using var terminal = CreateTerminal();
@@ -236,7 +237,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseLine: erase left with wide character"
-    [Fact]
+    [TestMethod]
     public void EraseLine_EraseLeft_WithWideCharacter()
     {
         using var terminal = CreateTerminal();
@@ -251,7 +252,7 @@ public class GhosttyEraseConformanceTests
     }
 
     // Ghostty: test "eraseDisplay: erase below resets pending wrap"
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_EraseBelow_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal();

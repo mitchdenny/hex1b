@@ -149,15 +149,15 @@ public static class TestCaptureHelper
     public static void AttachFile(string name, string content)
     {
         // Attach to xUnit test context - will throw if name is duplicate
-        TestContext.Current.AddAttachment(name, content);
+        { var __tmp = System.IO.Path.Combine(System.IO.Path.GetTempPath(), name); System.IO.File.WriteAllText(__tmp, content); TestContext.Current?.AddResultFile(__tmp); }
 
         // Build path: TestResults/{type}/{TestClass}_{TestName}_{attachment}
         var testContext = TestContext.Current;
-        var testClass = testContext.Test?.TestCase?.TestClassName ?? "UnknownClass";
-        var testMethodName = testContext.Test?.TestCase?.TestMethod?.MethodName ?? "UnknownMethod";
+        var testClass = testContext.FullyQualifiedTestClassName ?? "UnknownClass";
+        var testMethodName = testContext.TestName ?? "UnknownMethod";
         
         // Get test display name which includes theory parameters
-        var testDisplayName = testContext.Test?.TestDisplayName ?? testMethodName;
+        var testDisplayName = testContext.TestName ?? testMethodName;
         
         // Extract just the method part with parameters if it's a theory
         var methodWithParams = testDisplayName;

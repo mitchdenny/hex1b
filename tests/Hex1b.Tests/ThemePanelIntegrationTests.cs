@@ -14,6 +14,7 @@ namespace Hex1b.Tests;
 /// 
 /// Test outputs include SVG, HTML, and ANSI evidence files for visual verification.
 /// </summary>
+[TestClass]
 public class ThemePanelIntegrationTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -39,7 +40,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// Verifies that button theme customizations inside ThemePanel are applied,
     /// while buttons outside remain with default styling.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_ScopesButtonColors_OnlyInsidePanel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -80,14 +81,13 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // The themed button should have the custom blue background
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 100, 200)),
-            "Themed button should have blue background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 100, 200)), "Themed button should have blue background");
     }
 
     /// <summary>
     /// Verifies focused button appearance is correctly themed inside ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_AppliesFocusedButtonTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -118,8 +118,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // The focused button should have red background (custom focused color)
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
-            "Focused button inside ThemePanel should have red background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)), "Focused button inside ThemePanel should have red background");
     }
 
     #endregion
@@ -129,7 +128,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies TextBox cursor and selection colors are themed inside ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_ScopesTextBoxColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -164,8 +163,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         // Line caret: cursor colors are not rendered as part of the text output.
         // The native terminal cursor handles the caret. Verify textbox content is visible.
-        Assert.True(snapshot.ContainsText("Themed Cursor"),
-            "Themed TextBox content should be visible");
+        Assert.IsTrue(snapshot.ContainsText("Themed Cursor"), "Themed TextBox content should be visible");
     }
 
     #endregion
@@ -175,7 +173,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies List selection colors are themed inside ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_ScopesListColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -211,8 +209,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // The selected list item should have green background
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 200, 0)),
-            "Selected list item inside ThemePanel should have green background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 200, 0)), "Selected list item inside ThemePanel should have green background");
     }
 
     #endregion
@@ -222,7 +219,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies Border colors are themed inside ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_ScopesBorderColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -256,8 +253,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // Should have both default gray and themed orange borders
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 165, 0)),
-            "Themed border should have orange color");
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 165, 0)), "Themed border should have orange color");
     }
 
     #endregion
@@ -267,7 +263,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies Progress bar colors are themed inside ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_ScopesProgressColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -305,8 +301,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // The themed progress should have green filled color
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0)),
-            "Themed progress bar should have green filled color");
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(0, 255, 0)), "Themed progress bar should have green filled color");
     }
 
     #endregion
@@ -316,7 +311,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies that nested ThemePanels apply their themes cumulatively.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_NestedPanels_ApplyThemesCumulatively()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -357,17 +352,15 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // Should have both blue and red buttons
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 200)),
-            "Outer ThemePanel buttons should be blue");
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(200, 0, 0)),
-            "Inner ThemePanel button should be red");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 200)), "Outer ThemePanel buttons should be blue");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(200, 0, 0)), "Inner ThemePanel button should be red");
     }
 
     /// <summary>
     /// Verifies nested ThemePanels work exactly as shown in the documentation example.
     /// This matches themepanel-nested.cs snippet: outer cyan text, inner yellow text, back to cyan.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_NestedDocExample_CyanYellowCyan()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -416,36 +409,33 @@ public class ThemePanelIntegrationTests : IDisposable
                 outerLine2 = y;
         }
 
-        Assert.NotNull(outerLine1);
-        Assert.NotNull(innerLine);
-        Assert.NotNull(outerLine2);
+        Assert.IsNotNull(outerLine1);
+        Assert.IsNotNull(innerLine);
+        Assert.IsNotNull(outerLine2);
 
         // Check the foreground colors on the first character of each text line
         // Find where "Outer" starts on each line
         var line1 = snapshot.GetLine(outerLine1.Value);
         var col1 = line1.IndexOf("Outer");
         var cell1 = snapshot.GetCell(col1, outerLine1.Value);
-        Assert.True(cell1.Foreground is not null && cell1.Foreground.Value.R == 0 && cell1.Foreground.Value.G == 255 && cell1.Foreground.Value.B == 255,
-            $"First 'Outer theme - Cyan' should have cyan foreground, got {cell1.Foreground}");
+        Assert.IsTrue(cell1.Foreground is not null && cell1.Foreground.Value.R == 0 && cell1.Foreground.Value.G == 255 && cell1.Foreground.Value.B == 255, $"First 'Outer theme - Cyan' should have cyan foreground, got {cell1.Foreground}");
 
         var lineInner = snapshot.GetLine(innerLine.Value);
         var colInner = lineInner.IndexOf("Inner");
         var cellInner = snapshot.GetCell(colInner, innerLine.Value);
-        Assert.True(cellInner.Foreground is not null && cellInner.Foreground.Value.R == 255 && cellInner.Foreground.Value.G == 255 && cellInner.Foreground.Value.B == 0,
-            $"'Inner theme - Yellow' should have yellow foreground, got {cellInner.Foreground}");
+        Assert.IsTrue(cellInner.Foreground is not null && cellInner.Foreground.Value.R == 255 && cellInner.Foreground.Value.G == 255 && cellInner.Foreground.Value.B == 0, $"'Inner theme - Yellow' should have yellow foreground, got {cellInner.Foreground}");
 
         var line2 = snapshot.GetLine(outerLine2.Value);
         var col2 = line2.IndexOf("Back");
         var cell2 = snapshot.GetCell(col2, outerLine2.Value);
-        Assert.True(cell2.Foreground is not null && cell2.Foreground.Value.R == 0 && cell2.Foreground.Value.G == 255 && cell2.Foreground.Value.B == 255,
-            $"'Back to outer - Cyan' should have cyan foreground, got {cell2.Foreground}");
+        Assert.IsTrue(cell2.Foreground is not null && cell2.Foreground.Value.R == 0 && cell2.Foreground.Value.G == 255 && cell2.Foreground.Value.B == 255, $"'Back to outer - Cyan' should have cyan foreground, got {cell2.Foreground}");
     }
 
     /// <summary>
     /// Verifies nested ThemePanels can combine themes (cumulative inheritance).
     /// This matches themepanel-nesting.cs snippet: outer sets foreground cyan, inner adds background.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_NestedDocExample_CumulativeThemes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -492,32 +482,28 @@ public class ThemePanelIntegrationTests : IDisposable
                 outerLine2 = y;
         }
 
-        Assert.NotNull(outerLine1);
-        Assert.NotNull(combinedLine);
-        Assert.NotNull(outerLine2);
+        Assert.IsNotNull(outerLine1);
+        Assert.IsNotNull(combinedLine);
+        Assert.IsNotNull(outerLine2);
 
         // Check colors on the text cells
         var line1 = snapshot.GetLine(outerLine1.Value);
         var col1 = line1.IndexOf("Outer");
         var cell1 = snapshot.GetCell(col1, outerLine1.Value);
-        Assert.True(cell1.Foreground is not null && cell1.Foreground.Value.R == 0 && cell1.Foreground.Value.G == 255 && cell1.Foreground.Value.B == 255,
-            $"First outer row should have cyan foreground, got {cell1.Foreground}");
+        Assert.IsTrue(cell1.Foreground is not null && cell1.Foreground.Value.R == 0 && cell1.Foreground.Value.G == 255 && cell1.Foreground.Value.B == 255, $"First outer row should have cyan foreground, got {cell1.Foreground}");
 
         var lineCombined = snapshot.GetLine(combinedLine.Value);
         var colCombined = lineCombined.IndexOf("Both");
         var cellCombined = snapshot.GetCell(colCombined, combinedLine.Value);
         // Combined row should have cyan foreground inherited from outer
-        Assert.True(cellCombined.Foreground is not null && cellCombined.Foreground.Value.R == 0 && cellCombined.Foreground.Value.G == 255 && cellCombined.Foreground.Value.B == 255,
-            $"Combined row should inherit cyan foreground from outer, got {cellCombined.Foreground}");
+        Assert.IsTrue(cellCombined.Foreground is not null && cellCombined.Foreground.Value.R == 0 && cellCombined.Foreground.Value.G == 255 && cellCombined.Foreground.Value.B == 255, $"Combined row should inherit cyan foreground from outer, got {cellCombined.Foreground}");
         // Combined row should have dark blue background from inner
-        Assert.True(cellCombined.Background is not null && cellCombined.Background.Value.R == 0 && cellCombined.Background.Value.G == 0 && cellCombined.Background.Value.B == 139,
-            $"Combined row should have dark blue background from inner ThemePanel, got {cellCombined.Background}");
+        Assert.IsTrue(cellCombined.Background is not null && cellCombined.Background.Value.R == 0 && cellCombined.Background.Value.G == 0 && cellCombined.Background.Value.B == 139, $"Combined row should have dark blue background from inner ThemePanel, got {cellCombined.Background}");
 
         var line2 = snapshot.GetLine(outerLine2.Value);
         var col2 = line2.IndexOf("Only");
         var cell2 = snapshot.GetCell(col2, outerLine2.Value);
-        Assert.True(cell2.Foreground is not null && cell2.Foreground.Value.R == 0 && cell2.Foreground.Value.G == 255 && cell2.Foreground.Value.B == 255,
-            $"Second outer row should have cyan foreground, got {cell2.Foreground}");
+        Assert.IsTrue(cell2.Foreground is not null && cell2.Foreground.Value.R == 0 && cell2.Foreground.Value.G == 255 && cell2.Foreground.Value.B == 255, $"Second outer row should have cyan foreground, got {cell2.Foreground}");
     }
 
     #endregion
@@ -527,7 +513,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies ThemePanel works correctly inside VStack.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_InsideVStack_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -558,14 +544,13 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(128, 0, 128)),
-            "ThemePanel button should have purple background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(128, 0, 128)), "ThemePanel button should have purple background");
     }
 
     /// <summary>
     /// Verifies ThemePanel works correctly inside HStack.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_InsideHStack_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -598,14 +583,13 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 128, 0)),
-            "ThemePanel button should have green background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 128, 0)), "ThemePanel button should have green background");
     }
 
     /// <summary>
     /// Verifies ThemePanel works correctly inside Border.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_InsideBorder_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -637,14 +621,13 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 128, 0)),
-            "ThemePanel button inside border should have orange background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 128, 0)), "ThemePanel button inside border should have orange background");
     }
 
     /// <summary>
     /// Verifies ThemePanel works correctly inside VScroll container.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_InsideVScroll_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -679,14 +662,13 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 200, 200)),
-            "ThemePanel buttons inside scroll should have cyan background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 200, 200)), "ThemePanel buttons inside scroll should have cyan background");
     }
 
     /// <summary>
     /// Verifies ThemePanel works correctly inside Splitter.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_InsideSplitter_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -728,8 +710,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // The left button is focused, so it should have magenta FocusedBackgroundColor
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(200, 0, 200)),
-            "Left pane button should have magenta focused background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(200, 0, 200)), "Left pane button should have magenta focused background");
         // Right pane button is NOT focused, so we can't assert on BackgroundColor
         // as unfocused buttons don't show background by default
     }
@@ -741,7 +722,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies that a cached theme can be used with ThemePanel.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_WithCachedTheme_WorksCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -777,8 +758,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(30, 60, 120)),
-            "Buttons should use cached theme's blue background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(30, 60, 120)), "Buttons should use cached theme's blue background");
     }
 
     /// <summary>
@@ -788,7 +768,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// This test is currently flaky when run with other tests due to what appears
     /// to be a test isolation issue. It passes reliably when run in isolation.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_PassthroughTheme_HasNoEffect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -817,8 +797,7 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // Default focused button is white background
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.White),
-            "Button with passthrough theme should use default styling");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.White), "Button with passthrough theme should use default styling");
     }
 
     #endregion
@@ -836,11 +815,11 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Verifies ThemePanel works correctly at various terminal widths.
     /// </summary>
-    [Theory]
-    [InlineData(40)]
-    [InlineData(60)]
-    [InlineData(80)]
-    [InlineData(120)]
+    [TestMethod]
+    [DataRow(40)]
+    [DataRow(60)]
+    [DataRow(80)]
+    [DataRow(120)]
     public async Task ThemePanel_RespondsToTerminalWidth(int width)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -870,8 +849,7 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 128, 255)),
-            $"ThemePanel button should have blue background at width {width}");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 128, 255)), $"ThemePanel button should have blue background at width {width}");
     }
 
     #endregion
@@ -881,7 +859,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Records an asciinema demonstration of ThemePanel scope boundaries.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_RecordsScopeBoundaryDemo()
     {
         var tempFile = GetTempFile();
@@ -964,7 +942,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Records an asciinema demonstration of nested ThemePanels.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_RecordsNestedPanelDemo()
     {
         var tempFile = GetTempFile();
@@ -1055,7 +1033,7 @@ public class ThemePanelIntegrationTests : IDisposable
     /// <summary>
     /// Demonstrates a realistic dashboard with themed sections.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_Dashboard_WithThemedSections()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1128,16 +1106,14 @@ public class ThemePanelIntegrationTests : IDisposable
         await runTask;
 
         // Verify multiple themed sections
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(50, 50, 80)),
-            "Sidebar list should have dark purple selection");
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(100, 200, 100)),
-            "Header border should have green color");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(50, 50, 80)), "Sidebar list should have dark purple selection");
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(100, 200, 100)), "Header border should have green color");
     }
 
     /// <summary>
     /// Demonstrates a form with validation-themed fields.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanel_Form_WithValidationThemes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1194,8 +1170,8 @@ public class ThemePanelIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(snapshot.ContainsText("valid_user"), "Form should contain valid username");
-        Assert.True(snapshot.ContainsText("invalid-email"), "Form should contain invalid email");
+        Assert.IsTrue(snapshot.ContainsText("valid_user"), "Form should contain valid username");
+        Assert.IsTrue(snapshot.ContainsText("invalid-email"), "Form should contain invalid email");
     }
 
     #endregion

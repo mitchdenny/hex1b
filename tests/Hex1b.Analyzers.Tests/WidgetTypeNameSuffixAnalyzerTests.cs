@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetTypeNameSuffixAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetTypeNameSuffixAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetTypeNameSuffixAnalyzer>.Diagnostic(WidgetTypeNameSuffixAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task WidgetSuffix_NoDiagnostic()
     {
         const string source = """
@@ -25,7 +26,7 @@ public class WidgetTypeNameSuffixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MissingSuffix_DirectInheritance_Reports()
     {
         const string source = """
@@ -39,7 +40,7 @@ public class WidgetTypeNameSuffixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MissingSuffix_TransitiveInheritance_Reports()
     {
         const string source = """
@@ -54,7 +55,7 @@ public class WidgetTypeNameSuffixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("CustomThing"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetType_NoDiagnostic()
     {
         const string source = """
@@ -66,7 +67,7 @@ public class WidgetTypeNameSuffixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GenericWidgetSuffix_NoDiagnostic()
     {
         const string source = """

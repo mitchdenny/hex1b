@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Tests for <see cref="FoldingRegion"/>, <see cref="FoldingRegionKind"/>,
 /// and their integration with <see cref="IEditorSession"/> on <see cref="EditorNode"/>.
 /// </summary>
+[TestClass]
 public class FoldingRegionTests
 {
     private static IEditorSession CreateSession(string text = "line1\nline2\nline3\nline4\nline5")
@@ -20,7 +21,7 @@ public class FoldingRegionTests
 
     // ── IEditorSession integration ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SetFoldingRegions_WithRegions_StoresAndReturnsRegions()
     {
         var session = CreateSession();
@@ -32,12 +33,12 @@ public class FoldingRegionTests
 
         session.SetFoldingRegions(regions);
 
-        Assert.Equal(2, session.FoldingRegions.Count);
-        Assert.Equal(1, session.FoldingRegions[0].StartLine);
-        Assert.Equal(5, session.FoldingRegions[0].EndLine);
+        Assert.AreEqual(2, session.FoldingRegions.Count);
+        Assert.AreEqual(1, session.FoldingRegions[0].StartLine);
+        Assert.AreEqual(5, session.FoldingRegions[0].EndLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetFoldingRegions_CalledTwice_ReplacesPreviousRegions()
     {
         var session = CreateSession();
@@ -45,11 +46,11 @@ public class FoldingRegionTests
 
         session.SetFoldingRegions([new FoldingRegion(2, 5)]);
 
-        Assert.Single(session.FoldingRegions);
-        Assert.Equal(2, session.FoldingRegions[0].StartLine);
+        TestSeq.Single(session.FoldingRegions);
+        Assert.AreEqual(2, session.FoldingRegions[0].StartLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetFoldingRegions_EmptyList_ClearsPreviousRegions()
     {
         var session = CreateSession();
@@ -57,75 +58,75 @@ public class FoldingRegionTests
 
         session.SetFoldingRegions([]);
 
-        Assert.Empty(session.FoldingRegions);
+        Assert.IsEmpty(session.FoldingRegions);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegions_Default_ReturnsEmptyList()
     {
         var session = CreateSession();
 
-        Assert.Empty(session.FoldingRegions);
+        Assert.IsEmpty(session.FoldingRegions);
     }
 
     // ── FoldingRegion construction ───────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_DefaultKind_IsRegion()
     {
         var region = new FoldingRegion(1, 10);
 
-        Assert.Equal(FoldingRegionKind.Region, region.Kind);
+        Assert.AreEqual(FoldingRegionKind.Region, region.Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_DefaultIsCollapsed_IsFalse()
     {
         var region = new FoldingRegion(1, 10);
 
-        Assert.False(region.IsCollapsed);
+        Assert.IsFalse(region.IsCollapsed);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_WithIsCollapsedTrue_PreservesValue()
     {
         var region = new FoldingRegion(1, 10) { IsCollapsed = true };
 
-        Assert.True(region.IsCollapsed);
+        Assert.IsTrue(region.IsCollapsed);
     }
 
-    [Theory]
-    [InlineData(FoldingRegionKind.Region)]
-    [InlineData(FoldingRegionKind.Comment)]
-    [InlineData(FoldingRegionKind.Imports)]
+    [TestMethod]
+    [DataRow(FoldingRegionKind.Region)]
+    [DataRow(FoldingRegionKind.Comment)]
+    [DataRow(FoldingRegionKind.Imports)]
     public void FoldingRegion_AllKinds_AreValid(FoldingRegionKind kind)
     {
         var region = new FoldingRegion(1, 5, kind);
 
-        Assert.Equal(kind, region.Kind);
+        Assert.AreEqual(kind, region.Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_CommentKind_SetsCorrectly()
     {
         var region = new FoldingRegion(1, 5, FoldingRegionKind.Comment);
 
-        Assert.Equal(FoldingRegionKind.Comment, region.Kind);
-        Assert.Equal(1, region.StartLine);
-        Assert.Equal(5, region.EndLine);
+        Assert.AreEqual(FoldingRegionKind.Comment, region.Kind);
+        Assert.AreEqual(1, region.StartLine);
+        Assert.AreEqual(5, region.EndLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_ImportsKind_SetsCorrectly()
     {
         var region = new FoldingRegion(1, 3, FoldingRegionKind.Imports);
 
-        Assert.Equal(FoldingRegionKind.Imports, region.Kind);
+        Assert.AreEqual(FoldingRegionKind.Imports, region.Kind);
     }
 
     // ── Overlapping / nested regions ─────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SetFoldingRegions_OverlappingNestedRegions_StoresAll()
     {
         var session = CreateSession();
@@ -138,16 +139,16 @@ public class FoldingRegionTests
 
         session.SetFoldingRegions(regions);
 
-        Assert.Equal(3, session.FoldingRegions.Count);
-        Assert.Equal(1, session.FoldingRegions[0].StartLine);
-        Assert.Equal(10, session.FoldingRegions[0].EndLine);
-        Assert.Equal(3, session.FoldingRegions[1].StartLine);
-        Assert.Equal(7, session.FoldingRegions[1].EndLine);
-        Assert.Equal(4, session.FoldingRegions[2].StartLine);
-        Assert.Equal(6, session.FoldingRegions[2].EndLine);
+        Assert.AreEqual(3, session.FoldingRegions.Count);
+        Assert.AreEqual(1, session.FoldingRegions[0].StartLine);
+        Assert.AreEqual(10, session.FoldingRegions[0].EndLine);
+        Assert.AreEqual(3, session.FoldingRegions[1].StartLine);
+        Assert.AreEqual(7, session.FoldingRegions[1].EndLine);
+        Assert.AreEqual(4, session.FoldingRegions[2].StartLine);
+        Assert.AreEqual(6, session.FoldingRegions[2].EndLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetFoldingRegions_MixedCollapsedState_PreservesEach()
     {
         var session = CreateSession();
@@ -157,37 +158,37 @@ public class FoldingRegionTests
             new FoldingRegion(11, 15) { IsCollapsed = true }
         ]);
 
-        Assert.True(session.FoldingRegions[0].IsCollapsed);
-        Assert.False(session.FoldingRegions[1].IsCollapsed);
-        Assert.True(session.FoldingRegions[2].IsCollapsed);
+        Assert.IsTrue(session.FoldingRegions[0].IsCollapsed);
+        Assert.IsFalse(session.FoldingRegions[1].IsCollapsed);
+        Assert.IsTrue(session.FoldingRegions[2].IsCollapsed);
     }
 
     // ── Record equality ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_RecordEquality_EqualWhenSameValues()
     {
         var a = new FoldingRegion(1, 10, FoldingRegionKind.Comment);
         var b = new FoldingRegion(1, 10, FoldingRegionKind.Comment);
 
-        Assert.Equal(a, b);
+        Assert.AreEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_RecordEquality_NotEqualWhenDifferentCollapsed()
     {
         var a = new FoldingRegion(1, 10) { IsCollapsed = false };
         var b = new FoldingRegion(1, 10) { IsCollapsed = true };
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 
-    [Fact]
+    [TestMethod]
     public void FoldingRegion_RecordEquality_NotEqualWhenDifferentKind()
     {
         var a = new FoldingRegion(1, 10, FoldingRegionKind.Region);
         var b = new FoldingRegion(1, 10, FoldingRegionKind.Comment);
 
-        Assert.NotEqual(a, b);
+        Assert.AreNotEqual(a, b);
     }
 }

@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// These tests focus on the race condition where resize events occur
 /// before the PTY process has started.
 /// </summary>
+[TestClass]
 public class TerminalResizeTimingTests
 {
     private const string StartupMarker = "HEX1B_TERMINAL_READY";
@@ -19,7 +20,7 @@ public class TerminalResizeTimingTests
     /// Verifies that when ResizeAsync is called before StartAsync,
     /// the PTY still starts with the correct dimensions.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_CalledBeforeStart_PtyStartsWithUpdatedDimensions()
     {
         // Arrange
@@ -34,8 +35,8 @@ public class TerminalResizeTimingTests
         await childProcess.StartAsync(TestContext.Current.CancellationToken);
         
         // Assert - Check the process dimensions
-        Assert.Equal(148, childProcess.Width);
-        Assert.Equal(36, childProcess.Height);
+        Assert.AreEqual(148, childProcess.Width);
+        Assert.AreEqual(36, childProcess.Height);
         
         // Clean up
         childProcess.Kill();
@@ -46,7 +47,7 @@ public class TerminalResizeTimingTests
     /// Verifies that TerminalWidgetHandle.Resize fires the Resized event
     /// which should propagate to the Hex1bTerminal.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void TerminalWidgetHandle_Resize_FiresResizedEvent()
     {
         // Arrange
@@ -66,18 +67,18 @@ public class TerminalResizeTimingTests
         handle.Resize(148, 36);
         
         // Assert
-        Assert.Equal(1, resizedCount);
-        Assert.Equal(148, resizedWidth);
-        Assert.Equal(36, resizedHeight);
-        Assert.Equal(148, handle.Width);
-        Assert.Equal(36, handle.Height);
+        Assert.AreEqual(1, resizedCount);
+        Assert.AreEqual(148, resizedWidth);
+        Assert.AreEqual(36, resizedHeight);
+        Assert.AreEqual(148, handle.Width);
+        Assert.AreEqual(36, handle.Height);
     }
     
     /// <summary>
     /// Verifies the complete flow: TerminalNode.Arrange resizes handle,
     /// which should propagate through Hex1bTerminal to the PTY.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TerminalNode_Arrange_PropagatesResizeToPty()
     {
         // Arrange - Create terminal with widget handle
@@ -107,9 +108,9 @@ public class TerminalResizeTimingTests
             node.Arrange(new Rect(0, 0, 148, 36));
             
             // Assert
-            Assert.True(resizeCount > 0, "Resize event should have fired");
-            Assert.Equal(148, handle.Width);
-            Assert.Equal(36, handle.Height);
+            Assert.IsTrue(resizeCount > 0, "Resize event should have fired");
+            Assert.AreEqual(148, handle.Width);
+            Assert.AreEqual(36, handle.Height);
         }
         finally
         {
@@ -122,7 +123,7 @@ public class TerminalResizeTimingTests
     /// Tests that output from a terminal is received even after handle resize.
     /// This simulates the scenario where a second terminal is created and resized.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Terminal_AfterResize_ReceivesOutput()
     {
         // Arrange
@@ -145,7 +146,7 @@ public class TerminalResizeTimingTests
             handle.Resize(148, 36);
             
             // Assert
-            Assert.True(outputReceived, "Should have received output from the shell.");
+            Assert.IsTrue(outputReceived, "Should have received output from the shell.");
             
             // Check that the buffer has content
             var (buffer, bufferWidth, bufferHeight) = handle.GetScreenBufferSnapshot();
@@ -161,7 +162,7 @@ public class TerminalResizeTimingTests
                 }
             }
             
-            Assert.True(hasContent, "Buffer should contain shell output.");
+            Assert.IsTrue(hasContent, "Buffer should contain shell output.");
         }
         finally
         {
@@ -174,7 +175,7 @@ public class TerminalResizeTimingTests
     /// Tests that TerminalNode correctly subscribes to OutputReceived
     /// and marks itself dirty when output arrives.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TerminalNode_WhenBound_ReceivesOutputAndMarksDirty()
     {
         // Arrange
@@ -204,9 +205,8 @@ public class TerminalResizeTimingTests
             await WaitForTerminalStateAsync(handle, TerminalState.Running, GetStartupTimeout(), TestContext.Current.CancellationToken);
             
             // Assert
-            Assert.True(invalidateCalled, "Invalidate callback should have been called when output arrived");
-            Assert.True(node.HasPendingOutput || handle.State == TerminalState.Running, 
-                "Node should have pending output or terminal should be running");
+            Assert.IsTrue(invalidateCalled, "Invalidate callback should have been called when output arrived");
+            Assert.IsTrue(node.HasPendingOutput || handle.State == TerminalState.Running, "Node should have pending output or terminal should be running");
         }
         finally
         {
@@ -220,7 +220,7 @@ public class TerminalResizeTimingTests
     /// This test simulates the exact scenario of switching between terminals
     /// to verify the second terminal receives output correctly.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task SecondTerminal_WhenSwitchedTo_ReceivesAndDisplaysOutput()
     {
         // Arrange - Create two terminals
@@ -253,7 +253,7 @@ public class TerminalResizeTimingTests
             
             // Verify first terminal works
             bool terminal1HasContent = HasNonEmptyContent(handle1);
-            Assert.True(terminal1HasContent, "First terminal should have content");
+            Assert.IsTrue(terminal1HasContent, "First terminal should have content");
             
             // Now switch to second terminal (simulates what reconciliation does)
             node.Unbind();
@@ -275,9 +275,8 @@ public class TerminalResizeTimingTests
             // Assert - Second terminal should have content
             bool terminal2HasContent = HasNonEmptyContent(handle2);
             
-            Assert.True(terminal2HasContent, 
-                $"Second terminal should have content. State={handle2.State}, Width={handle2.Width}, Height={handle2.Height}");
-            Assert.True(invalidateCalled, "Invalidate should have been called for second terminal");
+            Assert.IsTrue(terminal2HasContent, $"Second terminal should have content. State={handle2.State}, Width={handle2.Width}, Height={handle2.Height}");
+            Assert.IsTrue(invalidateCalled, "Invalidate should have been called for second terminal");
         }
         finally
         {
@@ -455,7 +454,7 @@ public class TerminalResizeTimingTests
     /// This test simulates the EXACT scenario in EmbeddedTerminalDemo where
     /// terminals are created within a Hex1bApp and switched via UI.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task FullIntegration_SecondTerminal_ShowsOutput()
     {
         // This test uses a headless Hex1bApp with embedded terminals
@@ -562,7 +561,7 @@ public class TerminalResizeTimingTests
             var handle1 = terminals[0].handle;
             await WaitForTerminalContentAsync(handle1, GetStartupTimeout(), TestContext.Current.CancellationToken);
             bool terminal1HasContent = HasNonEmptyContent(handle1);
-            Assert.True(terminal1HasContent, "First terminal should have content");
+            Assert.IsTrue(terminal1HasContent, "First terminal should have content");
             
             // Create second terminal
             AddTerminal();
@@ -579,11 +578,10 @@ public class TerminalResizeTimingTests
             bool terminal2HasContent = HasNonEmptyContent(handle2);
             
             // Also check the handle's state
-            TestContext.Current.SendDiagnosticMessage($"Terminal 2 state: {handle2.State}");
-            TestContext.Current.SendDiagnosticMessage($"Terminal 2 dimensions: {handle2.Width}x{handle2.Height}");
+            TestContext.Current?.WriteLine($"Terminal 2 state: {handle2.State}");
+            TestContext.Current?.WriteLine($"Terminal 2 dimensions: {handle2.Width}x{handle2.Height}");
             
-            Assert.True(terminal2HasContent, 
-                $"Second terminal should have content. State={handle2.State}, " +
+            Assert.IsTrue(terminal2HasContent, $"Second terminal should have content. State={handle2.State}, " +
                 $"Width={handle2.Width}, Height={handle2.Height}");
         }
         finally

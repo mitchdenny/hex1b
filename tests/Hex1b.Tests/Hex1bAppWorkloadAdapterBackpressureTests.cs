@@ -10,9 +10,10 @@ namespace Hex1b.Tests;
 /// <see cref="Hex1bAppWorkloadAdapter"/>. The default is unbounded
 /// (back-compat), so most tests opt in via the constructor parameter.
 /// </summary>
+[TestClass]
 public class Hex1bAppWorkloadAdapterBackpressureTests
 {
-    [Fact]
+    [TestMethod]
     public void Write_OnUnboundedAdapter_NeverBlocks()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -20,10 +21,10 @@ public class Hex1bAppWorkloadAdapterBackpressureTests
         // the default unbounded channel.
         for (var i = 0; i < 1000; i++)
             adapter.Write("x");
-        Assert.Equal(1000, adapter.OutputQueueDepth);
+        Assert.AreEqual(1000, adapter.OutputQueueDepth);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Write_OnBoundedAdapter_BlocksProducerWhenFull()
     {
         using var adapter = new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: 2);
@@ -31,7 +32,7 @@ public class Hex1bAppWorkloadAdapterBackpressureTests
         // Fill the channel to capacity.
         adapter.Write("a");
         adapter.Write("b");
-        Assert.Equal(2, adapter.OutputQueueDepth);
+        Assert.AreEqual(2, adapter.OutputQueueDepth);
 
         // Producer thread - third write must block until a slot frees.
         var producerStarted = new TaskCompletionSource();
@@ -46,18 +47,18 @@ public class Hex1bAppWorkloadAdapterBackpressureTests
         await producerStarted.Task;
         // Give the producer time to attempt the write and block on the channel.
         await Task.Delay(150);
-        Assert.False(producerDone.Task.IsCompleted, "Producer should be blocked while channel is full.");
+        Assert.IsFalse(producerDone.Task.IsCompleted, "Producer should be blocked while channel is full.");
 
         // Drain one item; producer should unblock and complete.
         var read = await adapter.TryReadOutputAsync(TimeSpan.FromSeconds(1));
-        Assert.True(read.HasValue);
+        Assert.IsTrue(read.HasValue);
 
         await producerDone.Task.WaitAsync(TimeSpan.FromSeconds(2));
         await producer;
-        Assert.Equal(2, adapter.OutputQueueDepth);
+        Assert.AreEqual(2, adapter.OutputQueueDepth);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Write_OnBoundedAdapter_ChannelCompletionUnblocksProducer()
     {
         using var adapter = new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: 1);
@@ -67,7 +68,7 @@ public class Hex1bAppWorkloadAdapterBackpressureTests
         var producer = Task.Run(() => adapter.Write("b")); // blocks
 
         await Task.Delay(100);
-        Assert.False(producer.IsCompleted, "Producer should block until disposal unblocks it.");
+        Assert.IsFalse(producer.IsCompleted, "Producer should block until disposal unblocks it.");
 
         // Disposing completes the writer, which should unblock the blocked
         // write attempt without leaking resources or throwing out of the
@@ -76,10 +77,10 @@ public class Hex1bAppWorkloadAdapterBackpressureTests
         await producer.WaitAsync(TimeSpan.FromSeconds(2));
     }
 
-    [Fact]
+    [TestMethod]
     public void Constructor_NegativeMaxQueued_Throws()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             new Hex1bAppWorkloadAdapter(maxQueuedOutputItems: -1));
     }
 }

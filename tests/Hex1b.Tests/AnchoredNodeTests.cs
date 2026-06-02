@@ -10,9 +10,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for AnchoredNode positioning and stale anchor handling.
 /// </summary>
+[TestClass]
 public class AnchoredNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void AnchoredNode_ValidAnchor_PositionsCorrectly()
     {
         // Arrange - Create an anchor node with known bounds
@@ -37,11 +38,11 @@ public class AnchoredNodeTests
         
         // Assert - Content should be positioned below the anchor
         // Anchor is at (50, 10) with height 1, so popup should be at Y=11
-        Assert.Equal(50, contentNode.Bounds.X);
-        Assert.Equal(11, contentNode.Bounds.Y);
+        Assert.AreEqual(50, contentNode.Bounds.X);
+        Assert.AreEqual(11, contentNode.Bounds.Y);
     }
     
-    [Fact]
+    [TestMethod]
     public void AnchoredNode_StaleAnchorWithZeroBounds_PositionsSafely()
     {
         // Arrange - Simulate a stale anchor node that has never been arranged
@@ -50,10 +51,10 @@ public class AnchoredNodeTests
         // Intentionally NOT calling Measure/Arrange - simulates a replaced node
         
         // Verify anchor has zero bounds (the stale state)
-        Assert.Equal(0, staleAnchorNode.Bounds.X);
-        Assert.Equal(0, staleAnchorNode.Bounds.Y);
-        Assert.Equal(0, staleAnchorNode.Bounds.Width);
-        Assert.Equal(0, staleAnchorNode.Bounds.Height);
+        Assert.AreEqual(0, staleAnchorNode.Bounds.X);
+        Assert.AreEqual(0, staleAnchorNode.Bounds.Y);
+        Assert.AreEqual(0, staleAnchorNode.Bounds.Width);
+        Assert.AreEqual(0, staleAnchorNode.Bounds.Height);
         
         // Create anchored content
         var contentNode = new TextBlockNode { Text = "Popup Content" };
@@ -73,11 +74,10 @@ public class AnchoredNodeTests
         // Assert - With fix: Content should NOT be at (0, 0) when anchor has zero bounds
         // The node should detect the stale anchor and mark itself for cleanup
         // For now, verify the IsAnchorStale flag is set
-        Assert.True(anchoredNode.IsAnchorStale, 
-            "AnchoredNode should detect stale anchor with zero bounds");
+        Assert.IsTrue(anchoredNode.IsAnchorStale, "AnchoredNode should detect stale anchor with zero bounds");
     }
     
-    [Fact]
+    [TestMethod]
     public void AnchoredNode_AnchorOutsideScreen_PositionsSafely()
     {
         // Arrange - Create an anchor node with bounds completely outside the screen
@@ -101,11 +101,11 @@ public class AnchoredNodeTests
         anchoredNode.Arrange(new Rect(0, 0, 100, 50));
         
         // Assert - Content should be clamped to screen bounds (0, 0) minimum
-        Assert.True(contentNode.Bounds.X >= 0, "Content X should be >= 0");
-        Assert.True(contentNode.Bounds.Y >= 0, "Content Y should be >= 0");
+        Assert.IsTrue(contentNode.Bounds.X >= 0, "Content X should be >= 0");
+        Assert.IsTrue(contentNode.Bounds.Y >= 0, "Content Y should be >= 0");
     }
     
-    [Fact]
+    [TestMethod]
     public void AnchoredNode_NullAnchor_DoesNotPosition()
     {
         // Arrange - Create anchored node with no anchor
@@ -124,10 +124,10 @@ public class AnchoredNodeTests
         anchoredNode.Arrange(new Rect(0, 0, 100, 50));
         
         // Assert - Content bounds should be unchanged (not arranged)
-        Assert.Equal(0, contentNode.Bounds.Width);
+        Assert.AreEqual(0, contentNode.Bounds.Width);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerPopup_WhenAnchorNodeReplaced_DetectsStaleAnchor()
     {
         // This test simulates the real-world scenario:
@@ -172,7 +172,6 @@ public class AnchoredNodeTests
         await runTask;
         
         // Verify picker dropdown appeared (shows all options including Medium and High)
-        Assert.True(snapshot.ContainsText("Medium") && snapshot.ContainsText("High"),
-            $"Picker dropdown should show options. Screen:\n{snapshot}");
+        Assert.IsTrue(snapshot.ContainsText("Medium") && snapshot.ContainsText("High"), $"Picker dropdown should show options. Screen:\n{snapshot}");
     }
 }

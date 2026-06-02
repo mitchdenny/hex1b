@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for inline hints — virtual text rendered inline at document positions
 /// without modifying the document model.
 /// </summary>
+[TestClass]
 public class InlineHintTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -39,7 +40,7 @@ public class InlineHintTests
 
     // ── IEditorSession state management tests ─────────────────────
 
-    [Fact]
+    [TestMethod]
     public void PushInlineHints_StoresHintsOnSession()
     {
         var doc = new Hex1bDocument("hello world");
@@ -55,12 +56,12 @@ public class InlineHintTests
 
         session.PushInlineHints(hints);
 
-        Assert.Equal(2, session.ActiveInlineHints.Count);
-        Assert.Equal(": string", session.ActiveInlineHints[0].Text);
-        Assert.Equal(" -> int", session.ActiveInlineHints[1].Text);
+        Assert.AreEqual(2, session.ActiveInlineHints.Count);
+        Assert.AreEqual(": string", session.ActiveInlineHints[0].Text);
+        Assert.AreEqual(" -> int", session.ActiveInlineHints[1].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void PushInlineHints_ReplacesPreviousHints()
     {
         var doc = new Hex1bDocument("x = 5");
@@ -71,11 +72,11 @@ public class InlineHintTests
         session.PushInlineHints([new InlineHint(new DocumentPosition(1, 1), " (any)")]);
         session.PushInlineHints([new InlineHint(new DocumentPosition(1, 1), " (number)")]);
 
-        Assert.Single(session.ActiveInlineHints);
-        Assert.Equal(" (number)", session.ActiveInlineHints[0].Text);
+        TestSeq.Single(session.ActiveInlineHints);
+        Assert.AreEqual(" (number)", session.ActiveInlineHints[0].Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearInlineHints_RemovesAllHints()
     {
         var doc = new Hex1bDocument("x = 5");
@@ -84,14 +85,14 @@ public class InlineHintTests
         var session = (IEditorSession)node;
 
         session.PushInlineHints([new InlineHint(new DocumentPosition(1, 1), " (int)")]);
-        Assert.Single(session.ActiveInlineHints);
+        TestSeq.Single(session.ActiveInlineHints);
 
         session.ClearInlineHints();
 
-        Assert.Empty(session.ActiveInlineHints);
+        Assert.IsEmpty(session.ActiveInlineHints);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActiveInlineHints_InitiallyEmpty()
     {
         var doc = new Hex1bDocument("test");
@@ -99,12 +100,12 @@ public class InlineHintTests
         var node = new EditorNode { State = state };
         var session = (IEditorSession)node;
 
-        Assert.Empty(session.ActiveInlineHints);
+        Assert.IsEmpty(session.ActiveInlineHints);
     }
 
     // ── Visual rendering tests ────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InlineHint_AppearsAtCorrectPosition()
     {
         // "hello" with hint ": str" at column 6 (after 'o') → "hello: str"
@@ -127,24 +128,24 @@ public class InlineHintTests
         var snapshot = terminal.CreateSnapshot();
 
         // Verify original text is at expected positions
-        Assert.Equal("h", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("e", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("o", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("h", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("o", snapshot.GetCell(4, 0).Character);
 
         // Verify hint text follows immediately
-        Assert.Equal(":", snapshot.GetCell(5, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(6, 0).Character);
-        Assert.Equal("s", snapshot.GetCell(7, 0).Character);
-        Assert.Equal("t", snapshot.GetCell(8, 0).Character);
-        Assert.Equal("r", snapshot.GetCell(9, 0).Character);
+        Assert.AreEqual(":", snapshot.GetCell(5, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(6, 0).Character);
+        Assert.AreEqual("s", snapshot.GetCell(7, 0).Character);
+        Assert.AreEqual("t", snapshot.GetCell(8, 0).Character);
+        Assert.AreEqual("r", snapshot.GetCell(9, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InlineHint_ShiftsSubsequentTextRight()
     {
         // "ab" with hint "XX" at column 2 (before 'b') → "aXXb"
@@ -166,16 +167,16 @@ public class InlineHintTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("b", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("b", snapshot.GetCell(3, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InlineHint_UsesThemeForegroundColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("hello", 30, 3, focused: false);
@@ -201,8 +202,7 @@ public class InlineHintTests
         for (var x = 5; x <= 9; x++) // ": int" at columns 5-9
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedHintFg, cell.Foreground),
-                $"Hint column {x}: expected hint fg {expectedHintFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedHintFg, cell.Foreground), $"Hint column {x}: expected hint fg {expectedHintFg}, got {cell.Foreground}");
         }
 
         // Original text should use editor foreground, not hint foreground
@@ -210,15 +210,14 @@ public class InlineHintTests
         for (var x = 0; x <= 4; x++) // "hello" at columns 0-4
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(editorFg, cell.Foreground),
-                $"Text column {x}: expected editor fg {editorFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(editorFg, cell.Foreground), $"Text column {x}: expected editor fg {editorFg}, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InlineHint_CustomDecorationOverridesTheme()
     {
         var customColor = Hex1bColor.FromRgb(255, 100, 0); // orange
@@ -247,15 +246,14 @@ public class InlineHintTests
         for (var x = 4; x <= 6; x++) // " OK" at columns 4-6
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Hint column {x}: expected custom fg {expectedFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Hint column {x}: expected custom fg {expectedFg}, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultipleHintsOnSameLine_AllRendered()
     {
         // "a b c" with hints after each: "a[X] b[Y] c"
@@ -279,19 +277,19 @@ public class InlineHintTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(1, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("b", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("Y", snapshot.GetCell(4, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(5, 0).Character);
-        Assert.Equal("c", snapshot.GetCell(6, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("b", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("Y", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(5, 0).Character);
+        Assert.AreEqual("c", snapshot.GetCell(6, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HintOnDifferentLines_RenderedOnCorrectLines()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc\ndef", 30, 5, focused: false);
@@ -316,22 +314,22 @@ public class InlineHintTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0: "abcX..."
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("b", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("c", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("b", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("c", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(3, 0).Character);
 
         // Line 1: "defY..."
-        Assert.Equal("d", snapshot.GetCell(0, 1).Character);
-        Assert.Equal("e", snapshot.GetCell(1, 1).Character);
-        Assert.Equal("f", snapshot.GetCell(2, 1).Character);
-        Assert.Equal("Y", snapshot.GetCell(3, 1).Character);
+        Assert.AreEqual("d", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("e", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("f", snapshot.GetCell(2, 1).Character);
+        Assert.AreEqual("Y", snapshot.GetCell(3, 1).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HintAtStartOfLine_PrependedBeforeFirstChar()
     {
         // Hint at column 1 (before 'a') → "Xa"
@@ -353,15 +351,15 @@ public class InlineHintTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("X", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("a", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("b", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("b", snapshot.GetCell(2, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HintPushedOverViewport_TextTruncatedCorrectly()
     {
         // Viewport only 10 chars wide. "abcde" + hint "XXXXX" at end = "abcdeXXXXX" exactly fills it
@@ -384,16 +382,16 @@ public class InlineHintTests
         var snapshot = terminal.CreateSnapshot();
 
         // Verify all 10 characters
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("e", snapshot.GetCell(4, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(5, 0).Character);
-        Assert.Equal("X", snapshot.GetCell(9, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(5, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(9, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NoHints_RendersNormally()
     {
         // Sanity check: without hints, text renders as expected
@@ -410,19 +408,19 @@ public class InlineHintTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("h", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("e", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("o", snapshot.GetCell(4, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(5, 0).Character);
-        Assert.Equal("w", snapshot.GetCell(6, 0).Character);
+        Assert.AreEqual("h", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("o", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(5, 0).Character);
+        Assert.AreEqual("w", snapshot.GetCell(6, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ClearHints_HintsDisappearOnRerender()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("ab", 30, 3, focused: false);
@@ -462,14 +460,14 @@ public class InlineHintTests
 
         var snapshot = terminal.CreateSnapshot();
 
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("b", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("b", snapshot.GetCell(1, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HintWithItalic_ThemeDefaultApplied()
     {
         // Default theme has IsItalic = true for inline hints
@@ -493,22 +491,20 @@ public class InlineHintTests
 
         // Verify hint text has italic attribute (theme default is italic=true)
         var hintIsItalic = theme.Get(InlineHintTheme.IsItalic);
-        Assert.True(hintIsItalic, "Default theme should have IsItalic=true for inline hints");
+        Assert.IsTrue(hintIsItalic, "Default theme should have IsItalic=true for inline hints");
 
         // Verify hint characters have the italic flag
         for (var x = 5; x <= 9; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(cell.IsItalic,
-                $"Hint column {x}: expected italic, but cell was not italic");
+            Assert.IsTrue(cell.IsItalic, $"Hint column {x}: expected italic, but cell was not italic");
         }
 
         // Original text should NOT be italic (no decoration applied)
         for (var x = 0; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.False(cell.IsItalic,
-                $"Text column {x}: should not be italic, but cell was italic");
+            Assert.IsFalse(cell.IsItalic, $"Text column {x}: should not be italic, but cell was italic");
         }
 
         workload.Dispose();

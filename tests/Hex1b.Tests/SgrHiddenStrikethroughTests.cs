@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// and with combined attributes (bold + hidden + strikethrough).
 /// Inspired by psmux's test_issue155_sgr_attrs.rs and test_issue155_rendering.rs.
 /// </summary>
+[TestClass]
 public class SgrHiddenStrikethroughTests
 {
     private sealed class TestTerminal : IDisposable
@@ -34,7 +35,7 @@ public class SgrHiddenStrikethroughTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Sgr9_SetsStrikethrough_OnSubsequentCells()
     {
         using var t = new TestTerminal();
@@ -44,25 +45,24 @@ public class SgrHiddenStrikethroughTests
         for (int i = 0; i < 3; i++)
         {
             var cell = snap.GetCell(i, 0);
-            Assert.True(cell.Attributes.HasFlag(CellAttributes.Strikethrough),
-                $"Cell {i} should have strikethrough");
+            Assert.IsTrue(cell.Attributes.HasFlag(CellAttributes.Strikethrough), $"Cell {i} should have strikethrough");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Sgr29_ClearsStrikethrough()
     {
         using var t = new TestTerminal();
         t.Write("\x1b[9mab\x1b[29mcd");
 
         var snap = t.Terminal.CreateSnapshot();
-        Assert.True(snap.GetCell(0, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
-        Assert.True(snap.GetCell(1, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
-        Assert.False(snap.GetCell(2, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
-        Assert.False(snap.GetCell(3, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsTrue(snap.GetCell(0, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsTrue(snap.GetCell(1, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsFalse(snap.GetCell(2, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsFalse(snap.GetCell(3, 0).Attributes.HasFlag(CellAttributes.Strikethrough));
     }
 
-    [Fact]
+    [TestMethod]
     public void Sgr8_SetsHidden_OnSubsequentCells()
     {
         using var t = new TestTerminal();
@@ -72,25 +72,24 @@ public class SgrHiddenStrikethroughTests
         for (int i = 0; i < 6; i++)
         {
             var cell = snap.GetCell(i, 0);
-            Assert.True(cell.Attributes.HasFlag(CellAttributes.Hidden),
-                $"Cell {i} should have hidden attribute");
+            Assert.IsTrue(cell.Attributes.HasFlag(CellAttributes.Hidden), $"Cell {i} should have hidden attribute");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Sgr28_ClearsHidden()
     {
         using var t = new TestTerminal();
         t.Write("\x1b[8mab\x1b[28mcd");
 
         var snap = t.Terminal.CreateSnapshot();
-        Assert.True(snap.GetCell(0, 0).Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.True(snap.GetCell(1, 0).Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.False(snap.GetCell(2, 0).Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.False(snap.GetCell(3, 0).Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsTrue(snap.GetCell(0, 0).Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsTrue(snap.GetCell(1, 0).Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsFalse(snap.GetCell(2, 0).Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsFalse(snap.GetCell(3, 0).Attributes.HasFlag(CellAttributes.Hidden));
     }
 
-    [Fact]
+    [TestMethod]
     public void Sgr0_ResetsBothHiddenAndStrikethrough()
     {
         using var t = new TestTerminal();
@@ -100,16 +99,16 @@ public class SgrHiddenStrikethroughTests
 
         // First 2 cells: both hidden and strikethrough
         var cellA = snap.GetCell(0, 0);
-        Assert.True(cellA.Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.True(cellA.Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsTrue(cellA.Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsTrue(cellA.Attributes.HasFlag(CellAttributes.Strikethrough));
 
         // After SGR 0 reset: neither
         var cellC = snap.GetCell(2, 0);
-        Assert.False(cellC.Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.False(cellC.Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsFalse(cellC.Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsFalse(cellC.Attributes.HasFlag(CellAttributes.Strikethrough));
     }
 
-    [Fact]
+    [TestMethod]
     public void CombinedBoldHiddenStrikethrough_AllActive()
     {
         using var t = new TestTerminal();
@@ -118,12 +117,12 @@ public class SgrHiddenStrikethroughTests
         var snap = t.Terminal.CreateSnapshot();
         var cell = snap.GetCell(0, 0);
 
-        Assert.True(cell.Attributes.HasFlag(CellAttributes.Bold));
-        Assert.True(cell.Attributes.HasFlag(CellAttributes.Hidden));
-        Assert.True(cell.Attributes.HasFlag(CellAttributes.Strikethrough));
+        Assert.IsTrue(cell.Attributes.HasFlag(CellAttributes.Bold));
+        Assert.IsTrue(cell.Attributes.HasFlag(CellAttributes.Hidden));
+        Assert.IsTrue(cell.Attributes.HasFlag(CellAttributes.Strikethrough));
     }
 
-    [Fact]
+    [TestMethod]
     public void HiddenCell_PreservesCharacterContent()
     {
         using var t = new TestTerminal();
@@ -132,12 +131,12 @@ public class SgrHiddenStrikethroughTests
         var snap = t.Terminal.CreateSnapshot();
 
         // The cell should still store the character even though it's hidden
-        Assert.Equal("A", snap.GetCell(0, 0).Character);
-        Assert.Equal("B", snap.GetCell(1, 0).Character);
-        Assert.Equal("C", snap.GetCell(2, 0).Character);
+        Assert.AreEqual("A", snap.GetCell(0, 0).Character);
+        Assert.AreEqual("B", snap.GetCell(1, 0).Character);
+        Assert.AreEqual("C", snap.GetCell(2, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void StrikethroughCell_PreservesCharacterContent()
     {
         using var t = new TestTerminal();
@@ -146,8 +145,8 @@ public class SgrHiddenStrikethroughTests
         var snap = t.Terminal.CreateSnapshot();
 
         // Strikethrough cells show actual content (unlike hidden which renders as spaces)
-        Assert.Equal("X", snap.GetCell(0, 0).Character);
-        Assert.Equal("Y", snap.GetCell(1, 0).Character);
-        Assert.Equal("Z", snap.GetCell(2, 0).Character);
+        Assert.AreEqual("X", snap.GetCell(0, 0).Character);
+        Assert.AreEqual("Y", snap.GetCell(1, 0).Character);
+        Assert.AreEqual("Z", snap.GetCell(2, 0).Character);
     }
 }

@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// Tests for KGP support within the surface layer system:
 /// draw layers, computed layers, widget layers, and cross-layer queries.
 /// </summary>
+[TestClass]
 public class KgpSurfaceLayerTests
 {
     private static readonly CellMetrics DefaultMetrics = new(10, 20);
@@ -49,18 +50,18 @@ public class KgpSurfaceLayerTests
 
     // --- ISurfaceSource.HasKgp ---
 
-    [Fact]
+    [TestMethod]
     public void ISurfaceSource_Surface_HasKgp_ReturnsTrueWhenKgpPresent()
     {
         var surface = new Surface(10, 5, DefaultMetrics);
         ISurfaceSource source = surface;
-        Assert.False(source.HasKgp);
+        Assert.IsFalse(source.HasKgp);
 
         surface[0, 0] = new SurfaceCell { Character = " ", Kgp = CreateTrackedKgp() };
-        Assert.True(source.HasKgp);
+        Assert.IsTrue(source.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void ISurfaceSource_CompositeSurface_HasKgp_ReturnsTrueWhenLayerHasKgp()
     {
         var layer = new Surface(10, 5, DefaultMetrics);
@@ -68,10 +69,10 @@ public class KgpSurfaceLayerTests
 
         var composite = new CompositeSurface(10, 5, DefaultMetrics);
         composite.AddLayer(layer);
-        Assert.True(composite.HasKgp);
+        Assert.IsTrue(composite.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void ISurfaceSource_CompositeSurface_HasKgp_FalseWhenNoKgp()
     {
         var layer = new Surface(10, 5, DefaultMetrics);
@@ -79,12 +80,12 @@ public class KgpSurfaceLayerTests
 
         var composite = new CompositeSurface(10, 5, DefaultMetrics);
         composite.AddLayer(layer);
-        Assert.False(composite.HasKgp);
+        Assert.IsFalse(composite.HasKgp);
     }
 
     // --- DrawSurfaceLayer with KGP ---
 
-    [Fact]
+    [TestMethod]
     public void DrawLayer_WritesKgpCell_AppearsInSurface()
     {
         var trackedKgp = CreateTrackedKgp();
@@ -95,11 +96,11 @@ public class KgpSurfaceLayerTests
         composite.AddLayer(drawSurface);
 
         var flattened = composite.Flatten();
-        Assert.True(flattened[1, 1].HasKgp);
-        Assert.Equal(trackedKgp.Data.ImageId, flattened[1, 1].Kgp!.Data.ImageId);
+        Assert.IsTrue(flattened[1, 1].HasKgp);
+        Assert.AreEqual(trackedKgp.Data.ImageId, flattened[1, 1].Kgp!.Data.ImageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DrawLayer_KgpBelowTextLayer_TextOverlaysKgp()
     {
         // Layer 0: KGP image (below text)
@@ -117,10 +118,10 @@ public class KgpSurfaceLayerTests
 
         var flattened = composite.Flatten();
         // Text is opaque — it replaces the KGP cell
-        Assert.Equal("X", flattened[0, 0].Character);
+        Assert.AreEqual("X", flattened[0, 0].Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void DrawLayer_KgpAboveTextLayer_KgpOverlaysText()
     {
         // Layer 0: Text
@@ -137,10 +138,10 @@ public class KgpSurfaceLayerTests
         composite.AddLayer(kgpSurface);
 
         var flattened = composite.Flatten();
-        Assert.True(flattened[0, 0].HasKgp);
+        Assert.IsTrue(flattened[0, 0].HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void DrawLayer_KgpPreservedThroughTransparentLayer()
     {
         // Layer 0: KGP image
@@ -155,12 +156,12 @@ public class KgpSurfaceLayerTests
         composite.AddLayer(emptySurface);
 
         var flattened = composite.Flatten();
-        Assert.True(flattened[0, 0].HasKgp);
+        Assert.IsTrue(flattened[0, 0].HasKgp);
     }
 
     // --- ComputeContext.HasKgpBelow ---
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_HasKgpBelow_ReturnsTrueWhenKgpInLowerLayer()
     {
         var kgpSurface = new Surface(10, 5, DefaultMetrics);
@@ -182,11 +183,11 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.True(hasKgpAtAnchor);
-        Assert.False(hasKgpAtEmpty);
+        Assert.IsTrue(hasKgpAtAnchor);
+        Assert.IsFalse(hasKgpAtEmpty);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_HasKgpBelow_ReturnsTrueForSpannedCells()
     {
         // KGP image is 4 cells wide, 2 cells tall, anchored at (0,0)
@@ -207,7 +208,7 @@ public class KgpSurfaceLayerTests
         composite.Flatten();
 
         // Should detect KGP at positions (0,0) through (3,1) = 4x2 = 8 cells
-        Assert.Equal(8, kgpPositions.Count);
+        Assert.AreEqual(8, kgpPositions.Count);
         Assert.Contains((0, 0), kgpPositions);
         Assert.Contains((3, 0), kgpPositions);
         Assert.Contains((0, 1), kgpPositions);
@@ -216,7 +217,7 @@ public class KgpSurfaceLayerTests
 
     // --- ComputeContext.GetKgpBelow ---
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_GetKgpBelow_ReturnsValidAccessor()
     {
         var kgpSurface = new Surface(10, 5, DefaultMetrics);
@@ -242,22 +243,22 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.True(accessAtAnchor.IsValid);
-        Assert.Equal(42u, accessAtAnchor.ImageId);
-        Assert.Equal(0, accessAtAnchor.CellOffsetX);
-        Assert.Equal(0, accessAtAnchor.CellOffsetY);
-        Assert.True(accessAtAnchor.IsAnchor);
+        Assert.IsTrue(accessAtAnchor.IsValid);
+        Assert.AreEqual(42u, accessAtAnchor.ImageId);
+        Assert.AreEqual(0, accessAtAnchor.CellOffsetX);
+        Assert.AreEqual(0, accessAtAnchor.CellOffsetY);
+        Assert.IsTrue(accessAtAnchor.IsAnchor);
 
-        Assert.True(accessAtOffset.IsValid);
-        Assert.Equal(42u, accessAtOffset.ImageId);
-        Assert.Equal(2, accessAtOffset.CellOffsetX);
-        Assert.Equal(1, accessAtOffset.CellOffsetY);
-        Assert.False(accessAtOffset.IsAnchor);
+        Assert.IsTrue(accessAtOffset.IsValid);
+        Assert.AreEqual(42u, accessAtOffset.ImageId);
+        Assert.AreEqual(2, accessAtOffset.CellOffsetX);
+        Assert.AreEqual(1, accessAtOffset.CellOffsetY);
+        Assert.IsFalse(accessAtOffset.IsAnchor);
 
-        Assert.False(accessAtEmpty.IsValid);
+        Assert.IsFalse(accessAtEmpty.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_GetKgpBelow_ReturnsImageMetadata()
     {
         var kgpSurface = new Surface(10, 5, DefaultMetrics);
@@ -277,19 +278,19 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.True(access.IsValid);
-        Assert.Equal(99u, access.ImageId);
-        Assert.Equal(6, access.WidthInCells);
-        Assert.Equal(3, access.HeightInCells);
-        Assert.Equal(60u, access.SourcePixelWidth);  // 6 * 10
-        Assert.Equal(60u, access.SourcePixelHeight); // 3 * 20
-        Assert.Equal(1, access.ZIndex);
-        Assert.NotNull(access.Data);
+        Assert.IsTrue(access.IsValid);
+        Assert.AreEqual(99u, access.ImageId);
+        Assert.AreEqual(6, access.WidthInCells);
+        Assert.AreEqual(3, access.HeightInCells);
+        Assert.AreEqual(60u, access.SourcePixelWidth);  // 6 * 10
+        Assert.AreEqual(60u, access.SourcePixelHeight); // 3 * 20
+        Assert.AreEqual(1, access.ZIndex);
+        Assert.IsNotNull(access.Data);
     }
 
     // --- ComputeContext.GetKgpBelowAt ---
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_GetKgpBelowAt_ReturnsAccessorAtPosition()
     {
         var kgpSurface = new Surface(10, 5, DefaultMetrics);
@@ -313,15 +314,15 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.True(accessAt.IsValid);
-        Assert.Equal(55u, accessAt.ImageId);
-        Assert.Equal(1, accessAt.CellOffsetX);
-        Assert.Equal(1, accessAt.CellOffsetY);
+        Assert.IsTrue(accessAt.IsValid);
+        Assert.AreEqual(55u, accessAt.ImageId);
+        Assert.AreEqual(1, accessAt.CellOffsetX);
+        Assert.AreEqual(1, accessAt.CellOffsetY);
 
-        Assert.False(accessOutside.IsValid);
+        Assert.IsFalse(accessOutside.IsValid);
     }
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_GetKgpBelowAt_OutOfBounds_ReturnsDefault()
     {
         var kgpSurface = new Surface(10, 5, DefaultMetrics);
@@ -340,12 +341,12 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.False(access.IsValid);
+        Assert.IsFalse(access.IsValid);
     }
 
     // --- Multi-layer KGP with computed layer effects ---
 
-    [Fact]
+    [TestMethod]
     public void ComputedLayer_KgpPresence_CanDriveTextStyling()
     {
         // Layer 0: KGP background image at (0,0) size 4x2
@@ -369,16 +370,16 @@ public class KgpSurfaceLayerTests
         var flattened = composite.Flatten();
 
         // Cells within KGP region should have the computed overlay
-        Assert.NotNull(flattened[0, 0].Background);
-        Assert.NotNull(flattened[3, 1].Background);
+        Assert.IsNotNull(flattened[0, 0].Background);
+        Assert.IsNotNull(flattened[3, 1].Background);
 
         // Cells outside KGP region should be empty
-        Assert.Null(flattened[5, 3].Background);
+        Assert.IsNull(flattened[5, 3].Background);
     }
 
     // --- Multi-layer z-index allocation ---
 
-    [Fact]
+    [TestMethod]
     public void MultiLayer_KgpFromDifferentLayers_PreservesDistinctZIndexes()
     {
         // Layer 0: below-text KGP (z=-1)
@@ -398,14 +399,14 @@ public class KgpSurfaceLayerTests
         var belowKgp = flattened[0, 0].Kgp!.Data;
         var aboveKgp = flattened[5, 0].Kgp!.Data;
 
-        Assert.Equal(-1, belowKgp.ZIndex);
-        Assert.Equal(1, aboveKgp.ZIndex);
-        Assert.NotEqual(belowKgp.ImageId, aboveKgp.ImageId);
+        Assert.AreEqual(-1, belowKgp.ZIndex);
+        Assert.AreEqual(1, aboveKgp.ZIndex);
+        Assert.AreNotEqual(belowKgp.ImageId, aboveKgp.ImageId);
     }
 
     // --- SurfaceLayerContext.CreateKgp in layer context ---
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromCellData_ReturnsTrackedObject()
     {
         var store = new TrackedObjectStore();
@@ -414,11 +415,11 @@ public class KgpSurfaceLayerTests
         var kgpData = CreateKgpData();
         var tracked = ctx.CreateKgp(kgpData);
 
-        Assert.NotNull(tracked);
-        Assert.Equal(kgpData.ImageId, tracked!.Data.ImageId);
+        Assert.IsNotNull(tracked);
+        Assert.AreEqual(kgpData.ImageId, tracked!.Data.ImageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromPixels_ReturnsTrackedObject()
     {
         var store = new TrackedObjectStore();
@@ -427,23 +428,23 @@ public class KgpSurfaceLayerTests
         var pixels = new byte[10 * 20 * 4]; // 10x20 RGBA
         var tracked = ctx.CreateKgp(pixels, 10, 20, KgpZOrder.BelowText);
 
-        Assert.NotNull(tracked);
-        Assert.Equal(1, tracked!.Data.WidthInCells);
-        Assert.Equal(1, tracked.Data.HeightInCells);
+        Assert.IsNotNull(tracked);
+        Assert.AreEqual(1, tracked!.Data.WidthInCells);
+        Assert.AreEqual(1, tracked.Data.HeightInCells);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_NoStore_ReturnsNull()
     {
         var ctx = new SurfaceLayerContext(10, 5, -1, -1, new Hex1bTheme("Test"), store: null, DefaultMetrics);
 
         var tracked = ctx.CreateKgp(CreateKgpData());
-        Assert.Null(tracked);
+        Assert.IsNull(tracked);
     }
 
     // --- FindKgpAtPosition across layers ---
 
-    [Fact]
+    [TestMethod]
     public void FindKgpAtPosition_TopLayerKgp_FoundFirst()
     {
         // Layer 0: KGP at (0,0) image ID 10
@@ -473,12 +474,12 @@ public class KgpSurfaceLayerTests
 
         composite.Flatten();
 
-        Assert.Equal(20u, foundImageId);
+        Assert.AreEqual(20u, foundImageId);
     }
 
     // --- SVG round-trip ---
 
-    [Fact]
+    [TestMethod]
     public void MultiLayer_KgpAndText_SvgRoundTrip()
     {
         // Build a composite with KGP background + text overlay

@@ -6,6 +6,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for mouse-driven text selection on TerminalWidgetHandle.
 /// </summary>
+[TestClass]
 public class TerminalMouseSelectionTests
 {
     private static TerminalWidgetHandle CreateHandle(int width = 80, int height = 24)
@@ -28,7 +29,7 @@ public class TerminalMouseSelectionTests
         await handle.WriteOutputWithImpactsAsync(tokens);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_DownOnly_DoesNotEnterCopyMode()
     {
         var handle = CreateHandle(20, 5);
@@ -37,10 +38,10 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(2, 0, MouseAction.Down, SelectionMode.Character);
         
         // Single click without drag should NOT enter copy mode
-        Assert.False(handle.IsInCopyMode);
+        Assert.IsFalse(handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_DownThenDrag_EntersCopyModeAndStartsSelection()
     {
         var handle = CreateHandle(20, 5);
@@ -49,13 +50,13 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(2, 0, MouseAction.Down, SelectionMode.Character);
         handle.MouseSelect(5, 0, MouseAction.Drag, SelectionMode.Character);
         
-        Assert.True(handle.IsInCopyMode);
-        Assert.NotNull(handle.Selection);
-        Assert.True(handle.Selection!.IsSelecting);
-        Assert.Equal(SelectionMode.Character, handle.Selection.Mode);
+        Assert.IsTrue(handle.IsInCopyMode);
+        Assert.IsNotNull(handle.Selection);
+        Assert.IsTrue(handle.Selection!.IsSelecting);
+        Assert.AreEqual(SelectionMode.Character, handle.Selection.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_Drag_ExtendsSelection()
     {
         var handle = CreateHandle(20, 5);
@@ -66,11 +67,11 @@ public class TerminalMouseSelectionTests
         
         var sel = handle.Selection!;
         // Anchor at (0,0), cursor at (0,4)
-        Assert.Equal(0, sel.Start.Column);
-        Assert.Equal(4, sel.Cursor.Column);
+        Assert.AreEqual(0, sel.Start.Column);
+        Assert.AreEqual(4, sel.Cursor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_MultiRow_CharacterMode()
     {
         var handle = CreateHandle(20, 5);
@@ -81,8 +82,8 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(3, 1, MouseAction.Drag, SelectionMode.Character);
         
         var sel = handle.Selection!;
-        Assert.Equal(0, sel.Start.Row);
-        Assert.Equal(1, sel.End.Row);
+        Assert.AreEqual(0, sel.Start.Row);
+        Assert.AreEqual(1, sel.End.Row);
         
         // Extract text
         var text = sel.ExtractText(handle.GetVirtualCell, handle.Width);
@@ -90,7 +91,7 @@ public class TerminalMouseSelectionTests
         Assert.Contains("Line", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_LineMode_SelectsFullRows()
     {
         var handle = CreateHandle(20, 5);
@@ -102,15 +103,15 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(2, 1, MouseAction.Drag, SelectionMode.Line);
         
         var sel = handle.Selection!;
-        Assert.Equal(SelectionMode.Line, sel.Mode);
+        Assert.AreEqual(SelectionMode.Line, sel.Mode);
         // Line mode selects full rows regardless of column
-        Assert.True(sel.IsCellSelected(0, 0));
-        Assert.True(sel.IsCellSelected(0, 3));
-        Assert.True(sel.IsCellSelected(1, 0));
-        Assert.False(sel.IsCellSelected(2, 0));
+        Assert.IsTrue(sel.IsCellSelected(0, 0));
+        Assert.IsTrue(sel.IsCellSelected(0, 3));
+        Assert.IsTrue(sel.IsCellSelected(1, 0));
+        Assert.IsFalse(sel.IsCellSelected(2, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_BlockMode_SelectsRectangle()
     {
         var handle = CreateHandle(20, 5);
@@ -122,16 +123,16 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(3, 2, MouseAction.Drag, SelectionMode.Block);
         
         var sel = handle.Selection!;
-        Assert.Equal(SelectionMode.Block, sel.Mode);
+        Assert.AreEqual(SelectionMode.Block, sel.Mode);
         // Block: columns 1-3, rows 0-2
-        Assert.True(sel.IsCellSelected(0, 1));
-        Assert.True(sel.IsCellSelected(1, 2));
-        Assert.True(sel.IsCellSelected(2, 3));
-        Assert.False(sel.IsCellSelected(0, 0)); // column 0 outside
-        Assert.False(sel.IsCellSelected(0, 4)); // column 4 outside
+        Assert.IsTrue(sel.IsCellSelected(0, 1));
+        Assert.IsTrue(sel.IsCellSelected(1, 2));
+        Assert.IsTrue(sel.IsCellSelected(2, 3));
+        Assert.IsFalse(sel.IsCellSelected(0, 0)); // column 0 outside
+        Assert.IsFalse(sel.IsCellSelected(0, 4)); // column 4 outside
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_Up_KeepsSelectionActive()
     {
         var handle = CreateHandle(20, 5);
@@ -142,11 +143,11 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(4, 0, MouseAction.Up, SelectionMode.Character);
         
         // Selection should still be active after mouse up
-        Assert.True(handle.IsInCopyMode);
-        Assert.True(handle.Selection!.IsSelecting);
+        Assert.IsTrue(handle.IsInCopyMode);
+        Assert.IsTrue(handle.Selection!.IsSelecting);
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseSelect_DragWhenAlreadyInCopyMode_SetsNewSelection()
     {
         var handle = CreateHandle(20, 5);
@@ -156,12 +157,12 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(5, 2, MouseAction.Down, SelectionMode.Character);
         handle.MouseSelect(8, 2, MouseAction.Drag, SelectionMode.Character);
         
-        Assert.True(handle.Selection!.IsSelecting);
-        Assert.Equal(2, handle.Selection.Anchor.Row);
-        Assert.Equal(5, handle.Selection.Anchor.Column);
+        Assert.IsTrue(handle.Selection!.IsSelecting);
+        Assert.AreEqual(2, handle.Selection.Anchor.Row);
+        Assert.AreEqual(5, handle.Selection.Anchor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseSelect_CopySelection_ExtractsCorrectText()
     {
         var handle = CreateHandle(20, 5);
@@ -176,11 +177,11 @@ public class TerminalMouseSelectionTests
         
         var result = handle.CopySelection();
         
-        Assert.Equal("World", result);
-        Assert.Equal("World", copiedText);
+        Assert.AreEqual("World", result);
+        Assert.AreEqual("World", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseSelect_ClampsToBufferBounds()
     {
         var handle = CreateHandle(10, 5);
@@ -189,9 +190,9 @@ public class TerminalMouseSelectionTests
         handle.MouseSelect(100, 100, MouseAction.Down, SelectionMode.Character);
         handle.MouseSelect(100, 100, MouseAction.Drag, SelectionMode.Character);
         
-        Assert.True(handle.IsInCopyMode);
+        Assert.IsTrue(handle.IsInCopyMode);
         var pos = handle.Selection!.Cursor;
-        Assert.True(pos.Column < handle.Width);
-        Assert.True(pos.Row < handle.VirtualBufferHeight);
+        Assert.IsTrue(pos.Column < handle.Width);
+        Assert.IsTrue(pos.Row < handle.VirtualBufferHeight);
     }
 }

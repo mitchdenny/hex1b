@@ -5,6 +5,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for Hex1bNode base class behavior.
 /// </summary>
+[TestClass]
 public class Hex1bNodeTests
 {
     /// <summary>
@@ -18,7 +19,7 @@ public class Hex1bNodeTests
 
     #region PreviousBounds Tracking Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_FirstCall_PreviousBoundsIsEmpty()
     {
         var node = new TestNode();
@@ -27,11 +28,11 @@ public class Hex1bNodeTests
         node.Arrange(bounds);
 
         // Before first arrange, PreviousBounds should be the default empty rect
-        Assert.Equal(new Rect(0, 0, 0, 0), node.PreviousBounds);
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(new Rect(0, 0, 0, 0), node.PreviousBounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SecondCall_PreviousBoundsHasFirstBounds()
     {
         var node = new TestNode();
@@ -41,11 +42,11 @@ public class Hex1bNodeTests
         node.Arrange(firstBounds);
         node.Arrange(secondBounds);
 
-        Assert.Equal(firstBounds, node.PreviousBounds);
-        Assert.Equal(secondBounds, node.Bounds);
+        Assert.AreEqual(firstBounds, node.PreviousBounds);
+        Assert.AreEqual(secondBounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_MultipleCallsTracksPreviousBounds()
     {
         var node = new TestNode();
@@ -54,19 +55,19 @@ public class Hex1bNodeTests
         var bounds3 = new Rect(10, 10, 20, 10);
 
         node.Arrange(bounds1);
-        Assert.Equal(new Rect(0, 0, 0, 0), node.PreviousBounds);
-        Assert.Equal(bounds1, node.Bounds);
+        Assert.AreEqual(new Rect(0, 0, 0, 0), node.PreviousBounds);
+        Assert.AreEqual(bounds1, node.Bounds);
 
         node.Arrange(bounds2);
-        Assert.Equal(bounds1, node.PreviousBounds);
-        Assert.Equal(bounds2, node.Bounds);
+        Assert.AreEqual(bounds1, node.PreviousBounds);
+        Assert.AreEqual(bounds2, node.Bounds);
 
         node.Arrange(bounds3);
-        Assert.Equal(bounds2, node.PreviousBounds);
-        Assert.Equal(bounds3, node.Bounds);
+        Assert.AreEqual(bounds2, node.PreviousBounds);
+        Assert.AreEqual(bounds3, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SameBounds_PreviousBoundsEqualsCurrentBounds()
     {
         var node = new TestNode();
@@ -76,11 +77,11 @@ public class Hex1bNodeTests
         node.Arrange(bounds);
 
         // When arranged with the same bounds, previous equals current
-        Assert.Equal(bounds, node.PreviousBounds);
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.PreviousBounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void InheritBoundsFromReplacedNode_SetsBoundsFromOldNode()
     {
         // Arrange - old node with established bounds
@@ -90,17 +91,17 @@ public class Hex1bNodeTests
         
         // New replacement node starts with empty bounds
         var newNode = new TestNode();
-        Assert.Equal(new Rect(0, 0, 0, 0), newNode.Bounds);
+        Assert.AreEqual(new Rect(0, 0, 0, 0), newNode.Bounds);
 
         // Act - inherit bounds from the replaced node
         newNode.InheritBoundsFromReplacedNode(oldNode);
 
         // Assert - Bounds is now the old node's bounds
         // When Arrange is called, this will become PreviousBounds
-        Assert.Equal(oldBounds, newNode.Bounds);
+        Assert.AreEqual(oldBounds, newNode.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void InheritBoundsFromReplacedNode_AllowsDirtyRegionClearing()
     {
         // This tests the scenario where a node is replaced with a smaller one
@@ -121,14 +122,14 @@ public class Hex1bNodeTests
 
         // Assert - PreviousBounds should be the inherited old bounds, not empty
         // This allows ClearDirtyRegions to know the full area that was occupied
-        Assert.Equal(oldBounds, newNode.PreviousBounds);
-        Assert.Equal(newBounds, newNode.Bounds);
+        Assert.AreEqual(oldBounds, newNode.PreviousBounds);
+        Assert.AreEqual(newBounds, newNode.Bounds);
         
         // The difference between these rects is what needs to be cleared
-        Assert.True(newNode.Bounds != newNode.PreviousBounds);
+        Assert.IsTrue(newNode.Bounds != newNode.PreviousBounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void BoundsDidMove_WhenPositionChanges_ReturnsTrue()
     {
         var node = new TestNode();
@@ -138,10 +139,10 @@ public class Hex1bNodeTests
         var moved = node.Bounds.X != node.PreviousBounds.X || 
                     node.Bounds.Y != node.PreviousBounds.Y;
         
-        Assert.True(moved);
+        Assert.IsTrue(moved);
     }
 
-    [Fact]
+    [TestMethod]
     public void BoundsDidResize_WhenSizeChanges_ReturnsTrue()
     {
         var node = new TestNode();
@@ -151,14 +152,14 @@ public class Hex1bNodeTests
         var resized = node.Bounds.Width != node.PreviousBounds.Width || 
                       node.Bounds.Height != node.PreviousBounds.Height;
         
-        Assert.True(resized);
+        Assert.IsTrue(resized);
     }
 
     #endregion
 
     #region Orphaned Child Bounds Tests
 
-    [Fact]
+    [TestMethod]
     public void AddOrphanedChildBounds_AddsToList()
     {
         var node = new TestNode();
@@ -166,24 +167,24 @@ public class Hex1bNodeTests
         
         node.AddOrphanedChildBounds(orphanBounds);
         
-        Assert.NotNull(node.OrphanedChildBounds);
-        Assert.Single(node.OrphanedChildBounds);
-        Assert.Equal(orphanBounds, node.OrphanedChildBounds[0]);
+        Assert.IsNotNull(node.OrphanedChildBounds);
+        TestSeq.Single(node.OrphanedChildBounds);
+        Assert.AreEqual(orphanBounds, node.OrphanedChildBounds[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddOrphanedChildBounds_MarksDirty()
     {
         var node = new TestNode();
         node.ClearDirty(); // Start clean
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
         
         node.AddOrphanedChildBounds(new Rect(0, 5, 10, 1));
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void AddOrphanedChildBounds_IgnoresEmptyBounds()
     {
         var node = new TestNode();
@@ -192,85 +193,85 @@ public class Hex1bNodeTests
         node.AddOrphanedChildBounds(new Rect(5, 5, 0, 1));
         node.AddOrphanedChildBounds(new Rect(5, 5, 10, 0));
         
-        Assert.Null(node.OrphanedChildBounds);
+        Assert.IsNull(node.OrphanedChildBounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearOrphanedChildBounds_ClearsList()
     {
         var node = new TestNode();
         node.AddOrphanedChildBounds(new Rect(0, 5, 10, 1));
         node.AddOrphanedChildBounds(new Rect(0, 6, 10, 1));
-        Assert.Equal(2, node.OrphanedChildBounds!.Count);
+        Assert.AreEqual(2, node.OrphanedChildBounds!.Count);
         
         node.ClearOrphanedChildBounds();
         
-        Assert.Empty(node.OrphanedChildBounds);
+        Assert.IsEmpty(node.OrphanedChildBounds);
     }
 
     #endregion
 
     #region Dirty Flag Tests
 
-    [Fact]
+    [TestMethod]
     public void NewNode_IsDirty()
     {
         var node = new TestNode();
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearDirty_SetsIsDirtyToFalse()
     {
         var node = new TestNode();
-        Assert.True(node.IsDirty); // New node starts dirty
+        Assert.IsTrue(node.IsDirty); // New node starts dirty
 
         node.ClearDirty();
 
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkDirty_SetsIsDirtyToTrue()
     {
         var node = new TestNode();
         node.ClearDirty();
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
 
         node.MarkDirty();
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_WithDifferentBounds_MarksDirty()
     {
         var node = new TestNode();
         node.Arrange(new Rect(0, 0, 10, 5));
         node.ClearDirty();
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
 
         node.Arrange(new Rect(5, 5, 10, 5)); // Different position
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_WithSameBounds_DoesNotMarkDirty()
     {
         var node = new TestNode();
         var bounds = new Rect(0, 0, 10, 5);
         node.Arrange(bounds);
         node.ClearDirty();
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
 
         node.Arrange(bounds); // Same bounds
 
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_WithDifferentSize_MarksDirty()
     {
         var node = new TestNode();
@@ -279,56 +280,56 @@ public class Hex1bNodeTests
 
         node.Arrange(new Rect(0, 0, 20, 10)); // Different size
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void DirtyFlag_CanBeMarkedAndClearedMultipleTimes()
     {
         var node = new TestNode();
         
         // Start dirty
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
         
         // Clear and verify
         node.ClearDirty();
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
         
         // Mark and verify
         node.MarkDirty();
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
         
         // Clear again
         node.ClearDirty();
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
         
         // Mark again
         node.MarkDirty();
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
     #endregion
 
     #region NeedsRender Tests
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_NewNode_ReturnsTrue()
     {
         var node = new TestNode();
 
-        Assert.True(node.NeedsRender());
+        Assert.IsTrue(node.NeedsRender());
     }
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_CleanNode_ReturnsFalse()
     {
         var node = new TestNode();
         node.ClearDirty();
 
-        Assert.False(node.NeedsRender());
+        Assert.IsFalse(node.NeedsRender());
     }
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_CleanNodeWithDirtyChild_ReturnsTrue()
     {
         var parent = new ContainerTestNode();
@@ -336,10 +337,10 @@ public class Hex1bNodeTests
         parent.Children.Add(child);
         parent.ClearDirty(); // Parent is clean
 
-        Assert.True(parent.NeedsRender());
+        Assert.IsTrue(parent.NeedsRender());
     }
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_CleanNodeWithCleanChild_ReturnsFalse()
     {
         var parent = new ContainerTestNode();
@@ -348,10 +349,10 @@ public class Hex1bNodeTests
         parent.ClearDirty();
         child.ClearDirty();
 
-        Assert.False(parent.NeedsRender());
+        Assert.IsFalse(parent.NeedsRender());
     }
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_DirtyNodeWithCleanChild_ReturnsTrue()
     {
         var parent = new ContainerTestNode();
@@ -360,10 +361,10 @@ public class Hex1bNodeTests
         child.ClearDirty();
         // Parent stays dirty
 
-        Assert.True(parent.NeedsRender());
+        Assert.IsTrue(parent.NeedsRender());
     }
 
-    [Fact]
+    [TestMethod]
     public void NeedsRender_DeepNestedDirtyNode_ReturnsTrue()
     {
         var root = new ContainerTestNode();
@@ -380,7 +381,7 @@ public class Hex1bNodeTests
         level2.ClearDirty();
         // leaf stays dirty
 
-        Assert.True(root.NeedsRender());
+        Assert.IsTrue(root.NeedsRender());
     }
 
     #endregion

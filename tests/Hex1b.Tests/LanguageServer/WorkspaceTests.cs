@@ -7,9 +7,10 @@ namespace Hex1b.Tests.LanguageServer;
 /// Tests for <see cref="Hex1bLanguageServerWorkspace"/> — server sharing,
 /// provider caching, and language inference.
 /// </summary>
+[TestClass]
 public class WorkspaceTests
 {
-    [Fact]
+    [TestMethod]
     public void GetProvider_ReturnsSameProviderForSameUri()
     {
         var server = new TestLanguageServer();
@@ -22,10 +23,10 @@ public class WorkspaceTests
         var provider1 = workspace.GetProvider("file:///test/File.cs", "csharp");
         var provider2 = workspace.GetProvider("file:///test/File.cs", "csharp");
 
-        Assert.Same(provider1, provider2);
+        Assert.AreSame(provider1, provider2);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetProvider_ReturnsDifferentProvidersForDifferentUris()
     {
         var server = new TestLanguageServer();
@@ -38,10 +39,10 @@ public class WorkspaceTests
         var provider1 = workspace.GetProvider("file:///test/A.cs", "csharp");
         var provider2 = workspace.GetProvider("file:///test/B.cs", "csharp");
 
-        Assert.NotSame(provider1, provider2);
+        Assert.AreNotSame(provider1, provider2);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetProvider_InfersLanguageFromExtension()
     {
         var server = new TestLanguageServer();
@@ -53,15 +54,15 @@ public class WorkspaceTests
 
         // .cs should infer "csharp"
         var provider = workspace.GetProvider("file:///test/File.cs");
-        Assert.NotNull(provider);
+        Assert.IsNotNull(provider);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetProvider_ThrowsForUnregisteredLanguage()
     {
         var workspace = new Hex1bLanguageServerWorkspace("/test");
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             workspace.GetProvider("file:///test/file.rs", "rust"));
     }
 }

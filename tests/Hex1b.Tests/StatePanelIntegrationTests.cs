@@ -6,12 +6,13 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class StatePanelIntegrationTests
 {
     /// <summary>
     /// Full widget → reconcile → measure → arrange → render cycle.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task FullCycle_StatePanelWithText_RendersCorrectly()
     {
         var stateKey = new object();
@@ -23,7 +24,7 @@ public class StatePanelIntegrationTests
 
         // Measure
         var size = node.Measure(new Constraints(0, 40, 0, 5));
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
 
         // Arrange
         node.Arrange(new Rect(0, 0, 40, 1));
@@ -41,7 +42,7 @@ public class StatePanelIntegrationTests
     /// <summary>
     /// Items reorder in VStack under StatePanel scope → nodes swap correctly.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Reorder_InVStack_NodesSwapCorrectly()
     {
         var keyRoot = new object();
@@ -79,15 +80,15 @@ public class StatePanelIntegrationTests
         var vstack2 = (VStackNode)root2.Child!;
 
         // Identity preserved across reorder
-        Assert.Same(nodeC, vstack2.Children[0]);
-        Assert.Same(nodeA, vstack2.Children[1]);
-        Assert.Same(nodeB, vstack2.Children[2]);
+        Assert.AreSame(nodeC, vstack2.Children[0]);
+        Assert.AreSame(nodeA, vstack2.Children[1]);
+        Assert.AreSame(nodeB, vstack2.Children[2]);
     }
 
     /// <summary>
     /// Item insertion and deletion: new nodes created, old nodes swept.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task InsertAndDelete_NodesCreatedAndSwept()
     {
         var keyRoot = new object();
@@ -105,7 +106,7 @@ public class StatePanelIntegrationTests
 
         var root = (StatePanelNode)await widget1.ReconcileAsync(null, context);
         var nodeA = root.NestedStatePanels[keyA];
-        Assert.Equal(2, root.NestedStatePanels.Count);
+        Assert.AreEqual(2, root.NestedStatePanels.Count);
 
         // Frame 2: A, C (B removed, C added)
         var widget2 = new StatePanelWidget(keyRoot, sp =>
@@ -117,16 +118,16 @@ public class StatePanelIntegrationTests
         await widget2.ReconcileAsync(root, context);
 
         // A preserved, B removed, C new
-        Assert.Equal(2, root.NestedStatePanels.Count);
-        Assert.Same(nodeA, root.NestedStatePanels[keyA]);
-        Assert.True(root.NestedStatePanels.ContainsKey(keyC));
-        Assert.False(root.NestedStatePanels.ContainsKey(keyB));
+        Assert.AreEqual(2, root.NestedStatePanels.Count);
+        Assert.AreSame(nodeA, root.NestedStatePanels[keyA]);
+        Assert.IsTrue(root.NestedStatePanels.ContainsKey(keyC));
+        Assert.IsFalse(root.NestedStatePanels.ContainsKey(keyB));
     }
 
     /// <summary>
     /// Render after reorder produces correct output at new positions.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Reorder_ThenRender_ShowsCorrectTextAtNewPositions()
     {
         var keyRoot = new object();
@@ -170,7 +171,7 @@ public class StatePanelIntegrationTests
     /// <summary>
     /// Standalone StatePanel (no ancestor) with same key reuses node.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Standalone_SameKey_ReusesNode()
     {
         var stateKey = new object();
@@ -180,7 +181,7 @@ public class StatePanelIntegrationTests
         var node1 = await widget.ReconcileAsync(null, context);
         var node2 = await widget.ReconcileAsync(node1, context);
 
-        Assert.Same(node1, node2);
+        Assert.AreSame(node1, node2);
     }
 
     private static string GetRowText(Surface surface, int row)

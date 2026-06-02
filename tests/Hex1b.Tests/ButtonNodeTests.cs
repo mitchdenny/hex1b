@@ -9,11 +9,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for ButtonNode rendering and input handling.
 /// </summary>
+[TestClass]
 public class ButtonNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectSize()
     {
         var node = new ButtonNode { Label = "Click" };
@@ -21,11 +22,11 @@ public class ButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // " Click " = 2 (chip padding) + 5 label = 7
-        Assert.Equal(7, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(7, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_CJKCharacters_CorrectSize()
     {
         var node = new ButtonNode { Label = "汉字かな한글" };
@@ -33,11 +34,11 @@ public class ButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // " 汉字かな한글 " = 2 (chip padding) + 6 (CJK chars) * 2 (width) = 14
-        Assert.Equal(14, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(14, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyLabel_HasMinSize()
     {
         var node = new ButtonNode { Label = "" };
@@ -45,10 +46,10 @@ public class ButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // "  " = 2 (chip padding only)
-        Assert.Equal(2, size.Width);
+        Assert.AreEqual(2, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_LongLabel_MeasuresFullWidth()
     {
         var node = new ButtonNode { Label = "Click Here To Continue" };
@@ -56,35 +57,35 @@ public class ButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // 22 chars + 2 chip padding = 24
-        Assert.Equal(24, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(24, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new ButtonNode { Label = "A Very Long Button Label" };
 
         var size = node.Measure(new Constraints(0, 15, 0, 5));
 
-        Assert.Equal(15, size.Width);
+        Assert.AreEqual(15, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMinWidthConstraint()
     {
         var node = new ButtonNode { Label = "OK" };
 
         var size = node.Measure(new Constraints(20, 30, 0, 5));
 
-        Assert.Equal(20, size.Width);
+        Assert.AreEqual(20, size.Width);
     }
 
     #endregion
 
     #region Rendering Tests - Unfocused State
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_RendersLabelInChip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -107,13 +108,13 @@ public class ButtonNodeTests
 
         Assert.Contains("OK", snapshot.GetLineTrimmed(0));
         // Chip layout: cell 0 = leading pad, cells 1-2 = label, cell 3 = trailing pad
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("O", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("K", snapshot.GetCell(2, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("O", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("K", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(3, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_PaintsRestingChipBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -138,11 +139,11 @@ public class ButtonNodeTests
         // Every cell of the chip — both pads and the label — sits on the resting background.
         for (var x = 0; x <= 5; x++)
         {
-            Assert.Equal(expectedRestingBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedRestingBg, snapshot.GetCell(x, 0).Background);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_EmptyLabel_StillRendersChipPad()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -164,17 +165,17 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         var expectedRestingBg = context.Theme.Get(ButtonTheme.BackgroundColor);
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(1, 0).Character);
-        Assert.Equal(expectedRestingBg, snapshot.GetCell(0, 0).Background);
-        Assert.Equal(expectedRestingBg, snapshot.GetCell(1, 0).Background);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual(expectedRestingBg, snapshot.GetCell(0, 0).Background);
+        Assert.AreEqual(expectedRestingBg, snapshot.GetCell(1, 0).Background);
     }
 
     #endregion
 
     #region Rendering Tests - Focused State
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_HasDifferentStyle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -195,11 +196,11 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Should contain styling for focus
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.IsTrue(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
         Assert.Contains("OK", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_ContainsLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -222,7 +223,7 @@ public class ButtonNodeTests
         Assert.Contains("Submit Form", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_FocusedAndUnfocused_ProduceDifferentOutput()
     {
         using var focusedWorkload = new Hex1bAppWorkloadAdapter();
@@ -254,7 +255,7 @@ public class ButtonNodeTests
 
         // Focused button should have different styling (colors or attributes)
         var focusedMatch = focusedTerminal.CreateSnapshot().SearchPattern(pattern).First;
-        Assert.NotNull(focusedMatch);
+        Assert.IsNotNull(focusedMatch);
 
         // The focused button should have either reverse attribute or foreground/background colors
         var focusedCells = focusedMatch.Cells;
@@ -263,10 +264,10 @@ public class ButtonNodeTests
             c.Cell.Foreground.HasValue ||
             c.Cell.Background.HasValue);
 
-        Assert.True(focusedHasStyling, "Focused button should have styling applied");
+        Assert.IsTrue(focusedHasStyling, "Focused button should have styling applied");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Focused_PaintsFocusedChipBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -291,17 +292,17 @@ public class ButtonNodeTests
         // Every cell of the chip — both pads and the label — sits on the focused background.
         for (var x = 0; x <= 5; x++)
         {
-            Assert.Equal(expectedFocusedBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedFocusedBg, snapshot.GetCell(x, 0).Background);
         }
-        Assert.Equal("S", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("e", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("S", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(4, 0).Character);
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_TriggersClickAction()
     {
         var clicked = false;
@@ -314,11 +315,11 @@ public class ButtonNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Space_TriggersClickAction()
     {
         var clicked = false;
@@ -331,11 +332,11 @@ public class ButtonNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_DoesNotClick()
     {
         var clicked = false;
@@ -348,11 +349,11 @@ public class ButtonNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.False(clicked);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.IsFalse(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NotFocused_DoesNotClick()
     {
         var clicked = false;
@@ -367,11 +368,11 @@ public class ButtonNodeTests
 
         // Bindings execute regardless of focus (focus check is for HandleInput fallback)
         // But the action should still fire since bindings don't check focus
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_NullClickAction_DoesNotThrow()
     {
         var node = new ButtonNode
@@ -384,10 +385,10 @@ public class ButtonNodeTests
         // With no ClickAction, no bindings are registered, so Enter falls through
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Tab_DoesNotTriggerClick()
     {
         var clicked = false;
@@ -400,27 +401,27 @@ public class ButtonNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.False(clicked);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.IsFalse(clicked);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ButtonNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new ButtonNode { Label = "Test" };
@@ -428,14 +429,14 @@ public class ButtonNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -460,10 +461,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Click Me"));
+        Assert.IsTrue(snapshot.ContainsText("Click Me"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_Enter_TriggersAction()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -490,10 +491,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_Space_TriggersAction()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -520,10 +521,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_ClickUpdatesState()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -555,11 +556,11 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(3, counter);
-        Assert.True(snapshot.ContainsText("Count: 3"));
+        Assert.AreEqual(3, counter);
+        Assert.IsTrue(snapshot.ContainsText("Count: 3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultipleButtons_TabNavigates()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -590,11 +591,11 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(button1Clicked);
-        Assert.True(button2Clicked);
+        Assert.IsFalse(button1Clicked);
+        Assert.IsTrue(button2Clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_InNarrowTerminal_StillWorks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -621,11 +622,11 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
-        Assert.True(snapshot.ContainsText("OK"));
+        Assert.IsTrue(clicked);
+        Assert.IsTrue(snapshot.ContainsText("OK"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_LongLabelInNarrowTerminal_Wraps()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -651,10 +652,10 @@ public class ButtonNodeTests
         await runTask;
 
         // The button text should be present (possibly wrapped)
-        Assert.True(snapshot.ContainsText("Click Here"));
+        Assert.IsTrue(snapshot.ContainsText("Click Here"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_WithTextBox_TabBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -686,11 +687,11 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hi", text);
-        Assert.True(buttonClicked);
+        Assert.AreEqual("Hi", text);
+        Assert.IsTrue(buttonClicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_MultipleClicks_AllProcessed()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -722,10 +723,10 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(5, clickCount);
+        Assert.AreEqual(5, clickCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_Button_DynamicLabel_UpdatesOnRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -754,7 +755,7 @@ public class ButtonNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Clicked 2 times"));
+        Assert.IsTrue(snapshot.ContainsText("Clicked 2 times"));
     }
 
     #endregion

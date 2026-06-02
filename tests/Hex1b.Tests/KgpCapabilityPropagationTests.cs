@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for KGP capability propagation through the surface render context and layer system.
 /// </summary>
+[TestClass]
 public class KgpCapabilityPropagationTests
 {
     private static readonly TerminalCapabilities KgpCapabilities = new()
@@ -19,29 +20,29 @@ public class KgpCapabilityPropagationTests
         Supports256Colors = true,
     };
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_DefaultCapabilities_AreModern()
     {
         var surface = new Surface(10, 5);
         var context = new SurfaceRenderContext(surface);
 
         // Default should be Modern (no KGP)
-        Assert.False(context.Capabilities.SupportsKgp);
-        Assert.False(context.Capabilities.SupportsSixel);
+        Assert.IsFalse(context.Capabilities.SupportsKgp);
+        Assert.IsFalse(context.Capabilities.SupportsSixel);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_SetCapabilities_AreReturned()
     {
         var surface = new Surface(10, 5);
         var context = new SurfaceRenderContext(surface);
         context.SetCapabilities(KgpCapabilities);
 
-        Assert.True(context.Capabilities.SupportsKgp);
-        Assert.True(context.Capabilities.SupportsSixel);
+        Assert.IsTrue(context.Capabilities.SupportsKgp);
+        Assert.IsTrue(context.Capabilities.SupportsSixel);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceRenderContext_RenderChild_PropagatesCapabilities()
     {
         var surface = new Surface(20, 10);
@@ -57,12 +58,12 @@ public class KgpCapabilityPropagationTests
 
         context.RenderChild(childNode);
 
-        Assert.NotNull(childCapabilities);
-        Assert.True(childCapabilities!.SupportsKgp);
-        Assert.True(childCapabilities.SupportsSixel);
+        Assert.IsNotNull(childCapabilities);
+        Assert.IsTrue(childCapabilities!.SupportsKgp);
+        Assert.IsTrue(childCapabilities.SupportsSixel);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceNode_PassesCapabilitiesToLayerContext()
     {
         TerminalCapabilities? layerCapabilities = null;
@@ -84,11 +85,11 @@ public class KgpCapabilityPropagationTests
 
         node.Render(context);
 
-        Assert.NotNull(layerCapabilities);
-        Assert.True(layerCapabilities!.SupportsKgp);
+        Assert.IsNotNull(layerCapabilities);
+        Assert.IsTrue(layerCapabilities!.SupportsKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceNode_WithoutKgp_LayerBuilderSeesNoKgp()
     {
         TerminalCapabilities? layerCapabilities = null;
@@ -110,8 +111,8 @@ public class KgpCapabilityPropagationTests
 
         node.Render(context);
 
-        Assert.NotNull(layerCapabilities);
-        Assert.False(layerCapabilities!.SupportsKgp);
+        Assert.IsNotNull(layerCapabilities);
+        Assert.IsFalse(layerCapabilities!.SupportsKgp);
     }
 
     /// <summary>

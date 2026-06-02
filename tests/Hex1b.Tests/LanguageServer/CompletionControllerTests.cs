@@ -5,6 +5,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class CompletionControllerTests
 {
     private readonly CompletionController _controller = new();
@@ -18,27 +19,27 @@ public class CompletionControllerTests
         _controller.Attach(_session);
     }
 
-    [Fact]
+    [TestMethod]
     public void Show_WithItems_IsActive()
     {
         var items = MakeItems("foo", "bar", "baz");
         _controller.Show(items, new DocumentPosition(1, 5));
 
-        Assert.True(_controller.IsActive);
-        Assert.Single(_session.Overlays);
-        Assert.Equal(CompletionController.CompletionOverlayId, _session.Overlays[0].Id);
+        Assert.IsTrue(_controller.IsActive);
+        TestSeq.Single(_session.Overlays);
+        Assert.AreEqual(CompletionController.CompletionOverlayId, _session.Overlays[0].Id);
     }
 
-    [Fact]
+    [TestMethod]
     public void Show_WithEmptyItems_IsNotActive()
     {
         _controller.Show([], new DocumentPosition(1, 5));
 
-        Assert.False(_controller.IsActive);
-        Assert.Empty(_session.Overlays);
+        Assert.IsFalse(_controller.IsActive);
+        Assert.IsEmpty(_session.Overlays);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectNext_CyclesForward()
     {
         var items = MakeItems("foo", "bar", "baz");
@@ -49,11 +50,11 @@ public class CompletionControllerTests
         _controller.SelectNext(); // index 2
         _controller.SelectNext(); // wraps to 0
 
-        Assert.True(_controller.IsActive);
-        Assert.Single(_session.Overlays); // Still one overlay
+        Assert.IsTrue(_controller.IsActive);
+        TestSeq.Single(_session.Overlays); // Still one overlay
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectPrev_CyclesBackward()
     {
         var items = MakeItems("foo", "bar", "baz");
@@ -61,10 +62,10 @@ public class CompletionControllerTests
 
         _controller.SelectPrev(); // wraps to index 2
 
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
     }
 
-    [Fact]
+    [TestMethod]
     public void Accept_ReturnsSelectedLabel()
     {
         var items = MakeItems("foo", "bar", "baz");
@@ -73,11 +74,11 @@ public class CompletionControllerTests
         _controller.SelectNext(); // select "bar"
         var text = _controller.Accept();
 
-        Assert.Equal("bar", text);
-        Assert.False(_controller.IsActive);
+        Assert.AreEqual("bar", text);
+        Assert.IsFalse(_controller.IsActive);
     }
 
-    [Fact]
+    [TestMethod]
     public void Accept_ReturnsInsertText_WhenAvailable()
     {
         var items = new[]
@@ -88,24 +89,24 @@ public class CompletionControllerTests
 
         var text = _controller.Accept();
 
-        Assert.Equal("insertMe", text);
+        Assert.AreEqual("insertMe", text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Filter_NarrowsItems()
     {
         var items = MakeItems("forEach", "find", "filter", "map", "reduce");
         _controller.Show(items, new DocumentPosition(1, 5));
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
 
         _controller.Filter("fi");
 
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
         var overlay = _session.Overlays[0];
-        Assert.Equal(2, overlay.Content.Count); // "find" and "filter"
+        Assert.AreEqual(2, overlay.Content.Count); // "find" and "filter"
     }
 
-    [Fact]
+    [TestMethod]
     public void Filter_DismissesWhenNoMatch()
     {
         var items = MakeItems("forEach", "find", "filter");
@@ -113,11 +114,11 @@ public class CompletionControllerTests
 
         _controller.Filter("xyz");
 
-        Assert.False(_controller.IsActive);
-        Assert.Empty(_session.Overlays);
+        Assert.IsFalse(_controller.IsActive);
+        Assert.IsEmpty(_session.Overlays);
     }
 
-    [Fact]
+    [TestMethod]
     public void Filter_IsCaseInsensitive()
     {
         var items = MakeItems("forEach", "Find", "FILTER");
@@ -125,12 +126,12 @@ public class CompletionControllerTests
 
         _controller.Filter("f");
 
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
         var overlay = _session.Overlays[0];
-        Assert.Equal(3, overlay.Content.Count); // All match case-insensitively
+        Assert.AreEqual(3, overlay.Content.Count); // All match case-insensitively
     }
 
-    [Fact]
+    [TestMethod]
     public void Accept_AfterFilter_StripsPrefix()
     {
         var items = MakeItems("forEach", "find", "filter");
@@ -140,10 +141,10 @@ public class CompletionControllerTests
         var text = _controller.Accept();
 
         // "find" minus the "fi" prefix already typed
-        Assert.Equal("nd", text);
+        Assert.AreEqual("nd", text);
     }
 
-    [Fact]
+    [TestMethod]
     public void Filter_UsesFilterTextWhenAvailable()
     {
         var items = new[]
@@ -156,12 +157,12 @@ public class CompletionControllerTests
 
         _controller.Filter("dis");
 
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
         var overlay = _session.Overlays[0];
-        Assert.Equal(2, overlay.Content.Count); // display() and dispose()
+        Assert.AreEqual(2, overlay.Content.Count); // display() and dispose()
     }
 
-    [Fact]
+    [TestMethod]
     public void Filter_ContainsFallback_MatchesSubstring()
     {
         var items = MakeItems("groupCollapsed", "groupEnd", "log", "warn");
@@ -169,37 +170,37 @@ public class CompletionControllerTests
 
         _controller.Filter("Coll");
 
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
         var overlay = _session.Overlays[0];
-        Assert.Single(overlay.Content); // "groupCollapsed" via Contains
+        TestSeq.Single(overlay.Content); // "groupCollapsed" via Contains
     }
 
-    [Fact]
+    [TestMethod]
     public void Dismiss_ClearsOverlay()
     {
         var items = MakeItems("foo", "bar");
         _controller.Show(items, new DocumentPosition(1, 5));
-        Assert.True(_controller.IsActive);
+        Assert.IsTrue(_controller.IsActive);
 
         _controller.Dismiss();
 
-        Assert.False(_controller.IsActive);
-        Assert.Empty(_session.Overlays);
+        Assert.IsFalse(_controller.IsActive);
+        Assert.IsEmpty(_session.Overlays);
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlay_HasCorrectAnchor()
     {
         var items = MakeItems("method1");
         var anchor = new DocumentPosition(5, 10);
         _controller.Show(items, anchor);
 
-        Assert.Single(_session.Overlays);
-        Assert.Equal(anchor, _session.Overlays[0].AnchorPosition);
-        Assert.Equal(OverlayPlacement.Below, _session.Overlays[0].Placement);
+        TestSeq.Single(_session.Overlays);
+        Assert.AreEqual(anchor, _session.Overlays[0].AnchorPosition);
+        Assert.AreEqual(OverlayPlacement.Below, _session.Overlays[0].Placement);
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlay_DoesNotDismissOnCursorMove()
     {
         var items = MakeItems("foo");
@@ -207,10 +208,10 @@ public class CompletionControllerTests
 
         // The completion overlay should NOT auto-dismiss on cursor move
         // (the controller manages its own lifecycle)
-        Assert.False(_session.Overlays[0].DismissOnCursorMove);
+        Assert.IsFalse(_session.Overlays[0].DismissOnCursorMove);
     }
 
-    [Fact]
+    [TestMethod]
     public void Overlay_ShowsKindIcons()
     {
         var items = new[]
@@ -222,7 +223,7 @@ public class CompletionControllerTests
         _controller.Show(items, new DocumentPosition(1, 1));
 
         var overlay = _session.Overlays[0];
-        Assert.Equal(3, overlay.Content.Count);
+        Assert.AreEqual(3, overlay.Content.Count);
         Assert.Contains("ƒ", overlay.Content[0].Text); // Method icon
         Assert.Contains("C", overlay.Content[1].Text);  // Class icon
         Assert.Contains("P", overlay.Content[2].Text);  // Property icon

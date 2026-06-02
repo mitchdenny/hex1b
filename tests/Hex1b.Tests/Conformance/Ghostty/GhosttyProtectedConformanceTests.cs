@@ -1,4 +1,3 @@
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -14,35 +13,36 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Key behavior: _protectedMode tracks the MOST RECENT mode set (ISO or DEC) and is
 /// never reset to Off. The cursor's protected flag tracks whether new chars are protected.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyProtectedConformanceTests
 {
     // ═══════════════════════════════════════════════════════════════
     // setProtectedMode basic behavior
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void SetProtectedMode_BasicToggle()
     {
         // Ghostty: "Terminal: setProtectedMode"
         var t = GhosttyTestFixture.CreateTerminal(3, 3);
 
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
         t.SetProtectedMode(ProtectedMode.Off);
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
         t.SetProtectedMode(ProtectedMode.Iso);
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
         t.SetProtectedMode(ProtectedMode.Dec);
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
         t.SetProtectedMode(ProtectedMode.Off);
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseChars (ECH) — CSI X
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseChars protected attributes respected with iso"
@@ -54,10 +54,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[2X");    // eraseChars(2)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseChars protected attributes ignored with dec most recent"
@@ -72,10 +72,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[2X");    // eraseChars(2)
 
-        Assert.Equal("  C", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  C", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseChars_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseChars protected attributes ignored with dec set"
@@ -87,14 +87,14 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[2X");    // eraseChars(2)
 
-        Assert.Equal("  C", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  C", GhosttyTestFixture.GetLine(t, 0));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseLine right (EL 0 / DECSEL 0) — CSI K / CSI ? K
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Right_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseLine right protected attributes respected with iso"
@@ -105,10 +105,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[K");     // eraseLine right (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Right_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseLine right protected attributes ignored with dec most recent"
@@ -121,10 +121,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[K");     // eraseLine right (normal)
 
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Right_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseLine right protected attributes ignored with dec set"
@@ -135,10 +135,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[K");     // eraseLine right (normal)
 
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Right_ProtectedRequested()
     {
         // Ghostty: "Terminal: eraseLine right protected requested"
@@ -152,14 +152,14 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;4H"); // setCursorPos(1,4) → cursor at col 3
         GhosttyTestFixture.Feed(t, "\u001b[?K");    // DECSEL right (selective)
 
-        Assert.Equal("123  X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("123  X", GhosttyTestFixture.GetLine(t, 0));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseLine left (EL 1 / DECSEL 1) — CSI 1 K / CSI ? 1 K
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Left_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseLine left protected attributes respected with iso"
@@ -170,10 +170,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[1K");    // eraseLine left (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Left_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseLine left protected attributes ignored with dec most recent"
@@ -186,10 +186,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[1K");    // eraseLine left (normal)
 
-        Assert.Equal("  C", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  C", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Left_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseLine left protected attributes ignored with dec set"
@@ -200,10 +200,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[1K");    // eraseLine left (normal)
 
-        Assert.Equal("  C", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  C", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Left_ProtectedRequested()
     {
         // Ghostty: "Terminal: eraseLine left protected requested"
@@ -217,14 +217,14 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;8H"); // setCursorPos(1,8) → cursor at col 7
         GhosttyTestFixture.Feed(t, "\u001b[?1K");   // DECSEL left (selective)
 
-        Assert.Equal("     X  9", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("     X  9", GhosttyTestFixture.GetLine(t, 0));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseLine complete (EL 2 / DECSEL 2) — CSI 2 K / CSI ? 2 K
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Complete_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseLine complete protected attributes respected with iso"
@@ -235,10 +235,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // setCursorPos(1,1)
         GhosttyTestFixture.Feed(t, "\u001b[2K");    // eraseLine complete (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Complete_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseLine complete protected attributes ignored with dec most recent"
@@ -251,10 +251,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[2K");    // eraseLine complete (normal)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Complete_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseLine complete protected attributes ignored with dec set"
@@ -265,10 +265,10 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;2H"); // setCursorPos(1,2)
         GhosttyTestFixture.Feed(t, "\u001b[2K");    // eraseLine complete (normal)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseLine_Complete_ProtectedRequested()
     {
         // Ghostty: "Terminal: eraseLine complete protected requested"
@@ -282,14 +282,14 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;8H"); // setCursorPos(1,8) → cursor at col 7
         GhosttyTestFixture.Feed(t, "\u001b[?2K");   // DECSEL complete (selective)
 
-        Assert.Equal("     X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("     X", GhosttyTestFixture.GetLine(t, 0));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseDisplay below (ED 0 / DECSED 0) — CSI J / CSI ? J
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Below_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseDisplay below protected attributes respected with iso"
@@ -300,12 +300,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[J");     // eraseDisplay below (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Below_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseDisplay below protected attributes ignored with dec most recent"
@@ -318,12 +318,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[J");     // eraseDisplay below (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("D", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("D", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Below_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseDisplay below protected attributes ignored with dec set"
@@ -334,12 +334,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[J");     // eraseDisplay below (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("D", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("D", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Below_ProtectedRespectedWithForce()
     {
         // Ghostty: "Terminal: eraseDisplay below protected attributes respected with force"
@@ -351,16 +351,16 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[?J");    // DECSED below (selective)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseDisplay above (ED 1 / DECSED 1) — CSI 1 J / CSI ? 1 J
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Above_ProtectedRespectedWithIso()
     {
         // Ghostty: "Terminal: eraseDisplay above protected attributes respected with iso"
@@ -371,12 +371,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[1J");    // eraseDisplay above (normal)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Above_ProtectedIgnoredWithDecMostRecent()
     {
         // Ghostty: "Terminal: eraseDisplay above protected attributes ignored with dec most recent"
@@ -389,12 +389,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[1J");    // eraseDisplay above (normal)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("  F", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  F", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Above_ProtectedIgnoredWithDecSet()
     {
         // Ghostty: "Terminal: eraseDisplay above protected attributes ignored with dec set"
@@ -405,12 +405,12 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[1J");    // eraseDisplay above (normal)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("  F", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  F", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_Above_ProtectedRespectedWithForce()
     {
         // Ghostty: "Terminal: eraseDisplay above protected attributes respected with force"
@@ -422,16 +422,16 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;2H"); // setCursorPos(2,2)
         GhosttyTestFixture.Feed(t, "\u001b[?1J");   // DECSED above (selective)
 
-        Assert.Equal("ABC", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("DEF", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("GHI", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("ABC", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("DEF", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("GHI", GhosttyTestFixture.GetLine(t, 2));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // eraseDisplay with mixed protected/unprotected — selective erase
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_ProtectedComplete()
     {
         // Ghostty: "Terminal: eraseDisplay protected complete"
@@ -448,11 +448,11 @@ public class GhosttyProtectedConformanceTests
 
         GhosttyTestFixture.Feed(t, "\u001b[?2J");   // DECSED complete (selective)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("     X", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("     X", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_ProtectedBelow()
     {
         // Ghostty: "Terminal: eraseDisplay protected below"
@@ -468,11 +468,11 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;4H"); // setCursorPos(2,4)
         GhosttyTestFixture.Feed(t, "\u001b[?J");    // DECSED below (selective)
 
-        Assert.Equal("A", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("123  X", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("123  X", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void EraseDisplay_ProtectedAbove()
     {
         // Ghostty: "Terminal: eraseDisplay protected above"
@@ -488,15 +488,15 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[2;8H"); // setCursorPos(2,8)
         GhosttyTestFixture.Feed(t, "\u001b[?1J");   // DECSED above (selective)
 
-        Assert.Equal("", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("     X  9", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("     X  9", GhosttyTestFixture.GetLine(t, 1));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // saveCursor / restoreCursor with protected pen
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void SaveCursor_ProtectedPen()
     {
         // Ghostty: "Terminal: saveCursor protected pen"
@@ -504,20 +504,20 @@ public class GhosttyProtectedConformanceTests
         var t = GhosttyTestFixture.CreateTerminal(10, 5);
 
         t.SetProtectedMode(ProtectedMode.Iso);
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b[1;10H"); // setCursorPos(1,10)
         GhosttyTestFixture.Feed(t, "\u001b7");       // saveCursor (DECSC)
         t.SetProtectedMode(ProtectedMode.Off);
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b8");       // restoreCursor (DECRC)
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
     }
 
     // ═══════════════════════════════════════════════════════════════
     // DECALN resets graphemes with protected mode
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void Decaln_ResetsGraphemesWithProtectedMode()
     {
         // Ghostty: "Terminal: DECALN resets graphemes with protected mode"
@@ -529,35 +529,35 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b#8"); // DECALN
 
         // DECALN preserves cursor protected and mode, but resets cursor position
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
 
-        Assert.Equal("EEE", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("EEE", GhosttyTestFixture.GetLine(t, 1));
-        Assert.Equal("EEE", GhosttyTestFixture.GetLine(t, 2));
+        Assert.AreEqual("EEE", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("EEE", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("EEE", GhosttyTestFixture.GetLine(t, 2));
     }
 
     // ═══════════════════════════════════════════════════════════════
     // DECSCA via escape sequence (CSI Ps " q)
     // ═══════════════════════════════════════════════════════════════
 
-    [Fact]
+    [TestMethod]
     public void Decsca_ViaEscapeSequence_SetsProtection()
     {
         // DECSCA 1 enables character protection, DECSCA 0 disables it.
         var t = GhosttyTestFixture.CreateTerminal(10, 5);
 
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b[1\"q"); // DECSCA 1 (protected)
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b[0\"q"); // DECSCA 0 (unprotected)
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b[1\"q"); // DECSCA 1 (protected)
-        Assert.True(t.CursorProtected);
+        Assert.IsTrue(t.CursorProtected);
         GhosttyTestFixture.Feed(t, "\u001b[2\"q"); // DECSCA 2 (also unprotected)
-        Assert.False(t.CursorProtected);
+        Assert.IsFalse(t.CursorProtected);
     }
 
-    [Fact]
+    [TestMethod]
     public void Decsca_ProtectedCharactersPreservedByIsoErase()
     {
         // Characters printed while DECSCA is active get protection attribute.
@@ -574,6 +574,6 @@ public class GhosttyProtectedConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H"); // Home
         GhosttyTestFixture.Feed(t, "\u001b[2K");    // Erase line complete
 
-        Assert.Equal("ABCDE", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("ABCDE", GhosttyTestFixture.GetLine(t, 0));
     }
 }

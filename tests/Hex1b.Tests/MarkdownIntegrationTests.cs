@@ -5,9 +5,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MarkdownIntegrationTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersHeading()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -30,7 +31,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersParagraph()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -53,7 +54,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersFencedCode()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -76,7 +77,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FencedCode_MultiLine_ShowsAllLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -99,7 +100,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FencedCode_HasBorderWithLanguageTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -122,7 +123,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_IndentedCode_RendersAsEditor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -145,7 +146,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersBlockQuote()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -168,7 +169,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_BlockQuoteWraps_WithBarOnEveryLine()
     {
         // Use a narrow terminal so the block quote text must wrap
@@ -201,7 +202,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersList()
     {
         var source = "- Alpha\n- Beta\n- Gamma";
@@ -226,7 +227,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_RendersComplexDocument()
     {
         var source = """
@@ -268,7 +269,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_HeadingThenParagraph_HasBlankLineBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -297,7 +298,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ParagraphThenList_HasBlankLineBetween()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -327,7 +328,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_CodeBlockHasSpacingAround()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -357,7 +358,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ImageOnlyParagraph_WithLoader_RendersKgpImage()
     {
         // Create a 2x2 red RGBA image (16 bytes)
@@ -390,7 +391,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ImageOnlyParagraph_LoaderReturnsNull_FallsBackToText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -415,7 +416,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ImageInMixedParagraph_NoLoader_RendersAsInlineText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -439,7 +440,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ImageOnlyParagraph_NoLoader_RendersAsText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -463,7 +464,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ImageLoader_ReceivesCorrectUri()
     {
         Uri? capturedUri = null;
@@ -494,12 +495,12 @@ public class MarkdownIntegrationTests
 
         await runTask;
 
-        Assert.NotNull(capturedUri);
-        Assert.Equal("./images/sunset.png", capturedUri!.OriginalString);
-        Assert.Equal("Sunset", capturedAlt);
+        Assert.IsNotNull(capturedUri);
+        Assert.AreEqual("./images/sunset.png", capturedUri!.OriginalString);
+        Assert.AreEqual("Sunset", capturedAlt);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_InScrollPanel_Scrollable()
     {
         // Generate enough content to exceed viewport
@@ -526,7 +527,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_WithOnBlockHandler_OverridesHeading()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -551,7 +552,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_WithOnBlockHandler_DefaultChaining()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -579,7 +580,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_InBorder_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -606,7 +607,7 @@ public class MarkdownIntegrationTests
     // Phase 2: Styled inline rendering integration tests
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_BoldText_RendersBold()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -637,7 +638,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_ItalicText_RendersItalic()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -667,7 +668,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_InlineCode_HasBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -696,7 +697,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_MixedInlines_AllStyled()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -737,7 +738,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_HeadingWithBold_ComposesStyles()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -770,7 +771,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_Link_HasHyperlinkData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -805,7 +806,7 @@ public class MarkdownIntegrationTests
     // List Wrapping Tests
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_BulletList_WrapsWithHangingIndent()
     {
         // Terminal is 30 chars wide — "• " takes 2 chars, text wraps at 28
@@ -838,14 +839,14 @@ public class MarkdownIntegrationTests
         Assert.Contains("This", screenText);
 
         var lines = screenText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length >= 2, $"Expected at least 2 lines for wrapped text, got {lines.Length}. Screen:\n{screenText}");
+        Assert.IsTrue(lines.Length >= 2, $"Expected at least 2 lines for wrapped text, got {lines.Length}. Screen:\n{screenText}");
 
         // Second line starts with spaces (hanging indent)
         var secondLine = lines[1];
-        Assert.True(secondLine.StartsWith("  "), $"Continuation line should be indented. Got: '{secondLine}'");
+        Assert.IsTrue(secondLine.StartsWith("  "), $"Continuation line should be indented. Got: '{secondLine}'");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_OrderedList_WrapsWithHangingIndent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -874,20 +875,20 @@ public class MarkdownIntegrationTests
         await runTask;
 
         var lines = screenText.Split('\n', StringSplitOptions.RemoveEmptyEntries);
-        Assert.True(lines.Length >= 2, $"Expected at least 2 lines. Screen:\n{screenText}");
+        Assert.IsTrue(lines.Length >= 2, $"Expected at least 2 lines. Screen:\n{screenText}");
 
         // First line starts with "1. "
         Assert.StartsWith("1.", lines[0].TrimEnd());
 
         // Second line indented by 3 chars (length of "1. ")
-        Assert.True(lines[1].StartsWith("   "), $"Continuation should indent 3 chars. Got: '{lines[1]}'");
+        Assert.IsTrue(lines[1].StartsWith("   "), $"Continuation should indent 3 chars. Got: '{lines[1]}'");
     }
 
     // ==========================================================================
     // Focus Navigation Integration Tests
     // ==========================================================================
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FocusableLinks_TabMovesToFirstLink()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -920,7 +921,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FocusableLinks_TabCyclesThroughLinks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -973,7 +974,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FocusableLinks_EnterActivatesLink()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1009,11 +1010,11 @@ public class MarkdownIntegrationTests
 
         await runTask;
 
-        Assert.Equal("https://example.com", activatedUrl);
-        Assert.Equal("here", activatedText);
+        Assert.AreEqual("https://example.com", activatedUrl);
+        Assert.AreEqual("here", activatedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FocusableLinks_OnLinkActivatedReceivesCorrectKind()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1047,10 +1048,10 @@ public class MarkdownIntegrationTests
 
         await runTask;
 
-        Assert.Equal(Events.MarkdownLinkKind.External, receivedKind);
+        Assert.AreEqual(Events.MarkdownLinkKind.External, receivedKind);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_NotFocusable_TabDoesNotFocusLinks()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1083,22 +1084,22 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Theory]
-    [InlineData("Getting Started", "getting-started")]
-    [InlineData("Hello World", "hello-world")]
-    [InlineData("  Spaces  Around  ", "--spaces--around--")]
-    [InlineData("ALL CAPS HEADING", "all-caps-heading")]
-    [InlineData("Special!@#Characters$%", "specialcharacters")]
-    [InlineData("hyphen-ated", "hyphen-ated")]
-    [InlineData("Mix 123 Numbers", "mix-123-numbers")]
-    [InlineData("", "")]
+    [TestMethod]
+    [DataRow("Getting Started", "getting-started")]
+    [DataRow("Hello World", "hello-world")]
+    [DataRow("  Spaces  Around  ", "--spaces--around--")]
+    [DataRow("ALL CAPS HEADING", "all-caps-heading")]
+    [DataRow("Special!@#Characters$%", "specialcharacters")]
+    [DataRow("hyphen-ated", "hyphen-ated")]
+    [DataRow("Mix 123 Numbers", "mix-123-numbers")]
+    [DataRow("", "")]
     public void GenerateSlug_ProducesGitHubStyleSlug(string input, string expected)
     {
         var slug = MarkdownWidgetRenderer.GenerateSlug(input);
-        Assert.Equal(expected, slug);
+        Assert.AreEqual(expected, slug);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_NestedList_RendersWithAlternateBullets()
     {
         var md = "- Item 1\n  - Nested A\n  - Nested B\n- Item 2";
@@ -1130,14 +1131,14 @@ public class MarkdownIntegrationTests
         await runTask;
 
         // Top-level items use "•", nested items use "◦"
-        Assert.NotNull(snapshot);
-        Assert.True(snapshot.ContainsText("•"), "Top-level bullet (•) should be present");
-        Assert.True(snapshot.ContainsText("◦"), "Nested bullet (◦) should be present");
-        Assert.True(snapshot.ContainsText("Nested A"), "Nested item A should be present");
-        Assert.True(snapshot.ContainsText("Item 2"), "Second top-level item should be present");
+        Assert.IsNotNull(snapshot);
+        Assert.IsTrue(snapshot.ContainsText("•"), "Top-level bullet (•) should be present");
+        Assert.IsTrue(snapshot.ContainsText("◦"), "Nested bullet (◦) should be present");
+        Assert.IsTrue(snapshot.ContainsText("Nested A"), "Nested item A should be present");
+        Assert.IsTrue(snapshot.ContainsText("Item 2"), "Second top-level item should be present");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_IntraDocumentLink_ScrollsToHeading()
     {
         // Build a tall document: link at top, target heading far below
@@ -1206,11 +1207,11 @@ public class MarkdownIntegrationTests
 
         await runTask;
 
-        Assert.Equal("#target-heading", activatedUrl);
-        Assert.Equal(Events.MarkdownLinkKind.IntraDocument, activatedKind);
+        Assert.AreEqual("#target-heading", activatedUrl);
+        Assert.AreEqual(Events.MarkdownLinkKind.IntraDocument, activatedKind);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_IntraDocumentLink_ScrollsToHeading_WhenAlreadyScrolled()
     {
         var lines = new List<string>
@@ -1281,7 +1282,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_FocusedLink_ArrowKeysScrollDocument()
     {
         var lines = new List<string> { "## Top", "" };
@@ -1340,7 +1341,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_Table_RendersWithGridLines()
     {
         var markdown = "| Name | Value |\n|------|-------|\n| Foo  | 42    |\n| Bar  | 99    |";
@@ -1389,7 +1390,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_AcceptsIHex1bDocument()
     {
         var doc = new Hex1bDocument("# Document Heading\n\nParagraph from document.");
@@ -1414,7 +1415,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_DocumentUpdatesReflected()
     {
         var doc = new Hex1bDocument("# Before");
@@ -1454,7 +1455,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_MouseScrollOverCodeBlock_ScrollsParentPanel()
     {
         // Build markdown with enough content to require scrolling, including a code block.
@@ -1506,7 +1507,7 @@ public class MarkdownIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Markdown_MouseScrollOverFocusableLink_ScrollsParentPanel()
     {
         var lines = new List<string>

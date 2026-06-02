@@ -2,23 +2,24 @@ using Hex1b.Animation;
 
 namespace Hex1b.Tests.Animation;
 
+[TestClass]
 public class AnimatorTests
 {
     // --- Hex1bAnimator base tests ---
 
-    [Fact]
+    [TestMethod]
     public void Start_SetsRunning()
     {
         var animator = new NumericAnimator<double>();
         animator.Start();
 
-        Assert.True(animator.IsRunning);
-        Assert.False(animator.IsPaused);
-        Assert.False(animator.IsCompleted);
-        Assert.Equal(0.0, animator.RawProgress);
+        Assert.IsTrue(animator.IsRunning);
+        Assert.IsFalse(animator.IsPaused);
+        Assert.IsFalse(animator.IsCompleted);
+        Assert.AreEqual(0.0, animator.RawProgress);
     }
 
-    [Fact]
+    [TestMethod]
     public void Advance_ProgressesOverDuration()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
@@ -26,11 +27,11 @@ public class AnimatorTests
 
         animator.Advance(TimeSpan.FromMilliseconds(50));
 
-        Assert.Equal(0.5, animator.RawProgress, 6);
-        Assert.True(animator.IsRunning);
+        Assert.AreEqual(0.5, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Advance_CompletesAtDuration()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
@@ -38,12 +39,12 @@ public class AnimatorTests
 
         animator.Advance(TimeSpan.FromMilliseconds(100));
 
-        Assert.Equal(1.0, animator.RawProgress, 6);
-        Assert.True(animator.IsCompleted);
-        Assert.False(animator.IsRunning);
+        Assert.AreEqual(1.0, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsCompleted);
+        Assert.IsFalse(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Advance_ClampsToOneWithoutRepeat()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
@@ -51,11 +52,11 @@ public class AnimatorTests
 
         animator.Advance(TimeSpan.FromMilliseconds(200));
 
-        Assert.Equal(1.0, animator.RawProgress, 6);
-        Assert.True(animator.IsCompleted);
+        Assert.AreEqual(1.0, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsCompleted);
     }
 
-    [Fact]
+    [TestMethod]
     public void Advance_Repeat_WrapsProgress()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100), Repeat = true };
@@ -63,11 +64,11 @@ public class AnimatorTests
 
         animator.Advance(TimeSpan.FromMilliseconds(150));
 
-        Assert.Equal(0.5, animator.RawProgress, 6);
-        Assert.True(animator.IsRunning);
+        Assert.AreEqual(0.5, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Advance_RepeatReverse_PingPongs()
     {
         var animator = new NumericAnimator<double>
@@ -81,11 +82,11 @@ public class AnimatorTests
         // Advance to 150ms: should be at 0.5 on the way back (1.0 - 0.5)
         animator.Advance(TimeSpan.FromMilliseconds(150));
 
-        Assert.Equal(0.5, animator.RawProgress, 6);
-        Assert.True(animator.IsRunning);
+        Assert.AreEqual(0.5, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Pause_StopsAdvancing()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
@@ -96,11 +97,11 @@ public class AnimatorTests
         var progressAtPause = animator.RawProgress;
         animator.Advance(TimeSpan.FromMilliseconds(50));
 
-        Assert.Equal(progressAtPause, animator.RawProgress, 6);
-        Assert.True(animator.IsPaused);
+        Assert.AreEqual(progressAtPause, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsPaused);
     }
 
-    [Fact]
+    [TestMethod]
     public void Resume_ContinuesAdvancing()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
@@ -111,11 +112,11 @@ public class AnimatorTests
 
         animator.Advance(TimeSpan.FromMilliseconds(30));
 
-        Assert.Equal(0.6, animator.RawProgress, 6);
-        Assert.True(animator.IsRunning);
+        Assert.AreEqual(0.6, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reset_ClearsState()
     {
         var animator = new NumericAnimator<double>();
@@ -123,27 +124,27 @@ public class AnimatorTests
         animator.Advance(TimeSpan.FromMilliseconds(50));
         animator.Reset();
 
-        Assert.Equal(0.0, animator.RawProgress, 6);
-        Assert.False(animator.IsRunning);
-        Assert.False(animator.IsPaused);
-        Assert.False(animator.IsCompleted);
+        Assert.AreEqual(0.0, animator.RawProgress, 6);
+        Assert.IsFalse(animator.IsRunning);
+        Assert.IsFalse(animator.IsPaused);
+        Assert.IsFalse(animator.IsCompleted);
     }
 
-    [Fact]
+    [TestMethod]
     public void Restart_ResetsAndStarts()
     {
         var animator = new NumericAnimator<double> { Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(100));
-        Assert.True(animator.IsCompleted);
+        Assert.IsTrue(animator.IsCompleted);
 
         animator.Restart();
 
-        Assert.Equal(0.0, animator.RawProgress, 6);
-        Assert.True(animator.IsRunning);
+        Assert.AreEqual(0.0, animator.RawProgress, 6);
+        Assert.IsTrue(animator.IsRunning);
     }
 
-    [Fact]
+    [TestMethod]
     public void Progress_AppliesEasing()
     {
         var animator = new NumericAnimator<double>
@@ -155,13 +156,13 @@ public class AnimatorTests
         animator.Advance(TimeSpan.FromMilliseconds(50));
 
         // Raw: 0.5, Eased: 0.25 (quad)
-        Assert.Equal(0.5, animator.RawProgress, 6);
-        Assert.Equal(0.25, animator.Progress, 6);
+        Assert.AreEqual(0.5, animator.RawProgress, 6);
+        Assert.AreEqual(0.25, animator.Progress, 6);
     }
 
     // --- NumericAnimator tests ---
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimator_Double_Interpolates()
     {
         var animator = new NumericAnimator<double>
@@ -172,10 +173,10 @@ public class AnimatorTests
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(50));
 
-        Assert.Equal(15.0, animator.Value, 6);
+        Assert.AreEqual(15.0, animator.Value, 6);
     }
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimator_Float_Interpolates()
     {
         var animator = new NumericAnimator<float>
@@ -186,10 +187,10 @@ public class AnimatorTests
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(25));
 
-        Assert.Equal(25f, animator.Value, 1);
+        Assert.AreEqual(25f, animator.Value, 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimator_Int_Rounds()
     {
         var animator = new NumericAnimator<int>
@@ -201,10 +202,10 @@ public class AnimatorTests
         animator.Advance(TimeSpan.FromMilliseconds(33));
 
         // 0.33 * 10 = 3.3 → rounds to 3
-        Assert.Equal(3, animator.Value);
+        Assert.AreEqual(3, animator.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimator_WithEasing_AppliesEasingToValue()
     {
         var animator = new NumericAnimator<double>
@@ -217,33 +218,33 @@ public class AnimatorTests
         animator.Advance(TimeSpan.FromMilliseconds(50));
 
         // Eased progress = 0.25, value = 25.0
-        Assert.Equal(25.0, animator.Value, 6);
+        Assert.AreEqual(25.0, animator.Value, 6);
     }
 
     // --- NumericAnimator<double> tests ---
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimatorDouble_DefaultsFromZeroToZero()
     {
         var animator = new NumericAnimator<double>();
 
-        Assert.Equal(0.0, animator.From);
-        Assert.Equal(0.0, animator.To);
+        Assert.AreEqual(0.0, animator.From);
+        Assert.AreEqual(0.0, animator.To);
     }
 
-    [Fact]
+    [TestMethod]
     public void NumericAnimatorDouble_InterpolatesCorrectly()
     {
         var animator = new NumericAnimator<double> { From = 0.0, To = 1.0, Duration = TimeSpan.FromMilliseconds(100) };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(75));
 
-        Assert.Equal(0.75, animator.Value, 6);
+        Assert.AreEqual(0.75, animator.Value, 6);
     }
 
     // --- AnimateTo (retargeting) tests ---
 
-    [Fact]
+    [TestMethod]
     public void AnimateTo_StartsFromCurrentValue()
     {
         var animator = new NumericAnimator<double>
@@ -256,13 +257,13 @@ public class AnimatorTests
 
         animator.AnimateTo(0.0); // Retarget back to 0
 
-        Assert.Equal(50.0, animator.From, 1);
-        Assert.Equal(0.0, animator.To, 1);
-        Assert.True(animator.IsRunning);
-        Assert.Equal(50.0, animator.Value, 1); // Starts at current position
+        Assert.AreEqual(50.0, animator.From, 1);
+        Assert.AreEqual(0.0, animator.To, 1);
+        Assert.IsTrue(animator.IsRunning);
+        Assert.AreEqual(50.0, animator.Value, 1); // Starts at current position
     }
 
-    [Fact]
+    [TestMethod]
     public void AnimateTo_SameTarget_DoesNotRestart()
     {
         var animator = new NumericAnimator<double>
@@ -276,10 +277,10 @@ public class AnimatorTests
         var progressBefore = animator.RawProgress;
         animator.AnimateTo(1.0); // Same target — should not restart
 
-        Assert.Equal(progressBefore, animator.RawProgress, 6);
+        Assert.AreEqual(progressBefore, animator.RawProgress, 6);
     }
 
-    [Fact]
+    [TestMethod]
     public void AnimateTo_CompletedAnimation_NewTarget_Restarts()
     {
         var animator = new NumericAnimator<double>
@@ -289,12 +290,12 @@ public class AnimatorTests
         };
         animator.Start();
         animator.Advance(TimeSpan.FromMilliseconds(100)); // Completed at 1.0
-        Assert.True(animator.IsCompleted);
+        Assert.IsTrue(animator.IsCompleted);
 
         animator.AnimateTo(0.0); // New target
 
-        Assert.True(animator.IsRunning);
-        Assert.Equal(1.0, animator.From, 6); // Starts from where we were
-        Assert.Equal(0.0, animator.To, 6);
+        Assert.IsTrue(animator.IsRunning);
+        Assert.AreEqual(1.0, animator.From, 6); // Starts from where we were
+        Assert.AreEqual(0.0, animator.To, 6);
     }
 }

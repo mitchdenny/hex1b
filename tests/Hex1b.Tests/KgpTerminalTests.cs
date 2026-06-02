@@ -2,6 +2,7 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class KgpTerminalTests
 {
     private static readonly TerminalCapabilities KgpCapabilities = new()
@@ -29,7 +30,7 @@ public class KgpTerminalTests
     // Transmit tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Transmit_SingleChunk_StoresImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -38,15 +39,15 @@ public class KgpTerminalTests
         var cmd = KgpTestHelper.BuildTransmitCommand(1, 2, 2, KgpFormat.Rgba32);
         SendKgp(terminal, cmd);
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         var image = terminal.KgpImageStore.GetImageById(1);
-        Assert.NotNull(image);
-        Assert.Equal(2u, image.Width);
-        Assert.Equal(2u, image.Height);
-        Assert.Equal(KgpFormat.Rgba32, image.Format);
+        Assert.IsNotNull(image);
+        Assert.AreEqual(2u, image.Width);
+        Assert.AreEqual(2u, image.Height);
+        Assert.AreEqual(KgpFormat.Rgba32, image.Format);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_Rgb24_StoresCorrectFormat()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -56,12 +57,12 @@ public class KgpTerminalTests
         SendKgp(terminal, cmd);
 
         var image = terminal.KgpImageStore.GetImageById(1);
-        Assert.NotNull(image);
-        Assert.Equal(KgpFormat.Rgb24, image.Format);
-        Assert.Equal(3, image.Data.Length); // 1x1 RGB = 3 bytes
+        Assert.IsNotNull(image);
+        Assert.AreEqual(KgpFormat.Rgb24, image.Format);
+        Assert.AreEqual(3, image.Data.Length); // 1x1 RGB = 3 bytes
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_ChunkedTransfer_AssemblesCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -69,20 +70,20 @@ public class KgpTerminalTests
 
         var chunks = KgpTestHelper.BuildChunkedTransmitCommands(1, 4, 4, chunkSize: 16);
 
-        Assert.True(chunks.Count > 1, "Should produce multiple chunks");
+        Assert.IsTrue(chunks.Count > 1, "Should produce multiple chunks");
 
         foreach (var chunk in chunks)
         {
             SendKgp(terminal, chunk);
         }
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         var image = terminal.KgpImageStore.GetImageById(1);
-        Assert.NotNull(image);
-        Assert.Equal(4u * 4u * 4, (uint)image.Data.Length); // 4x4 RGBA
+        Assert.IsNotNull(image);
+        Assert.AreEqual(4u * 4u * 4, (uint)image.Data.Length); // 4x4 RGBA
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_InsufficientData_DoesNotStore()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -93,10 +94,10 @@ public class KgpTerminalTests
         SendKgp(terminal, cmd);
 
         // Image should not be stored because data is insufficient
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_ReplaceExistingId_UpdatesImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -105,13 +106,13 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1, fillByte: 0xAA));
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 2, 2, fillByte: 0xBB));
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         var image = terminal.KgpImageStore.GetImageById(1);
-        Assert.NotNull(image);
-        Assert.Equal(2u, image.Width);
+        Assert.IsNotNull(image);
+        Assert.AreEqual(2u, image.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_WithoutCapability_Ignored()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -123,14 +124,14 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
 
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
     // =============================================
     // Query tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Query_DoesNotStoreImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -139,10 +140,10 @@ public class KgpTerminalTests
         var cmd = KgpTestHelper.BuildQueryCommand(imageId: 31);
         SendKgp(terminal, cmd);
 
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_WithAppWorkload_DoesNotInjectKgpResponseIntoInputEvents()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -151,14 +152,14 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
 
         var sawInput = SpinWait.SpinUntil(() => workload.InputEvents.TryRead(out _), TimeSpan.FromMilliseconds(100));
-        Assert.False(sawInput);
+        Assert.IsFalse(sawInput);
     }
 
     // =============================================
     // Delete tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Delete_All_ClearsAllImages()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -166,14 +167,14 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 1, 1));
-        Assert.Equal(2, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('A'));
 
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_ById_RemovesSpecificImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -184,12 +185,12 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('I', imageId: 1));
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
-        Assert.Null(terminal.KgpImageStore.GetImageById(1));
-        Assert.NotNull(terminal.KgpImageStore.GetImageById(2));
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        Assert.IsNull(terminal.KgpImageStore.GetImageById(1));
+        Assert.IsNotNull(terminal.KgpImageStore.GetImageById(2));
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_ById_FreeData_RemovesImage()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -199,10 +200,10 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('I', imageId: 1));
 
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_AbortsChunkedTransfer()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -213,19 +214,19 @@ public class KgpTerminalTests
         var cmd = KgpTestHelper.BuildCommand("a=t,f=32,s=2,v=2,i=1,m=1", data);
         SendKgp(terminal, cmd);
 
-        Assert.True(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsTrue(terminal.KgpImageStore.IsChunkedTransferInProgress);
 
         // Delete should abort the transfer
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('a'));
 
-        Assert.False(terminal.KgpImageStore.IsChunkedTransferInProgress);
+        Assert.IsFalse(terminal.KgpImageStore.IsChunkedTransferInProgress);
     }
 
     // =============================================
     // Response suppression tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Transmit_QuietOne_SuppressesOkResponse()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -236,10 +237,10 @@ public class KgpTerminalTests
         SendKgp(terminal, cmd);
 
         // Image should still be stored
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_QuietTwo_SuppressesAllResponses()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -252,14 +253,14 @@ public class KgpTerminalTests
         // No error response should have been sent (we'd need to intercept 
         // the workload.WriteInputAsync to fully verify, but at minimum
         // this shouldn't crash)
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
     }
 
     // =============================================
     // Image number tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Transmit_WithImageNumber_StoresCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -270,12 +271,12 @@ public class KgpTerminalTests
         var cmd = KgpTestHelper.BuildCommand("a=t,f=24,s=1,v=1,I=93", data);
         SendKgp(terminal, cmd);
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
         var image = terminal.KgpImageStore.GetImageByNumber(93);
-        Assert.NotNull(image);
+        Assert.IsNotNull(image);
     }
 
-    [Fact]
+    [TestMethod]
     public void Transmit_MultipleWithSameNumber_BothStored()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -286,18 +287,18 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildCommand("a=t,f=24,s=1,v=1,I=93", data));
 
         // Both should be stored (with different IDs)
-        Assert.Equal(2, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(2, terminal.KgpImageStore.ImageCount);
 
         // GetImageByNumber returns the newest
         var newest = terminal.KgpImageStore.GetImageByNumber(93);
-        Assert.NotNull(newest);
+        Assert.IsNotNull(newest);
     }
 
     // =============================================
     // TransmitAndDisplay tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void TransmitAndDisplay_StoresAndMovesCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -310,15 +311,15 @@ public class KgpTerminalTests
             KgpFormat.Rgba32, displayColumns: 3, displayRows: 2);
         SendKgp(terminal, cmd);
 
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
 
         // Cursor should have moved: right by 3 cols, down by 1 row (2-1)
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(3, snapshot.CursorX);
-        Assert.Equal(1, snapshot.CursorY);
+        Assert.AreEqual(3, snapshot.CursorX);
+        Assert.AreEqual(1, snapshot.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void TransmitAndDisplay_CursorMovementDisabled_DoesNotMoveCursor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -331,15 +332,15 @@ public class KgpTerminalTests
         SendKgp(terminal, cmd);
 
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(0, snapshot.CursorX);
-        Assert.Equal(0, snapshot.CursorY);
+        Assert.AreEqual(0, snapshot.CursorX);
+        Assert.AreEqual(0, snapshot.CursorY);
     }
 
     // =============================================
     // Put/Display tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Put_ExistingImage_Succeeds()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -354,10 +355,10 @@ public class KgpTerminalTests
 
         // Cursor should move
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(2, snapshot.CursorX);
+        Assert.AreEqual(2, snapshot.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_NonExistentImage_NoChange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -368,10 +369,10 @@ public class KgpTerminalTests
 
         // Cursor should not move (image not found)
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(0, snapshot.CursorX);
+        Assert.AreEqual(0, snapshot.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_WithCursorMovementDisabled_DoesNotMove()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -383,14 +384,14 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, displayColumns: 3, cursorMovement: 1));
 
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(0, snapshot.CursorX);
+        Assert.AreEqual(0, snapshot.CursorX);
     }
 
     // =============================================
     // Multiple operations flow
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void FullFlow_TransmitThenPutMultiple()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -405,30 +406,30 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 2));
 
         // Still only 1 image in store
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void FullFlow_TransmitDeleteTransmit()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload);
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(1, 1, 1));
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('I', imageId: 1));
-        Assert.Equal(0, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(0, terminal.KgpImageStore.ImageCount);
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitCommand(2, 1, 1));
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
     }
 
     // =============================================
     // Placement tracking tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void TransmitAndDisplay_CreatesPlacement()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -441,15 +442,15 @@ public class KgpTerminalTests
         SendKgp(terminal, cmd);
 
         var placements = terminal.KgpPlacements;
-        Assert.Single(placements);
-        Assert.Equal(1u, placements[0].ImageId);
-        Assert.Equal(0, placements[0].Row);
-        Assert.Equal(0, placements[0].Column);
-        Assert.Equal(3u, placements[0].DisplayColumns);
-        Assert.Equal(2u, placements[0].DisplayRows);
+        TestSeq.Single(placements);
+        Assert.AreEqual(1u, placements[0].ImageId);
+        Assert.AreEqual(0, placements[0].Row);
+        Assert.AreEqual(0, placements[0].Column);
+        Assert.AreEqual(3u, placements[0].DisplayColumns);
+        Assert.AreEqual(2u, placements[0].DisplayRows);
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_CreatesPlacement()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -461,14 +462,14 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 7, displayColumns: 2, displayRows: 1));
 
         var placements = terminal.KgpPlacements;
-        Assert.Single(placements);
-        Assert.Equal(1u, placements[0].ImageId);
-        Assert.Equal(7u, placements[0].PlacementId);
-        Assert.Equal(2, placements[0].Row);  // 0-based
-        Assert.Equal(4, placements[0].Column); // 0-based
+        TestSeq.Single(placements);
+        Assert.AreEqual(1u, placements[0].ImageId);
+        Assert.AreEqual(7u, placements[0].PlacementId);
+        Assert.AreEqual(2, placements[0].Row);  // 0-based
+        Assert.AreEqual(4, placements[0].Column); // 0-based
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_SamePlacementId_ReplacesExisting()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -483,12 +484,12 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 5, displayColumns: 3));
 
         var placements = terminal.KgpPlacements;
-        Assert.Single(placements); // Replaced, not duplicated
-        Assert.Equal(3u, placements[0].DisplayColumns);
-        Assert.Equal(2, placements[0].Row); // New position
+        TestSeq.Single(placements); // Replaced, not duplicated
+        Assert.AreEqual(3u, placements[0].DisplayColumns);
+        Assert.AreEqual(2, placements[0].Row); // New position
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_DifferentPlacementIds_MultiplePlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -500,10 +501,10 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 1));
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 2));
 
-        Assert.Equal(2, terminal.KgpPlacements.Count);
+        Assert.AreEqual(2, terminal.KgpPlacements.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Put_ZeroPlacementId_CreatesSeparatePlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -515,10 +516,10 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 0));
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 0));
 
-        Assert.Equal(2, terminal.KgpPlacements.Count);
+        Assert.AreEqual(2, terminal.KgpPlacements.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Placement_ZIndex_Stored()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -528,14 +529,14 @@ public class KgpTerminalTests
             KgpFormat.Rgba32, zIndex: -1);
         SendKgp(terminal, cmd);
 
-        Assert.Equal(-1, terminal.KgpPlacements[0].ZIndex);
+        Assert.AreEqual(-1, terminal.KgpPlacements[0].ZIndex);
     }
 
     // =============================================
     // Delete placement tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Delete_All_ClearsPlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -544,14 +545,14 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(1, 10, 20));
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(2, 10, 20));
 
-        Assert.Equal(2, terminal.KgpPlacements.Count);
+        Assert.AreEqual(2, terminal.KgpPlacements.Count);
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('a'));
 
-        Assert.Empty(terminal.KgpPlacements);
+        Assert.IsEmpty(terminal.KgpPlacements);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_ById_RemovesOnlyMatchingPlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -562,11 +563,11 @@ public class KgpTerminalTests
 
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('i', imageId: 1));
 
-        Assert.Single(terminal.KgpPlacements);
-        Assert.Equal(2u, terminal.KgpPlacements[0].ImageId);
+        TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(2u, terminal.KgpPlacements[0].ImageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_ById_WithPlacementId_RemovesSpecific()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -576,17 +577,17 @@ public class KgpTerminalTests
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 1));
         SendKgp(terminal, KgpTestHelper.BuildPutCommand(1, placementId: 2));
 
-        Assert.Equal(2, terminal.KgpPlacements.Count);
+        Assert.AreEqual(2, terminal.KgpPlacements.Count);
 
         // Delete only placement 1
         var deleteCmd = KgpTestHelper.BuildCommand("a=d,d=i,i=1,p=1");
         SendKgp(terminal, deleteCmd);
 
-        Assert.Single(terminal.KgpPlacements);
-        Assert.Equal(2u, terminal.KgpPlacements[0].PlacementId);
+        TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(2u, terminal.KgpPlacements[0].PlacementId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_AtCursor_RemovesIntersecting()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -600,10 +601,10 @@ public class KgpTerminalTests
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[1;2H")); // row 1, col 2
         SendKgp(terminal, KgpTestHelper.BuildDeleteCommand('c'));
 
-        Assert.Empty(terminal.KgpPlacements);
+        Assert.IsEmpty(terminal.KgpPlacements);
     }
 
-    [Fact]
+    [TestMethod]
     public void Delete_ByZIndex_RemovesMatchingZIndex()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -615,22 +616,22 @@ public class KgpTerminalTests
         var deleteCmd = KgpTestHelper.BuildCommand("a=d,d=z,z=-1");
         SendKgp(terminal, deleteCmd);
 
-        Assert.Single(terminal.KgpPlacements);
-        Assert.Equal(0, terminal.KgpPlacements[0].ZIndex);
+        TestSeq.Single(terminal.KgpPlacements);
+        Assert.AreEqual(0, terminal.KgpPlacements[0].ZIndex);
     }
 
     // =============================================
     // Clear screen tests (Phase 4)
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void ClearScreen_ClearsKgpPlacements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload, 20, 10);
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(1, 10, 20));
-        Assert.Single(terminal.KgpPlacements);
+        TestSeq.Single(terminal.KgpPlacements);
 
         // ESC[2J should clear all images per spec
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[2J"));
@@ -639,15 +640,15 @@ public class KgpTerminalTests
         // If implementation doesn't clear placements on ESC[2J yet, this test documents the requirement.
     }
 
-    [Fact]
+    [TestMethod]
     public void Reset_ClearsKgpState()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = CreateTerminal(workload, 20, 10);
 
         SendKgp(terminal, KgpTestHelper.BuildTransmitAndDisplayCommand(1, 10, 20));
-        Assert.Equal(1, terminal.KgpImageStore.ImageCount);
-        Assert.Single(terminal.KgpPlacements);
+        Assert.AreEqual(1, terminal.KgpImageStore.ImageCount);
+        TestSeq.Single(terminal.KgpPlacements);
 
         // Reset terminal (RIS - ESC c)
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1bc"));
@@ -660,51 +661,51 @@ public class KgpTerminalTests
     // Placement intersection tests
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Placement_IntersectsCell_CorrectBounds()
     {
         var p = new KgpPlacement(1, 0, 2, 3, 4, 3); // row=2, col=3, 4 cols, 3 rows
 
         // Inside bounds
-        Assert.True(p.IntersectsCell(2, 3));
-        Assert.True(p.IntersectsCell(4, 6)); // row=4 (2+2), col=6 (3+3)
+        Assert.IsTrue(p.IntersectsCell(2, 3));
+        Assert.IsTrue(p.IntersectsCell(4, 6)); // row=4 (2+2), col=6 (3+3)
 
         // Outside bounds
-        Assert.False(p.IntersectsCell(1, 3)); // above
-        Assert.False(p.IntersectsCell(5, 3)); // below
-        Assert.False(p.IntersectsCell(2, 2)); // left
-        Assert.False(p.IntersectsCell(2, 7)); // right
+        Assert.IsFalse(p.IntersectsCell(1, 3)); // above
+        Assert.IsFalse(p.IntersectsCell(5, 3)); // below
+        Assert.IsFalse(p.IntersectsCell(2, 2)); // left
+        Assert.IsFalse(p.IntersectsCell(2, 7)); // right
     }
 
-    [Fact]
+    [TestMethod]
     public void Placement_IntersectsRow_CorrectBounds()
     {
         var p = new KgpPlacement(1, 0, 5, 0, 10, 3); // starts at row 5, 3 rows tall
 
-        Assert.True(p.IntersectsRow(5));
-        Assert.True(p.IntersectsRow(6));
-        Assert.True(p.IntersectsRow(7));
-        Assert.False(p.IntersectsRow(4));
-        Assert.False(p.IntersectsRow(8));
+        Assert.IsTrue(p.IntersectsRow(5));
+        Assert.IsTrue(p.IntersectsRow(6));
+        Assert.IsTrue(p.IntersectsRow(7));
+        Assert.IsFalse(p.IntersectsRow(4));
+        Assert.IsFalse(p.IntersectsRow(8));
     }
 
-    [Fact]
+    [TestMethod]
     public void Placement_IntersectsColumn_CorrectBounds()
     {
         var p = new KgpPlacement(1, 0, 0, 5, 3, 10); // starts at col 5, 3 cols wide
 
-        Assert.True(p.IntersectsColumn(5));
-        Assert.True(p.IntersectsColumn(6));
-        Assert.True(p.IntersectsColumn(7));
-        Assert.False(p.IntersectsColumn(4));
-        Assert.False(p.IntersectsColumn(8));
+        Assert.IsTrue(p.IntersectsColumn(5));
+        Assert.IsTrue(p.IntersectsColumn(6));
+        Assert.IsTrue(p.IntersectsColumn(7));
+        Assert.IsFalse(p.IntersectsColumn(4));
+        Assert.IsFalse(p.IntersectsColumn(8));
     }
 
     // =============================================
     // Scrolling tests (Phase 4)  
     // =============================================
 
-    [Fact]
+    [TestMethod]
     public void Scroll_PlacementsScrollWithText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -716,7 +717,7 @@ public class KgpTerminalTests
             displayColumns: 2, displayRows: 1, cursorMovement: 1));
 
         var placementsBefore = terminal.KgpPlacements;
-        Assert.Equal(0, placementsBefore[0].Row);
+        Assert.AreEqual(0, placementsBefore[0].Row);
 
         // Scroll by writing enough text to push past bottom
         terminal.ApplyTokens(AnsiTokenizer.Tokenize("\x1b[5;1H")); // Go to last row

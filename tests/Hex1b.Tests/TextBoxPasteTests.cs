@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// Verifies that bracketed paste inserts text at cursor, replaces selection,
 /// strips newlines for single-line boxes, and fires TextChanged callbacks.
 /// </summary>
+[TestClass]
 public class TextBoxPasteTests
 {
     private static PasteContext CreatePaste(string text)
@@ -17,7 +18,7 @@ public class TextBoxPasteTests
         return ctx;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_InsertsAtCursor()
     {
         var node = new TextBoxNode { Text = "abcd" };
@@ -26,13 +27,13 @@ public class TextBoxPasteTests
 
         var result = await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("abXYcd", node.Text);
-        Assert.Equal(4, node.State.CursorPosition); // after "XY"
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("abXYcd", node.Text);
+        Assert.AreEqual(4, node.State.CursorPosition); // after "XY"
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_InsertsAtEnd()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -41,12 +42,12 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("hello world", node.Text);
-        Assert.Equal(11, node.State.CursorPosition);
+        Assert.AreEqual("hello world", node.Text);
+        Assert.AreEqual(11, node.State.CursorPosition);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_InsertsAtStart()
     {
         var node = new TextBoxNode { Text = "world" };
@@ -55,12 +56,12 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("hello world", node.Text);
-        Assert.Equal(6, node.State.CursorPosition);
+        Assert.AreEqual("hello world", node.Text);
+        Assert.AreEqual(6, node.State.CursorPosition);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_ReplacesSelection()
     {
         var node = new TextBoxNode { Text = "hello world" };
@@ -71,12 +72,12 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("hello earth", node.Text);
-        Assert.Equal(11, node.State.CursorPosition);
+        Assert.AreEqual("hello earth", node.Text);
+        Assert.AreEqual(11, node.State.CursorPosition);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_EmptyString_NoChange()
     {
         var node = new TextBoxNode { Text = "hello" };
@@ -85,13 +86,13 @@ public class TextBoxPasteTests
 
         var result = await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("hello", node.Text);
-        Assert.Equal(3, node.State.CursorPosition);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("hello", node.Text);
+        Assert.AreEqual(3, node.State.CursorPosition);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_MultiLine_NewlinesReplacedWithSpaces()
     {
         var node = new TextBoxNode { Text = "" };
@@ -100,11 +101,11 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("line1 line2 line3", node.Text);
+        Assert.AreEqual("line1 line2 line3", node.Text);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_Unicode_InsertedCorrectly()
     {
         var node = new TextBoxNode { Text = "abc" };
@@ -113,11 +114,11 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("abcこんにちは 🌍", node.Text);
+        Assert.AreEqual("abcこんにちは 🌍", node.Text);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_LargeText_Inserted()
     {
         var node = new TextBoxNode { Text = "" };
@@ -127,12 +128,12 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal(10_000, node.Text.Length);
-        Assert.Equal(10_000, node.State.CursorPosition);
+        Assert.AreEqual(10_000, node.Text.Length);
+        Assert.AreEqual(10_000, node.State.CursorPosition);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Paste_FiresTextChangedCallback()
     {
         string? callbackOldText = null;
@@ -149,8 +150,8 @@ public class TextBoxPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("old", callbackOldText);
-        Assert.Equal("oldnew", callbackNewText);
+        Assert.AreEqual("old", callbackOldText);
+        Assert.AreEqual("oldnew", callbackNewText);
         await paste.DisposeAsync();
     }
 }

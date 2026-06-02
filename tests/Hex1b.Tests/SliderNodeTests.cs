@@ -10,11 +10,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Unit tests for SliderNode measurement, rendering, and input handling.
 /// </summary>
+[TestClass]
 public class SliderNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableWidth()
     {
         var node = new SliderNode { Value = 50, Maximum = 100 };
@@ -22,11 +23,11 @@ public class SliderNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.Equal(80, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsMinWidth()
     {
         var node = new SliderNode { Value = 50, Maximum = 100 };
@@ -34,11 +35,11 @@ public class SliderNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.Equal(80, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_UnboundedWidth_UsesDefaultWidth()
     {
         var node = new SliderNode { Value = 50, Maximum = 100 };
@@ -46,15 +47,15 @@ public class SliderNodeTests
 
         var size = node.Measure(constraints);
 
-        Assert.Equal(20, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
     #endregion
 
     #region Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_PreservesNodeOnSameType()
     {
         var widget1 = new SliderWidget { InitialValue = 25, Maximum = 100 };
@@ -69,12 +70,12 @@ public class SliderNodeTests
         context2.IsNew = false; // Existing node
         var node2 = widget2.ReconcileAsync(node1, context2).GetAwaiter().GetResult();
 
-        Assert.Same(node1, node2);
+        Assert.AreSame(node1, node2);
         // Value should be preserved (not changed to 75) because state is owned by node
-        Assert.Equal(25, ((SliderNode)node2).Value);
+        Assert.AreEqual(25, ((SliderNode)node2).Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_AppliesInitialValueOnNewNode()
     {
         var widget = new SliderWidget { InitialValue = 42, Minimum = 0, Maximum = 100 };
@@ -83,10 +84,10 @@ public class SliderNodeTests
 
         var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult() as SliderNode;
 
-        Assert.Equal(42, node!.Value);
+        Assert.AreEqual(42, node!.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_ClampsValueToRange()
     {
         var widget1 = new SliderWidget { InitialValue = 150, Minimum = 0, Maximum = 100 };
@@ -95,10 +96,10 @@ public class SliderNodeTests
 
         var node = widget1.ReconcileAsync(null, context).GetAwaiter().GetResult() as SliderNode;
 
-        Assert.Equal(100, node!.Value); // Clamped to max
+        Assert.AreEqual(100, node!.Value); // Clamped to max
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnMinimumChange()
     {
         var widget1 = new SliderWidget { InitialValue = 50, Minimum = 0, Maximum = 100 };
@@ -110,10 +111,10 @@ public class SliderNodeTests
 
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnMaximumChange()
     {
         var widget1 = new SliderWidget { InitialValue = 50, Maximum = 100 };
@@ -125,10 +126,10 @@ public class SliderNodeTests
 
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnStepChange()
     {
         var widget1 = new SliderWidget { InitialValue = 50, Step = 5 };
@@ -140,10 +141,10 @@ public class SliderNodeTests
 
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_DoesNotMarkDirtyWhenUnchanged()
     {
         var widget1 = new SliderWidget { InitialValue = 50, Maximum = 100 };
@@ -155,30 +156,30 @@ public class SliderNodeTests
 
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetExpectedNodeType_ReturnsSliderNode()
     {
         var widget = new SliderWidget();
 
-        Assert.Equal(typeof(SliderNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(SliderNode), widget.GetExpectedNodeType());
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = new SliderNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_WhenSet_MarksDirty()
     {
         var node = new SliderNode();
@@ -186,10 +187,10 @@ public class SliderNodeTests
 
         node.IsFocused = true;
 
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocused_WhenSetToSameValue_DoesNotMarkDirty()
     {
         var node = new SliderNode { IsFocused = true };
@@ -197,21 +198,21 @@ public class SliderNodeTests
 
         node.IsFocused = true;
 
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
     }
 
     #endregion
 
     #region Percentage Calculation Tests
 
-    [Theory]
-    [InlineData(0, 0, 100, 0.0)]
-    [InlineData(50, 0, 100, 0.5)]
-    [InlineData(100, 0, 100, 1.0)]
-    [InlineData(25, 0, 100, 0.25)]
-    [InlineData(-25, -50, 50, 0.25)]
-    [InlineData(0, -100, 100, 0.5)]
-    [InlineData(5, 0, 10, 0.5)]
+    [TestMethod]
+    [DataRow(0, 0, 100, 0.0)]
+    [DataRow(50, 0, 100, 0.5)]
+    [DataRow(100, 0, 100, 1.0)]
+    [DataRow(25, 0, 100, 0.25)]
+    [DataRow(-25, -50, 50, 0.25)]
+    [DataRow(0, -100, 100, 0.5)]
+    [DataRow(5, 0, 10, 0.5)]
     public void Percentage_CalculatesCorrectly(double value, double min, double max, double expectedPercentage)
     {
         var node = new SliderNode
@@ -221,10 +222,10 @@ public class SliderNodeTests
             Maximum = max
         };
 
-        Assert.Equal(expectedPercentage, node.Percentage, precision: 5);
+        Assert.AreEqual(expectedPercentage, node.Percentage, delta: 5);
     }
 
-    [Fact]
+    [TestMethod]
     public void Percentage_EqualMinMax_ReturnsZero()
     {
         var node = new SliderNode
@@ -234,14 +235,14 @@ public class SliderNodeTests
             Maximum = 50
         };
 
-        Assert.Equal(0.0, node.Percentage);
+        Assert.AreEqual(0.0, node.Percentage);
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_IncreasesValue()
     {
         var node = new SliderNode
@@ -258,11 +259,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(node.Value > 50);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(node.Value > 50);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_DecreasesValue()
     {
         var node = new SliderNode
@@ -279,11 +280,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(node.Value < 50);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(node.Value < 50);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_IncreasesValue()
     {
         var node = new SliderNode
@@ -300,11 +301,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(node.Value > 50);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(node.Value > 50);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_DecreasesValue()
     {
         var node = new SliderNode
@@ -321,11 +322,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(node.Value < 50);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(node.Value < 50);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Home_JumpsToMinimum()
     {
         var node = new SliderNode
@@ -342,11 +343,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(10, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(10, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_End_JumpsToMaximum()
     {
         var node = new SliderNode
@@ -363,11 +364,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(80, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(80, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PageUp_IncreasesBy10Percent()
     {
         var node = new SliderNode
@@ -385,11 +386,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(60, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(60, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PageDown_DecreasesBy10Percent()
     {
         var node = new SliderNode
@@ -407,11 +408,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(40, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(40, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_ClampsToMax()
     {
         var node = new SliderNode
@@ -429,11 +430,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(100, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(100, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_ClampsToMin()
     {
         var node = new SliderNode
@@ -451,11 +452,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.Value);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WithStep_SnapsToStepValues()
     {
         var node = new SliderNode
@@ -473,10 +474,10 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(10, node.Value);
+        Assert.AreEqual(10, node.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_ValueChangedCallback_IsCalled()
     {
         var callbackInvoked = false;
@@ -502,11 +503,11 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.True(callbackInvoked);
-        Assert.Equal(50, previousValue);
+        Assert.IsTrue(callbackInvoked);
+        Assert.AreEqual(50, previousValue);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_NotHandled()
     {
         var node = new SliderNode
@@ -523,41 +524,41 @@ public class SliderNodeTests
             null, null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(50, node.Value);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual(50, node.Value);
     }
 
     #endregion
 
     #region Widget Event Handler Tests
 
-    [Fact]
+    [TestMethod]
     public void OnValueChanged_SyncHandler_ReturnsNewWidget()
     {
         var widget = new SliderWidget();
 
         var newWidget = widget.OnValueChanged(_ => { });
 
-        Assert.NotSame(widget, newWidget);
-        Assert.NotNull(newWidget.ValueChangedHandler);
+        Assert.AreNotSame(widget, newWidget);
+        Assert.IsNotNull(newWidget.ValueChangedHandler);
     }
 
-    [Fact]
+    [TestMethod]
     public void OnValueChanged_AsyncHandler_ReturnsNewWidget()
     {
         var widget = new SliderWidget();
 
         var newWidget = widget.OnValueChanged(async args => await Task.Delay(1));
 
-        Assert.NotSame(widget, newWidget);
-        Assert.NotNull(newWidget.ValueChangedHandler);
+        Assert.AreNotSame(widget, newWidget);
+        Assert.IsNotNull(newWidget.ValueChangedHandler);
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SetsBounds()
     {
         var node = new SliderNode();
@@ -565,7 +566,7 @@ public class SliderNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion

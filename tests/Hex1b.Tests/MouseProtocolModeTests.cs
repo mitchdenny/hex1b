@@ -9,99 +9,100 @@ namespace Hex1b.Tests;
 /// from child processes.
 /// Inspired by psmux's test_vt100_mouse.rs.
 /// </summary>
+[TestClass]
 public class MouseProtocolModeTests
 {
-    [Fact]
+    [TestMethod]
     public void Tokenize_MousePressRelease_Enable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1000h");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1000, pm.Mode);
-        Assert.True(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1000, pm.Mode);
+        Assert.IsTrue(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MousePressRelease_Disable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1000l");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1000, pm.Mode);
-        Assert.False(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1000, pm.Mode);
+        Assert.IsFalse(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MouseButtonMotion_Enable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1002h");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1002, pm.Mode);
-        Assert.True(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1002, pm.Mode);
+        Assert.IsTrue(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MouseAnyMotion_Enable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1003h");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1003, pm.Mode);
-        Assert.True(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1003, pm.Mode);
+        Assert.IsTrue(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MouseSgrEncoding_Enable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1006h");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1006, pm.Mode);
-        Assert.True(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1006, pm.Mode);
+        Assert.IsTrue(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_MouseSgrEncoding_Disable()
     {
         var result = AnsiTokenizer.Tokenize("\x1b[?1006l");
 
-        var token = Assert.Single(result);
-        var pm = Assert.IsType<PrivateModeToken>(token);
-        Assert.Equal(1006, pm.Mode);
-        Assert.False(pm.Enable);
+        var token = TestSeq.Single(result);
+        var pm = TestSeq.IsType<PrivateModeToken>(token);
+        Assert.AreEqual(1006, pm.Mode);
+        Assert.IsFalse(pm.Enable);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_FullMouseEnableSequence_ReturnsAllFourTokens()
     {
         // This is the full sequence MouseParser.EnableMouseTracking sends
         var result = AnsiTokenizer.Tokenize(
             "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h");
 
-        Assert.Equal(4, result.Count);
+        Assert.AreEqual(4, result.Count);
 
         var modes = result.Cast<PrivateModeToken>().Select(t => t.Mode).ToList();
-        Assert.Equal([1000, 1002, 1003, 1006], modes);
-        Assert.All(result.Cast<PrivateModeToken>(), t => Assert.True(t.Enable));
+        TestSeq.AreEqual([1000, 1002, 1003, 1006], modes);
+        TestSeq.All(result.Cast<PrivateModeToken>(), t => Assert.IsTrue(t.Enable));
     }
 
-    [Fact]
+    [TestMethod]
     public void Tokenize_FullMouseDisableSequence_ReturnsAllFourTokensReversed()
     {
         // This is the full sequence MouseParser.DisableMouseTracking sends
         var result = AnsiTokenizer.Tokenize(
             "\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l");
 
-        Assert.Equal(4, result.Count);
+        Assert.AreEqual(4, result.Count);
 
         var modes = result.Cast<PrivateModeToken>().Select(t => t.Mode).ToList();
-        Assert.Equal([1006, 1003, 1002, 1000], modes);
-        Assert.All(result.Cast<PrivateModeToken>(), t => Assert.False(t.Enable));
+        TestSeq.AreEqual([1006, 1003, 1002, 1000], modes);
+        TestSeq.All(result.Cast<PrivateModeToken>(), t => Assert.IsFalse(t.Enable));
     }
 }

@@ -4,9 +4,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the terminal filter system.
 /// </summary>
+[TestClass]
 public class TerminalFilterTests
 {
-    [Fact]
+    [TestMethod]
     public async Task WorkloadFilter_ReceivesSessionStart()
     {
         // Arrange
@@ -24,12 +25,12 @@ public class TerminalFilterTests
         using var terminal = new Hex1bTerminal(options);
 
         // Assert
-        Assert.True(filter.SessionStarted);
-        Assert.Equal(80, filter.Width);
-        Assert.Equal(24, filter.Height);
+        Assert.IsTrue(filter.SessionStarted);
+        Assert.AreEqual(80, filter.Width);
+        Assert.AreEqual(24, filter.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadFilter_ReceivesOutput()
     {
         // Arrange
@@ -52,11 +53,11 @@ public class TerminalFilterTests
             .ApplyAsync(terminal);
 
         // Assert
-        Assert.Single(filter.OutputChunks);
+        TestSeq.Single(filter.OutputChunks);
         Assert.Contains("Hello, World!", filter.OutputChunks[0]);
     }
 
-    [Fact(Skip = "Frame complete notification currently only fires on channel close, not on drain. See issue with PumpWorkloadOutputAsync design.")]
+    [TestMethod, Ignore("Frame complete notification currently only fires on channel close, not on drain. See issue with PumpWorkloadOutputAsync design.")]
     public async Task WorkloadFilter_ReceivesFrameComplete()
     {
         // Arrange
@@ -89,10 +90,10 @@ public class TerminalFilterTests
             .ApplyAsync(terminal);
 
         // Assert - FrameComplete should have been called when channel drained after Frame 1
-        Assert.True(filter.FrameCompleteCount > 0, $"Expected FrameCompleteCount > 0, but got {filter.FrameCompleteCount}. OutputChunks: {filter.OutputChunks.Count}");
+        Assert.IsTrue(filter.FrameCompleteCount > 0, $"Expected FrameCompleteCount > 0, but got {filter.FrameCompleteCount}. OutputChunks: {filter.OutputChunks.Count}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WorkloadFilter_ReceivesSessionEnd()
     {
         // Arrange
@@ -111,10 +112,10 @@ public class TerminalFilterTests
         terminal.Dispose();
 
         // Assert
-        Assert.True(filter.SessionEnded);
+        Assert.IsTrue(filter.SessionEnded);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PresentationFilter_ReceivesSessionStart()
     {
         // Arrange
@@ -132,10 +133,10 @@ public class TerminalFilterTests
         using var terminal = new Hex1bTerminal(options);
 
         // Assert
-        Assert.True(filter.SessionStarted);
+        Assert.IsTrue(filter.SessionStarted);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TerminalOptions_ValidatesWorkloadAdapter()
     {
         // Arrange
@@ -147,25 +148,25 @@ public class TerminalFilterTests
         };
 
         // Act & Assert
-        Assert.Throws<ArgumentNullException>(() => new Hex1bTerminal(options));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new Hex1bTerminal(options));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TerminalOptions_Constructor_SetsDefaults()
     {
         // Act
         var options = new Hex1bTerminalOptions();
 
         // Assert
-        Assert.Equal(80, options.Width);
-        Assert.Equal(24, options.Height);
-        Assert.Null(options.WorkloadAdapter);
-        Assert.Null(options.PresentationAdapter);
-        Assert.Empty(options.WorkloadFilters);
-        Assert.Empty(options.PresentationFilters);
+        Assert.AreEqual(80, options.Width);
+        Assert.AreEqual(24, options.Height);
+        Assert.IsNull(options.WorkloadAdapter);
+        Assert.IsNull(options.PresentationAdapter);
+        Assert.IsEmpty(options.WorkloadFilters);
+        Assert.IsEmpty(options.PresentationFilters);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultipleFilters_AllReceiveEvents()
     {
         // Arrange
@@ -190,13 +191,13 @@ public class TerminalFilterTests
             .ApplyAsync(terminal);
 
         // Assert
-        Assert.True(filter1.SessionStarted);
-        Assert.True(filter2.SessionStarted);
-        Assert.Single(filter1.OutputChunks);
-        Assert.Single(filter2.OutputChunks);
+        Assert.IsTrue(filter1.SessionStarted);
+        Assert.IsTrue(filter2.SessionStarted);
+        TestSeq.Single(filter1.OutputChunks);
+        TestSeq.Single(filter2.OutputChunks);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TokenBasedFilters_UsesApplyTokensPath()
     {
         // Arrange
@@ -219,7 +220,7 @@ public class TerminalFilterTests
             .ApplyAsync(terminal);
 
         // Assert
-        Assert.Single(filter.OutputChunks);
+        TestSeq.Single(filter.OutputChunks);
         Assert.Contains("Hello", filter.OutputChunks[0]);
         Assert.Contains("Red", filter.OutputChunks[0]);
         Assert.Contains("World", filter.OutputChunks[0]);
@@ -230,7 +231,7 @@ public class TerminalFilterTests
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.Equal("HelloRedWorld", snapshot.GetLine(0).TrimEnd());
+        Assert.AreEqual("HelloRedWorld", snapshot.GetLine(0).TrimEnd());
     }
 
     // Test helpers

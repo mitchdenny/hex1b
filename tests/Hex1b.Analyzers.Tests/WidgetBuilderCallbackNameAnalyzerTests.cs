@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetBuilderCallbackNameAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetBuilderCallbackNameAnalyzer>.Diagnostic(WidgetBuilderCallbackNameAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_AlternateName_OnWidgetContextExtension_Reports()
     {
         const string source = """
@@ -36,7 +37,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("childBuilder", "Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_NamedBuilder_NoDiagnostic()
     {
         const string source = """
@@ -61,7 +62,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_ReturningArray_AlternateName_Reports()
     {
         const string source = """
@@ -86,7 +87,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("children", "Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_ReturningIEnumerable_NamedBuilder_NoDiagnostic()
     {
         const string source = """
@@ -112,7 +113,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SingleBuilder_OnWidgetInstanceExtension_Reports()
     {
         const string source = """
@@ -136,7 +137,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("backgroundBuilder", "Background"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TwoBuilders_NoDiagnostic_FromThisRule()
     {
         // HEX1B0009 owns the multi-builder shape; HEX1B0008 must stay silent on it.
@@ -163,7 +164,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NoBuilder_NoDiagnostic()
     {
         const string source = """
@@ -184,7 +185,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ActionConfigure_NotABuilder_NoDiagnostic()
     {
         // Action<T> configure callbacks aren't widget-builder callbacks; the analyzer must ignore them.
@@ -205,7 +206,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnXMethod_HandlerCallback_NoDiagnostic()
     {
         // 'OnFoo' methods are event-handler decorators per the Hex1b convention; their callback
@@ -231,7 +232,7 @@ public class WidgetBuilderCallbackNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetExtension_NoDiagnostic()
     {
         const string source = """

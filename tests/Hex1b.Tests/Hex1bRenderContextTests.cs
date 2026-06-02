@@ -5,11 +5,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for Hex1bRenderContext functionality.
 /// </summary>
+[TestClass]
 public class Hex1bRenderContextTests
 {
     #region ClearRegion Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_WritesSpacesToRegion()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -27,7 +28,7 @@ public class Hex1bRenderContextTests
             .WaitUntil(s => s.ContainsText("Hello World"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Hello World"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Hello World"));
         
         // Clear the region where the text is
         context.ClearRegion(new Rect(5, 2, 11, 1));
@@ -37,10 +38,10 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         // Text should be gone (replaced with spaces)
-        Assert.False(terminal.CreateSnapshot().ContainsText("Hello World"));
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Hello World"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_MultipleRows()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -67,12 +68,12 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         var snapshot = terminal.CreateSnapshot();
-        Assert.False(snapshot.ContainsText("Line 0"));
-        Assert.False(snapshot.ContainsText("Line 1"));
-        Assert.False(snapshot.ContainsText("Line 2"));
+        Assert.IsFalse(snapshot.ContainsText("Line 0"));
+        Assert.IsFalse(snapshot.ContainsText("Line 1"));
+        Assert.IsFalse(snapshot.ContainsText("Line 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_PartialClear()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -94,10 +95,10 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         var line = terminal.CreateSnapshot().GetLine(0);
-        Assert.Equal("ABC    HIJ", line.Substring(0, 10));
+        Assert.AreEqual("ABC    HIJ", line.Substring(0, 10));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_ClampsToTerminalBounds()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -113,10 +114,10 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         // If we got here without exception, the clamping worked
-        Assert.True(true);
+        Assert.IsTrue(true);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_EmptyRect_DoesNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -141,10 +142,10 @@ public class Hex1bRenderContextTests
             .WaitUntil(s => s.ContainsText("Should remain"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Should remain"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Should remain"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClearRegion_NegativePosition_ClampsToZero()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -166,7 +167,7 @@ public class Hex1bRenderContextTests
             .ApplyAsync(terminal);
         
         // Content at origin should be cleared
-        Assert.False(terminal.CreateSnapshot().ContainsText("Hello"));
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Hello"));
     }
 
     #endregion

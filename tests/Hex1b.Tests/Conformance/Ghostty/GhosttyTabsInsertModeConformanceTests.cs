@@ -1,4 +1,3 @@
-using Xunit;
 
 namespace Hex1b.Tests.Conformance.Ghostty;
 
@@ -7,7 +6,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// and insert mode (IRM) behavior.
 /// Translated from Ghostty's Terminal.zig.
 /// </summary>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyTabsInsertModeConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -15,7 +15,7 @@ public class GhosttyTabsInsertModeConformanceTests
 
     #region Horizontal Tabs (HT)
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabs_Basic()
     {
         // Ghostty: "Terminal: horizontal tabs"
@@ -23,19 +23,19 @@ public class GhosttyTabsInsertModeConformanceTests
 
         GhosttyTestFixture.Feed(t, "1");
         GhosttyTestFixture.Feed(t, "\t");
-        Assert.Equal(8, t.CursorX);
+        Assert.AreEqual(8, t.CursorX);
 
         GhosttyTestFixture.Feed(t, "\t");
-        Assert.Equal(16, t.CursorX);
+        Assert.AreEqual(16, t.CursorX);
 
         // HT at the end
         GhosttyTestFixture.Feed(t, "\t");
-        Assert.Equal(19, t.CursorX);
+        Assert.AreEqual(19, t.CursorX);
         GhosttyTestFixture.Feed(t, "\t");
-        Assert.Equal(19, t.CursorX);
+        Assert.AreEqual(19, t.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabs_StartingOnTabStop()
     {
         // Ghostty: "Terminal: horizontal tabs starting on tabstop"
@@ -47,10 +47,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\t");
         GhosttyTestFixture.Feed(t, "A");
 
-        Assert.Equal("        X       A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("        X       A", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabs_WithRightMargin()
     {
         // Ghostty: "Terminal: horizontal tabs with right margin"
@@ -64,10 +64,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\t");
         GhosttyTestFixture.Feed(t, "A");
 
-        Assert.Equal("X    A", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("X    A", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabsBack_Basic()
     {
         // Ghostty: "Terminal: horizontal tabs back"
@@ -76,18 +76,18 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;20H"); // setCursorPos(y, 20) — col 19
 
         GhosttyTestFixture.Feed(t, "\u001b[Z"); // CBT
-        Assert.Equal(16, t.CursorX);
+        Assert.AreEqual(16, t.CursorX);
 
         GhosttyTestFixture.Feed(t, "\u001b[Z"); // CBT
-        Assert.Equal(8, t.CursorX);
+        Assert.AreEqual(8, t.CursorX);
 
         GhosttyTestFixture.Feed(t, "\u001b[Z"); // CBT
-        Assert.Equal(0, t.CursorX);
+        Assert.AreEqual(0, t.CursorX);
         GhosttyTestFixture.Feed(t, "\u001b[Z"); // CBT again at start
-        Assert.Equal(0, t.CursorX);
+        Assert.AreEqual(0, t.CursorX);
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabsBack_StartingOnTabStop()
     {
         // Ghostty: "Terminal: horizontal tabs back starting on tabstop"
@@ -99,11 +99,11 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[Z");     // CBT — back to col 0
         GhosttyTestFixture.Feed(t, "A");
 
-        Assert.Equal("A       X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("A       X", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
-    [Trait("FailureReason", "Bug")]
+    [TestMethod]
+    [TestCategory("FailureReason:Bug")]
     public void HorizontalTabsBack_WithLeftMarginInOriginMode()
     {
         // Ghostty: "Terminal: horizontal tabs with left margin in origin mode"
@@ -119,10 +119,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[Z");      // CBT — back to left margin (col 2)
         GhosttyTestFixture.Feed(t, "A");
 
-        Assert.Equal("  AX", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("  AX", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalTabBack_CursorBeforeLeftMargin()
     {
         // Ghostty: "Terminal: horizontal tab back with cursor before left margin"
@@ -136,14 +136,14 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[Z");       // CBT
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("X", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("X", GhosttyTestFixture.GetLine(t, 0));
     }
 
     #endregion
 
     #region Insert Mode (IRM)
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WithSpace()
     {
         // Ghostty: "Terminal: insert mode with space"
@@ -154,10 +154,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[4h");     // enable IRM
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("hXello", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("hXello", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_DoesNotWrapPushedCharacters()
     {
         // Ghostty: "Terminal: insert mode doesn't wrap pushed characters"
@@ -168,10 +168,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[4h");     // enable IRM
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("hXell", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("hXell", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_DoesNothingAtEndOfLine()
     {
         // Ghostty: "Terminal: insert mode does nothing at the end of the line"
@@ -181,11 +181,11 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[4h");     // enable IRM
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("hello", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("X", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("hello", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("X", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WithWideCharacters()
     {
         // Ghostty: "Terminal: insert mode with wide characters"
@@ -196,10 +196,10 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[4h");     // enable IRM
         GhosttyTestFixture.Feed(t, "\U0001F600");     // 😀
 
-        Assert.Equal("h😀el", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("h😀el", GhosttyTestFixture.GetLine(t, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_WideCharAtEnd()
     {
         // Ghostty: "Terminal: insert mode with wide characters at end"
@@ -209,11 +209,11 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[4h");     // enable IRM
         GhosttyTestFixture.Feed(t, "\U0001F600");     // 😀
 
-        Assert.Equal("well", GhosttyTestFixture.GetLine(t, 0));
-        Assert.Equal("😀", GhosttyTestFixture.GetLine(t, 1));
+        Assert.AreEqual("well", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("😀", GhosttyTestFixture.GetLine(t, 1));
     }
 
-    [Fact]
+    [TestMethod]
     public void InsertMode_PushingOffWideCharacter()
     {
         // Ghostty: "Terminal: insert mode pushing off wide character"
@@ -225,7 +225,7 @@ public class GhosttyTabsInsertModeConformanceTests
         GhosttyTestFixture.Feed(t, "\u001b[1;1H");    // setCursorPos(1, 1) — col 0
         GhosttyTestFixture.Feed(t, "X");
 
-        Assert.Equal("X123", GhosttyTestFixture.GetLine(t, 0));
+        Assert.AreEqual("X123", GhosttyTestFixture.GetLine(t, 0));
     }
 
     #endregion

@@ -5,9 +5,10 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests.Muxer;
 
+[TestClass]
 public class MuxerAdapterTests
 {
-    [Fact]
+    [TestMethod]
     public async Task ClientServer_HelloAndStateSync_ReceivedByClient()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -16,13 +17,13 @@ public class MuxerAdapterTests
         var client = Hmp1TestHelpers.NewClient(stream2);
 
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
-        Assert.True(handle.IsConnected);
+        Assert.IsTrue(handle.IsConnected);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IntegrationTest_ServerSendsOutput_ClientReceivesIt()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -31,8 +32,8 @@ public class MuxerAdapterTests
         var client = Hmp1TestHelpers.NewClient(stream2);
         var (handle, _) = await ConnectPairAsync(server, stream1, client);
 
-        Assert.Equal(80, client.RemoteWidth);
-        Assert.Equal(24, client.RemoteHeight);
+        Assert.AreEqual(80, client.RemoteWidth);
+        Assert.AreEqual(24, client.RemoteHeight);
 
         var outputData = "Hello from server!"u8.ToArray();
         await server.WriteOutputAsync(outputData);
@@ -40,13 +41,13 @@ public class MuxerAdapterTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await client.ReadOutputAsync(cts.Token);
 
-        Assert.Equal(outputData, received.ToArray());
+        TestSeq.AreEqual(outputData, received.ToArray());
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IntegrationTest_ClientSendsInput_ServerReceivesIt()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -61,13 +62,13 @@ public class MuxerAdapterTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await server.ReadInputAsync(cts.Token);
 
-        Assert.Equal(inputData, received.ToArray());
+        TestSeq.AreEqual(inputData, received.ToArray());
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IntegrationTest_ClientSendsResize_ServerFires()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -85,16 +86,16 @@ public class MuxerAdapterTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var (newWidth, newHeight) = await resizeTcs.Task.WaitAsync(cts.Token);
 
-        Assert.Equal(120, newWidth);
-        Assert.Equal(40, newHeight);
-        Assert.Equal(120, server.Width);
-        Assert.Equal(40, server.Height);
+        Assert.AreEqual(120, newWidth);
+        Assert.AreEqual(40, newHeight);
+        Assert.AreEqual(120, server.Width);
+        Assert.AreEqual(40, server.Height);
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IntegrationTest_MultipleClients_AllReceiveOutput()
     {
         var (stream1a, stream1b) = CreateFullDuplexPair();
@@ -107,7 +108,7 @@ public class MuxerAdapterTests
         var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
         var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
-        Assert.Equal(2, server.ClientCount);
+        Assert.AreEqual(2, server.ClientCount);
 
         var outputData = "broadcast!"u8.ToArray();
         await server.WriteOutputAsync(outputData);
@@ -117,8 +118,8 @@ public class MuxerAdapterTests
         var received1 = await client1.ReadOutputAsync(cts.Token);
         var received2 = await client2.ReadOutputAsync(cts.Token);
 
-        Assert.Equal(outputData, received1.ToArray());
-        Assert.Equal(outputData, received2.ToArray());
+        TestSeq.AreEqual(outputData, received1.ToArray());
+        TestSeq.AreEqual(outputData, received2.ToArray());
 
         await handle1.DisposeAsync();
         await handle2.DisposeAsync();
@@ -126,7 +127,7 @@ public class MuxerAdapterTests
         await client2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IntegrationTest_ClientDisconnect_ServerContinues()
     {
         var (stream1a, stream1b) = CreateFullDuplexPair();
@@ -139,7 +140,7 @@ public class MuxerAdapterTests
         var (handle1, _) = await ConnectPairAsync(server, stream1a, client1);
         var (handle2, _) = await ConnectPairAsync(server, stream2a, client2);
 
-        Assert.Equal(2, server.ClientCount);
+        Assert.AreEqual(2, server.ClientCount);
 
         await handle1.DisposeAsync();
         await client1.DisposeAsync();
@@ -152,13 +153,13 @@ public class MuxerAdapterTests
         using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await client2.ReadOutputAsync(cts.Token);
 
-        Assert.Equal(outputData, received.ToArray());
+        TestSeq.AreEqual(outputData, received.ToArray());
 
         await handle2.DisposeAsync();
         await client2.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StateReplay_EmitsTrackedPrivateModesOnReconnect()
     {
         // The presentation adapter rebuilds the screen state for a new viewer
@@ -211,7 +212,7 @@ public class MuxerAdapterTests
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StateReplay_OmitsDefaultModes()
     {
         // A pristine terminal should produce a StateSync without DECSETs
@@ -249,7 +250,7 @@ public class MuxerAdapterTests
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task StateReplay_AlternateScreenIsEnteredBeforeCellRepaint()
     {
         // When a workload has switched to the alternate screen (TUI like
@@ -278,14 +279,14 @@ public class MuxerAdapterTests
         var altIndex = stateSync.IndexOf("\x1b[?1049h", StringComparison.Ordinal);
         var clearIndex = stateSync.IndexOf("\x1b[2J", StringComparison.Ordinal);
 
-        Assert.True(altIndex >= 0, "Alt-screen DECSET 1049h must be emitted when the workload is on the alt screen.");
-        Assert.True(clearIndex > altIndex, "Alt-screen DECSET must come before the clear-screen sequence.");
+        Assert.IsTrue(altIndex >= 0, "Alt-screen DECSET 1049h must be emitted when the workload is on the alt screen.");
+        Assert.IsTrue(clearIndex > altIndex, "Alt-screen DECSET must come before the clear-screen sequence.");
 
         await handle.DisposeAsync();
         await client.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Hmp1WorkloadAdapter_Disconnected_FiredOnStreamClose()
     {
         var (stream1, stream2) = CreateFullDuplexPair();
@@ -324,7 +325,7 @@ public class MuxerAdapterTests
         return (handle, client);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConnectAsync_ReadPumpSurvivesHandshakeCtTimeout()
     {
         // Regression sentinel for the "handshake CT cascades into read-pump" foot-gun
@@ -352,7 +353,7 @@ public class MuxerAdapterTests
 
         using var readCts = new CancellationTokenSource(TimeSpan.FromSeconds(5));
         var received = await client.ReadOutputAsync(readCts.Token);
-        Assert.Equal(data, received.ToArray());
+        TestSeq.AreEqual(data, received.ToArray());
 
         await handle.DisposeAsync();
         await client.DisposeAsync();

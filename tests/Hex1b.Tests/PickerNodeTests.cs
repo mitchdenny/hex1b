@@ -4,22 +4,23 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class PickerNodeTests
 {
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_InitialState_HasCorrectDefaults()
     {
         // Arrange & Act
         var node = new PickerNode();
         
         // Assert
-        Assert.Empty(node.Items);
-        Assert.Equal(0, node.SelectedIndex);
-        Assert.Equal("", node.SelectedText);
-        Assert.Null(node.SelectionChangedAction);
+        Assert.IsEmpty(node.Items);
+        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual("", node.SelectedText);
+        Assert.IsNull(node.SelectionChangedAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_WithItems_ReturnsCorrectSelectedText()
     {
         // Arrange
@@ -30,10 +31,10 @@ public class PickerNodeTests
         };
         
         // Act & Assert
-        Assert.Equal("Banana", node.SelectedText);
+        Assert.AreEqual("Banana", node.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_SelectedIndex_ClampsToValidRange()
     {
         // Arrange
@@ -44,10 +45,10 @@ public class PickerNodeTests
         };
         
         // Assert - SelectedText should return empty since index is invalid
-        Assert.Equal("", node.SelectedText);
+        Assert.AreEqual("", node.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_EmptyItems_ReturnsEmptySelectedText()
     {
         // Arrange
@@ -58,10 +59,10 @@ public class PickerNodeTests
         };
         
         // Assert
-        Assert.Equal("", node.SelectedText);
+        Assert.AreEqual("", node.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerWidget_Reconcile_CreatesPickerNode()
     {
         // Arrange
@@ -72,13 +73,13 @@ public class PickerNodeTests
         var node = await widget.ReconcileAsync(null, context) as PickerNode;
         
         // Assert
-        Assert.NotNull(node);
-        Assert.Equal(["Apple", "Banana", "Cherry"], node.Items);
-        Assert.Equal(0, node.SelectedIndex);
-        Assert.Equal("Apple", node.SelectedText);
+        Assert.IsNotNull(node);
+        TestSeq.AreEqual(["Apple", "Banana", "Cherry"], node.Items);
+        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual("Apple", node.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerWidget_Reconcile_PreservesExistingSelection()
     {
         // Arrange
@@ -92,12 +93,12 @@ public class PickerNodeTests
         var reconciledNode = await widget2.ReconcileAsync(node, context) as PickerNode;
         
         // Assert - Selection should be preserved
-        Assert.Same(node, reconciledNode);
-        Assert.Equal(2, reconciledNode!.SelectedIndex);
-        Assert.Equal("Cherry", reconciledNode.SelectedText);
+        Assert.AreSame(node, reconciledNode);
+        Assert.AreEqual(2, reconciledNode!.SelectedIndex);
+        Assert.AreEqual("Cherry", reconciledNode.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerWidget_Reconcile_ClampsSelectionWhenItemsReduced()
     {
         // Arrange
@@ -111,11 +112,11 @@ public class PickerNodeTests
         var reconciledNode = await widget2.ReconcileAsync(node, context) as PickerNode;
         
         // Assert - Selection should be clamped to last valid index
-        Assert.Equal(2, reconciledNode!.SelectedIndex);
-        Assert.Equal("Cherry", reconciledNode.SelectedText);
+        Assert.AreEqual(2, reconciledNode!.SelectedIndex);
+        Assert.AreEqual("Cherry", reconciledNode.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerWidget_WithInitialSelection_SetsCorrectIndex()
     {
         // Arrange
@@ -126,11 +127,11 @@ public class PickerNodeTests
         var node = await widget.ReconcileAsync(null, context) as PickerNode;
         
         // Assert
-        Assert.Equal(1, node!.SelectedIndex);
-        Assert.Equal("Banana", node.SelectedText);
+        Assert.AreEqual(1, node!.SelectedIndex);
+        Assert.AreEqual("Banana", node.SelectedText);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerWidget_OnSelectionChanged_SetsHandler()
     {
         // Arrange
@@ -142,10 +143,10 @@ public class PickerNodeTests
         var node = await widget.ReconcileAsync(null, context) as PickerNode;
         
         // Assert
-        Assert.NotNull(node!.SelectionChangedAction);
+        Assert.IsNotNull(node!.SelectionChangedAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_ContentChild_IsCreated()
     {
         // Arrange & Act (via reconciliation)
@@ -154,11 +155,11 @@ public class PickerNodeTests
         var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult() as PickerNode;
         
         // Assert - ContentChild should be a ButtonNode (from the button we build internally)
-        Assert.NotNull(node!.ContentChild);
-        Assert.IsType<ButtonNode>(node.ContentChild);
+        Assert.IsNotNull(node!.ContentChild);
+        TestSeq.IsType<ButtonNode>(node.ContentChild);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task PickerNode_IsFocusable_ReturnsFalse_ButContentChildIsFocusable()
     {
         // Arrange
@@ -168,9 +169,9 @@ public class PickerNodeTests
         
         // Assert - PickerNode itself is NOT focusable (focus passes through to content child)
         // This ensures the input router continues into GetChildren() to find the ButtonNode
-        Assert.False(node!.IsFocusable);
+        Assert.IsFalse(node!.IsFocusable);
         
         // But the content child (ButtonNode) IS focusable
-        Assert.True(node.ContentChild!.IsFocusable);
+        Assert.IsTrue(node.ContentChild!.IsFocusable);
     }
 }

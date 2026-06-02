@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for range highlights — temporary background-colored document ranges
 /// used for search results, symbol occurrences, and definition flashes.
 /// </summary>
+[TestClass]
 public class RangeHighlightTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -39,7 +40,7 @@ public class RangeHighlightTests
 
     // ── State management tests ────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void PushRangeHighlights_StoresHighlightsOnSession()
     {
         var doc = new Hex1bDocument("hello world");
@@ -54,10 +55,10 @@ public class RangeHighlightTests
         };
 
         session.PushRangeHighlights(highlights);
-        Assert.Equal(2, session.ActiveRangeHighlights.Count);
+        Assert.AreEqual(2, session.ActiveRangeHighlights.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void PushRangeHighlights_ReplacesPrevious()
     {
         var doc = new Hex1bDocument("test");
@@ -68,11 +69,11 @@ public class RangeHighlightTests
         session.PushRangeHighlights([new RangeHighlight(new DocumentPosition(1, 1), new DocumentPosition(1, 3))]);
         session.PushRangeHighlights([new RangeHighlight(new DocumentPosition(1, 2), new DocumentPosition(1, 4))]);
 
-        Assert.Single(session.ActiveRangeHighlights);
-        Assert.Equal(2, session.ActiveRangeHighlights[0].Start.Column);
+        TestSeq.Single(session.ActiveRangeHighlights);
+        Assert.AreEqual(2, session.ActiveRangeHighlights[0].Start.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearRangeHighlights_RemovesAll()
     {
         var doc = new Hex1bDocument("test");
@@ -83,10 +84,10 @@ public class RangeHighlightTests
         session.PushRangeHighlights([new RangeHighlight(new DocumentPosition(1, 1), new DocumentPosition(1, 5))]);
         session.ClearRangeHighlights();
 
-        Assert.Empty(session.ActiveRangeHighlights);
+        Assert.IsEmpty(session.ActiveRangeHighlights);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActiveRangeHighlights_InitiallyEmpty()
     {
         var doc = new Hex1bDocument("test");
@@ -94,12 +95,12 @@ public class RangeHighlightTests
         var node = new EditorNode { State = state };
         var session = (IEditorSession)node;
 
-        Assert.Empty(session.ActiveRangeHighlights);
+        Assert.IsEmpty(session.ActiveRangeHighlights);
     }
 
     // ── Visual rendering tests ────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Render_DefaultHighlight_AppliesThemeBackgroundColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("hello world", 20, 3);
@@ -126,8 +127,7 @@ public class RangeHighlightTests
         for (var x = 0; x <= 4; x++) // "hello" at columns 0-4
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected highlight bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected highlight bg {expectedBg}, got {cell.Background}");
         }
 
         // Non-highlighted cells should have editor background
@@ -135,15 +135,14 @@ public class RangeHighlightTests
         for (var x = 6; x <= 10; x++) // "world" at columns 6-10
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(editorBg, cell.Background),
-                $"Column {x}: expected editor bg, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(editorBg, cell.Background), $"Column {x}: expected editor bg, got {cell.Background}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ReadAccessHighlight_UsesReadAccessColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc def", 20, 3);
@@ -168,15 +167,14 @@ public class RangeHighlightTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected read-access bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected read-access bg {expectedBg}, got {cell.Background}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WriteAccessHighlight_UsesWriteAccessColor()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc def", 20, 3);
@@ -201,15 +199,14 @@ public class RangeHighlightTests
         for (var x = 4; x <= 6; x++) // "def" at columns 4-6
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected write-access bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected write-access bg {expectedBg}, got {cell.Background}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ExplicitBackgroundColor_OverridesKindDefault()
     {
         var customBg = Hex1bColor.FromRgb(200, 50, 50);
@@ -235,15 +232,14 @@ public class RangeHighlightTests
         for (var x = 0; x <= 3; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected custom bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected custom bg {expectedBg}, got {cell.Background}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiLineHighlight_SpansCorrectly()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("abc\ndef\nghi", 20, 5);
@@ -277,24 +273,19 @@ public class RangeHighlightTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0: 'a' no highlight, 'b' and 'c' highlighted
-        Assert.True(ColorEquals(editorBg, snapshot.GetCell(0, 0).Background),
-            $"Line 0 col 0: should not be highlighted");
-        Assert.True(ColorEquals(expectedBg, snapshot.GetCell(1, 0).Background),
-            $"Line 0 col 1: should be highlighted");
-        Assert.True(ColorEquals(expectedBg, snapshot.GetCell(2, 0).Background),
-            $"Line 0 col 2: should be highlighted");
+        Assert.IsTrue(ColorEquals(editorBg, snapshot.GetCell(0, 0).Background), $"Line 0 col 0: should not be highlighted");
+        Assert.IsTrue(ColorEquals(expectedBg, snapshot.GetCell(1, 0).Background), $"Line 0 col 1: should be highlighted");
+        Assert.IsTrue(ColorEquals(expectedBg, snapshot.GetCell(2, 0).Background), $"Line 0 col 2: should be highlighted");
 
         // Line 1: 'd' and 'e' highlighted (columns 1-2), 'f' not
-        Assert.True(ColorEquals(expectedBg, snapshot.GetCell(0, 1).Background),
-            $"Line 1 col 0: should be highlighted");
-        Assert.True(ColorEquals(expectedBg, snapshot.GetCell(1, 1).Background),
-            $"Line 1 col 1: should be highlighted");
+        Assert.IsTrue(ColorEquals(expectedBg, snapshot.GetCell(0, 1).Background), $"Line 1 col 0: should be highlighted");
+        Assert.IsTrue(ColorEquals(expectedBg, snapshot.GetCell(1, 1).Background), $"Line 1 col 1: should be highlighted");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ClearedHighlights_BackgroundReverts()
     {
         var (node, workload, terminal, context, theme) = CreateEditor("test", 20, 3);
@@ -338,8 +329,7 @@ public class RangeHighlightTests
         for (var x = 0; x <= 3; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(editorBg, cell.Background),
-                $"Column {x}: expected editor bg after clear, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(editorBg, cell.Background), $"Column {x}: expected editor bg after clear, got {cell.Background}");
         }
 
         workload.Dispose();

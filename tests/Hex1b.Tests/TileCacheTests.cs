@@ -45,9 +45,10 @@ internal class SlowTileDataSource : ITileDataSource
     }
 }
 
+[TestClass]
 public class TileCacheTests
 {
-    [Fact]
+    [TestMethod]
     public void GetTiles_EmptyCache_ReturnsDefaultTiles()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromSeconds(10));
@@ -60,12 +61,12 @@ public class TileCacheTests
         {
             for (int x = 0; x < 3; x++)
             {
-                Assert.Null(tiles[x, y].Content);
+                Assert.IsNull(tiles[x, y].Content);
             }
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void GetTiles_NeverBlocks()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromSeconds(30));
@@ -76,10 +77,10 @@ public class TileCacheTests
         var tiles = cache.GetTiles(0, 0, 10, 10);
         sw.Stop();
 
-        Assert.True(sw.ElapsedMilliseconds < 100, $"GetTiles took {sw.ElapsedMilliseconds}ms — should be instant");
+        Assert.IsTrue(sw.ElapsedMilliseconds < 100, $"GetTiles took {sw.ElapsedMilliseconds}ms — should be instant");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetTiles_AfterBackgroundFetch_ReturnsCachedTiles()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromMilliseconds(10));
@@ -93,14 +94,14 @@ public class TileCacheTests
 
         // Second call — should have cached tiles
         var tiles = cache.GetTiles(0, 0, 2, 2);
-        Assert.NotNull(tiles[0, 0].Content);
-        Assert.Equal("0,0", tiles[0, 0].Content);
-        Assert.Equal("1,0", tiles[1, 0].Content);
-        Assert.Equal("0,1", tiles[0, 1].Content);
-        Assert.Equal("1,1", tiles[1, 1].Content);
+        Assert.IsNotNull(tiles[0, 0].Content);
+        Assert.AreEqual("0,0", tiles[0, 0].Content);
+        Assert.AreEqual("1,0", tiles[1, 0].Content);
+        Assert.AreEqual("0,1", tiles[0, 1].Content);
+        Assert.AreEqual("1,1", tiles[1, 1].Content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TilesAvailable_FiresAfterBackgroundFetch()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromMilliseconds(10));
@@ -112,10 +113,10 @@ public class TileCacheTests
 
         // Notification fires immediately after fetch completes (no debounce)
         var completed = await Task.WhenAny(notified.Task, Task.Delay(500));
-        Assert.Same(notified.Task, completed);
+        Assert.AreSame(notified.Task, completed);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CancelledFetch_StillCachesTiles()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromMilliseconds(50));
@@ -136,13 +137,13 @@ public class TileCacheTests
 
         // Second region must be cached
         var tiles = cache.GetTiles(100, 100, 2, 2);
-        Assert.Equal("100", tiles[0, 0].Content);
+        Assert.AreEqual("100", tiles[0, 0].Content);
 
         // First region might also be cached (if data source returned before
         // cancellation was checked) — this is the key behavioral change
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NewFetch_CancelsPreviousFetch()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromMilliseconds(200));
@@ -160,10 +161,10 @@ public class TileCacheTests
 
         // Second region should be cached
         var tiles = cache.GetTiles(100, 100, 2, 2);
-        Assert.Equal("100", tiles[0, 0].Content);
+        Assert.AreEqual("100", tiles[0, 0].Content);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_RemovesAllCachedTiles()
     {
         var ds = new TestTileDataSource();
@@ -177,26 +178,26 @@ public class TileCacheTests
 
         // Verify cached
         var tiles = cache.GetTiles(0, 0, 2, 2);
-        Assert.NotNull(tiles[0, 0].Content);
+        Assert.IsNotNull(tiles[0, 0].Content);
 
         // Clear
         cache.Clear();
 
         // Should be empty again
         tiles = cache.GetTiles(0, 0, 2, 2);
-        Assert.Null(tiles[0, 0].Content);
+        Assert.IsNull(tiles[0, 0].Content);
     }
 
-    [Fact]
+    [TestMethod]
     public void TileSize_DelegatesToDataSource()
     {
         var ds = new TestTileDataSource();
         using var cache = new TileCache(ds);
 
-        Assert.Equal(new Size(3, 1), cache.TileSize);
+        Assert.AreEqual(new Size(3, 1), cache.TileSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Eviction_RemovesLruTilesWhenOverCapacity()
     {
         var ds = new TestTileDataSource();
@@ -217,11 +218,10 @@ public class TileCacheTests
                 if (tiles[x, y].Content != null) cachedCount++;
 
         // Some tiles should have survived eviction (the 4 most recent)
-        Assert.True(cachedCount <= 4 || cachedCount == 9,
-            $"Expected ≤4 cached tiles after eviction or 9 if re-fetched, got {cachedCount}");
+        Assert.IsTrue(cachedCount <= 4 || cachedCount == 9, $"Expected ≤4 cached tiles after eviction or 9 if re-fetched, got {cachedCount}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RequestFetch_SameRegion_DoesNotCancelInFlight()
     {
         var ds = new SlowTileDataSource(TimeSpan.FromMilliseconds(100));
@@ -242,9 +242,9 @@ public class TileCacheTests
 
         // Tiles should be cached — the repeated calls didn't cancel the fetch
         var tiles = cache.GetTiles(0, 0, 2, 2);
-        Assert.NotNull(tiles[0, 0].Content);
+        Assert.IsNotNull(tiles[0, 0].Content);
 
         // Should have only triggered ONE fetch, not three
-        Assert.Equal(1, ds.FetchCount);
+        Assert.AreEqual(1, ds.FetchCount);
     }
 }

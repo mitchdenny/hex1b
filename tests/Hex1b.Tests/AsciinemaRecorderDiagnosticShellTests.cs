@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// These tests validate both backward compatibility (recording from session start) and
 /// the new dynamic recording functionality.
 /// </summary>
+[TestClass]
 public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -133,7 +134,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
                 await Task.Delay(50, TestContext.Current.CancellationToken);
             }
 
-            throw new Xunit.Sdk.XunitException(
+            throw new AssertFailedException(
                 $"Timed out waiting for {description ?? "terminal state"}.\nLast terminal text:\n{lastText}");
         }
 
@@ -223,7 +224,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
             await Task.Delay(50, TestContext.Current.CancellationToken);
         }
 
-        throw new Xunit.Sdk.XunitException(
+        throw new AssertFailedException(
             $"Timed out waiting for {description} in recording '{path}'.\nLast file content:\n{lastContent}");
     }
 
@@ -231,7 +232,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
     // Phase 3.5.1: Backward Compatibility Tests
     // ==========================================
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_WithFilePath_RecordsFromSessionStart()
     {
         // Arrange
@@ -247,21 +248,21 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         var lines = content.Split('\n', StringSplitOptions.RemoveEmptyEntries);
         
-        Assert.True(lines.Length >= 2, "Should have header and at least one event");
+        Assert.IsTrue(lines.Length >= 2, "Should have header and at least one event");
         
         // Check header
         var header = JsonDocument.Parse(lines[0]);
-        Assert.Equal(2, header.RootElement.GetProperty("version").GetInt32());
-        Assert.Equal(80, header.RootElement.GetProperty("width").GetInt32());
-        Assert.Equal(24, header.RootElement.GetProperty("height").GetInt32());
+        Assert.AreEqual(2, header.RootElement.GetProperty("version").GetInt32());
+        Assert.AreEqual(80, header.RootElement.GetProperty("width").GetInt32());
+        Assert.AreEqual(24, header.RootElement.GetProperty("height").GetInt32());
         
         // First output event should have timestamp close to 0
         var firstEvent = JsonDocument.Parse(lines[1]);
         var firstTime = firstEvent.RootElement[0].GetDouble();
-        Assert.True(firstTime < 1.0, $"First event should be near time 0, was {firstTime}");
+        Assert.IsTrue(firstTime < 1.0, $"First event should be near time 0, was {firstTime}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_WithDiagnosticShell_CapturesInitialPrompt()
     {
         // Arrange
@@ -280,7 +281,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         Assert.Contains("diag", content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_WithDiagnosticShell_CapturesCommandOutput()
     {
         // Arrange
@@ -302,7 +303,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
     // Phase 3.5.2: Command Recording Tests
     // ==========================================
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_DiagnosticShell_HelpCommand_RecordsAllOutput()
     {
         // Arrange
@@ -324,7 +325,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         Assert.Contains("ping", content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_DiagnosticShell_EchoCommand_RecordsEchoedText()
     {
         // Arrange
@@ -346,7 +347,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
     // Phase 3.5.3: Dynamic Recording Tests
     // ==========================================
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_StartRecordingMidSession_CreatesFile()
     {
         // Arrange - create without starting recording
@@ -367,12 +368,12 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await WaitForRecordingTextAsync(tempFile, "PONG");
 
         // Assert
-        Assert.True(File.Exists(tempFile), "Recording file should exist");
+        Assert.IsTrue(File.Exists(tempFile), "Recording file should exist");
         var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
         Assert.Contains("PONG", content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_StopRecording_FinalizesFile()
     {
         // Arrange
@@ -385,8 +386,8 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         var completedPath = await ctx.Recorder.StopRecordingAsync();
 
         // Assert
-        Assert.Equal(tempFile, completedPath);
-        Assert.False(ctx.Recorder.IsRecording);
+        Assert.AreEqual(tempFile, completedPath);
+        Assert.IsFalse(ctx.Recorder.IsRecording);
 
         // File should be finalized and readable
         await WaitForRecordingTextAsync(tempFile, "PONG");
@@ -394,7 +395,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         Assert.Contains("PONG", content);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_StopAndStartNewRecording_CreatesSeparateFiles()
     {
         // Arrange
@@ -428,7 +429,7 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
     // Phase 3.5.4: Non-overlapping Recording Tests
     // ==========================================
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_StartWhileRecording_ThrowsInvalidOperationException()
     {
         // Arrange
@@ -438,13 +439,13 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         await ctx.StartAsync();
 
         // Act & Assert
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             ctx.Recorder.StartRecording(tempFile2, new AsciinemaRecorderOptions()));
         
         Assert.Contains("already recording", ex.Message.ToLower());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AsciinemaRecorder_StopWhileNotRecording_ReturnsNull()
     {
         // Arrange - create without starting recording
@@ -456,6 +457,6 @@ public class AsciinemaRecorderDiagnosticShellTests : IAsyncDisposable
         var result = await ctx.Recorder.StopRecordingAsync();
 
         // Assert
-        Assert.Null(result);
+        Assert.IsNull(result);
     }
 }

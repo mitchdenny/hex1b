@@ -8,11 +8,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for PaddingNode and PaddingWidget.
 /// </summary>
+[TestClass]
 public class PaddingNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_AddsPaddingToChildSize()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -22,22 +23,22 @@ public class PaddingNodeTests
 
         // ButtonNode: " OK " = 4 wide, 1 tall
         // With padding: 4 + 2 + 3 = 9 wide, 1 + 1 + 1 = 3 tall
-        Assert.Equal(4 + 5, size.Width);
-        Assert.Equal(1 + 2, size.Height);
+        Assert.AreEqual(4 + 5, size.Width);
+        Assert.AreEqual(1 + 2, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_NullChild_ReturnsPaddingOnly()
     {
         var node = new PaddingNode { Child = null, Left = 2, Right = 3, Top = 1, Bottom = 4 };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(5, size.Width);
-        Assert.Equal(5, size.Height);
+        Assert.AreEqual(5, size.Width);
+        Assert.AreEqual(5, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_ZeroPadding_MatchesChild()
     {
         var child = new ButtonNode { Label = "Test" };
@@ -46,10 +47,10 @@ public class PaddingNodeTests
         var childSize = child.Measure(Constraints.Unbounded);
         var paddedSize = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(childSize, paddedSize);
+        Assert.AreEqual(childSize, paddedSize);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_SubtractsPaddingFromConstraints()
     {
         var child = new ButtonNode { Label = "A Very Long Label That Should Be Constrained" };
@@ -58,10 +59,10 @@ public class PaddingNodeTests
         var size = node.Measure(new Constraints(0, 20, 0, 10));
 
         // Max width 20 - 10 padding = 10 for child, then +10 back = capped at 20
-        Assert.True(size.Width <= 20);
+        Assert.IsTrue(size.Width <= 20);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_LargePaddingExceedingConstraints_ClampsToZero()
     {
         var child = new ButtonNode { Label = "Hi" };
@@ -70,15 +71,15 @@ public class PaddingNodeTests
         // Child constraints should be clamped to 0, not go negative
         var size = node.Measure(new Constraints(0, 10, 0, 10));
 
-        Assert.True(size.Width <= 10);
-        Assert.True(size.Height <= 10);
+        Assert.IsTrue(size.Width <= 10);
+        Assert.IsTrue(size.Height <= 10);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_OffsetsChildByPadding()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -87,28 +88,28 @@ public class PaddingNodeTests
 
         node.Arrange(new Rect(10, 20, 30, 10));
 
-        Assert.Equal(new Rect(10, 20, 30, 10), node.Bounds);
-        Assert.Equal(13, child.Bounds.X);  // 10 + 3
-        Assert.Equal(21, child.Bounds.Y);  // 20 + 1
-        Assert.Equal(25, child.Bounds.Width);  // 30 - 3 - 2
-        Assert.Equal(8, child.Bounds.Height);  // 10 - 1 - 1
+        Assert.AreEqual(new Rect(10, 20, 30, 10), node.Bounds);
+        Assert.AreEqual(13, child.Bounds.X);  // 10 + 3
+        Assert.AreEqual(21, child.Bounds.Y);  // 20 + 1
+        Assert.AreEqual(25, child.Bounds.Width);  // 30 - 3 - 2
+        Assert.AreEqual(8, child.Bounds.Height);  // 10 - 1 - 1
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_NullChild_DoesNotThrow()
     {
         var node = new PaddingNode { Child = null, Left = 1, Right = 1, Top = 1, Bottom = 1 };
 
         node.Arrange(new Rect(0, 0, 10, 5));
 
-        Assert.Equal(new Rect(0, 0, 10, 5), node.Bounds);
+        Assert.AreEqual(new Rect(0, 0, 10, 5), node.Bounds);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Focusable" };
@@ -116,25 +117,25 @@ public class PaddingNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(child, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(child, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_NullChild_ReturnsEmpty()
     {
         var node = new PaddingNode { Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
     #endregion
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithChild_ReturnsChild()
     {
         var child = new ButtonNode { Label = "Child" };
@@ -142,23 +143,23 @@ public class PaddingNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_NullChild_ReturnsEmpty()
     {
         var node = new PaddingNode { Child = null };
 
-        Assert.Empty(node.GetChildren());
+        Assert.IsEmpty(node.GetChildren());
     }
 
     #endregion
 
     #region Widget Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_CreatesNode()
     {
         var widget = new PaddingWidget(2, 3, 1, 1, new TextBlockWidget("Hello"));
@@ -166,15 +167,15 @@ public class PaddingNodeTests
 
         var node = await widget.ReconcileAsync(null, context);
 
-        var padding = Assert.IsType<PaddingNode>(node);
-        Assert.Equal(2, padding.Left);
-        Assert.Equal(3, padding.Right);
-        Assert.Equal(1, padding.Top);
-        Assert.Equal(1, padding.Bottom);
-        Assert.NotNull(padding.Child);
+        var padding = TestSeq.IsType<PaddingNode>(node);
+        Assert.AreEqual(2, padding.Left);
+        Assert.AreEqual(3, padding.Right);
+        Assert.AreEqual(1, padding.Top);
+        Assert.AreEqual(1, padding.Bottom);
+        Assert.IsNotNull(padding.Child);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_ReusesExistingNode()
     {
         var widget = new PaddingWidget(1, 1, 1, 1, new TextBlockWidget("Hello"));
@@ -183,10 +184,10 @@ public class PaddingNodeTests
 
         var node = await widget.ReconcileAsync(existingNode, context);
 
-        Assert.Same(existingNode, node);
+        Assert.AreSame(existingNode, node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_ReconcileAsync_UpdatesPaddingValues()
     {
         var widget1 = new PaddingWidget(1, 1, 1, 1, new TextBlockWidget("Hello"));
@@ -196,62 +197,62 @@ public class PaddingNodeTests
         var widget2 = new PaddingWidget(5, 10, 2, 3, new TextBlockWidget("Hello"));
         await widget2.ReconcileAsync(node, context);
 
-        Assert.Equal(5, node.Left);
-        Assert.Equal(10, node.Right);
-        Assert.Equal(2, node.Top);
-        Assert.Equal(3, node.Bottom);
+        Assert.AreEqual(5, node.Left);
+        Assert.AreEqual(10, node.Right);
+        Assert.AreEqual(2, node.Top);
+        Assert.AreEqual(3, node.Bottom);
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Padding_FourSides_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Padding(1, 2, 3, 4, new TextBlockWidget("Hello"));
 
-        Assert.Equal(1, widget.Left);
-        Assert.Equal(2, widget.Right);
-        Assert.Equal(3, widget.Top);
-        Assert.Equal(4, widget.Bottom);
+        Assert.AreEqual(1, widget.Left);
+        Assert.AreEqual(2, widget.Right);
+        Assert.AreEqual(3, widget.Top);
+        Assert.AreEqual(4, widget.Bottom);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Padding_Uniform_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Padding(3, new TextBlockWidget("Hello"));
 
-        Assert.Equal(3, widget.Left);
-        Assert.Equal(3, widget.Right);
-        Assert.Equal(3, widget.Top);
-        Assert.Equal(3, widget.Bottom);
+        Assert.AreEqual(3, widget.Left);
+        Assert.AreEqual(3, widget.Right);
+        Assert.AreEqual(3, widget.Top);
+        Assert.AreEqual(3, widget.Bottom);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Padding_HorizontalVertical_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Padding(2, 1, new TextBlockWidget("Hello"));
 
-        Assert.Equal(2, widget.Left);
-        Assert.Equal(2, widget.Right);
-        Assert.Equal(1, widget.Top);
-        Assert.Equal(1, widget.Bottom);
+        Assert.AreEqual(2, widget.Left);
+        Assert.AreEqual(2, widget.Right);
+        Assert.AreEqual(1, widget.Top);
+        Assert.AreEqual(1, widget.Bottom);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Padding_Builder_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Padding(1, 1, 0, 0, p => p.Text("Indented"));
 
-        Assert.IsType<PaddingWidget>(widget);
+        TestSeq.IsType<PaddingWidget>(widget);
     }
 
-    [Fact]
+    [TestMethod]
     public void Extensions_Padding_ArrayBuilder_CreatesVStack()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -261,7 +262,7 @@ public class PaddingNodeTests
             p.Text("Line 2"),
         });
 
-        Assert.IsType<PaddingWidget>(widget);
+        TestSeq.IsType<PaddingWidget>(widget);
     }
 
     #endregion

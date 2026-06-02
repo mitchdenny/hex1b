@@ -3,37 +3,38 @@ using System.Text;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class KgpImageCacheTests
 {
-    [Fact]
+    [TestMethod]
     public void AllocateImageId_ReturnsSequentialIds()
     {
         var cache = new KgpImageCache();
-        Assert.Equal(1u, cache.AllocateImageId());
-        Assert.Equal(2u, cache.AllocateImageId());
-        Assert.Equal(3u, cache.AllocateImageId());
+        Assert.AreEqual(1u, cache.AllocateImageId());
+        Assert.AreEqual(2u, cache.AllocateImageId());
+        Assert.AreEqual(3u, cache.AllocateImageId());
     }
 
-    [Fact]
+    [TestMethod]
     public void TryGetImageId_ReturnsFalse_WhenNotTransmitted()
     {
         var cache = new KgpImageCache();
         var hash = SHA256.HashData(new byte[] { 1, 2, 3 });
-        Assert.False(cache.TryGetImageId(hash, out _));
+        Assert.IsFalse(cache.TryGetImageId(hash, out _));
     }
 
-    [Fact]
+    [TestMethod]
     public void TryGetImageId_ReturnsTrue_AfterRegistration()
     {
         var cache = new KgpImageCache();
         var hash = SHA256.HashData(new byte[] { 1, 2, 3 });
         cache.RegisterTransmission(hash, 42);
 
-        Assert.True(cache.TryGetImageId(hash, out var imageId));
-        Assert.Equal(42u, imageId);
+        Assert.IsTrue(cache.TryGetImageId(hash, out var imageId));
+        Assert.AreEqual(42u, imageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DifferentContent_GetsDifferentEntries()
     {
         var cache = new KgpImageCache();
@@ -43,13 +44,13 @@ public class KgpImageCacheTests
         cache.RegisterTransmission(hash1, 1);
         cache.RegisterTransmission(hash2, 2);
 
-        Assert.True(cache.TryGetImageId(hash1, out var id1));
-        Assert.True(cache.TryGetImageId(hash2, out var id2));
-        Assert.Equal(1u, id1);
-        Assert.Equal(2u, id2);
+        Assert.IsTrue(cache.TryGetImageId(hash1, out var id1));
+        Assert.IsTrue(cache.TryGetImageId(hash2, out var id2));
+        Assert.AreEqual(1u, id1);
+        Assert.AreEqual(2u, id2);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_RemovesAllEntries()
     {
         var cache = new KgpImageCache();
@@ -58,7 +59,7 @@ public class KgpImageCacheTests
 
         cache.Clear();
 
-        Assert.False(cache.TryGetImageId(hash, out _));
-        Assert.Equal(0, cache.Count);
+        Assert.IsFalse(cache.TryGetImageId(hash, out _));
+        Assert.AreEqual(0, cache.Count);
     }
 }

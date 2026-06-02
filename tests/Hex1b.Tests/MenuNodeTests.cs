@@ -7,9 +7,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MenuNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void MenuPopupNode_ConfiguresUpDownBindings()
     {
         // Arrange
@@ -30,7 +31,7 @@ public class MenuNodeTests
         var bindings = builder.Build();
         
         // Assert
-        Assert.NotEmpty(bindings);
+        Assert.IsNotEmpty(bindings);
         
         // Check that UpArrow and DownArrow bindings exist
         var upArrowBinding = bindings.FirstOrDefault(b => 
@@ -43,11 +44,11 @@ public class MenuNodeTests
             b.Steps[0].Key == Hex1bKey.DownArrow && 
             b.Steps[0].Modifiers == Hex1bModifiers.None);
             
-        Assert.NotNull(upArrowBinding);
-        Assert.NotNull(downArrowBinding);
+        Assert.IsNotNull(upArrowBinding);
+        Assert.IsNotNull(downArrowBinding);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task InputRouter_FindsMenuPopupBindings_WhenChildIsFocused()
     {
         // Arrange - simulate the tree structure when a menu is open
@@ -88,10 +89,10 @@ public class MenuNodeTests
         var result = await InputRouter.RouteInputAsync(zstack, keyEvent, focusRing, state, cancellationToken: TestContext.Current.CancellationToken);
         
         // Assert - the binding should be found and handled
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItemNode_DownArrow_MovesFocusToNextItem()
     {
         // Arrange - set up a popup with two menu items
@@ -131,8 +132,8 @@ public class MenuNodeTests
         focusRing.Rebuild(zstack);
         
         // Verify initial state
-        Assert.Equal(2, focusRing.Focusables.Count);
-        Assert.Equal(menuItem1, focusRing.FocusedNode);
+        Assert.AreEqual(2, focusRing.Focusables.Count);
+        Assert.AreEqual(menuItem1, focusRing.FocusedNode);
         
         // Act - route a down arrow key
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None);
@@ -141,13 +142,13 @@ public class MenuNodeTests
         var result = await InputRouter.RouteInputAsync(zstack, keyEvent, focusRing, state, cancellationToken: TestContext.Current.CancellationToken);
         
         // Assert - focus should have moved to the second item
-        Assert.Equal(InputResult.Handled, result);
-        Assert.False(menuItem1.IsFocused, "First item should no longer be focused");
-        Assert.True(menuItem2.IsFocused, "Second item should now be focused");
-        Assert.Equal(menuItem2, focusRing.FocusedNode);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsFalse(menuItem1.IsFocused, "First item should no longer be focused");
+        Assert.IsTrue(menuItem2.IsFocused, "Second item should now be focused");
+        Assert.AreEqual(menuItem2, focusRing.FocusedNode);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_Measure_ReturnsCorrectSize()
     {
         var node = new MenuItemNode { Label = "Open", RenderWidth = 20 };
@@ -155,11 +156,11 @@ public class MenuNodeTests
         
         var size = node.Measure(constraints);
         
-        Assert.Equal(20, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_Measure_UsesLabelLengthWhenNoRenderWidth()
     {
         var node = new MenuItemNode { Label = "Open", RenderWidth = 0 };
@@ -167,27 +168,27 @@ public class MenuNodeTests
         
         var size = node.Measure(constraints);
         
-        Assert.Equal(6, size.Width); // "Open" + 2 padding
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(6, size.Width); // "Open" + 2 padding
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_IsFocusable_WhenNotDisabled()
     {
         var node = new MenuItemNode { Label = "Open", IsDisabled = false };
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_NotFocusable_WhenDisabled()
     {
         var node = new MenuItemNode { Label = "Open", IsDisabled = true };
         
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_IsFocused_MarksDirty()
     {
         var node = new MenuItemNode { Label = "Open" };
@@ -195,10 +196,10 @@ public class MenuNodeTests
         
         node.IsFocused = true;
         
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuSeparatorNode_Measure_ReturnsOneRowHeight()
     {
         var node = new MenuSeparatorNode { RenderWidth = 20 };
@@ -206,64 +207,64 @@ public class MenuNodeTests
         
         var size = node.Measure(constraints);
         
-        Assert.Equal(20, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuSeparatorNode_NotFocusable()
     {
         var node = new MenuSeparatorNode();
         
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuSeparatorNode_FallbackFocusable_WhenSet()
     {
         var node = new MenuSeparatorNode { IsFallbackFocusable = true };
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuSeparatorNode_FallbackFocusable_DefaultsFalse()
     {
         var node = new MenuSeparatorNode();
         
-        Assert.False(node.IsFallbackFocusable);
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFallbackFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_Disabled_NotFocusable()
     {
         var node = new MenuItemNode { Label = "Test", IsDisabled = true };
         
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_Disabled_FallbackFocusable_WhenSet()
     {
         var node = new MenuItemNode { Label = "Test", IsDisabled = true, IsFallbackFocusable = true };
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItemNode_Enabled_AlwaysFocusable()
     {
         var node = new MenuItemNode { Label = "Test", IsDisabled = false };
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
         
         // IsFallbackFocusable shouldn't affect enabled items
         node.IsFallbackFocusable = true;
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuNode_Measure_ReturnsLabelWidth()
     {
         var node = new MenuNode { Label = "File" };
@@ -271,43 +272,43 @@ public class MenuNodeTests
         
         var size = node.Measure(constraints);
         
-        Assert.Equal(6, size.Width); // "File" + 2 padding
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(6, size.Width); // "File" + 2 padding
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuNode_IsFocusable()
     {
         var node = new MenuNode { Label = "File" };
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuNode_ManagesChildFocus()
     {
         var node = new MenuNode { Label = "File" };
         
-        Assert.True(node.ManagesChildFocus);
+        Assert.IsTrue(node.ManagesChildFocus);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuBarNode_ManagesChildFocus()
     {
         var node = new MenuBarNode();
         
-        Assert.True(node.ManagesChildFocus);
+        Assert.IsTrue(node.ManagesChildFocus);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuBarNode_NotFocusable()
     {
         var node = new MenuBarNode();
         
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
     
-    [Fact]
+    [TestMethod]
     public void BackdropNode_FocusDelegation_SetsChildFocus()
     {
         // Arrange - simulate the tree structure when a menu is open
@@ -337,18 +338,18 @@ public class MenuNodeTests
         anchoredNode.Parent = backdropNode;
         
         // Initially, nothing is focused
-        Assert.False(menuItem1.IsFocused);
-        Assert.False(menuItem2.IsFocused);
+        Assert.IsFalse(menuItem1.IsFocused);
+        Assert.IsFalse(menuItem2.IsFocused);
         
         // Act - Set focus on BackdropNode (what ZStack does)
         backdropNode.IsFocused = true;
         
         // Assert - Focus should delegate to first focusable child (menuItem1)
-        Assert.True(menuItem1.IsFocused);
-        Assert.False(menuItem2.IsFocused);
+        Assert.IsTrue(menuItem1.IsFocused);
+        Assert.IsFalse(menuItem2.IsFocused);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task InputRouter_EnterKey_ActivatesMenuItem_WhenMenuItemIsFocused()
     {
         // Arrange - simulate full tree with ZStack → BackdropNode → AnchoredNode → MenuPopupNode → MenuItemNode
@@ -388,7 +389,7 @@ public class MenuNodeTests
         
         // Verify menuItem1 is in focus ring and is focused
         Assert.Contains(menuItem1, focusRing.Focusables);
-        Assert.Equal(menuItem1, focusRing.FocusedNode);
+        Assert.AreEqual(menuItem1, focusRing.FocusedNode);
         
         // Act - Route Enter key
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
@@ -397,11 +398,11 @@ public class MenuNodeTests
         var result = await InputRouter.RouteInputAsync(zstack, keyEvent, focusRing, state);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(activated, "ActivatedAction should have been called");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(activated, "ActivatedAction should have been called");
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuNode_InMenuBar_ConfiguresLeftRightBindings()
     {
         // Arrange
@@ -436,12 +437,12 @@ public class MenuNodeTests
             b.Steps[0].Key == Hex1bKey.DownArrow && 
             b.Steps[0].Modifiers == Hex1bModifiers.None);
             
-        Assert.NotNull(leftBinding);
-        Assert.NotNull(rightBinding);
-        Assert.NotNull(downBinding);
+        Assert.IsNotNull(leftBinding);
+        Assert.IsNotNull(rightBinding);
+        Assert.IsNotNull(downBinding);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_RightArrow_FocusesNextMenu()
     {
         // Arrange - simulate the full tree with VStack -> MenuBar -> MenuNodes
@@ -464,14 +465,14 @@ public class MenuNodeTests
         menuBar.Measure(Constraints.Unbounded);
         
         // Verify MenuNodes are populated
-        Assert.Equal(2, menuBar.MenuNodes.Count);
+        Assert.AreEqual(2, menuBar.MenuNodes.Count);
         
         var menu1 = menuBar.MenuNodes[0];
         var menu2 = menuBar.MenuNodes[1];
         
         // Verify Parent is set
-        Assert.Same(menuBar, menu1.Parent);
-        Assert.Same(menuBar, menu2.Parent);
+        Assert.AreSame(menuBar, menu1.Parent);
+        Assert.AreSame(menuBar, menu2.Parent);
         
         // Build focus ring from the vstack
         var focusRing = new FocusRing();
@@ -483,7 +484,7 @@ public class MenuNodeTests
         
         // Verify menu1 gets initial focus
         focusRing.EnsureFocus();
-        Assert.True(menu1.IsFocused, "menu1 should be initially focused");
+        Assert.IsTrue(menu1.IsFocused, "menu1 should be initially focused");
         
         // Verify bindings are configured correctly
         var builder = new InputBindingsBuilder();
@@ -493,7 +494,7 @@ public class MenuNodeTests
         var rightBinding = bindings.FirstOrDefault(b => 
             b.Steps.Count == 1 && 
             b.Steps[0].Key == Hex1bKey.RightArrow);
-        Assert.NotNull(rightBinding);
+        Assert.IsNotNull(rightBinding);
         
         // Act - press right arrow via InputRouter
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None);
@@ -501,12 +502,12 @@ public class MenuNodeTests
         var result = await InputRouter.RouteInputAsync(vstack, keyEvent, focusRing, state);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(menu2.IsFocused, $"menu2 should be focused. Focused node: {focusRing.FocusedNode?.GetType().Name}");
-        Assert.False(menu1.IsFocused, "menu1 should not be focused");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(menu2.IsFocused, $"menu2 should be focused. Focused node: {focusRing.FocusedNode?.GetType().Name}");
+        Assert.IsFalse(menu1.IsFocused, "menu1 should not be focused");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_LeftArrow_FocusesPreviousMenu()
     {
         // Arrange - simulate the full tree with VStack -> MenuBar -> MenuNodes
@@ -537,7 +538,7 @@ public class MenuNodeTests
         
         // Start with menu2 focused
         focusRing.Focus(menu2);
-        Assert.True(menu2.IsFocused, "menu2 should be initially focused");
+        Assert.IsTrue(menu2.IsFocused, "menu2 should be initially focused");
         
         // Act - press left arrow via InputRouter
         var keyEvent = new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None);
@@ -545,9 +546,9 @@ public class MenuNodeTests
         var result = await InputRouter.RouteInputAsync(vstack, keyEvent, focusRing, state);
         
         // Assert
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(menu1.IsFocused, "menu1 should be focused");
-        Assert.False(menu2.IsFocused, "menu2 should not be focused");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(menu1.IsFocused, "menu1 should be focused");
+        Assert.IsFalse(menu2.IsFocused, "menu2 should not be focused");
     }
     
     #region Accelerator Underline Rendering Tests
@@ -592,7 +593,7 @@ public class MenuNodeTests
         return false;
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_Normal_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -625,10 +626,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'F' should be underlined
-        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined in normal state");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined in normal state");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_Focused_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -661,10 +662,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'F' should still be underlined when focused
-        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when focused");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when focused");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_Selected_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -697,10 +698,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'F' should still be underlined when selected
-        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when selected");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when selected");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_Hovered_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -734,10 +735,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'F' should still be underlined when hovered
-        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when hovered");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when hovered");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuNode_InMenuBar_Open_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -770,10 +771,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'F' should still be underlined when open
-        Assert.True(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when open");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'F'), "Accelerator 'F' should be underlined when open");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItemNode_Normal_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -802,10 +803,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'O' should be underlined
-        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined in normal state");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined in normal state");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItemNode_Focused_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -834,10 +835,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'O' should still be underlined when focused
-        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when focused");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when focused");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItemNode_Hovered_ShowsAcceleratorUnderline()
     {
         // Arrange
@@ -866,10 +867,10 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'O' should still be underlined when hovered
-        Assert.True(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when hovered");
+        Assert.IsTrue(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should be underlined when hovered");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItemNode_Disabled_DoesNotShowAcceleratorUnderline()
     {
         // Arrange
@@ -898,7 +899,7 @@ public class MenuNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Assert - 'O' should NOT be underlined when disabled (accelerators are not available for disabled items)
-        Assert.False(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should NOT be underlined when disabled");
+        Assert.IsFalse(HasCellWithUnderline(snapshot, 'O'), "Accelerator 'O' should NOT be underlined when disabled");
     }
     
     #endregion

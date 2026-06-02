@@ -14,6 +14,7 @@ namespace Hex1b.Tests;
 /// created on first run. Review the generated baseline files before committing.
 /// </para>
 /// </remarks>
+[TestClass]
 public class TableVisualRegressionTests
 {
     private static bool ShouldUpdateBaselines => 
@@ -21,8 +22,8 @@ public class TableVisualRegressionTests
     
     #region Structure Tests
     
-    [Theory]
-    [MemberData(nameof(TableVisualTestCases.StructureCases), MemberType = typeof(TableVisualTestCases))]
+    [TestMethod]
+    [DynamicData(nameof(TableVisualTestCases.StructureCases), typeof(TableVisualTestCases))]
     public async Task Structure_MatchesBaseline(TableVisualTestCase testCase)
     {
         var result = await TableVisualTestHelper.RenderAndCompareAsync(
@@ -34,8 +35,8 @@ public class TableVisualRegressionTests
         {
             // Output for debugging
             var (_, text) = await TableVisualTestHelper.RenderTableAsync(testCase, TestContext.Current.CancellationToken);
-            TestContext.Current.TestOutputHelper?.WriteLine("Rendered output:");
-            TestContext.Current.TestOutputHelper?.WriteLine(text);
+            TestContext.Current?.WriteLine("Rendered output:");
+            TestContext.Current?.WriteLine(text);
             
             if (result.StartsWith("BASELINE CREATED"))
             {
@@ -51,8 +52,8 @@ public class TableVisualRegressionTests
     
     #region Selection Tests
     
-    [Theory]
-    [MemberData(nameof(TableVisualTestCases.SelectionCases), MemberType = typeof(TableVisualTestCases))]
+    [TestMethod]
+    [DynamicData(nameof(TableVisualTestCases.SelectionCases), typeof(TableVisualTestCases))]
     public async Task Selection_MatchesBaseline(TableVisualTestCase testCase)
     {
         var result = await TableVisualTestHelper.RenderAndCompareAsync(
@@ -63,8 +64,8 @@ public class TableVisualRegressionTests
         if (result != null)
         {
             var (_, text) = await TableVisualTestHelper.RenderTableAsync(testCase, TestContext.Current.CancellationToken);
-            TestContext.Current.TestOutputHelper?.WriteLine("Rendered output:");
-            TestContext.Current.TestOutputHelper?.WriteLine(text);
+            TestContext.Current?.WriteLine("Rendered output:");
+            TestContext.Current?.WriteLine(text);
             Assert.Fail(result);
         }
     }
@@ -73,8 +74,8 @@ public class TableVisualRegressionTests
     
     #region Async Loading Tests
     
-    [Theory]
-    [MemberData(nameof(TableVisualTestCases.AsyncCases), MemberType = typeof(TableVisualTestCases))]
+    [TestMethod]
+    [DynamicData(nameof(TableVisualTestCases.AsyncCases), typeof(TableVisualTestCases))]
     public async Task Async_MatchesBaseline(TableVisualTestCase testCase)
     {
         // Note: Async tests use sync data for baseline capture.
@@ -87,8 +88,8 @@ public class TableVisualRegressionTests
         if (result != null)
         {
             var (_, text) = await TableVisualTestHelper.RenderTableAsync(testCase, TestContext.Current.CancellationToken);
-            TestContext.Current.TestOutputHelper?.WriteLine("Rendered output:");
-            TestContext.Current.TestOutputHelper?.WriteLine(text);
+            TestContext.Current?.WriteLine("Rendered output:");
+            TestContext.Current?.WriteLine(text);
             Assert.Fail(result);
         }
     }
@@ -97,8 +98,8 @@ public class TableVisualRegressionTests
     
     #region Row Focus Tests
     
-    [Theory]
-    [MemberData(nameof(TableVisualTestCases.FocusCases), MemberType = typeof(TableVisualTestCases))]
+    [TestMethod]
+    [DynamicData(nameof(TableVisualTestCases.FocusCases), typeof(TableVisualTestCases))]
     public async Task Focus_MatchesBaseline(TableVisualTestCase testCase)
     {
         var result = await TableVisualTestHelper.RenderAndCompareAsync(
@@ -109,8 +110,8 @@ public class TableVisualRegressionTests
         if (result != null)
         {
             var (_, text) = await TableVisualTestHelper.RenderTableAsync(testCase, TestContext.Current.CancellationToken);
-            TestContext.Current.TestOutputHelper?.WriteLine("Rendered output:");
-            TestContext.Current.TestOutputHelper?.WriteLine(text);
+            TestContext.Current?.WriteLine("Rendered output:");
+            TestContext.Current?.WriteLine(text);
             Assert.Fail(result);
         }
     }
@@ -119,8 +120,8 @@ public class TableVisualRegressionTests
     
     #region Table Focus Indicator Tests
     
-    [Theory]
-    [MemberData(nameof(TableVisualTestCases.TableFocusCases), MemberType = typeof(TableVisualTestCases))]
+    [TestMethod]
+    [DynamicData(nameof(TableVisualTestCases.TableFocusCases), typeof(TableVisualTestCases))]
     public async Task TableFocus_MatchesBaseline(TableVisualTestCase testCase)
     {
         var result = await TableVisualTestHelper.RenderAndCompareAsync(
@@ -131,8 +132,8 @@ public class TableVisualRegressionTests
         if (result != null)
         {
             var (_, text) = await TableVisualTestHelper.RenderTableAsync(testCase, TestContext.Current.CancellationToken);
-            TestContext.Current.TestOutputHelper?.WriteLine("Rendered output:");
-            TestContext.Current.TestOutputHelper?.WriteLine(text);
+            TestContext.Current?.WriteLine("Rendered output:");
+            TestContext.Current?.WriteLine(text);
             Assert.Fail(result);
         }
     }

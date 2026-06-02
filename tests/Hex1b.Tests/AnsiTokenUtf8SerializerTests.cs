@@ -3,9 +3,10 @@ using Hex1b.Tokens;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AnsiTokenUtf8SerializerTests
 {
-    [Fact]
+    [TestMethod]
     public void Serialize_SingleToken_MatchesStringSerializerUtf8()
     {
         var token = new CursorPositionToken(10, 20);
@@ -13,10 +14,10 @@ public class AnsiTokenUtf8SerializerTests
         var expected = Encoding.UTF8.GetBytes(AnsiTokenSerializer.Serialize(token));
         var actual = AnsiTokenUtf8Serializer.Serialize(token).Span.ToArray();
 
-        Assert.Equal(expected, actual);
+        TestSeq.AreEqual(expected, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void Serialize_TokenList_MatchesStringSerializerUtf8()
     {
         IReadOnlyList<AnsiToken> tokens =
@@ -34,7 +35,7 @@ public class AnsiTokenUtf8SerializerTests
         var expected = Encoding.UTF8.GetBytes(AnsiTokenSerializer.Serialize(tokens));
         var actual = AnsiTokenUtf8Serializer.Serialize(tokens).Span.ToArray();
 
-        Assert.Equal(expected, actual);
+        TestSeq.AreEqual(expected, actual);
     }
 }
 

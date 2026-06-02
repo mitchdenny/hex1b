@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the Hex1bTerminalBuilder.
 /// </summary>
+[TestClass]
 public class Hex1bTerminalBuilderTests
 {
     private static string GetTempRecordingPath()
@@ -26,16 +27,16 @@ public class Hex1bTerminalBuilderTests
         return await reader.ReadToEndAsync(ct);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CreateBuilder_ReturnsNewBuilderInstance()
     {
         var builder = Hex1bTerminal.CreateBuilder();
         
-        Assert.NotNull(builder);
-        Assert.IsType<Hex1bTerminalBuilder>(builder);
+        Assert.IsNotNull(builder);
+        TestSeq.IsType<Hex1bTerminalBuilder>(builder);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Build_WithWorkloadAdapter_CreatesTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -46,27 +47,27 @@ public class Hex1bTerminalBuilderTests
             .WithHeadless()
             .Build();
         
-        Assert.NotNull(terminal);
+        Assert.IsNotNull(terminal);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Build_WithoutWorkload_ThrowsInvalidOperationException()
     {
         var builder = Hex1bTerminal.CreateBuilder();
         
-        var ex = Assert.Throws<InvalidOperationException>(() => builder.Build());
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() => builder.Build());
         Assert.Contains("No workload configured", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHeadless_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithHeadless();
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHeadless_CreatesWorkingTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -78,11 +79,11 @@ public class Hex1bTerminalBuilderTests
             .Build();
         
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(80, snapshot.Width);
-        Assert.Equal(24, snapshot.Height);
+        Assert.AreEqual(80, snapshot.Width);
+        Assert.AreEqual(24, snapshot.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithDimensions_SetsTerminalSize()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -94,46 +95,46 @@ public class Hex1bTerminalBuilderTests
             .Build();
         
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal(100, snapshot.Width);
-        Assert.Equal(50, snapshot.Height);
+        Assert.AreEqual(100, snapshot.Width);
+        Assert.AreEqual(50, snapshot.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithDimensions_InvalidWidth_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithDimensions(0, 24));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithDimensions_InvalidHeight_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithDimensions(80, 0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithWorkload_NullAdapter_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithWorkload(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AddWorkloadFilter_NullFilter_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().AddWorkloadFilter(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AddPresentationFilter_NullFilter_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().AddPresentationFilter(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AddWorkloadFilter_AddsFilterToTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -146,10 +147,10 @@ public class Hex1bTerminalBuilderTests
             .Build();
         
         // Filter should have been notified of session start
-        Assert.True(filter.SessionStartCalled);
+        Assert.IsTrue(filter.SessionStartCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunAsync_WithRunCallback_ExecutesCallback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -170,11 +171,11 @@ public class Hex1bTerminalBuilderTests
         await using var terminal = builder.Build();
         var exitCode = await terminal.RunAsync();
         
-        Assert.True(callbackExecuted);
-        Assert.Equal(42, exitCode);
+        Assert.IsTrue(callbackExecuted);
+        Assert.AreEqual(42, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RunAsync_WithCancellation_ThrowsOperationCanceledException()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -196,11 +197,10 @@ public class Hex1bTerminalBuilderTests
         // Cancel immediately
         cts.Cancel();
         
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
-            () => terminal.RunAsync(cts.Token));
+        await Assert.ThrowsAsync<OperationCanceledException>(() => terminal.RunAsync(cts.Token));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Build_ThenRunAsync_BuildsAndRunsTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -220,11 +220,11 @@ public class Hex1bTerminalBuilderTests
         await using var terminal = builder.Build();
         var exitCode = await terminal.RunAsync();
         
-        Assert.True(callbackExecuted);
-        Assert.Equal(99, exitCode);
+        Assert.IsTrue(callbackExecuted);
+        Assert.AreEqual(99, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FluentApi_AllMethodsReturnBuilder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -238,39 +238,39 @@ public class Hex1bTerminalBuilderTests
             .AddPresentationFilter(presentationFilter)
             .WithTimeProvider(TimeProvider.System);
         
-        Assert.IsType<Hex1bTerminalBuilder>(builder);
+        TestSeq.IsType<Hex1bTerminalBuilder>(builder);
     }
 
     // === WithHex1bApp Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_NullConfigure_ThrowsArgumentNullException()
     {
         Func<RootContext, Hex1bWidget>? nullBuilder = null;
         
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_AsyncNullConfigure_ThrowsArgumentNullException()
     {
         Func<RootContext, Task<Hex1bWidget>>? nullBuilder = null;
         
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithHex1bApp(nullBuilder!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithHex1bApp(ctx => ctx.Text("Hello"));
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_CanBuild()
     {
         // Should not throw - uses explicit presentation
@@ -279,10 +279,10 @@ public class Hex1bTerminalBuilderTests
             .WithPresentation(new TestPresentationAdapter());
         
         using var terminal = builder.Build();
-        Assert.NotNull(terminal);
+        Assert.IsNotNull(terminal);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_AsyncBuilder_CanRun()
     {
         var builderCalled = false;
@@ -302,11 +302,11 @@ public class Hex1bTerminalBuilderTests
         await using var terminal = builder.Build();
         var exitCode = await terminal.RunAsync(cts.Token);
         
-        Assert.True(builderCalled);
-        Assert.Equal(0, exitCode);
+        Assert.IsTrue(builderCalled);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_SyncBuilder_CanRun()
     {
         var builderCalled = false;
@@ -323,20 +323,20 @@ public class Hex1bTerminalBuilderTests
         await using var terminal = builder.Build();
         var exitCode = await terminal.RunAsync(cts.Token);
         
-        Assert.True(builderCalled);
-        Assert.Equal(0, exitCode);
+        Assert.IsTrue(builderCalled);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithMouse_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
             .WithMouse(true);
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_FluentChain_Works()
     {
         var filter = new TestWorkloadFilter();
@@ -352,12 +352,12 @@ public class Hex1bTerminalBuilderTests
         await using var terminal = builder.Build();
         await terminal.RunAsync(cts.Token);
         
-        Assert.True(filter.SessionStartCalled);
+        Assert.IsTrue(filter.SessionStartCalled);
     }
 
     // === WithHex1bApp Capture Pattern Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_CanCaptureApp()
     {
         Hex1bApp? capturedApp = null;
@@ -385,10 +385,10 @@ public class Hex1bTerminalBuilderTests
 
         await runTask;
 
-        Assert.NotNull(capturedApp);
+        Assert.IsNotNull(capturedApp);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_CanSetTheme()
     {
         var pattern = new CellPatternSearcher().Find("Themed content");
@@ -412,7 +412,7 @@ public class Hex1bTerminalBuilderTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithHex1bApp_AsyncBuilderWithCapture_Works()
     {
         Hex1bApp? capturedApp = null;
@@ -444,27 +444,27 @@ public class Hex1bTerminalBuilderTests
 
         await runTask;
 
-        Assert.NotNull(capturedApp);
+        Assert.IsNotNull(capturedApp);
     }
 
     // === WithPtyProcess Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithPtyProcess("dotnet", "--version");
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_NullFileName_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithPtyProcess((string)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_OptionsOverload_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder()
@@ -474,20 +474,20 @@ public class Hex1bTerminalBuilderTests
                 options.Arguments = ["--version"];
             });
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_Options_NullConfigure_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithPtyProcess((Action<Hex1bTerminalProcessOptions>)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_Options_EmptyFileName_ThrowsInvalidOperationException()
     {
-        var ex = Assert.Throws<InvalidOperationException>(() =>
+        var ex = Assert.ThrowsExactly<InvalidOperationException>(() =>
             Hex1bTerminal.CreateBuilder()
                 .WithPtyProcess(options => { /* FileName not set */ })
                 .Build());
@@ -495,7 +495,7 @@ public class Hex1bTerminalBuilderTests
         Assert.Contains("FileName", ex.Message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_Options_CanSetEnvironment()
     {
         // Should not throw when setting environment variables
@@ -509,10 +509,10 @@ public class Hex1bTerminalBuilderTests
                 };
             });
         
-        Assert.NotNull(builder);
+        Assert.IsNotNull(builder);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_Options_CanSetWorkingDirectory()
     {
         // Should not throw when setting working directory
@@ -523,10 +523,10 @@ public class Hex1bTerminalBuilderTests
                 options.WorkingDirectory = Path.GetTempPath();
             });
         
-        Assert.NotNull(builder);
+        Assert.IsNotNull(builder);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_ExecutesProcess()
     {
         var pattern = new CellPatternSearcher().Find("Hello from test program");
@@ -552,10 +552,10 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithPtyProcess_InteractiveProcess_RespondsToInput()
     {
         var readyPattern = new CellPatternSearcher().Find("Ready");
@@ -581,27 +581,27 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
     // === WithProcess (Standard .NET Process) Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ReturnsBuilder()
     {
         var result = Hex1bTerminal.CreateBuilder().WithProcess("dotnet", "--version");
         
-        Assert.IsType<Hex1bTerminalBuilder>(result);
+        TestSeq.IsType<Hex1bTerminalBuilder>(result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_NullFileName_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithProcess((string)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ExecutesProcess()
     {
         // Inline C# echo script
@@ -627,30 +627,30 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
     // === WithProcess(ProcessStartInfo) Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_ReturnsBuilder()
     {
         var startInfo = new ProcessStartInfo("dotnet", "--version");
         var builder = Hex1bTerminal.CreateBuilder()
             .WithProcess(startInfo);
         
-        Assert.NotNull(builder);
+        Assert.IsNotNull(builder);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_NullThrows()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder()
                 .WithProcess((ProcessStartInfo)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_AdapterCapturesOutput()
     {
         // Inline C# echo script
@@ -682,11 +682,11 @@ public class Hex1bTerminalBuilderTests
         var exitCode = await adapter.WaitForExitAsync();
         await adapter.DisposeAsync();
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
         Assert.Contains("AdapterTestOutput", output.ToString());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_ExecutesProcess()
     {
         // Inline C# echo script
@@ -719,10 +719,10 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_PreservesWorkingDirectory()
     {
         // Inline C# pwd script
@@ -756,10 +756,10 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithProcess_ProcessStartInfo_PreservesEnvironmentVariables()
     {
         // Inline C# env script
@@ -798,7 +798,7 @@ public class Hex1bTerminalBuilderTests
 
         var exitCode = await runTask;
         
-        Assert.Equal(0, exitCode);
+        Assert.AreEqual(0, exitCode);
     }
 
     // === Test Helpers ===
@@ -892,7 +892,7 @@ public class Hex1bTerminalBuilderTests
 
     // === Diagnostic Tests for PTY + Headless Investigation ===
 
-    [Fact]
+    [TestMethod]
     public async Task Diagnostic_EchoCommand_OutputAppearsInBuffer()
     {
         // Inline C# delay script that outputs a marker after a delay
@@ -952,7 +952,7 @@ public class Hex1bTerminalBuilderTests
             await Task.Delay(50, cts.Token);
         }
 
-        TestContext.Current.TestOutputHelper?.WriteLine(diagnosticOutput.ToString());
+        TestContext.Current?.WriteLine(diagnosticOutput.ToString());
 
         // Wait for process to complete
         var exitCode = 0;
@@ -966,14 +966,13 @@ public class Hex1bTerminalBuilderTests
             exitCode = await runTask;
         }
 
-        Assert.True(foundMarker, 
-            $"Expected to find 'DIAGNOSTIC_MARKER_12345' in screen buffer.\n" +
+        Assert.IsTrue(foundMarker, $"Expected to find 'DIAGNOSTIC_MARKER_12345' in screen buffer.\n" +
             $"Diagnostics:\n{diagnosticOutput}");
     }
 
     // === Recording and Optimization Tests ===
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_ReturnsBuilder()
     {
         var tempFile = GetTempRecordingPath();
@@ -983,7 +982,7 @@ public class Hex1bTerminalBuilderTests
                 .WithHex1bApp(ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile);
 
-            Assert.IsType<Hex1bTerminalBuilder>(result);
+            TestSeq.IsType<Hex1bTerminalBuilder>(result);
         }
         finally
         {
@@ -991,21 +990,21 @@ public class Hex1bTerminalBuilderTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_NullPath_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_EmptyPath_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.ThrowsExactly<ArgumentException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording(""));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_WithCapture_ReturnsBuilder()
     {
         var tempFile = GetTempRecordingPath();
@@ -1016,8 +1015,8 @@ public class Hex1bTerminalBuilderTests
                 .WithHex1bApp(ctx => ctx.Text("Hello"))
                 .WithAsciinemaRecording(tempFile, r => capturedRecorder = r);
 
-            Assert.IsType<Hex1bTerminalBuilder>(result);
-            Assert.NotNull(capturedRecorder);
+            TestSeq.IsType<Hex1bTerminalBuilder>(result);
+            Assert.IsNotNull(capturedRecorder);
         }
         finally
         {
@@ -1025,14 +1024,14 @@ public class Hex1bTerminalBuilderTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_WithCapture_NullCapture_ThrowsArgumentNullException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaRecording("test.cast", (Action<AsciinemaRecorder>)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_RecordsOutput()
     {
         var tempFile = GetTempRecordingPath();
@@ -1062,12 +1061,12 @@ public class Hex1bTerminalBuilderTests
 
                 await runTask;
 
-                Assert.NotNull(recorder);
+                Assert.IsNotNull(recorder);
                 await recorder.FlushAsync();
             }
 
             // Verify the recording file was created
-            Assert.True(File.Exists(tempFile), "Recording file should exist");
+            Assert.IsTrue(File.Exists(tempFile), "Recording file should exist");
             var content = await ReadAllTextSharedAsync(tempFile, TestContext.Current.CancellationToken);
             Assert.Contains("\"version\":2", content); // Asciinema v2 format
             Assert.Contains("Test Recording", content); // Title is present
@@ -1078,7 +1077,7 @@ public class Hex1bTerminalBuilderTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithAsciinemaRecording_WithOptions_SetsRecorderOptions()
     {
         var tempFile = GetTempRecordingPath();
@@ -1096,11 +1095,11 @@ public class Hex1bTerminalBuilderTests
                     IdleTimeLimit = 5.0f
                 });
 
-            Assert.NotNull(recorder);
-            Assert.Equal("Custom Title", recorder.Options.Title);
-            Assert.Equal("test-command", recorder.Options.Command);
-            Assert.True(recorder.Options.CaptureInput);
-            Assert.Equal(5.0f, recorder.Options.IdleTimeLimit);
+            Assert.IsNotNull(recorder);
+            Assert.AreEqual("Custom Title", recorder.Options.Title);
+            Assert.AreEqual("test-command", recorder.Options.Command);
+            Assert.IsTrue(recorder.Options.CaptureInput);
+            Assert.AreEqual(5.0f, recorder.Options.IdleTimeLimit);
         }
         finally
         {
@@ -1108,7 +1107,7 @@ public class Hex1bTerminalBuilderTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FluentChain_WithRecordingAndFilters_Works()
     {
         var tempFile = GetTempRecordingPath();
@@ -1141,8 +1140,8 @@ public class Hex1bTerminalBuilderTests
             await runTask;
 
             // All filters should have been invoked
-            Assert.True(filter.SessionStartCalled, "Workload filter should be called");
-            Assert.NotNull(recorder);
+            Assert.IsTrue(filter.SessionStartCalled, "Workload filter should be called");
+            Assert.IsNotNull(recorder);
         }
         finally
         {
@@ -1152,40 +1151,40 @@ public class Hex1bTerminalBuilderTests
 
     // === WithAsciinemaPlayback Tests ===
 
-    [Fact]
+    [TestMethod]
     public void WithAsciinemaPlayback_NullFilePath_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentNullException>(() =>
+        Assert.ThrowsExactly<ArgumentNullException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaPlayback(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAsciinemaPlayback_EmptyFilePath_ThrowsArgumentException()
     {
-        Assert.Throws<ArgumentException>(() =>
+        Assert.ThrowsExactly<ArgumentException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaPlayback(""));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAsciinemaPlayback_ZeroSpeedMultiplier_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaPlayback("file.cast", speedMultiplier: 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAsciinemaPlayback_NegativeSpeedMultiplier_ThrowsArgumentOutOfRangeException()
     {
-        Assert.Throws<ArgumentOutOfRangeException>(() =>
+        Assert.ThrowsExactly<ArgumentOutOfRangeException>(() =>
             Hex1bTerminal.CreateBuilder().WithAsciinemaPlayback("file.cast", speedMultiplier: -1.0));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithAsciinemaPlayback_ReturnsBuilder()
     {
         var builder = Hex1bTerminal.CreateBuilder()
             .WithAsciinemaPlayback("/tmp/test.cast");
         
-        Assert.IsType<Hex1bTerminalBuilder>(builder);
+        TestSeq.IsType<Hex1bTerminalBuilder>(builder);
     }
 }

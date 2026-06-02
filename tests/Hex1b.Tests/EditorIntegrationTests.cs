@@ -13,12 +13,13 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorIntegrationTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
     private static bool ColorEquals(Hex1bColor? a, Hex1bColor? b) => Nullable.Equals(a, b);
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_RendersInitialContent()
     {
         // NOTE: Initial rendering may change with gutter/line numbers.
@@ -63,7 +64,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_TypeCharacter_AppearsOnScreen()
     {
         // NOTE: Character rendering may change with IME support.
@@ -103,10 +104,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("a", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("a", snapshot.GetCell(0, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_TypeMultipleCharacters_AllVisibleWithCursorAtEnd()
     {
         // NOTE: Multi-char rendering may change with ligature support.
@@ -143,14 +144,14 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("h", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("e", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("o", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("h", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("o", snapshot.GetCell(4, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_Backspace_DeletesPreviousChar()
     {
         // NOTE: Backspace behavior may change with auto-indent unindent.
@@ -193,10 +194,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("a", doc.GetText());
+        Assert.AreEqual("a", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_Enter_InsertsNewline()
     {
         // NOTE: Enter behavior may change with auto-indent.
@@ -232,10 +233,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("A\nB", doc.GetText());
+        Assert.AreEqual("A\nB", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_ArrowKeys_MoveCursorVisually()
     {
         // NOTE: Cursor position may include virtual space in future.
@@ -273,7 +274,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_HomeEnd_MoveCursorToLineStartEnd()
     {
         // NOTE: Home may gain smart-home (first non-whitespace) behavior.
@@ -322,7 +323,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_Tab_Inserts4Spaces()
     {
         // NOTE: Tab behavior may change with tab-to-spaces toggle.
@@ -358,10 +359,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("    ", doc.GetText()); // 4 spaces
+        Assert.AreEqual("    ", doc.GetText()); // 4 spaces
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_CursorFollowsTypedText()
     {
         // NOTE: Cursor tracking may change with multi-cursor.
@@ -397,10 +398,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal(new DocumentOffset(5), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_OnTextChanged_CallbackFires()
     {
         // NOTE: Callback may gain debouncing in future.
@@ -436,7 +437,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_EmptyDocumentEditing_TypeAndVerify()
     {
         // NOTE: Empty document may show placeholder text in future.
@@ -473,10 +474,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("X", doc.GetText());
+        Assert.AreEqual("X", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_LongDocumentScrolling_PageDownShowsLaterLines()
     {
         // NOTE: Scroll behavior may gain smooth scrolling.
@@ -512,7 +513,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_DeleteForward_RemovesNextChar()
     {
         // NOTE: Delete forward may change with paired bracket deletion.
@@ -545,10 +546,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("BC", doc.GetText());
+        Assert.AreEqual("BC", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_CtrlA_SelectsAll()
     {
         // NOTE: Selection rendering will change when highlighting is implemented.
@@ -576,9 +577,9 @@ public class EditorIntegrationTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Verify state: selection covers entire document
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(0), state.Cursor.SelectionStart);
-        Assert.Equal(new DocumentOffset(11), state.Cursor.SelectionEnd);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(0), state.Cursor.SelectionStart);
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.SelectionEnd);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -587,7 +588,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_MultiLinePaste_RendersAcrossLines()
     {
         // NOTE: Paste may gain formatting/indent adjustment in future.
@@ -625,9 +626,9 @@ public class EditorIntegrationTests
 
         // Capture snapshot while still in alternate screen
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character); // Alpha
-        Assert.Equal("B", snapshot.GetCell(0, 1).Character); // Beta
-        Assert.Equal("G", snapshot.GetCell(0, 2).Character); // Gamma
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character); // Alpha
+        Assert.AreEqual("B", snapshot.GetCell(0, 1).Character); // Beta
+        Assert.AreEqual("G", snapshot.GetCell(0, 2).Character); // Gamma
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -637,7 +638,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_ReadOnly_TypingDoesNotModifyDocument()
     {
         // NOTE: Read-only may gain visual indicator (dimmed text, lock icon).
@@ -668,7 +669,7 @@ public class EditorIntegrationTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Document should still be "Original"
-        Assert.Equal("Original", doc.GetText());
+        Assert.AreEqual("Original", doc.GetText());
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -677,7 +678,7 @@ public class EditorIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_RapidTyping_AllCharsAppear()
     {
         // NOTE: Input buffering may be added for very rapid typing.
@@ -710,10 +711,10 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal(expected, doc.GetText());
+        Assert.AreEqual(expected, doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Editor_DeleteAllContent_EmptyEditorWithCursor()
     {
         // NOTE: Undo may restore deleted content in future.
@@ -751,6 +752,6 @@ public class EditorIntegrationTests
 
         await runTask;
 
-        Assert.Equal("", doc.GetText());
+        Assert.AreEqual("", doc.GetText());
     }
 }

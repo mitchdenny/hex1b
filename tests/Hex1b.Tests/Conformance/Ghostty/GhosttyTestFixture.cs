@@ -9,7 +9,7 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// <remarks>
 /// Ghostty's tests represent their interpretation of VT terminal standards.
 /// Failures are triaged as: Bug, MissingFeature, IntentionalDivergence, or GhosttySpecific.
-/// Use [Trait("Category", "GhosttyConformance")] on all test classes.
+/// Use [TestCategory("GhosttyConformance")] on all test classes.
 /// </remarks>
 public static class GhosttyTestFixture
 {

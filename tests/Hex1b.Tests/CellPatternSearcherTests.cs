@@ -5,6 +5,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Comprehensive tests for the CellPatternSearcher API.
 /// </summary>
+[TestClass]
 public class CellPatternSearcherTests
 {
     #region Helper Methods
@@ -73,26 +74,26 @@ public class CellPatternSearcherTests
 
     #region TraversedCell Tests
 
-    [Fact]
+    [TestMethod]
     public async Task TraversedCell_HasCorrectProperties()
     {
         var cell = new TerminalCell("A", null, null);
         var traversed = new TraversedCell(5, 10, cell, null);
 
-        Assert.Equal(5, traversed.X);
-        Assert.Equal(10, traversed.Y);
-        Assert.Equal("A", traversed.Cell.Character);
-        Assert.Null(traversed.CaptureNames);
+        Assert.AreEqual(5, traversed.X);
+        Assert.AreEqual(10, traversed.Y);
+        Assert.AreEqual("A", traversed.Cell.Character);
+        Assert.IsNull(traversed.CaptureNames);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TraversedCell_WithCaptureNames()
     {
         var cell = new TerminalCell("B", null, null);
         var captures = new HashSet<string> { "name", "value" };
         var traversed = new TraversedCell(0, 0, cell, captures);
 
-        Assert.NotNull(traversed.CaptureNames);
+        Assert.IsNotNull(traversed.CaptureNames);
         Assert.Contains("name", traversed.CaptureNames);
         Assert.Contains("value", traversed.CaptureNames);
     }
@@ -101,23 +102,23 @@ public class CellPatternSearcherTests
 
     #region CellMatchContext Tests
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_ProvidesRegionAccess()
     {
         var snapshot = await CreateSnapshotAsync("Hello World");
         var pattern = new CellPatternSearcher()
             .Find(ctx =>
             {
-                Assert.NotNull(ctx.Region);
-                Assert.Equal(80, ctx.Region.Width);
+                Assert.IsNotNull(ctx.Region);
+                Assert.AreEqual(80, ctx.Region.Width);
                 return ctx.Cell.Character == "H";
             });
 
         var result = pattern.Search(snapshot);
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_ProvidesCurrentPosition()
     {
         var snapshot = await CreateSnapshotAsync("Hello");
@@ -138,7 +139,7 @@ public class CellPatternSearcherTests
         Assert.Contains((3, 0), positions); // 'l'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_ProvidesMatchStartCell()
     {
         var snapshot = await CreateSnapshotAsync("ABC");
@@ -154,11 +155,11 @@ public class CellPatternSearcherTests
 
         pattern.Search(snapshot);
 
-        Assert.NotNull(capturedStartCell);
-        Assert.Equal("A", capturedStartCell.Value.Character);
+        Assert.IsNotNull(capturedStartCell);
+        Assert.AreEqual("A", capturedStartCell.Value.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_ProvidesPreviousCell()
     {
         var snapshot = await CreateSnapshotAsync("ABC");
@@ -179,12 +180,12 @@ public class CellPatternSearcherTests
 
         pattern.Search(snapshot);
 
-        Assert.Equal(2, previousChars.Count);
-        Assert.Equal("A", previousChars[0]);
-        Assert.Equal("B", previousChars[1]);
+        Assert.AreEqual(2, previousChars.Count);
+        Assert.AreEqual("A", previousChars[0]);
+        Assert.AreEqual("B", previousChars[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_GetRelative_ReturnsCorrectCell()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "ABC", "DEF", "GHI" });
@@ -202,11 +203,11 @@ public class CellPatternSearcherTests
 
         pattern.Search(snapshot);
 
-        Assert.NotNull(relativeCell);
-        Assert.Equal("A", relativeCell.Value.Character);
+        Assert.IsNotNull(relativeCell);
+        Assert.AreEqual("A", relativeCell.Value.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_GetAbsolute_ReturnsCorrectCell()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "ABC", "DEF" });
@@ -222,11 +223,11 @@ public class CellPatternSearcherTests
 
         pattern.Search(snapshot);
 
-        Assert.NotNull(absoluteCell);
-        Assert.Equal("F", absoluteCell.Value.Character);
+        Assert.IsNotNull(absoluteCell);
+        Assert.AreEqual("F", absoluteCell.Value.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CellMatchContext_TraversedCells_TracksProgress()
     {
         var snapshot = await CreateSnapshotAsync("ABCD");
@@ -252,17 +253,17 @@ public class CellPatternSearcherTests
 
         pattern.Search(snapshot);
 
-        Assert.Equal(3, traversedCounts.Count);
-        Assert.Equal(1, traversedCounts[0]); // After Find('A')
-        Assert.Equal(2, traversedCounts[1]); // After first Right
-        Assert.Equal(3, traversedCounts[2]); // After second Right
+        Assert.AreEqual(3, traversedCounts.Count);
+        Assert.AreEqual(1, traversedCounts[0]); // After Find('A')
+        Assert.AreEqual(2, traversedCounts[1]); // After first Right
+        Assert.AreEqual(3, traversedCounts[2]); // After second Right
     }
 
     #endregion
 
     #region Find Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Find_WithChar_MatchesSingleCharacter()
     {
         var snapshot = await CreateSnapshotAsync("Hello World");
@@ -270,12 +271,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Single(result.Matches);
-        Assert.Equal(6, result.First!.Start.X);
+        Assert.IsTrue(result.HasMatches);
+        TestSeq.Single(result.Matches);
+        Assert.AreEqual(6, result.First!.Start.X);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Find_WithChar_FindsMultipleOccurrences()
     {
         var snapshot = await CreateSnapshotAsync("ababa");
@@ -283,10 +284,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal(3, result.Count);
+        Assert.AreEqual(3, result.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Find_WithPredicate_MatchesCondition()
     {
         var snapshot = await CreateSnapshotAsync("abc123def");
@@ -295,10 +296,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal(3, result.Count);
+        Assert.AreEqual(3, result.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FindPattern_WithRegexString_MatchesPattern()
     {
         var snapshot = await CreateSnapshotAsync("Name: John, Age: 30");
@@ -306,10 +307,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task FindPattern_WithCompiledRegex_MatchesPattern()
     {
         var snapshot = await CreateSnapshotAsync("Error: file not found");
@@ -318,10 +319,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Find_NoMatch_ReturnsEmptyResult()
     {
         var snapshot = await CreateSnapshotAsync("Hello World");
@@ -329,12 +330,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
-        Assert.Equal(0, result.Count);
-        Assert.Null(result.First);
+        Assert.IsFalse(result.HasMatches);
+        Assert.AreEqual(0, result.Count);
+        Assert.IsNull(result.First);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Find_AcrossMultipleLines()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "Line 1", "Line 2", "Line 3" });
@@ -342,17 +343,17 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal(3, result.Count);
-        Assert.Equal(0, result.Matches[0].Start.Y);
-        Assert.Equal(1, result.Matches[1].Start.Y);
-        Assert.Equal(2, result.Matches[2].Start.Y);
+        Assert.AreEqual(3, result.Count);
+        Assert.AreEqual(0, result.Matches[0].Start.Y);
+        Assert.AreEqual(1, result.Matches[1].Start.Y);
+        Assert.AreEqual(2, result.Matches[2].Start.Y);
     }
 
     #endregion
 
     #region Directional Movement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Right_WithChar_MovesAndMatches()
     {
         var snapshot = await CreateSnapshotAsync("AB");
@@ -360,11 +361,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(2, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(2, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Right_WithPredicate_MovesAndMatches()
     {
         var snapshot = await CreateSnapshotAsync("A1");
@@ -374,10 +375,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Right_FailsIfNoMatch()
     {
         var snapshot = await CreateSnapshotAsync("AC");
@@ -385,10 +386,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Right_WithCount_MovesMultipleCells()
     {
         var snapshot = await CreateSnapshotAsync("ABCDE");
@@ -396,12 +397,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(4, result.First!.Cells.Count); // A + 3 more
-        Assert.Equal((3, 0), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(4, result.First!.Cells.Count); // A + 3 more
+        Assert.AreEqual((3, 0), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Right_WithCountAndPredicate_AllMustMatch()
     {
         var snapshot = await CreateSnapshotAsync("A111B");
@@ -411,10 +412,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Right_WithCountAndPredicate_FailsIfAnyDontMatch()
     {
         var snapshot = await CreateSnapshotAsync("A121B");
@@ -424,10 +425,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Left_WithChar_MovesLeft()
     {
         var snapshot = await CreateSnapshotAsync("BA");
@@ -435,10 +436,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Up_WithChar_MovesUp()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B" });
@@ -446,10 +447,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Down_WithChar_MovesDown()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B" });
@@ -457,10 +458,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Left_WithCount_MovesMultipleCells()
     {
         var snapshot = await CreateSnapshotAsync("ABCDE");
@@ -468,11 +469,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(5, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(5, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Up_WithCount_MovesMultipleCells()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C", "D", "E" });
@@ -480,11 +481,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(5, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(5, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Down_WithCount_MovesMultipleCells()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C", "D", "E" });
@@ -492,15 +493,15 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(5, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(5, result.First!.Cells.Count);
     }
 
     #endregion
 
     #region Text Sequence Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RightText_MatchesExactSequence()
     {
         var snapshot = await CreateSnapshotAsync("Hello World");
@@ -508,11 +509,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("Hello", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("Hello", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightText_FailsOnMismatch()
     {
         var snapshot = await CreateSnapshotAsync("Hello World");
@@ -520,10 +521,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftText_MatchesExactSequence()
     {
         var snapshot = await CreateSnapshotAsync("Hello");
@@ -531,14 +532,14 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
     #endregion
 
     #region While Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RightWhile_ConsumesMatchingCells()
     {
         var snapshot = await CreateSnapshotAsync("AAA123");
@@ -548,11 +549,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("AAA", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("AAA", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightWhile_StopsAtNonMatch()
     {
         var snapshot = await CreateSnapshotAsync("AAABBB");
@@ -562,10 +563,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal("AAA", result.First!.Text);
+        Assert.AreEqual("AAA", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightWhile_ZeroMatchesIsValid()
     {
         var snapshot = await CreateSnapshotAsync("AB");
@@ -576,10 +577,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftWhile_ConsumesMatchingCells()
     {
         var snapshot = await CreateSnapshotAsync("123AAA");
@@ -589,11 +590,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(3, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(3, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UpWhile_ConsumesMatchingCells()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "1", "A", "A", "A" });
@@ -603,11 +604,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(3, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(3, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownWhile_ConsumesMatchingCells()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "A", "A", "1" });
@@ -617,15 +618,15 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(3, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(3, result.First!.Cells.Count);
     }
 
     #endregion
 
     #region Until Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RightUntil_WithPredicate_StopsAtMatch()
     {
         var snapshot = await CreateSnapshotAsync("ABC]DEF");
@@ -635,11 +636,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("ABC]", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("ABC]", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightUntil_WithChar_StopsAtChar()
     {
         var snapshot = await CreateSnapshotAsync("[content]");
@@ -649,11 +650,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("[content]", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("[content]", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightUntil_FailsIfNotFound()
     {
         var snapshot = await CreateSnapshotAsync("ABC");
@@ -663,10 +664,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftUntil_StopsAtMatch()
     {
         var snapshot = await CreateSnapshotAsync("[content]");
@@ -676,10 +677,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UpUntil_StopsAtMatch()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "-", "A", "A", "A" });
@@ -689,11 +690,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(4, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(4, result.First!.Cells.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownUntil_StopsAtMatch()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "A", "A", "-" });
@@ -703,15 +704,15 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(4, result.First!.Cells.Count);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(4, result.First!.Cells.Count);
     }
 
     #endregion
 
     #region Boundary Tests
 
-    [Fact]
+    [TestMethod]
     public async Task RightToEnd_GoesToEndOfLine()
     {
         var snapshot = await CreateSnapshotAsync("Hello", 10, 1);
@@ -721,12 +722,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal(10, result.First!.Cells.Count);
-        Assert.Equal((9, 0), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual(10, result.First!.Cells.Count);
+        Assert.AreEqual((9, 0), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftToStart_GoesToStartOfLine()
     {
         var snapshot = await CreateSnapshotAsync("Hello", 10, 1);
@@ -736,11 +737,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal((0, 0), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual((0, 0), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownToBottom_GoesToBottomOfRegion()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C" }, 10, 5);
@@ -750,11 +751,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal((0, 4), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual((0, 4), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UpToTop_GoesToTopOfRegion()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "A", "B", "C" }, 10, 5);
@@ -764,15 +765,15 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal((0, 0), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual((0, 0), result.First!.End);
     }
 
     #endregion
 
     #region Capture Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_CapturesTraversedCells()
     {
         var snapshot = await CreateSnapshotAsync("Name: John");
@@ -784,12 +785,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.True(result.First!.HasCapture("value"));
-        Assert.Equal("John", result.First!.GetCaptureText("value"));
+        Assert.IsTrue(result.HasMatches);
+        Assert.IsTrue(result.First!.HasCapture("value"));
+        Assert.AreEqual("John", result.First!.GetCaptureText("value"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_MultipleCapturesInOnePattern()
     {
         var snapshot = await CreateSnapshotAsync("A=1 B=2");
@@ -808,12 +809,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("A=1", result.First!.GetCaptureText("first"));
-        Assert.Equal("B=2", result.First!.GetCaptureText("second"));
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("A=1", result.First!.GetCaptureText("first"));
+        Assert.AreEqual("B=2", result.First!.GetCaptureText("second"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_NestedCaptures()
     {
         var snapshot = await CreateSnapshotAsync("[ERROR] msg");
@@ -831,13 +832,13 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.True(result.First!.HasCapture("all"));
-        Assert.True(result.First!.HasCapture("tag"));
-        Assert.True(result.First!.HasCapture("msg"));
+        Assert.IsTrue(result.HasMatches);
+        Assert.IsTrue(result.First!.HasCapture("all"));
+        Assert.IsTrue(result.First!.HasCapture("tag"));
+        Assert.IsTrue(result.First!.HasCapture("msg"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_GetCaptureBounds_ReturnsCorrectRect()
     {
         var snapshot = await CreateSnapshotAsync("XX[val]XX");
@@ -850,12 +851,12 @@ public class CellPatternSearcherTests
         var result = pattern.Search(snapshot);
         var bounds = result.First!.GetCaptureBounds("inner");
 
-        Assert.Equal(3, bounds.X); // Starts at 'v'
-        Assert.Equal(0, bounds.Y);
-        Assert.True(bounds.Width >= 3); // 'val]'
+        Assert.AreEqual(3, bounds.X); // Starts at 'v'
+        Assert.AreEqual(0, bounds.Y);
+        Assert.IsTrue(bounds.Width >= 3); // 'val]'
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Capture_NonExistentCapture_ReturnsEmpty()
     {
         var snapshot = await CreateSnapshotAsync("test");
@@ -863,16 +864,16 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.First!.HasCapture("nonexistent"));
-        Assert.Empty(result.First!.GetCapture("nonexistent"));
-        Assert.Equal("", result.First!.GetCaptureText("nonexistent"));
+        Assert.IsFalse(result.First!.HasCapture("nonexistent"));
+        Assert.IsEmpty(result.First!.GetCapture("nonexistent"));
+        Assert.AreEqual("", result.First!.GetCaptureText("nonexistent"));
     }
 
     #endregion
 
     #region Composition Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Then_ChainsPatterns()
     {
         var prefix = new CellPatternSearcher().Find('[').RightUntil(']');
@@ -885,10 +886,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Then_WithAction_BuildsSubPattern()
     {
         var snapshot = await CreateSnapshotAsync("ABC123");
@@ -898,11 +899,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("ABC", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("ABC", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenOptional_ContinuesIfSubPatternFails()
     {
         var snapshot = await CreateSnapshotAsync("AD");
@@ -915,10 +916,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenOptional_IncludesMatchWhenSuccessful()
     {
         var snapshot = await CreateSnapshotAsync("ABCD");
@@ -931,11 +932,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("ABCD", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("ABCD", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenEither_UsesFirstIfMatches()
     {
         var snapshot = await CreateSnapshotAsync("AB");
@@ -948,11 +949,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("AB", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("AB", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenEither_UsesSecondIfFirstFails()
     {
         var snapshot = await CreateSnapshotAsync("AX");
@@ -965,11 +966,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("AX", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("AX", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenEither_FailsIfBothFail()
     {
         var snapshot = await CreateSnapshotAsync("AZ");
@@ -982,10 +983,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenEither_WithMatch_MatchesTextAtCurrentPosition()
     {
         // Simulates the prompt matching scenario:
@@ -1013,24 +1014,24 @@ public class CellPatternSearcherTests
 
         var results = pattern.Search(snapshot);
 
-        Assert.True(results.HasMatches);
-        Assert.Equal(3, results.Count);
+        Assert.IsTrue(results.HasMatches);
+        Assert.AreEqual(3, results.Count);
         
         // First match: [1 OK]
-        Assert.Equal("1", results.Matches[0].GetCaptureText("seqno"));
-        Assert.False(results.Matches[0].HasCapture("errno"));
+        Assert.AreEqual("1", results.Matches[0].GetCaptureText("seqno"));
+        Assert.IsFalse(results.Matches[0].HasCapture("errno"));
         
         // Second match: [2 OK]
-        Assert.Equal("2", results.Matches[1].GetCaptureText("seqno"));
-        Assert.False(results.Matches[1].HasCapture("errno"));
+        Assert.AreEqual("2", results.Matches[1].GetCaptureText("seqno"));
+        Assert.IsFalse(results.Matches[1].HasCapture("errno"));
         
         // Third match: [3 ERR:127]
-        Assert.Equal("3", results.Matches[2].GetCaptureText("seqno"));
-        Assert.True(results.Matches[2].HasCapture("errno"));
-        Assert.Equal("127", results.Matches[2].GetCaptureText("errno"));
+        Assert.AreEqual("3", results.Matches[2].GetCaptureText("seqno"));
+        Assert.IsTrue(results.Matches[2].HasCapture("errno"));
+        Assert.AreEqual("127", results.Matches[2].GetCaptureText("errno"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Match_DebugCursorPosition()
     {
         // Test Match followed by RightWhile followed by Right
@@ -1044,12 +1045,12 @@ public class CellPatternSearcherTests
             .Right(']');  // Should match ]
 
         var result = pattern.Search(snapshot);
-        Assert.True(result.HasMatches, "Pattern should match :127]");
-        Assert.Equal(":127]", result.First!.Text);
-        Assert.Equal("127", result.First!.GetCaptureText("errno"));
+        Assert.IsTrue(result.HasMatches, "Pattern should match :127]");
+        Assert.AreEqual(":127]", result.First!.Text);
+        Assert.AreEqual("127", result.First!.GetCaptureText("errno"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenRepeat_RepeatsPatternNTimes()
     {
         var snapshot = await CreateSnapshotAsync("ABCABCABC");
@@ -1063,11 +1064,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("ABCABCABC", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("ABCABCABC", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ThenRepeat_WithoutCount_RepeatsWhileMatching()
     {
         var snapshot = await CreateSnapshotAsync("AAAB");
@@ -1079,15 +1080,15 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("AAA", result.First!.Text);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("AAA", result.First!.Text);
     }
 
     #endregion
 
     #region CellPatternMatch Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Match_Bounds_CoversAllCells()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "AB", "CD" });
@@ -1100,13 +1101,13 @@ public class CellPatternSearcherTests
         var result = pattern.Search(snapshot);
         var bounds = result.First!.Bounds;
 
-        Assert.Equal(0, bounds.X);
-        Assert.Equal(0, bounds.Y);
-        Assert.Equal(2, bounds.Width);
-        Assert.Equal(2, bounds.Height);
+        Assert.AreEqual(0, bounds.X);
+        Assert.AreEqual(0, bounds.Y);
+        Assert.AreEqual(2, bounds.Width);
+        Assert.AreEqual(2, bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Match_Start_IsFirstCell()
     {
         var snapshot = await CreateSnapshotAsync("XXX[ABC]XXX");
@@ -1116,10 +1117,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal((3, 0), result.First!.Start);
+        Assert.AreEqual((3, 0), result.First!.Start);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Match_End_IsLastCell()
     {
         var snapshot = await CreateSnapshotAsync("XXX[ABC]XXX");
@@ -1129,10 +1130,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal((7, 0), result.First!.End);
+        Assert.AreEqual((7, 0), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Match_Text_ConcatenatesAllCells()
     {
         var snapshot = await CreateSnapshotAsync("Hello");
@@ -1142,10 +1143,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal("Hello", result.First!.Text);
+        Assert.AreEqual("Hello", result.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Match_CaptureNames_ListsAllCaptures()
     {
         var snapshot = await CreateSnapshotAsync("A=1");
@@ -1168,7 +1169,7 @@ public class CellPatternSearcherTests
 
     #region CellPatternSearchResult Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Result_HasMatches_TrueWhenMatchesExist()
     {
         var snapshot = await CreateSnapshotAsync("test");
@@ -1176,10 +1177,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Result_HasMatches_FalseWhenNoMatches()
     {
         var snapshot = await CreateSnapshotAsync("test");
@@ -1187,10 +1188,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Result_Count_ReturnsMatchCount()
     {
         var snapshot = await CreateSnapshotAsync("aaa");
@@ -1198,10 +1199,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal(3, result.Count);
+        Assert.AreEqual(3, result.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Result_First_ReturnsFirstMatch()
     {
         var snapshot = await CreateSnapshotAsync("abc");
@@ -1209,11 +1210,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.NotNull(result.First);
-        Assert.Equal((0, 0), result.First!.Start);
+        Assert.IsNotNull(result.First);
+        Assert.AreEqual((0, 0), result.First!.Start);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Result_Matches_AreOrderedByPosition()
     {
         var snapshot = await CreateSnapshotAsync(new[] { "a", "a", "aZ" });
@@ -1221,17 +1222,17 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.Matches.Count >= 3, $"Expected at least 3 matches but got {result.Matches.Count}");
-        Assert.Equal(0, result.Matches[0].Start.Y);
-        Assert.Equal(1, result.Matches[1].Start.Y);
-        Assert.Equal(2, result.Matches[2].Start.Y);
+        Assert.IsTrue(result.Matches.Count >= 3, $"Expected at least 3 matches but got {result.Matches.Count}");
+        Assert.AreEqual(0, result.Matches[0].Start.Y);
+        Assert.AreEqual(1, result.Matches[1].Start.Y);
+        Assert.AreEqual(2, result.Matches[2].Start.Y);
     }
 
     #endregion
 
     #region SearchFirst Tests
 
-    [Fact]
+    [TestMethod]
     public async Task SearchFirst_ReturnsSingleMatch()
     {
         var snapshot = await CreateSnapshotAsync("aaa");
@@ -1239,11 +1240,11 @@ public class CellPatternSearcherTests
 
         var match = pattern.SearchFirst(snapshot);
 
-        Assert.NotNull(match);
-        Assert.Equal((0, 0), match!.Start);
+        Assert.IsNotNull(match);
+        Assert.AreEqual((0, 0), match!.Start);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SearchFirst_ReturnsNullWhenNoMatch()
     {
         var snapshot = await CreateSnapshotAsync("test");
@@ -1251,14 +1252,14 @@ public class CellPatternSearcherTests
 
         var match = pattern.SearchFirst(snapshot);
 
-        Assert.Null(match);
+        Assert.IsNull(match);
     }
 
     #endregion
 
     #region Extension Methods Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Region_SearchPattern_Works()
     {
         var snapshot = await CreateSnapshotAsync("Hello");
@@ -1266,10 +1267,10 @@ public class CellPatternSearcherTests
 
         var result = snapshot.SearchPattern(pattern);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Region_SearchFirstPattern_Works()
     {
         var snapshot = await CreateSnapshotAsync("Hello");
@@ -1277,10 +1278,10 @@ public class CellPatternSearcherTests
 
         var match = snapshot.SearchFirstPattern(pattern);
 
-        Assert.NotNull(match);
+        Assert.IsNotNull(match);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Region_CreateSnapshot_FromMatch_Works()
     {
         var snapshot = await CreateSnapshotAsync("XX[content]XX");
@@ -1291,11 +1292,11 @@ public class CellPatternSearcherTests
         var match = pattern.SearchFirst(snapshot);
         var region = snapshot.CreateSnapshot(match!);
 
-        Assert.Equal(match!.Bounds.Width, region.Width);
-        Assert.Equal(match!.Bounds.Height, region.Height);
+        Assert.AreEqual(match!.Bounds.Width, region.Width);
+        Assert.AreEqual(match!.Bounds.Height, region.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Region_CreateSnapshot_FromCapture_Works()
     {
         var snapshot = await CreateSnapshotAsync("[TAG] message");
@@ -1308,14 +1309,14 @@ public class CellPatternSearcherTests
         var match = pattern.SearchFirst(snapshot);
         var region = snapshot.CreateSnapshot(match!, "inner");
 
-        Assert.True(region.Width >= 3);
+        Assert.IsTrue(region.Width >= 3);
     }
 
     #endregion
 
     #region Complex Scenarios
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_ParseKeyValuePairs()
     {
         var snapshot = await CreateSnapshotAsync("Name: John\r\nAge: 30");
@@ -1332,10 +1333,10 @@ public class CellPatternSearcherTests
 
         var result = kvPattern.Search(snapshot);
 
-        Assert.True(result.Count >= 2);
+        Assert.IsTrue(result.Count >= 2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_FindBoxDrawingCorners()
     {
         var snapshot = await CreateSnapshotAsync(new[]
@@ -1352,10 +1353,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_FindStyledText()
     {
         // This would need styled content - test structure only
@@ -1370,11 +1371,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal("Bold", result.First!.GetCaptureText("styled"));
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual("Bold", result.First!.GetCaptureText("styled"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_MatchLogEntry()
     {
         var snapshot = await CreateSnapshotAsync("[2024-01-01] [INFO] Application started");
@@ -1396,12 +1397,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
         Assert.Contains("2024-01-01", result.First!.GetCaptureText("timestamp"));
         Assert.Contains("INFO", result.First!.GetCaptureText("level"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_TwoDimensionalPattern()
     {
         var snapshot = await CreateSnapshotAsync(new[]
@@ -1420,12 +1421,12 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
+        Assert.IsTrue(result.HasMatches);
         // Pattern traverses rows 0, 1, 2 = 3 rows of height
-        Assert.Equal(3, result.First!.Bounds.Height);
+        Assert.AreEqual(3, result.First!.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_MultipleMatchesWithCaptures()
     {
         var snapshot = await CreateSnapshotAsync("x=1 y=2 z=3");
@@ -1441,13 +1442,13 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.Equal(3, result.Count);
-        Assert.Equal("x", result.Matches[0].GetCaptureText("var"));
-        Assert.Equal("y", result.Matches[1].GetCaptureText("var"));
-        Assert.Equal("z", result.Matches[2].GetCaptureText("var"));
+        Assert.AreEqual(3, result.Count);
+        Assert.AreEqual("x", result.Matches[0].GetCaptureText("var"));
+        Assert.AreEqual("y", result.Matches[1].GetCaptureText("var"));
+        Assert.AreEqual("z", result.Matches[2].GetCaptureText("var"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_Immutability_PatternCanBeReused()
     {
         var basePattern = new CellPatternSearcher().Find('[').RightUntil(']');
@@ -1458,12 +1459,12 @@ public class CellPatternSearcherTests
         var result1 = basePattern.Search(snapshot1);
         var result2 = basePattern.Search(snapshot2);
 
-        Assert.True(result1.HasMatches);
-        Assert.True(result2.HasMatches);
-        Assert.NotEqual(result1.First!.Text, result2.First!.Text);
+        Assert.IsTrue(result1.HasMatches);
+        Assert.IsTrue(result2.HasMatches);
+        Assert.AreNotEqual(result1.First!.Text, result2.First!.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_EdgeCase_EmptyRegion()
     {
         var snapshot = await CreateSnapshotAsync("", 10, 1);
@@ -1471,10 +1472,10 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_EdgeCase_PatternAtBoundary()
     {
         var snapshot = await CreateSnapshotAsync("ABC", 3, 1);
@@ -1485,11 +1486,11 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.True(result.HasMatches);
-        Assert.Equal((2, 0), result.First!.End);
+        Assert.IsTrue(result.HasMatches);
+        Assert.AreEqual((2, 0), result.First!.End);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Scenario_EdgeCase_PatternExceedsBoundary()
     {
         var snapshot = await CreateSnapshotAsync("AB", 2, 1);
@@ -1500,27 +1501,27 @@ public class CellPatternSearcherTests
 
         var result = pattern.Search(snapshot);
 
-        Assert.False(result.HasMatches);
+        Assert.IsFalse(result.HasMatches);
     }
 
     #endregion
 
     #region Debug Tests
 
-    [Fact]
+    [TestMethod]
     public async Task FindOptions_Default_HasCorrectDefaults()
     {
         var options = FindOptions.Default;
-        Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
-        Assert.Equal(FindCursorPosition.End, options.CursorPosition);
+        Assert.IsTrue(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
+        Assert.AreEqual(FindCursorPosition.End, options.CursorPosition);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task FindOptions_Constructor_HasCorrectDefaults()
     {
         var options = new FindOptions(); // Constructor with defaults
-        Assert.True(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
-        Assert.Equal(FindCursorPosition.End, options.CursorPosition);
+        Assert.IsTrue(options.IncludeMatchInCells, "IncludeMatchInCells should be true by default");
+        Assert.AreEqual(FindCursorPosition.End, options.CursorPosition);
     }
 
     #endregion

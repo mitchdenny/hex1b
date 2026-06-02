@@ -5,11 +5,12 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class StatePanelNodeTests
 {
     // --- Layout pass-through tests ---
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithChild_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -18,22 +19,22 @@ public class StatePanelNodeTests
         var size = node.Measure(new Constraints(0, 50, 0, 10));
 
         // ButtonNode measures its label; just verify we get a non-zero size
-        Assert.True(size.Width > 0);
-        Assert.True(size.Height > 0);
+        Assert.IsTrue(size.Width > 0);
+        Assert.IsTrue(size.Height > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithoutChild_ReturnsConstrainedZero()
     {
         var node = new StatePanelNode { StateKey = new object(), Child = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_PassesThroughToChild()
     {
         var child = new ButtonNode { Label = "OK" };
@@ -43,13 +44,13 @@ public class StatePanelNodeTests
         var rect = new Rect(5, 10, 30, 3);
         node.Arrange(rect);
 
-        Assert.Equal(rect, node.Bounds);
-        Assert.Equal(rect, child.Bounds);
+        Assert.AreEqual(rect, node.Bounds);
+        Assert.AreEqual(rect, child.Bounds);
     }
 
     // --- Focus pass-through tests ---
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_DelegatesToChild()
     {
         var button = new ButtonNode { Label = "OK" };
@@ -57,21 +58,21 @@ public class StatePanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(button, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetFocusableNodes_WithoutChild_ReturnsEmpty()
     {
         var node = new StatePanelNode { StateKey = new object(), Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithChild_ReturnsSingletonList()
     {
         var child = new TextBlockNode();
@@ -79,23 +80,23 @@ public class StatePanelNodeTests
 
         var children = node.GetChildren();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_WithoutChild_ReturnsEmpty()
     {
         var node = new StatePanelNode { StateKey = new object(), Child = null };
 
         var children = node.GetChildren();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     // --- Mark-and-sweep tests ---
 
-    [Fact]
+    [TestMethod]
     public void SweepUnvisited_RemovesUnvisitedKeys()
     {
         var node = new StatePanelNode { StateKey = new object() };
@@ -111,11 +112,11 @@ public class StatePanelNodeTests
         node.MarkVisited(keyA);
         node.SweepUnvisited();
 
-        Assert.True(node.NestedStatePanels.ContainsKey(keyA));
-        Assert.False(node.NestedStatePanels.ContainsKey(keyB));
+        Assert.IsTrue(node.NestedStatePanels.ContainsKey(keyA));
+        Assert.IsFalse(node.NestedStatePanels.ContainsKey(keyB));
     }
 
-    [Fact]
+    [TestMethod]
     public void SweepUnvisited_ClearsVisitedSetForNextFrame()
     {
         var node = new StatePanelNode { StateKey = new object() };
@@ -130,12 +131,12 @@ public class StatePanelNodeTests
         // keyA should be removed
         node.SweepUnvisited();
 
-        Assert.False(node.NestedStatePanels.ContainsKey(keyA));
+        Assert.IsFalse(node.NestedStatePanels.ContainsKey(keyA));
     }
 
     // --- Identity-based reconciliation tests ---
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_SameStateKey_ReusesSameNode()
     {
         var stateKey = new object();
@@ -145,11 +146,11 @@ public class StatePanelNodeTests
         var node1 = await widget.ReconcileAsync(null, context);
         var node2 = await widget.ReconcileAsync(node1, context);
 
-        Assert.IsType<StatePanelNode>(node1);
-        Assert.Same(node1, node2);
+        TestSeq.IsType<StatePanelNode>(node1);
+        Assert.AreSame(node1, node2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_DifferentStateKey_Standalone_CreatesNewNode()
     {
         var keyA = new object();
@@ -163,11 +164,11 @@ public class StatePanelNodeTests
         var widgetB = new StatePanelWidget(keyB, sp => new TextBlockWidget("B"));
         var node2 = await widgetB.ReconcileAsync(node1, context);
 
-        Assert.IsType<StatePanelNode>(node2);
-        Assert.NotSame(node1, node2);
+        TestSeq.IsType<StatePanelNode>(node2);
+        Assert.AreNotSame(node1, node2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NestedStatePanels_IdentitySurvivesPositionSwap()
     {
         var keyRoot = new object();
@@ -187,8 +188,8 @@ public class StatePanelNodeTests
         var nodeA = vstack1.Children[0];
         var nodeB = vstack1.Children[1];
 
-        Assert.IsType<StatePanelNode>(nodeA);
-        Assert.IsType<StatePanelNode>(nodeB);
+        TestSeq.IsType<StatePanelNode>(nodeA);
+        TestSeq.IsType<StatePanelNode>(nodeB);
 
         // Frame 2: swap order — VStack [ SP(B), SP(A) ]
         var widget2 = new StatePanelWidget(keyRoot, sp =>
@@ -201,11 +202,11 @@ public class StatePanelNodeTests
         var vstack2 = (VStackNode)rootNode2.Child!;
 
         // Identity preserved: nodes swapped correctly
-        Assert.Same(nodeB, vstack2.Children[0]);
-        Assert.Same(nodeA, vstack2.Children[1]);
+        Assert.AreSame(nodeB, vstack2.Children[0]);
+        Assert.AreSame(nodeA, vstack2.Children[1]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NestedStatePanels_RemovedKeyGetSwept()
     {
         var keyRoot = new object();
@@ -221,7 +222,7 @@ public class StatePanelNodeTests
             ]));
 
         var rootNode = (StatePanelNode)await widget1.ReconcileAsync(null, context);
-        Assert.Equal(2, rootNode.NestedStatePanels.Count);
+        Assert.AreEqual(2, rootNode.NestedStatePanels.Count);
 
         // Frame 2: only A remains
         var widget2 = new StatePanelWidget(keyRoot, sp =>
@@ -232,12 +233,12 @@ public class StatePanelNodeTests
         await widget2.ReconcileAsync(rootNode, context);
 
         // B should be swept
-        Assert.Single(rootNode.NestedStatePanels);
-        Assert.True(rootNode.NestedStatePanels.ContainsKey(keyA));
-        Assert.False(rootNode.NestedStatePanels.ContainsKey(keyB));
+        TestSeq.Single(rootNode.NestedStatePanels);
+        Assert.IsTrue(rootNode.NestedStatePanels.ContainsKey(keyA));
+        Assert.IsFalse(rootNode.NestedStatePanels.ContainsKey(keyB));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NestedStatePanels_NewKeyCreatesNewNode()
     {
         var keyRoot = new object();
@@ -263,12 +264,12 @@ public class StatePanelNodeTests
 
         await widget2.ReconcileAsync(rootNode, context);
 
-        Assert.Equal(2, rootNode.NestedStatePanels.Count);
-        Assert.Same(nodeA, rootNode.NestedStatePanels[keyA]);
-        Assert.True(rootNode.NestedStatePanels.ContainsKey(keyC));
+        Assert.AreEqual(2, rootNode.NestedStatePanels.Count);
+        Assert.AreSame(nodeA, rootNode.NestedStatePanels[keyA]);
+        Assert.IsTrue(rootNode.NestedStatePanels.ContainsKey(keyC));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_NodeHasCorrectStateKey()
     {
         var stateKey = new object();
@@ -277,18 +278,18 @@ public class StatePanelNodeTests
         var context = ReconcileContext.CreateRoot();
         var node = (StatePanelNode)await widget.ReconcileAsync(null, context);
 
-        Assert.Same(stateKey, node.StateKey);
+        Assert.AreSame(stateKey, node.StateKey);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_GetExpectedNodeType_ReturnsStatePanelNode()
     {
         var widget = new StatePanelWidget(new object(), _ => new TextBlockWidget("x"));
 
-        Assert.Equal(typeof(StatePanelNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(StatePanelNode), widget.GetExpectedNodeType());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ChildWidgetIsReconciled()
     {
         var stateKey = new object();
@@ -297,13 +298,13 @@ public class StatePanelNodeTests
 
         var node = (StatePanelNode)await widget.ReconcileAsync(null, context);
 
-        Assert.NotNull(node.Child);
-        Assert.IsType<TextBlockNode>(node.Child);
+        Assert.IsNotNull(node.Child);
+        TestSeq.IsType<TextBlockNode>(node.Child);
     }
 
     // --- Extension method tests ---
 
-    [Fact]
+    [TestMethod]
     public void Extension_StatePanel_SingleChild_CreatesWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -311,21 +312,21 @@ public class StatePanelNodeTests
 
         var widget = ctx.StatePanel(stateKey, sp => sp.Text("hello"));
 
-        Assert.IsType<StatePanelWidget>(widget);
-        Assert.Same(stateKey, widget.StateKey);
+        TestSeq.IsType<StatePanelWidget>(widget);
+        Assert.AreSame(stateKey, widget.StateKey);
     }
 
     // --- Registry uses reference equality ---
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_RegistryUsesReferenceEquality_NotValueEquality()
     {
         var keyRoot = new object();
         // Two strings that are value-equal but reference-different
         var keyA = new string("item-1".ToCharArray());
         var keyB = new string("item-1".ToCharArray());
-        Assert.Equal(keyA, keyB);
-        Assert.False(ReferenceEquals(keyA, keyB));
+        Assert.AreEqual(keyA, keyB);
+        Assert.IsFalse(ReferenceEquals(keyA, keyB));
 
         var context = ReconcileContext.CreateRoot();
 
@@ -338,6 +339,6 @@ public class StatePanelNodeTests
         var rootNode = (StatePanelNode)await widget.ReconcileAsync(null, context);
 
         // Both should be separate entries despite value equality
-        Assert.Equal(2, rootNode.NestedStatePanels.Count);
+        Assert.AreEqual(2, rootNode.NestedStatePanels.Count);
     }
 }

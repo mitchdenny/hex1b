@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// These tests verify the full keyboard and mouse navigation patterns
 /// for menus, submenus, and menu item activation.
 /// </summary>
+[TestClass]
 public class MenuBarIntegrationTests
 {
     #region Helper Methods
@@ -103,7 +104,7 @@ public class MenuBarIntegrationTests
     
     #region Menu Bar Focus and Opening
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_EnterKey_OpensFirstMenu()
     {
         // Arrange
@@ -129,7 +130,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified File menu items (New, Open) are visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_DownArrow_OpensMenu()
     {
         // Arrange
@@ -155,7 +156,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_AltF_OpensFileMenu()
     {
         // Arrange
@@ -181,7 +182,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_AltE_OpensEditMenu()
     {
         // Arrange
@@ -207,7 +208,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the menu opened with Undo and Redo visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_RightArrow_NavigatesToNextMenu()
     {
         // Arrange
@@ -234,7 +235,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified Edit menu items (Undo, Copy) are visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_LeftArrow_NavigatesToPreviousMenu()
     {
         // Arrange
@@ -267,7 +268,7 @@ public class MenuBarIntegrationTests
     
     #region Menu Item Navigation and Activation
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_DownArrow_NavigatesToNextItem()
     {
         // Arrange
@@ -296,7 +297,7 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - "Open" action should have been triggered
-        Assert.Equal("File > Open", lastAction);
+        Assert.AreEqual("File > Open", lastAction);
     }
     
     /// <summary>
@@ -324,7 +325,7 @@ public class MenuBarIntegrationTests
         return false;
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_Tab_NavigatesToNextItem()
     {
         // Arrange
@@ -353,10 +354,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - "Open" action should have been triggered
-        Assert.Equal("File > Open", lastAction);
+        Assert.AreEqual("File > Open", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_UpArrow_NavigatesToPreviousItem()
     {
         // Arrange
@@ -386,10 +387,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert
-        Assert.Equal("File > Open", lastAction);
+        Assert.AreEqual("File > Open", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_Enter_ActivatesItemAndClosesMenu()
     {
         // Arrange
@@ -416,11 +417,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Action was triggered and menu closed
-        Assert.Equal("File > New", lastAction);
-        Assert.False(terminal.CreateSnapshot().ContainsText("Open")); // Menu closed
+        Assert.AreEqual("File > New", lastAction);
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Open")); // Menu closed
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_Spacebar_ActivatesItem()
     {
         // Arrange
@@ -447,10 +448,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert
-        Assert.Equal("File > New", lastAction);
+        Assert.AreEqual("File > New", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_Escape_ClosesMenuWithoutActivating()
     {
         // Arrange
@@ -478,10 +479,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - No action should have been triggered
-        Assert.Equal("", lastAction);
+        Assert.AreEqual("", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_LeftArrow_ClosesMenu()
     {
         // Arrange
@@ -508,11 +509,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed, no action triggered
-        Assert.Equal("", lastAction);
-        Assert.False(terminal.CreateSnapshot().ContainsText("Open"));
+        Assert.AreEqual("", lastAction);
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Open"));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_UpArrowOnFirstItem_ClosesMenu()
     {
         // Arrange
@@ -539,11 +540,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed, no action triggered
-        Assert.Equal("", lastAction);
-        Assert.False(terminal.CreateSnapshot().ContainsText("Open"));
+        Assert.AreEqual("", lastAction);
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Open"));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_UpArrowOnNonFirstItem_NavigatesPrevious()
     {
         // Arrange
@@ -572,10 +573,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - "New" should have been activated
-        Assert.Equal("File > New", lastAction);
+        Assert.AreEqual("File > New", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_UpArrowOnFirstItem_FocusStaysOnMenuTrigger()
     {
         // Arrange
@@ -607,7 +608,7 @@ public class MenuBarIntegrationTests
         // proving focus stayed on Edit menu after Up arrow closed it
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_AcceleratorKey_ActivatesItem()
     {
         // Arrange
@@ -634,14 +635,14 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert
-        Assert.Equal("File > Open", lastAction);
+        Assert.AreEqual("File > Open", lastAction);
     }
     
     #endregion
     
     #region Submenu Navigation
     
-    [Fact]
+    [TestMethod]
     public async Task Submenu_RightArrow_OpensSubmenu()
     {
         // Arrange
@@ -671,11 +672,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Submenu items should be visible (use captured snapshot)
-        Assert.True(snapshot.ContainsText("Doc1.txt"));
-        Assert.True(snapshot.ContainsText("Doc2.txt"));
+        Assert.IsTrue(snapshot.ContainsText("Doc1.txt"));
+        Assert.IsTrue(snapshot.ContainsText("Doc2.txt"));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Submenu_Enter_OpensSubmenu()
     {
         // Arrange
@@ -704,7 +705,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the submenu opened with Doc1.txt visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Submenu_LeftArrow_ClosesSubmenuReturnsToParent()
     {
         // Arrange
@@ -735,7 +736,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the submenu closed and parent menu is still visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Submenu_LeftArrow_FocusReturnsToSubmenuTrigger()
     {
         // Arrange
@@ -768,10 +769,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Submenu should be open again, proving focus was on "Recent" (use captured snapshot)
-        Assert.True(snapshot.ContainsText("Doc1.txt")); // Submenu is open
+        Assert.IsTrue(snapshot.ContainsText("Doc1.txt")); // Submenu is open
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Submenu_ActivateItem_ClosesAllMenus()
     {
         // Arrange
@@ -802,17 +803,17 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert
-        Assert.Equal("File > Recent > Doc1.txt", lastAction);
+        Assert.AreEqual("File > Recent > Doc1.txt", lastAction);
         // All menus should be closed
-        Assert.False(snapshot.ContainsText("Doc1.txt"));
-        Assert.False(snapshot.ContainsText("Save"));
+        Assert.IsFalse(snapshot.ContainsText("Doc1.txt"));
+        Assert.IsFalse(snapshot.ContainsText("Save"));
     }
     
     #endregion
     
     #region Mouse Navigation
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_ClickOnTrigger_OpensMenu()
     {
         // Arrange
@@ -838,7 +839,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the menu opened with New and Open visible
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_ClickOnItem_ActivatesItem()
     {
         // Arrange
@@ -866,10 +867,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Should have activated some item (position may vary)
-        Assert.NotEqual("", lastAction);
+        Assert.AreNotEqual("", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_ClickAwayOnBackdrop_ClosesMenu()
     {
         // Arrange
@@ -897,11 +898,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - No action should be triggered, menu should be closed
-        Assert.Equal("", lastAction);
-        Assert.False(terminal.CreateSnapshot().ContainsText("Save"));
+        Assert.AreEqual("", lastAction);
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Save"));
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_ClickAwayThenClickAnotherMenu_Works()
     {
         // Arrange
@@ -942,7 +943,7 @@ public class MenuBarIntegrationTests
     
     #region Disabled Items
     
-    [Fact]
+    [TestMethod]
     public async Task DisabledItem_Enter_DoesNotActivate()
     {
         // Arrange
@@ -973,10 +974,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Action should NOT have been triggered for disabled item
-        Assert.NotEqual("File > Save As", lastAction);
+        Assert.AreNotEqual("File > Save As", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_OnlyDisabledItems_UpArrowClosesMenu()
     {
         // Arrange - Menu with only a disabled item (like "No terminals" in EmbeddedTerminalDemo)
@@ -1017,11 +1018,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Menu should be closed (no "No items" text visible)
-        Assert.False(capture.ContainsText("(No items)"), 
-            $"Menu should have closed after Up arrow. Screen contents:\n{capture.GetText()}");
+        Assert.IsFalse(capture.ContainsText("(No items)"), $"Menu should have closed after Up arrow. Screen contents:\n{capture.GetText()}");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_OnlyDisabledItems_LeftArrowNavigatesToPreviousMenu()
     {
         // Arrange - Menu with only a disabled item
@@ -1062,15 +1062,14 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Should now be in File menu
-        Assert.True(capture.ContainsText("New"), 
-            $"Should have navigated to File menu. Screen contents:\n{capture.GetText()}");
+        Assert.IsTrue(capture.ContainsText("New"), $"Should have navigated to File menu. Screen contents:\n{capture.GetText()}");
     }
     
     #endregion
     
     #region Focus Restoration
     
-    [Fact]
+    [TestMethod]
     public async Task Menu_AfterClose_FocusRestoresToMenuBar()
     {
         // Arrange
@@ -1104,7 +1103,7 @@ public class MenuBarIntegrationTests
     
     #region Complex Workflows
     
-    [Fact]
+    [TestMethod]
     public async Task CompleteWorkflow_NavigateMultipleMenusAndActivateItems()
     {
         // Arrange
@@ -1152,7 +1151,7 @@ public class MenuBarIntegrationTests
     
     #region Focus Debugging Tests
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_BackdropFocusDelegation_ToMenuItems()
     {
         // Arrange - Create the node hierarchy manually
@@ -1170,7 +1169,7 @@ public class MenuBarIntegrationTests
         var focusables = backdropNode.GetFocusableNodes().ToList();
         
         // Assert - Should include backdrop and menu items
-        Assert.True(focusables.Count >= 3, $"Expected at least 3 focusables (backdrop + 2 items), got {focusables.Count}");
+        Assert.IsTrue(focusables.Count >= 3, $"Expected at least 3 focusables (backdrop + 2 items), got {focusables.Count}");
         Assert.Contains(menuItemNode1, focusables);
         Assert.Contains(menuItemNode2, focusables);
         
@@ -1178,10 +1177,10 @@ public class MenuBarIntegrationTests
         backdropNode.IsFocused = true;
         
         // Assert - Focus should have been delegated to first menu item
-        Assert.True(menuItemNode1.IsFocused, "First menu item should have focus after setting backdrop focus");
+        Assert.IsTrue(menuItemNode1.IsFocused, "First menu item should have focus after setting backdrop focus");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_FirstMenuItem_HasFocus_WhenMenuOpens()
     {
         // This test verifies that when a menu opens, the first menu item automatically gets focus
@@ -1216,13 +1215,13 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
         
         // Assert - Focus should be on the first MenuItemNode
-        Assert.True(focusableCount > 0, $"Expected focusables in the ring, got {focusableCount}");
-        Assert.NotNull(focusedAfterMenuOpen);
-        Assert.IsType<MenuItemNode>(focusedAfterMenuOpen);
-        Assert.Equal("New", ((MenuItemNode)focusedAfterMenuOpen).Label);
+        Assert.IsTrue(focusableCount > 0, $"Expected focusables in the ring, got {focusableCount}");
+        Assert.IsNotNull(focusedAfterMenuOpen);
+        TestSeq.IsType<MenuItemNode>(focusedAfterMenuOpen);
+        Assert.AreEqual("New", ((MenuItemNode)focusedAfterMenuOpen).Label);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Debug_DownArrow_MovesFocus_WhenMenuOpen()
     {
         // This test checks if Down arrow moves focus from "New" to "Open"
@@ -1275,9 +1274,8 @@ public class MenuBarIntegrationTests
         // Check which nodes have IsFocused = true
         var focusedNodes = focusablesAfter.Where(f => f.focused).ToList();
         
-        Assert.NotNull(focusedAfterDownArrow);
-        Assert.True(focusedAfterMenuOpen != focusedAfterDownArrow, 
-            $"Focus didn't move. Before Down: {focusedAfterMenuOpenLabel}, After Down: {focusedAfterDownArrowLabel}. " +
+        Assert.IsNotNull(focusedAfterDownArrow);
+        Assert.IsTrue(focusedAfterMenuOpen != focusedAfterDownArrow, $"Focus didn't move. Before Down: {focusedAfterMenuOpenLabel}, After Down: {focusedAfterDownArrowLabel}. " +
             $"LastFocusChange: {app.LastFocusChange ?? "null"}. " +
             $"LastPathDebug: {app.LastPathDebug ?? "null"}. " +
             $"Focusables BEFORE: [{string.Join(", ", focusablesBefore.Select(f => f.type + (f.label != null ? ":" + f.label : "")))}]. " +
@@ -1297,7 +1295,7 @@ public class MenuBarIntegrationTests
     /// - The submenu content is rendered (text exists)
     /// - The first submenu item receives focus (has black background color)
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Submenu_RightArrow_OpensSubmenuAndFocusesFirstItem()
     {
         // Arrange
@@ -1374,7 +1372,7 @@ public class MenuBarIntegrationTests
     
     #region Cross-Menu Navigation (Arrow Keys Navigate Between Menus While Open)
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_RightArrow_OpensNextMenuWhenNoSubmenu()
     {
         // Arrange - When on a leaf menu item (no children), Right arrow should
@@ -1403,11 +1401,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Edit menu should be open (use captured snapshot)
-        Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
-        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
+        Assert.IsTrue(snapshot.ContainsText("Undo"), "Edit menu should be visible");
+        Assert.IsFalse(snapshot.ContainsText("Save"), "File menu should be closed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_LeftArrow_OpensPreviousMenuWhenNoSubmenu()
     {
         // Arrange - When on a leaf menu item (no children), Left arrow should
@@ -1437,7 +1435,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified File menu (New, Open) is visible after Left arrow
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_RightArrow_WrapsAroundToFirstMenu()
     {
         // Arrange - When on the last menu (Help), Right arrow should wrap to File
@@ -1466,7 +1464,7 @@ public class MenuBarIntegrationTests
         // WaitUntil already verified the File menu opened after wrapping
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_LeftArrow_WrapsAroundToLastMenu()
     {
         // Arrange - When on the first menu (File), Left arrow should wrap to Help
@@ -1494,11 +1492,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open
-        Assert.True(snapshot.ContainsText("About"), "Help menu should be visible after wrap");
-        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
+        Assert.IsTrue(snapshot.ContainsText("About"), "Help menu should be visible after wrap");
+        Assert.IsFalse(snapshot.ContainsText("Save"), "File menu should be closed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_RightArrow_ThenActivateItem_Works()
     {
         // Arrange - Navigate across menus with arrow keys, then activate an item
@@ -1528,10 +1526,10 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Redo action should have been triggered
-        Assert.Equal("Edit > Redo", lastAction);
+        Assert.AreEqual("Edit > Redo", lastAction);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_MultipleRightArrows_NavigatesAcrossMenus()
     {
         // Arrange - Press Right multiple times to navigate File -> Edit -> Help
@@ -1561,12 +1559,12 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open
-        Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
-        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
-        Assert.False(snapshot.ContainsText("Paste"), "Edit menu should be closed");
+        Assert.IsTrue(snapshot.ContainsText("About"), "Help menu should be visible");
+        Assert.IsFalse(snapshot.ContainsText("Save"), "File menu should be closed");
+        Assert.IsFalse(snapshot.ContainsText("Paste"), "Edit menu should be closed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuItem_RightArrow_FromMiddleOfMenu_OpensNextMenu()
     {
         // Arrange - Navigate down within a menu first, then Right should still work
@@ -1596,11 +1594,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Edit menu should be open (use captured snapshot)
-        Assert.True(snapshot.ContainsText("Undo"), "Edit menu should be visible");
-        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
+        Assert.IsTrue(snapshot.ContainsText("Undo"), "Edit menu should be visible");
+        Assert.IsFalse(snapshot.ContainsText("Save"), "File menu should be closed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task SubmenuTrigger_LeftArrow_OpensPreviousMenu()
     {
         // Arrange - When focused on a submenu trigger (like "Recent" in File menu),
@@ -1631,11 +1629,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Help menu should be open (not File menu)
-        Assert.True(snapshot.ContainsText("About"), "Help menu should be visible");
-        Assert.False(snapshot.ContainsText("Save"), "File menu should be closed");
+        Assert.IsTrue(snapshot.ContainsText("About"), "Help menu should be visible");
+        Assert.IsFalse(snapshot.ContainsText("Save"), "File menu should be closed");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task SubmenuTrigger_RightArrow_OpensSubmenu()
     {
         // Arrange - When focused on a submenu trigger, Right arrow should open the submenu
@@ -1665,15 +1663,15 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - Recent submenu should be open (use captured snapshot)
-        Assert.True(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
-        Assert.True(snapshot.ContainsText("Doc2.txt"), "Recent submenu should be visible");
+        Assert.IsTrue(snapshot.ContainsText("Doc1.txt"), "Recent submenu should be visible");
+        Assert.IsTrue(snapshot.ContainsText("Doc2.txt"), "Recent submenu should be visible");
     }
     
     #endregion
     
     #region Global Bindings
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_AltF_WorksWhenTextBoxFocused()
     {
         // Arrange - This tests global bindings: menu accelerators should work
@@ -1713,11 +1711,11 @@ public class MenuBarIntegrationTests
         await StopAppAsync(app, runTask);
 
         // Assert - File menu should be open
-        Assert.True(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
-        Assert.True(snapshot.ContainsText("Open"), "File menu item 'Open' should be visible");
+        Assert.IsTrue(snapshot.ContainsText("New"), "File menu item 'New' should be visible");
+        Assert.IsTrue(snapshot.ContainsText("Open"), "File menu item 'Open' should be visible");
     }
     
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_AltE_WorksWhenButtonFocused()
     {
         // Arrange - Alt+E should open Edit menu even when a Button is focused

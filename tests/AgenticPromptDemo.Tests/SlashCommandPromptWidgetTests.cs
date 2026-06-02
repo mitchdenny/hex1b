@@ -16,6 +16,7 @@ namespace AgenticPromptDemo.Tests;
 /// sibling above, multiple focusables) so we cover the trees the demo —
 /// and other consumers — actually use.
 /// </summary>
+[TestClass]
 public class SlashCommandPromptWidgetTests
 {
     private static readonly IReadOnlyList<SlashCommand> Commands =
@@ -41,7 +42,7 @@ public class SlashCommandPromptWidgetTests
     /// composite previously passed Text=null (textbox owns its own text),
     /// the new node started empty, dropping the '/' the user just typed.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TypingSlash_OpensPaletteAndShowsFirstMatchPreview()
     {
         var screen = await DriveAsync(b => b
@@ -66,7 +67,7 @@ public class SlashCommandPromptWidgetTests
     /// starting with 'p' AND show a preview of the (now sole) match in the
     /// textbox.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TypingPrefix_FiltersPaletteAndShowsPreview()
     {
         var screen = await DriveAsync(b => b
@@ -88,7 +89,7 @@ public class SlashCommandPromptWidgetTests
     /// Typing a non-slash leading char must NOT open the palette, and the
     /// textbox must hold what was typed.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TypingPlainText_DoesNotOpenPalette()
     {
         var screen = await DriveAsync(b => b
@@ -105,7 +106,7 @@ public class SlashCommandPromptWidgetTests
     /// <summary>
     /// DownArrow with the palette open moves the '❯' marker to the next row.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_MovesPaletteSelection()
     {
         var screen = await DriveAsync(b => b
@@ -126,7 +127,7 @@ public class SlashCommandPromptWidgetTests
     /// <summary>
     /// UpArrow at the top of the list is a no-op (does not wrap).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task UpArrow_AtTop_StaysOnFirstRow()
     {
         var screen = await DriveAsync(b => b
@@ -149,7 +150,7 @@ public class SlashCommandPromptWidgetTests
     /// the FIRST focusable in the app and the DownArrow ends up scrolling
     /// the transcript instead of moving the palette selection.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_WithFocusableAbove_MovesPaletteSelection()
     {
         var screen = await DriveAsync<FocusableAboveHostWidget>(b => b
@@ -173,7 +174,7 @@ public class SlashCommandPromptWidgetTests
     /// in the textbox to the newly highlighted command — so the user can see
     /// exactly what would be inserted before they confirm.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_UpdatesPreviewInTextbox()
     {
         var screen = await DriveAsync(b => b
@@ -195,7 +196,7 @@ public class SlashCommandPromptWidgetTests
     /// remains '/picker' (now showing the first match of the unfiltered
     /// list).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Backspace_ShrinksTypedTextNotPreview()
     {
         var screen = await DriveAsync(b => b
@@ -220,7 +221,7 @@ public class SlashCommandPromptWidgetTests
     /// close the palette and leave the textbox empty — proving that the
     /// preview was a hint, not a commitment.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BackspaceTwice_ClearsTypedTextAndClosesPalette()
     {
         var screen = await DriveAsync(b => b
@@ -238,7 +239,7 @@ public class SlashCommandPromptWidgetTests
         // Textbox row only contains the prompt chevron — no preview, no typed text.
         var lines = screen.Split('\n');
         var promptRow = lines.First(l => l.Contains(SlashCommandPromptWidget.PromptChevron));
-        Assert.Equal(SlashCommandPromptWidget.PromptChevron.TrimEnd(), promptRow.TrimEnd());
+        Assert.AreEqual(SlashCommandPromptWidget.PromptChevron.TrimEnd(), promptRow.TrimEnd());
     }
 
     /// <summary>
@@ -247,7 +248,7 @@ public class SlashCommandPromptWidgetTests
     /// '/picker'; typing 'x' must take typed text from '/p' → '/px',
     /// which matches nothing → palette closes → textbox shows literal '/px'.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TypingOntoPreview_AppendsToTypedTextNotPreview()
     {
         var screen = await DriveAsync(b => b
@@ -271,7 +272,7 @@ public class SlashCommandPromptWidgetTests
     /// Hovering the mouse over a palette row updates the highlighted
     /// selection and, by extension, the preview shown in the textbox.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task MouseHoverOnPaletteRow_UpdatesPreviewInTextbox()
     {
         var screen = await DriveAsync(b => b
@@ -297,7 +298,7 @@ public class SlashCommandPromptWidgetTests
     /// Clicking on a palette row CONFIRMS that command — bakes /<name>
     /// (with trailing space) into the typed text — without firing OnSubmit.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task MouseClickOnPaletteRow_ConfirmsCommand()
     {
         var submitted = new List<string>();
@@ -310,7 +311,7 @@ public class SlashCommandPromptWidgetTests
             submitted.Add);
 
         // Did NOT submit (clicking confirms but does not send).
-        Assert.Empty(submitted);
+        Assert.IsEmpty(submitted);
 
         // Confirmed text is in the box and the palette is closed (because
         // the trailing space disqualifies the prefix).
@@ -353,7 +354,7 @@ public class SlashCommandPromptWidgetTests
     /// command (with a trailing space for arguments) into the textbox and
     /// does NOT fire OnSubmit.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task EnterWithVisiblePalette_InsertsSelectedCommand()
     {
         var submitted = new List<string>();
@@ -365,7 +366,7 @@ public class SlashCommandPromptWidgetTests
             .Wait(TimeSpan.FromMilliseconds(250)),
             submitted.Add);
 
-        Assert.Empty(submitted);
+        Assert.IsEmpty(submitted);
         AssertTextboxContains(screen, "/picker");
     }
 
@@ -373,7 +374,7 @@ public class SlashCommandPromptWidgetTests
     /// Tab acts as another accept gesture (parity with Enter while the
     /// palette is visible).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task TabWithVisiblePalette_InsertsSelectedCommand()
     {
         var submitted = new List<string>();
@@ -385,7 +386,7 @@ public class SlashCommandPromptWidgetTests
             .Wait(TimeSpan.FromMilliseconds(250)),
             submitted.Add);
 
-        Assert.Empty(submitted);
+        Assert.IsEmpty(submitted);
         AssertTextboxContains(screen, "/picker");
     }
 
@@ -394,7 +395,7 @@ public class SlashCommandPromptWidgetTests
     /// pressing Enter submits the literal text via OnSubmit rather than
     /// completing anything.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task EnterWithNoMatches_SubmitsTextAsIs()
     {
         var submitted = new List<string>();
@@ -405,14 +406,14 @@ public class SlashCommandPromptWidgetTests
             .Wait(TimeSpan.FromMilliseconds(250)),
             submitted.Add);
 
-        Assert.Single(submitted);
-        Assert.Equal("/zzzz", submitted[0]);
+        Assert.HasCount(1, submitted);
+        Assert.AreEqual("/zzzz", submitted[0]);
     }
 
     /// <summary>
     /// Plain (non-slash) text submits via OnSubmit and clears the textbox.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task EnterWithPlainText_SubmitsAndClears()
     {
         var submitted = new List<string>();
@@ -423,8 +424,8 @@ public class SlashCommandPromptWidgetTests
             .Wait(TimeSpan.FromMilliseconds(250)),
             submitted.Add);
 
-        Assert.Single(submitted);
-        Assert.Equal("hello world", submitted[0]);
+        Assert.HasCount(1, submitted);
+        Assert.AreEqual("hello world", submitted[0]);
         Assert.DoesNotContain("hello world", screen);
     }
 
@@ -432,7 +433,7 @@ public class SlashCommandPromptWidgetTests
     /// Pressing Escape while the palette is visible clears the textbox and
     /// dismisses the palette.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task EscapeWithVisiblePalette_ClearsTextAndDismisses()
     {
         var screen = await DriveAsync(b => b
@@ -451,7 +452,7 @@ public class SlashCommandPromptWidgetTests
     /// the inserted '/cmd ' and submit the full string — which must include
     /// both the command and the typed arguments.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task AcceptThenTypeArgs_SubmitsFullCommand()
     {
         var submitted = new List<string>();
@@ -467,8 +468,8 @@ public class SlashCommandPromptWidgetTests
             .Wait(TimeSpan.FromMilliseconds(250)),
             submitted.Add);
 
-        Assert.Single(submitted);
-        Assert.Equal("/picker now", submitted[0]);
+        Assert.HasCount(1, submitted);
+        Assert.AreEqual("/picker now", submitted[0]);
     }
 
     // ---- Drivers / hosts ----
@@ -533,8 +534,8 @@ public class SlashCommandPromptWidgetTests
         // a command name like "/picker").
         var lines = screen.Split('\n');
         var textboxRow = lines.FirstOrDefault(l => l.Contains(SlashCommandPromptWidget.PromptChevron));
-        Assert.True(textboxRow is not null, $"Could not locate prompt row in screen:\n{screen}");
-        Assert.True(textboxRow!.Contains(expected),
+        Assert.IsTrue(textboxRow is not null, $"Could not locate prompt row in screen:\n{screen}");
+        Assert.IsTrue(textboxRow!.Contains(expected),
             $"Textbox row '{textboxRow.TrimEnd()}' did not contain expected '{expected}'.\n\nScreen:\n{screen}");
     }
 

@@ -12,6 +12,7 @@ namespace Hex1b.Tests;
 /// <c>.CopyModeBindings()</c>, inject text into the handle, send input via
 /// <see cref="Hex1bTerminalInputSequenceBuilder"/>, and assert on handle state.
 /// </summary>
+[TestClass]
 public class CopyModeBindingsFunctionalTests
 {
     /// <summary>
@@ -152,7 +153,7 @@ public class CopyModeBindingsFunctionalTests
     // 1. Entry Key Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task F6_EntersCopyMode()
     {
         // Arrange
@@ -166,11 +167,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.Equal(CopyModeState.Active, ctx.Handle.CopyModeState);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.AreEqual(CopyModeState.Active, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CustomEntryKey_EntersCopyMode()
     {
         // Arrange — configure F5 as entry key instead of default F6
@@ -185,19 +186,19 @@ public class CopyModeBindingsFunctionalTests
         // Act — F5 should enter copy mode
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F5));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Exit and verify F6 does NOT enter copy mode
         ctx.Handle.ExitCopyMode();
         await ctx.WaitForRenderAsync();
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
 
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultipleEntryKeys_EachWorks()
     {
         // Arrange
@@ -212,19 +213,19 @@ public class CopyModeBindingsFunctionalTests
         // Act — F5 enters copy mode
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F5));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Exit and try F6
         ctx.Handle.ExitCopyMode();
         await ctx.WaitForRenderAsync();
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
 
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EntryKeyWithModifier_Works()
     {
         // Arrange — Alt+C as entry key
@@ -241,14 +242,14 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 2. Cancel / Exit Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Escape_ExitsCopyMode()
     {
         // Arrange
@@ -258,18 +259,18 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Act
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Escape));
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.False(ctx.Handle.IsInCopyMode);
-        Assert.Equal(CopyModeState.Inactive, ctx.Handle.CopyModeState);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
+        Assert.AreEqual(CopyModeState.Inactive, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Q_ExitsCopyMode()
     {
         // Arrange
@@ -277,17 +278,17 @@ public class CopyModeBindingsFunctionalTests
         await ctx.StartAsync();
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Act
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Q));
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CustomCancelKey_Works()
     {
         // Arrange — X as cancel key
@@ -298,26 +299,26 @@ public class CopyModeBindingsFunctionalTests
         await ctx.StartAsync();
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Act — default Escape should NOT exit (replaced)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Escape));
         await ctx.WaitForRenderAsync();
         // Note: all keys are consumed in copy mode, but Escape is no longer a cancel key
         // The handle should still be in copy mode since Escape is not mapped to cancel
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // X should exit
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.X));
         await ctx.WaitForRenderAsync();
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 3. Navigation Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task ArrowKeys_MoveCursor()
     {
         // Arrange
@@ -339,18 +340,17 @@ public class CopyModeBindingsFunctionalTests
 
         // Assert — row should have increased
         var afterDown = ctx.Handle.Selection!.Cursor;
-        Assert.True(afterDown.Row > initialPos.Row || initialPos.Row == ctx.Handle.VirtualBufferHeight - 1,
-            "Down arrow should move cursor down (or cursor was already at bottom)");
+        Assert.IsTrue(afterDown.Row > initialPos.Row || initialPos.Row == ctx.Handle.VirtualBufferHeight - 1, "Down arrow should move cursor down (or cursor was already at bottom)");
 
         // Move right
         var beforeRight = ctx.Handle.Selection!.Cursor;
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.RightArrow));
         await ctx.WaitForRenderAsync();
         var afterRight = ctx.Handle.Selection!.Cursor;
-        Assert.Equal(beforeRight.Column + 1, afterRight.Column);
+        Assert.AreEqual(beforeRight.Column + 1, afterRight.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ViKeys_HJKL_MoveCursor()
     {
         // Arrange
@@ -370,26 +370,26 @@ public class CopyModeBindingsFunctionalTests
         // Act — L (right)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.L));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(4, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(4, ctx.Handle.Selection!.Cursor.Column);
 
         // H (left)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.H));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(3, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(3, ctx.Handle.Selection!.Cursor.Column);
 
         // J (down)
         var rowBefore = ctx.Handle.Selection!.Cursor.Row;
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.J));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(rowBefore + 1, ctx.Handle.Selection!.Cursor.Row);
+        Assert.AreEqual(rowBefore + 1, ctx.Handle.Selection!.Cursor.Row);
 
         // K (up)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.K));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(rowBefore, ctx.Handle.Selection!.Cursor.Row);
+        Assert.AreEqual(rowBefore, ctx.Handle.Selection!.Cursor.Row);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CustomCursorKeys_Work()
     {
         // Arrange — WASD navigation, no vi keys
@@ -413,17 +413,17 @@ public class CopyModeBindingsFunctionalTests
         // Act — D (right)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.D));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(6, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(6, ctx.Handle.Selection!.Cursor.Column);
 
         // Default H (vi-left) should NOT move cursor left — it's not mapped
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.H));
         await ctx.WaitForRenderAsync();
         // H is not mapped to any action but all keys are consumed in copy mode
         // Column should remain unchanged since H is no longer a cursor key
-        Assert.Equal(6, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(6, ctx.Handle.Selection!.Cursor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageUpDown_MovesPage()
     {
         // Arrange
@@ -444,10 +444,10 @@ public class CopyModeBindingsFunctionalTests
         var afterPageUp = ctx.Handle.Selection!.Cursor;
 
         // Assert — row should have decreased (or be at 0 if already near top)
-        Assert.True(afterPageUp.Row <= initial.Row);
+        Assert.IsTrue(afterPageUp.Row <= initial.Row);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HomeEnd_MovesToLineStartEnd()
     {
         // Arrange
@@ -467,15 +467,15 @@ public class CopyModeBindingsFunctionalTests
         // Act — Home should go to column 0
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Home));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(0, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(0, ctx.Handle.Selection!.Cursor.Column);
 
         // End should go to last column
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.End));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(ctx.Handle.Width - 1, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(ctx.Handle.Width - 1, ctx.Handle.Selection!.Cursor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task BufferTopBottom_G_ShiftG()
     {
         // Arrange
@@ -491,15 +491,15 @@ public class CopyModeBindingsFunctionalTests
         // Act — g (lowercase) goes to top
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.G));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(0, ctx.Handle.Selection!.Cursor.Row);
+        Assert.AreEqual(0, ctx.Handle.Selection!.Cursor.Row);
 
         // G (Shift+G) goes to bottom
         await ctx.SendKeysAsync(b => b.Shift().Key(Hex1bKey.G));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(ctx.Handle.VirtualBufferHeight - 1, ctx.Handle.Selection!.Cursor.Row);
+        Assert.AreEqual(ctx.Handle.VirtualBufferHeight - 1, ctx.Handle.Selection!.Cursor.Row);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WordForwardBackward_W_B()
     {
         // Arrange
@@ -522,28 +522,26 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         var startPos = ctx.Handle.Selection!.Cursor;
-        Assert.Equal(6, startPos.Column);
+        Assert.AreEqual(6, startPos.Column);
 
         // Act — w (word forward) should advance past "world" to "test"
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.W));
         await ctx.WaitForRenderAsync();
         var afterW = ctx.Handle.Selection!.Cursor;
-        Assert.True(afterW.Column > startPos.Column,
-            $"Word forward should advance column (start={startPos}, after={afterW})");
+        Assert.IsTrue(afterW.Column > startPos.Column, $"Word forward should advance column (start={startPos}, after={afterW})");
 
         // b (word backward) should go back toward "world" or "hello"
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.B));
         await ctx.WaitForRenderAsync();
         var afterB = ctx.Handle.Selection!.Cursor;
-        Assert.True(afterB.Column < afterW.Column,
-            $"Word backward should move cursor left (afterB={afterB}, afterW={afterW})");
+        Assert.IsTrue(afterB.Column < afterW.Column, $"Word backward should move cursor left (afterB={afterB}, afterW={afterW})");
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 4. Selection Mode Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task V_StartsCharacterSelection()
     {
         // Arrange
@@ -560,12 +558,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
-        Assert.True(ctx.Handle.Selection!.IsSelecting);
-        Assert.Equal(SelectionMode.Character, ctx.Handle.Selection!.Mode);
+        Assert.AreEqual(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
+        Assert.IsTrue(ctx.Handle.Selection!.IsSelecting);
+        Assert.AreEqual(SelectionMode.Character, ctx.Handle.Selection!.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftV_StartsLineSelection()
     {
         // Arrange
@@ -582,11 +580,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
-        Assert.Equal(SelectionMode.Line, ctx.Handle.Selection!.Mode);
+        Assert.AreEqual(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(SelectionMode.Line, ctx.Handle.Selection!.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AltV_StartsBlockSelection()
     {
         // Arrange
@@ -603,11 +601,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.BlockSelection, ctx.Handle.CopyModeState);
-        Assert.Equal(SelectionMode.Block, ctx.Handle.Selection!.Mode);
+        Assert.AreEqual(CopyModeState.BlockSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(SelectionMode.Block, ctx.Handle.Selection!.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task V_TogglesCharacterSelection()
     {
         // Arrange
@@ -622,19 +620,19 @@ public class CopyModeBindingsFunctionalTests
         // First V — starts character selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.Selection!.IsSelecting);
+        Assert.IsTrue(ctx.Handle.Selection!.IsSelecting);
 
         // Act — second V — clears selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
 
         // Assert — selection should be cleared but still in copy mode
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.False(ctx.Handle.Selection!.IsSelecting);
-        Assert.Equal(CopyModeState.Active, ctx.Handle.CopyModeState);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.Selection!.IsSelecting);
+        Assert.AreEqual(CopyModeState.Active, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectionModeSwitch_CharacterToLine()
     {
         // Arrange
@@ -649,22 +647,22 @@ public class CopyModeBindingsFunctionalTests
         // Start character selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(SelectionMode.Character, ctx.Handle.Selection!.Mode);
+        Assert.AreEqual(SelectionMode.Character, ctx.Handle.Selection!.Mode);
 
         // Act — switch to line selection
         await ctx.SendKeysAsync(b => b.Shift().Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(SelectionMode.Line, ctx.Handle.Selection!.Mode);
-        Assert.Equal(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(SelectionMode.Line, ctx.Handle.Selection!.Mode);
+        Assert.AreEqual(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 5. Copy Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Y_CopiesAndExits()
     {
         // Arrange
@@ -692,12 +690,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.False(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(copiedText);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(copiedText);
         Assert.Contains("Hello", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Enter_CopiesAndExits()
     {
         // Arrange
@@ -724,12 +722,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.False(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(copiedText);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(copiedText);
         Assert.Contains("Test", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopiedText_TrimsTrailingWhitespace()
     {
         // Arrange
@@ -755,11 +753,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — trailing whitespace should be trimmed
-        Assert.NotNull(copiedText);
-        Assert.Equal("Hello", copiedText);
+        Assert.IsNotNull(copiedText);
+        Assert.AreEqual("Hello", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopiedText_CharacterSelection_CorrectContent()
     {
         // Arrange
@@ -785,11 +783,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — should be characters from col 2 to col 5 inclusive
-        Assert.NotNull(copiedText);
-        Assert.Equal("CDEF", copiedText);
+        Assert.IsNotNull(copiedText);
+        Assert.AreEqual("CDEF", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopiedText_LineSelection_FullRows()
     {
         // Arrange
@@ -818,12 +816,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — line mode copies full rows
-        Assert.NotNull(copiedText);
+        Assert.IsNotNull(copiedText);
         Assert.Contains("First Row", copiedText);
         Assert.Contains("Second Row", copiedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopiedText_BlockSelection_Rectangle()
     {
         // Arrange
@@ -851,19 +849,19 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — block selects cols 2-4 from rows 0-2
-        Assert.NotNull(copiedText);
+        Assert.IsNotNull(copiedText);
         var lines = copiedText.Split(Environment.NewLine);
-        Assert.Equal(3, lines.Length);
-        Assert.Equal("CDE", lines[0]);
-        Assert.Equal("MNO", lines[1]);
-        Assert.Equal("WXY", lines[2]);
+        Assert.AreEqual(3, lines.Length);
+        Assert.AreEqual("CDE", lines[0]);
+        Assert.AreEqual("MNO", lines[1]);
+        Assert.AreEqual("WXY", lines[2]);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 6. Mouse Selection Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task MouseDrag_EntersCopyModeAndSelects()
     {
         // Arrange — test mouse selection via handle's MouseSelect API
@@ -881,12 +879,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — copy mode should be entered and selection active
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(ctx.Handle.Selection);
-        Assert.True(ctx.Handle.Selection.IsSelecting);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(ctx.Handle.Selection);
+        Assert.IsTrue(ctx.Handle.Selection.IsSelecting);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseClick_WithoutDrag_DoesNotEnterCopyMode()
     {
         // Arrange
@@ -901,10 +899,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — should NOT enter copy mode on click-only
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseDrag_CharacterSelection_Default()
     {
         // Arrange
@@ -920,12 +918,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(ctx.Handle.Selection);
-        Assert.Equal(SelectionMode.Character, ctx.Handle.Selection.Mode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(ctx.Handle.Selection);
+        Assert.AreEqual(SelectionMode.Character, ctx.Handle.Selection.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseDrag_LineSelectionMode()
     {
         // Arrange
@@ -942,12 +940,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(ctx.Handle.Selection);
-        Assert.Equal(SelectionMode.Line, ctx.Handle.Selection.Mode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(ctx.Handle.Selection);
+        Assert.AreEqual(SelectionMode.Line, ctx.Handle.Selection.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseDrag_BlockSelectionMode()
     {
         // Arrange
@@ -964,12 +962,12 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.NotNull(ctx.Handle.Selection);
-        Assert.Equal(SelectionMode.Block, ctx.Handle.Selection.Mode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsNotNull(ctx.Handle.Selection);
+        Assert.AreEqual(SelectionMode.Block, ctx.Handle.Selection.Mode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightClick_CopiesSelection()
     {
         // Arrange
@@ -999,16 +997,16 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.NotNull(copiedText);
+        Assert.IsNotNull(copiedText);
         Assert.Contains("Hello", copiedText);
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 7. CopyModeState Enum Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_Inactive_WhenNotInCopyMode()
     {
         // Arrange
@@ -1016,11 +1014,11 @@ public class CopyModeBindingsFunctionalTests
         await ctx.StartAsync();
 
         // Assert — should start inactive
-        Assert.Equal(CopyModeState.Inactive, ctx.Handle.CopyModeState);
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.AreEqual(CopyModeState.Inactive, ctx.Handle.CopyModeState);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_Active_WhenInCopyModeNoSelection()
     {
         // Arrange
@@ -1032,13 +1030,13 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — in copy mode but no selection started yet
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.Equal(CopyModeState.Active, ctx.Handle.CopyModeState);
-        Assert.NotNull(ctx.Handle.Selection);
-        Assert.False(ctx.Handle.Selection.IsSelecting);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.AreEqual(CopyModeState.Active, ctx.Handle.CopyModeState);
+        Assert.IsNotNull(ctx.Handle.Selection);
+        Assert.IsFalse(ctx.Handle.Selection.IsSelecting);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_CharacterSelection_WhenSelecting()
     {
         // Arrange
@@ -1053,10 +1051,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_LineSelection_WhenSelectingLines()
     {
         // Arrange
@@ -1071,10 +1069,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.LineSelection, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_BlockSelection_WhenSelectingBlock()
     {
         // Arrange
@@ -1089,10 +1087,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.BlockSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.BlockSelection, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyModeState_ReturnsToInactive_AfterExit()
     {
         // Arrange
@@ -1101,27 +1099,27 @@ public class CopyModeBindingsFunctionalTests
 
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(CopyModeState.Active, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.Active, ctx.Handle.CopyModeState);
 
         // Start a selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
-        Assert.Equal(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
 
         // Act — exit copy mode
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Escape));
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.Inactive, ctx.Handle.CopyModeState);
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.AreEqual(CopyModeState.Inactive, ctx.Handle.CopyModeState);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 8. Output Queuing Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task OutputQueued_DuringCopyMode_NotRendered()
     {
         // Arrange
@@ -1133,7 +1131,7 @@ public class CopyModeBindingsFunctionalTests
         // Enter copy mode
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Act — inject new text while in copy mode (should be queued)
         ctx.InjectText(1, 0, "QUEUED_TEXT");
@@ -1148,10 +1146,10 @@ public class CopyModeBindingsFunctionalTests
         // (the buffer is frozen, so the queued output hasn't been applied yet)
         // Note: This depends on the handle's buffer state. The output is queued
         // but the buffer isn't updated until copy mode exits.
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task QueuedOutput_FlushedOnExit()
     {
         // Arrange
@@ -1163,7 +1161,7 @@ public class CopyModeBindingsFunctionalTests
         // Enter copy mode
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Inject text while in copy mode (queued)
         ctx.InjectText(1, 0, "AfterExit");
@@ -1174,16 +1172,16 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync(500);
 
         // Assert — queued text should now be visible in the handle's buffer
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
         var cell = ctx.Handle.GetCell(0, 1);
-        Assert.Equal("A", cell.Character);
+        Assert.AreEqual("A", cell.Character);
     }
 
     // ────────────────────────────────────────────────────────────────────
     // 9. Selection Rendering Tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task SelectedCells_RenderedWithInvertedColors()
     {
         // Arrange
@@ -1210,17 +1208,17 @@ public class CopyModeBindingsFunctionalTests
 
         // The selection should render cells 0-4 of the text row with inverted colors.
         // Verify the selection is active and cells are marked as selected.
-        Assert.True(ctx.Handle.Selection!.IsSelecting);
-        Assert.True(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 0));
-        Assert.True(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 4));
-        Assert.False(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 5));
+        Assert.IsTrue(ctx.Handle.Selection!.IsSelecting);
+        Assert.IsTrue(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 0));
+        Assert.IsTrue(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 4));
+        Assert.IsFalse(ctx.Handle.Selection.IsCellSelected(scrollbackCount + 0, 5));
     }
 
     // ────────────────────────────────────────────────────────────────────
     // Additional edge case tests
     // ────────────────────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public async Task Spacebar_StartsCharacterSelection()
     {
         // Arrange — Spacebar is also a default character selection key
@@ -1235,10 +1233,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
+        Assert.AreEqual(CopyModeState.CharacterSelection, ctx.Handle.CopyModeState);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task D0_MovesToLineStart()
     {
         // Arrange — 0 key is also a default line-start key
@@ -1259,10 +1257,10 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert
-        Assert.Equal(0, ctx.Handle.Selection!.Cursor.Column);
+        Assert.AreEqual(0, ctx.Handle.Selection!.Cursor.Column);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyMode_AllKeysConsumed()
     {
         // Arrange — when in copy mode, unmapped keys should still be consumed
@@ -1271,17 +1269,17 @@ public class CopyModeBindingsFunctionalTests
 
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
         // Act — press random keys that aren't mapped to any action
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Z));
         await ctx.WaitForRenderAsync();
 
         // Assert — should still be in copy mode (key was consumed but did nothing)
-        Assert.True(ctx.Handle.IsInCopyMode);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterCopyMode_ExitCopyMode_Roundtrip()
     {
         // Arrange
@@ -1293,19 +1291,19 @@ public class CopyModeBindingsFunctionalTests
         {
             await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
             await ctx.WaitForRenderAsync();
-            Assert.True(ctx.Handle.IsInCopyMode);
+            Assert.IsTrue(ctx.Handle.IsInCopyMode);
 
             await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Q));
             await ctx.WaitForRenderAsync();
-            Assert.False(ctx.Handle.IsInCopyMode);
+            Assert.IsFalse(ctx.Handle.IsInCopyMode);
         }
 
         // Assert — state is clean after multiple roundtrips
-        Assert.Equal(CopyModeState.Inactive, ctx.Handle.CopyModeState);
-        Assert.Null(ctx.Handle.Selection);
+        Assert.AreEqual(CopyModeState.Inactive, ctx.Handle.CopyModeState);
+        Assert.IsNull(ctx.Handle.Selection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CopyWithNoSelection_DoesNotFireTextCopied()
     {
         // Arrange
@@ -1318,19 +1316,19 @@ public class CopyModeBindingsFunctionalTests
         // Enter copy mode but don't start a selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.F6));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.IsInCopyMode);
-        Assert.False(ctx.Handle.Selection!.IsSelecting);
+        Assert.IsTrue(ctx.Handle.IsInCopyMode);
+        Assert.IsFalse(ctx.Handle.Selection!.IsSelecting);
 
         // Act — press Y to copy (but nothing is selected)
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.Y));
         await ctx.WaitForRenderAsync();
 
         // Assert — TextCopied should not fire, but copy mode should exit
-        Assert.Null(copiedText);
-        Assert.False(ctx.Handle.IsInCopyMode);
+        Assert.IsNull(copiedText);
+        Assert.IsFalse(ctx.Handle.IsInCopyMode);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SelectionPersists_DuringNavigation()
     {
         // Arrange
@@ -1346,7 +1344,7 @@ public class CopyModeBindingsFunctionalTests
         // Start character selection
         await ctx.SendKeysAsync(b => b.Key(Hex1bKey.V));
         await ctx.WaitForRenderAsync();
-        Assert.True(ctx.Handle.Selection!.IsSelecting);
+        Assert.IsTrue(ctx.Handle.Selection!.IsSelecting);
 
         // Act — navigate while selecting
         await ctx.SendKeysAsync(b => b
@@ -1356,7 +1354,7 @@ public class CopyModeBindingsFunctionalTests
         await ctx.WaitForRenderAsync();
 
         // Assert — selection should still be active
-        Assert.True(ctx.Handle.Selection!.IsSelecting);
-        Assert.Equal(SelectionMode.Character, ctx.Handle.Selection.Mode);
+        Assert.IsTrue(ctx.Handle.Selection!.IsSelecting);
+        Assert.AreEqual(SelectionMode.Character, ctx.Handle.Selection.Mode);
     }
 }

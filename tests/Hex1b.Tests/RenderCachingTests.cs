@@ -8,11 +8,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the render caching infrastructure.
 /// </summary>
+[TestClass]
 public class RenderCachingTests
 {
     #region Cache Mechanics
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenDirty_RendersAndCaches()
     {
         // Arrange
@@ -22,20 +23,20 @@ public class RenderCachingTests
         node.Measure(new Constraints(0, 20, 0, 5));
         node.Arrange(new Rect(0, 0, 20, 1));
         
-        Assert.True(node.IsDirty);
-        Assert.Null(node.CachedSurface);
+        Assert.IsTrue(node.IsDirty);
+        Assert.IsNull(node.CachedSurface);
         
         // Act
         context.RenderChild(node);
         
         // Assert
-        Assert.NotNull(node.CachedSurface);
-        Assert.Equal(node.Bounds, node.CachedBounds);
-        Assert.Equal(1, context.CacheMisses);
-        Assert.Equal(0, context.CacheHits);
+        Assert.IsNotNull(node.CachedSurface);
+        Assert.AreEqual(node.Bounds, node.CachedBounds);
+        Assert.AreEqual(1, context.CacheMisses);
+        Assert.AreEqual(0, context.CacheHits);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenCleanWithCache_UsesCachedSurface()
     {
         // Arrange
@@ -54,11 +55,11 @@ public class RenderCachingTests
         context.RenderChild(node);
         
         // Assert
-        Assert.Equal(1, context.CacheHits);
-        Assert.Equal(0, context.CacheMisses);
+        Assert.AreEqual(1, context.CacheHits);
+        Assert.AreEqual(0, context.CacheMisses);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenDescendantMarkedDirty_ParentCacheMisses()
     {
         // Arrange
@@ -75,7 +76,7 @@ public class RenderCachingTests
         child.ClearDirty();
         context.ResetCacheStats();
         context.RenderChild(parent);
-        Assert.Equal(1, context.CacheHits);
+        Assert.AreEqual(1, context.CacheHits);
 
         // Mark only child dirty (parent IsDirty remains false)
         child.MarkDirty();
@@ -85,11 +86,11 @@ public class RenderCachingTests
         context.RenderChild(parent);
 
         // Assert
-        Assert.Equal(0, context.CacheHits);
-        Assert.Equal(1, context.CacheMisses);
+        Assert.AreEqual(0, context.CacheHits);
+        Assert.AreEqual(1, context.CacheMisses);
     }
 
-    [Fact]
+    [TestMethod]
     public void MarkDirty_InvalidatesCache()
     {
         // Arrange
@@ -100,17 +101,17 @@ public class RenderCachingTests
         node.Arrange(new Rect(0, 0, 20, 1));
         
         context.RenderChild(node);
-        Assert.NotNull(node.CachedSurface);
+        Assert.IsNotNull(node.CachedSurface);
         
         // Act
         node.MarkDirty();
         
         // Assert
-        Assert.Null(node.CachedSurface);
-        Assert.True(node.IsDirty);
+        Assert.IsNull(node.CachedSurface);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenBoundsChange_InvalidatesCache()
     {
         // Arrange
@@ -131,11 +132,11 @@ public class RenderCachingTests
         context.RenderChild(node);
         
         // Assert - cache miss because bounds changed
-        Assert.Equal(0, context.CacheHits);
-        Assert.Equal(1, context.CacheMisses);
+        Assert.AreEqual(0, context.CacheHits);
+        Assert.AreEqual(1, context.CacheMisses);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenCachingDisabled_AlwaysRenders()
     {
         // Arrange
@@ -153,11 +154,11 @@ public class RenderCachingTests
         context.RenderChild(node);
         
         // Assert - no cache stats when disabled
-        Assert.Equal(0, context.CacheHits);
-        Assert.Equal(0, context.CacheMisses);
+        Assert.AreEqual(0, context.CacheHits);
+        Assert.AreEqual(0, context.CacheMisses);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WhenCachePredicateReturnsFalse_ForcesMiss()
     {
         // Arrange
@@ -184,13 +185,13 @@ public class RenderCachingTests
         context.RenderChild(node);
 
         // Assert
-        Assert.Same(node, seenNode);
-        Assert.Same(context, seenRenderContext);
-        Assert.Equal(0, context.CacheHits);
-        Assert.Equal(1, context.CacheMisses);
+        Assert.AreSame(node, seenNode);
+        Assert.AreSame(context, seenRenderContext);
+        Assert.AreEqual(0, context.CacheHits);
+        Assert.AreEqual(1, context.CacheMisses);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReconcileChild_WhenWidgetUsesCachedExtension_PropagatesPredicate()
     {
         // Arrange
@@ -202,18 +203,18 @@ public class RenderCachingTests
         var node = await context.ReconcileChildAsync(null, widget, parent);
 
         // Assert
-        Assert.NotNull(node);
+        Assert.IsNotNull(node);
         var predicate = node!.CachePredicate;
-        Assert.NotNull(predicate);
+        Assert.IsNotNull(predicate);
         var renderContext = new SurfaceRenderContext(new Surface(1, 1));
-        Assert.False(predicate!(new RenderCacheContext(node, renderContext)));
+        Assert.IsFalse(predicate!(new RenderCacheContext(node, renderContext)));
     }
 
     #endregion
 
     #region Cache Content Verification
 
-    [Fact]
+    [TestMethod]
     public void CachedSurface_ContainsRenderedContent()
     {
         // Arrange
@@ -228,14 +229,14 @@ public class RenderCachingTests
         
         // Assert - cached surface should have the text
         var cached = node.CachedSurface!;
-        Assert.Equal('H', cached[0, 0].Character[0]);
-        Assert.Equal('e', cached[1, 0].Character[0]);
-        Assert.Equal('l', cached[2, 0].Character[0]);
-        Assert.Equal('l', cached[3, 0].Character[0]);
-        Assert.Equal('o', cached[4, 0].Character[0]);
+        Assert.AreEqual('H', cached[0, 0].Character[0]);
+        Assert.AreEqual('e', cached[1, 0].Character[0]);
+        Assert.AreEqual('l', cached[2, 0].Character[0]);
+        Assert.AreEqual('l', cached[3, 0].Character[0]);
+        Assert.AreEqual('o', cached[4, 0].Character[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WithCache_ProducesSameOutput()
     {
         // Arrange
@@ -259,7 +260,7 @@ public class RenderCachingTests
         {
             for (int x = 0; x < 20; x++)
             {
-                Assert.Equal(surface1[x, y].Character, surface2[x, y].Character);
+                Assert.AreEqual(surface1[x, y].Character, surface2[x, y].Character);
             }
         }
     }
@@ -268,7 +269,7 @@ public class RenderCachingTests
 
     #region Container Caching
 
-    [Fact]
+    [TestMethod]
     public void VStackNode_WithRenderChild_CachesChildren()
     {
         // Arrange
@@ -288,14 +289,14 @@ public class RenderCachingTests
         // Assert - children should have cached surfaces after VStack uses RenderChild
         // Note: This test will fail until we migrate VStackNode to use RenderChild
         // For now, just verify the VStack renders correctly
-        Assert.Equal('L', surface[0, 0].Character[0]);
+        Assert.AreEqual('L', surface[0, 0].Character[0]);
     }
 
     #endregion
 
     #region Edge Cases
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WithNullNode_DoesNotThrow()
     {
         // Arrange
@@ -306,7 +307,7 @@ public class RenderCachingTests
         context.RenderChild(null!);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_WithZeroBounds_DoesNotCache()
     {
         // Arrange
@@ -320,10 +321,10 @@ public class RenderCachingTests
         context.RenderChild(node);
         
         // Assert - zero-sized nodes shouldn't cache
-        Assert.Null(node.CachedSurface);
+        Assert.IsNull(node.CachedSurface);
     }
 
-    [Fact]
+    [TestMethod]
     public void MultipleRenders_TracksCacheStats()
     {
         // Arrange
@@ -340,8 +341,8 @@ public class RenderCachingTests
         // First frame - all misses
         context.RenderChild(node1);
         context.RenderChild(node2);
-        Assert.Equal(2, context.CacheMisses);
-        Assert.Equal(0, context.CacheHits);
+        Assert.AreEqual(2, context.CacheMisses);
+        Assert.AreEqual(0, context.CacheHits);
         
         // Clear dirty flags
         node1.ClearDirty();
@@ -351,11 +352,11 @@ public class RenderCachingTests
         // Second frame - all hits
         context.RenderChild(node1);
         context.RenderChild(node2);
-        Assert.Equal(0, context.CacheMisses);
-        Assert.Equal(2, context.CacheHits);
+        Assert.AreEqual(0, context.CacheMisses);
+        Assert.AreEqual(2, context.CacheHits);
     }
 
-    [Fact]
+    [TestMethod]
     public void MultiFrame_Simulation_CachingImprovesCacheHitRate()
     {
         // Arrange - create a realistic widget tree
@@ -375,7 +376,7 @@ public class RenderCachingTests
         // Frame 1: Cold cache (all misses expected)
         context.ResetCacheStats();
         context.RenderChild(root);
-        Assert.True(context.CacheMisses > 0, "Frame 1 should have cache misses");
+        Assert.IsTrue(context.CacheMisses > 0, "Frame 1 should have cache misses");
         totalMisses += context.CacheMisses;
         totalHits += context.CacheHits;
         
@@ -394,7 +395,7 @@ public class RenderCachingTests
             context.RenderChild(root);
             
             // With all nodes clean, we should get cache hits
-            Assert.True(context.CacheHits >= 0, $"Frame {frame} should be able to use cache");
+            Assert.IsTrue(context.CacheHits >= 0, $"Frame {frame} should be able to use cache");
             totalMisses += context.CacheMisses;
             totalHits += context.CacheHits;
         }
@@ -422,7 +423,7 @@ public class RenderCachingTests
         
         // Assert - overall hit rate should be > 0 (caching provides benefit)
         var hitRate = (double)totalHits / (totalHits + totalMisses) * 100;
-        Assert.True(totalHits > 0, $"Expected some cache hits across 20 frames. Hits={totalHits}, Misses={totalMisses}");
+        Assert.IsTrue(totalHits > 0, $"Expected some cache hits across 20 frames. Hits={totalHits}, Misses={totalMisses}");
     }
 
     #endregion

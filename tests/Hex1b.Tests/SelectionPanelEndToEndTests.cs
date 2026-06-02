@@ -26,6 +26,7 @@ namespace Hex1b.Tests;
 ///       ScrollPanel mid-drag.</item>
 /// </list>
 /// </remarks>
+[TestClass]
 public class SelectionPanelEndToEndTests
 {
     // ------------------------------------------------------------------
@@ -211,12 +212,12 @@ public class SelectionPanelEndToEndTests
     // Category A — Keyboard, single-screen
     // ------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_LineSelect_BufferTopToBufferBottom_CopiesAllVisibleLines()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.F12)
@@ -230,22 +231,20 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var text = Assert.Single(h.CopiedTexts);
-        Assert.Equal(
-            "AAAAA-BBBBB-CCCCC-DDDDD\n" +
+        var text = TestSeq.Single(h.CopiedTexts);
+        Assert.AreEqual("AAAAA-BBBBB-CCCCC-DDDDD\n" +
             "EEEEE-FFFFF-GGGGG-HHHHH\n" +
             "IIIII-JJJJJ-KKKKK-LLLLL\n" +
             "MMMMM-NNNNN-OOOOO-PPPPP\n" +
-            "QQQQQ-RRRRR-SSSSS-TTTTT",
-            text);
+            "QQQQQ-RRRRR-SSSSS-TTTTT", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_LineSelect_SingleLineAtCursor_CopiesThatLine()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // F12 enters copy mode at panel-local bottom (row Bounds.Height-1
         // = 7 here, an empty row). Navigate to a known content row first
@@ -266,15 +265,15 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("QQQQQ-RRRRR-SSSSS-TTTTT", Assert.Single(h.CopiedTexts));
+        Assert.AreEqual("QQQQQ-RRRRR-SSSSS-TTTTT", TestSeq.Single(h.CopiedTexts));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_CharSelect_PartialFirstAndLastRow_CopiesStreamSubstring()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // F12 → G (row 0, col 0) → Right×6 (row 0, col 6) → V (start char
         // selection here) → Down (row 1) → Right×4 (row 1, col 10) → Y.
@@ -295,18 +294,16 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(
-            "BBBBB-CCCCC-DDDDD\n" +
-            "EEEEE-FFFFF",
-            Assert.Single(h.CopiedTexts));
+        Assert.AreEqual("BBBBB-CCCCC-DDDDD\n" +
+            "EEEEE-FFFFF", TestSeq.Single(h.CopiedTexts));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_BlockSelect_RectangleAcrossRows_CopiesRectangleText()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // F12 → G (row 0,col 0) → Right×6 → Alt+V (block mode start at
         // (0,6)) → Down×2 → Right×4 (cursor at (2,10)) → Y.
@@ -328,17 +325,17 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var args = Assert.Single(h.CopyEvents);
-        Assert.Equal(SelectionMode.Block, args.Mode);
-        Assert.Equal("BBBBB\nFFFFF\nJJJJJ", Harness.Norm(args.Text));
+        var args = TestSeq.Single(h.CopyEvents);
+        Assert.AreEqual(SelectionMode.Block, args.Mode);
+        Assert.AreEqual("BBBBB\nFFFFF\nJJJJJ", Harness.Norm(args.Text));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_Cancel_NoCopyDelivered_AndExitsCopyMode()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.F12)
@@ -351,11 +348,11 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.Empty(h.CopiedTexts);
-        Assert.False(panel!.HasSelection);
+        Assert.IsEmpty(h.CopiedTexts);
+        Assert.IsFalse(panel!.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_F12_GlobalRouting_FiresEvenWhenSiblingHasFocus()
     {
         // Sibling TextBox owns focus by default (last-rendered focusable in
@@ -364,7 +361,7 @@ public class SelectionPanelEndToEndTests
         await using var h = await BuildScrollHarnessAsync(
             FixedContent5Rows, 30, 12, includeFocusedSibling: true);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.F12)
@@ -373,19 +370,19 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(panel!.IsInCopyMode);
+        Assert.IsTrue(panel!.IsInCopyMode);
     }
 
     // ------------------------------------------------------------------
     // Category B — Mouse, single-screen
     // ------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_Drag_CharSelect_AcrossOneRow_CopiesText()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Drag from (0, 0) to (10, 0) — char mode, single row, cells 0..10.
         // Row 0 content cells 0..10 = "AAAAA-BBBBB"
@@ -399,15 +396,15 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("AAAAA-BBBBB", Assert.Single(h.CopiedTexts));
+        Assert.AreEqual("AAAAA-BBBBB", TestSeq.Single(h.CopiedTexts));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_CtrlDrag_LineSelect_AcrossThreeRows_CopiesAllRows()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Ctrl+drag from (5, 1) to (15, 3) — line mode, rows 1..3 full.
         await new Hex1bTerminalInputSequenceBuilder()
@@ -422,21 +419,19 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var args = Assert.Single(h.CopyEvents);
-        Assert.Equal(SelectionMode.Line, args.Mode);
-        Assert.Equal(
-            "EEEEE-FFFFF-GGGGG-HHHHH\n" +
+        var args = TestSeq.Single(h.CopyEvents);
+        Assert.AreEqual(SelectionMode.Line, args.Mode);
+        Assert.AreEqual("EEEEE-FFFFF-GGGGG-HHHHH\n" +
             "IIIII-JJJJJ-KKKKK-LLLLL\n" +
-            "MMMMM-NNNNN-OOOOO-PPPPP",
-            Harness.Norm(args.Text));
+            "MMMMM-NNNNN-OOOOO-PPPPP", Harness.Norm(args.Text));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_AltDrag_BlockSelect_AcrossRowsAndCols_CopiesRectangle()
     {
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Alt+drag from (6, 0) to (10, 2) — block, cols 6..10, rows 0..2.
         //   row 0 cells 6..10 = "BBBBB"
@@ -454,10 +449,10 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("BBBBB\nFFFFF\nJJJJJ", Assert.Single(h.CopiedTexts));
+        Assert.AreEqual("BBBBB\nFFFFF\nJJJJJ", TestSeq.Single(h.CopiedTexts));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_Drag_ThenKeyboardRefine_ThenCommit_CopiesExtendedSelection()
     {
         // Proves the mouse→keyboard handoff: drag installs keyboard
@@ -465,7 +460,7 @@ public class SelectionPanelEndToEndTests
         // selection commands.
         await using var h = await BuildPlainHarnessAsync(FixedContent5Rows, 30, 8);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         // Initial mouse selection: char-mode drag from (0,0) to (4,0)
         // (cells 0..4 of row 0).
@@ -489,17 +484,15 @@ public class SelectionPanelEndToEndTests
         // Char-mode stream from (0,0) to (1,end-of-row):
         //   row 0 cells 0..end = "AAAAA-BBBBB-CCCCC-DDDDD"
         //   row 1 cells 0..end = "EEEEE-FFFFF-GGGGG-HHHHH"
-        Assert.Equal(
-            "AAAAA-BBBBB-CCCCC-DDDDD\n" +
-            "EEEEE-FFFFF-GGGGG-HHHHH",
-            Assert.Single(h.CopiedTexts));
+        Assert.AreEqual("AAAAA-BBBBB-CCCCC-DDDDD\n" +
+            "EEEEE-FFFFF-GGGGG-HHHHH", TestSeq.Single(h.CopiedTexts));
     }
 
     // ------------------------------------------------------------------
     // Category C — Keyboard, scroll-spanning (content > viewport)
     // ------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_LineSelect_BufferTopToBottom_CopiesAll30Rows_WhenContentExceedsViewport()
     {
         // 30 rows of content inside a 10-row viewport. The selection must
@@ -508,7 +501,7 @@ public class SelectionPanelEndToEndTests
         var content = Build30RowContent();
         await using var h = await BuildScrollHarnessAsync(content, 40, 10);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.F12)
@@ -523,16 +516,16 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var text = Assert.Single(h.CopiedTexts);
+        var text = TestSeq.Single(h.CopiedTexts);
         var lines = text.Split('\n');
-        Assert.Equal(30, lines.Length);
+        Assert.AreEqual(30, lines.Length);
         for (int i = 0; i < 30; i++)
         {
-            Assert.Equal($"Row{i:00}-payload-rest-here", lines[i]);
+            Assert.AreEqual($"Row{i:00}-payload-rest-here", lines[i]);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_LineSelect_PageDownFromTop_CopiesPageWorthOfRows()
     {
         // Line mode + PageDown: selection extends by PageRows (=20) lines,
@@ -541,7 +534,7 @@ public class SelectionPanelEndToEndTests
         var content = Build30RowContent();
         await using var h = await BuildScrollHarnessAsync(content, 40, 10);
         var panel = h.FindPanel();
-        Assert.NotNull(panel);
+        Assert.IsNotNull(panel);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.F12)
@@ -558,12 +551,12 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var text = Assert.Single(h.CopiedTexts);
+        var text = TestSeq.Single(h.CopiedTexts);
         var lines = text.Split('\n');
         // PageRows=20 takes cursor from 0 to 20, inclusive both ends → 21 rows.
-        Assert.Equal(21, lines.Length);
-        Assert.Equal("Row00-payload-rest-here", lines[0]);
-        Assert.Equal("Row20-payload-rest-here", lines[^1]);
+        Assert.AreEqual(21, lines.Length);
+        Assert.AreEqual("Row00-payload-rest-here", lines[0]);
+        Assert.AreEqual("Row20-payload-rest-here", lines[^1]);
         // Row 9 was the last row of the initial viewport — proves we crossed it.
         Assert.Contains("Row10-payload-rest-here", lines);
         Assert.Contains("Row15-payload-rest-here", lines);
@@ -572,7 +565,7 @@ public class SelectionPanelEndToEndTests
         Assert.DoesNotContain("Row29-payload-rest-here", lines);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Keyboard_PreScrolledViewport_LineSelect_BufferBottomToTop_CopiesAllUpward()
     {
         // Pre-scroll the ScrollPanel to the bottom so the visible viewport
@@ -584,8 +577,8 @@ public class SelectionPanelEndToEndTests
         await using var h = await BuildScrollHarnessAsync(content, 40, 10);
         var scroll = h.FindScrollPanel();
         var panel = h.FindPanel();
-        Assert.NotNull(scroll);
-        Assert.NotNull(panel);
+        Assert.IsNotNull(scroll);
+        Assert.IsNotNull(panel);
 
         scroll!.ScrollToBottom();
         h.App.Invalidate();
@@ -606,18 +599,18 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var text = Assert.Single(h.CopiedTexts);
+        var text = TestSeq.Single(h.CopiedTexts);
         var lines = text.Split('\n');
-        Assert.Equal(30, lines.Length);
-        Assert.Equal("Row00-payload-rest-here", lines[0]);
-        Assert.Equal("Row29-payload-rest-here", lines[^1]);
+        Assert.AreEqual(30, lines.Length);
+        Assert.AreEqual("Row00-payload-rest-here", lines[0]);
+        Assert.AreEqual("Row29-payload-rest-here", lines[^1]);
     }
 
     // ------------------------------------------------------------------
     // Category D — Mouse, wheel-during-drag scroll-spanning
     // ------------------------------------------------------------------
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_CtrlDrag_ThenScrollDownDuringDrag_CopiesContentBeyondInitialViewport()
     {
         // Ctrl+drag = line mode so each "row passed under the mouse" lands
@@ -630,9 +623,9 @@ public class SelectionPanelEndToEndTests
         await using var h = await BuildScrollHarnessAsync(content, 40, 10);
         var scroll = h.FindScrollPanel();
         var panel = h.FindPanel();
-        Assert.NotNull(scroll);
-        Assert.NotNull(panel);
-        Assert.Equal(0, scroll!.Offset);
+        Assert.IsNotNull(scroll);
+        Assert.IsNotNull(panel);
+        Assert.AreEqual(0, scroll!.Offset);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().MouseMoveTo(5, 1)
@@ -654,24 +647,23 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var args = Assert.Single(h.CopyEvents);
-        Assert.Equal(SelectionMode.Line, args.Mode);
+        var args = TestSeq.Single(h.CopyEvents);
+        Assert.AreEqual(SelectionMode.Line, args.Mode);
 
         var lines = Harness.Norm(args.Text).Split('\n');
         // Anchor row was 1. Cursor row landed at panel.CursorRow at
         // commit time (>= 4 because scroll added rows). Line mode payload
         // is rows [1..cursorRow] inclusive in panel-local coords.
-        Assert.True(lines.Length >= 4,
-            $"Expected at least 4 lines (anchor row 1 + scroll-extended), got {lines.Length}: {args.Text}");
-        Assert.Equal("Row01-payload-rest-here", lines[0]);
+        Assert.IsTrue(lines.Length >= 4, $"Expected at least 4 lines (anchor row 1 + scroll-extended), got {lines.Length}: {args.Text}");
+        Assert.AreEqual("Row01-payload-rest-here", lines[0]);
         // Must include rows that were OFF-SCREEN at drag start (viewport
         // showed rows 0..9, so row 10+ counts as scrolled-into-view).
-        Assert.Contains(lines, l => l.StartsWith("Row10-", StringComparison.Ordinal));
+        Assert.IsTrue(lines.Any(l => l.StartsWith("Row10-", StringComparison.Ordinal)));
         // And must NOT include rows above the anchor.
-        Assert.DoesNotContain(lines, l => l.StartsWith("Row00-", StringComparison.Ordinal));
+        Assert.IsFalse(lines.Any(l => l.StartsWith("Row00-", StringComparison.Ordinal)));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Mouse_CtrlDrag_ThenScrollUpDuringDrag_CopiesContentAboveInitialViewport()
     {
         // Pre-scroll to the bottom so the viewport shows rows ~20..29.
@@ -683,8 +675,8 @@ public class SelectionPanelEndToEndTests
         await using var h = await BuildScrollHarnessAsync(content, 40, 10);
         var scroll = h.FindScrollPanel();
         var panel = h.FindPanel();
-        Assert.NotNull(scroll);
-        Assert.NotNull(panel);
+        Assert.IsNotNull(scroll);
+        Assert.IsNotNull(panel);
 
         scroll!.ScrollToBottom();
         h.App.Invalidate();
@@ -719,16 +711,15 @@ public class SelectionPanelEndToEndTests
             .Build()
             .ApplyAsync(h.Terminal, TestContext.Current.CancellationToken);
 
-        var args = Assert.Single(h.CopyEvents);
-        Assert.Equal(SelectionMode.Line, args.Mode);
+        var args = TestSeq.Single(h.CopyEvents);
+        Assert.AreEqual(SelectionMode.Line, args.Mode);
 
         var lines = Harness.Norm(args.Text).Split('\n');
-        Assert.True(lines.Length >= 2,
-            $"Expected at least 2 lines after scroll-up extension, got {lines.Length}: {args.Text}");
+        Assert.IsTrue(lines.Length >= 2, $"Expected at least 2 lines after scroll-up extension, got {lines.Length}: {args.Text}");
         // Bottom of the selection is the original mouse-down panel-local
         // row (anchor). Selection extended UPWARD from there into rows
         // above the initial viewport.
-        Assert.Equal($"Row{initialAnchorRow:00}-payload-rest-here", lines[^1]);
+        Assert.AreEqual($"Row{initialAnchorRow:00}-payload-rest-here", lines[^1]);
         // Top row index must be SMALLER than the row currently under the
         // mouse (because we scrolled up after grab, bringing higher rows
         // under the cursor than were originally there).
@@ -736,7 +727,6 @@ public class SelectionPanelEndToEndTests
         // first line should be "RowNN-..." with NN < initialAnchorRow.
         Assert.StartsWith("Row", firstRowLabel, StringComparison.Ordinal);
         var firstRowNumber = int.Parse(firstRowLabel.Substring(3, 2));
-        Assert.True(firstRowNumber < initialAnchorRow,
-            $"Expected scroll-up to extend selection to a row above {initialAnchorRow}, got {firstRowLabel}");
+        Assert.IsTrue(firstRowNumber < initialAnchorRow, $"Expected scroll-up to extend selection to a row above {initialAnchorRow}, got {firstRowLabel}");
     }
 }

@@ -8,7 +8,8 @@ namespace Hex1b.Tests.LanguageServer;
 /// End-to-end tests for the LSP integration pipeline:
 /// TestLanguageServer → JsonRpcTransport → LanguageServerClient → LanguageServerDecorationProvider
 /// </summary>
-public class LspIntegrationTests : IAsyncLifetime
+[TestClass]
+public class LspIntegrationTests
 {
     private const string DocUri = "file:///test.cs";
     private const string LangId = "csharp";
@@ -16,7 +17,8 @@ public class LspIntegrationTests : IAsyncLifetime
     private TestLanguageServer? _server;
     private LanguageServerClient? _client;
 
-    public async ValueTask InitializeAsync()
+    [TestInitialize]
+    public async Task InitializeAsync()
     {
         _server = new TestLanguageServer();
         _server.Start();
@@ -31,7 +33,8 @@ public class LspIntegrationTests : IAsyncLifetime
         await _client.StartAsync();
     }
 
-    public async ValueTask DisposeAsync()
+    [TestCleanup]
+    public async Task DisposeAsync()
     {
         if (_client != null)
         {
@@ -42,31 +45,31 @@ public class LspIntegrationTests : IAsyncLifetime
             await _server.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public void Initialize_ReturnsServerCapabilities()
     {
-        Assert.NotNull(_client!.ServerCapabilities);
-        Assert.NotNull(_client.ServerCapabilities!.SemanticTokensProvider);
-        Assert.NotNull(_client.ServerCapabilities.CompletionProvider);
+        Assert.IsNotNull(_client!.ServerCapabilities);
+        Assert.IsNotNull(_client.ServerCapabilities!.SemanticTokensProvider);
+        Assert.IsNotNull(_client.ServerCapabilities.CompletionProvider);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SemanticTokens_ReturnsTokensForKeywords()
     {
         await _client!.OpenDocumentAsync(DocUri, LangId, "public class Foo { }");
 
         var result = await _client.RequestSemanticTokensAsync(DocUri);
 
-        Assert.NotNull(result);
-        Assert.True(result!.Data.Length > 0, "Should return semantic tokens");
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result!.Data.Length > 0, "Should return semantic tokens");
 
-        Assert.Equal(0, result.Data[0]); // deltaLine
-        Assert.Equal(0, result.Data[1]); // deltaChar
-        Assert.Equal(6, result.Data[2]); // length of "public"
-        Assert.Equal(0, result.Data[3]); // tokenType = keyword
+        Assert.AreEqual(0, result.Data[0]); // deltaLine
+        Assert.AreEqual(0, result.Data[1]); // deltaChar
+        Assert.AreEqual(6, result.Data[2]); // length of "public"
+        Assert.AreEqual(0, result.Data[3]); // tokenType = keyword
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SemanticTokens_MapsToDecorationSpans()
     {
         var legend = new[] { "keyword", "type", "string", "comment", "number", "variable", "function", "namespace" };
@@ -75,15 +78,15 @@ public class LspIntegrationTests : IAsyncLifetime
         var result = await _client.RequestSemanticTokensAsync(DocUri);
         var spans = SemanticTokenMapper.MapTokens(result!.Data, legend);
 
-        Assert.True(spans.Count >= 2, "Should have spans for 'public' and 'class'");
+        Assert.IsTrue(spans.Count >= 2, "Should have spans for 'public' and 'class'");
 
         var first = spans[0];
-        Assert.Equal(1, first.Start.Line);
-        Assert.Equal(1, first.Start.Column);
-        Assert.Equal(7, first.End.Column); // "public" = 6 chars, end is exclusive
+        Assert.AreEqual(1, first.Start.Line);
+        Assert.AreEqual(1, first.Start.Column);
+        Assert.AreEqual(7, first.End.Column); // "public" = 6 chars, end is exclusive
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Diagnostics_ReceivedForTodoPattern()
     {
         var diagnosticsReceived = new TaskCompletionSource<JsonRpcResponse>();
@@ -96,17 +99,17 @@ public class LspIntegrationTests : IAsyncLifetime
         await _client.OpenDocumentAsync(DocUri, LangId, "// TODO: fix this");
 
         var result = await diagnosticsReceived.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.NotNull(result.Params);
+        Assert.IsNotNull(result.Params);
 
         var diagParams = System.Text.Json.JsonSerializer.Deserialize<PublishDiagnosticsParams>(
             result.Params!.Value.GetRawText());
-        Assert.NotNull(diagParams);
-        Assert.Single(diagParams!.Diagnostics);
-        Assert.Equal(2, diagParams.Diagnostics[0].Severity); // Warning
+        Assert.IsNotNull(diagParams);
+        TestSeq.Single(diagParams!.Diagnostics);
+        Assert.AreEqual(2, diagParams.Diagnostics[0].Severity); // Warning
         Assert.Contains("TODO", diagParams.Diagnostics[0].Message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Diagnostics_MapToDecorationSpans()
     {
         var diagnosticsReceived = new TaskCompletionSource<JsonRpcResponse>();
@@ -123,27 +126,27 @@ public class LspIntegrationTests : IAsyncLifetime
             result.Params!.Value.GetRawText());
 
         var spans = DiagnosticMapper.MapDiagnostics(diagParams!.Diagnostics);
-        Assert.Single(spans);
+        TestSeq.Single(spans);
 
         var span = spans[0];
-        Assert.Equal(UnderlineStyle.Curly, span.Decoration.UnderlineStyle);
-        Assert.Equal(1, span.Start.Line);
+        Assert.AreEqual(UnderlineStyle.Curly, span.Decoration.UnderlineStyle);
+        Assert.AreEqual(1, span.Start.Line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Completion_ReturnsItems()
     {
         await _client!.OpenDocumentAsync(DocUri, LangId, "var x = foo.");
 
         var result = await _client.RequestCompletionAsync(DocUri, 0, 12);
 
-        Assert.NotNull(result);
-        Assert.True(result!.Items.Length > 0);
-        Assert.Contains(result.Items, i => i.Label == "ToString");
-        Assert.Contains(result.Items, i => i.Label == "GetHashCode");
+        Assert.IsNotNull(result);
+        Assert.IsTrue(result!.Items.Length > 0);
+        Assert.IsTrue(result.Items.Any(i => i.Label == "ToString"));
+        Assert.IsTrue(result.Items.Any(i => i.Label == "GetHashCode"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DocumentChange_UpdatesTokens()
     {
         await _client!.OpenDocumentAsync(DocUri, LangId, "var x = 1;");
@@ -152,8 +155,8 @@ public class LspIntegrationTests : IAsyncLifetime
         await _client.ChangeDocumentAsync(DocUri, "public static void Main() { }");
         var result2 = await _client.RequestSemanticTokensAsync(DocUri);
 
-        Assert.NotNull(result1);
-        Assert.NotNull(result2);
-        Assert.True(result2!.Data.Length > result1!.Data.Length);
+        Assert.IsNotNull(result1);
+        Assert.IsNotNull(result2);
+        Assert.IsTrue(result2!.Data.Length > result1!.Data.Length);
     }
 }

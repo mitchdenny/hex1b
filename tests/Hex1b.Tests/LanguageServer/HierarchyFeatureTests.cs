@@ -2,11 +2,12 @@ using Hex1b.LanguageServer.Protocol;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class HierarchyFeatureTests
 {
     // ── SelectionRange ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void SelectionRange_HasRangeAndParent()
     {
         var inner = new SelectionRange
@@ -28,15 +29,15 @@ public class HierarchyFeatureTests
             Parent = inner,
         };
 
-        Assert.Equal(4, outer.Range.Start.Line);
-        Assert.NotNull(outer.Parent);
-        Assert.Equal(5, outer.Parent.Range.Start.Line);
-        Assert.Null(inner.Parent);
+        Assert.AreEqual(4, outer.Range.Start.Line);
+        Assert.IsNotNull(outer.Parent);
+        Assert.AreEqual(5, outer.Parent.Range.Start.Line);
+        Assert.IsNull(inner.Parent);
     }
 
     // ── CallHierarchyItem ───────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyItem_HasExpectedProperties()
     {
         var item = new CallHierarchyItem
@@ -56,14 +57,14 @@ public class HierarchyFeatureTests
             },
         };
 
-        Assert.Equal("DoWork", item.Name);
-        Assert.Equal(12, item.Kind);
-        Assert.Equal("file:///src/worker.cs", item.Uri);
-        Assert.Equal(10, item.Range.Start.Line);
-        Assert.Equal(16, item.SelectionRange.Start.Character);
+        Assert.AreEqual("DoWork", item.Name);
+        Assert.AreEqual(12, item.Kind);
+        Assert.AreEqual("file:///src/worker.cs", item.Uri);
+        Assert.AreEqual(10, item.Range.Start.Line);
+        Assert.AreEqual(16, item.SelectionRange.Start.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyIncomingCall_HasFromAndRanges()
     {
         var call = new CallHierarchyIncomingCall
@@ -86,12 +87,12 @@ public class HierarchyFeatureTests
             ],
         };
 
-        Assert.Equal("Caller", call.From.Name);
-        Assert.Single(call.FromRanges);
-        Assert.Equal(3, call.FromRanges[0].Start.Line);
+        Assert.AreEqual("Caller", call.From.Name);
+        TestSeq.Single(call.FromRanges);
+        Assert.AreEqual(3, call.FromRanges[0].Start.Line);
     }
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyOutgoingCall_HasToAndRanges()
     {
         var call = new CallHierarchyOutgoingCall
@@ -114,13 +115,13 @@ public class HierarchyFeatureTests
             ],
         };
 
-        Assert.Equal("Callee", call.To.Name);
-        Assert.Single(call.FromRanges);
+        Assert.AreEqual("Callee", call.To.Name);
+        TestSeq.Single(call.FromRanges);
     }
 
     // ── TypeHierarchyItem ───────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void TypeHierarchyItem_HasExpectedProperties()
     {
         var item = new TypeHierarchyItem
@@ -140,54 +141,54 @@ public class HierarchyFeatureTests
             },
         };
 
-        Assert.Equal("BaseClass", item.Name);
-        Assert.Equal(5, item.Kind);
-        Assert.Equal("file:///src/base.cs", item.Uri);
-        Assert.Equal(0, item.Range.Start.Line);
-        Assert.Equal(14, item.SelectionRange.Start.Character);
+        Assert.AreEqual("BaseClass", item.Name);
+        Assert.AreEqual(5, item.Kind);
+        Assert.AreEqual("file:///src/base.cs", item.Uri);
+        Assert.AreEqual(0, item.Range.Start.Line);
+        Assert.AreEqual(14, item.SelectionRange.Start.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyItem_DefaultValues_AreEmpty()
     {
         var item = new CallHierarchyItem();
 
-        Assert.Equal("", item.Name);
-        Assert.Equal(0, item.Kind);
-        Assert.Equal("", item.Uri);
-        Assert.NotNull(item.Range);
-        Assert.NotNull(item.SelectionRange);
-        Assert.Null(item.Data);
+        Assert.AreEqual("", item.Name);
+        Assert.AreEqual(0, item.Kind);
+        Assert.AreEqual("", item.Uri);
+        Assert.IsNotNull(item.Range);
+        Assert.IsNotNull(item.SelectionRange);
+        Assert.IsNull(item.Data);
     }
 
-    [Fact]
+    [TestMethod]
     public void TypeHierarchyItem_DefaultValues_AreEmpty()
     {
         var item = new TypeHierarchyItem();
 
-        Assert.Equal("", item.Name);
-        Assert.Equal(0, item.Kind);
-        Assert.Equal("", item.Uri);
-        Assert.NotNull(item.Range);
-        Assert.NotNull(item.SelectionRange);
-        Assert.Null(item.Data);
+        Assert.AreEqual("", item.Name);
+        Assert.AreEqual(0, item.Kind);
+        Assert.AreEqual("", item.Uri);
+        Assert.IsNotNull(item.Range);
+        Assert.IsNotNull(item.SelectionRange);
+        Assert.IsNull(item.Data);
     }
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyIncomingCall_DefaultFromRanges_IsEmpty()
     {
         var call = new CallHierarchyIncomingCall();
 
-        Assert.NotNull(call.From);
-        Assert.Empty(call.FromRanges);
+        Assert.IsNotNull(call.From);
+        Assert.IsEmpty(call.FromRanges);
     }
 
-    [Fact]
+    [TestMethod]
     public void CallHierarchyOutgoingCall_DefaultFromRanges_IsEmpty()
     {
         var call = new CallHierarchyOutgoingCall();
 
-        Assert.NotNull(call.To);
-        Assert.Empty(call.FromRanges);
+        Assert.IsNotNull(call.To);
+        Assert.IsEmpty(call.FromRanges);
     }
 }

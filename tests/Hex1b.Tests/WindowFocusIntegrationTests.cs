@@ -8,13 +8,14 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Integration tests for window focus behavior.
 /// </summary>
+[TestClass]
 public class WindowFocusIntegrationTests
 {
     /// <summary>
     /// Tests the real scenario: MenuBar + WindowPanel + StatusBar layout.
     /// Opens a window via menu, then verifies ALT-F opens the menu again.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task MenuBar_KeyboardShortcuts_WorkAfterWindowOpened()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -84,7 +85,7 @@ public class WindowFocusIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Verify: Menu opened (New Window is visible)
-        Assert.Equal(0, menuItemActivatedCount); // Menu just opened, nothing activated yet
+        Assert.AreEqual(0, menuItemActivatedCount); // Menu just opened, nothing activated yet
         
         // Step 2: Press Enter to activate New Window (first item is focused)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -94,8 +95,8 @@ public class WindowFocusIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Verify: Window opened and menu item was activated
-        Assert.True(windowOpened, "Window should have been opened");
-        Assert.Equal(1, menuItemActivatedCount); // One menu item activated
+        Assert.IsTrue(windowOpened, "Window should have been opened");
+        Assert.AreEqual(1, menuItemActivatedCount); // One menu item activated
         
         // Step 3: NOW THE KEY TEST - Can we still use ALT-F to open menu while window is open?
         string? step3State = null;
@@ -126,8 +127,8 @@ public class WindowFocusIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         // Step 5: Verify Exit was activated (proves keyboard navigation worked)
-        Assert.Equal(2, menuItemActivatedCount);
-        Assert.Equal("Exit clicked", statusText);
+        Assert.AreEqual(2, menuItemActivatedCount);
+        Assert.AreEqual("Exit clicked", statusText);
 
         // Cleanup
         await new Hex1bTerminalInputSequenceBuilder()
@@ -145,7 +146,7 @@ public class WindowFocusIntegrationTests
     /// InputRouter.BuildPathToFocused finds MenuNode first (depth-first), so DownArrow
     /// routes to MenuNode's binding (OpenMenu no-op) instead of MenuPopupNode's binding (FocusNext).
     /// </summary>
-    [Fact(Skip = "MenuBarNode.SetFocus creates stale IsFocused on MenuNode that confuses InputRouter when popup is open")]
+    [TestMethod, Ignore("MenuBarNode.SetFocus creates stale IsFocused on MenuNode that confuses InputRouter when popup is open")]
     public async Task MenuBar_ArrowNavigation_WorksWithWindowOpen()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -209,7 +210,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Item 1", activatedItems[0]);
+        Assert.AreEqual("Item 1", activatedItems[0]);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -221,7 +222,7 @@ public class WindowFocusIntegrationTests
 
 
 
-    [Fact]
+    [TestMethod]
     public async Task OpeningSecondWindow_FocusesSecondWindow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -277,11 +278,11 @@ public class WindowFocusIntegrationTests
         await runTask;
 
         // Window 2 should be closed (it was active), Window 1 should still be open
-        Assert.True(window2Closed, $"Window 2 should have been closed by ESC (it was the active window). W1Closed={window1Closed}, W2Closed={window2Closed}. FocusPath={InputRouter.LastPathDebug}");
-        Assert.False(window1Closed, "Window 1 should NOT have been closed (it was not the active window)");
+        Assert.IsTrue(window2Closed, $"Window 2 should have been closed by ESC (it was the active window). W1Closed={window1Closed}, W2Closed={window2Closed}. FocusPath={InputRouter.LastPathDebug}");
+        Assert.IsFalse(window1Closed, "Window 1 should NOT have been closed (it was not the active window)");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClickingWindow_MakesItActive_EscapeClosesCorrectWindow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -342,11 +343,11 @@ public class WindowFocusIntegrationTests
         await runTask;
 
         // Window 1 should be closed (we clicked on it), Window 2 should still be open
-        Assert.True(window1Closed, "Window 1 should have been closed by ESC (we clicked on it to focus it)");
-        Assert.False(window2Closed, "Window 2 should NOT have been closed");
+        Assert.IsTrue(window1Closed, "Window 1 should have been closed by ESC (we clicked on it to focus it)");
+        Assert.IsFalse(window2Closed, "Window 2 should NOT have been closed");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OpeningWindowsViaMenu_SecondWindowGetsEscaped()
     {
         // This test mimics the actual user scenario - opening windows via menu bar
@@ -420,15 +421,15 @@ public class WindowFocusIntegrationTests
         var focusPath = InputRouter.LastPathDebug;
         
         // Window 2 should be closed (it was active), Window 1 should still be open
-        Assert.True(window2Closed, $"Window 2 should have been closed by ESC. W1Closed={window1Closed}, W2Closed={window2Closed}. FocusPath={focusPath}");
-        Assert.False(window1Closed, $"Window 1 should NOT have been closed. FocusPath={focusPath}");
+        Assert.IsTrue(window2Closed, $"Window 2 should have been closed by ESC. W1Closed={window1Closed}, W2Closed={window2Closed}. FocusPath={focusPath}");
+        Assert.IsFalse(window1Closed, $"Window 1 should NOT have been closed. FocusPath={focusPath}");
     }
 
     /// <summary>
     /// Tests that a frameless window (NoTitleBar) opened from a menu can be closed with Escape.
     /// This is the exact scenario reported as broken in the WindowingDemo.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task FramelessWindow_OpenedViaMenu_ClosesWithEscape()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -480,7 +481,7 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.True(windowClosed, $"Frameless window should have been closed by ESC. FocusPath={InputRouter.LastPathDebug}");
+        Assert.IsTrue(windowClosed, $"Frameless window should have been closed by ESC. FocusPath={InputRouter.LastPathDebug}");
     }
 
     /// <summary>
@@ -488,7 +489,7 @@ public class WindowFocusIntegrationTests
     /// This matches the exact widget tree structure of the WindowingDemo sample app:
     /// VStack → NotificationPanel(VStack(MenuBar, ..., WindowPanel))
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Window_OpenedViaMenu_WithNotificationPanel_ClosesWithEscape()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -543,7 +544,7 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.True(windowClosed, $"Window should have been closed by ESC with NotificationPanel wrapper. FocusPath={InputRouter.LastPathDebug}");
+        Assert.IsTrue(windowClosed, $"Window should have been closed by ESC with NotificationPanel wrapper. FocusPath={InputRouter.LastPathDebug}");
     }
 
     /// <summary>
@@ -551,7 +552,7 @@ public class WindowFocusIntegrationTests
     /// .Background(), .Unbounded(), .Fill() and NotificationPanel wrapping.
     /// Verifies that a window opened via menu receives focus and can be closed with Escape.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Window_ExactDemoTree_ReceivesFocusAndClosesWithEscape()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -618,8 +619,7 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.True(windowClosed,
-            $"Window should have been closed by ESC. FocusPathBeforeEsc={focusPathAtEscape}, FocusPathAfterEsc={InputRouter.LastPathDebug}");
+        Assert.IsTrue(windowClosed, $"Window should have been closed by ESC. FocusPathBeforeEsc={focusPathAtEscape}, FocusPathAfterEsc={InputRouter.LastPathDebug}");
     }
 
     /// <summary>
@@ -627,7 +627,7 @@ public class WindowFocusIntegrationTests
     /// its first focusable child (TextBox), so typing works immediately.
     /// Also proves Escape closes the window.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task Window_OpenedViaMenu_TextBoxReceivesFocus_CanTypeImmediately()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -682,7 +682,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowOpen, "Window should be open");
+        Assert.IsTrue(windowOpen, "Window should be open");
 
         // Type immediately — if focus is correct, text should appear in the TextBox
         await new Hex1bTerminalInputSequenceBuilder()
@@ -691,7 +691,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello", typedText);
+        Assert.AreEqual("Hello", typedText);
 
         // Escape closes the window
         await new Hex1bTerminalInputSequenceBuilder()
@@ -703,14 +703,14 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.False(windowOpen, "Window should have been closed by Escape");
+        Assert.IsFalse(windowOpen, "Window should have been closed by Escape");
     }
 
     /// <summary>
     /// When two windows are open and the top one is closed, focus should
     /// return to the underlying window's first content focusable.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ClosingTopWindow_FocusReturnsToUnderlyingWindow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -777,7 +777,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowAOpen);
+        Assert.IsTrue(windowAOpen);
 
         // Type into Window A to prove it has focus
         await new Hex1bTerminalInputSequenceBuilder()
@@ -786,7 +786,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("AAA", textA);
+        Assert.AreEqual("AAA", textA);
 
         // Open Window B via menu (click to avoid keyboard focus issues)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -797,7 +797,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowBOpen);
+        Assert.IsTrue(windowBOpen);
 
         // Type into Window B to prove it has focus
         await new Hex1bTerminalInputSequenceBuilder()
@@ -806,7 +806,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("BBB", textB);
+        Assert.AreEqual("BBB", textB);
 
         // Close Window B with Escape — focus should return to Window A
         // Wait for Window 2 title to disappear (proves render completed with focus restored)
@@ -816,8 +816,8 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(windowBOpen);
-        Assert.True(windowAOpen);
+        Assert.IsFalse(windowBOpen);
+        Assert.IsTrue(windowAOpen);
 
         // Type more — should go into Window A (focus restored)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -829,14 +829,14 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.Equal("AAAX", textA);
+        Assert.AreEqual("AAAX", textA);
     }
 
     /// <summary>
     /// Tests cascade close: open 3 windows, close each in turn, focus returns
     /// to the next one in z-order each time.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task CascadeClose_ThreeWindows_FocusFollowsZOrder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -894,7 +894,7 @@ public class WindowFocusIntegrationTests
                 .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         }
 
-        Assert.True(windowOpen[0] && windowOpen[1] && windowOpen[2]);
+        Assert.IsTrue(windowOpen[0] && windowOpen[1] && windowOpen[2]);
 
         // Close Win3 → focus should go to Win2
         // Wait for visual state change (Win3 title gone) to ensure render loop has
@@ -907,7 +907,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("2", texts[1]);
+        Assert.AreEqual("2", texts[1]);
 
         // Close Win2 → focus should go to Win1
         await new Hex1bTerminalInputSequenceBuilder()
@@ -921,14 +921,14 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.Equal("1", texts[0]);
+        Assert.AreEqual("1", texts[0]);
     }
 
     /// <summary>
     /// When the last window is closed, focus should return to the background
     /// (e.g., MenuBar or first focusable in the main content).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ClosingLastWindow_FocusReturnsToBackground()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -975,7 +975,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(windowOpen);
+        Assert.IsTrue(windowOpen);
 
         // Close with Escape — last window, app should not hang
         await new Hex1bTerminalInputSequenceBuilder()
@@ -987,13 +987,13 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.False(windowOpen);
+        Assert.IsFalse(windowOpen);
     }
 
     /// <summary>
     /// Closing a modal window returns focus to the non-modal window underneath.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ClosingModalWindow_FocusReturnsToNonModal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1058,7 +1058,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(baseWindowOpen);
+        Assert.IsTrue(baseWindowOpen);
 
         // Type to prove base window has focus
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1077,7 +1077,7 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(modalOpen);
+        Assert.IsTrue(modalOpen);
 
         // Close modal with Escape
         // Wait for "Confirm" title to disappear (proves render completed with focus restored)
@@ -1087,8 +1087,8 @@ public class WindowFocusIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.False(modalOpen);
-        Assert.True(baseWindowOpen);
+        Assert.IsFalse(modalOpen);
+        Assert.IsTrue(baseWindowOpen);
 
         // Type into base window — should work if focus was restored
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1100,6 +1100,6 @@ public class WindowFocusIntegrationTests
 
         await runTask;
 
-        Assert.Equal("ABCD", baseText);
+        Assert.AreEqual("ABCD", baseText);
     }
 }

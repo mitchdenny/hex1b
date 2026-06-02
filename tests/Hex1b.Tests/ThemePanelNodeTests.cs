@@ -9,6 +9,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Unit tests for ThemePanelNode layout, rendering, and theme application.
 /// </summary>
+[TestClass]
 public class ThemePanelNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
@@ -18,7 +19,7 @@ public class ThemePanelNodeTests
 
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsChildSize()
     {
         var child = new TextBlockNode { Text = "Hello World" };
@@ -31,22 +32,22 @@ public class ThemePanelNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // ThemePanel doesn't add any size - just passes through child size
-        Assert.Equal(11, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(11, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithNoChild_ReturnsZero()
     {
         var node = new ThemePanelNode { Child = null };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsConstraints()
     {
         var child = new TextBlockNode { Text = "This is a long text that should be constrained" };
@@ -58,11 +59,11 @@ public class ThemePanelNodeTests
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
-        Assert.True(size.Width <= 10);
-        Assert.True(size.Height <= 5);
+        Assert.IsTrue(size.Width <= 10);
+        Assert.IsTrue(size.Height <= 5);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithVStackChild_ReturnsCorrectSize()
     {
         var vstack = new VStackNode
@@ -78,15 +79,15 @@ public class ThemePanelNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(6, size.Width); // "Line X".Length
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(6, size.Width); // "Line X".Length
+        Assert.AreEqual(3, size.Height);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_ChildGetsFullBounds()
     {
         var child = new TextBlockNode { Text = "Test" };
@@ -97,10 +98,10 @@ public class ThemePanelNodeTests
         node.Arrange(bounds);
 
         // Child should have exact same bounds as ThemePanel
-        Assert.Equal(bounds, child.Bounds);
+        Assert.AreEqual(bounds, child.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new ThemePanelNode 
@@ -112,26 +113,26 @@ public class ThemePanelNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithNoChild_DoesNotThrow()
     {
         var node = new ThemePanelNode { Child = null };
         var bounds = new Rect(0, 0, 20, 5);
 
-        var exception = Record.Exception(() => node.Arrange(bounds));
+        var exception = TestSeq.RecordException(() => node.Arrange(bounds));
 
-        Assert.Null(exception);
-        Assert.Equal(bounds, node.Bounds);
+        Assert.IsNull(exception);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region Render Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RendersChildContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -156,7 +157,7 @@ public class ThemePanelNodeTests
         Assert.Contains("ThemePanel Content", snapshot.GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_AppliesThemeMutation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -187,12 +188,11 @@ public class ThemePanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(mutatedThemeCaptured, "ThemeMutator should be called during render");
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
-            "Button should have red background from mutated theme");
+        Assert.IsTrue(mutatedThemeCaptured, "ThemeMutator should be called during render");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)), "Button should have red background from mutated theme");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RestoresOriginalTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -218,10 +218,10 @@ public class ThemePanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // After render, context.Theme should be restored to original
-        Assert.Same(originalTheme, context.Theme);
+        Assert.AreSame(originalTheme, context.Theme);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithNullMutator_RendersNormally()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -246,7 +246,7 @@ public class ThemePanelNodeTests
         Assert.Contains("No Mutator", snapshot.GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithNoChild_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -255,12 +255,12 @@ public class ThemePanelNodeTests
 
         var node = new ThemePanelNode { Child = null, ThemeMutator = t => t };
 
-        var exception = Record.Exception(() => node.Render(context));
+        var exception = TestSeq.RecordException(() => node.Render(context));
 
-        Assert.Null(exception);
+        Assert.IsNull(exception);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CachedTheme_IsUsed()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -286,15 +286,14 @@ public class ThemePanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255)),
-            "Button should use cached theme's blue background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 0, 255)), "Button should use cached theme's blue background");
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_ReturnsFocusableChildren()
     {
         var button = new ButtonNode { Label = "Click" };
@@ -302,11 +301,11 @@ public class ThemePanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
+        TestSeq.Single(focusables);
         Assert.Contains(button, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
     {
         var textBlock = new TextBlockNode { Text = "Not focusable" };
@@ -314,20 +313,20 @@ public class ThemePanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNoChild_ReturnsEmpty()
     {
         var node = new ThemePanelNode { Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
     {
         var textBox = new TextBoxNode { State = new TextBoxState() };
@@ -340,24 +339,24 @@ public class ThemePanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(textBox, focusables);
         Assert.Contains(button, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsFalse()
     {
         var node = new ThemePanelNode();
 
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
     #endregion
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public async Task GetChildren_ReturnsChild()
     {
         var child = new TextBlockNode { Text = "Child" };
@@ -365,25 +364,25 @@ public class ThemePanelNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetChildren_WithNoChild_ReturnsEmpty()
     {
         var node = new ThemePanelNode { Child = null };
 
         var children = node.GetChildren().ToList();
 
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PassesToChild()
     {
         var clicked = false;
@@ -409,25 +408,25 @@ public class ThemePanelNodeTests
             null, 
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(clicked);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WithNoChild_ReturnsFalse()
     {
         var node = new ThemePanelNode { Child = null };
 
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion
 
     #region Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesNewNode_WhenNoExisting()
     {
         var widget = new ThemePanelWidget(t => t, new TextBlockWidget("Test"));
@@ -435,13 +434,13 @@ public class ThemePanelNodeTests
 
         var node = widget.ReconcileAsync(null, context).GetAwaiter().GetResult();
 
-        Assert.IsType<ThemePanelNode>(node);
+        TestSeq.IsType<ThemePanelNode>(node);
         var themePanelNode = (ThemePanelNode)node;
-        Assert.NotNull(themePanelNode.Child);
-        Assert.IsType<TextBlockNode>(themePanelNode.Child);
+        Assert.IsNotNull(themePanelNode.Child);
+        TestSeq.IsType<TextBlockNode>(themePanelNode.Child);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_ReusesExistingNode()
     {
         var existingNode = new ThemePanelNode 
@@ -454,10 +453,10 @@ public class ThemePanelNodeTests
 
         var node = widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
-        Assert.Same(existingNode, node);
+        Assert.AreSame(existingNode, node);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesThemeMutator()
     {
         var existingNode = new ThemePanelNode 
@@ -471,10 +470,10 @@ public class ThemePanelNodeTests
 
         widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
-        Assert.Same(newMutator, existingNode.ThemeMutator);
+        Assert.AreSame(newMutator, existingNode.ThemeMutator);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesChild()
     {
         var existingNode = new ThemePanelNode 
@@ -487,15 +486,15 @@ public class ThemePanelNodeTests
 
         widget.ReconcileAsync(existingNode, context).GetAwaiter().GetResult();
 
-        Assert.IsType<TextBlockNode>(existingNode.Child);
-        Assert.Equal("New", ((TextBlockNode)existingNode.Child!).Text);
+        TestSeq.IsType<TextBlockNode>(existingNode.Child);
+        Assert.AreEqual("New", ((TextBlockNode)existingNode.Child!).Text);
     }
 
     #endregion
 
     #region Nested ThemePanel Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NestedThemePanels_ApplyThemesCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -533,8 +532,7 @@ public class ThemePanelNodeTests
             .Capture("final")
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
-            "Inner button should have red background from inner ThemePanel");
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)), "Inner button should have red background from inner ThemePanel");
     }
 
     #endregion

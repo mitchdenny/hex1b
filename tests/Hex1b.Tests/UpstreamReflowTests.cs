@@ -58,6 +58,7 @@ namespace Hex1b.Tests;
 ///   reflow behavior. Tests derived from it are marked accordingly.</item>
 /// </list>
 /// </remarks>
+[TestClass]
 public class UpstreamReflowTests
 {
     #region Kitty Compatibility
@@ -92,7 +93,7 @@ public class UpstreamReflowTests
     /// of whether they originally had SoftWrap. SoftWrap only controls whether ADJACENT
     /// rows are joined into the same logical line.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_NarrowHardWrappedLine_SplitsCorrectly()
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(KittyReflowStrategy.Instance);
@@ -108,9 +109,9 @@ public class UpstreamReflowTests
         terminal.Resize(4, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("1234", snap.GetLine(0).TrimEnd());
-        Assert.Equal("5", snap.GetLine(1).TrimEnd());
-        Assert.Equal("", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("1234", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("5", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(2).TrimEnd());
     }
 
     /// <summary>
@@ -137,7 +138,7 @@ public class UpstreamReflowTests
     /// 5. Resize to (10, 3): 25 chars at width 10 = "0000011111" + "2222233333" + "44444" = 3 rows.
     /// 6. Screen is 3 rows, so all fit with no scrollback.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_WidenMergesPairs_5x5to10()
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(KittyReflowStrategy.Instance);
@@ -153,9 +154,9 @@ public class UpstreamReflowTests
         terminal.Resize(10, 3);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("0000011111", snap.GetLine(0).TrimEnd());
-        Assert.Equal("2222233333", snap.GetLine(1).TrimEnd());
-        Assert.Equal("44444", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("0000011111", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("2222233333", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("44444", snap.GetLine(2).TrimEnd());
     }
 
     /// <summary>
@@ -185,7 +186,7 @@ public class UpstreamReflowTests
     /// <b>Additional assertion:</b> kitty asserts <c>before == at()</c> meaning the full text
     /// (including scrollback) is preserved exactly. We validate the visible screen portion.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_NarrowTo2_PreservesFullContent()
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(KittyReflowStrategy.Instance);
@@ -200,11 +201,11 @@ public class UpstreamReflowTests
         terminal.Resize(2, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("88", snap.GetLine(0).TrimEnd());
-        Assert.Equal("88", snap.GetLine(1).TrimEnd());
-        Assert.Equal("89", snap.GetLine(2).TrimEnd());
-        Assert.Equal("99", snap.GetLine(3).TrimEnd());
-        Assert.Equal("99", snap.GetLine(4).TrimEnd());
+        Assert.AreEqual("88", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("88", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("89", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("99", snap.GetLine(3).TrimEnd());
+        Assert.AreEqual("99", snap.GetLine(4).TrimEnd());
     }
 
     /// <summary>
@@ -232,7 +233,7 @@ public class UpstreamReflowTests
     ///    - Logical line 1: "bb" → 1 row
     /// 7. Total 3 content rows + 2 empty = 5 rows
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_NarrowSoftWrappedLine_SplitsCorrectly()
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(KittyReflowStrategy.Instance);
@@ -248,10 +249,10 @@ public class UpstreamReflowTests
         terminal.Resize(3, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("aaa", snap.GetLine(0).TrimEnd());
-        Assert.Equal("aa", snap.GetLine(1).TrimEnd());
-        Assert.Equal("bb", snap.GetLine(2).TrimEnd());
-        Assert.Equal("", snap.GetLine(3).TrimEnd());
+        Assert.AreEqual("aaa", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("aa", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("bb", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("", snap.GetLine(3).TrimEnd());
     }
 
     /// <summary>
@@ -280,7 +281,7 @@ public class UpstreamReflowTests
     /// 4. Resize to cols=4: "123" is 3 chars, fits in 4-wide. No wrapping needed.
     /// 5. All logical lines stay same number of rows → cursor.y unchanged.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_CursorYStable_WhenNarrowingShortLines()
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(KittyReflowStrategy.Instance);
@@ -296,7 +297,7 @@ public class UpstreamReflowTests
         terminal.Resize(4, 5);
 
         var snapAfter = terminal.CreateSnapshot();
-        Assert.Equal(yBefore, snapAfter.CursorY);
+        Assert.AreEqual(yBefore, snapAfter.CursorY);
     }
 
     /// <summary>
@@ -322,7 +323,7 @@ public class UpstreamReflowTests
     ///    Cursor at (3, 5) — on the row with "|||"
     /// 3. Resize to (7, 10): rewrap to 7-wide, cursor should still be on a row containing "|"
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Kitty_CursorTracksContent_WhenWidening()
     {
         var adapter = new HeadlessPresentationAdapter(5, 8).WithReflow(KittyReflowStrategy.Instance);
@@ -376,7 +377,7 @@ public class UpstreamReflowTests
     /// <b>Note:</b> We test this at the strategy level (not terminal integration) to match
     /// Alacritty's direct grid manipulation. This tests the algorithm more precisely.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_ShrinkReflow_5to2()
     {
         int oldWidth = 5;
@@ -392,21 +393,18 @@ public class UpstreamReflowTests
         var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
         // Alacritty: total_lines = 3 (2 scrollback + 1 screen)
-        Assert.True(result.ScrollbackRows.Length == 2,
-            $"Expected 2 scrollback rows, got {result.ScrollbackRows.Length}");
+        Assert.IsTrue(result.ScrollbackRows.Length == 2, $"Expected 2 scrollback rows, got {result.ScrollbackRows.Length}");
 
         // Scrollback[0] = "12" with SoftWrap on last cell
-        Assert.Equal("12", GetRowText(result.ScrollbackRows[0].Cells));
-        Assert.True(HasSoftWrap(result.ScrollbackRows[0].Cells),
-            "Scrollback row 0 should have SoftWrap (content continues)");
+        Assert.AreEqual("12", GetRowText(result.ScrollbackRows[0].Cells));
+        Assert.IsTrue(HasSoftWrap(result.ScrollbackRows[0].Cells), "Scrollback row 0 should have SoftWrap (content continues)");
 
         // Scrollback[1] = "34" with SoftWrap on last cell
-        Assert.Equal("34", GetRowText(result.ScrollbackRows[1].Cells));
-        Assert.True(HasSoftWrap(result.ScrollbackRows[1].Cells),
-            "Scrollback row 1 should have SoftWrap (content continues)");
+        Assert.AreEqual("34", GetRowText(result.ScrollbackRows[1].Cells));
+        Assert.IsTrue(HasSoftWrap(result.ScrollbackRows[1].Cells), "Scrollback row 1 should have SoftWrap (content continues)");
 
         // Screen[0] = "5"
-        Assert.Equal("5", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("5", GetRowText(result.ScreenRows[0]));
     }
 
     /// <summary>
@@ -425,7 +423,7 @@ public class UpstreamReflowTests
     /// 2. Then resize to 2: "1234" logical line is "12" + "34", plus "5" = 3 total rows
     /// 3. Same final state as direct 5→2 shrink. This proves reflow is idempotent across steps.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_ShrinkReflowTwice_5to4to2()
     {
         var adapter = new HeadlessPresentationAdapter(5, 1).WithReflow(AlacrittyReflowStrategy.Instance);
@@ -440,7 +438,7 @@ public class UpstreamReflowTests
         terminal.Resize(2, 1);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("5", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("5", snap.GetLine(0).TrimEnd());
     }
 
     /// <summary>
@@ -464,7 +462,7 @@ public class UpstreamReflowTests
     /// 3. WrapLogicalLine at width 3: "123" = 1 row (no SoftWrap needed)
     /// 4. Row 1 becomes empty.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_GrowReflow_MergesWrappedRows()
     {
         int oldWidth = 2;
@@ -481,8 +479,8 @@ public class UpstreamReflowTests
 
         var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
-        Assert.Equal("123", GetRowText(result.ScreenRows[0]));
-        Assert.Equal("", GetRowText(result.ScreenRows[1]));
+        Assert.AreEqual("123", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("", GetRowText(result.ScreenRows[1]));
     }
 
     /// <summary>
@@ -503,7 +501,7 @@ public class UpstreamReflowTests
     /// 2. All three rows form ONE logical line: ['1','2','3','4','5','6']
     /// 3. WrapLogicalLine at width 6: "123456" = 1 row. Rows 1,2 become empty.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_GrowReflowMultiline_MergesAll()
     {
         int oldWidth = 2;
@@ -521,9 +519,9 @@ public class UpstreamReflowTests
 
         var result = AlacrittyReflowStrategy.Instance.Reflow(context);
 
-        Assert.Equal("123456", GetRowText(result.ScreenRows[0]));
-        Assert.Equal("", GetRowText(result.ScreenRows[1]));
-        Assert.Equal("", GetRowText(result.ScreenRows[2]));
+        Assert.AreEqual("123456", GetRowText(result.ScreenRows[0]));
+        Assert.AreEqual("", GetRowText(result.ScreenRows[1]));
+        Assert.AreEqual("", GetRowText(result.ScreenRows[2]));
     }
 
     /// <summary>
@@ -541,7 +539,7 @@ public class UpstreamReflowTests
     /// The SoftWrap flag on "2" is preserved, and "3" stays on its own row.
     /// Our NoReflow / default crop behavior should produce this.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_GrowReflowDisabled_DoesNotMerge()
     {
         // No reflow enabled — uses default crop behavior
@@ -555,8 +553,8 @@ public class UpstreamReflowTests
         terminal.Resize(3, 2);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("12", snap.GetLine(0).TrimEnd());
-        Assert.Equal("3", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("12", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("3", snap.GetLine(1).TrimEnd());
     }
 
     /// <summary>
@@ -575,7 +573,7 @@ public class UpstreamReflowTests
     /// Without reflow, shrinking from 5→2 just keeps the first 2 chars.
     /// Chars 3-5 are lost (cropped). Total remains 1 row.
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public void Alacritty_ShrinkReflowDisabled_CropsOnly()
     {
         var adapter = new HeadlessPresentationAdapter(5, 1);
@@ -588,7 +586,7 @@ public class UpstreamReflowTests
         terminal.Resize(2, 1);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("12", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("12", snap.GetLine(0).TrimEnd());
     }
 
     #endregion
@@ -607,10 +605,10 @@ public class UpstreamReflowTests
     /// test (5→4→2 == 5→2) and is a universal expectation for correct reflow.
     /// Without this property, users would see different content depending on resize history.
     /// </remarks>
-    [Theory]
-    [InlineData(5, 3)]  // narrow then narrow more
-    [InlineData(5, 2)]  // narrow to 2
-    [InlineData(3, 7)]  // narrow then widen past original
+    [TestMethod]
+    [DataRow(5, 3)]  // narrow then narrow more
+    [DataRow(5, 2)]  // narrow to 2
+    [DataRow(3, 7)]  // narrow then widen past original
     public void ReflowIsConsistent_AcrossMultipleResizeSteps(int intermediateWidth, int finalWidth)
     {
         // Direct resize
@@ -636,7 +634,7 @@ public class UpstreamReflowTests
 
         for (int i = 0; i < 3; i++)
         {
-            Assert.Equal(directSnap.GetLine(i).TrimEnd(), multiSnap.GetLine(i).TrimEnd());
+            Assert.AreEqual(directSnap.GetLine(i).TrimEnd(), multiSnap.GetLine(i).TrimEnd());
         }
     }
 
@@ -650,10 +648,10 @@ public class UpstreamReflowTests
     /// the right margin) should be merged when the terminal widens.
     /// Validated against both kitty and Alacritty behavior.
     /// </remarks>
-    [Theory]
-    [InlineData(10)]
-    [InlineData(20)]
-    [InlineData(80)]
+    [TestMethod]
+    [DataRow(10)]
+    [DataRow(20)]
+    [DataRow(80)]
     public void HardWrappedLines_NeverMerge_AnyWidth(int newWidth)
     {
         var adapter = new HeadlessPresentationAdapter(5, 5).WithReflow(AlacrittyReflowStrategy.Instance);
@@ -666,9 +664,9 @@ public class UpstreamReflowTests
         terminal.Resize(newWidth, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal("abc", snap.GetLine(0).TrimEnd());
-        Assert.Equal("def", snap.GetLine(1).TrimEnd());
-        Assert.Equal("ghi", snap.GetLine(2).TrimEnd());
+        Assert.AreEqual("abc", snap.GetLine(0).TrimEnd());
+        Assert.AreEqual("def", snap.GetLine(1).TrimEnd());
+        Assert.AreEqual("ghi", snap.GetLine(2).TrimEnd());
     }
 
     /// <summary>
@@ -680,11 +678,11 @@ public class UpstreamReflowTests
     /// Kitty asserts this with <c>self.ae(before, at())</c> in test_resize (~line 338).
     /// Alacritty asserts it implicitly via <c>shrink_reflow_twice</c>.
     /// </remarks>
-    [Theory]
-    [InlineData(10, 5)]   // halve
-    [InlineData(10, 3)]   // to 3
-    [InlineData(10, 1)]   // extreme narrow
-    [InlineData(10, 7)]   // partial narrow
+    [TestMethod]
+    [DataRow(10, 5)]   // halve
+    [DataRow(10, 3)]   // to 3
+    [DataRow(10, 1)]   // extreme narrow
+    [DataRow(10, 7)]   // partial narrow
     public void RoundTrip_NarrowAndRestore_PreservesContent(int originalWidth, int narrowWidth)
     {
         string content = new string('X', originalWidth);
@@ -701,7 +699,7 @@ public class UpstreamReflowTests
         terminal.Resize(originalWidth, 5);
 
         var snap = terminal.CreateSnapshot();
-        Assert.Equal(content, snap.GetLine(0).TrimEnd());
+        Assert.AreEqual(content, snap.GetLine(0).TrimEnd());
     }
 
     #endregion
@@ -721,8 +719,8 @@ public class UpstreamReflowTests
     // terminal integration runner — they test strategy-level behavior directly and
     // would need a separate test method.
 
-    [Theory]
-    [MemberData(nameof(GetFixtureIds))]
+    [TestMethod]
+    [DynamicData(nameof(GetFixtureIds))]
     public void Fixture_ScreenContentMatches(string fixtureId)
     {
         var fixture = LoadFixture(fixtureId);
@@ -787,7 +785,7 @@ public class UpstreamReflowTests
         {
             string expected = fixture.Expected.ScreenLines[i];
             string actual = snap.GetLine(i).TrimEnd();
-            Assert.Equal(expected, actual);
+            Assert.AreEqual(expected, actual);
         }
     }
 

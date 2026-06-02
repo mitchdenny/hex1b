@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// Verifies that <see cref="ITextDecorationProvider"/> decorations are correctly
 /// applied as foreground/background colors in rendered editor cells.
 /// </summary>
+[TestClass]
 public class TextDecorationTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -48,7 +49,7 @@ public class TextDecorationTests
         return (node, workload, terminal, context, theme);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_ForegroundColor_AppliedToDecoratedCells()
     {
         var decorationColor = Hex1bColor.FromRgb(86, 156, 214); // keyword blue
@@ -79,8 +80,7 @@ public class TextDecorationTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Column {x}: expected fg {expectedFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Column {x}: expected fg {expectedFg}, got {cell.Foreground}");
         }
 
         // " " at column 3 and "x" at column 4 should have default editor fg
@@ -88,15 +88,14 @@ public class TextDecorationTests
         for (var x = 3; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(editorFg, cell.Foreground),
-                $"Column {x}: expected editor fg, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(editorFg, cell.Foreground), $"Column {x}: expected editor fg, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_BackgroundColor_AppliedToDecoratedCells()
     {
         var bgColor = Hex1bColor.FromRgb(100, 50, 50); // reddish background
@@ -124,21 +123,19 @@ public class TextDecorationTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected bg {expectedBg}, got {cell.Background}");
         }
 
         // Column 3+ should have default editor bg
         var editorBg = ToCellColor(theme.Get(EditorTheme.BackgroundColor));
         var undecorated = snapshot.GetCell(4, 0);
-        Assert.True(ColorEquals(editorBg, undecorated.Background),
-            $"Column 4: expected editor bg {editorBg}, got {undecorated.Background}");
+        Assert.IsTrue(ColorEquals(editorBg, undecorated.Background), $"Column 4: expected editor bg {editorBg}, got {undecorated.Background}");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_CursorOverridesDecoration_CursorColorWins()
     {
         var decorationColor = Hex1bColor.FromRgb(86, 156, 214);
@@ -175,25 +172,22 @@ public class TextDecorationTests
 
         // Cursor cell should have cursor colors, NOT decoration colors
         var cursorCell = snapshot.GetCell(0, 0);
-        Assert.True(ColorEquals(cursorFg, cursorCell.Foreground),
-            $"Cursor cell: expected cursor fg, got {cursorCell.Foreground}");
-        Assert.True(ColorEquals(cursorBg, cursorCell.Background),
-            $"Cursor cell: expected cursor bg, got {cursorCell.Background}");
+        Assert.IsTrue(ColorEquals(cursorFg, cursorCell.Foreground), $"Cursor cell: expected cursor fg, got {cursorCell.Foreground}");
+        Assert.IsTrue(ColorEquals(cursorBg, cursorCell.Background), $"Cursor cell: expected cursor bg, got {cursorCell.Background}");
 
         // Non-cursor decorated cells should have decoration color
         var expectedDecFg = ToCellColor(decorationColor);
         for (var x = 1; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedDecFg, cell.Foreground),
-                $"Column {x}: expected decoration fg {expectedDecFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedDecFg, cell.Foreground), $"Column {x}: expected decoration fg {expectedDecFg}, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_MultipleProviders_HigherPriorityWins()
     {
         var lowColor = Hex1bColor.FromRgb(100, 100, 100); // gray
@@ -252,23 +246,21 @@ public class TextDecorationTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedHigh, cell.Foreground),
-                $"Column {x}: expected high priority fg {expectedHigh}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedHigh, cell.Foreground), $"Column {x}: expected high priority fg {expectedHigh}, got {cell.Foreground}");
         }
 
         // Columns 3-4 ("lo") should have low priority gray
         for (var x = 3; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedLow, cell.Foreground),
-                $"Column {x}: expected low priority fg {expectedLow}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedLow, cell.Foreground), $"Column {x}: expected low priority fg {expectedLow}, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_ThemeElement_ResolvesFromTheme()
     {
         var provider = new StaticDecorationProvider([
@@ -295,15 +287,14 @@ public class TextDecorationTests
         for (var x = 0; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Column {x}: expected keyword fg {expectedFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Column {x}: expected keyword fg {expectedFg}, got {cell.Foreground}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_MultiLine_DecoratesAcrossLines()
     {
         var color = Hex1bColor.FromRgb(206, 145, 120); // string brown
@@ -331,28 +322,26 @@ public class TextDecorationTests
         var editorFg = ToCellColor(theme.Get(EditorTheme.ForegroundColor));
 
         // Line 1: column 0 ('a') = no decoration, columns 1-4 ('bcde') = decorated
-        Assert.True(ColorEquals(editorFg, snapshot.GetCell(0, 0).Foreground), "Line 1 col 0 should be editor fg");
+        Assert.IsTrue(ColorEquals(editorFg, snapshot.GetCell(0, 0).Foreground), "Line 1 col 0 should be editor fg");
         for (var x = 1; x <= 4; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Line 1 col {x}: expected decoration fg, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Line 1 col {x}: expected decoration fg, got {cell.Foreground}");
         }
 
         // Line 2: columns 0-2 ('fgh') = decorated, columns 3-4 ('ij') = no decoration
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 1);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Line 2 col {x}: expected decoration fg, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Line 2 col {x}: expected decoration fg, got {cell.Foreground}");
         }
-        Assert.True(ColorEquals(editorFg, snapshot.GetCell(3, 1).Foreground), "Line 2 col 3 should be editor fg");
+        Assert.IsTrue(ColorEquals(editorFg, snapshot.GetCell(3, 1).Foreground), "Line 2 col 3 should be editor fg");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_NoDecorations_RendersSameAsWithout()
     {
         // Empty provider should render identically to no provider
@@ -375,17 +364,15 @@ public class TextDecorationTests
         for (var x = 0; x <= 10; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(editorFg, cell.Foreground),
-                $"Column {x}: expected editor fg, got {cell.Foreground}");
-            Assert.True(ColorEquals(editorBg, cell.Background),
-                $"Column {x}: expected editor bg, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(editorFg, cell.Foreground), $"Column {x}: expected editor fg, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(editorBg, cell.Background), $"Column {x}: expected editor bg, got {cell.Background}");
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Decoration_ForegroundAndBackground_BothApplied()
     {
         var fgColor = Hex1bColor.FromRgb(255, 255, 0);  // yellow
@@ -417,10 +404,8 @@ public class TextDecorationTests
         for (var x = 0; x <= 2; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.True(ColorEquals(expectedFg, cell.Foreground),
-                $"Column {x}: expected fg {expectedFg}, got {cell.Foreground}");
-            Assert.True(ColorEquals(expectedBg, cell.Background),
-                $"Column {x}: expected bg {expectedBg}, got {cell.Background}");
+            Assert.IsTrue(ColorEquals(expectedFg, cell.Foreground), $"Column {x}: expected fg {expectedFg}, got {cell.Foreground}");
+            Assert.IsTrue(ColorEquals(expectedBg, cell.Background), $"Column {x}: expected bg {expectedBg}, got {cell.Background}");
         }
 
         workload.Dispose();

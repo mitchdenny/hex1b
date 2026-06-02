@@ -10,6 +10,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorKeybindingDispatchTests
 {
     private static Hex1bColor? ToCellColor(Hex1bColor color) => color.IsDefault ? null : color;
@@ -54,7 +55,7 @@ public class EditorKeybindingDispatchTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LeftArrow_MovesCursorLeft()
     {
         // NOTE: Left arrow behavior may change with soft-wrap navigation.
@@ -87,11 +88,11 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(1), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(1), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RightArrow_MovesCursorRight()
     {
         // NOTE: Right arrow at EOL may gain soft-wrap-to-next-line behavior.
@@ -114,11 +115,11 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(1), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(1), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UpArrow_MovesCursorToPreviousLine()
     {
         // NOTE: Up arrow column tracking may change with virtual column memory.
@@ -151,11 +152,11 @@ public class EditorKeybindingDispatchTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var pos = state.Document.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(1, pos.Line);
+        Assert.AreEqual(1, pos.Line);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task DownArrow_MovesCursorToNextLine()
     {
         // NOTE: Down arrow at last line may gain "create new line" option.
@@ -179,11 +180,11 @@ public class EditorKeybindingDispatchTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var pos = state.Document.OffsetToPosition(state.Cursor.Position);
-        Assert.Equal(2, pos.Line);
+        Assert.AreEqual(2, pos.Line);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HomeKey_MovesCursorToLineStart()
     {
         // NOTE: Smart-home (first non-whitespace) may be added.
@@ -214,11 +215,11 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(0), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(0), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EndKey_MovesCursorToLineEnd()
     {
         // NOTE: End key behavior may change with trailing whitespace handling.
@@ -241,11 +242,11 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(5), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(5), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlHome_MovesCursorToDocumentStart()
     {
         // NOTE: Ctrl+Home may gain scroll animation.
@@ -277,11 +278,11 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(0), state.Cursor.Position);
+        Assert.AreEqual(new DocumentOffset(0), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlEnd_MovesCursorToDocumentEnd()
     {
         // NOTE: Ctrl+End may gain scroll animation.
@@ -297,11 +298,11 @@ public class EditorKeybindingDispatchTests
 
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
-        Assert.Equal(new DocumentOffset(11), state.Cursor.Position); // "AAA\nBBB\nCCC" = 11 chars
+        Assert.AreEqual(new DocumentOffset(11), state.Cursor.Position); // "AAA\nBBB\nCCC" = 11 chars
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageDown_MovesCursorDownByViewportLines()
     {
         // NOTE: PageDown may gain half-page option.
@@ -321,11 +322,11 @@ public class EditorKeybindingDispatchTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var newLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
-        Assert.True(newLine > initialLine, $"Cursor should move down from line {initialLine}, now at {newLine}");
+        Assert.IsTrue(newLine > initialLine, $"Cursor should move down from line {initialLine}, now at {newLine}");
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageUp_MovesCursorUpByViewportLines()
     {
         // NOTE: PageUp may gain half-page option.
@@ -354,11 +355,11 @@ public class EditorKeybindingDispatchTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         var newLine = state.Document.OffsetToPosition(state.Cursor.Position).Line;
-        Assert.True(newLine < lineBeforePageUp, $"Cursor should move up from line {lineBeforePageUp}, now at {newLine}");
+        Assert.IsTrue(newLine < lineBeforePageUp, $"Cursor should move up from line {lineBeforePageUp}, now at {newLine}");
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShiftRight_ExtendsSelection()
     {
         // NOTE: Selection rendering will be tested when visual selection is implemented.
@@ -375,13 +376,13 @@ public class EditorKeybindingDispatchTests
         await Task.Delay(200, TestContext.Current.CancellationToken);
 
         // Selection anchor at 0, cursor moved to 1
-        Assert.True(state.Cursor.HasSelection);
-        Assert.Equal(new DocumentOffset(0), state.Cursor.SelectionStart);
-        Assert.Equal(new DocumentOffset(1), state.Cursor.SelectionEnd);
+        Assert.IsTrue(state.Cursor.HasSelection);
+        Assert.AreEqual(new DocumentOffset(0), state.Cursor.SelectionStart);
+        Assert.AreEqual(new DocumentOffset(1), state.Cursor.SelectionEnd);
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlBackspace_DeletesPreviousWord()
     {
         // NOTE: Word deletion boundaries may change with language-aware word detection.
@@ -406,7 +407,7 @@ public class EditorKeybindingDispatchTests
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlDelete_DeletesNextWord()
     {
         // NOTE: Word deletion boundaries may change with language-aware word detection.
@@ -427,7 +428,7 @@ public class EditorKeybindingDispatchTests
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CtrlShiftK_DeletesCurrentLine()
     {
         // NOTE: Line deletion may gain undo grouping in future.
@@ -451,7 +452,7 @@ public class EditorKeybindingDispatchTests
         await ExitAndWait(terminal, runTask);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AnyCharacter_InsertsText()
     {
         // NOTE: Character insertion may change with IME composition.
@@ -476,8 +477,8 @@ public class EditorKeybindingDispatchTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("x", state.Document.GetText());
-        Assert.Equal(new DocumentOffset(1), state.Cursor.Position);
+        Assert.AreEqual("x", state.Document.GetText());
+        Assert.AreEqual(new DocumentOffset(1), state.Cursor.Position);
         await ExitAndWait(terminal, runTask);
     }
 }

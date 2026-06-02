@@ -4,9 +4,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class AlignNodeTests
 {
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsChildSize()
     {
         // Arrange
@@ -18,11 +19,11 @@ public class AlignNodeTests
         var size = node.Measure(constraints);
 
         // Assert - returns child's natural size, not full available space
-        Assert.Equal(5, size.Width);  // "Hello".Length
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width);  // "Hello".Length
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithFillHint_StillReturnsChildSize_ParentHandlesExpansion()
     {
         // Arrange
@@ -35,11 +36,11 @@ public class AlignNodeTests
         var size = node.Measure(constraints);
 
         // Assert - Measure still returns child size; Fill is applied by parent during Arrange
-        Assert.Equal(5, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Center_PositionsChildInCenter()
     {
         // Arrange
@@ -52,13 +53,13 @@ public class AlignNodeTests
 
         // Assert - child should be centered
         // (80 - 2) / 2 = 39 for x, (24 - 1) / 2 = 11 for y
-        Assert.Equal(39, child.Bounds.X);
-        Assert.Equal(11, child.Bounds.Y);
-        Assert.Equal(2, child.Bounds.Width);
-        Assert.Equal(1, child.Bounds.Height);
+        Assert.AreEqual(39, child.Bounds.X);
+        Assert.AreEqual(11, child.Bounds.Y);
+        Assert.AreEqual(2, child.Bounds.Width);
+        Assert.AreEqual(1, child.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_TopLeft_PositionsChildAtTopLeft()
     {
         // Arrange
@@ -70,11 +71,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(0, child.Bounds.X);
-        Assert.Equal(0, child.Bounds.Y);
+        Assert.AreEqual(0, child.Bounds.X);
+        Assert.AreEqual(0, child.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_TopRight_PositionsChildAtTopRight()
     {
         // Arrange
@@ -86,11 +87,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(78, child.Bounds.X); // 80 - 2
-        Assert.Equal(0, child.Bounds.Y);
+        Assert.AreEqual(78, child.Bounds.X); // 80 - 2
+        Assert.AreEqual(0, child.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_BottomLeft_PositionsChildAtBottomLeft()
     {
         // Arrange
@@ -102,11 +103,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(0, child.Bounds.X);
-        Assert.Equal(23, child.Bounds.Y); // 24 - 1
+        Assert.AreEqual(0, child.Bounds.X);
+        Assert.AreEqual(23, child.Bounds.Y); // 24 - 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_BottomRight_PositionsChildAtBottomRight()
     {
         // Arrange
@@ -118,11 +119,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(78, child.Bounds.X); // 80 - 2
-        Assert.Equal(23, child.Bounds.Y); // 24 - 1
+        Assert.AreEqual(78, child.Bounds.X); // 80 - 2
+        Assert.AreEqual(23, child.Bounds.Y); // 24 - 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_HCenter_CentersHorizontallyAtTop()
     {
         // Arrange
@@ -134,11 +135,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(39, child.Bounds.X); // (80 - 2) / 2
-        Assert.Equal(0, child.Bounds.Y); // Top (default)
+        Assert.AreEqual(39, child.Bounds.X); // (80 - 2) / 2
+        Assert.AreEqual(0, child.Bounds.Y); // Top (default)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_VCenter_CentersVerticallyAtLeft()
     {
         // Arrange
@@ -150,11 +151,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(0, child.Bounds.X); // Left (default)
-        Assert.Equal(11, child.Bounds.Y); // (24 - 1) / 2
+        Assert.AreEqual(0, child.Bounds.X); // Left (default)
+        Assert.AreEqual(11, child.Bounds.Y); // (24 - 1) / 2
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_BottomCenter_PositionsAtBottomCenter()
     {
         // Arrange
@@ -166,11 +167,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Assert
-        Assert.Equal(39, child.Bounds.X); // (80 - 2) / 2
-        Assert.Equal(23, child.Bounds.Y); // 24 - 1
+        Assert.AreEqual(39, child.Bounds.X); // (80 - 2) / 2
+        Assert.AreEqual(23, child.Bounds.Y); // 24 - 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithOffset_PositionsRelativeToParentBounds()
     {
         // Arrange
@@ -182,11 +183,11 @@ public class AlignNodeTests
         node.Arrange(new Rect(10, 5, 40, 10));
 
         // Assert - should be centered within parent bounds
-        Assert.Equal(10 + (40 - 2) / 2, child.Bounds.X); // 10 + 19 = 29
-        Assert.Equal(5 + (10 - 1) / 2, child.Bounds.Y);  // 5 + 4 = 9
+        Assert.AreEqual(10 + (40 - 2) / 2, child.Bounds.X); // 10 + 19 = 29
+        Assert.AreEqual(5 + (10 - 1) / 2, child.Bounds.Y);  // 5 + 4 = 9
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AlignmentChange_MarksDirty()
     {
         // Arrange
@@ -201,10 +202,10 @@ public class AlignNodeTests
         node.Alignment = Alignment.Center;
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_ReturnsChildFocusables()
     {
         // Arrange
@@ -215,11 +216,11 @@ public class AlignNodeTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // Assert
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(button, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetChildren_ReturnsChild()
     {
         // Arrange
@@ -230,11 +231,11 @@ public class AlignNodeTests
         var children = node.GetChildren().ToList();
 
         // Assert
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetChildren_WhenNoChild_ReturnsEmpty()
     {
         // Arrange
@@ -244,6 +245,6 @@ public class AlignNodeTests
         var children = node.GetChildren().ToList();
 
         // Assert
-        Assert.Empty(children);
+        Assert.IsEmpty(children);
     }
 }

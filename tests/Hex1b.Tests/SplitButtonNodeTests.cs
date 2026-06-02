@@ -9,9 +9,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for SplitButtonNode rendering and behavior.
 /// </summary>
+[TestClass]
 public class SplitButtonNodeTests
 {
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_RendersWithLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -41,7 +42,7 @@ public class SplitButtonNodeTests
         Assert.Contains("Action", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_SecondaryActions_ShowsDropdownArrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -74,7 +75,7 @@ public class SplitButtonNodeTests
         Assert.Contains("▼", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_WithoutSecondaryActions_NoDropdownArrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -105,7 +106,7 @@ public class SplitButtonNodeTests
         Assert.DoesNotContain("▼", line);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_ReturnsCorrectSize()
     {
         var node = new SplitButtonNode { PrimaryLabel = "Test" };
@@ -113,11 +114,11 @@ public class SplitButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
         
         // " Test " = 6 chars (2 for chip padding + 4 for label)
-        Assert.Equal(6, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(6, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_CJKCharacters_CorrectSize()
     {
         var node = new SplitButtonNode { PrimaryLabel = "汉字かな한글" };
@@ -125,11 +126,11 @@ public class SplitButtonNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // " 汉字かな한글 " = 2 (chip padding) + 6 (CJK chars) * 2 (width) = 14
-        Assert.Equal(14, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(14, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_SecondaryActions_IncludesArrow()
     {
         var node = new SplitButtonNode 
@@ -142,14 +143,14 @@ public class SplitButtonNodeTests
         
         // " Test │ ▼ " = 10 cells (label 4 + chip pads 2 + arrow region 4
         // [divider, space, arrow, trailing pad]).
-        Assert.Equal(10, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(10, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsTrue()
     {
         var node = new SplitButtonNode();
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 }

@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// and that it differs from CSI 2J which only clears the visible screen.
 /// Inspired by psmux's squelch signal tests for CSI 2J/3J discrimination.
 /// </summary>
+[TestClass]
 public class EraseScrollbackTests
 {
     private sealed class TestTerminal : IDisposable
@@ -40,7 +41,7 @@ public class EraseScrollbackTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Ed3_ClearsScrollback()
     {
         using var t = new TestTerminal(width: 40, height: 5);
@@ -51,18 +52,17 @@ public class EraseScrollbackTests
 
         // Verify scrollback has content
         var snapBefore = t.Terminal.CreateSnapshot(scrollbackLines: 100);
-        Assert.True(snapBefore.ScrollbackLineCount > 0,
-            "Should have scrollback lines before CSI 3J");
+        Assert.IsTrue(snapBefore.ScrollbackLineCount > 0, "Should have scrollback lines before CSI 3J");
 
         // CSI 3J — erase scrollback
         t.Write("\x1b[3J");
 
         // Scrollback should be cleared
         var snapAfter = t.Terminal.CreateSnapshot(scrollbackLines: 100);
-        Assert.Equal(0, snapAfter.ScrollbackLineCount);
+        Assert.AreEqual(0, snapAfter.ScrollbackLineCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Ed2_DoesNotClearScrollback()
     {
         using var t = new TestTerminal(width: 40, height: 5);
@@ -73,18 +73,17 @@ public class EraseScrollbackTests
 
         var snapBefore = t.Terminal.CreateSnapshot(scrollbackLines: 100);
         var scrollbackBefore = snapBefore.ScrollbackLineCount;
-        Assert.True(scrollbackBefore > 0);
+        Assert.IsTrue(scrollbackBefore > 0);
 
         // CSI 2J — erase visible screen only
         t.Write("\x1b[2J");
 
         // Scrollback should NOT be cleared
         var snapAfter = t.Terminal.CreateSnapshot(scrollbackLines: 100);
-        Assert.True(snapAfter.ScrollbackLineCount > 0,
-            "CSI 2J should not clear scrollback");
+        Assert.IsTrue(snapAfter.ScrollbackLineCount > 0, "CSI 2J should not clear scrollback");
     }
 
-    [Fact]
+    [TestMethod]
     public void Ed3_PreservesCursorPosition()
     {
         using var t = new TestTerminal(width: 40, height: 5);
@@ -106,11 +105,11 @@ public class EraseScrollbackTests
 
         // Cursor should be preserved
         var snapAfter = t.Terminal.CreateSnapshot();
-        Assert.Equal(cursorXBefore, snapAfter.CursorX);
-        Assert.Equal(cursorYBefore, snapAfter.CursorY);
+        Assert.AreEqual(cursorXBefore, snapAfter.CursorX);
+        Assert.AreEqual(cursorYBefore, snapAfter.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void Ed3_CombinedWithEd2_ClearsBothScreenAndScrollback()
     {
         using var t = new TestTerminal(width: 40, height: 5);
@@ -119,12 +118,12 @@ public class EraseScrollbackTests
         for (int i = 0; i < 10; i++)
             t.Write($"Line {i}\n");
 
-        Assert.True(t.Terminal.CreateSnapshot(scrollbackLines: 100).ScrollbackLineCount > 0);
+        Assert.IsTrue(t.Terminal.CreateSnapshot(scrollbackLines: 100).ScrollbackLineCount > 0);
 
         // CSI 2J + CSI 3J — clear both visible screen and scrollback
         t.Write("\x1b[2J\x1b[3J");
 
         var snap = t.Terminal.CreateSnapshot(scrollbackLines: 100);
-        Assert.Equal(0, snap.ScrollbackLineCount);
+        Assert.AreEqual(0, snap.ScrollbackLineCount);
     }
 }

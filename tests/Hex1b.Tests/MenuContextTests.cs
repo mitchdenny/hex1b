@@ -3,116 +3,117 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class MenuContextTests
 {
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_NoAmpersand_ReturnsOriginalLabel()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("File");
         
-        Assert.Equal("File", displayLabel);
-        Assert.Null(accelerator);
-        Assert.Equal(-1, index);
+        Assert.AreEqual("File", displayLabel);
+        Assert.IsNull(accelerator);
+        Assert.AreEqual(-1, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_WithAmpersand_ExtractsAccelerator()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("&File");
         
-        Assert.Equal("File", displayLabel);
-        Assert.Equal('F', accelerator);
-        Assert.Equal(0, index);
+        Assert.AreEqual("File", displayLabel);
+        Assert.AreEqual('F', accelerator);
+        Assert.AreEqual(0, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_AmpersandInMiddle_ExtractsAccelerator()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("Save &As");
         
-        Assert.Equal("Save As", displayLabel);
-        Assert.Equal('A', accelerator);
-        Assert.Equal(5, index);
+        Assert.AreEqual("Save As", displayLabel);
+        Assert.AreEqual('A', accelerator);
+        Assert.AreEqual(5, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_DoubleAmpersand_RendersLiteralAmpersand()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("Tom && Jerry");
         
-        Assert.Equal("Tom & Jerry", displayLabel);
-        Assert.Null(accelerator);
-        Assert.Equal(-1, index);
+        Assert.AreEqual("Tom & Jerry", displayLabel);
+        Assert.IsNull(accelerator);
+        Assert.AreEqual(-1, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_AmpersandAtEnd_NoAccelerator()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("Test&");
         
-        Assert.Equal("Test", displayLabel);
-        Assert.Null(accelerator);
-        Assert.Equal(-1, index);
+        Assert.AreEqual("Test", displayLabel);
+        Assert.IsNull(accelerator);
+        Assert.AreEqual(-1, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void ParseAccelerator_LowercaseLetter_ConvertsToUppercase()
     {
         var (displayLabel, accelerator, index) = MenuContext.ParseAccelerator("&open");
         
-        Assert.Equal("open", displayLabel);
-        Assert.Equal('O', accelerator);
-        Assert.Equal(0, index);
+        Assert.AreEqual("open", displayLabel);
+        Assert.AreEqual('O', accelerator);
+        Assert.AreEqual(0, index);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItem_CreatedWithLabel()
     {
         var ctx = new MenuContext();
         var item = ctx.MenuItem("Open");
         
-        Assert.Equal("Open", item.Label);
-        Assert.False(item.IsDisabled);
-        Assert.Null(item.ActivatedHandler);
+        Assert.AreEqual("Open", item.Label);
+        Assert.IsFalse(item.IsDisabled);
+        Assert.IsNull(item.ActivatedHandler);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItem_Disabled_SetsIsDisabled()
     {
         var ctx = new MenuContext();
         var item = ctx.MenuItem("Undo").Disabled();
         
-        Assert.True(item.IsDisabled);
+        Assert.IsTrue(item.IsDisabled);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItem_Disabled_CanBeToggled()
     {
         var ctx = new MenuContext();
         var item = ctx.MenuItem("Undo").Disabled(true).Disabled(false);
         
-        Assert.False(item.IsDisabled);
+        Assert.IsFalse(item.IsDisabled);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItem_OnActivated_SetsHandler()
     {
         var ctx = new MenuContext();
         var item = ctx.MenuItem("Open").OnActivated(_ => { });
         
-        Assert.NotNull(item.ActivatedHandler);
+        Assert.IsNotNull(item.ActivatedHandler);
     }
     
-    [Fact]
+    [TestMethod]
     public void MenuItem_NoAccelerator_DisablesAutoAccelerator()
     {
         var ctx = new MenuContext();
         var item = ctx.MenuItem("Open").NoAccelerator();
         
-        Assert.True(item.DisableAccelerator);
+        Assert.IsTrue(item.DisableAccelerator);
     }
     
-    [Fact]
+    [TestMethod]
     public void Menu_CreatedWithChildren()
     {
         var ctx = new MenuContext();
@@ -123,15 +124,15 @@ public class MenuContextTests
             m.MenuItem("Quit")
         ]);
         
-        Assert.Equal("File", menu.Label);
-        Assert.Equal(4, menu.Children.Count);
-        Assert.IsType<MenuItemWidget>(menu.Children[0]);
-        Assert.IsType<MenuItemWidget>(menu.Children[1]);
-        Assert.IsType<MenuSeparatorWidget>(menu.Children[2]);
-        Assert.IsType<MenuItemWidget>(menu.Children[3]);
+        Assert.AreEqual("File", menu.Label);
+        Assert.AreEqual(4, menu.Children.Count);
+        TestSeq.IsType<MenuItemWidget>(menu.Children[0]);
+        TestSeq.IsType<MenuItemWidget>(menu.Children[1]);
+        TestSeq.IsType<MenuSeparatorWidget>(menu.Children[2]);
+        TestSeq.IsType<MenuItemWidget>(menu.Children[3]);
     }
     
-    [Fact]
+    [TestMethod]
     public void Menu_NestedSubmenus()
     {
         var ctx = new MenuContext();
@@ -143,20 +144,20 @@ public class MenuContextTests
             ])
         ]);
         
-        Assert.Equal(2, menu.Children.Count);
-        Assert.IsType<MenuItemWidget>(menu.Children[0]);
+        Assert.AreEqual(2, menu.Children.Count);
+        TestSeq.IsType<MenuItemWidget>(menu.Children[0]);
         
-        var submenu = Assert.IsType<MenuWidget>(menu.Children[1]);
-        Assert.Equal("Recent", submenu.Label);
-        Assert.Equal(2, submenu.Children.Count);
+        var submenu = TestSeq.IsType<MenuWidget>(menu.Children[1]);
+        Assert.AreEqual("Recent", submenu.Label);
+        Assert.AreEqual(2, submenu.Children.Count);
     }
     
-    [Fact]
+    [TestMethod]
     public void Separator_CreatedEmpty()
     {
         var ctx = new MenuContext();
         var separator = ctx.Separator();
         
-        Assert.IsType<MenuSeparatorWidget>(separator);
+        TestSeq.IsType<MenuSeparatorWidget>(separator);
     }
 }

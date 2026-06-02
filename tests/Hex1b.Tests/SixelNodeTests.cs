@@ -12,6 +12,7 @@ namespace Hex1b.Tests;
 /// Unit tests for SixelNode.
 /// Sixel support is controlled via TerminalCapabilities, not static state.
 /// </summary>
+[TestClass]
 public class SixelNodeTests
 {
     /// <summary>
@@ -38,7 +39,7 @@ public class SixelNodeTests
             Supports256Colors = true
         });
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithRequestedDimensions_ReturnsRequestedSize()
     {
         var node = new SixelNode
@@ -49,11 +50,11 @@ public class SixelNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(50, size.Width);
-        Assert.Equal(25, size.Height);
+        Assert.AreEqual(50, size.Width);
+        Assert.AreEqual(25, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithoutRequestedDimensions_ReturnsDefaultSize()
     {
         var node = new SixelNode();
@@ -61,11 +62,11 @@ public class SixelNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Default size is 40x20
-        Assert.Equal(40, size.Width);
-        Assert.Equal(20, size.Height);
+        Assert.AreEqual(40, size.Width);
+        Assert.AreEqual(20, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithFallback_ReturnsFallbackSize()
     {
         var fallbackNode = new TextBlockNode { Text = "Fallback text" };
@@ -77,10 +78,10 @@ public class SixelNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Should return the larger of sixel or fallback size
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithSixelSupport_RendersImageData()
     {
         var node = new SixelNode();
@@ -100,10 +101,10 @@ public class SixelNodeTests
             .WaitUntil(s => s.ContainsText("[No image data]"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("[No image data]"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("[No image data]"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithoutSixelSupport_RendersFallback()
     {
         var node = new SixelNode
@@ -126,10 +127,10 @@ public class SixelNodeTests
             .WaitUntil(s => s.ContainsText("Fallback content"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("Fallback content"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("Fallback content"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithoutSixelSupport_NoFallback_ShowsPlaceholder()
     {
         var node = new SixelNode();
@@ -148,10 +149,10 @@ public class SixelNodeTests
             .WaitUntil(s => s.ContainsText("[Sixel not supported]"), TimeSpan.FromSeconds(5))
             .Build()
             .ApplyAsync(terminal);
-        Assert.True(terminal.CreateSnapshot().ContainsText("[Sixel not supported]"));
+        Assert.IsTrue(terminal.CreateSnapshot().ContainsText("[Sixel not supported]"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithFallback_ReturnsFallbackFocusables()
     {
         var buttonNode = new ButtonNode { Label = "Test" };
@@ -167,7 +168,7 @@ public class SixelNodeTests
         Assert.Contains(buttonNode, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WhenShowingFallback_DelegatesToFallback()
     {
         var clickedCount = 0;
@@ -189,11 +190,11 @@ public class SixelNodeTests
         var enterEvent = new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None);
         var result = await InputRouter.RouteInputAsync(node, enterEvent, focusRing, routerState, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, clickedCount);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, clickedCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithSixelData_OutputsSixelSequence()
     {
         var node = new SixelNode
@@ -212,15 +213,15 @@ public class SixelNodeTests
             .ApplyAsync(terminal);
         
         // Sixel data should be tracked in the terminal
-        Assert.True(terminal.ContainsSixelData());
+        Assert.IsTrue(terminal.ContainsSixelData());
         
         // The origin cell should have the Sixel data
         var sixelData = terminal.GetSixelDataAt(0, 0);
-        Assert.NotNull(sixelData);
+        Assert.IsNotNull(sixelData);
         Assert.Contains("#0;2;100;0;0#0~~~~~~", sixelData.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithPreformattedSixelData_OutputsAsIs()
     {
         // Data already has DCS header
@@ -247,15 +248,15 @@ public class SixelNodeTests
             .ApplyAsync(terminal);
         
         // Should be tracked as a single Sixel object
-        Assert.Equal(1, terminal.TrackedSixelCount);
+        Assert.AreEqual(1, terminal.TrackedSixelCount);
         
         // The tracked data should contain the original payload
         var trackedSixel = terminal.GetSixelDataAt(0, 0);
-        Assert.NotNull(trackedSixel);
+        Assert.IsNotNull(trackedSixel);
         Assert.Contains("#0;2;100;0;0#0~~~~~~", trackedSixel.Payload);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithSmpteColorBars_ProducesSvgWithEmbeddedImage()
     {
         // SMPTE color bars: White, Yellow, Cyan, Green, Magenta, Red, Blue
@@ -311,10 +312,10 @@ public class SixelNodeTests
         // Verify SVG contains an embedded image
         Assert.Contains("<image", svg);
         Assert.Contains("data:image/bmp;base64,", svg);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithColorGrid_ProducesSvgWithEmbeddedImage()
     {
         // 3x3 grid of colors - easy to verify each color block
@@ -371,10 +372,10 @@ public class SixelNodeTests
         TestCaptureHelper.AttachSvg("sixel-color-grid-reference.svg", referenceSvg);
         
         Assert.Contains("<image", svg);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithGrayscaleGradient_ProducesSvgWithEmbeddedImage()
     {
         // Horizontal grayscale gradient - black on left to white on right
@@ -431,7 +432,7 @@ public class SixelNodeTests
         Assert.Contains("data:image/bmp;base64,", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithRgbGradients_ProducesSvgWithEmbeddedImage()
     {
         // Three horizontal bands: R gradient, G gradient, B gradient
@@ -485,10 +486,10 @@ public class SixelNodeTests
         TestCaptureHelper.AttachSvg("sixel-rgb-gradients-reference.svg", referenceSvg);
         
         Assert.Contains("<image", svg);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCheckerboard_ProducesSvgWithEmbeddedImage()
     {
         // Checkerboard pattern - easy to verify alignment and scaling
@@ -545,7 +546,7 @@ public class SixelNodeTests
         Assert.Contains("data:image/bmp;base64,", svg);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithRegistrationMarks_ProducesSvgWithEmbeddedImage()
     {
         // Registration marks with center crosshair and colored corners
@@ -599,6 +600,6 @@ public class SixelNodeTests
         TestCaptureHelper.AttachSvg("sixel-registration-marks-reference.svg", referenceSvg);
         
         Assert.Contains("<image", svg);
-        Assert.True(terminal.ContainsSixelData());
+        Assert.IsTrue(terminal.ContainsSixelData());
     }
 }

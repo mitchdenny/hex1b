@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// Comprehensive integration tests for TreeWidget keyboard navigation, mouse interaction,
 /// rendering in borders, clipping, and visual output verification.
 /// </summary>
+[TestClass]
 public class TreeIntegrationTests
 {
     #region Test Matrix Constants
@@ -87,7 +88,7 @@ public class TreeIntegrationTests
 
     #region Basic Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_RendersWithCorrectStructure()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -106,16 +107,16 @@ public class TreeIntegrationTests
         await runTask;
 
         // Verify tree structure
-        Assert.True(snapshot.ContainsText("📁 Root"));
-        Assert.True(snapshot.ContainsText("📄 Child 1"));
-        Assert.True(snapshot.ContainsText("📄 Child 2"));
-        Assert.True(snapshot.ContainsText("📄 Child 3"));
+        Assert.IsTrue(snapshot.ContainsText("📁 Root"));
+        Assert.IsTrue(snapshot.ContainsText("📄 Child 1"));
+        Assert.IsTrue(snapshot.ContainsText("📄 Child 2"));
+        Assert.IsTrue(snapshot.ContainsText("📄 Child 3"));
         
         // Verify expand indicator is shown for expanded root
-        Assert.True(snapshot.ContainsText(ExpandedIndicator));
+        Assert.IsTrue(snapshot.ContainsText(ExpandedIndicator));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_RendersGuideLines_Unicode()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -134,11 +135,10 @@ public class TreeIntegrationTests
         await runTask;
 
         // Verify Unicode guide lines are present
-        Assert.True(snapshot.ContainsText(UnicodeBranch) || snapshot.ContainsText(UnicodeLastBranch), 
-            "Should contain Unicode branch characters");
+        Assert.IsTrue(snapshot.ContainsText(UnicodeBranch) || snapshot.ContainsText(UnicodeLastBranch), "Should contain Unicode branch characters");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_RendersGuideLines_Ascii()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -163,11 +163,10 @@ public class TreeIntegrationTests
         await runTask;
 
         // Verify ASCII guide lines are present
-        Assert.True(snapshot.ContainsText(AsciiBranch) || snapshot.ContainsText(AsciiLastBranch),
-            "Should contain ASCII branch characters");
+        Assert.IsTrue(snapshot.ContainsText(AsciiBranch) || snapshot.ContainsText(AsciiLastBranch), "Should contain ASCII branch characters");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_CollapsedItem_HidesChildren()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -189,16 +188,16 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Root"));
-        Assert.False(snapshot.ContainsText("Hidden Child"), "Collapsed items should hide children");
-        Assert.True(snapshot.ContainsText(CollapsedIndicator), "Should show collapsed indicator");
+        Assert.IsTrue(snapshot.ContainsText("Root"));
+        Assert.IsFalse(snapshot.ContainsText("Hidden Child"), "Collapsed items should hide children");
+        Assert.IsTrue(snapshot.ContainsText(CollapsedIndicator), "Should show collapsed indicator");
     }
 
     #endregion
 
     #region Keyboard Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_DownArrow_MovesToNextItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -219,10 +218,10 @@ public class TreeIntegrationTests
         await runTask;
 
         // A1 should now be focused (visually highlighted)
-        Assert.True(IsFocused(snapshot, "A1"), "A1 should be focused after Down arrow");
+        Assert.IsTrue(IsFocused(snapshot, "A1"), "A1 should be focused after Down arrow");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_UpArrow_MovesToPreviousItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -248,10 +247,10 @@ public class TreeIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "A1"), "A1 should be focused after Up arrow");
+        Assert.IsTrue(IsFocused(snapshot, "A1"), "A1 should be focused after Up arrow");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_DownArrow_WrapsToFirst()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -277,10 +276,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "Item 1"), "Should wrap to first item");
+        Assert.IsTrue(IsFocused(snapshot, "Item 1"), "Should wrap to first item");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_UpArrow_WrapsToLast()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -304,10 +303,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "Item 3"), "Should wrap to last item");
+        Assert.IsTrue(IsFocused(snapshot, "Item 3"), "Should wrap to last item");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_RightArrow_ExpandsCollapsedItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -337,11 +336,11 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Child"), "Child should be visible after expand");
-        Assert.True(snapshot.ContainsText(ExpandedIndicator), "Should show expanded indicator");
+        Assert.IsTrue(snapshot.ContainsText("Child"), "Child should be visible after expand");
+        Assert.IsTrue(snapshot.ContainsText(ExpandedIndicator), "Should show expanded indicator");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_LeftArrow_CollapsesExpandedItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -371,11 +370,11 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.False(snapshot.ContainsText("Child"), "Child should be hidden after collapse");
-        Assert.True(snapshot.ContainsText(CollapsedIndicator), "Should show collapsed indicator");
+        Assert.IsFalse(snapshot.ContainsText("Child"), "Child should be hidden after collapse");
+        Assert.IsTrue(snapshot.ContainsText(CollapsedIndicator), "Should show collapsed indicator");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_RightArrow_OnExpandedItem_MovesToFirstChild()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -400,10 +399,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "First Child"), "First Child should be focused");
+        Assert.IsTrue(IsFocused(snapshot, "First Child"), "First Child should be focused");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_LeftArrow_OnChild_MovesToParent()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -428,10 +427,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "Parent"), "Parent should be focused");
+        Assert.IsTrue(IsFocused(snapshot, "Parent"), "Parent should be focused");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_Enter_ActivatesItem()
     {
         var activatedLabel = "";
@@ -456,14 +455,14 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Item 2", activatedLabel);
+        Assert.AreEqual("Item 2", activatedLabel);
     }
 
     #endregion
 
     #region Multi-Select Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MultiSelect_SpaceTogglesSelection()
     {
         var selectedCount = 0;
@@ -497,12 +496,12 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(2, selectedCount);
+        Assert.AreEqual(2, selectedCount);
         // Should have checked boxes for selected items
-        Assert.True(snapshot.ContainsText(CheckboxChecked), "Should show checked checkbox");
+        Assert.IsTrue(snapshot.ContainsText(CheckboxChecked), "Should show checked checkbox");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MultiSelect_SpaceTogglesOff()
     {
         var selectedCount = 0;
@@ -533,10 +532,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(0, selectedCount);
+        Assert.AreEqual(0, selectedCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MultiSelect_RendersCheckboxes()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -557,15 +556,15 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText(CheckboxUnchecked), "Should show unchecked checkbox");
-        Assert.True(snapshot.ContainsText(CheckboxChecked), "Should show checked checkbox");
+        Assert.IsTrue(snapshot.ContainsText(CheckboxUnchecked), "Should show unchecked checkbox");
+        Assert.IsTrue(snapshot.ContainsText(CheckboxChecked), "Should show checked checkbox");
     }
 
     #endregion
 
     #region Mouse Interaction Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_MouseClick_SelectsItem()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -593,14 +592,14 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "Item 2"), "Item 2 should be focused after click");
+        Assert.IsTrue(IsFocused(snapshot, "Item 2"), "Item 2 should be focused after click");
     }
 
     #endregion
 
     #region Border Containment Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_InBorder_RendersCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -626,17 +625,17 @@ public class TreeIntegrationTests
         await runTask;
 
         // Verify border is present
-        Assert.True(snapshot.ContainsText("My Tree"), "Border title should be visible");
-        Assert.True(snapshot.ContainsText("┌") || snapshot.ContainsText("╭"), "Border top-left corner should be visible");
-        Assert.True(snapshot.ContainsText("┐") || snapshot.ContainsText("╮"), "Border top-right corner should be visible");
+        Assert.IsTrue(snapshot.ContainsText("My Tree"), "Border title should be visible");
+        Assert.IsTrue(snapshot.ContainsText("┌") || snapshot.ContainsText("╭"), "Border top-left corner should be visible");
+        Assert.IsTrue(snapshot.ContainsText("┐") || snapshot.ContainsText("╮"), "Border top-right corner should be visible");
         
         // Verify tree content is inside
-        Assert.True(snapshot.ContainsText("Root"));
-        Assert.True(snapshot.ContainsText("Child 1"));
-        Assert.True(snapshot.ContainsText("Child 2"));
+        Assert.IsTrue(snapshot.ContainsText("Root"));
+        Assert.IsTrue(snapshot.ContainsText("Child 1"));
+        Assert.IsTrue(snapshot.ContainsText("Child 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_InBorder_BorderCornersAtCorrectPositions()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -661,8 +660,7 @@ public class TreeIntegrationTests
 
         // Check top-left corner at (0,0)
         var topLeft = snapshot.GetCell(0, 0);
-        Assert.True(topLeft.Character == "┌" || topLeft.Character == "╭", 
-            $"Top-left should be border corner, got '{topLeft.Character}'");
+        Assert.IsTrue(topLeft.Character == "┌" || topLeft.Character == "╭", $"Top-left should be border corner, got '{topLeft.Character}'");
         
         // Check top-right corner (find the right edge)
         var positions = snapshot.FindText("┐");
@@ -670,10 +668,10 @@ public class TreeIntegrationTests
         {
             positions = snapshot.FindText("╮");
         }
-        Assert.NotEmpty(positions);
+        Assert.IsNotEmpty(positions);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_InNestedBorders_RendersCorrectly()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -698,16 +696,16 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Outer"));
-        Assert.True(snapshot.ContainsText("Inner"));
-        Assert.True(snapshot.ContainsText("Deep Item"));
+        Assert.IsTrue(snapshot.ContainsText("Outer"));
+        Assert.IsTrue(snapshot.ContainsText("Inner"));
+        Assert.IsTrue(snapshot.ContainsText("Deep Item"));
     }
 
     #endregion
 
     #region Clipping Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_Clipping_LongLabelsTruncated()
     {
         var longLabel = "This is a very long label that should be clipped when rendered in a narrow container";
@@ -732,12 +730,12 @@ public class TreeIntegrationTests
         await runTask;
 
         // The full label should NOT appear (it should be clipped)
-        Assert.False(snapshot.ContainsText("narrow container"), "Long text should be clipped");
+        Assert.IsFalse(snapshot.ContainsText("narrow container"), "Long text should be clipped");
         // But the beginning should be visible
-        Assert.True(snapshot.ContainsText("This is"), "Beginning of text should be visible");
+        Assert.IsTrue(snapshot.ContainsText("This is"), "Beginning of text should be visible");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_Clipping_ContentStaysWithinBorder()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -771,18 +769,18 @@ public class TreeIntegrationTests
 
         // Find the position of "Right Side" - it should be in the right panel
         var rightPositions = snapshot.FindText("Right");
-        Assert.NotEmpty(rightPositions);
+        Assert.IsNotEmpty(rightPositions);
         var (rightLine, rightColumn) = rightPositions[0];
         
         // The right content should be past column 20 (the left panel's width)
-        Assert.True(rightColumn >= 18, $"Right content should be in right panel, but was at column {rightColumn}");
+        Assert.IsTrue(rightColumn >= 18, $"Right content should be in right panel, but was at column {rightColumn}");
     }
 
     #endregion
 
     #region Tab Navigation Between Trees
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_TabNavigatesBetweenMultipleTrees()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -826,17 +824,17 @@ public class TreeIntegrationTests
         await runTask;
 
         // Left tree should have focus initially
-        Assert.True(IsFocused(captureLeft, "Left Item 1"), "Left Item 1 should be initially focused");
+        Assert.IsTrue(IsFocused(captureLeft, "Left Item 1"), "Left Item 1 should be initially focused");
         
         // After Tab, right tree should have focus
-        Assert.True(IsFocused(captureRight, "Right Item 1"), "Right Item 1 should be focused after Tab");
+        Assert.IsTrue(IsFocused(captureRight, "Right Item 1"), "Right Item 1 should be focused after Tab");
     }
 
     #endregion
 
     #region Deep Tree Navigation
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_DeepNavigation_TraversesAllLevels()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -861,10 +859,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "Level 4"), "Level 4 should be focused after navigating down");
+        Assert.IsTrue(IsFocused(snapshot, "Level 4"), "Level 4 should be focused after navigating down");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_DeepNavigation_LeftArrowNavigatesToParent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -895,18 +893,18 @@ public class TreeIntegrationTests
         await runTask;
 
         // Level 4 has no children, so Left moves to parent Level 3
-        Assert.True(IsFocused(snapshot, "Level 3"), "Level 3 should be focused after Left from Level 4 (move to parent)");
+        Assert.IsTrue(IsFocused(snapshot, "Level 3"), "Level 3 should be focused after Left from Level 4 (move to parent)");
     }
 
     #endregion
 
     #region Guide Style Verification
 
-    [Theory]
-    [InlineData("├─ ", "└─ ", "│  ", "├─", "└─")]  // Unicode (default)
-    [InlineData("+- ", "\\- ", "|  ", "+-", "\\-")]  // ASCII
-    [InlineData("┣━ ", "┗━ ", "┃  ", "┣━", "┗━")]  // Bold
-    [InlineData("╠═ ", "╚═ ", "║  ", "╠═", "╚═")]  // Double
+    [TestMethod]
+    [DataRow("├─ ", "└─ ", "│  ", "├─", "└─")]  // Unicode (default)
+    [DataRow("+- ", "\\- ", "|  ", "+-", "\\-")]  // ASCII
+    [DataRow("┣━ ", "┗━ ", "┃  ", "┣━", "┗━")]  // Bold
+    [DataRow("╠═ ", "╚═ ", "║  ", "╠═", "╚═")]  // Double
     public async Task Tree_GuideTheme_RendersCorrectCharacters(
         string branch, string lastBranch, string vertical, 
         string expectedBranch, string expectedLastBranch)
@@ -938,15 +936,14 @@ public class TreeIntegrationTests
         await runTask;
 
         // At least one of branch or lastBranch should be present
-        Assert.True(snapshot.ContainsText(expectedBranch) || snapshot.ContainsText(expectedLastBranch),
-            $"Should contain guide characters ('{expectedBranch}' or '{expectedLastBranch}')");
+        Assert.IsTrue(snapshot.ContainsText(expectedBranch) || snapshot.ContainsText(expectedLastBranch), $"Should contain guide characters ('{expectedBranch}' or '{expectedLastBranch}')");
     }
 
     #endregion
 
     #region Expand/Collapse Event Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_OnExpanded_FiresEvent()
     {
         var expandedLabel = "";
@@ -978,10 +975,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Parent", expandedLabel);
+        Assert.AreEqual("Parent", expandedLabel);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_OnCollapsed_FiresEvent()
     {
         var collapsedLabel = "";
@@ -1013,10 +1010,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Parent", collapsedLabel);
+        Assert.AreEqual("Parent", collapsedLabel);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_OnExpanding_AsyncLazyLoadsChildren()
     {
         var loadCalled = new TaskCompletionSource<bool>();
@@ -1034,10 +1031,10 @@ public class TreeIntegrationTests
         var treeNode = await treeWidget.ReconcileAsync(null, context) as TreeNode;
         
         // Verify initial state
-        Assert.True(treeNode!.Items[0].HasChildren, "HasChildren should be true");
-        Assert.NotNull(treeNode.Items[0].SourceWidget?.ExpandingAsyncHandler);
-        Assert.Empty(treeNode.Items[0].Children);
-        Assert.Single(treeNode.FlattenedItems); // Only Parent
+        Assert.IsTrue(treeNode!.Items[0].HasChildren, "HasChildren should be true");
+        Assert.IsNotNull(treeNode.Items[0].SourceWidget?.ExpandingAsyncHandler);
+        Assert.IsEmpty(treeNode.Items[0].Children);
+        TestSeq.Single(treeNode.FlattenedItems); // Only Parent
         
         // Expand - this starts async work in background
         var focusRing = new FocusRing();
@@ -1046,23 +1043,23 @@ public class TreeIntegrationTests
         
         // Wait for the async handler to be called (with timeout)
         var wasLoaded = await loadCalled.Task.WaitAsync(TimeSpan.FromSeconds(5));
-        Assert.True(wasLoaded, "OnExpanding handler should have been called");
+        Assert.IsTrue(wasLoaded, "OnExpanding handler should have been called");
         
         // Wait a bit more for the children to be loaded
         await Task.Delay(100);
         
         // Verify expanded state
-        Assert.True(treeNode.Items[0].IsExpanded, "Should be expanded");
-        Assert.Single(treeNode.Items[0].Children);
-        Assert.Equal("LazyChild", treeNode.Items[0].Children[0].Label);
-        Assert.Equal(2, treeNode.FlattenedItems.Count); // Parent + LazyChild
+        Assert.IsTrue(treeNode.Items[0].IsExpanded, "Should be expanded");
+        TestSeq.Single(treeNode.Items[0].Children);
+        Assert.AreEqual("LazyChild", treeNode.Items[0].Children[0].Label);
+        Assert.AreEqual(2, treeNode.FlattenedItems.Count); // Parent + LazyChild
     }
 
     #endregion
 
     #region Initial State Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_FirstItemFocusedOnRender()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -1085,10 +1082,10 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(IsFocused(snapshot, "First"), "First item should be initially focused");
+        Assert.IsTrue(IsFocused(snapshot, "First"), "First item should be initially focused");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_PreExpandedItems_ShowChildren()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -1111,14 +1108,14 @@ public class TreeIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Visible Child"), "Pre-expanded item should show children");
+        Assert.IsTrue(snapshot.ContainsText("Visible Child"), "Pre-expanded item should show children");
     }
 
     #endregion
 
     #region Border Rendering Investigation
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_BorderRendering_Investigation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1171,22 +1168,22 @@ public class TreeIntegrationTests
         await runTask;
 
         // Verify borders are present and correctly rendered
-        Assert.True(snapshot.ContainsText("📂 Files"), "Left border title should be visible");
-        Assert.True(snapshot.ContainsText("✅ Select"), "Right border title should be visible");
+        Assert.IsTrue(snapshot.ContainsText("📂 Files"), "Left border title should be visible");
+        Assert.IsTrue(snapshot.ContainsText("✅ Select"), "Right border title should be visible");
         
         // Verify that borders are correctly aligned at cell level
         // The two borders should be at columns 49 and 50 on line 7 (Pictures line)
         var leftBorderCell = snapshot.GetCell(49, 7);
         var rightBorderCell = snapshot.GetCell(50, 7);
-        Assert.Equal("│", leftBorderCell.Character);
-        Assert.Equal("│", rightBorderCell.Character);
+        Assert.AreEqual("│", leftBorderCell.Character);
+        Assert.AreEqual("│", rightBorderCell.Character);
     }
 
     #endregion
 
     #region Async Expansion Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_AsyncExpansion_ShowsChildrenAfterLoad()
     {
         var loadCompleted = new TaskCompletionSource<bool>();
@@ -1233,8 +1230,7 @@ public class TreeIntegrationTests
         var initialText = initialSnapshot.GetScreenText();
         
         // Check if there's a focus indicator and collapsed indicator
-        Assert.True(initialSnapshot.ContainsText("▶") || initialSnapshot.ContainsText("Parent"), 
-            $"Initial screen should show Parent. Screen:\n{initialText}");
+        Assert.IsTrue(initialSnapshot.ContainsText("▶") || initialSnapshot.ContainsText("Parent"), $"Initial screen should show Parent. Screen:\n{initialText}");
 
         // Press Tab to ensure tree has focus, then Right arrow to expand
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1278,15 +1274,15 @@ public class TreeIntegrationTests
         await runTask;
 
         // Debug info
-        Assert.True(childrenReturned == 2, $"Handler should have returned 2 children, got {childrenReturned}");
+        Assert.IsTrue(childrenReturned == 2, $"Handler should have returned 2 children, got {childrenReturned}");
 
         // Verify children are now visible
-        Assert.True(finalSnapshot.ContainsText("▼"), $"Parent should show expanded indicator. Screen:\n{finalText}");
-        Assert.True(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
-        Assert.True(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
+        Assert.IsTrue(finalSnapshot.ContainsText("▼"), $"Parent should show expanded indicator. Screen:\n{finalText}");
+        Assert.IsTrue(finalSnapshot.ContainsText("Child1"), $"Child1 should be visible after expansion. Screen:\n{finalText}");
+        Assert.IsTrue(finalSnapshot.ContainsText("Child2"), $"Child2 should be visible after expansion. Screen:\n{finalText}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Tree_AsyncExpansion_ShowsSpinnerDuringLoad()
     {
         var loadStarted = new TaskCompletionSource<bool>();
@@ -1376,8 +1372,7 @@ public class TreeIntegrationTests
         var spinnerChars = new[] { "⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏" };
         var spinnerSeen = spinnerFramesSeen.Any(frame => spinnerChars.Any(c => frame.Contains(c)));
         
-        Assert.True(spinnerSeen, 
-            $"Should have seen spinner animation during load. Frames captured:\n{string.Join("\n---\n", spinnerFramesSeen)}");
+        Assert.IsTrue(spinnerSeen, $"Should have seen spinner animation during load. Frames captured:\n{string.Join("\n---\n", spinnerFramesSeen)}");
     }
 
     #endregion

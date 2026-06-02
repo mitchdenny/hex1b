@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetMethodWithPrefixAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetMethodWithPrefixAnalyzer>.Diagnostic(WidgetMethodWithPrefixAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_OnConcreteWidget_Reports()
     {
         const string source = """
@@ -30,7 +31,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("WithBar"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_NoPrefix_OnConcreteWidget_NoDiagnostic()
     {
         const string source = """
@@ -49,7 +50,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_OnNonWidgetType_NoDiagnostic()
     {
         const string source = """
@@ -64,7 +65,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_OnWidgetContext_NoDiagnostic()
     {
         // WidgetContext<T> is the parent-builder context, not a widget itself; the rule
@@ -86,7 +87,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_GenericConstrainedToWidget_Reports()
     {
         const string source = """
@@ -105,7 +106,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("WithMetric"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_GenericNotConstrainedToWidget_NoDiagnostic()
     {
         const string source = """
@@ -120,7 +121,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InstanceMethod_WithPrefix_OnWidgetRecord_Reports()
     {
         const string source = """
@@ -137,7 +138,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("WithText"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InstanceMethod_WithPrefix_OnNonWidgetRecord_NoDiagnostic()
     {
         const string source = """
@@ -152,7 +153,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExactlyNamedWith_NoDiagnostic()
     {
         // The rule requires "With" + an uppercase letter so that members literally named
@@ -172,7 +173,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task BuilderType_WithPrefix_NoDiagnostic()
     {
         // Builder-style hosts may legitimately use the With* prefix.
@@ -188,7 +189,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PrivateInstanceMethod_WithPrefix_OnWidget_NoDiagnostic()
     {
         // Internal helpers (private/protected) are implementation details and should not
@@ -207,7 +208,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InstanceMethod_WithPrefix_Internal_Reports()
     {
         const string source = """
@@ -224,7 +225,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("WithFoo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InstanceMethod_WithPrefix_Override_NoDiagnostic()
     {
         // The violation belongs on the base declaration; subclasses overriding a With* method
@@ -248,7 +249,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("WithBar"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InstanceMethod_WithPrefix_ExplicitInterfaceImpl_NoDiagnostic()
     {
         // Explicit interface implementations cannot rename; the violation (if any) belongs on
@@ -272,7 +273,7 @@ public class WidgetMethodWithPrefixAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ExtensionMethod_WithPrefix_NestedGenericConstraintChain_Reports()
     {
         // T : TWidget : Hex1bWidget — analyzer must walk the constraint chain transitively.

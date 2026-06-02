@@ -52,6 +52,7 @@ namespace Hex1b.Tests;
 /// The same issue affects horizontal borders in <c>RenderHorizontalEdge()</c>.
 /// </para>
 /// </remarks>
+[TestClass]
 public class WindowBorderBleedThroughTests
 {
     /// <summary>
@@ -107,7 +108,7 @@ public class WindowBorderBleedThroughTests
     ///   <item>We check a non-zero number of overlap cells (non-vacuous assertion).</item>
     /// </list>
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public async Task WindowBorder_OverlappingContentWithBackground_BorderBackgroundDoesNotBleed()
     {
         // ── Arrange ──────────────────────────────────────────────────────────
@@ -238,14 +239,13 @@ public class WindowBorderBleedThroughTests
         // and NOT covered by Window A (which starts at col 12).
         {
             var sanityCell = snapshot.GetCell(wbContentLeft, wbContentTop);
-            Assert.True(sanityCell.Background.HasValue,
-                $"Sanity check failed: Window B content cell at ({wbContentLeft},{wbContentTop}) " +
+            Assert.IsTrue(sanityCell.Background.HasValue, $"Sanity check failed: Window B content cell at ({wbContentLeft},{wbContentTop}) " +
                 $"should have a background color but has none.\n" +
                 $"Cell: '{sanityCell.Character}'\n" +
                 $"Screen:\n{DumpScreen(snapshot, terminalHeight, terminalWidth)}");
-            Assert.Equal(WindowBContentBackground.R, sanityCell.Background.Value.R);
-            Assert.Equal(WindowBContentBackground.G, sanityCell.Background.Value.G);
-            Assert.Equal(WindowBContentBackground.B, sanityCell.Background.Value.B);
+            Assert.AreEqual(WindowBContentBackground.R, sanityCell.Background.Value.R);
+            Assert.AreEqual(WindowBContentBackground.G, sanityCell.Background.Value.G);
+            Assert.AreEqual(WindowBContentBackground.B, sanityCell.Background.Value.B);
         }
 
         // Now check every border cell of Window A that falls within Window B's content area.
@@ -316,8 +316,7 @@ public class WindowBorderBleedThroughTests
 
         // Sanity check 2: We must have checked a non-zero number of cells.
         // If this fails, our overlap geometry is wrong and the test is vacuous.
-        Assert.True(checkedCellCount > 0,
-            $"No overlap cells were checked! Verify test geometry.\n" +
+        Assert.IsTrue(checkedCellCount > 0, $"No overlap cells were checked! Verify test geometry.\n" +
             $"Window A borders: top={windowAAbsY}, bottom={windowAAbsY + windowAHeight - 1}, " +
             $"left={windowAAbsX}, right={windowAAbsX + windowAWidth - 1}\n" +
             $"Window B content: top={wbContentTop}, bottom={wbContentBottom}, " +
@@ -378,7 +377,7 @@ public class WindowBorderBleedThroughTests
     ///   The title bar's distinct background should only apply to the INNER area.
     /// </code>
     /// </remarks>
-    [Fact]
+    [TestMethod]
     public async Task WindowBorder_TitleBarRow_HasUniformBorderBackground()
     {
         const int terminalWidth = 60;
@@ -496,7 +495,7 @@ public class WindowBorderBleedThroughTests
             .OrderByDescending(g => g.Count())
             .ToList();
 
-        Assert.True(bgGroups.Count > 0, "No border cells with background color found");
+        Assert.IsTrue(bgGroups.Count > 0, "No border cells with background color found");
 
         var expectedBg = bgGroups[0].Key;
 

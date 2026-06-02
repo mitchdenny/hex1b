@@ -8,7 +8,8 @@ namespace Hex1b.Tests.Conformance.Ghostty;
 /// Source: https://github.com/ghostty-org/ghostty/blob/main/src/terminal/Terminal.zig
 /// Tests exercise DECSTBM (set top/bottom margins), IL, DL, SU, SD, and RI operations.
 /// </remarks>
-[Trait("Category", "GhosttyConformance")]
+[TestCategory("GhosttyConformance")]
+[TestClass]
 public class GhosttyScrollRegionConformanceTests
 {
     private static Hex1bTerminal CreateTerminal(int cols = 80, int rows = 24)
@@ -20,13 +21,13 @@ public class GhosttyScrollRegionConformanceTests
         for (int i = 0; i < expectedLines.Length; i++)
         {
             var actualLine = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal(expectedLines[i], actualLine);
+            Assert.AreEqual(expectedLines[i], actualLine);
         }
 
         for (int i = expectedLines.Length; i < terminal.Height; i++)
         {
             var line = GhosttyTestFixture.GetLine(terminal, i);
-            Assert.Equal("", line);
+            Assert.AreEqual("", line);
         }
     }
 
@@ -41,7 +42,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margins to full screen (0,0). ScrollDown(1).
     /// Content shifts down by 1, blank line at top.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_Simple_ScrollsDownFullScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -59,7 +60,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margin top=2 (1-based), bottom=full.
     /// ScrollDown(1). Only rows 2–5 shift; row 1 stays.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopOnly_ScrollsWithinLowerRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -77,7 +78,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margin rows 1–2.
     /// ScrollDown(1). DEF pushed out of region, GHI untouched below.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopAndBottom_ScrollsWithinRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -95,7 +96,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margin(2,2) — single row region.
     /// Ghostty treats equal margins as full screen. ScrollDown(1).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SetTopAndBottomMargin_TopEqualsBottom_TreatedAsFullScreen()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -121,7 +122,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. CUP(2,2). InsertLines(1).
     /// Blank line inserted at cursor row (row 1), content below shifts down.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_Simple_InsertsBlankAndShiftsDown()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -133,7 +134,7 @@ public class GhosttyScrollRegionConformanceTests
 
         AssertPlainText(terminal, "ABC\n\nDEF\nGHI");
         // IL resets cursor column to 0
-        Assert.Equal(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorX);
     }
 
     /// <summary>
@@ -141,7 +142,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margin(3,4). CUP(2,2).
     /// Cursor outside scroll region — insertLines has no effect.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_OutsideScrollRegion_NoEffect()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -161,7 +162,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI, 123. Set margin(1,3). CUP(2,2).
     /// InsertLines(1). GHI pushed out of region (rows 1–3), 123 untouched.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_WithTopBottomScrollRegion_PushesOutOfRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -181,7 +182,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. CUP(2,2). InsertLines(0).
     /// Zero is treated as 1.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_Zero_TreatedAsOne()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -199,7 +200,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI, 123, 456. Set margin(2,4). CUP(3,2).
     /// InsertLines(1). Insert within region rows 2–4, 456 untouched.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_WithScrollRegion_InsertsWithinRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -219,7 +220,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write 5 rows. Set margin(2,4). CUP(3,2). InsertLines(100).
     /// All remaining rows in region blanked.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_MoreThanRemaining_BlanksRemainingInRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -239,7 +240,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write "ABCDE" (fills line, sets pending wrap). InsertLines(1).
     /// Write 'X'. Pending wrap reset, X at col 0 of current row, ABCDE pushed down.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void InsertLines_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -266,7 +267,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. CUP(2,2). DeleteLines(1).
     /// Row 1 (DEF) deleted, rows below shift up.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_Simple_DeletesRowAndShiftsUp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -278,7 +279,7 @@ public class GhosttyScrollRegionConformanceTests
 
         AssertPlainText(terminal, "ABC\nGHI");
         // DL resets cursor column to 0
-        Assert.Equal(0, terminal.CursorX);
+        Assert.AreEqual(0, terminal.CursorX);
     }
 
     /// <summary>
@@ -286,7 +287,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write 5 rows. Set margin(2,4). CUP(3,2). DeleteLines(1).
     /// Within region (rows 2–4), GHI deleted, 123 shifts up, blank at bottom of region.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_WithScrollRegion_DeletesWithinRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -306,7 +307,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write 5 rows. Set margin(2,4). CUP(3,2). DeleteLines(100).
     /// All rows in region below cursor deleted.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_WithScrollRegion_LargeCount_DeletesAllInRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -326,7 +327,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write 3 rows. Set margin(3,4). CUP(2,2).
     /// Cursor outside scroll region — deleteLines has no effect.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_CursorOutsideRegion_NoEffect()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -346,7 +347,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write "ABCDE" (fills line, sets pending wrap). DeleteLines(1).
     /// Write 'X'. Row 0 deleted, X written on blank row 0.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void DeleteLines_ResetsPendingWrap()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -373,7 +374,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. ScrollUp(1).
     /// Content shifts up by 1, top line (ABC) disappears, bottom line blank.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ScrollUp_Simple_ShiftsContentUp()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -389,7 +390,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. Set margin(1,2). ScrollUp(1).
     /// Only rows 1–2 scroll. Row 0 gets DEF, row 1 blank, row 2 (GHI) untouched.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ScrollUp_WithScrollRegion_ScrollsWithinRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -415,7 +416,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC, DEF, GHI. ScrollDown(1).
     /// Content shifts down by 1, blank line at top.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ScrollDown_Simple_ShiftsContentDown()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);
@@ -439,7 +440,7 @@ public class GhosttyScrollRegionConformanceTests
     /// 5×5 terminal. Write ABC on rows. Set margin 2–4. CUP(2,1).
     /// Reverse index (ESC M) at top of scroll region scrolls content DOWN within region.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ReverseIndex_AtTopOfScrollRegion_ScrollsDownWithinRegion()
     {
         using var terminal = CreateTerminal(cols: 5, rows: 5);

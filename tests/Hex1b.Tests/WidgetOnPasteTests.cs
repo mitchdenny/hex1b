@@ -8,6 +8,7 @@ namespace Hex1b.Tests;
 /// Tests for OnPaste fluent methods on widgets (Phase 5).
 /// Verifies that custom paste handlers override default behavior.
 /// </summary>
+[TestClass]
 public class WidgetOnPasteTests
 {
     private static PasteContext CreatePaste(string text)
@@ -18,7 +19,7 @@ public class WidgetOnPasteTests
         return ctx;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnPaste_OverridesDefault()
     {
         // With OnPaste set, default text insertion should NOT happen
@@ -33,14 +34,14 @@ public class WidgetOnPasteTests
 
         var result = await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("custom", customReceived);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("custom", customReceived);
         // Text should NOT have been modified by default handler
-        Assert.Equal("original", node.Text);
+        Assert.AreEqual("original", node.Text);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnPaste_ReceivesPasteContext()
     {
         PasteContext? receivedContext = null;
@@ -54,11 +55,11 @@ public class WidgetOnPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Same(paste, receivedContext);
+        Assert.AreSame(paste, receivedContext);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnPaste_CanReadToEnd()
     {
         string? result = null;
@@ -71,11 +72,11 @@ public class WidgetOnPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("hello world", result);
+        Assert.AreEqual("hello world", result);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnPaste_CanCancel()
     {
         var node = new TextBoxNode();
@@ -90,11 +91,11 @@ public class WidgetOnPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.True(paste.IsCancelled);
+        Assert.IsTrue(paste.IsCancelled);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task OnPaste_WithoutHandler_DefaultBehavior()
     {
         // Without OnPaste, default text insertion should happen
@@ -105,23 +106,23 @@ public class WidgetOnPasteTests
 
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.Equal("inserted", node.Text);
+        Assert.AreEqual("inserted", node.Text);
         await paste.DisposeAsync();
     }
 
-    [Fact]
+    [TestMethod]
     public void Widget_OnPaste_FluentApi()
     {
         var widget = new TextBoxWidget("test");
 
         var withPaste = widget.OnPaste(async e => await e.Paste.ReadToEndAsync());
-        Assert.NotNull(withPaste.PasteHandler);
+        Assert.IsNotNull(withPaste.PasteHandler);
 
         var withSyncPaste = widget.OnPaste(e => { });
-        Assert.NotNull(withSyncPaste.PasteHandler);
+        Assert.IsNotNull(withSyncPaste.PasteHandler);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Widget_OnPaste_WiredThroughReconciliation()
     {
         bool handlerCalled = false;
@@ -136,16 +137,16 @@ public class WidgetOnPasteTests
         var context = ReconcileContext.CreateRoot();
         var node = await widget.ReconcileAsync(null, context) as TextBoxNode;
 
-        Assert.NotNull(node);
-        Assert.NotNull(node!.CustomPasteAction);
+        Assert.IsNotNull(node);
+        Assert.IsNotNull(node!.CustomPasteAction);
 
         // Invoke the handler
         var paste = CreatePaste("test");
         await node.HandlePasteAsync(new Hex1bPasteEvent(paste));
 
-        Assert.True(handlerCalled);
+        Assert.IsTrue(handlerCalled);
         // Default insert should NOT have happened since custom handler was set
-        Assert.Equal("test", node.Text); // original text unchanged
+        Assert.AreEqual("test", node.Text); // original text unchanged
         await paste.DisposeAsync();
     }
 }

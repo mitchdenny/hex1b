@@ -5,11 +5,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for OSC 0/1/2 (title/icon) and OSC 22/23 (title stack push/pop) sequences.
 /// </summary>
+[TestClass]
 public class OscTitleSequenceTests
 {
     #region OSC 0 - Set Both Title and Icon
 
-    [Fact]
+    [TestMethod]
     public async Task Osc0_SetsBothWindowTitleAndIconName()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -27,11 +28,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("My Terminal Title", terminal.WindowTitle);
-        Assert.Equal("My Terminal Title", terminal.IconName);
+        Assert.AreEqual("My Terminal Title", terminal.WindowTitle);
+        Assert.AreEqual("My Terminal Title", terminal.IconName);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc0_WithStTerminator_SetsBothTitleAndIcon()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -49,11 +50,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Title With ST", terminal.WindowTitle);
-        Assert.Equal("Title With ST", terminal.IconName);
+        Assert.AreEqual("Title With ST", terminal.WindowTitle);
+        Assert.AreEqual("Title With ST", terminal.IconName);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc0_FiresBothEvents()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -75,11 +76,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Event Test", capturedTitle);
-        Assert.Equal("Event Test", capturedIcon);
+        Assert.AreEqual("Event Test", capturedTitle);
+        Assert.AreEqual("Event Test", capturedIcon);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc0_EmptyTitle_SetsEmptyString()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -96,7 +97,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Initial Title", terminal.WindowTitle);
+        Assert.AreEqual("Initial Title", terminal.WindowTitle);
 
         // Now clear it
         workload.Write("\x1b]0;\x07");
@@ -105,15 +106,15 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("", terminal.WindowTitle);
-        Assert.Equal("", terminal.IconName);
+        Assert.AreEqual("", terminal.WindowTitle);
+        Assert.AreEqual("", terminal.IconName);
     }
 
     #endregion
 
     #region OSC 1 - Set Icon Name Only
 
-    [Fact]
+    [TestMethod]
     public async Task Osc1_SetsIconNameOnly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -137,11 +138,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Initial", terminal.WindowTitle); // Unchanged
-        Assert.Equal("Icon Only", terminal.IconName);
+        Assert.AreEqual("Initial", terminal.WindowTitle); // Unchanged
+        Assert.AreEqual("Icon Only", terminal.IconName);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc1_FiresOnlyIconEvent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -162,15 +163,15 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal(0, titleEventCount); // Title should not fire
-        Assert.Equal(1, iconEventCount);
+        Assert.AreEqual(0, titleEventCount); // Title should not fire
+        Assert.AreEqual(1, iconEventCount);
     }
 
     #endregion
 
     #region OSC 2 - Set Window Title Only
 
-    [Fact]
+    [TestMethod]
     public async Task Osc2_SetsWindowTitleOnly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -194,11 +195,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Title Only", terminal.WindowTitle);
-        Assert.Equal("Initial", terminal.IconName); // Unchanged
+        Assert.AreEqual("Title Only", terminal.WindowTitle);
+        Assert.AreEqual("Initial", terminal.IconName); // Unchanged
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc2_FiresOnlyTitleEvent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -219,15 +220,15 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal(1, titleEventCount);
-        Assert.Equal(0, iconEventCount); // Icon should not fire
+        Assert.AreEqual(1, titleEventCount);
+        Assert.AreEqual(0, iconEventCount); // Icon should not fire
     }
 
     #endregion
 
     #region OSC 22/23 - Title Stack
 
-    [Fact]
+    [TestMethod]
     public async Task Osc22_PushesCurrentTitleOntoStack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -244,7 +245,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Original", terminal.WindowTitle);
+        Assert.AreEqual("Original", terminal.WindowTitle);
 
         // Push current title onto stack
         workload.Write("\x1b]22;\x07");
@@ -254,10 +255,10 @@ public class OscTitleSequenceTests
             .ApplyAsync(terminal);
 
         // Title should still be the same after push
-        Assert.Equal("Original", terminal.WindowTitle);
+        Assert.AreEqual("Original", terminal.WindowTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc23_PopsAndRestoresTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -288,7 +289,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("New Title", terminal.WindowTitle);
+        Assert.AreEqual("New Title", terminal.WindowTitle);
 
         // Pop - should restore to "Original"
         workload.Write("\x1b]23;\x07");
@@ -297,11 +298,11 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Original", terminal.WindowTitle);
-        Assert.Equal("Original", terminal.IconName);
+        Assert.AreEqual("Original", terminal.WindowTitle);
+        Assert.AreEqual("Original", terminal.IconName);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc22_23_StackIsIndependentOfDirectTitleChanges()
     {
         // This tests the key behavior: OSC 0/1/2 do NOT affect the stack
@@ -333,7 +334,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("vim", terminal.WindowTitle);
+        Assert.AreEqual("vim", terminal.WindowTitle);
 
         // Pop: Stack=[], Current="bash" (restored from stack, NOT "vim")
         workload.Write("\x1b]23;\x07");
@@ -342,10 +343,10 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("bash", terminal.WindowTitle);
+        Assert.AreEqual("bash", terminal.WindowTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc22_23_MultipleStackLevels()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -370,7 +371,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("vim", terminal.WindowTitle);
+        Assert.AreEqual("vim", terminal.WindowTitle);
 
         // Push level 2
         workload.Write("\x1b]22;\x07");
@@ -380,7 +381,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal(":help", terminal.WindowTitle);
+        Assert.AreEqual(":help", terminal.WindowTitle);
 
         // Pop level 2 -> vim
         workload.Write("\x1b]23;\x07");
@@ -389,7 +390,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("vim", terminal.WindowTitle);
+        Assert.AreEqual("vim", terminal.WindowTitle);
 
         // Pop level 1 -> shell
         workload.Write("\x1b]23;\x07");
@@ -398,10 +399,10 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("shell", terminal.WindowTitle);
+        Assert.AreEqual("shell", terminal.WindowTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc23_OnEmptyStack_IsIgnored()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -426,10 +427,10 @@ public class OscTitleSequenceTests
             .ApplyAsync(terminal);
 
         // Title should remain unchanged
-        Assert.Equal("Current", terminal.WindowTitle);
+        Assert.AreEqual("Current", terminal.WindowTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Osc22_WithPayload_PushesAndSetsNewTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -454,7 +455,7 @@ public class OscTitleSequenceTests
             .ApplyAsync(terminal);
 
         // Current should be the new title
-        Assert.Equal("New After Push", terminal.WindowTitle);
+        Assert.AreEqual("New After Push", terminal.WindowTitle);
 
         // Pop should restore to original
         workload.Write("\x1b]23;\x07");
@@ -463,14 +464,14 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("Original", terminal.WindowTitle);
+        Assert.AreEqual("Original", terminal.WindowTitle);
     }
 
     #endregion
 
     #region Event Deduplication
 
-    [Fact]
+    [TestMethod]
     public async Task TitleEvent_NotFiredWhenTitleUnchanged()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -490,7 +491,7 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal(1, titleEventCount);
+        Assert.AreEqual(1, titleEventCount);
 
         // Set same title again
         workload.Write("\x1b]2;Same Title\x07");
@@ -500,14 +501,14 @@ public class OscTitleSequenceTests
             .ApplyAsync(terminal);
 
         // Should not fire again
-        Assert.Equal(1, titleEventCount);
+        Assert.AreEqual(1, titleEventCount);
     }
 
     #endregion
 
     #region Special Characters
 
-    [Fact]
+    [TestMethod]
     public async Task Title_WithSpecialCharacters_IsPreserved()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -524,10 +525,10 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("~/Code/project - vim [+]", terminal.WindowTitle);
+        Assert.AreEqual("~/Code/project - vim [+]", terminal.WindowTitle);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Title_WithUnicode_IsPreserved()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -544,14 +545,14 @@ public class OscTitleSequenceTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("📁 Project - 日本語", terminal.WindowTitle);
+        Assert.AreEqual("📁 Project - 日本語", terminal.WindowTitle);
     }
 
     #endregion
 
     #region Initial State
 
-    [Fact]
+    [TestMethod]
     public void Terminal_InitialTitleIsEmpty()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -561,8 +562,8 @@ public class OscTitleSequenceTests
             .WithDimensions(80, 24)
             .Build();
 
-        Assert.Equal("", terminal.WindowTitle);
-        Assert.Equal("", terminal.IconName);
+        Assert.AreEqual("", terminal.WindowTitle);
+        Assert.AreEqual("", terminal.IconName);
     }
 
     #endregion

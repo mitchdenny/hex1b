@@ -6,69 +6,70 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for the Hex1bTerminalInputSequenceBuilder and Hex1bTerminalInputSequence.
 /// </summary>
+[TestClass]
 public class Hex1bTestSequenceTests
 {
     #region Builder Basic Tests
 
-    [Fact]
+    [TestMethod]
     public void Build_EmptySequence_ReturnsEmptySequence()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder().Build();
         
-        Assert.Empty(sequence.Steps);
+        Assert.IsEmpty(sequence.Steps);
     }
 
-    [Fact]
+    [TestMethod]
     public void Key_AddsKeyInputStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Key(Hex1bKey.A)
             .Build();
         
-        Assert.Single(sequence.Steps);
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.A, step.Key);
-        Assert.Equal("a", step.Text);
-        Assert.Equal(Hex1bModifiers.None, step.Modifiers);
+        TestSeq.Single(sequence.Steps);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.A, step.Key);
+        Assert.AreEqual("a", step.Text);
+        Assert.AreEqual(Hex1bModifiers.None, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void Shift_Key_AddsShiftModifier()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Shift().Key(Hex1bKey.A)
             .Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.A, step.Key);
-        Assert.Equal("A", step.Text);
-        Assert.Equal(Hex1bModifiers.Shift, step.Modifiers);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.A, step.Key);
+        Assert.AreEqual("A", step.Text);
+        Assert.AreEqual(Hex1bModifiers.Shift, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void Ctrl_Key_AddsControlModifier()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
             .Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.C, step.Key);
-        Assert.Equal(Hex1bModifiers.Control, step.Modifiers);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.C, step.Key);
+        Assert.AreEqual(Hex1bModifiers.Control, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void Ctrl_Shift_Key_AddsCombinedModifiers()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Shift().Key(Hex1bKey.Z)
             .Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bModifiers.Control | Hex1bModifiers.Shift, step.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void ModifiersResetAfterKey()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -76,53 +77,53 @@ public class Hex1bTestSequenceTests
             .Key(Hex1bKey.B)
             .Build();
         
-        var step1 = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        var step2 = Assert.IsType<KeyInputStep>(sequence.Steps[1]);
+        var step1 = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        var step2 = TestSeq.IsType<KeyInputStep>(sequence.Steps[1]);
         
-        Assert.Equal(Hex1bModifiers.Control, step1.Modifiers);
-        Assert.Equal(Hex1bModifiers.None, step2.Modifiers);
+        Assert.AreEqual(Hex1bModifiers.Control, step1.Modifiers);
+        Assert.AreEqual(Hex1bModifiers.None, step2.Modifiers);
     }
 
     #endregion
 
     #region Text Input Tests
 
-    [Fact]
+    [TestMethod]
     public void Type_AddsTextInputStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Type("Hello")
             .Build();
         
-        Assert.Single(sequence.Steps);
-        var step = Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.Equal("Hello", step.Text);
-        Assert.Equal(TimeSpan.Zero, step.DelayBetweenKeys);
+        TestSeq.Single(sequence.Steps);
+        var step = TestSeq.IsType<TextInputStep>(sequence.Steps[0]);
+        Assert.AreEqual("Hello", step.Text);
+        Assert.AreEqual(TimeSpan.Zero, step.DelayBetweenKeys);
     }
 
-    [Fact]
+    [TestMethod]
     public void FastType_AddsTextInputStepWithNoDelay()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .FastType("Test")
             .Build();
         
-        var step = Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.Equal(TimeSpan.Zero, step.DelayBetweenKeys);
+        var step = TestSeq.IsType<TextInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(TimeSpan.Zero, step.DelayBetweenKeys);
     }
 
-    [Fact]
+    [TestMethod]
     public void SlowType_AddsTextInputStepWithDefaultDelay()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .SlowType("Test")
             .Build();
         
-        var step = Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bTerminalInputSequenceOptions.Default.SlowTypeDelay, step.DelayBetweenKeys);
+        var step = TestSeq.IsType<TextInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bTerminalInputSequenceOptions.Default.SlowTypeDelay, step.DelayBetweenKeys);
     }
 
-    [Fact]
+    [TestMethod]
     public void SlowType_WithCustomDelay_UsesCustomDelay()
     {
         var delay = TimeSpan.FromMilliseconds(100);
@@ -130,86 +131,86 @@ public class Hex1bTestSequenceTests
             .SlowType("Test", delay)
             .Build();
         
-        var step = Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.Equal(delay, step.DelayBetweenKeys);
+        var step = TestSeq.IsType<TextInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(delay, step.DelayBetweenKeys);
     }
 
     #endregion
 
     #region Common Key Shortcuts Tests
 
-    [Fact]
+    [TestMethod]
     public void Enter_AddsEnterKeyStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder().Enter().Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.Enter, step.Key);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.Enter, step.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public void Tab_AddsTabKeyStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder().Tab().Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.Tab, step.Key);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.Tab, step.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public void Escape_AddsEscapeKeyStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder().Escape().Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.Escape, step.Key);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.Escape, step.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public void ArrowKeys_AddCorrectKeySteps()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Up().Down().Left().Right()
             .Build();
         
-        Assert.Equal(4, sequence.Steps.Count);
-        Assert.Equal(Hex1bKey.UpArrow, ((KeyInputStep)sequence.Steps[0]).Key);
-        Assert.Equal(Hex1bKey.DownArrow, ((KeyInputStep)sequence.Steps[1]).Key);
-        Assert.Equal(Hex1bKey.LeftArrow, ((KeyInputStep)sequence.Steps[2]).Key);
-        Assert.Equal(Hex1bKey.RightArrow, ((KeyInputStep)sequence.Steps[3]).Key);
+        Assert.AreEqual(4, sequence.Steps.Count);
+        Assert.AreEqual(Hex1bKey.UpArrow, ((KeyInputStep)sequence.Steps[0]).Key);
+        Assert.AreEqual(Hex1bKey.DownArrow, ((KeyInputStep)sequence.Steps[1]).Key);
+        Assert.AreEqual(Hex1bKey.LeftArrow, ((KeyInputStep)sequence.Steps[2]).Key);
+        Assert.AreEqual(Hex1bKey.RightArrow, ((KeyInputStep)sequence.Steps[3]).Key);
     }
 
-    [Fact]
+    [TestMethod]
     public void Shift_Tab_AddsBackTab()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Shift().Tab()
             .Build();
         
-        var step = Assert.IsType<KeyInputStep>(sequence.Steps[0]);
-        Assert.Equal(Hex1bKey.Tab, step.Key);
-        Assert.Equal(Hex1bModifiers.Shift, step.Modifiers);
+        var step = TestSeq.IsType<KeyInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(Hex1bKey.Tab, step.Key);
+        Assert.AreEqual(Hex1bModifiers.Shift, step.Modifiers);
     }
 
     #endregion
 
     #region Mouse Input Tests
 
-    [Fact]
+    [TestMethod]
     public void MouseMoveTo_AddsMouseMoveStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .MouseMoveTo(10, 20)
             .Build();
         
-        var step = Assert.IsType<MouseInputStep>(sequence.Steps[0]);
-        Assert.Equal(MouseButton.None, step.Button);
-        Assert.Equal(MouseAction.Move, step.Action);
-        Assert.Equal(10, step.X);
-        Assert.Equal(20, step.Y);
+        var step = TestSeq.IsType<MouseInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(MouseButton.None, step.Button);
+        Assert.AreEqual(MouseAction.Move, step.Action);
+        Assert.AreEqual(10, step.X);
+        Assert.AreEqual(20, step.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseMove_AddsRelativeMove()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -217,12 +218,12 @@ public class Hex1bTestSequenceTests
             .MouseMove(5, -3)
             .Build();
         
-        var step = Assert.IsType<MouseInputStep>(sequence.Steps[1]);
-        Assert.Equal(15, step.X);
-        Assert.Equal(7, step.Y);
+        var step = TestSeq.IsType<MouseInputStep>(sequence.Steps[1]);
+        Assert.AreEqual(15, step.X);
+        Assert.AreEqual(7, step.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Click_AddsDownAndUpSteps()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -230,29 +231,29 @@ public class Hex1bTestSequenceTests
             .Click()
             .Build();
         
-        Assert.Equal(3, sequence.Steps.Count);
-        var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[1]);
-        var upStep = Assert.IsType<MouseInputStep>(sequence.Steps[2]);
+        Assert.AreEqual(3, sequence.Steps.Count);
+        var downStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[1]);
+        var upStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[2]);
         
-        Assert.Equal(MouseButton.Left, downStep.Button);
-        Assert.Equal(MouseAction.Down, downStep.Action);
-        Assert.Equal(MouseButton.Left, upStep.Button);
-        Assert.Equal(MouseAction.Up, upStep.Action);
+        Assert.AreEqual(MouseButton.Left, downStep.Button);
+        Assert.AreEqual(MouseAction.Down, downStep.Action);
+        Assert.AreEqual(MouseButton.Left, upStep.Button);
+        Assert.AreEqual(MouseAction.Up, upStep.Action);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClickAt_MovesToPositionAndClicks()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .ClickAt(15, 25)
             .Build();
         
-        var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[0]);
-        Assert.Equal(15, downStep.X);
-        Assert.Equal(25, downStep.Y);
+        var downStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(15, downStep.X);
+        Assert.AreEqual(25, downStep.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void DoubleClick_SetsClickCountTo2()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -260,11 +261,11 @@ public class Hex1bTestSequenceTests
             .DoubleClick()
             .Build();
         
-        var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[1]);
-        Assert.Equal(2, downStep.ClickCount);
+        var downStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[1]);
+        Assert.AreEqual(2, downStep.ClickCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void Drag_CreatesDownDragUpSequence()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -272,28 +273,28 @@ public class Hex1bTestSequenceTests
             .Build();
         
         // Drag creates: Down, Wait (10ms), Drag, Up = 4 steps
-        Assert.Equal(4, sequence.Steps.Count);
+        Assert.AreEqual(4, sequence.Steps.Count);
         
-        var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[0]);
-        Assert.Equal(MouseAction.Down, downStep.Action);
-        Assert.Equal(10, downStep.X);
-        Assert.Equal(10, downStep.Y);
+        var downStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(MouseAction.Down, downStep.Action);
+        Assert.AreEqual(10, downStep.X);
+        Assert.AreEqual(10, downStep.Y);
         
         // Step 1 is the wait step
-        Assert.IsType<WaitStep>(sequence.Steps[1]);
+        TestSeq.IsType<WaitStep>(sequence.Steps[1]);
         
-        var dragStep = Assert.IsType<MouseInputStep>(sequence.Steps[2]);
-        Assert.Equal(MouseAction.Drag, dragStep.Action);
-        Assert.Equal(20, dragStep.X);
-        Assert.Equal(15, dragStep.Y);
+        var dragStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[2]);
+        Assert.AreEqual(MouseAction.Drag, dragStep.Action);
+        Assert.AreEqual(20, dragStep.X);
+        Assert.AreEqual(15, dragStep.Y);
         
-        var upStep = Assert.IsType<MouseInputStep>(sequence.Steps[3]);
-        Assert.Equal(MouseAction.Up, upStep.Action);
-        Assert.Equal(20, upStep.X);
-        Assert.Equal(15, upStep.Y);
+        var upStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[3]);
+        Assert.AreEqual(MouseAction.Up, upStep.Action);
+        Assert.AreEqual(20, upStep.X);
+        Assert.AreEqual(15, upStep.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Ctrl_Click_AddsControlModifier()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -301,42 +302,42 @@ public class Hex1bTestSequenceTests
             .Ctrl().Click()
             .Build();
         
-        var downStep = Assert.IsType<MouseInputStep>(sequence.Steps[1]);
-        Assert.Equal(Hex1bModifiers.Control, downStep.Modifiers);
+        var downStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[1]);
+        Assert.AreEqual(Hex1bModifiers.Control, downStep.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollUp_AddsScrollSteps()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .ScrollUp(3)
             .Build();
         
-        Assert.Equal(3, sequence.Steps.Count);
+        Assert.AreEqual(3, sequence.Steps.Count);
         foreach (var step in sequence.Steps)
         {
-            var mouseStep = Assert.IsType<MouseInputStep>(step);
-            Assert.Equal(MouseButton.ScrollUp, mouseStep.Button);
+            var mouseStep = TestSeq.IsType<MouseInputStep>(step);
+            Assert.AreEqual(MouseButton.ScrollUp, mouseStep.Button);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollDown_AddsScrollSteps()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .ScrollDown(2)
             .Build();
         
-        Assert.Equal(2, sequence.Steps.Count);
-        var mouseStep = Assert.IsType<MouseInputStep>(sequence.Steps[0]);
-        Assert.Equal(MouseButton.ScrollDown, mouseStep.Button);
+        Assert.AreEqual(2, sequence.Steps.Count);
+        var mouseStep = TestSeq.IsType<MouseInputStep>(sequence.Steps[0]);
+        Assert.AreEqual(MouseButton.ScrollDown, mouseStep.Button);
     }
 
     #endregion
 
     #region Wait Tests
 
-    [Fact]
+    [TestMethod]
     public void Wait_AddsWaitStep()
     {
         var duration = TimeSpan.FromMilliseconds(100);
@@ -344,26 +345,26 @@ public class Hex1bTestSequenceTests
             .Wait(duration)
             .Build();
         
-        var step = Assert.IsType<WaitStep>(sequence.Steps[0]);
-        Assert.Equal(duration, step.Duration);
+        var step = TestSeq.IsType<WaitStep>(sequence.Steps[0]);
+        Assert.AreEqual(duration, step.Duration);
     }
 
-    [Fact]
+    [TestMethod]
     public void Wait_Milliseconds_AddsWaitStep()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
             .Wait(50)
             .Build();
         
-        var step = Assert.IsType<WaitStep>(sequence.Steps[0]);
-        Assert.Equal(TimeSpan.FromMilliseconds(50), step.Duration);
+        var step = TestSeq.IsType<WaitStep>(sequence.Steps[0]);
+        Assert.AreEqual(TimeSpan.FromMilliseconds(50), step.Duration);
     }
 
     #endregion
 
     #region Complex Sequence Tests
 
-    [Fact]
+    [TestMethod]
     public void ComplexSequence_BuildsCorrectly()
     {
         var sequence = new Hex1bTerminalInputSequenceBuilder()
@@ -375,20 +376,20 @@ public class Hex1bTestSequenceTests
             .Enter()
             .Build();
         
-        Assert.Equal(6, sequence.Steps.Count);
-        Assert.IsType<TextInputStep>(sequence.Steps[0]);
-        Assert.IsType<WaitStep>(sequence.Steps[1]);
-        Assert.IsType<KeyInputStep>(sequence.Steps[2]);
-        Assert.IsType<KeyInputStep>(sequence.Steps[3]);
-        Assert.IsType<KeyInputStep>(sequence.Steps[4]);
-        Assert.IsType<KeyInputStep>(sequence.Steps[5]);
+        Assert.AreEqual(6, sequence.Steps.Count);
+        TestSeq.IsType<TextInputStep>(sequence.Steps[0]);
+        TestSeq.IsType<WaitStep>(sequence.Steps[1]);
+        TestSeq.IsType<KeyInputStep>(sequence.Steps[2]);
+        TestSeq.IsType<KeyInputStep>(sequence.Steps[3]);
+        TestSeq.IsType<KeyInputStep>(sequence.Steps[4]);
+        TestSeq.IsType<KeyInputStep>(sequence.Steps[5]);
     }
 
     #endregion
 
     #region Terminal Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyAsync_SendsKeyEventsToTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -419,10 +420,10 @@ public class Hex1bTestSequenceTests
         cts.Cancel();
         await runTask;
         
-        Assert.Equal("Hello", textEntered);
+        Assert.AreEqual("Hello", textEntered);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyAsync_SendsKeyboardShortcuts()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -460,10 +461,10 @@ public class Hex1bTestSequenceTests
         cts.Cancel();
         await runTask;
         
-        Assert.True(ctrlCPressed);
+        Assert.IsTrue(ctrlCPressed);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyAsync_NavigatesWithArrowKeys()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -498,10 +499,10 @@ public class Hex1bTestSequenceTests
         await runTask;
         
         // Third item should be selected
-        Assert.True(snapshot.ContainsText("> Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyAsync_TabNavigatesBetweenWidgets()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -550,11 +551,11 @@ public class Hex1bTestSequenceTests
         cts.Cancel();
         await runTask;
         
-        Assert.Equal("First", text1);
-        Assert.Equal("Second", text2);
+        Assert.AreEqual("First", text1);
+        Assert.AreEqual("Second", text2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ApplyAsync_WithoutAppRunning_DoesNotThrow()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

@@ -5,19 +5,25 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Custom xUnit Fact attribute that skips the test when Docker with Linux containers is not available.
 /// </summary>
-public sealed class DockerAvailableFactAttribute : FactAttribute
+public sealed class DockerAvailableFactAttribute : TestMethodAttribute
 {
     private static readonly string? s_skipReason = GetSkipReason();
 
-    public DockerAvailableFactAttribute(
-        [System.Runtime.CompilerServices.CallerFilePath] string? sourceFilePath = null,
-        [System.Runtime.CompilerServices.CallerLineNumber] int sourceLineNumber = -1)
-        : base(sourceFilePath, sourceLineNumber)
+    public DockerAvailableFactAttribute()
+    {
+    }
+
+    public override Task<TestResult[]> ExecuteAsync(ITestMethod testMethod)
     {
         if (s_skipReason is not null)
         {
-            Skip = s_skipReason;
+            return Task.FromResult<TestResult[]>([new TestResult
+            {
+                Outcome = UnitTestOutcome.Inconclusive,
+                TestFailureException = new AssertInconclusiveException(s_skipReason),
+            }]);
         }
+        return base.ExecuteAsync(testMethod);
     }
 
     private static string? GetSkipReason()
@@ -111,7 +117,7 @@ public class DockerContainerIntegrationTests
         // Verify pattern was found (WaitUntil would have thrown on timeout)
         var snapshot = terminal.CreateSnapshot();
         var found = linuxPattern.Search(snapshot);
-        Assert.True(found.Count > 0, "Expected 'Linux' in terminal output");
+        Assert.IsTrue(found.Count > 0, "Expected 'Linux' in terminal output");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Type("exit").Enter()
@@ -149,7 +155,7 @@ public class DockerContainerIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var found = envPattern.Search(snapshot);
-        Assert.True(found.Count > 0, "Expected environment variable value in output");
+        Assert.IsTrue(found.Count > 0, "Expected environment variable value in output");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Type("exit").Enter()
@@ -228,6 +234,6 @@ public class DockerContainerIntegrationTests
 
         // Default image is dotnet/sdk:10.0, so dotnet should be available
         var found = new CellPatternSearcher().Find("10.").Search(snapshot);
-        Assert.True(found.Count > 0, "Expected dotnet version output in container");
+        Assert.IsTrue(found.Count > 0, "Expected dotnet version output in container");
     }
 }

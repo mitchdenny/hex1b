@@ -26,7 +26,7 @@ Skills are invoked automatically by AI agents based on the task context. They co
 ### Key Technologies
 - **.NET 10.0** (preview) - Target framework
 - **C# 12+** - Modern C# features enabled
-- **xUnit** - Testing framework
+- **MSTest** (MSTest.Sdk 4.x with Microsoft.Testing.Platform) - Testing framework
 - **.NET Aspire** - Used for running sample applications
 
 ### Repository Layout
@@ -174,11 +174,19 @@ Quick checklist:
 
 Follow the `MethodName_Scenario_ExpectedBehavior` naming pattern:
 ```csharp
-[Fact]
+[TestMethod]
 public void Measure_WithConstraints_ReturnsExpectedSize()
 {
     // Arrange, Act, Assert
 }
+```
+
+Test projects use `MSTest.Sdk` with `OutputType=Exe` and Microsoft.Testing.Platform (MTP). Use `[TestMethod]` for facts, `[TestMethod] [DataRow(...)]` for theories, `[TestInitialize]`/`[TestCleanup]` for setup/teardown, and `[DoNotParallelize]` instead of xUnit collections. For collection-equality, single-element, and type-cast assertions, prefer the `TestSeq` helpers in `eng/TestSeq.cs` (auto-imported via `Hex1b.Testing`):
+
+```csharp
+TestSeq.AreEqual(expected, actual);   // deep collection equality
+var item = TestSeq.Single(items);     // assert single + return element
+var node = TestSeq.IsType<MyNode>(x); // assert type + return cast value
 ```
 
 ## 🔧 Common Tasks

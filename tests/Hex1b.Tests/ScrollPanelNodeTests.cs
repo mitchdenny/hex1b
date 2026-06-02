@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Comprehensive tests for ScrollPanelNode layout, rendering, scrolling, and focus handling.
 /// </summary>
+[TestClass]
 public class ScrollPanelNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
@@ -39,17 +40,17 @@ public class ScrollPanelNodeTests
 
     #region ScrollPanelNode Internal State Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollNode_InitialState_IsZero()
     {
         var node = new ScrollPanelNode();
 
-        Assert.Equal(0, node.Offset);
-        Assert.Equal(0, node.ContentSize);
-        Assert.Equal(0, node.ViewportSize);
+        Assert.AreEqual(0, node.Offset);
+        Assert.AreEqual(0, node.ContentSize);
+        Assert.AreEqual(0, node.ViewportSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollNode_IsScrollable_WhenContentExceedsViewport()
     {
         var node = new ScrollPanelNode
@@ -61,10 +62,10 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
 
         // After arrange, ContentSize and ViewportSize should be set
-        Assert.True(node.ContentSize > node.ViewportSize);
+        Assert.IsTrue(node.ContentSize > node.ViewportSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollNode_MaxOffset_IsCorrect()
     {
         var node = new ScrollPanelNode
@@ -76,14 +77,14 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
 
         // MaxOffset = ContentSize - ViewportSize = 25 - 10 = 15
-        Assert.Equal(15, node.ContentSize - node.ViewportSize);
+        Assert.AreEqual(15, node.ContentSize - node.ViewportSize);
     }
 
     #endregion
 
     #region Measurement Tests - Vertical Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Vertical_ContentSmallerThanViewport_ReturnsFitSize()
     {
         var node = new ScrollPanelNode
@@ -96,11 +97,11 @@ public class ScrollPanelNodeTests
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
         // Content is 5 lines, viewport allows 20, so no need for full space
-        Assert.True(size.Height <= 20);
-        Assert.Equal(5, node.ContentSize);
+        Assert.IsTrue(size.Height <= 20);
+        Assert.AreEqual(5, node.ContentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Vertical_ContentLargerThanViewport_UsesConstraints()
     {
         var node = new ScrollPanelNode
@@ -112,11 +113,11 @@ public class ScrollPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
-        Assert.Equal(20, size.Height);
-        Assert.Equal(50, node.ContentSize);
+        Assert.AreEqual(20, size.Height);
+        Assert.AreEqual(50, node.ContentSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Vertical_IncludesScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
@@ -141,10 +142,10 @@ public class ScrollPanelNodeTests
         var size = scrollableNode.Measure(new Constraints(0, 30, 0, 20));
 
         // Width should include space for scrollbar
-        Assert.True(size.Width > 0);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Vertical_NoScrollbar_DoesNotIncludeScrollbarWidth()
     {
         var child = new TextBlockNode { Text = "Content" };
@@ -158,14 +159,14 @@ public class ScrollPanelNodeTests
         var size = node.Measure(new Constraints(0, 30, 0, 20));
 
         // Width should be just content width
-        Assert.Equal(7, size.Width);
+        Assert.AreEqual(7, size.Width);
     }
 
     #endregion
 
     #region Measurement Tests - Horizontal Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Horizontal_ContentWiderThanViewport_UsesConstraints()
     {
         var node = new ScrollPanelNode
@@ -177,10 +178,10 @@ public class ScrollPanelNodeTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 10));
 
-        Assert.Equal(40, size.Width);
+        Assert.AreEqual(40, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_Horizontal_IncludesScrollbarHeight()
     {
         var node = new ScrollPanelNode
@@ -193,14 +194,14 @@ public class ScrollPanelNodeTests
         var size = node.Measure(new Constraints(0, 20, 0, 10));
 
         // Height should include scrollbar (1)
-        Assert.True(size.Height >= 2);
+        Assert.IsTrue(size.Height >= 2);
     }
 
     #endregion
 
     #region Arrange Tests - Vertical Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Vertical_SetsViewportSize()
     {
         var node = new ScrollPanelNode
@@ -213,10 +214,10 @@ public class ScrollPanelNodeTests
         node.Measure(new Constraints(0, 30, 0, 10));
         node.Arrange(new Rect(0, 0, 30, 10));
 
-        Assert.Equal(10, node.ViewportSize);
+        Assert.AreEqual(10, node.ViewportSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Vertical_ChildPositionedWithOffset()
     {
         var child = CreateTallContent(20);
@@ -235,10 +236,10 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Child should be positioned above the viewport by the offset
-        Assert.Equal(-5, child.Bounds.Y);
+        Assert.AreEqual(-5, child.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Vertical_ClampsOffsetToMaxOffset()
     {
         var node = new ScrollPanelNode
@@ -255,14 +256,14 @@ public class ScrollPanelNodeTests
         node.SetOffset(100);
 
         // Should be clamped to max (20 - 10 = 10)
-        Assert.Equal(10, node.Offset);
+        Assert.AreEqual(10, node.Offset);
     }
 
     #endregion
 
     #region Arrange Tests - Horizontal Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Horizontal_SetsViewportSize()
     {
         var node = new ScrollPanelNode
@@ -276,10 +277,10 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Viewport width is 30 (minus scrollbar height doesn't affect width)
-        Assert.Equal(30, node.ViewportSize);
+        Assert.AreEqual(30, node.ViewportSize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_Horizontal_ChildPositionedWithOffset()
     {
         var child = CreateWideContent(20);
@@ -298,14 +299,14 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 30, 10));
 
         // Child should be positioned to the left of the viewport by the offset
-        Assert.Equal(-10, child.Bounds.X);
+        Assert.AreEqual(-10, child.Bounds.X);
     }
 
     #endregion
 
     #region Rendering Tests - Vertical Scrollbar
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Vertical_ShowsScrollbar_WhenContentExceedsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -331,7 +332,7 @@ public class ScrollPanelNodeTests
         Assert.Contains("▉", terminal.CreateSnapshot().GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Vertical_ShowsThumbAndTrack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -354,14 +355,14 @@ public class ScrollPanelNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(snapshot.ContainsText("│"), "Should show track");
-        Assert.True(snapshot.ContainsText("▉"), "Should show thumb");
+        Assert.IsTrue(snapshot.ContainsText("│"), "Should show track");
+        Assert.IsTrue(snapshot.ContainsText("▉"), "Should show thumb");
         // No arrows in the new minimal style
         Assert.DoesNotContain("▲", snapshot.GetText());
         Assert.DoesNotContain("▼", snapshot.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Vertical_NoScrollbar_WhenContentFitsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -389,7 +390,7 @@ public class ScrollPanelNodeTests
         Assert.DoesNotContain("▉", snapshot.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Vertical_ClipsContentBeyondViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -430,7 +431,7 @@ public class ScrollPanelNodeTests
         Assert.DoesNotContain("Line 6", snapshot.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Vertical_WhenScrolled_ShowsOffsetContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -489,7 +490,7 @@ public class ScrollPanelNodeTests
 
     #region Rendering Tests - Horizontal Scrollbar
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Horizontal_ShowsScrollbar_WhenContentExceedsViewport()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -515,7 +516,7 @@ public class ScrollPanelNodeTests
         Assert.Contains("■", terminal.CreateSnapshot().GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Horizontal_ShowsThumbAndTrack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -548,7 +549,7 @@ public class ScrollPanelNodeTests
 
     #region Theming Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomThumbColor_AppliesColor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -575,10 +576,10 @@ public class ScrollPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Cyan foreground color should be applied
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Cyan));
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.Cyan));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WhenFocused_UsesFocusedThumbColor()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -606,22 +607,22 @@ public class ScrollPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Yellow foreground color should be applied
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.Yellow));
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.Yellow));
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ScrollPanelNode();
 
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_IncludesSelfFirst()
     {
         var node = new ScrollPanelNode
@@ -631,10 +632,10 @@ public class ScrollPanelNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Same(node, focusables[0]);
+        Assert.AreSame(node, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_IncludesChildFocusables()
     {
         var button = new ButtonNode { Label = "Button" };
@@ -648,7 +649,7 @@ public class ScrollPanelNodeTests
         Assert.Contains(button, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SetInitialFocus_FocusesSelf()
     {
         var button = new ButtonNode { Label = "Button" };
@@ -659,15 +660,15 @@ public class ScrollPanelNodeTests
 
         node.SetInitialFocus();
 
-        Assert.True(node.IsFocused);
-        Assert.False(button.IsFocused);
+        Assert.IsTrue(node.IsFocused);
+        Assert.IsFalse(button.IsFocused);
     }
 
     #endregion
 
     #region Input Handling - Vertical Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_WhenFocused_ScrollsDown()
     {
         var node = new ScrollPanelNode
@@ -681,11 +682,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_WhenFocused_ScrollsUp()
     {
         var node = new ScrollPanelNode
@@ -700,11 +701,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(4, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(4, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PageDown_WhenFocused_ScrollsByViewportSize()
     {
         var node = new ScrollPanelNode
@@ -718,11 +719,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.PageDown, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(9, node.Offset); // ViewportSize - 1
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(9, node.Offset); // ViewportSize - 1
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Home_WhenFocused_ScrollsToStart()
     {
         var node = new ScrollPanelNode
@@ -737,11 +738,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Home, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_End_WhenFocused_ScrollsToEnd()
     {
         var node = new ScrollPanelNode
@@ -755,11 +756,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.End, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(40, node.Offset); // ContentSize - ViewportSize = 50 - 10
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(40, node.Offset); // ContentSize - ViewportSize = 50 - 10
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_ScrollsRegardlessOfPanelFocus()
     {
         // The ScrollPanelNode no longer guards its scroll handlers with an IsFocused check.
@@ -777,15 +778,15 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.Offset);
     }
 
     #endregion
 
     #region Input Handling - Horizontal Scroll
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_RightArrow_WhenFocused_ScrollsRight()
     {
         var node = new ScrollPanelNode
@@ -799,11 +800,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.RightArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_LeftArrow_WhenFocused_ScrollsLeft()
     {
         var node = new ScrollPanelNode
@@ -818,11 +819,11 @@ public class ScrollPanelNodeTests
 
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.LeftArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(9, node.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(9, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Horizontal_UpDownArrows_DoNotScroll()
     {
         var node = new ScrollPanelNode
@@ -837,15 +838,15 @@ public class ScrollPanelNodeTests
         // Up/down arrows match bindings but don't scroll horizontal
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(0, node.Offset); // No scroll
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(0, node.Offset); // No scroll
     }
 
     #endregion
 
     #region OnScroll Event Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_FiresScrollEvent()
     {
         ScrollChangedEventArgs? receivedArgs = null;
@@ -862,12 +863,12 @@ public class ScrollPanelNodeTests
 
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(receivedArgs);
-        Assert.Equal(1, receivedArgs!.Offset);
-        Assert.Equal(0, receivedArgs.PreviousOffset);
+        Assert.IsNotNull(receivedArgs);
+        Assert.AreEqual(1, receivedArgs!.Offset);
+        Assert.AreEqual(0, receivedArgs.PreviousOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollEvent_ProvidesCorrectStateInfo()
     {
         ScrollChangedEventArgs? receivedArgs = null;
@@ -886,18 +887,18 @@ public class ScrollPanelNodeTests
         // Scroll down one more
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(receivedArgs);
-        Assert.Equal(21, receivedArgs!.Offset);
-        Assert.Equal(20, receivedArgs.PreviousOffset);
-        Assert.Equal(50, receivedArgs.ContentSize);
-        Assert.Equal(10, receivedArgs.ViewportSize);
-        Assert.Equal(40, receivedArgs.MaxOffset);
-        Assert.True(receivedArgs.IsScrollable);
-        Assert.False(receivedArgs.IsAtStart);
-        Assert.False(receivedArgs.IsAtEnd);
+        Assert.IsNotNull(receivedArgs);
+        Assert.AreEqual(21, receivedArgs!.Offset);
+        Assert.AreEqual(20, receivedArgs.PreviousOffset);
+        Assert.AreEqual(50, receivedArgs.ContentSize);
+        Assert.AreEqual(10, receivedArgs.ViewportSize);
+        Assert.AreEqual(40, receivedArgs.MaxOffset);
+        Assert.IsTrue(receivedArgs.IsScrollable);
+        Assert.IsFalse(receivedArgs.IsAtStart);
+        Assert.IsFalse(receivedArgs.IsAtEnd);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollEvent_IsAtStart_WhenAtTop()
     {
         ScrollChangedEventArgs? receivedArgs = null;
@@ -916,13 +917,13 @@ public class ScrollPanelNodeTests
         // Scroll up to start
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(receivedArgs);
-        Assert.Equal(0, receivedArgs!.Offset);
-        Assert.True(receivedArgs.IsAtStart);
-        Assert.False(receivedArgs.IsAtEnd);
+        Assert.IsNotNull(receivedArgs);
+        Assert.AreEqual(0, receivedArgs!.Offset);
+        Assert.IsTrue(receivedArgs.IsAtStart);
+        Assert.IsFalse(receivedArgs.IsAtEnd);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ScrollEvent_IsAtEnd_WhenAtBottom()
     {
         ScrollChangedEventArgs? receivedArgs = null;
@@ -941,17 +942,17 @@ public class ScrollPanelNodeTests
         // Scroll down to end
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
 
-        Assert.NotNull(receivedArgs);
-        Assert.Equal(40, receivedArgs!.Offset);
-        Assert.False(receivedArgs.IsAtStart);
-        Assert.True(receivedArgs.IsAtEnd);
+        Assert.IsNotNull(receivedArgs);
+        Assert.AreEqual(40, receivedArgs!.Offset);
+        Assert.IsFalse(receivedArgs.IsAtStart);
+        Assert.IsTrue(receivedArgs.IsAtEnd);
     }
 
     #endregion
 
     #region ILayoutProvider Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ShouldRenderAt_WithinViewport_ReturnsTrue()
     {
         var node = new ScrollPanelNode
@@ -962,10 +963,10 @@ public class ScrollPanelNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(5, 5, 40, 10));
 
-        Assert.True(node.ShouldRenderAt(10, 10)); // Within viewport
+        Assert.IsTrue(node.ShouldRenderAt(10, 10)); // Within viewport
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ShouldRenderAt_OutsideViewport_ReturnsFalse()
     {
         var node = new ScrollPanelNode
@@ -976,10 +977,10 @@ public class ScrollPanelNodeTests
         node.Measure(Constraints.Tight(40, 10));
         node.Arrange(new Rect(5, 5, 40, 10));
 
-        Assert.False(node.ShouldRenderAt(10, 20)); // Below viewport (Y >= 15)
+        Assert.IsFalse(node.ShouldRenderAt(10, 20)); // Below viewport (Y >= 15)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClipString_ClipsHorizontally()
     {
         var node = new ScrollPanelNode
@@ -992,10 +993,10 @@ public class ScrollPanelNodeTests
 
         var (adjustedX, clippedText) = node.ClipString(0, 0, "This is a very long line of text");
 
-        Assert.True(clippedText.Length <= 10);
+        Assert.IsTrue(clippedText.Length <= 10);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClipString_OutsideVerticalBounds_ReturnsEmpty()
     {
         var node = new ScrollPanelNode
@@ -1008,14 +1009,14 @@ public class ScrollPanelNodeTests
 
         var (_, clippedText) = node.ClipString(0, 15, "Text outside viewport");
 
-        Assert.Equal("", clippedText);
+        Assert.AreEqual("", clippedText);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VScroll_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1061,7 +1062,7 @@ public class ScrollPanelNodeTests
         Assert.Contains("▉", snapshot.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VScroll_ScrollsWithArrowKeys()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1099,10 +1100,10 @@ public class ScrollPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(3, lastOffset);
+        Assert.AreEqual(3, lastOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VScrollWithButton_FocusNavigation()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1133,10 +1134,10 @@ public class ScrollPanelNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(buttonClicked);
+        Assert.IsTrue(buttonClicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_VScrollInsideSplitter_Works()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1177,7 +1178,7 @@ public class ScrollPanelNodeTests
         // WaitUntil already verified both Left Side and Scrollable content are visible
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HScroll_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1215,7 +1216,7 @@ public class ScrollPanelNodeTests
         Assert.Contains("■", snapshot.GetText());  // Horizontal uses ■
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_HScroll_InsideBorder_ClipsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1265,7 +1266,7 @@ public class ScrollPanelNodeTests
         foreach (var line in lines)
         {
             // Each line should be at most 30 characters (terminal width)
-            Assert.True(line.Length <= 30, $"Line too long: '{line}' ({line.Length} chars)");
+            Assert.IsTrue(line.Length <= 30, $"Line too long: '{line}' ({line.Length} chars)");
         }
         
         // The scrollable content should be clipped - <<<END>>> should not be visible
@@ -1314,7 +1315,7 @@ public class ScrollPanelNodeTests
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GlobalPageDown_ScrollsPanel_WhenFocusIsOnSibling()
     {
         // Arrange: ScrollPanel with a global PageDown binding, plus a sibling focusable that owns focus.
@@ -1341,8 +1342,8 @@ public class ScrollPanelNodeTests
         focusRing.Focus(sibling);
 
         // Sanity: focus is on the sibling, not the panel.
-        Assert.False(scrollPanel.IsFocused);
-        Assert.True(sibling.IsFocused);
+        Assert.IsFalse(scrollPanel.IsFocused);
+        Assert.IsTrue(sibling.IsFocused);
 
         var state = new InputRouterState();
 
@@ -1356,11 +1357,11 @@ public class ScrollPanelNodeTests
             TestContext.Current.CancellationToken);
 
         // Assert: global binding fired, panel scrolled by ViewportSize - 1.
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(9, scrollPanel.Offset);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(9, scrollPanel.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GlobalPageUp_ScrollsPanel_WhenFocusIsOnSibling()
     {
         var scrollPanel = new ScrollPanelNode
@@ -1395,11 +1396,11 @@ public class ScrollPanelNodeTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(21, scrollPanel.Offset); // 30 - (10 - 1)
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(21, scrollPanel.Offset); // 30 - (10 - 1)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PageDown_BubblesUp_FromFocusableDescendant_ToScrollPanelAncestor()
     {
         // Regression for the second symptom of issue #296: when a focusable descendant of a
@@ -1443,9 +1444,9 @@ public class ScrollPanelNodeTests
         focusRing.Rebuild(scrollPanel);
         focusRing.Focus(focusableChild);
 
-        Assert.False(scrollPanel.IsFocused, "Panel should not own focus directly when descendant is focused");
-        Assert.True(focusableChild.IsFocused);
-        Assert.True(scrollPanel.MaxOffset > 0, "Panel must be scrollable for this test to be meaningful");
+        Assert.IsFalse(scrollPanel.IsFocused, "Panel should not own focus directly when descendant is focused");
+        Assert.IsTrue(focusableChild.IsFocused);
+        Assert.IsTrue(scrollPanel.MaxOffset > 0, "Panel must be scrollable for this test to be meaningful");
 
         var state = new InputRouterState();
 
@@ -1457,11 +1458,11 @@ public class ScrollPanelNodeTests
             null,
             TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.True(scrollPanel.Offset > 0, $"Expected panel to scroll via bubble-up, but Offset is {scrollPanel.Offset}");
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsTrue(scrollPanel.Offset > 0, $"Expected panel to scroll via bubble-up, but Offset is {scrollPanel.Offset}");
     }
 
-    [Fact]
+    [TestMethod]
     public void OffsetSetter_ClampsToValidRange()
     {
         var node = new ScrollPanelNode
@@ -1473,16 +1474,16 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
 
         node.Offset = -100;
-        Assert.Equal(0, node.Offset);
+        Assert.AreEqual(0, node.Offset);
 
         node.Offset = 9999;
-        Assert.Equal(node.MaxOffset, node.Offset);
+        Assert.AreEqual(node.MaxOffset, node.Offset);
 
         node.Offset = 5;
-        Assert.Equal(5, node.Offset);
+        Assert.AreEqual(5, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollByPage_AdvancesByViewportMinusOne()
     {
         var node = new ScrollPanelNode
@@ -1494,19 +1495,19 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
 
         node.ScrollByPage(1);
-        Assert.Equal(9, node.Offset);  // ViewportSize (10) - 1
+        Assert.AreEqual(9, node.Offset);  // ViewportSize (10) - 1
 
         node.ScrollByPage(1);
-        Assert.Equal(18, node.Offset);
+        Assert.AreEqual(18, node.Offset);
 
         node.ScrollByPage(-1);
-        Assert.Equal(9, node.Offset);
+        Assert.AreEqual(9, node.Offset);
 
         node.ScrollByPage(2);
-        Assert.Equal(27, node.Offset); // direction can be larger magnitudes
+        Assert.AreEqual(27, node.Offset); // direction can be larger magnitudes
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollBy_AppliesRelativeOffset()
     {
         var node = new ScrollPanelNode
@@ -1518,20 +1519,20 @@ public class ScrollPanelNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
 
         node.ScrollBy(5);
-        Assert.Equal(5, node.Offset);
+        Assert.AreEqual(5, node.Offset);
 
         node.ScrollBy(-2);
-        Assert.Equal(3, node.Offset);
+        Assert.AreEqual(3, node.Offset);
 
         // Large positive scroll clamps to MaxOffset; the public API is overflow-safe.
         node.ScrollBy(int.MaxValue);
-        Assert.Equal(node.MaxOffset, node.Offset);
+        Assert.AreEqual(node.MaxOffset, node.Offset);
 
         node.ScrollBy(int.MinValue);
-        Assert.Equal(0, node.Offset);
+        Assert.AreEqual(0, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollToTop_SetsOffsetToZero()
     {
         var node = new ScrollPanelNode
@@ -1545,10 +1546,10 @@ public class ScrollPanelNodeTests
 
         node.ScrollToTop();
 
-        Assert.Equal(0, node.Offset);
+        Assert.AreEqual(0, node.Offset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollToBottom_SetsOffsetToMaxOffset()
     {
         var node = new ScrollPanelNode
@@ -1562,11 +1563,11 @@ public class ScrollPanelNodeTests
 
         node.ScrollToBottom();
 
-        Assert.Equal(node.MaxOffset, node.Offset);
-        Assert.Equal(40, node.Offset); // 50 content - 10 viewport
+        Assert.AreEqual(node.MaxOffset, node.Offset);
+        Assert.AreEqual(40, node.Offset); // 50 content - 10 viewport
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ProgrammaticScroll_DoesNotFire_OnScrollEvent()
     {
         // Public scroll API has no InputBindingActionContext to attach to the event args.
@@ -1587,7 +1588,7 @@ public class ScrollPanelNodeTests
         node.ScrollToTop();
         node.ScrollToBottom();
 
-        Assert.Null(received);
+        Assert.IsNull(received);
     }
 
     #endregion

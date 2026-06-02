@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// Tests cover focus highlighting, selection, select-all, fill width,
 /// compact vs full mode, and mouse interaction.
 /// </summary>
+[TestClass]
 public class TableIntegrationTests
 {
     private static readonly Hex1bColor FocusedRowBg = Hex1bColor.FromRgb(50, 50, 50);
@@ -41,7 +42,7 @@ public class TableIntegrationTests
 
     #region Focus Row Background Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FocusedRow_HasBackgroundColor()
     {
         // Verify that focusing a row renders the FocusedRowBackground color
@@ -78,12 +79,11 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Focused row test ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Focused row test ===");
+        TestContext.Current?.WriteLine(text);
 
         // The focused row should have the FocusedRowBackground color applied
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            $"Focused row should have background color RGB(50,50,50). Screen:\n{text}");
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), $"Focused row should have background color RGB(50,50,50). Screen:\n{text}");
 
         // Also verify focus bars (┃) are present
         Assert.Contains("┃", text);
@@ -95,7 +95,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FocusedRow_MovingDown_BackgroundFollowsFocus()
     {
         // Verify that the background color moves when focus changes via arrow key
@@ -137,13 +137,12 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After moving focus down ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== After moving focus down ===");
+        TestContext.Current?.WriteLine(text);
 
         // Focus should be on Employee 3
-        Assert.Equal("Employee 3", focusedKey);
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused row background should be present after moving focus");
+        Assert.AreEqual("Employee 3", focusedKey);
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), "Focused row background should be present after moving focus");
 
         // Verify the focus indicator is on the correct row
         Assert.Contains("> Employee 3", text);
@@ -155,7 +154,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_MouseClickOnRow_ShowsFocusBackground()
     {
         // Verify clicking on a row shows focused background
@@ -198,14 +197,13 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After mouse click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focused key: {focusedKey}");
+        TestContext.Current?.WriteLine("=== After mouse click ===");
+        TestContext.Current?.WriteLine(text);
+        TestContext.Current?.WriteLine($"Focused key: {focusedKey}");
 
         // Focus should have changed and background should be visible
-        Assert.NotNull(focusedKey);
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            $"Clicked row should have focused background. Focus: {focusedKey}\nScreen:\n{text}");
+        Assert.IsNotNull(focusedKey);
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), $"Clicked row should have focused background. Focus: {focusedKey}\nScreen:\n{text}");
         Assert.Contains("┃", text); // Focus bars
 
         await new Hex1bTerminalInputSequenceBuilder()
@@ -219,7 +217,7 @@ public class TableIntegrationTests
 
     #region Selection Column Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectionColumn_SpaceTogglesCheckbox()
     {
         // Verify Space key toggles selection and shows selected background
@@ -259,7 +257,7 @@ public class TableIntegrationTests
 
         var beforeSnapshot = terminal.CreateSnapshot();
         Assert.Contains("▢", beforeSnapshot.GetScreenText());
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         // Press Space to select the focused row
         await new Hex1bTerminalInputSequenceBuilder()
@@ -270,17 +268,16 @@ public class TableIntegrationTests
 
         var afterSnapshot = terminal.CreateSnapshot();
         var afterText = afterSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Space ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
+        TestContext.Current?.WriteLine("=== After Space ===");
+        TestContext.Current?.WriteLine(afterText);
 
         // First row should now be selected
-        Assert.Equal(1, data.Count(e => e.IsSelected));
-        Assert.True(data[0].IsSelected, "Employee 1 should be selected");
+        Assert.AreEqual(1, data.Count(e => e.IsSelected));
+        Assert.IsTrue(data[0].IsSelected, "Employee 1 should be selected");
         Assert.Contains("▣", afterText);
 
         // Row is both focused AND selected; focused bg takes priority
-        Assert.True(afterSnapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused+selected row should show focused background color (focus wins)");
+        Assert.IsTrue(afterSnapshot.HasBackgroundColor(FocusedRowBg), "Focused+selected row should show focused background color (focus wins)");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -289,7 +286,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectionColumn_HeaderCheckboxSelectsAllRows()
     {
         // Verify that clicking the header checkbox selects all rows
@@ -330,7 +327,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         // Click on the header checkbox
         // Layout: y=0 top border, y=1 header row
@@ -343,12 +340,12 @@ public class TableIntegrationTests
 
         var afterSnapshot = terminal.CreateSnapshot();
         var afterText = afterSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After header click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
+        TestContext.Current?.WriteLine("=== After header click ===");
+        TestContext.Current?.WriteLine(afterText);
+        TestContext.Current?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
 
         // ALL rows should now be selected
-        Assert.Equal(5, data.Count(e => e.IsSelected));
+        Assert.AreEqual(5, data.Count(e => e.IsSelected));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -357,7 +354,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectionColumn_HeaderCheckboxDeselectsAllRows()
     {
         // Verify header checkbox deselects all when all are already selected
@@ -398,7 +395,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, data.Count(e => e.IsSelected));
+        Assert.AreEqual(5, data.Count(e => e.IsSelected));
 
         // Click header checkbox to deselect all
         await new Hex1bTerminalInputSequenceBuilder()
@@ -409,12 +406,12 @@ public class TableIntegrationTests
 
         var afterSnapshot = terminal.CreateSnapshot();
         var afterText = afterSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After deselect all ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
+        TestContext.Current?.WriteLine("=== After deselect all ===");
+        TestContext.Current?.WriteLine(afterText);
+        TestContext.Current?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
 
         // ALL rows should now be deselected
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -423,7 +420,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectionColumn_CtrlA_SelectsAllWithoutExplicitCallback()
     {
         // Verify Ctrl+A selects all even without explicit SelectAllCallback
@@ -461,7 +458,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         // Ctrl+A to select all
         await new Hex1bTerminalInputSequenceBuilder()
@@ -472,12 +469,12 @@ public class TableIntegrationTests
 
         var afterSnapshot = terminal.CreateSnapshot();
         var afterText = afterSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Ctrl+A ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterText);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
+        TestContext.Current?.WriteLine("=== After Ctrl+A ===");
+        TestContext.Current?.WriteLine(afterText);
+        TestContext.Current?.WriteLine($"Selected: {data.Count(e => e.IsSelected)} / {data.Count}");
 
         // All rows should be selected
-        Assert.Equal(5, data.Count(e => e.IsSelected));
+        Assert.AreEqual(5, data.Count(e => e.IsSelected));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -486,7 +483,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectionColumn_MouseClickCheckboxTogglesRow()
     {
         // Verify clicking on checkbox area toggles selection for that row
@@ -533,11 +530,11 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After checkbox click ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== After checkbox click ===");
+        TestContext.Current?.WriteLine(text);
 
-        Assert.Equal(1, data.Count(e => e.IsSelected));
-        Assert.True(data[0].IsSelected, "First employee should be selected after click");
+        Assert.AreEqual(1, data.Count(e => e.IsSelected));
+        Assert.IsTrue(data[0].IsSelected, "First employee should be selected after click");
 
         // Click a second row checkbox
         await new Hex1bTerminalInputSequenceBuilder()
@@ -546,7 +543,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, data.Count(e => e.IsSelected));
+        Assert.AreEqual(2, data.Count(e => e.IsSelected));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -559,7 +556,7 @@ public class TableIntegrationTests
 
     #region Fill Width Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FillWidthWithFillColumn_ExpandsToContainerWidth()
     {
         // Verify FillWidth works when at least one column uses SizeHint.Fill
@@ -596,19 +593,18 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fill Width with Fill column ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Fill Width with Fill column ===");
+        TestContext.Current?.WriteLine(text);
 
         // The table should span the full terminal width (80 columns)
         // Check that the top border extends close to the full width
         var lines = text.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains("┌") && l.Contains("┐"));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         
         // The border should reach near the full width
         var trimmed = topBorder!.TrimEnd();
-        Assert.True(trimmed.Length >= 75,
-            $"Table should fill most of the terminal width (80). Top border length: {trimmed.Length}");
+        Assert.IsTrue(trimmed.Length >= 75, $"Table should fill most of the terminal width (80). Top border length: {trimmed.Length}");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -617,7 +613,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FillWidthWithAllFixedColumns_DoesNotExpandColumns()
     {
         // Verify that FillWidth with all Fixed columns does NOT expand the columns
@@ -655,15 +651,15 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Fill Width with all fixed columns ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Fill Width with all fixed columns ===");
+        TestContext.Current?.WriteLine(text);
 
         // With FillWidth + all Fixed, the actual table content width should be
         // 15 + 12 + 6 + borders (4 vertical bars = 4) = 37 chars
         // The scrollbar (if any) would be at 37, not at column 80
         var lines = text.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains("┌") && l.Contains("┐"));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -676,7 +672,7 @@ public class TableIntegrationTests
 
     #region Compact vs Full Mode Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_CompactMode_NoRowSeparators()
     {
         // Verify compact mode does not render horizontal separators between rows
@@ -710,8 +706,8 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Compact mode ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Compact mode ===");
+        TestContext.Current?.WriteLine(text);
 
         var lines = text.Split('\n');
 
@@ -724,9 +720,9 @@ public class TableIntegrationTests
             if (lines[i].Contains("Employee 3")) emp3Line = i;
         }
 
-        Assert.True(emp1Line >= 0 && emp3Line >= 0, "Both Employee 1 and 3 should be visible");
+        Assert.IsTrue(emp1Line >= 0 && emp3Line >= 0, "Both Employee 1 and 3 should be visible");
         // In compact mode, 3 rows = 3 lines apart (rows 1, 2, 3)
-        Assert.Equal(2, emp3Line - emp1Line);
+        Assert.AreEqual(2, emp3Line - emp1Line);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -735,7 +731,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FullMode_HasRowSeparators()
     {
         // Verify full mode renders horizontal separators between rows
@@ -769,8 +765,8 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Full mode ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Full mode ===");
+        TestContext.Current?.WriteLine(text);
 
         var lines = text.Split('\n');
 
@@ -783,9 +779,9 @@ public class TableIntegrationTests
             if (lines[i].Contains("Employee 3")) emp3Line = i;
         }
 
-        Assert.True(emp1Line >= 0 && emp3Line >= 0, "Both Employee 1 and 3 should be visible");
+        Assert.IsTrue(emp1Line >= 0 && emp3Line >= 0, "Both Employee 1 and 3 should be visible");
         // In full mode, 3 rows = row + sep + row + sep + row = 4 lines between first and third
-        Assert.Equal(4, emp3Line - emp1Line);
+        Assert.AreEqual(4, emp3Line - emp1Line);
 
         // Verify separators exist between rows (├ or ┤ characters)
         int separatorCount = 0;
@@ -794,7 +790,7 @@ public class TableIntegrationTests
             if (lines[i].Contains("├") || lines[i].Contains("┤"))
                 separatorCount++;
         }
-        Assert.Equal(2, separatorCount);
+        Assert.AreEqual(2, separatorCount);
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -807,7 +803,7 @@ public class TableIntegrationTests
 
     #region Combined Focus + Selection Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_FocusedSelected_BothStatesVisible()
     {
         // When a row is both focused and selected, the focused background should win
@@ -848,14 +844,13 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Focus + Selected ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Focus + Selected ===");
+        TestContext.Current?.WriteLine(text);
 
-        Assert.True(data[0].IsSelected, "Employee 1 should be selected");
+        Assert.IsTrue(data[0].IsSelected, "Employee 1 should be selected");
 
         // Focused row takes priority, so we should see FocusedRowBg
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused+selected row should show focused background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), "Focused+selected row should show focused background");
 
         // Move focus down - unfocused selected row should show Selected bg
         await new Hex1bTerminalInputSequenceBuilder()
@@ -866,13 +861,12 @@ public class TableIntegrationTests
 
         var afterMoveSnapshot = terminal.CreateSnapshot();
         var afterMoveText = afterMoveSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After moving focus away ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(afterMoveText);
+        TestContext.Current?.WriteLine("=== After moving focus away ===");
+        TestContext.Current?.WriteLine(afterMoveText);
 
         // Now Employee 1 is selected but not focused, Employee 2 is focused but not selected
         // Focus background should still be visible, selection indicated by checkbox only
-        Assert.True(afterMoveSnapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused row (Employee 2) should have focused background");
+        Assert.IsTrue(afterMoveSnapshot.HasBackgroundColor(FocusedRowBg), "Focused row (Employee 2) should have focused background");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -881,7 +875,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_MultipleSelected_AllShowBackground()
     {
         // Verify multiple selected rows all show the selected background
@@ -926,16 +920,15 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Multiple selected ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Multiple selected ===");
+        TestContext.Current?.WriteLine(text);
 
         // 3 rows selected
-        Assert.Equal(3, data.Count(e => e.IsSelected));
-        Assert.True(data[0].IsSelected && data[1].IsSelected && data[2].IsSelected);
+        Assert.AreEqual(3, data.Count(e => e.IsSelected));
+        Assert.IsTrue(data[0].IsSelected && data[1].IsSelected && data[2].IsSelected);
 
         // Focus background should be present, selection indicated by checkbox only
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            "Focus row should show focused background");
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), "Focus row should show focused background");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -948,10 +941,10 @@ public class TableIntegrationTests
 
     #region Terminal Size Tests
 
-    [Theory]
-    [InlineData(40, 10)]
-    [InlineData(60, 15)]
-    [InlineData(100, 30)]
+    [TestMethod]
+    [DataRow(40, 10)]
+    [DataRow(60, 15)]
+    [DataRow(100, 30)]
     public async Task Table_VariousTerminalSizes_RendersCorrectly(int width, int height)
     {
         // Verify table renders without errors at various terminal sizes
@@ -988,8 +981,8 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine($"=== {width}x{height} ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine($"=== {width}x{height} ===");
+        TestContext.Current?.WriteLine(text);
 
         // Table should have borders and data
         Assert.Contains("Employee 1", text);
@@ -1009,7 +1002,7 @@ public class TableIntegrationTests
 
     #region Scrolling + Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_ScrollToBottom_FocusBackgroundStillVisible()
     {
         // Verify focus background is visible after scrolling to bottom of table
@@ -1051,14 +1044,13 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After scroll to bottom ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
-        TestContext.Current.TestOutputHelper?.WriteLine($"Focused: {focusedKey}");
+        TestContext.Current?.WriteLine("=== After scroll to bottom ===");
+        TestContext.Current?.WriteLine(text);
+        TestContext.Current?.WriteLine($"Focused: {focusedKey}");
 
         // Focus should be on the last employee and background should be visible
-        Assert.Equal("Employee 30", focusedKey);
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused row at bottom should have background color");
+        Assert.AreEqual("Employee 30", focusedKey);
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), "Focused row at bottom should have background color");
         Assert.Contains("┃", text); // Focus bars
 
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1068,7 +1060,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_HomeAndEnd_FocusNavigatesCorrectly()
     {
         // Navigate Home/End and verify focus and background
@@ -1108,7 +1100,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Employee 20", focusedKey);
+        Assert.AreEqual("Employee 20", focusedKey);
 
         // Navigate back to Home
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1120,12 +1112,11 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Home ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== After Home ===");
+        TestContext.Current?.WriteLine(text);
 
-        Assert.Equal("Employee 1", focusedKey);
-        Assert.True(snapshot.HasBackgroundColor(FocusedRowBg),
-            "Focused row should have background after Home");
+        Assert.AreEqual("Employee 1", focusedKey);
+        Assert.IsTrue(snapshot.HasBackgroundColor(FocusedRowBg), "Focused row should have background after Home");
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)
@@ -1138,7 +1129,7 @@ public class TableIntegrationTests
 
     #region Selection + Select All with FillHeight
 
-    [Fact]
+    [TestMethod]
     public async Task Table_SelectAllThenDeselectAll_Roundtrip()
     {
         // Verify select all then deselect all works as a complete roundtrip
@@ -1182,12 +1173,12 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, data.Count(e => e.IsSelected));
+        Assert.AreEqual(5, data.Count(e => e.IsSelected));
 
         var selectAllSnapshot = terminal.CreateSnapshot();
         var selectAllText = selectAllSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Select All ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(selectAllText);
+        TestContext.Current?.WriteLine("=== After Select All ===");
+        TestContext.Current?.WriteLine(selectAllText);
 
         // All checkboxes should show ▣
         Assert.Contains("▣", selectAllText);
@@ -1201,12 +1192,12 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         var deselectAllSnapshot = terminal.CreateSnapshot();
         var deselectAllText = deselectAllSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== After Deselect All ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(deselectAllText);
+        TestContext.Current?.WriteLine("=== After Deselect All ===");
+        TestContext.Current?.WriteLine(deselectAllText);
 
         Assert.Contains("▢", deselectAllText);
 
@@ -1221,7 +1212,7 @@ public class TableIntegrationTests
 
     #region WindowingDemo-Specific Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Table_WindowingDemoConfig_FillWidthExpandsNameColumn()
     {
         // Reproduce the demo's table config: Name=Fill, Role=Fixed(12), Age=Fixed(6), Status=Fixed(10)
@@ -1269,18 +1260,17 @@ public class TableIntegrationTests
 
         var snapshot = terminal.CreateSnapshot();
         var text = snapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== Demo config with Fill Width ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(text);
+        TestContext.Current?.WriteLine("=== Demo config with Fill Width ===");
+        TestContext.Current?.WriteLine(text);
 
         // The table should use full 65 width
         var lines = text.Split('\n');
         var topBorder = lines.FirstOrDefault(l => l.Contains("┌") && l.Contains("┐"));
-        Assert.NotNull(topBorder);
+        Assert.IsNotNull(topBorder);
         
         var trimmed = topBorder!.TrimEnd();
         // The table should span at least 60 chars (accounting for possible padding)
-        Assert.True(trimmed.Length >= 60,
-            $"Table should fill most of the 65-wide container. Top border length: {trimmed.Length}");
+        Assert.IsTrue(trimmed.Length >= 60, $"Table should fill most of the 65-wide container. Top border length: {trimmed.Length}");
 
         // Verify the Name column got more than the fixed 18 it would normally get
         // The header "Name" text should be visible in a wider cell
@@ -1295,7 +1285,7 @@ public class TableIntegrationTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Table_WindowingDemoConfig_SelectionWithFocus()
     {
         // Full demo-like test: table with selection, focus, compact mode, fill width
@@ -1350,8 +1340,7 @@ public class TableIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var initialSnapshot = terminal.CreateSnapshot();
-        Assert.True(initialSnapshot.HasBackgroundColor(FocusedRowBg),
-            "Initial focused row should have background");
+        Assert.IsTrue(initialSnapshot.HasBackgroundColor(FocusedRowBg), "Initial focused row should have background");
 
         // Step 2: Select first two rows
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1362,12 +1351,11 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(2, data.Count(e => e.IsSelected));
+        Assert.AreEqual(2, data.Count(e => e.IsSelected));
 
         var afterSelectSnapshot = terminal.CreateSnapshot();
         // Focus background should be present, selection indicated by checkbox only
-        Assert.True(afterSelectSnapshot.HasBackgroundColor(FocusedRowBg),
-            "Bob (focused) should have focused background");
+        Assert.IsTrue(afterSelectSnapshot.HasBackgroundColor(FocusedRowBg), "Bob (focused) should have focused background");
 
         // Step 3: Ctrl+A to select all
         await new Hex1bTerminalInputSequenceBuilder()
@@ -1376,12 +1364,12 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(5, data.Count(e => e.IsSelected));
+        Assert.AreEqual(5, data.Count(e => e.IsSelected));
 
         var allSelectedSnapshot = terminal.CreateSnapshot();
         var allSelectedText = allSelectedSnapshot.GetScreenText();
-        TestContext.Current.TestOutputHelper?.WriteLine("=== All selected ===");
-        TestContext.Current.TestOutputHelper?.WriteLine(allSelectedText);
+        TestContext.Current?.WriteLine("=== All selected ===");
+        TestContext.Current?.WriteLine(allSelectedText);
         Assert.Contains("▣", allSelectedText);
 
         // Step 4: Ctrl+A again to deselect all
@@ -1391,7 +1379,7 @@ public class TableIntegrationTests
             .Build()
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal(0, data.Count(e => e.IsSelected));
+        Assert.AreEqual(0, data.Count(e => e.IsSelected));
 
         await new Hex1bTerminalInputSequenceBuilder()
             .Ctrl().Key(Hex1bKey.C)

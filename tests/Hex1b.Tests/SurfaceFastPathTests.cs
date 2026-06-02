@@ -12,77 +12,78 @@ namespace Hex1b.Tests;
 /// Conversely, when both surfaces remain in the simple lane, the diff output
 /// must be identical to the slow path.
 /// </summary>
+[TestClass]
 public class SurfaceFastPathTests
 {
-    [Fact]
+    [TestMethod]
     public void NewSurface_HasFastPathEligibleTrue()
     {
         var surface = new Surface(4, 2);
-        Assert.True(surface.IsFastPathEligible);
+        Assert.IsTrue(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void SimpleAsciiWrite_KeepsFastPathEligible()
     {
         var surface = new Surface(4, 2);
         surface[0, 0] = new SurfaceCell("A", Hex1bColor.White, Hex1bColor.Black);
         surface.WriteText(1, 0, "BCD", Hex1bColor.White, Hex1bColor.Black);
-        Assert.True(surface.IsFastPathEligible);
+        Assert.IsTrue(surface.IsFastPathEligible);
     }
 
-    [Theory]
-    [InlineData("e\u0301")]   // combining acute => grapheme length > 1
+    [TestMethod]
+    [DataRow("e\u0301")]   // combining acute => grapheme length > 1
     public void MultiCodePointGrapheme_MarksComplex(string grapheme)
     {
         var surface = new Surface(4, 1);
         surface[0, 0] = new SurfaceCell(grapheme, null, null);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void UnderlineStyle_MarksComplex()
     {
         var surface = new Surface(4, 1);
         surface[0, 0] = new SurfaceCell(
             "A", Hex1bColor.White, Hex1bColor.Black,
             UnderlineStyle: UnderlineStyle.Single);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void UnderlineColor_MarksComplex()
     {
         var surface = new Surface(4, 1);
         surface[0, 0] = new SurfaceCell(
             "A", Hex1bColor.White, Hex1bColor.Black,
             UnderlineColor: Hex1bColor.Red);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void WideCharacter_MarksComplex()
     {
         var surface = new Surface(4, 1);
         // "あ" is a wide CJK char with DisplayWidth=2.
         surface.WriteText(0, 0, "あ", Hex1bColor.White, Hex1bColor.Black);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clear_ResetsFastPathFlag()
     {
         var surface = new Surface(4, 1);
         surface[0, 0] = new SurfaceCell(
             "A", Hex1bColor.White, Hex1bColor.Black,
             UnderlineStyle: UnderlineStyle.Single);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
 
         surface.Clear();
 
-        Assert.True(surface.IsFastPathEligible);
+        Assert.IsTrue(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearWithComplexCell_LeavesFlagSet()
     {
         var surface = new Surface(4, 1);
@@ -92,24 +93,24 @@ public class SurfaceFastPathTests
 
         surface.Clear(complex);
 
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearWithSimpleCell_KeepsFlagClear()
     {
         var surface = new Surface(4, 1);
         surface[0, 0] = new SurfaceCell(
             "A", Hex1bColor.White, Hex1bColor.Black,
             UnderlineStyle: UnderlineStyle.Single);
-        Assert.False(surface.IsFastPathEligible);
+        Assert.IsFalse(surface.IsFastPathEligible);
 
         surface.Clear(new SurfaceCell(" ", null, Hex1bColor.Black));
 
-        Assert.True(surface.IsFastPathEligible);
+        Assert.IsTrue(surface.IsFastPathEligible);
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_FastPath_ProducesIdenticalDiffToSlowPath()
     {
         // Two surfaces filled with simple ASCII content; both are fast-eligible.
@@ -129,8 +130,8 @@ public class SurfaceFastPathTests
             }
         }
 
-        Assert.True(prev.IsFastPathEligible);
-        Assert.True(curr.IsFastPathEligible);
+        Assert.IsTrue(prev.IsFastPathEligible);
+        Assert.IsTrue(curr.IsFastPathEligible);
 
         var diff = SurfaceComparer.Compare(prev, curr);
 
@@ -141,16 +142,16 @@ public class SurfaceFastPathTests
                 if ((x + y) % 2 != 0)
                     expected.Add((x, y, "b"));
 
-        Assert.Equal(expected.Count, diff.ChangedCells.Count);
+        Assert.AreEqual(expected.Count, diff.ChangedCells.Count);
         for (var i = 0; i < expected.Count; i++)
         {
-            Assert.Equal(expected[i].X, diff.ChangedCells[i].X);
-            Assert.Equal(expected[i].Y, diff.ChangedCells[i].Y);
-            Assert.Equal(expected[i].Char, diff.ChangedCells[i].Cell.Character);
+            Assert.AreEqual(expected[i].X, diff.ChangedCells[i].X);
+            Assert.AreEqual(expected[i].Y, diff.ChangedCells[i].Y);
+            Assert.AreEqual(expected[i].Char, diff.ChangedCells[i].Cell.Character);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void Compare_MixedEligibility_FallsBackToSlowPathAndStillDetectsUnderlineChange()
     {
         // prev has only a plain cell; curr has an underline-changed cell.
@@ -165,32 +166,32 @@ public class SurfaceFastPathTests
             "A", Hex1bColor.White, Hex1bColor.Black,
             UnderlineStyle: UnderlineStyle.Single);
 
-        Assert.True(prev.IsFastPathEligible);
-        Assert.False(curr.IsFastPathEligible);
+        Assert.IsTrue(prev.IsFastPathEligible);
+        Assert.IsFalse(curr.IsFastPathEligible);
 
         var diff = SurfaceComparer.Compare(prev, curr);
 
-        Assert.Single(diff.ChangedCells);
-        Assert.Equal(UnderlineStyle.Single, diff.ChangedCells[0].Cell.UnderlineStyle);
+        TestSeq.Single(diff.ChangedCells);
+        Assert.AreEqual(UnderlineStyle.Single, diff.ChangedCells[0].Cell.UnderlineStyle);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompareToEmpty_FastPath_MatchesSlowPath()
     {
         var surface = new Surface(4, 2);
         surface[0, 0] = new SurfaceCell("A", Hex1bColor.White, Hex1bColor.Black);
         surface[3, 1] = new SurfaceCell("Z", Hex1bColor.White, Hex1bColor.Red);
 
-        Assert.True(surface.IsFastPathEligible);
+        Assert.IsTrue(surface.IsFastPathEligible);
 
         var diff = SurfaceComparer.CompareToEmpty(surface);
 
-        Assert.Equal(2, diff.ChangedCells.Count);
-        Assert.Equal(0, diff.ChangedCells[0].X);
-        Assert.Equal(0, diff.ChangedCells[0].Y);
-        Assert.Equal("A", diff.ChangedCells[0].Cell.Character);
-        Assert.Equal(3, diff.ChangedCells[1].X);
-        Assert.Equal(1, diff.ChangedCells[1].Y);
-        Assert.Equal("Z", diff.ChangedCells[1].Cell.Character);
+        Assert.AreEqual(2, diff.ChangedCells.Count);
+        Assert.AreEqual(0, diff.ChangedCells[0].X);
+        Assert.AreEqual(0, diff.ChangedCells[0].Y);
+        Assert.AreEqual("A", diff.ChangedCells[0].Cell.Character);
+        Assert.AreEqual(3, diff.ChangedCells[1].X);
+        Assert.AreEqual(1, diff.ChangedCells[1].Y);
+        Assert.AreEqual("Z", diff.ChangedCells[1].Cell.Character);
     }
 }

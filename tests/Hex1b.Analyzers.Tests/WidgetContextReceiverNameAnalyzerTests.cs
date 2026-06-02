@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetContextReceiverNameAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetContextReceiverNameAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetContextReceiverNameAnalyzer>.Diagnostic(WidgetContextReceiverNameAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_NamedCtx_Reports()
     {
         const string source = """
@@ -32,7 +33,7 @@ public class WidgetContextReceiverNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("ctx", "Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_NamedContext_NoDiagnostic()
     {
         const string source = """
@@ -53,7 +54,7 @@ public class WidgetContextReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Receiver_AlternateName_Reports()
     {
         const string source = """
@@ -74,7 +75,7 @@ public class WidgetContextReceiverNameAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("builder", "Foo"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonExtensionMethod_NoDiagnostic()
     {
         const string source = """
@@ -95,7 +96,7 @@ public class WidgetContextReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetContextReceiver_NoDiagnostic()
     {
         const string source = """
@@ -110,7 +111,7 @@ public class WidgetContextReceiverNameAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WidgetReceiver_NoDiagnostic()
     {
         // Receiver is a widget instance, not WidgetContext<T> — HEX1B0007 territory.

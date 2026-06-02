@@ -5,7 +5,7 @@ description: Guidelines for writing unit tests in the Hex1b TUI library. Use whe
 
 # Writing Unit Tests Skill
 
-This skill provides guidelines for AI agents writing unit tests for the Hex1b TUI library. It outlines the preferred testing approach, patterns, and anti-patterns to avoid.
+This skill provides guidelines for AI agents writing unit tests for the Hex1b TUI library. It outlines the preferred testing approach, patterns, and anti-patterns to avoid. Tests use MSTest 4 with `MSTest.Sdk/4.2.3`, `OutputType=Exe`, and Microsoft.Testing.Platform (MTP). `global.json` configures `dotnet test` to use MTP; test projects can also run in executable mode with `dotnet run --project tests/SomeProject/`.
 
 ## Core Philosophy
 
@@ -30,34 +30,42 @@ This skill provides guidelines for AI agents writing unit tests for the Hex1b TU
 
 ### Full Stack Integration Test
 
+Test files import `Microsoft.VisualStudio.TestTools.UnitTesting`. The `Hex1b.Testing` namespace is global-using'd via `Directory.Build.props` for helpers such as `TestSeq`. For test output, add `public TestContext TestContext { get; set; } = null!;` and call `TestContext.WriteLine(...)`. Suppressed MSTest analyzers are MSTEST0014, MSTEST0030, MSTEST0032, and MSTEST0057.
+
 This is the **preferred pattern** for most tests:
 
 ```csharp
-[Fact]
-public async Task WidgetName_Scenario_ExpectedBehavior()
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+
+[TestClass]
+public class WidgetNameTests
 {
-    // Arrange - Build the terminal with the app
-    await using var terminal = Hex1bTerminal.CreateBuilder()
-        .WithHex1bApp((app, options) => ctx => new VStackWidget([
-            new TextBlockWidget("Hello"),
-            new ButtonWidget("Click Me")
-        ]))
-        .WithHeadless()
-        .WithDimensions(80, 24)
-        .Build();
+    [TestMethod]
+    public async Task WidgetName_Scenario_ExpectedBehavior()
+    {
+        // Arrange - Build the terminal with the app
+        await using var terminal = Hex1bTerminal.CreateBuilder()
+            .WithHex1bApp((app, options) => ctx => new VStackWidget([
+                new TextBlockWidget("Hello"),
+                new ButtonWidget("Click Me")
+            ]))
+            .WithHeadless()
+            .WithDimensions(80, 24)
+            .Build();
 
-    // Act & Assert - Use input sequencer with WaitUntil
-    var snapshot = await new Hex1bTerminalInputSequenceBuilder()
-        .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2), "initial render")
-        .Down()  // Navigate to button
-        .WaitUntil(s => s.ContainsText("> Click Me"), TimeSpan.FromSeconds(2), "button focused")
-        .Capture("focused-button")
-        .Ctrl().Key(Hex1bKey.C)
-        .Build()
-        .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
+        // Act & Assert - Use input sequencer with WaitUntil
+        var snapshot = await new Hex1bTerminalInputSequenceBuilder()
+            .WaitUntil(s => s.ContainsText("Hello"), TimeSpan.FromSeconds(2), "initial render")
+            .Down()  // Navigate to button
+            .WaitUntil(s => s.ContainsText("> Click Me"), TimeSpan.FromSeconds(2), "button focused")
+            .Capture("focused-button")
+            .Ctrl().Key(Hex1bKey.C)
+            .Build()
+            .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-    // Assert (often redundant if WaitUntil already verified)
-    Assert.True(snapshot.ContainsText("> Click Me"));
+        // Assert (often redundant if WaitUntil already verified)
+        Assert.IsTrue(snapshot.ContainsText("> Click Me"));
+    }
 }
 ```
 
@@ -127,19 +135,19 @@ For precise cell-level assertions:
 // Find a specific character
 var pattern = new CellPatternSearcher().Find('█');
 var result = pattern.Search(snapshot);
-Assert.True(result.HasMatches);
-Assert.Equal(expectedX, result.First!.Start.X);
+Assert.IsTrue(result.HasMatches);
+Assert.AreEqual(expectedX, result.First!.Start.X);
 
 // Find with regex pattern
 var pattern = new CellPatternSearcher().FindPattern(@"Count:\s*\d+");
 var result = pattern.Search(snapshot);
-Assert.True(result.HasMatches);
+Assert.IsTrue(result.HasMatches);
 
 // Find with predicate
 var pattern = new CellPatternSearcher()
     .Find(ctx => char.IsDigit(ctx.Cell.Character[0]));
 var result = pattern.Search(snapshot);
-Assert.Equal(3, result.Count);
+Assert.AreEqual(3, result.Count);
 ```
 
 ### Color Assertions
@@ -148,19 +156,19 @@ For verifying themed/styled output:
 
 ```csharp
 // Check if any cell has a specific background color
-Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 100, 200)),
+Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(0, 100, 200)),
     "Button should have blue background");
 
 // Check if any cell has a specific foreground color
-Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 255)),
     "Text should be white");
 
 // Get color at specific position
 var bgColor = snapshot.GetBackgroundColor(10, 5);
-Assert.Equal(Hex1bColor.FromRgb(255, 0, 0), bgColor);
+Assert.AreEqual(Hex1bColor.FromRgb(255, 0, 0), bgColor);
 
 // Check uniform row background
-Assert.True(snapshot.HasUniformBackgroundColor(0, Hex1bColor.FromRgb(50, 50, 50)),
+Assert.IsTrue(snapshot.HasUniformBackgroundColor(0, Hex1bColor.FromRgb(50, 50, 50)),
     "Header row should have dark background");
 ```
 
@@ -194,7 +202,7 @@ await new Hex1bTerminalInputSequenceBuilder()
     .ApplyAsync(terminal, ct);
 
 // Assertion on footer may fail - it wasn't part of the WaitUntil!
-Assert.True(snapshot.ContainsText("Footer"));
+Assert.IsTrue(snapshot.ContainsText("Footer"));
 ```
 
 **Problem**: Rendering is inherently async. Finding "Header" doesn't guarantee "Footer" has rendered yet. This is especially problematic when testing other terminal frameworks (like Spectre Console) which may drop input if they're not ready to receive it.
@@ -224,7 +232,7 @@ var snapshot = await new Hex1bTerminalInputSequenceBuilder()
     .Build()
     .ApplyWithCaptureAsync(terminal, ct);
 
-Assert.True(snapshot.ContainsText("Hello"));  // ❌ May fail on Linux CI
+Assert.IsTrue(snapshot.ContainsText("Hello"));  // ❌ May fail on Linux CI
 ```
 
 **Fix**: The `WaitUntil` already verified the content. If you need to assert, the `WaitUntil` serves as the assertion.
@@ -256,7 +264,7 @@ await new Hex1bTerminalInputSequenceBuilder()
 // BROKEN: Fixed delay may not be long enough on slow CI
 await terminal.SendKeyAsync(Hex1bKey.Enter);
 await Task.Delay(100);  // ❌ Arbitrary delay
-Assert.True(eventFired);
+Assert.IsTrue(eventFired);
 ```
 
 **Fix**: Use `TaskCompletionSource` to signal completion:
@@ -292,14 +300,14 @@ When writing tests for widgets, consider all the **dimensions** that affect beha
 
 ### 1. Terminal Size Variations
 
-Widgets must work across different terminal sizes. Test the realistic range:
+Widgets must work across different terminal sizes. Use MSTest `DataRow` for parameterized cases:
 
 ```csharp
-[Theory]
-[InlineData(40, 10)]   // Minimum realistic size
-[InlineData(80, 24)]   // Standard terminal
-[InlineData(120, 40)]  // Large terminal
-[InlineData(200, 60)]  // Very large terminal
+[TestMethod]
+[DataRow(40, 10)]   // Minimum realistic size
+[DataRow(80, 24)]   // Standard terminal
+[DataRow(120, 40)]  // Large terminal
+[DataRow(200, 60)]  // Very large terminal
 public async Task ListWidget_VariousTerminalSizes_RendersCorrectly(int width, int height)
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -328,7 +336,7 @@ public async Task ListWidget_VariousTerminalSizes_RendersCorrectly(int width, in
 Widgets behave differently depending on their parent container. Test inside various layouts:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task ProgressWidget_InsideBorder_RendersWithCorrectWidth()
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -348,7 +356,7 @@ public async Task ProgressWidget_InsideBorder_RendersWithCorrectWidth()
         .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 }
 
-[Fact]
+[TestMethod]
 public async Task Button_InsideHStack_SharesSpaceCorrectly()
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -382,7 +390,7 @@ public async Task Button_InsideHStack_SharesSpaceCorrectly()
 Verify that widgets respect theme colors and can be customized:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task Button_WithCustomTheme_UsesThemeColors()
 {
     var customTheme = new Hex1bTheme("TestTheme")
@@ -406,13 +414,13 @@ public async Task Button_WithCustomTheme_UsesThemeColors()
         .Build()
         .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-    Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
+    Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)),
         "Button should have red background from theme");
-    Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 255)),
+    Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 255)),
         "Button should have white text from theme");
 }
 
-[Fact]
+[TestMethod]
 public async Task Button_FocusedState_UsesFocusedThemeColors()
 {
     await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -434,7 +442,7 @@ public async Task Button_FocusedState_UsesFocusedThemeColors()
         .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
     // Verify focused state uses different colors than unfocused
-    Assert.True(snapshot.HasBackgroundColor(), "Focused button should have background color");
+    Assert.IsTrue(snapshot.HasBackgroundColor(), "Focused button should have background color");
 }
 ```
 
@@ -466,7 +474,7 @@ Not every widget needs every combination, but consider which dimensions are rele
 For APIs that are dependencies of `Hex1bApp` (like `Surface`), test in isolation:
 
 ```csharp
-[Fact]
+[TestMethod]
 public void Surface_WriteText_SetsCorrectCells()
 {
     // Arrange
@@ -476,23 +484,23 @@ public void Surface_WriteText_SetsCorrectCells()
     surface.WriteText(0, 0, "Hello");
     
     // Assert
-    Assert.Equal('H', surface[0, 0].Character[0]);
-    Assert.Equal('e', surface[1, 0].Character[0]);
-    Assert.Equal('l', surface[2, 0].Character[0]);
-    Assert.Equal('l', surface[3, 0].Character[0]);
-    Assert.Equal('o', surface[4, 0].Character[0]);
+    Assert.AreEqual('H', surface[0, 0].Character[0]);
+    Assert.AreEqual('e', surface[1, 0].Character[0]);
+    Assert.AreEqual('l', surface[2, 0].Character[0]);
+    Assert.AreEqual('l', surface[3, 0].Character[0]);
+    Assert.AreEqual('o', surface[4, 0].Character[0]);
 }
 
-[Fact]
+[TestMethod]
 public void SurfaceCell_WithColor_PreservesColor()
 {
     // Arrange
     var cell = new SurfaceCell('X', Hex1bColor.Red, Hex1bColor.Blue);
     
     // Assert
-    Assert.Equal('X', cell.Character[0]);
-    Assert.Equal(Hex1bColor.Red, cell.Foreground);
-    Assert.Equal(Hex1bColor.Blue, cell.Background);
+    Assert.AreEqual('X', cell.Character[0]);
+    Assert.AreEqual(Hex1bColor.Red, cell.Foreground);
+    Assert.AreEqual(Hex1bColor.Blue, cell.Background);
 }
 ```
 
@@ -503,16 +511,16 @@ public void SurfaceCell_WithColor_PreservesColor()
 Follow `MethodName_Scenario_ExpectedBehavior`:
 
 ```csharp
-[Fact]
+[TestMethod]
 public async Task ListWidget_DownArrow_SelectsNextItem() { }
 
-[Fact]
+[TestMethod]
 public async Task TextBox_TypeText_DisplaysInput() { }
 
-[Fact]
+[TestMethod]
 public async Task Button_EnterKey_TriggersClickHandler() { }
 
-[Fact]
+[TestMethod]
 public void Surface_Fill_SetsAllCellsInRegion() { }
 ```
 

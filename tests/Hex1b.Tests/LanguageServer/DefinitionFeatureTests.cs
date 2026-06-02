@@ -4,9 +4,10 @@ using Hex1b.LanguageServer.Protocol;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class DefinitionFeatureTests
 {
-    [Fact]
+    [TestMethod]
     public void LocationsToHighlights_WithMatchingUri_ConvertsToHighlights()
     {
         var locations = new[]
@@ -24,13 +25,13 @@ public class DefinitionFeatureTests
 
         var highlights = LanguageServerDecorationProvider.LocationsToHighlights(locations, "file:///test.cs");
 
-        Assert.Single(highlights);
-        Assert.Equal(new DocumentPosition(6, 11), highlights[0].Start); // 0-based -> 1-based
-        Assert.Equal(new DocumentPosition(6, 21), highlights[0].End);
-        Assert.Equal(RangeHighlightKind.ReadAccess, highlights[0].Kind);
+        TestSeq.Single(highlights);
+        Assert.AreEqual(new DocumentPosition(6, 11), highlights[0].Start); // 0-based -> 1-based
+        Assert.AreEqual(new DocumentPosition(6, 21), highlights[0].End);
+        Assert.AreEqual(RangeHighlightKind.ReadAccess, highlights[0].Kind);
     }
 
-    [Fact]
+    [TestMethod]
     public void LocationsToHighlights_WithDifferentUri_FiltersOut()
     {
         var locations = new[]
@@ -47,24 +48,24 @@ public class DefinitionFeatureTests
         };
 
         var highlights = LanguageServerDecorationProvider.LocationsToHighlights(locations, "file:///test.cs");
-        Assert.Empty(highlights);
+        Assert.IsEmpty(highlights);
     }
 
-    [Fact]
+    [TestMethod]
     public void LocationsToHighlights_Null_ReturnsEmpty()
     {
         var highlights = LanguageServerDecorationProvider.LocationsToHighlights(null, "file:///test.cs");
-        Assert.Empty(highlights);
+        Assert.IsEmpty(highlights);
     }
 
-    [Fact]
+    [TestMethod]
     public void LocationsToHighlights_EmptyArray_ReturnsEmpty()
     {
         var highlights = LanguageServerDecorationProvider.LocationsToHighlights([], "file:///test.cs");
-        Assert.Empty(highlights);
+        Assert.IsEmpty(highlights);
     }
 
-    [Fact]
+    [TestMethod]
     public void LocationsToHighlights_MultipleLocations_ConvertsMatchingOnly()
     {
         var locations = new[]
@@ -99,8 +100,8 @@ public class DefinitionFeatureTests
         };
 
         var highlights = LanguageServerDecorationProvider.LocationsToHighlights(locations, "file:///test.cs");
-        Assert.Equal(2, highlights.Count);
-        Assert.Equal(new DocumentPosition(2, 1), highlights[0].Start);
-        Assert.Equal(new DocumentPosition(11, 4), highlights[1].Start);
+        Assert.AreEqual(2, highlights.Count);
+        Assert.AreEqual(new DocumentPosition(2, 1), highlights[0].Start);
+        Assert.AreEqual(new DocumentPosition(11, 4), highlights[1].Start);
     }
 }

@@ -29,6 +29,7 @@ namespace Hex1b.Tests;
 ///      primary action.
 ///   7. Escape dismisses the popup without invoking any secondary action.
 /// </summary>
+[TestClass]
 public class SplitButtonIntegrationTests
 {
     /// <summary>
@@ -47,7 +48,7 @@ public class SplitButtonIntegrationTests
             .SecondaryAction("Option B", e => onOptionB?.Invoke(e));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_InitialRender_ShowsPrimaryLabelAndDropdownArrow()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -72,16 +73,16 @@ public class SplitButtonIntegrationTests
         // region 4 [divider, space, arrow, trailing pad]). The leading and
         // trailing chip pads are part of the chip body, so cell 0 and cell
         // 11 are spaces.
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(11, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(11, 0).Character);
         // The divider sits at cell 8 (just past the primary region).
-        Assert.Equal("│", snapshot.GetCell(8, 0).Character);
+        Assert.AreEqual("│", snapshot.GetCell(8, 0).Character);
         // The dropdown arrow sits at cell 10 (between the divider's trailing
         // pad and the chip's trailing pad).
-        Assert.Equal("▼", snapshot.GetCell(10, 0).Character);
+        Assert.AreEqual("▼", snapshot.GetCell(10, 0).Character);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_Focused_PaintsFocusedChipBackground()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -111,15 +112,15 @@ public class SplitButtonIntegrationTests
         // shade so the dropdown target reads as distinct.
         for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedPrimaryBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedPrimaryBg, snapshot.GetCell(x, 0).Background);
         }
         for (var x = 8; x <= 11; x++)
         {
-            Assert.Equal(expectedArrowBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedArrowBg, snapshot.GetCell(x, 0).Background);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_Unfocused_PaintsRestingChipBackground()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -151,15 +152,15 @@ public class SplitButtonIntegrationTests
         // arrow background (a half-shade darker than the primary chip).
         for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedPrimaryBg, snapshot.GetCell(x, 1).Background);
+            Assert.AreEqual(expectedPrimaryBg, snapshot.GetCell(x, 1).Background);
         }
         for (var x = 8; x <= 11; x++)
         {
-            Assert.Equal(expectedArrowBg, snapshot.GetCell(x, 1).Background);
+            Assert.AreEqual(expectedArrowBg, snapshot.GetCell(x, 1).Background);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_DownArrow_OpensDropdownWithBothOptionsVisible()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -180,12 +181,11 @@ public class SplitButtonIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Option A"));
-        Assert.True(snapshot.ContainsText("Option B"));
+        Assert.IsTrue(snapshot.ContainsText("Option A"));
+        Assert.IsTrue(snapshot.ContainsText("Option B"));
         // ListWidget marks the active item with a "> " selection indicator —
         // Option A is pre-selected when the dropdown opens.
-        Assert.True(snapshot.ContainsText("> Option A"),
-            $"Expected Option A to be the initially selected item.\nScreen:\n{snapshot.GetText()}");
+        Assert.IsTrue(snapshot.ContainsText("> Option A"), $"Expected Option A to be the initially selected item.\nScreen:\n{snapshot.GetText()}");
     }
 
     /// <summary>
@@ -194,7 +194,7 @@ public class SplitButtonIntegrationTests
     /// B. The popup must respond to DownArrow so the user can navigate to
     /// secondary actions other than the first.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_DropdownOpen_DownArrow_MovesSelectionToOptionB()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -217,14 +217,13 @@ public class SplitButtonIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("> Option B"));
+        Assert.IsTrue(snapshot.ContainsText("> Option B"));
         // Option A should no longer be the active selection — the indicator
         // moved with the down-arrow press.
-        Assert.False(snapshot.ContainsText("> Option A"),
-            $"Expected the selection indicator to advance off Option A.\nScreen:\n{snapshot.GetText()}");
+        Assert.IsFalse(snapshot.ContainsText("> Option A"), $"Expected the selection indicator to advance off Option A.\nScreen:\n{snapshot.GetText()}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_DropdownOpen_EnterOnFirstItem_FiresOptionAHandler()
     {
         var optionACount = 0;
@@ -254,16 +253,16 @@ public class SplitButtonIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, optionACount);
-        Assert.Equal(0, optionBCount);
-        Assert.Equal(0, primaryCount);
+        Assert.AreEqual(1, optionACount);
+        Assert.AreEqual(0, optionBCount);
+        Assert.AreEqual(0, primaryCount);
     }
 
     /// <summary>
     /// Once the bug is fixed, navigating Down + Enter inside the popup must
     /// fire the second secondary action — not the first.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_DropdownOpen_DownThenEnter_FiresOptionBHandler()
     {
         var optionACount = 0;
@@ -297,14 +296,14 @@ public class SplitButtonIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, optionBCount);
-        Assert.Equal(0, optionACount);
-        Assert.Equal(0, primaryCount);
-        Assert.NotNull(optionBArgs);
-        Assert.NotNull(optionBArgs!.Widget);
+        Assert.AreEqual(1, optionBCount);
+        Assert.AreEqual(0, optionACount);
+        Assert.AreEqual(0, primaryCount);
+        Assert.IsNotNull(optionBArgs);
+        Assert.IsNotNull(optionBArgs!.Widget);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_PrimaryAction_FiresOnEnter_WithoutOpeningDropdown()
     {
         var optionACount = 0;
@@ -331,12 +330,12 @@ public class SplitButtonIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, primaryCount);
-        Assert.Equal(0, optionACount);
-        Assert.Equal(0, optionBCount);
+        Assert.AreEqual(1, primaryCount);
+        Assert.AreEqual(0, optionACount);
+        Assert.AreEqual(0, optionBCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_DropdownOpen_Escape_DismissesWithoutFiringHandlers()
     {
         var optionACount = 0;
@@ -369,14 +368,14 @@ public class SplitButtonIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(0, optionACount);
-        Assert.Equal(0, optionBCount);
-        Assert.Equal(0, primaryCount);
-        Assert.False(snapshot.ContainsText("Option A"));
-        Assert.False(snapshot.ContainsText("Option B"));
+        Assert.AreEqual(0, optionACount);
+        Assert.AreEqual(0, optionBCount);
+        Assert.AreEqual(0, primaryCount);
+        Assert.IsFalse(snapshot.ContainsText("Option A"));
+        Assert.IsFalse(snapshot.ContainsText("Option B"));
         // The primary chip should still be visible after the dismiss.
-        Assert.True(snapshot.ContainsText("Action"));
-        Assert.True(snapshot.ContainsText("▼"));
+        Assert.IsTrue(snapshot.ContainsText("Action"));
+        Assert.IsTrue(snapshot.ContainsText("▼"));
     }
 
     /// <summary>
@@ -398,7 +397,7 @@ public class SplitButtonIntegrationTests
     ///   • Focus returns to the SplitButton — pressing Enter once more fires
     ///     the primary action without re-opening the dropdown.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_FullScenario_OpensDropdown_NavigatesDown_FiresOptionB_ThenPrimary()
     {
         var optionACount = 0;
@@ -428,23 +427,23 @@ public class SplitButtonIntegrationTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.True(initialSnapshot.ContainsText("Action"));
-        Assert.True(initialSnapshot.ContainsText("▼"));
-        Assert.Equal(" ", initialSnapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", initialSnapshot.GetCell(11, 0).Character);
-        Assert.Equal("│", initialSnapshot.GetCell(8, 0).Character);
-        Assert.Equal("▼", initialSnapshot.GetCell(10, 0).Character);
+        Assert.IsTrue(initialSnapshot.ContainsText("Action"));
+        Assert.IsTrue(initialSnapshot.ContainsText("▼"));
+        Assert.AreEqual(" ", initialSnapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(" ", initialSnapshot.GetCell(11, 0).Character);
+        Assert.AreEqual("│", initialSnapshot.GetCell(8, 0).Character);
+        Assert.AreEqual("▼", initialSnapshot.GetCell(10, 0).Character);
 
         var theme = new Hex1bTheme("Test");
         var expectedPrimaryBg = theme.Get(ButtonTheme.FocusedBackgroundColor);
         var expectedArrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
         for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(expectedPrimaryBg, initialSnapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedPrimaryBg, initialSnapshot.GetCell(x, 0).Background);
         }
         for (var x = 8; x <= 11; x++)
         {
-            Assert.Equal(expectedArrowBg, initialSnapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(expectedArrowBg, initialSnapshot.GetCell(x, 0).Background);
         }
 
         // Phase 2 — open dropdown, navigate down, activate Option B,
@@ -467,17 +466,17 @@ public class SplitButtonIntegrationTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal(1, optionBCount);
-        Assert.Equal(0, optionACount);
-        Assert.Equal(1, primaryCount);
-        Assert.NotNull(optionBArgs);
-        Assert.NotNull(optionBArgs!.Widget);
+        Assert.AreEqual(1, optionBCount);
+        Assert.AreEqual(0, optionACount);
+        Assert.AreEqual(1, primaryCount);
+        Assert.IsNotNull(optionBArgs);
+        Assert.IsNotNull(optionBArgs!.Widget);
 
         // The chip is back on screen with no popup overlay.
-        Assert.True(finalSnapshot.ContainsText("Action"));
-        Assert.True(finalSnapshot.ContainsText("▼"));
-        Assert.False(finalSnapshot.ContainsText("Option A"));
-        Assert.False(finalSnapshot.ContainsText("Option B"));
+        Assert.IsTrue(finalSnapshot.ContainsText("Action"));
+        Assert.IsTrue(finalSnapshot.ContainsText("▼"));
+        Assert.IsFalse(finalSnapshot.ContainsText("Option A"));
+        Assert.IsFalse(finalSnapshot.ContainsText("Option B"));
     }
 
     /// <summary>
@@ -485,7 +484,7 @@ public class SplitButtonIntegrationTests
     /// chip — same layout as ButtonNode, no divider, no arrow, and no
     /// secondary-affordance tint anywhere on the chip.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_NoSecondaryActions_RendersUniformChipWithoutDivider()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -506,11 +505,11 @@ public class SplitButtonIntegrationTests
         await runTask;
 
         // Chip body is " Action " — 8 cells, no divider, no arrow.
-        Assert.True(snapshot.ContainsText("Action"));
-        Assert.False(snapshot.ContainsText("▼"));
-        Assert.False(snapshot.ContainsText("│"));
-        Assert.Equal(" ", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(" ", snapshot.GetCell(7, 0).Character);
+        Assert.IsTrue(snapshot.ContainsText("Action"));
+        Assert.IsFalse(snapshot.ContainsText("▼"));
+        Assert.IsFalse(snapshot.ContainsText("│"));
+        Assert.AreEqual(" ", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(7, 0).Character);
         // The whole chip should be on the focused primary background — no
         // arrow tint anywhere.
         var theme = new Hex1bTheme("Test");
@@ -518,12 +517,12 @@ public class SplitButtonIntegrationTests
         var arrowBg = theme.Get(SplitButtonTheme.FocusedArrowBackgroundColor);
         for (var x = 0; x <= 7; x++)
         {
-            Assert.Equal(primaryBg, snapshot.GetCell(x, 0).Background);
+            Assert.AreEqual(primaryBg, snapshot.GetCell(x, 0).Background);
         }
-        Assert.NotEqual(arrowBg, snapshot.GetCell(7, 0).Background);
+        Assert.AreNotEqual(arrowBg, snapshot.GetCell(7, 0).Background);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SplitButton_StackedSplitButtons_OpenedDropdown_DoesNotBleedSiblingChipBackground()
     {
         // Companion to PickerIntegrationTests.Picker_StackedPickers_OpenedDropdown_DoesNotBleedSiblingChipBackground.
@@ -591,8 +590,7 @@ public class SplitButtonIntegrationTests
                 break;
             }
         }
-        Assert.True(popupOptionA.HasValue,
-            $"Expected to find Option A inside the popup body.\nScreen:\n{snapshot.GetText()}");
+        Assert.IsTrue(popupOptionA.HasValue, $"Expected to find Option A inside the popup body.\nScreen:\n{snapshot.GetText()}");
 
         var popupLeft = popupOptionA.Value.Column - 3;  // border + indicator
         var popupTop = popupOptionA.Value.Line - 1;     // border above first item
@@ -622,9 +620,7 @@ public class SplitButtonIntegrationTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(
-            leakedCells.Count == 0,
-            $"Sibling SplitButton chip background ({siblingChipBg}) bled through the open dropdown at {leakedCells.Count} cell(s): " +
+        Assert.IsTrue(leakedCells.Count == 0, $"Sibling SplitButton chip background ({siblingChipBg}) bled through the open dropdown at {leakedCells.Count} cell(s): " +
             string.Join(", ", leakedCells.Take(10).Select(c => $"({c.X},{c.Y})")) +
             $".\nScreen:\n{snapshot.GetText()}");
     }

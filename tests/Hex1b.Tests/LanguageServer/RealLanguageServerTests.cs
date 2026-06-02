@@ -10,7 +10,8 @@ namespace Hex1b.Tests.LanguageServer;
 /// Requires typescript-language-server to be installed:
 ///   npm install -g typescript-language-server typescript
 /// </summary>
-public class RealLanguageServerTests : IAsyncLifetime
+[TestClass]
+public class RealLanguageServerTests
 {
     private readonly string _workspacePath;
 
@@ -30,8 +31,10 @@ public class RealLanguageServerTests : IAsyncLifetime
         _workspacePath = "";
     }
 
-    public ValueTask InitializeAsync() => default;
-    public ValueTask DisposeAsync() => default;
+    [TestInitialize]
+    public Task InitializeAsync() => Task.CompletedTask;
+    [TestCleanup]
+    public Task DisposeAsync() => Task.CompletedTask;
 
     private static bool TypeScriptLsAvailable()
     {
@@ -50,7 +53,7 @@ public class RealLanguageServerTests : IAsyncLifetime
         catch { return false; }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypeScriptLs_ReturnsSemanticTokens()
     {
         if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
@@ -68,7 +71,7 @@ public class RealLanguageServerTests : IAsyncLifetime
         try
         {
             await client.StartAsync(cts.Token);
-            Assert.NotNull(client.ServerCapabilities);
+            Assert.IsNotNull(client.ServerCapabilities);
 
             var filePath = Path.Combine(_workspacePath, "TaskManager.ts");
             var fileUri = "file://" + filePath;
@@ -81,12 +84,12 @@ public class RealLanguageServerTests : IAsyncLifetime
 
             var tokens = await client.RequestSemanticTokensAsync(fileUri, cts.Token);
 
-            Assert.NotNull(tokens);
-            Assert.True(tokens!.Data.Length > 0, "Expected semantic tokens from typescript-language-server");
+            Assert.IsNotNull(tokens);
+            Assert.IsTrue(tokens!.Data.Length > 0, "Expected semantic tokens from typescript-language-server");
 
             // Verify token count is reasonable (TaskManager.ts should have 50+ tokens)
             var tokenCount = tokens.Data.Length / 5;
-            Assert.True(tokenCount > 20, $"Expected at least 20 semantic tokens, got {tokenCount}");
+            Assert.IsTrue(tokenCount > 20, $"Expected at least 20 semantic tokens, got {tokenCount}");
 
             await client.StopAsync();
         }
@@ -96,7 +99,7 @@ public class RealLanguageServerTests : IAsyncLifetime
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypeScriptLs_ViaWorkspace_ReturnsTokens()
     {
         if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
@@ -110,7 +113,7 @@ public class RealLanguageServerTests : IAsyncLifetime
 
         var doc = await workspace.OpenDocumentAsync("TaskManager.ts");
         var provider = workspace.GetProvider(doc);
-        Assert.NotNull(provider);
+        Assert.IsNotNull(provider);
 
         // Activate the provider with a minimal session
         var state = new EditorState(doc);
@@ -128,13 +131,13 @@ public class RealLanguageServerTests : IAsyncLifetime
                 break;
         }
 
-        Assert.NotNull(decorations);
-        Assert.True(decorations.Count > 0, "Expected semantic token decorations from typescript-language-server");
+        Assert.IsNotNull(decorations);
+        Assert.IsTrue(decorations.Count > 0, "Expected semantic token decorations from typescript-language-server");
 
         provider.Deactivate();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypeScriptLs_ReturnsCompletions()
     {
         if (!TypeScriptLsAvailable() || !Directory.Exists(_workspacePath))
@@ -176,15 +179,15 @@ public class RealLanguageServerTests : IAsyncLifetime
                 }
             }
 
-            Assert.True(line >= 0, "Expected 'this.' in TaskManager.ts");
+            Assert.IsTrue(line >= 0, "Expected 'this.' in TaskManager.ts");
 
             var completions = await client.RequestCompletionAsync(fileUri, line, col, ct: cts.Token);
-            Assert.NotNull(completions);
-            Assert.True(completions!.Items.Length > 0, "Expected completions after 'this.'");
+            Assert.IsNotNull(completions);
+            Assert.IsTrue(completions!.Items.Length > 0, "Expected completions after 'this.'");
 
             // Should contain class members
             var labels = completions.Items.Select(i => i.Label).ToList();
-            Assert.Contains(labels, l => !string.IsNullOrEmpty(l));
+            Assert.IsTrue(labels.Any(l => !string.IsNullOrEmpty(l)));
 
             await client.StopAsync();
         }

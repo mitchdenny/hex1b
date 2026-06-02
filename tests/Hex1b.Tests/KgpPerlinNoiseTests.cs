@@ -6,6 +6,7 @@ namespace Hex1b.Tests;
 /// Complex KGP rendering tests using procedural Perlin noise images with
 /// cropped placements in a checkerboard tiling pattern.
 /// </summary>
+[TestClass]
 public class KgpPerlinNoiseTests
 {
     private const int TermWidth = 80;
@@ -30,7 +31,7 @@ public class KgpPerlinNoiseTests
     /// Each tile is a cropped region of the full-screen image, so the noise pattern
     /// is spatially continuous across tile boundaries.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void PerlinCheckerboard_FullScreen_GrayscaleAndBlueTiles()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -87,39 +88,39 @@ public class KgpPerlinNoiseTests
 
         // Verify all tiles were placed
         int expectedPlacements = tilesX * tilesY; // 240
-        Assert.Equal(expectedPlacements, snapshot.KgpPlacements.Count);
+        Assert.AreEqual(expectedPlacements, snapshot.KgpPlacements.Count);
 
         // Verify both images exist
-        Assert.True(snapshot.KgpImages.ContainsKey(1), "Grayscale image should be stored");
-        Assert.True(snapshot.KgpImages.ContainsKey(2), "Blue-tinted image should be stored");
+        Assert.IsTrue(snapshot.KgpImages.ContainsKey(1), "Grayscale image should be stored");
+        Assert.IsTrue(snapshot.KgpImages.ContainsKey(2), "Blue-tinted image should be stored");
 
         // Verify checkerboard pattern: alternating image IDs
         var topLeft = snapshot.KgpPlacements.First(p => p.Row == 0 && p.Column == 0);
         var topSecond = snapshot.KgpPlacements.First(p => p.Row == 0 && p.Column == TileCols);
-        Assert.Equal(1u, topLeft.ImageId);
-        Assert.Equal(2u, topSecond.ImageId);
+        Assert.AreEqual(1u, topLeft.ImageId);
+        Assert.AreEqual(2u, topSecond.ImageId);
 
         // Verify each tile has correct crop parameters
         foreach (var placement in snapshot.KgpPlacements)
         {
-            Assert.Equal((uint)TileCols, placement.DisplayColumns);
-            Assert.Equal((uint)TileRows, placement.DisplayRows);
-            Assert.Equal((uint)(placement.Column * CellW), placement.SourceX);
-            Assert.Equal((uint)(placement.Row * CellH), placement.SourceY);
-            Assert.Equal((uint)(TileCols * CellW), placement.SourceWidth);
-            Assert.Equal((uint)(TileRows * CellH), placement.SourceHeight);
+            Assert.AreEqual((uint)TileCols, placement.DisplayColumns);
+            Assert.AreEqual((uint)TileRows, placement.DisplayRows);
+            Assert.AreEqual((uint)(placement.Column * CellW), placement.SourceX);
+            Assert.AreEqual((uint)(placement.Row * CellH), placement.SourceY);
+            Assert.AreEqual((uint)(TileCols * CellW), placement.SourceWidth);
+            Assert.AreEqual((uint)(TileRows * CellH), placement.SourceHeight);
         }
 
         // Verify SVG has the expected number of <image> elements
         int imageCount = CountOccurrences(svg, "<image ");
-        Assert.Equal(expectedPlacements, imageCount);
+        Assert.AreEqual(expectedPlacements, imageCount);
     }
 
     /// <summary>
     /// Similar to the full checkerboard but with larger 8x4-cell tiles for a
     /// coarser pattern that's easier to visually verify.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void PerlinCheckerboard_LargeTiles_8x4()
     {
         const int largeTileCols = 8;
@@ -167,15 +168,15 @@ public class KgpPerlinNoiseTests
         var svg = snapshot.ToSvg();
         TestCaptureHelper.AttachSvg("kgp-perlin-checkerboard-large.svg", svg);
 
-        Assert.Equal(tilesX * tilesY, snapshot.KgpPlacements.Count);
-        Assert.Equal(tilesX * tilesY, CountOccurrences(svg, "<image "));
+        Assert.AreEqual(tilesX * tilesY, snapshot.KgpPlacements.Count);
+        Assert.AreEqual(tilesX * tilesY, CountOccurrences(svg, "<image "));
     }
 
     /// <summary>
     /// Verifies that cropped placements of the same image produce different BMP
     /// content in the SVG, confirming that cropping actually extracts different regions.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void PerlinCrop_DifferentRegions_ProduceDifferentBmpData()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -206,8 +207,8 @@ public class KgpPerlinNoiseTests
 
         // Extract both base64 data URIs and verify they differ
         var dataUris = ExtractDataUris(svg);
-        Assert.Equal(2, dataUris.Count);
-        Assert.NotEqual(dataUris[0], dataUris[1]);
+        Assert.AreEqual(2, dataUris.Count);
+        Assert.AreNotEqual(dataUris[0], dataUris[1]);
     }
 
     /// <summary>
@@ -216,7 +217,7 @@ public class KgpPerlinNoiseTests
     /// uses a different color tint on Perlin noise and a progressively lower z-index,
     /// so the top-left image is closest under the text and subsequent images stack behind.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void PerlinStaircase_OverlappingZOrder_WithTextOverlay()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -284,31 +285,30 @@ public class KgpPerlinNoiseTests
         TestCaptureHelper.AttachSvg("kgp-perlin-staircase-zorder.svg", svg);
 
         // Verify all 6 images were placed
-        Assert.Equal(tints.Length, snapshot.KgpPlacements.Count);
-        Assert.Equal(tints.Length, snapshot.KgpImages.Count);
+        Assert.AreEqual(tints.Length, snapshot.KgpPlacements.Count);
+        Assert.AreEqual(tints.Length, snapshot.KgpImages.Count);
 
         // Verify staircase positioning
         for (int i = 0; i < tints.Length; i++)
         {
             var p = snapshot.KgpPlacements[i];
-            Assert.Equal((uint)(i + 1), p.ImageId);
-            Assert.Equal(i * stepRows, p.Row);
-            Assert.Equal(i * stepCols, p.Column);
-            Assert.Equal(-(i + 1), p.ZIndex);
+            Assert.AreEqual((uint)(i + 1), p.ImageId);
+            Assert.AreEqual(i * stepRows, p.Row);
+            Assert.AreEqual(i * stepCols, p.Column);
+            Assert.AreEqual(-(i + 1), p.ZIndex);
         }
 
         // Verify z-order in SVG: images should be sorted by ZIndex ascending
         // (lowest z-index = furthest back = rendered first in SVG)
         var dataUris = ExtractDataUris(svg);
-        Assert.Equal(tints.Length, dataUris.Count);
+        Assert.AreEqual(tints.Length, dataUris.Count);
         // All data URIs should be distinct (different tint colors)
-        Assert.Equal(tints.Length, dataUris.Distinct().Count());
+        Assert.AreEqual(tints.Length, dataUris.Distinct().Count());
 
         // Verify text layer exists above images
         var imagesGroupEnd = svg.LastIndexOf("</g>", svg.IndexOf("class=\"terminal-text\""));
         var textGroupStart = svg.IndexOf("class=\"terminal-text\"");
-        Assert.True(textGroupStart > imagesGroupEnd,
-            "Text group should appear after images group in SVG");
+        Assert.IsTrue(textGroupStart > imagesGroupEnd, "Text group should appear after images group in SVG");
 
         // Verify the 'A' characters are in the text layer
         Assert.Contains(">A<", svg);

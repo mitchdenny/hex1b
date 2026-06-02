@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class WidgetMustBeRecordAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class WidgetMustBeRecordAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<WidgetMustBeRecordAnalyzer>.Diagnostic(WidgetMustBeRecordAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task RecordWidget_NoDiagnostic()
     {
         const string source = """
@@ -25,7 +26,7 @@ public class WidgetMustBeRecordAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ClassWidget_Reports()
     {
         const string source = """
@@ -39,7 +40,7 @@ public class WidgetMustBeRecordAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("FooWidget"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task NonWidgetClass_NoDiagnostic()
     {
         const string source = """
@@ -51,7 +52,7 @@ public class WidgetMustBeRecordAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AbstractRecordWidget_NoDiagnostic()
     {
         const string source = """

@@ -1,136 +1,137 @@
 namespace Hex1b.Tests;
 
+[TestClass]
 public class DockerContainerOptionsTests
 {
-    [Fact]
+    [TestMethod]
     public void DefaultImage_IsDotnetSdk()
     {
         var options = new DockerContainerOptions();
-        Assert.Equal(DockerContainerArgBuilder.DefaultImage, options.Image);
+        Assert.AreEqual(DockerContainerArgBuilder.DefaultImage, options.Image);
     }
 
-    [Fact]
+    [TestMethod]
     public void DefaultShell_IsBashNorc()
     {
         var options = new DockerContainerOptions();
-        Assert.Equal("/bin/bash", options.Shell);
-        Assert.Equal(["--norc"], options.ShellArgs);
+        Assert.AreEqual("/bin/bash", options.Shell);
+        TestSeq.AreEqual(["--norc"], options.ShellArgs);
     }
 
-    [Fact]
+    [TestMethod]
     public void AutoRemove_DefaultsTrue()
     {
         var options = new DockerContainerOptions();
-        Assert.True(options.AutoRemove);
+        Assert.IsTrue(options.AutoRemove);
     }
 
-    [Fact]
+    [TestMethod]
     public void MountDockerSocket_DefaultsFalse()
     {
         var options = new DockerContainerOptions();
-        Assert.False(options.MountDockerSocket);
+        Assert.IsFalse(options.MountDockerSocket);
     }
 
-    [Fact]
+    [TestMethod]
     public void DockerfilePath_DefaultsNull()
     {
         var options = new DockerContainerOptions();
-        Assert.Null(options.DockerfilePath);
+        Assert.IsNull(options.DockerfilePath);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildContext_DefaultsNull()
     {
         var options = new DockerContainerOptions();
-        Assert.Null(options.BuildContext);
+        Assert.IsNull(options.BuildContext);
     }
 
-    [Fact]
+    [TestMethod]
     public void Name_DefaultsNull()
     {
         var options = new DockerContainerOptions();
-        Assert.Null(options.Name);
+        Assert.IsNull(options.Name);
     }
 
-    [Fact]
+    [TestMethod]
     public void WorkingDirectory_DefaultsNull()
     {
         var options = new DockerContainerOptions();
-        Assert.Null(options.WorkingDirectory);
+        Assert.IsNull(options.WorkingDirectory);
     }
 
-    [Fact]
+    [TestMethod]
     public void Network_DefaultsNull()
     {
         var options = new DockerContainerOptions();
-        Assert.Null(options.Network);
+        Assert.IsNull(options.Network);
     }
 
-    [Fact]
+    [TestMethod]
     public void Environment_InitiallyEmpty()
     {
         var options = new DockerContainerOptions();
-        Assert.Empty(options.Environment);
+        Assert.IsEmpty(options.Environment);
     }
 
-    [Fact]
+    [TestMethod]
     public void Volumes_InitiallyEmpty()
     {
         var options = new DockerContainerOptions();
-        Assert.Empty(options.Volumes);
+        Assert.IsEmpty(options.Volumes);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildArgs_InitiallyEmpty()
     {
         var options = new DockerContainerOptions();
-        Assert.Empty(options.BuildArgs);
+        Assert.IsEmpty(options.BuildArgs);
     }
 
-    [Fact]
+    [TestMethod]
     public void Environment_CanAddEntries()
     {
         var options = new DockerContainerOptions();
         options.Environment["FOO"] = "bar";
         options.Environment["BAZ"] = "qux";
-        Assert.Equal(2, options.Environment.Count);
-        Assert.Equal("bar", options.Environment["FOO"]);
+        Assert.AreEqual(2, options.Environment.Count);
+        Assert.AreEqual("bar", options.Environment["FOO"]);
     }
 
-    [Fact]
+    [TestMethod]
     public void Volumes_CanAddEntries()
     {
         var options = new DockerContainerOptions();
         options.Volumes.Add("/host:/container");
         options.Volumes.Add("/tmp:/tmp:ro");
-        Assert.Equal(2, options.Volumes.Count);
+        Assert.AreEqual(2, options.Volumes.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void BuildArgs_CanAddEntries()
     {
         var options = new DockerContainerOptions();
         options.BuildArgs["SDK_VERSION"] = "10.0";
-        Assert.Single(options.BuildArgs);
+        TestSeq.Single(options.BuildArgs);
     }
 
-    [Fact]
+    [TestMethod]
     public void ShellArgs_CanBeOverridden()
     {
         var options = new DockerContainerOptions
         {
             ShellArgs = ["-l", "-i"]
         };
-        Assert.Equal(["-l", "-i"], options.ShellArgs);
+        TestSeq.AreEqual(["-l", "-i"], options.ShellArgs);
     }
 
-    [Fact]
+    [TestMethod]
     public void ShellArgs_CanBeSetToEmpty()
     {
         var options = new DockerContainerOptions
         {
             ShellArgs = []
         };
-        Assert.Empty(options.ShellArgs);
+        Assert.IsEmpty(options.ShellArgs);
     }
 }

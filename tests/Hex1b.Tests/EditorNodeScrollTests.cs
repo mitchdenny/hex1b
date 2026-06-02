@@ -9,6 +9,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorNodeScrollTests
 {
     private static EditorNode CreateNode(string text, int width, int height, bool focused = true)
@@ -23,42 +24,42 @@ public class EditorNodeScrollTests
         return node;
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollOffset_AfterArrange_StartsAt1()
     {
         // NOTE: Initial scroll may change if we support restoring scroll position.
         var node = CreateNode("Hello\nWorld", 20, 5);
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollOffset_SetToZero_ClampsTo1()
     {
         // NOTE: Clamping behavior may change with virtual scroll support.
         var node = CreateNode("Hello\nWorld", 20, 5);
         node.ScrollOffset = 0;
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollOffset_SetToNegative_ClampsTo1()
     {
         // NOTE: Clamping behavior may change with virtual scroll support.
         var node = CreateNode("Hello\nWorld", 20, 5);
         node.ScrollOffset = -5;
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollOffset_SetBeyondLineCount_ClampsToLineCount()
     {
         // NOTE: May change if we allow scrolling past end of document.
         var node = CreateNode("A\nB\nC", 20, 5); // 3 lines
         node.ScrollOffset = 100;
-        Assert.Equal(3, node.ScrollOffset);
+        Assert.AreEqual(3, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnsureCursorVisible_CursorBelowViewport_ScrollsDown()
     {
         // NOTE: Scroll margin (keeping cursor N lines from edge) may be added.
@@ -74,12 +75,11 @@ public class EditorNodeScrollTests
         node.Arrange(new Rect(0, 0, 20, 5));
 
         // Cursor is on line 10; viewport should scroll so line 10 is visible
-        Assert.True(node.ScrollOffset <= 10, $"ScrollOffset {node.ScrollOffset} should be <= 10");
-        Assert.True(node.ScrollOffset + node.ViewportLines > 10,
-            $"ScrollOffset {node.ScrollOffset} + viewport {node.ViewportLines} should show line 10");
+        Assert.IsTrue(node.ScrollOffset <= 10, $"ScrollOffset {node.ScrollOffset} should be <= 10");
+        Assert.IsTrue(node.ScrollOffset + node.ViewportLines > 10, $"ScrollOffset {node.ScrollOffset} + viewport {node.ViewportLines} should show line 10");
     }
 
-    [Fact]
+    [TestMethod]
     public void ScrollOffset_SetManually_DoesNotFlickBackToCursor()
     {
         // When scroll is set via scrollbar or wheel (no cursor change), Arrange must
@@ -93,10 +93,10 @@ public class EditorNodeScrollTests
         // Re-arrange should NOT snap back — no cursor change occurred
         node.Arrange(new Rect(0, 0, 20, 5));
 
-        Assert.Equal(15, node.ScrollOffset);
+        Assert.AreEqual(15, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnsureCursorVisible_CursorWithinViewport_NoScrollChange()
     {
         // NOTE: Scroll behavior may change with smooth scrolling.
@@ -104,7 +104,7 @@ public class EditorNodeScrollTests
         var node = CreateNode(lines, 20, 10);
 
         // Cursor at line 1, viewport shows lines 1-10 → no scroll needed
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
 
         // Move cursor to line 5 (still within viewport)
         for (var i = 0; i < 4; i++)
@@ -114,10 +114,10 @@ public class EditorNodeScrollTests
         node.Arrange(new Rect(0, 0, 20, 10));
 
         // Should still be at scroll offset 1
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void PageDown_ScrollsViewport()
     {
         // NOTE: PageDown behavior may gain half-page option.
@@ -132,12 +132,12 @@ public class EditorNodeScrollTests
         // Cursor should be on line 11 (started at line 1, moved down by viewport=10);
         // MovePageDown uses the viewport lines count
         var cursorLine = node.State.Document.OffsetToPosition(node.State.Cursor.Position).Line;
-        Assert.True(cursorLine > 1, $"Cursor should have moved past line 1, is on line {cursorLine}");
-        Assert.True(node.ScrollOffset <= cursorLine);
-        Assert.True(node.ScrollOffset + node.ViewportLines > cursorLine);
+        Assert.IsTrue(cursorLine > 1, $"Cursor should have moved past line 1, is on line {cursorLine}");
+        Assert.IsTrue(node.ScrollOffset <= cursorLine);
+        Assert.IsTrue(node.ScrollOffset + node.ViewportLines > cursorLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void PageUp_ScrollsViewportBack()
     {
         // NOTE: PageUp behavior may gain half-page option.
@@ -155,11 +155,11 @@ public class EditorNodeScrollTests
         node.Arrange(new Rect(0, 0, 20, 10));
 
         var cursorLine = node.State.Document.OffsetToPosition(node.State.Cursor.Position).Line;
-        Assert.True(node.ScrollOffset <= cursorLine);
-        Assert.True(node.ScrollOffset + node.ViewportLines > cursorLine);
+        Assert.IsTrue(node.ScrollOffset <= cursorLine);
+        Assert.IsTrue(node.ScrollOffset + node.ViewportLines > cursorLine);
     }
 
-    [Fact]
+    [TestMethod]
     public void TwoEditors_SameDoc_IndependentScroll()
     {
         // NOTE: Linked scroll mode may be added for diff views.
@@ -180,16 +180,16 @@ public class EditorNodeScrollTests
         node1.ScrollOffset = 20;
 
         // node2 should still be at line 1
-        Assert.Equal(20, node1.ScrollOffset);
-        Assert.Equal(1, node2.ScrollOffset);
+        Assert.AreEqual(20, node1.ScrollOffset);
+        Assert.AreEqual(1, node2.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public void ViewportLines_MatchArrangedHeight()
     {
         // NOTE: May change if scrollbar or status bar consumes viewport lines.
         var node = CreateNode("Hello", 30, 15);
-        Assert.Equal(15, node.ViewportLines);
-        Assert.Equal(30, node.ViewportColumns);
+        Assert.AreEqual(15, node.ViewportLines);
+        Assert.AreEqual(30, node.ViewportColumns);
     }
 }

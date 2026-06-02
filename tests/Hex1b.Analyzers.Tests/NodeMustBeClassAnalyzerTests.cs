@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis.Testing;
 
 namespace Hex1b.Analyzers.Tests;
 
+[TestClass]
 public class NodeMustBeClassAnalyzerTests
 {
     private static Task VerifyAsync(string source, params DiagnosticResult[] expected)
@@ -11,7 +12,7 @@ public class NodeMustBeClassAnalyzerTests
     private static DiagnosticResult Diagnostic()
         => AnalyzerTestHelpers<NodeMustBeClassAnalyzer>.Diagnostic(NodeMustBeClassAnalyzer.Rule);
 
-    [Fact]
+    [TestMethod]
     public async Task ClassNode_NoDiagnostic()
     {
         const string source = """
@@ -25,7 +26,7 @@ public class NodeMustBeClassAnalyzerTests
         await VerifyAsync(source);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task RecordNode_Reports()
     {
         const string source = """
@@ -39,7 +40,7 @@ public class NodeMustBeClassAnalyzerTests
         await VerifyAsync(source, Diagnostic().WithLocation(0).WithArguments("FooNode"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AbstractClassNode_NoDiagnostic()
     {
         const string source = """

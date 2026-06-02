@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Integration tests for the Slider widget using Hex1bApp.
 /// Tests various scenarios, layout conditions, and exports SVG, HTML, ANSI, and asciinema recordings.
 /// </summary>
+[TestClass]
 public class SliderIntegrationTests : IDisposable
 {
     private readonly List<string> _tempFiles = new();
@@ -31,7 +32,7 @@ public class SliderIntegrationTests : IDisposable
 
     #region Basic Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RendersBasicSlider()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -57,11 +58,10 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
 
         // Verify the slider track and handle are present
-        Assert.True(snapshot.ContainsText("─") || snapshot.ContainsText("█"),
-            "Slider should contain track or handle characters");
+        Assert.IsTrue(snapshot.ContainsText("─") || snapshot.ContainsText("█"), "Slider should contain track or handle characters");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RendersAtMinimum()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -87,7 +87,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RendersAtMaximum()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -113,7 +113,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RendersCustomRange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -139,7 +139,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RendersWithStep()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -169,7 +169,7 @@ public class SliderIntegrationTests : IDisposable
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_FillsAvailableWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -195,7 +195,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RespectsFixedWidth()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -221,7 +221,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_InHStackWithLabel()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -250,7 +250,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_MultipleInVStack()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -284,7 +284,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_InBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -311,11 +311,11 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Theory]
-    [InlineData(40)]
-    [InlineData(60)]
-    [InlineData(80)]
-    [InlineData(120)]
+    [TestMethod]
+    [DataRow(40)]
+    [DataRow(60)]
+    [DataRow(80)]
+    [DataRow(120)]
     public async Task Slider_RespondsToTerminalWidth(int width)
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -345,7 +345,7 @@ public class SliderIntegrationTests : IDisposable
 
     #region Keyboard Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_ArrowKeysChangeValue()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -373,10 +373,10 @@ public class SliderIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(currentValue > 50, $"Expected value > 50, got {currentValue}");
+        Assert.IsTrue(currentValue > 50, $"Expected value > 50, got {currentValue}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_HomeEndJumpToExtremes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -404,10 +404,10 @@ public class SliderIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.Equal(100, currentValue);
+        Assert.AreEqual(100, currentValue);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_TabNavigatesToNextWidget()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -434,14 +434,14 @@ public class SliderIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.True(buttonClicked);
+        Assert.IsTrue(buttonClicked);
     }
 
     #endregion
 
     #region Value Changed Callback Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_CallbackTriggeredOnChange()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -474,15 +474,15 @@ public class SliderIntegrationTests : IDisposable
 
         await runTask;
 
-        Assert.Equal(2, callbackCount);
-        Assert.True(lastPercentage > 0.5);
+        Assert.AreEqual(2, callbackCount);
+        Assert.IsTrue(lastPercentage > 0.5);
     }
 
     #endregion
 
     #region Theming Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RespectsCustomTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -522,7 +522,7 @@ public class SliderIntegrationTests : IDisposable
 
     #region Asciinema Recording Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RecordsInteraction()
     {
         var tempFile = GetTempFile();
@@ -621,7 +621,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RecordsMultipleSliders()
     {
         var tempFile = GetTempFile();
@@ -710,7 +710,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_RecordsResizeScenario()
     {
         var tempFile = GetTempFile();
@@ -787,7 +787,7 @@ public class SliderIntegrationTests : IDisposable
 
     #region Mouse Drag Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_MouseDragChangesValue()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -815,10 +815,10 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
 
         // Just verify no crash during drag - actual value change is tested manually
-        Assert.NotNull(snapshot);
+        Assert.IsNotNull(snapshot);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_MouseClickSetsValue()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -849,14 +849,14 @@ public class SliderIntegrationTests : IDisposable
 
         // Click should set value via OnValueChanged event
         // Note: Mouse click invokes the input binding which fires the event
-        Assert.True(currentValue >= 0, $"Value should be set, got {currentValue}");
+        Assert.IsTrue(currentValue >= 0, $"Value should be set, got {currentValue}");
     }
 
     #endregion
 
     #region Double-Width Character Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_DoubleWidthThumbCharacterRendersWithoutArtifacts()
     {
         // Use a double-width CJK character as the thumb to test for rendering artifacts
@@ -890,7 +890,7 @@ public class SliderIntegrationTests : IDisposable
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // Verify initial render contains the double-width character
-        Assert.True(snapshot.ContainsText("⾠"), "Slider should contain the double-width thumb character");
+        Assert.IsTrue(snapshot.ContainsText("⾠"), "Slider should contain the double-width thumb character");
 
         // Move slider and check for artifacts (no stray characters left behind)
         await new Hex1bTerminalInputSequenceBuilder()
@@ -909,7 +909,7 @@ public class SliderIntegrationTests : IDisposable
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_DoubleWidthThumbDragDoesNotLeaveArtifacts()
     {
         // Test that dragging a slider with a double-width thumb doesn't leave visual artifacts
@@ -958,11 +958,10 @@ public class SliderIntegrationTests : IDisposable
         var sliderLine = snapshot.GetLine(1);
         var thumbCount = sliderLine.Count(c => c == doubleWidthThumb);
         
-        Assert.True(thumbCount <= 1, 
-            $"Expected at most 1 thumb character, found {thumbCount}. Line: '{sliderLine}'");
+        Assert.IsTrue(thumbCount <= 1, $"Expected at most 1 thumb character, found {thumbCount}. Line: '{sliderLine}'");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_InsideBorder_BorderEdgesAreAligned()
     {
         // Test that a slider inside a border doesn't cause the border edges to misalign
@@ -1011,22 +1010,20 @@ public class SliderIntegrationTests : IDisposable
         var topRightDisplayCol = GetDisplayColumnOfLastChar(topLine, '┐');
         var bottomRightDisplayCol = GetDisplayColumnOfLastChar(bottomLine, '┘');
         
-        Assert.True(topRightDisplayCol >= 0, $"Top border should have right corner. Line: '{topLine}'");
-        Assert.True(bottomRightDisplayCol >= 0, $"Bottom border should have right corner. Line: '{bottomLine}'");
-        Assert.True(topRightDisplayCol == bottomRightDisplayCol, 
-            $"Border right edges should be aligned by display column. Top corner at column {topRightDisplayCol}, bottom corner at column {bottomRightDisplayCol}.\nTop: '{topLine}'\nBottom: '{bottomLine}'");
+        Assert.IsTrue(topRightDisplayCol >= 0, $"Top border should have right corner. Line: '{topLine}'");
+        Assert.IsTrue(bottomRightDisplayCol >= 0, $"Bottom border should have right corner. Line: '{bottomLine}'");
+        Assert.IsTrue(topRightDisplayCol == bottomRightDisplayCol, $"Border right edges should be aligned by display column. Top corner at column {topRightDisplayCol}, bottom corner at column {bottomRightDisplayCol}.\nTop: '{topLine}'\nBottom: '{bottomLine}'");
         
         // Check middle lines with vertical bars
         var middleLines = lines.Where(l => l.Contains('│') && !l.Contains('┌') && !l.Contains('└')).ToList();
         foreach (var middleLine in middleLines)
         {
             var rightBarDisplayCol = GetDisplayColumnOfLastChar(middleLine, '│');
-            Assert.True(topRightDisplayCol == rightBarDisplayCol,
-                $"Middle border should align with corners by display column. Expected column {topRightDisplayCol}, got {rightBarDisplayCol}.\nLine: '{middleLine}'");
+            Assert.IsTrue(topRightDisplayCol == rightBarDisplayCol, $"Middle border should align with corners by display column. Expected column {topRightDisplayCol}, got {rightBarDisplayCol}.\nLine: '{middleLine}'");
         }
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Slider_InsideBorder_WithDoubleWidthThumb_BorderEdgesAreAligned()
     {
         // Test that a slider with double-width thumb inside a border doesn't cause misalignment
@@ -1081,18 +1078,16 @@ public class SliderIntegrationTests : IDisposable
         var topRightDisplayCol = GetDisplayColumnOfLastChar(topLine, '┐');
         var bottomRightDisplayCol = GetDisplayColumnOfLastChar(bottomLine, '┘');
         
-        Assert.True(topRightDisplayCol >= 0, $"Top border should have right corner. Line: '{topLine}'");
-        Assert.True(bottomRightDisplayCol >= 0, $"Bottom border should have right corner. Line: '{bottomLine}'");
-        Assert.True(topRightDisplayCol == bottomRightDisplayCol, 
-            $"Border right edges should be aligned with double-width thumb. Top corner at column {topRightDisplayCol}, bottom corner at column {bottomRightDisplayCol}.\nTop: '{topLine}'\nBottom: '{bottomLine}'");
+        Assert.IsTrue(topRightDisplayCol >= 0, $"Top border should have right corner. Line: '{topLine}'");
+        Assert.IsTrue(bottomRightDisplayCol >= 0, $"Bottom border should have right corner. Line: '{bottomLine}'");
+        Assert.IsTrue(topRightDisplayCol == bottomRightDisplayCol, $"Border right edges should be aligned with double-width thumb. Top corner at column {topRightDisplayCol}, bottom corner at column {bottomRightDisplayCol}.\nTop: '{topLine}'\nBottom: '{bottomLine}'");
         
         // Check middle lines with vertical bars
         var middleLines = lines.Where(l => l.Contains('│') && !l.Contains('┌') && !l.Contains('└')).ToList();
         foreach (var middleLine in middleLines)
         {
             var rightBarDisplayCol = GetDisplayColumnOfLastChar(middleLine, '│');
-            Assert.True(topRightDisplayCol == rightBarDisplayCol,
-                $"Middle border should align with corners. Expected column {topRightDisplayCol}, got {rightBarDisplayCol}.\nLine: '{middleLine}'");
+            Assert.IsTrue(topRightDisplayCol == rightBarDisplayCol, $"Middle border should align with corners. Expected column {topRightDisplayCol}, got {rightBarDisplayCol}.\nLine: '{middleLine}'");
         }
     }
 

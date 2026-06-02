@@ -2,30 +2,31 @@ using Hex1b.Documents;
 
 namespace Hex1b.Tests.Documents;
 
+[TestClass]
 public class DocumentCursorTests
 {
-    [Fact]
+    [TestMethod]
     public void Position_DefaultIsZero()
     {
         var cursor = new DocumentCursor();
-        Assert.Equal(DocumentOffset.Zero, cursor.Position);
+        Assert.AreEqual(DocumentOffset.Zero, cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionAnchor_DefaultIsNull()
     {
         var cursor = new DocumentCursor();
-        Assert.Null(cursor.SelectionAnchor);
+        Assert.IsNull(cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSelection_NoAnchor_ReturnsFalse()
     {
         var cursor = new DocumentCursor();
-        Assert.False(cursor.HasSelection);
+        Assert.IsFalse(cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSelection_AnchorSameAsPosition_ReturnsFalse()
     {
         var cursor = new DocumentCursor
@@ -33,10 +34,10 @@ public class DocumentCursorTests
             Position = new DocumentOffset(5),
             SelectionAnchor = new DocumentOffset(5)
         };
-        Assert.False(cursor.HasSelection);
+        Assert.IsFalse(cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void HasSelection_AnchorDifferentFromPosition_ReturnsTrue()
     {
         var cursor = new DocumentCursor
@@ -44,12 +45,12 @@ public class DocumentCursorTests
             Position = new DocumentOffset(5),
             SelectionAnchor = new DocumentOffset(2)
         };
-        Assert.True(cursor.HasSelection);
+        Assert.IsTrue(cursor.HasSelection);
     }
 
     // --- SelectionStart / SelectionEnd ---
 
-    [Fact]
+    [TestMethod]
     public void SelectionStart_AnchorBeforePosition_ReturnsAnchor()
     {
         var cursor = new DocumentCursor
@@ -57,10 +58,10 @@ public class DocumentCursorTests
             Position = new DocumentOffset(8),
             SelectionAnchor = new DocumentOffset(3)
         };
-        Assert.Equal(new DocumentOffset(3), cursor.SelectionStart);
+        Assert.AreEqual(new DocumentOffset(3), cursor.SelectionStart);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionEnd_AnchorBeforePosition_ReturnsPosition()
     {
         var cursor = new DocumentCursor
@@ -68,10 +69,10 @@ public class DocumentCursorTests
             Position = new DocumentOffset(8),
             SelectionAnchor = new DocumentOffset(3)
         };
-        Assert.Equal(new DocumentOffset(8), cursor.SelectionEnd);
+        Assert.AreEqual(new DocumentOffset(8), cursor.SelectionEnd);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionStart_AnchorAfterPosition_ReturnsPosition()
     {
         var cursor = new DocumentCursor
@@ -79,10 +80,10 @@ public class DocumentCursorTests
             Position = new DocumentOffset(3),
             SelectionAnchor = new DocumentOffset(8)
         };
-        Assert.Equal(new DocumentOffset(3), cursor.SelectionStart);
+        Assert.AreEqual(new DocumentOffset(3), cursor.SelectionStart);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionEnd_AnchorAfterPosition_ReturnsAnchor()
     {
         var cursor = new DocumentCursor
@@ -90,26 +91,26 @@ public class DocumentCursorTests
             Position = new DocumentOffset(3),
             SelectionAnchor = new DocumentOffset(8)
         };
-        Assert.Equal(new DocumentOffset(8), cursor.SelectionEnd);
+        Assert.AreEqual(new DocumentOffset(8), cursor.SelectionEnd);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionStart_NoSelection_ReturnsPosition()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
-        Assert.Equal(new DocumentOffset(5), cursor.SelectionStart);
+        Assert.AreEqual(new DocumentOffset(5), cursor.SelectionStart);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionEnd_NoSelection_ReturnsPosition()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
-        Assert.Equal(new DocumentOffset(5), cursor.SelectionEnd);
+        Assert.AreEqual(new DocumentOffset(5), cursor.SelectionEnd);
     }
 
     // --- SelectionRange ---
 
-    [Fact]
+    [TestMethod]
     public void SelectionRange_WithSelection_ReturnsCorrectRange()
     {
         var cursor = new DocumentCursor
@@ -118,22 +119,22 @@ public class DocumentCursorTests
             SelectionAnchor = new DocumentOffset(3)
         };
         var range = cursor.SelectionRange;
-        Assert.Equal(new DocumentOffset(3), range.Start);
-        Assert.Equal(new DocumentOffset(8), range.End);
+        Assert.AreEqual(new DocumentOffset(3), range.Start);
+        Assert.AreEqual(new DocumentOffset(8), range.End);
     }
 
-    [Fact]
+    [TestMethod]
     public void SelectionRange_NoSelection_ReturnsEmptyRangeAtPosition()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
         var range = cursor.SelectionRange;
-        Assert.True(range.IsEmpty);
-        Assert.Equal(new DocumentOffset(5), range.Start);
+        Assert.IsTrue(range.IsEmpty);
+        Assert.AreEqual(new DocumentOffset(5), range.Start);
     }
 
     // --- ClearSelection ---
 
-    [Fact]
+    [TestMethod]
     public void ClearSelection_RemovesAnchor()
     {
         var cursor = new DocumentCursor
@@ -142,37 +143,37 @@ public class DocumentCursorTests
             SelectionAnchor = new DocumentOffset(3)
         };
         cursor.ClearSelection();
-        Assert.Null(cursor.SelectionAnchor);
-        Assert.False(cursor.HasSelection);
+        Assert.IsNull(cursor.SelectionAnchor);
+        Assert.IsFalse(cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClearSelection_WhenNoSelection_IsNoOp()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
         cursor.ClearSelection();
-        Assert.Null(cursor.SelectionAnchor);
+        Assert.IsNull(cursor.SelectionAnchor);
     }
 
     // --- Clamp ---
 
-    [Fact]
+    [TestMethod]
     public void Clamp_PositionWithinRange_NoChange()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(3) };
         cursor.Clamp(10);
-        Assert.Equal(new DocumentOffset(3), cursor.Position);
+        Assert.AreEqual(new DocumentOffset(3), cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clamp_PositionBeyondRange_ClampsToEnd()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(15) };
         cursor.Clamp(10);
-        Assert.Equal(new DocumentOffset(10), cursor.Position);
+        Assert.AreEqual(new DocumentOffset(10), cursor.Position);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clamp_AnchorBeyondRange_ClampsToEnd()
     {
         var cursor = new DocumentCursor
@@ -181,11 +182,11 @@ public class DocumentCursorTests
             SelectionAnchor = new DocumentOffset(15)
         };
         cursor.Clamp(10);
-        Assert.Equal(new DocumentOffset(3), cursor.Position);
-        Assert.Equal(new DocumentOffset(10), cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(3), cursor.Position);
+        Assert.AreEqual(new DocumentOffset(10), cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clamp_BothBeyondRange_BothClamped()
     {
         var cursor = new DocumentCursor
@@ -194,23 +195,23 @@ public class DocumentCursorTests
             SelectionAnchor = new DocumentOffset(25)
         };
         cursor.Clamp(10);
-        Assert.Equal(new DocumentOffset(10), cursor.Position);
-        Assert.Equal(new DocumentOffset(10), cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(10), cursor.Position);
+        Assert.AreEqual(new DocumentOffset(10), cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clamp_NoAnchor_DoesNotCreateAnchor()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(15) };
         cursor.Clamp(10);
-        Assert.Null(cursor.SelectionAnchor);
+        Assert.IsNull(cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Clamp_ZeroLength_PositionClampsToZero()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
         cursor.Clamp(0);
-        Assert.Equal(DocumentOffset.Zero, cursor.Position);
+        Assert.AreEqual(DocumentOffset.Zero, cursor.Position);
     }
 }

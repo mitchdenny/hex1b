@@ -1,12 +1,12 @@
 using Hex1b.Layout;
 using Hex1b.Nodes;
-using Xunit;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class LayoutNodeAnsiClippingTests
 {
-    [Fact]
+    [TestMethod]
     public void ClipString_RightClipsPrintableText_PreservesTrailingResetSuffix()
     {
         var node = new LayoutNode();
@@ -16,12 +16,12 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(1, adjustedX);
-        Assert.Equal("\x1b[31mBCD\x1b[0m", clipped);
+        Assert.AreEqual(1, adjustedX);
+        Assert.AreEqual("\x1b[31mBCD\x1b[0m", clipped);
         AssertValidAnsiCsiSequences(clipped);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_ClipsPlainText_DoesNotIntroduceAnsiCodes()
     {
         var node = new LayoutNode();
@@ -31,12 +31,12 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(1, adjustedX);
-        Assert.Equal("BCD", clipped);
+        Assert.AreEqual(1, adjustedX);
+        Assert.AreEqual("BCD", clipped);
         Assert.DoesNotContain("\x1b[", clipped);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_WideCharacter_DoesNotSplitEmoji()
     {
         var node = new LayoutNode();
@@ -48,11 +48,11 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(0, adjustedX);
-        Assert.Equal("A😀B", clipped); // All fits
+        Assert.AreEqual(0, adjustedX);
+        Assert.AreEqual("A😀B", clipped); // All fits
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_WideCharacterClippedOnRight_AddsPadding()
     {
         var node = new LayoutNode();
@@ -64,12 +64,12 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(0, adjustedX);
+        Assert.AreEqual(0, adjustedX);
         // Should only include "A" and a space for padding since 😀 doesn't fit
-        Assert.Equal("A ", clipped);
+        Assert.AreEqual("A ", clipped);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_WideCharacterClippedOnLeft_AddsPadding()
     {
         var node = new LayoutNode();
@@ -82,12 +82,12 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(1, adjustedX);
+        Assert.AreEqual(1, adjustedX);
         // Should skip 😀 and add padding, then include B
-        Assert.Equal(" B", clipped);
+        Assert.AreEqual(" B", clipped);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_CJKCharacters_HandledCorrectly()
     {
         var node = new LayoutNode();
@@ -99,11 +99,11 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(0, adjustedX);
-        Assert.Equal("中文", clipped);
+        Assert.AreEqual(0, adjustedX);
+        Assert.AreEqual("中文", clipped);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClipString_CJKWithAnsi_PreservesEscapeCodes()
     {
         var node = new LayoutNode();
@@ -113,8 +113,8 @@ public class LayoutNodeAnsiClippingTests
 
         var (adjustedX, clipped) = node.ClipString(0, 0, text);
 
-        Assert.Equal(0, adjustedX);
-        Assert.Equal("\x1b[31m中文\x1b[0m", clipped);
+        Assert.AreEqual(0, adjustedX);
+        Assert.AreEqual("\x1b[31m中文\x1b[0m", clipped);
         AssertValidAnsiCsiSequences(clipped);
     }
 
@@ -125,7 +125,7 @@ public class LayoutNodeAnsiClippingTests
             if (text[i] != '\x1b')
                 continue;
 
-            Assert.True(i + 1 < text.Length, "Dangling ESC at end");
+            Assert.IsTrue(i + 1 < text.Length, "Dangling ESC at end");
 
             if (text[i + 1] != '[')
                 continue;
@@ -142,7 +142,7 @@ public class LayoutNodeAnsiClippingTests
                 }
             }
 
-            Assert.True(foundFinal, "Incomplete CSI sequence");
+            Assert.IsTrue(foundFinal, "Incomplete CSI sequence");
         }
     }
 }

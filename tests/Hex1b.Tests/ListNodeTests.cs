@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Comprehensive tests for ListNode rendering and input handling.
 /// </summary>
+[TestClass]
 public class ListNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload, Hex1bTheme? theme = null)
@@ -24,7 +25,7 @@ public class ListNodeTests
 
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectSize()
     {
         var node = new ListNode 
@@ -35,42 +36,42 @@ public class ListNodeTests
         var size = node.Measure(Constraints.Unbounded);
         
         // Width = max item length + 2 (indicator), Height = item count
-        Assert.Equal(13, size.Width); // "Longer Item" = 11 + 2
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(13, size.Width); // "Longer Item" = 11 + 2
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyList_HasMinHeight()
     {
         var node = new ListNode { Items = [] };
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_SingleItem_IncludesIndicator()
     {
         var node = new ListNode { Items = CreateItems("Hello") };
         
         var size = node.Measure(Constraints.Unbounded);
         
-        Assert.Equal(7, size.Width); // "Hello" = 5 + 2 for indicator
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(7, size.Width); // "Hello" = 5 + 2 for indicator
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxWidth()
     {
         var node = new ListNode { Items = CreateItems("Very Long Item Name") };
         
         var size = node.Measure(new Constraints(0, 10, 0, 100));
         
-        Assert.Equal(10, size.Width);
+        Assert.AreEqual(10, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxHeight()
     {
         var node = new ListNode 
@@ -80,14 +81,14 @@ public class ListNodeTests
         
         var size = node.Measure(new Constraints(0, 100, 0, 3));
         
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(3, size.Height);
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new ListNode { Items = CreateItems("Test") };
@@ -95,10 +96,10 @@ public class ListNodeTests
         
         node.Arrange(bounds);
         
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithOffset_SetsBoundsWithOffset()
     {
         var node = new ListNode { Items = CreateItems("Test") };
@@ -106,15 +107,15 @@ public class ListNodeTests
         
         node.Arrange(bounds);
         
-        Assert.Equal(5, node.Bounds.X);
-        Assert.Equal(3, node.Bounds.Y);
+        Assert.AreEqual(5, node.Bounds.X);
+        Assert.AreEqual(3, node.Bounds.Y);
     }
 
     #endregion
 
     #region Rendering - Basic Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ShowsAllItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -141,12 +142,12 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("Item 1"));
-        Assert.True(snapshot.ContainsText("Item 2"));
-        Assert.True(snapshot.ContainsText("Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("Item 3"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyList_RendersNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -163,10 +164,10 @@ public class ListNodeTests
             .ApplyAsync(terminal);
         
         // Should not crash and output should be minimal
-        Assert.False(terminal.CreateSnapshot().ContainsText("Item"));
+        Assert.IsFalse(terminal.CreateSnapshot().ContainsText("Item"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SingleItem_ShowsItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -185,14 +186,14 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("Only Item"));
+        Assert.IsTrue(snapshot.ContainsText("Only Item"));
     }
 
     #endregion
 
     #region Rendering - Selection Indicator Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SelectedItem_HasSelectedIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -211,10 +212,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("> Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 1"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_UnselectedItems_HaveUnselectedIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -233,10 +234,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("  Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("  Item 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MiddleItemSelected_ShowsCorrectIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -260,12 +261,12 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("  First"));
-        Assert.True(snapshot.ContainsText("> Second"));
-        Assert.True(snapshot.ContainsText("  Third"));
+        Assert.IsTrue(snapshot.ContainsText("  First"));
+        Assert.IsTrue(snapshot.ContainsText("> Second"));
+        Assert.IsTrue(snapshot.ContainsText("  Third"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_LastItemSelected_ShowsCorrectIndicators()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -289,16 +290,16 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("  First"));
-        Assert.True(snapshot.ContainsText("  Second"));
-        Assert.True(snapshot.ContainsText("> Third"));
+        Assert.IsTrue(snapshot.ContainsText("  First"));
+        Assert.IsTrue(snapshot.ContainsText("  Second"));
+        Assert.IsTrue(snapshot.ContainsText("> Third"));
     }
 
     #endregion
 
     #region Rendering - Focus State Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_FocusedAndSelected_HasColorCodes()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -318,10 +319,10 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // The output should contain colors for the focused+selected item
-        Assert.True(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
+        Assert.IsTrue(snapshot.HasForegroundColor() || snapshot.HasBackgroundColor() || snapshot.HasAttribute(CellAttributes.Reverse));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NotFocused_SelectedItemHasIndicatorOnly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -340,14 +341,14 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("> Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 1"));
     }
 
     #endregion
 
     #region Rendering - Position Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithOffset_RendersAtCorrectPosition()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -366,10 +367,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("Test Item"));
+        Assert.IsTrue(snapshot.ContainsText("Test Item"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultipleItems_RendersAllItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -396,16 +397,16 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("Item A"));
-        Assert.True(snapshot.ContainsText("Item B"));
-        Assert.True(snapshot.ContainsText("Item C"));
+        Assert.IsTrue(snapshot.ContainsText("Item A"));
+        Assert.IsTrue(snapshot.ContainsText("Item B"));
+        Assert.IsTrue(snapshot.ContainsText("Item C"));
     }
 
     #endregion
 
     #region Rendering - Theming Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomTheme_UsesCustomColors()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -428,12 +429,12 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Yellow foreground
-        Assert.True(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 0)));
+        Assert.IsTrue(snapshot.HasForegroundColor(Hex1bColor.FromRgb(255, 255, 0)));
         // Red background
-        Assert.True(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)));
+        Assert.IsTrue(snapshot.HasBackgroundColor(Hex1bColor.FromRgb(255, 0, 0)));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomIndicator_UsesCustomIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -453,10 +454,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("► Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("► Item 1"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomUnselectedIndicator_UsesCustomIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -476,10 +477,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("- Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("- Item 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RetroTheme_UsesTriangleIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -498,14 +499,14 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("► Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("► Item 1"));
     }
 
     #endregion
 
     #region Rendering - Narrow Terminal Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NarrowTerminal_TruncatesItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -528,10 +529,10 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText("Very"));
+        Assert.IsTrue(snapshot.ContainsText("Very"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MinimalWidth_StillRendersIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -550,56 +551,56 @@ public class ListNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
-        Assert.True(snapshot.ContainsText(">"));
+        Assert.IsTrue(snapshot.ContainsText(">"));
     }
 
     #endregion
 
     #region Input Handling - Navigation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_MovesSelection()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_MovesSelection()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_WrapsAround()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_WrapsAround()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_MultipleDownArrows_NavigatesCorrectly()
     {
         var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 0, IsFocused = true };
@@ -608,10 +609,10 @@ public class ListNodeTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(3, node.SelectedIndex);
+        Assert.AreEqual(3, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_MultipleUpArrows_NavigatesCorrectly()
     {
         var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 3, IsFocused = true };
@@ -619,14 +620,14 @@ public class ListNodeTests
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
     #endregion
 
     #region Input Handling - Activation Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_InvokesOnItemActivated()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
@@ -635,12 +636,12 @@ public class ListNodeTests
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.NotNull(activatedItem);
-        Assert.Equal("Item 2", activatedItem);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsNotNull(activatedItem);
+        Assert.AreEqual("Item 2", activatedItem);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Space_InvokesOnItemActivated()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
@@ -649,12 +650,12 @@ public class ListNodeTests
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.NotNull(activatedItem);
-        Assert.Equal("Item 1", activatedItem);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsNotNull(activatedItem);
+        Assert.AreEqual("Item 1", activatedItem);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_WithoutCallback_StillReturnsHandled()
     {
         var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
@@ -662,10 +663,10 @@ public class ListNodeTests
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
+        Assert.AreEqual(InputResult.Handled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Enter_OnEmptyList_ReturnsHandled()
     {
         var node = new ListNode { Items = [], IsFocused = true };
@@ -674,15 +675,15 @@ public class ListNodeTests
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Null(activatedItem); // No item to activate
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.IsNull(activatedItem); // No item to activate
     }
 
     #endregion
 
     #region Input Handling - Selection Changed Callback Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_DownArrow_InvokesOnSelectionChanged()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
@@ -691,11 +692,11 @@ public class ListNodeTests
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.NotNull(selectedItem);
-        Assert.Equal("Item 2", selectedItem);
+        Assert.IsNotNull(selectedItem);
+        Assert.AreEqual("Item 2", selectedItem);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_UpArrow_InvokesOnSelectionChanged()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
@@ -704,15 +705,15 @@ public class ListNodeTests
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.NotNull(selectedItem);
-        Assert.Equal("Item 1", selectedItem);
+        Assert.IsNotNull(selectedItem);
+        Assert.AreEqual("Item 1", selectedItem);
     }
 
     #endregion
 
     #region Input Handling - Edge Cases
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WhenNotFocused_BindingsStillExecute()
     {
         // Note: With the new input binding architecture, bindings execute at the node level
@@ -723,68 +724,68 @@ public class ListNodeTests
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         // Bindings execute regardless of focus state when using RouteInputToNode
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);  // Selection changed
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);  // Selection changed
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_OtherKey_DoesNotHandle()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Tab_DoesNotHandle()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Tab, '\t', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_Escape_DoesNotHandle()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Escape, '\x1b', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion
 
     #region Focusability Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsTrue()
     {
         var node = new ListNode();
         
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_ReturnsSelf()
     {
         var node = new ListNode { Items = CreateItems("Test") };
         
         var focusables = node.GetFocusableNodes().ToList();
         
-        Assert.Single(focusables);
-        Assert.Same(node, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(node, focusables[0]);
     }
 
     #endregion
 
     #region Integration Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListInApp_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -810,12 +811,12 @@ public class ListNodeTests
         await runTask;
         
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Option A"));
-        Assert.True(snapshot.ContainsText("Option B"));
-        Assert.True(snapshot.ContainsText("Option C"));
+        Assert.IsTrue(snapshot.ContainsText("Option A"));
+        Assert.IsTrue(snapshot.ContainsText("Option B"));
+        Assert.IsTrue(snapshot.ContainsText("Option C"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListWithSelection_RendersIndicator()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -843,12 +844,12 @@ public class ListNodeTests
         await runTask;
         
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("> Second"));
-        Assert.True(snapshot.ContainsText("  First"));
-        Assert.True(snapshot.ContainsText("  Third"));
+        Assert.IsTrue(snapshot.ContainsText("> Second"));
+        Assert.IsTrue(snapshot.ContainsText("  First"));
+        Assert.IsTrue(snapshot.ContainsText("  Third"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListInBorder_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -876,12 +877,12 @@ public class ListNodeTests
         await runTask;
         
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Item 1"));
-        Assert.True(snapshot.ContainsText("Item 2"));
-        Assert.True(snapshot.ContainsText("┌"));
+        Assert.IsTrue(snapshot.ContainsText("Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("┌"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListReceivesFocus_HandlesInput()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -909,10 +910,10 @@ public class ListNodeTests
         await runTask;
         
         // After down arrow, second item should be selected
-        Assert.True(snapshot.ContainsText("> Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListActivation_InvokesCallback()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -939,10 +940,10 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
         
-        Assert.Equal("Action 1", activatedAction);
+        Assert.AreEqual("Action 1", activatedAction);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListInVStack_RendersWithOtherElements()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -973,11 +974,11 @@ public class ListNodeTests
         await runTask;
         
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Select an option:"));
-        Assert.True(snapshot.ContainsText("Menu Item"));
+        Assert.IsTrue(snapshot.ContainsText("Select an option:"));
+        Assert.IsTrue(snapshot.ContainsText("Menu Item"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListWithTheme_AppliesTheme()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1003,10 +1004,10 @@ public class ListNodeTests
         await runTask;
         
         // HighContrast theme uses "► " indicator - use captured snapshot
-        Assert.True(snapshot.ContainsText("► Themed Item"));
+        Assert.IsTrue(snapshot.ContainsText("► Themed Item"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListNavigationMultipleSteps_UpdatesSelection()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1035,10 +1036,10 @@ public class ListNodeTests
         await runTask;
         
         // Third item should be selected - use captured snapshot
-        Assert.True(snapshot.ContainsText("> Third"));
+        Assert.IsTrue(snapshot.ContainsText("> Third"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ListInsideBorderWithOtherWidgets_RendersProperly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1070,18 +1071,18 @@ public class ListNodeTests
         await runTask;
         
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Welcome"));
-        Assert.True(snapshot.ContainsText("Options"));
-        Assert.True(snapshot.ContainsText("Option A"));
-        Assert.True(snapshot.ContainsText("Option B"));
-        Assert.True(snapshot.ContainsText("OK"));
+        Assert.IsTrue(snapshot.ContainsText("Welcome"));
+        Assert.IsTrue(snapshot.ContainsText("Options"));
+        Assert.IsTrue(snapshot.ContainsText("Option A"));
+        Assert.IsTrue(snapshot.ContainsText("Option B"));
+        Assert.IsTrue(snapshot.ContainsText("OK"));
     }
 
     #endregion
 
     #region Mouse Click Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_SelectsClickedItem()
     {
         // Note: Mouse click is synchronous so it cannot fire async events.
@@ -1097,11 +1098,11 @@ public class ListNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 1, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, 1, mouseEvent);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_OutOfBounds_ReturnsNotHandled()
     {
         var node = new ListNode
@@ -1115,11 +1116,11 @@ public class ListNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 5, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, 5, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal(0, node.SelectedIndex); // Unchanged
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual(0, node.SelectedIndex); // Unchanged
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleMouseClick_NegativeY_ReturnsNotHandled()
     {
         var node = new ListNode
@@ -1130,14 +1131,14 @@ public class ListNodeTests
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, -1, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, -1, mouseEvent);
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion
 
     #region Mouse Wheel Scrolling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task MouseWheelDown_MovesSelectionDown()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
@@ -1147,15 +1148,15 @@ public class ListNodeTests
         // Create a mouse wheel down event via the binding system
         var builder = node.BuildBindings();
         var scrollDownBinding = builder.MouseBindings.FirstOrDefault(b => b.Button == MouseButton.ScrollDown);
-        Assert.NotNull(scrollDownBinding);
+        Assert.IsNotNull(scrollDownBinding);
         
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollDownBinding!.ExecuteAsync(ctx);
         
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseWheelUp_MovesSelectionUp()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
@@ -1165,15 +1166,15 @@ public class ListNodeTests
         // Create a mouse wheel up event via the binding system
         var builder = node.BuildBindings();
         var scrollUpBinding = builder.MouseBindings.FirstOrDefault(b => b.Button == MouseButton.ScrollUp);
-        Assert.NotNull(scrollUpBinding);
+        Assert.IsNotNull(scrollUpBinding);
         
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollUpBinding!.ExecuteAsync(ctx);
         
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseWheelDown_WrapsAroundToFirstItem()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
@@ -1182,16 +1183,16 @@ public class ListNodeTests
         
         var builder = node.BuildBindings();
         var scrollDownBinding = builder.MouseBindings.FirstOrDefault(b => b.Button == MouseButton.ScrollDown);
-        Assert.NotNull(scrollDownBinding);
+        Assert.IsNotNull(scrollDownBinding);
         
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollDownBinding!.ExecuteAsync(ctx);
         
         // Should wrap around to first item
-        Assert.Equal(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseWheelUp_WrapsAroundToLastItem()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
@@ -1200,16 +1201,16 @@ public class ListNodeTests
         
         var builder = node.BuildBindings();
         var scrollUpBinding = builder.MouseBindings.FirstOrDefault(b => b.Button == MouseButton.ScrollUp);
-        Assert.NotNull(scrollUpBinding);
+        Assert.IsNotNull(scrollUpBinding);
         
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollUpBinding!.ExecuteAsync(ctx);
         
         // Should wrap around to last item
-        Assert.Equal(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MouseWheel_InvokesSelectionChangedEvent()
     {
         var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
@@ -1225,15 +1226,15 @@ public class ListNodeTests
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollDownBinding!.ExecuteAsync(ctx);
         
-        Assert.NotNull(selectedItem);
-        Assert.Equal("Item 2", selectedItem);
+        Assert.IsNotNull(selectedItem);
+        Assert.AreEqual("Item 2", selectedItem);
     }
 
     #endregion
 
     #region Viewport Scrolling Tests (Height-Constrained Container)
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_HasCorrectViewportHeight()
     {
         var node = new ListNode 
@@ -1245,12 +1246,12 @@ public class ListNodeTests
         node.Measure(new Constraints(0, 100, 0, 3));
         node.Arrange(new Rect(0, 0, 20, 3));
         
-        Assert.Equal(3, node.ViewportHeight);
-        Assert.True(node.IsScrollable);
-        Assert.Equal(2, node.MaxScrollOffset); // 5 items - 3 viewport = 2
+        Assert.AreEqual(3, node.ViewportHeight);
+        Assert.IsTrue(node.IsScrollable);
+        Assert.AreEqual(2, node.MaxScrollOffset); // 5 items - 3 viewport = 2
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_InitialScrollOffsetIsZero()
     {
         var node = new ListNode 
@@ -1261,10 +1262,10 @@ public class ListNodeTests
         node.Measure(new Constraints(0, 100, 0, 3));
         node.Arrange(new Rect(0, 0, 20, 3));
         
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_NavigatingDown_ScrollsToRevealItem()
     {
         var node = new ListNode 
@@ -1277,17 +1278,17 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 20, 3));
         
         // Initially scroll offset is 0, showing items 0, 1, 2
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.ScrollOffset);
         
         // Navigate down to item 3 (index 3)
         node.MoveDown();
         
         // Scroll offset should adjust to show item 3
-        Assert.Equal(3, node.SelectedIndex);
-        Assert.Equal(1, node.ScrollOffset); // Now showing items 1, 2, 3
+        Assert.AreEqual(3, node.SelectedIndex);
+        Assert.AreEqual(1, node.ScrollOffset); // Now showing items 1, 2, 3
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_NavigatingUp_ScrollsToRevealItem()
     {
         var node = new ListNode 
@@ -1301,7 +1302,7 @@ public class ListNodeTests
         
         // The scroll offset should be adjusted to show selected item
         // With selection at 3 and viewport of 3, offset should be 1
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
         
         // Navigate up to first visible item
         node.MoveUp(); // Now at index 2
@@ -1309,11 +1310,11 @@ public class ListNodeTests
         node.MoveUp(); // Now at index 0
         
         // Scroll should adjust to show item 0
-        Assert.Equal(0, node.SelectedIndex);
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_NavigatingToEnd_ScrollsMaximally()
     {
         var node = new ListNode 
@@ -1329,10 +1330,10 @@ public class ListNodeTests
         node.SelectedIndex = 4;
         
         // Scroll offset should be at max (showing items 2, 3, 4)
-        Assert.Equal(2, node.ScrollOffset);
+        Assert.AreEqual(2, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_RendersOnlyVisibleItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1366,16 +1367,16 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should show first 3 items
-        Assert.True(snapshot.ContainsText("Item 1"));
-        Assert.True(snapshot.ContainsText("Item 2"));
-        Assert.True(snapshot.ContainsText("Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("Item 1"));
+        Assert.IsTrue(snapshot.ContainsText("Item 2"));
+        Assert.IsTrue(snapshot.ContainsText("Item 3"));
         
         // Should NOT show items 4 and 5 (they're outside viewport)
-        Assert.False(snapshot.ContainsText("Item 4"));
-        Assert.False(snapshot.ContainsText("Item 5"));
+        Assert.IsFalse(snapshot.ContainsText("Item 4"));
+        Assert.IsFalse(snapshot.ContainsText("Item 5"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_AfterScrolling_RendersCorrectItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1409,16 +1410,16 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Should show items 3, 4, 5 (scroll offset = 2)
-        Assert.True(snapshot.ContainsText("Item 3"));
-        Assert.True(snapshot.ContainsText("Item 4"));
-        Assert.True(snapshot.ContainsText("Item 5"));
+        Assert.IsTrue(snapshot.ContainsText("Item 3"));
+        Assert.IsTrue(snapshot.ContainsText("Item 4"));
+        Assert.IsTrue(snapshot.ContainsText("Item 5"));
         
         // Should NOT show items 1 and 2
-        Assert.False(snapshot.ContainsText("Item 1"));
-        Assert.False(snapshot.ContainsText("Item 2"));
+        Assert.IsFalse(snapshot.ContainsText("Item 1"));
+        Assert.IsFalse(snapshot.ContainsText("Item 2"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_MouseClickOnVisibleItem_SelectsCorrectItem()
     {
         var node = new ListNode 
@@ -1431,18 +1432,18 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 20, 3));
         
         // Verify scroll offset
-        Assert.Equal(1, node.ScrollOffset);
+        Assert.AreEqual(1, node.ScrollOffset);
         
         // Click on the third visible row (local Y = 2)
         // With scroll offset 1, this should select item at index 3 (1 + 2)
         var mouseEvent = new Hex1bMouseEvent(MouseButton.Left, MouseAction.Down, 5, 2, Hex1bModifiers.None);
         var result = node.HandleMouseClick(5, 2, mouseEvent);
         
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal(3, node.SelectedIndex);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual(3, node.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_WrapAroundNavigation_ScrollsCorrectly()
     {
         var node = new ListNode 
@@ -1457,11 +1458,11 @@ public class ListNodeTests
         // Navigate down from last item (should wrap to first)
         node.MoveDown();
         
-        Assert.Equal(0, node.SelectedIndex);
-        Assert.Equal(0, node.ScrollOffset); // Should scroll to show first item
+        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.ScrollOffset); // Should scroll to show first item
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ConstrainedListWithKeyboardNavigation_RevealsItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1491,11 +1492,11 @@ public class ListNodeTests
         await runTask;
         
         // Use the captured snapshot to verify - Date should be visible and selected
-        Assert.True(snapshot.ContainsText("Date"));
-        Assert.True(snapshot.ContainsText("> Date")); // Should be selected
+        Assert.IsTrue(snapshot.ContainsText("Date"));
+        Assert.IsTrue(snapshot.ContainsText("> Date")); // Should be selected
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_ConstrainedListWithMouseWheel_NavigatesCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1526,10 +1527,10 @@ public class ListNodeTests
         await runTask;
         
         // Use the captured snapshot - Date should be visible after scrolling
-        Assert.True(snapshot.ContainsText("Date"));
+        Assert.IsTrue(snapshot.ContainsText("Date"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task UnconstrainedList_IsNotScrollable()
     {
         var node = new ListNode 
@@ -1541,11 +1542,11 @@ public class ListNodeTests
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 10)); // Viewport larger than items
         
-        Assert.False(node.IsScrollable);
-        Assert.Equal(0, node.MaxScrollOffset);
+        Assert.IsFalse(node.IsScrollable);
+        Assert.AreEqual(0, node.MaxScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ConstrainedList_ScrollOffsetClampsOnItemsChange()
     {
         var node = new ListNode 
@@ -1558,17 +1559,17 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 20, 3));
         
         // Scroll offset should be 2 to show last item
-        Assert.Equal(2, node.ScrollOffset);
+        Assert.AreEqual(2, node.ScrollOffset);
         
         // Now reduce items - scroll offset should clamp
         node.Items = CreateItems("Item 1", "Item 2");
         node.Arrange(new Rect(0, 0, 20, 3));
         
         // With only 2 items and viewport of 3, max offset is 0
-        Assert.Equal(0, node.ScrollOffset);
+        Assert.AreEqual(0, node.ScrollOffset);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_LongList_KeyboardNavigationScrollsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1602,15 +1603,15 @@ public class ListNodeTests
         await runTask;
         
         // Item 15 should be selected and visible
-        Assert.True(snapshot.ContainsText("> Item 15"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 15"));
         // Items around it should also be visible
-        Assert.True(snapshot.ContainsText("Item 14") || snapshot.ContainsText("Item 13"));
+        Assert.IsTrue(snapshot.ContainsText("Item 14") || snapshot.ContainsText("Item 13"));
         // Early items should NOT be visible (scrolled out)
-        Assert.False(snapshot.ContainsText("Item 01"));
-        Assert.False(snapshot.ContainsText("Item 02"));
+        Assert.IsFalse(snapshot.ContainsText("Item 01"));
+        Assert.IsFalse(snapshot.ContainsText("Item 02"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_LongList_MouseWheelScrollsThroughEntireList()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1643,12 +1644,12 @@ public class ListNodeTests
         await runTask;
         
         // Item 20 should be selected and visible
-        Assert.True(snapshot.ContainsText("> Item 20"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 20"));
         // Early items should NOT be visible
-        Assert.False(snapshot.ContainsText("Item 01"));
+        Assert.IsFalse(snapshot.ContainsText("Item 01"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MouseClickAfterScrolling_SelectsCorrectItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1686,7 +1687,7 @@ public class ListNodeTests
         // Selection verified by WaitUntil above - "> Item" was confirmed before Ctrl+C
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LongList_RendersOnlyVisibleItems()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1708,7 +1709,7 @@ public class ListNodeTests
         
         // Verify scroll offset is set to show selected item
         // With viewport of 10 and selection at 25, scroll should be 16 (25 - 10 + 1)
-        Assert.Equal(16, node.ScrollOffset);
+        Assert.AreEqual(16, node.ScrollOffset);
         
         node.Render(context);
         
@@ -1725,14 +1726,14 @@ public class ListNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Item 25 should be visible and selected
-        Assert.True(snapshot.ContainsText("> Item 25"));
+        Assert.IsTrue(snapshot.ContainsText("> Item 25"));
         
         // Items far outside the viewport should NOT be visible
-        Assert.False(snapshot.ContainsText("Item 00"));
-        Assert.False(snapshot.ContainsText("Item 49"));
+        Assert.IsFalse(snapshot.ContainsText("Item 00"));
+        Assert.IsFalse(snapshot.ContainsText("Item 49"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task LongList_WrapAroundFromEnd_ScrollsToStart()
     {
         // Create a list of 50 items (0-indexed: items[0]="Item 00", items[49]="Item 49")
@@ -1748,20 +1749,20 @@ public class ListNodeTests
         node.Arrange(new Rect(0, 0, 40, 10));
         
         // Should be scrolled to show last item
-        Assert.Equal(40, node.ScrollOffset); // 50 items - 10 viewport = 40
+        Assert.AreEqual(40, node.ScrollOffset); // 50 items - 10 viewport = 40
         
         // Navigate down (should wrap to first item)
         node.MoveDown();
         
-        Assert.Equal(0, node.SelectedIndex);
-        Assert.Equal(0, node.ScrollOffset); // Should scroll back to start
+        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.ScrollOffset); // Should scroll back to start
     }
 
     #endregion
 
     #region Splitter Resize Tests (List with dynamic container height)
 
-    [Fact]
+    [TestMethod]
     public async Task ListInVerticalSplitter_LastItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
@@ -1784,14 +1785,14 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list has 15 rows
-        Assert.Equal(15, listNode.ViewportHeight);
+        Assert.AreEqual(15, listNode.ViewportHeight);
         
         // Select the last item in the list
         listNode.SetSelection(29);
-        Assert.Equal(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.SelectedIndex);
         
         // Verify scroll offset to show item 29 (should scroll to 15 = 29 - 15 + 1)
-        Assert.Equal(15, listNode.ScrollOffset);
+        Assert.AreEqual(15, listNode.ScrollOffset);
         
         // Now shrink the splitter - move it up by 5 rows
         splitterNode.FirstSize = 10;
@@ -1801,16 +1802,16 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 10 rows
-        Assert.Equal(10, listNode.ViewportHeight);
+        Assert.AreEqual(10, listNode.ViewportHeight);
         
         // The selected item (29) should still be visible
         // EnsureSelectionVisible should have adjusted scroll offset
         // Scroll offset should be at least 20 (29 - 10 + 1 = 20)
-        Assert.Equal(20, listNode.ScrollOffset);
-        Assert.Equal(29, listNode.SelectedIndex);
+        Assert.AreEqual(20, listNode.ScrollOffset);
+        Assert.AreEqual(29, listNode.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListInVerticalSplitter_FirstItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
@@ -1833,8 +1834,8 @@ public class ListNodeTests
         
         // Select the first item
         listNode.SetSelection(0);
-        Assert.Equal(0, listNode.SelectedIndex);
-        Assert.Equal(0, listNode.ScrollOffset);
+        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.ScrollOffset);
         
         // Shrink the splitter
         splitterNode.FirstSize = 8;
@@ -1842,14 +1843,14 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list now has 8 rows
-        Assert.Equal(8, listNode.ViewportHeight);
+        Assert.AreEqual(8, listNode.ViewportHeight);
         
         // First item should still be visible at the top
-        Assert.Equal(0, listNode.ScrollOffset);
-        Assert.Equal(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.ScrollOffset);
+        Assert.AreEqual(0, listNode.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListInVerticalSplitter_MiddleItemSelected_SplitterShrinks_SelectionStaysVisible()
     {
         // Create a long list
@@ -1873,10 +1874,10 @@ public class ListNodeTests
         
         // Select a middle item (item 15)
         listNode.SetSelection(15);
-        Assert.Equal(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.SelectedIndex);
         
         // Initial scroll offset should be 1 (to show items 1-15 in 15-row viewport)
-        Assert.Equal(1, listNode.ScrollOffset);
+        Assert.AreEqual(1, listNode.ScrollOffset);
         
         // Shrink the splitter significantly
         splitterNode.FirstSize = 6;
@@ -1884,15 +1885,15 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 6 rows
-        Assert.Equal(6, listNode.ViewportHeight);
+        Assert.AreEqual(6, listNode.ViewportHeight);
         
         // Item 15 should still be visible
         // Scroll offset should be adjusted: 15 - 6 + 1 = 10
-        Assert.Equal(10, listNode.ScrollOffset);
-        Assert.Equal(15, listNode.SelectedIndex);
+        Assert.AreEqual(10, listNode.ScrollOffset);
+        Assert.AreEqual(15, listNode.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListInVerticalSplitter_SelectionNearEnd_SplitterGrows_MoreItemsVisible()
     {
         // Create a long list
@@ -1916,10 +1917,10 @@ public class ListNodeTests
         
         // Select item near the end
         listNode.SetSelection(28);
-        Assert.Equal(28, listNode.SelectedIndex);
+        Assert.AreEqual(28, listNode.SelectedIndex);
         
         // Scroll offset should be 24 (28 - 5 + 1)
-        Assert.Equal(24, listNode.ScrollOffset);
+        Assert.AreEqual(24, listNode.ScrollOffset);
         
         // Grow the splitter
         splitterNode.FirstSize = 15;
@@ -1927,19 +1928,19 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 25));
         
         // Verify list now has 15 rows
-        Assert.Equal(15, listNode.ViewportHeight);
+        Assert.AreEqual(15, listNode.ViewportHeight);
         
         // Scroll offset should be adjusted to show item 28 (28 - 15 + 1 = 14)
         // But it could also stay at a higher offset if selection is visible
-        Assert.True(listNode.ScrollOffset >= 14 && listNode.ScrollOffset <= 24);
-        Assert.Equal(28, listNode.SelectedIndex);
+        Assert.IsTrue(listNode.ScrollOffset >= 14 && listNode.ScrollOffset <= 24);
+        Assert.AreEqual(28, listNode.SelectedIndex);
         
         // Selection should still be within visible range
-        Assert.True(listNode.SelectedIndex >= listNode.ScrollOffset);
-        Assert.True(listNode.SelectedIndex < listNode.ScrollOffset + listNode.ViewportHeight);
+        Assert.IsTrue(listNode.SelectedIndex >= listNode.ScrollOffset);
+        Assert.IsTrue(listNode.SelectedIndex < listNode.ScrollOffset + listNode.ViewportHeight);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListBelowVerticalSplitter_LastItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
@@ -1961,11 +1962,11 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list has 14 rows (20 total - 5 top - 1 divider)
-        Assert.Equal(14, listNode.ViewportHeight);
+        Assert.AreEqual(14, listNode.ViewportHeight);
         
         // Select the last item
         listNode.SetSelection(29);
-        Assert.Equal(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.SelectedIndex);
         
         // Now move splitter down (increase top size), shrinking list
         splitterNode.FirstSize = 12; // List now gets 20 - 12 - 1 = 7 rows
@@ -1973,15 +1974,15 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list now has 7 rows
-        Assert.Equal(7, listNode.ViewportHeight);
+        Assert.AreEqual(7, listNode.ViewportHeight);
         
         // Selected item (29) should still be visible
         // Scroll offset should be 23 (29 - 7 + 1)
-        Assert.Equal(23, listNode.ScrollOffset);
-        Assert.Equal(29, listNode.SelectedIndex);
+        Assert.AreEqual(23, listNode.ScrollOffset);
+        Assert.AreEqual(29, listNode.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListBelowVerticalSplitter_FirstItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
@@ -2004,8 +2005,8 @@ public class ListNodeTests
         
         // Select the first item
         listNode.SetSelection(0);
-        Assert.Equal(0, listNode.SelectedIndex);
-        Assert.Equal(0, listNode.ScrollOffset);
+        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.ScrollOffset);
         
         // Move splitter down, shrinking list
         splitterNode.FirstSize = 12;
@@ -2013,14 +2014,14 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list now has 7 rows
-        Assert.Equal(7, listNode.ViewportHeight);
+        Assert.AreEqual(7, listNode.ViewportHeight);
         
         // First item should still be visible
-        Assert.Equal(0, listNode.ScrollOffset);
-        Assert.Equal(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.ScrollOffset);
+        Assert.AreEqual(0, listNode.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListBelowVerticalSplitter_MiddleItemSelected_SplitterMovesDown_SelectionStaysVisible()
     {
         // Create a long list
@@ -2042,14 +2043,14 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list has 14 rows
-        Assert.Equal(14, listNode.ViewportHeight);
+        Assert.AreEqual(14, listNode.ViewportHeight);
         
         // Select a middle item (item 15)
         listNode.SetSelection(15);
-        Assert.Equal(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.SelectedIndex);
         
         // Initial scroll offset should be 2 (to show items 2-15 in 14-row viewport)
-        Assert.Equal(2, listNode.ScrollOffset);
+        Assert.AreEqual(2, listNode.ScrollOffset);
         
         // Move splitter down significantly
         splitterNode.FirstSize = 14;
@@ -2057,19 +2058,19 @@ public class ListNodeTests
         splitterNode.Arrange(new Rect(0, 0, 40, 20));
         
         // Verify list now has 5 rows
-        Assert.Equal(5, listNode.ViewportHeight);
+        Assert.AreEqual(5, listNode.ViewportHeight);
         
         // Item 15 should still be visible
         // Scroll offset should be 11 (15 - 5 + 1)
-        Assert.Equal(11, listNode.ScrollOffset);
-        Assert.Equal(15, listNode.SelectedIndex);
+        Assert.AreEqual(11, listNode.ScrollOffset);
+        Assert.AreEqual(15, listNode.SelectedIndex);
     }
 
     #endregion
     
     #region InitialSelectedIndex Tests
 
-    [Fact]
+    [TestMethod]
     public async Task ListWidget_InitialSelectedIndex_SetsSelectionOnNewNode()
     {
         // Arrange
@@ -2080,11 +2081,11 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert
-        Assert.Equal(2, node!.SelectedIndex);
-        Assert.Equal("Cherry", node.SelectedText);
+        Assert.AreEqual(2, node!.SelectedIndex);
+        Assert.AreEqual("Cherry", node.SelectedText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListWidget_InitialSelectedIndex_ClampsToValidRange()
     {
         // Arrange - index out of bounds
@@ -2095,10 +2096,10 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert - should be clamped to last item
-        Assert.Equal(1, node!.SelectedIndex);
+        Assert.AreEqual(1, node!.SelectedIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ListWidget_InitialSelectedIndex_DefaultsToZero()
     {
         // Arrange
@@ -2109,7 +2110,7 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert
-        Assert.Equal(0, node!.SelectedIndex);
+        Assert.AreEqual(0, node!.SelectedIndex);
     }
 
     #endregion

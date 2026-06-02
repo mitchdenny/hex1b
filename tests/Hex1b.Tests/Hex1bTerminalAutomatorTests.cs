@@ -7,9 +7,10 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for <see cref="Hex1bTerminalAutomator"/>.
 /// </summary>
+[TestClass]
 public class Hex1bTerminalAutomatorTests
 {
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilTextAsync_WaitsForText()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -23,14 +24,14 @@ public class Hex1bTerminalAutomatorTests
 
         await auto.WaitUntilTextAsync("Hello World");
 
-        Assert.Single(auto.CompletedSteps);
+        TestSeq.Single(auto.CompletedSteps);
         Assert.Contains("WaitUntilText(\"Hello World\")", auto.CompletedSteps[0].Description);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilTextAsync_Timeout_ThrowsHex1bAutomationException()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -42,21 +43,21 @@ public class Hex1bTerminalAutomatorTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromMilliseconds(250));
 
-        var ex = await Assert.ThrowsAsync<Hex1bAutomationException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<Hex1bAutomationException>(async () =>
         {
             await auto.WaitUntilTextAsync("NonExistent");
         });
 
-        Assert.Equal(1, ex.FailedStepIndex);
+        Assert.AreEqual(1, ex.FailedStepIndex);
         Assert.Contains("WaitUntilText(\"NonExistent\")", ex.FailedStepDescription);
-        Assert.IsType<WaitUntilTimeoutException>(ex.InnerException);
-        Assert.NotNull(ex.TerminalSnapshot);
+        TestSeq.IsType<WaitUntilTimeoutException>(ex.InnerException);
+        Assert.IsNotNull(ex.TerminalSnapshot);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilTextAsync_Timeout_ExceptionMessageContainsStepHistory()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -79,16 +80,16 @@ public class Hex1bTerminalAutomatorTests
         await auto.EnterAsync();
 
         // Now fail on a WaitUntil
-        var ex = await Assert.ThrowsAsync<Hex1bAutomationException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<Hex1bAutomationException>(async () =>
         {
             await auto.WaitUntilTextAsync("NonExistent", timeout: TimeSpan.FromMilliseconds(250));
         });
 
         // Verify step index reflects that 2 steps completed before the failure
-        Assert.Equal(3, ex.FailedStepIndex);
+        Assert.AreEqual(3, ex.FailedStepIndex);
 
         // Verify completed steps are captured
-        Assert.Equal(2, ex.CompletedSteps.Count);
+        Assert.AreEqual(2, ex.CompletedSteps.Count);
         Assert.Contains("WaitUntilText(\"Hello World\")", ex.CompletedSteps[0].Description);
         Assert.Contains("Key(Enter)", ex.CompletedSteps[1].Description);
 
@@ -103,16 +104,16 @@ public class Hex1bTerminalAutomatorTests
         Assert.Contains("Hello World", ex.Message);
 
         // Verify caller info
-        Assert.NotNull(ex.CallerFilePath);
+        Assert.IsNotNull(ex.CallerFilePath);
         Assert.Contains("Hex1bTerminalAutomatorTests.cs", ex.CallerFilePath);
-        Assert.True(ex.CallerLineNumber > 0);
+        Assert.IsTrue(ex.CallerLineNumber > 0);
 
         // Clean up
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnterAsync_SendsEnterKey()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -138,14 +139,14 @@ public class Hex1bTerminalAutomatorTests
         // Give the app a moment to process
         await auto.WaitAsync(50);
 
-        Assert.True(enterPressed);
-        Assert.Equal(3, auto.CompletedSteps.Count);
+        Assert.IsTrue(enterPressed);
+        Assert.AreEqual(3, auto.CompletedSteps.Count);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task TypeAsync_TypesText()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -173,14 +174,14 @@ public class Hex1bTerminalAutomatorTests
         await auto.TypeAsync("Hello");
         await auto.WaitUntilTextAsync("Hello");
 
-        Assert.Equal("Hello", typedText);
+        Assert.AreEqual("Hello", typedText);
         Assert.Contains("Type(\"Hello\")", auto.CompletedSteps[1].Description);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Ctrl_KeyAsync_SendsModifiedKey()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -210,7 +211,7 @@ public class Hex1bTerminalAutomatorTests
         Assert.Contains("Ctrl+", lastStep.Description);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilAsync_WithCustomPredicate_Works()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -226,14 +227,14 @@ public class Hex1bTerminalAutomatorTests
             s => s.ContainsText("Count: 42"),
             description: "count to be 42");
 
-        Assert.Single(auto.CompletedSteps);
+        TestSeq.Single(auto.CompletedSteps);
         Assert.Contains("WaitUntil(\"count to be 42\")", auto.CompletedSteps[0].Description);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilNoTextAsync_WaitsForTextToDisappear()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -261,14 +262,14 @@ public class Hex1bTerminalAutomatorTests
 
         await auto.WaitUntilNoTextAsync("Visible");
 
-        Assert.Equal(2, auto.CompletedSteps.Count);
+        Assert.AreEqual(2, auto.CompletedSteps.Count);
         Assert.Contains("WaitUntilNoText(\"Visible\")", auto.CompletedSteps[1].Description);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SequenceAsync_WithBuilderAction_ExecutesSequence()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -307,7 +308,7 @@ public class Hex1bTerminalAutomatorTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SequenceAsync_WithPrebuiltSequence_ExecutesSequence()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -343,7 +344,7 @@ public class Hex1bTerminalAutomatorTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CompletedSteps_TracksCallerInfo()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -358,16 +359,16 @@ public class Hex1bTerminalAutomatorTests
         await auto.WaitUntilTextAsync("Test");
 
         var step = auto.CompletedSteps[0];
-        Assert.NotNull(step.CallerFilePath);
+        Assert.IsNotNull(step.CallerFilePath);
         Assert.Contains("Hex1bTerminalAutomatorTests.cs", step.CallerFilePath);
-        Assert.True(step.CallerLineNumber > 0);
-        Assert.True(step.Elapsed >= TimeSpan.Zero);
+        Assert.IsTrue(step.CallerLineNumber > 0);
+        Assert.IsTrue(step.Elapsed >= TimeSpan.Zero);
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task AutomationException_TotalElapsed_SumsAllSteps()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -381,20 +382,19 @@ public class Hex1bTerminalAutomatorTests
 
         await auto.WaitUntilTextAsync("Hello", timeout: TimeSpan.FromSeconds(5));
 
-        var ex = await Assert.ThrowsAsync<Hex1bAutomationException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<Hex1bAutomationException>(async () =>
         {
             await auto.WaitUntilTextAsync("Never");
         });
 
         // TotalElapsed should be >= the timeout since the failing step waited that long
-        Assert.True(ex.TotalElapsed >= TimeSpan.FromMilliseconds(200),
-            $"TotalElapsed was {ex.TotalElapsed.TotalMilliseconds}ms, expected >= 200ms");
+        Assert.IsTrue(ex.TotalElapsed >= TimeSpan.FromMilliseconds(200), $"TotalElapsed was {ex.TotalElapsed.TotalMilliseconds}ms, expected >= 200ms");
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task CreateSnapshot_ReturnsCurrentState()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -409,13 +409,13 @@ public class Hex1bTerminalAutomatorTests
         await auto.WaitUntilTextAsync("Snapshot Test");
 
         using var snapshot = auto.CreateSnapshot();
-        Assert.True(snapshot.ContainsText("Snapshot Test"));
+        Assert.IsTrue(snapshot.ContainsText("Snapshot Test"));
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitUntilAsync_WithPredicateExpression_CapturesExpression()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -427,7 +427,7 @@ public class Hex1bTerminalAutomatorTests
         var runTask = terminal.RunAsync(TestContext.Current.CancellationToken);
         var auto = new Hex1bTerminalAutomator(terminal, defaultTimeout: TimeSpan.FromMilliseconds(250));
 
-        var ex = await Assert.ThrowsAsync<Hex1bAutomationException>(async () =>
+        var ex = await Assert.ThrowsExactlyAsync<Hex1bAutomationException>(async () =>
         {
             await auto.WaitUntilAsync(s => s.ContainsText("Nope"));
         });
@@ -439,7 +439,7 @@ public class Hex1bTerminalAutomatorTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task MultipleModifiers_AreStackedCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -470,7 +470,7 @@ public class Hex1bTerminalAutomatorTests
         await runTask;
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WaitAsync_PausesForDuration()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -485,9 +485,9 @@ public class Hex1bTerminalAutomatorTests
         await auto.WaitUntilTextAsync("Test");
         await auto.WaitAsync(50);
 
-        Assert.Equal(2, auto.CompletedSteps.Count);
+        Assert.AreEqual(2, auto.CompletedSteps.Count);
         Assert.Contains("Wait(50ms)", auto.CompletedSteps[1].Description);
-        Assert.True(auto.CompletedSteps[1].Elapsed >= TimeSpan.FromMilliseconds(40));
+        Assert.IsTrue(auto.CompletedSteps[1].Elapsed >= TimeSpan.FromMilliseconds(40));
 
         await auto.Ctrl().KeyAsync(Hex1bKey.C);
         await runTask;

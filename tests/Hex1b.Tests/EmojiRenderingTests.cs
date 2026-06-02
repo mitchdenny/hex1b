@@ -12,6 +12,7 @@ namespace Hex1b.Tests;
 /// - Emoji with variation selectors
 /// - Wide character display widths
 /// </summary>
+[TestClass]
 public class EmojiRenderingTests
 {
     /// <summary>
@@ -101,7 +102,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Renders a variety of simple emoji (single grapheme, surrogate pairs).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SimpleEmoji_RendersCorrectly()
     {
         using var test = new TestTerminal(60, 20);
@@ -121,9 +122,9 @@ public class EmojiRenderingTests
         var snapshot = test.Terminal.CreateSnapshot();
 
         // Verify some key emoji are present
-        Assert.True(ContainsGrapheme(snapshot, "😀"), "Smile emoji should be present");
-        Assert.True(ContainsGrapheme(snapshot, "🚀"), "Rocket emoji should be present");
-        Assert.True(ContainsGrapheme(snapshot, "🍕"), "Pizza emoji should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, "😀"), "Smile emoji should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, "🚀"), "Rocket emoji should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, "🍕"), "Pizza emoji should be present");
         
         // Debug: Check the cell state for a simple emoji line
         // "Faces:    " is 10 chars, then first emoji at col 10
@@ -131,9 +132,9 @@ public class EmojiRenderingTests
         var contCell = snapshot.GetCell(11, 3);
         
         // Verify emoji is in cell and continuation is empty with matching sequence
-        Assert.Equal("😀", emojiCell.Character);
-        Assert.Equal("", contCell.Character);
-        Assert.Equal(emojiCell.Sequence, contCell.Sequence);
+        Assert.AreEqual("😀", emojiCell.Character);
+        Assert.AreEqual("", contCell.Character);
+        Assert.AreEqual(emojiCell.Sequence, contCell.Sequence);
 
         TestCaptureHelper.Capture(test.Terminal, "simple-emoji");
     }
@@ -141,7 +142,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Renders emoji with skin tone modifiers.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SkinToneModifiers_RendersCorrectly()
     {
         using var test = new TestTerminal(70, 18);
@@ -163,8 +164,8 @@ public class EmojiRenderingTests
         var snapshot = test.Terminal.CreateSnapshot();
 
         // Verify skin tone variants are present
-        Assert.True(ContainsGrapheme(snapshot, ThumbsUpLight), "Light skin tone should be present");
-        Assert.True(ContainsGrapheme(snapshot, ThumbsUpDark), "Dark skin tone should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, ThumbsUpLight), "Light skin tone should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, ThumbsUpDark), "Dark skin tone should be present");
 
         TestCaptureHelper.Capture(test.Terminal, "skin-tone-modifiers");
     }
@@ -172,7 +173,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Renders ZWJ (Zero-Width Joiner) sequences like families and professions.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void ZwjSequences_RendersCorrectly()
     {
         using var test = new TestTerminal(70, 20);
@@ -199,8 +200,8 @@ public class EmojiRenderingTests
         var snapshot = test.Terminal.CreateSnapshot();
 
         // Verify ZWJ sequences are present as single graphemes
-        Assert.True(ContainsGrapheme(snapshot, Family), "Family emoji should be present");
-        Assert.True(ContainsGrapheme(snapshot, ManTechnologist), "Man technologist should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, Family), "Family emoji should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, ManTechnologist), "Man technologist should be present");
 
         TestCaptureHelper.Capture(test.Terminal, "zwj-sequences");
     }
@@ -208,7 +209,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Renders flag emoji (regional indicator pairs).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void FlagEmoji_RendersCorrectly()
     {
         using var test = new TestTerminal(70, 18);
@@ -227,8 +228,8 @@ public class EmojiRenderingTests
 
         var snapshot = test.Terminal.CreateSnapshot();
 
-        Assert.True(ContainsGrapheme(snapshot, FlagUS), "US flag should be present");
-        Assert.True(ContainsGrapheme(snapshot, FlagJP), "Japan flag should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, FlagUS), "US flag should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, FlagJP), "Japan flag should be present");
 
         TestCaptureHelper.Capture(test.Terminal, "flag-emoji");
     }
@@ -236,7 +237,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Renders keycap sequences and symbol emoji.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void KeycapsAndSymbols_RendersCorrectly()
     {
         using var test = new TestTerminal(60, 16);
@@ -255,7 +256,7 @@ public class EmojiRenderingTests
 
         var snapshot = test.Terminal.CreateSnapshot();
 
-        Assert.True(ContainsGrapheme(snapshot, Keycap1), "Keycap 1 should be present");
+        Assert.IsTrue(ContainsGrapheme(snapshot, Keycap1), "Keycap 1 should be present");
 
         TestCaptureHelper.Capture(test.Terminal, "keycaps-and-symbols");
     }
@@ -263,7 +264,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Tests emoji mixed with regular text and ANSI colors.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EmojiWithTextAndColors_RendersCorrectly()
     {
         using var test = new TestTerminal(70, 20);
@@ -302,7 +303,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Tests emoji display width handling (most emoji are width 2).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EmojiDisplayWidth_RendersCorrectly()
     {
         using var test = new TestTerminal(80, 20);
@@ -338,7 +339,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Tests a comprehensive emoji showcase.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void EmojiShowcase_RendersCorrectly()
     {
         using var test = new TestTerminal(80, 30);
@@ -379,7 +380,7 @@ public class EmojiRenderingTests
     /// When a character is written over the continuation cell of a wide emoji,
     /// the emoji should be partially obscured (truncated) by the newer content.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void WideCharacterTruncation_RendersCorrectly()
     {
         using var test = new TestTerminal(40, 16);
@@ -423,10 +424,10 @@ public class EmojiRenderingTests
 
         // Verify the X was written
         var cell = snapshot.GetCell(1, 6); // Row 7 (0-indexed=6), Col 2 (0-indexed=1)
-        Assert.Equal("X", cell.Character);
+        Assert.AreEqual("X", cell.Character);
 
         // Verify sequence numbers are being assigned
-        Assert.True(cell.Sequence > 0, "Cell should have a sequence number");
+        Assert.IsTrue(cell.Sequence > 0, "Cell should have a sequence number");
 
         TestCaptureHelper.Capture(test.Terminal, "wide-char-truncation");
     }
@@ -434,7 +435,7 @@ public class EmojiRenderingTests
     /// <summary>
     /// Tests sequence ordering in SVG - cells written later should appear on top.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public void SequenceOrdering_NewerContentOnTop()
     {
         using var test = new TestTerminal(30, 10);
@@ -462,8 +463,7 @@ public class EmojiRenderingTests
         var emojiCell = snapshot.GetCell(0, 4); // First emoji
         var overwriteCell = snapshot.GetCell(2, 4); // 'A' that was written later
 
-        Assert.True(overwriteCell.Sequence > emojiCell.Sequence, 
-            "Overwrite should have higher sequence than original emoji");
+        Assert.IsTrue(overwriteCell.Sequence > emojiCell.Sequence, "Overwrite should have higher sequence than original emoji");
 
         TestCaptureHelper.Capture(test.Terminal, "sequence-ordering");
     }

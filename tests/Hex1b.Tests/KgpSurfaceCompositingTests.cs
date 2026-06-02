@@ -11,6 +11,7 @@ namespace Hex1b.Tests;
 /// Tests for KGP compositing across surfaces and layers,
 /// including clipping, z-ordering, and visibility tracking.
 /// </summary>
+[TestClass]
 public class KgpSurfaceCompositingTests
 {
     private static readonly CellMetrics DefaultMetrics = new(10, 20); // 10px wide, 20px tall
@@ -42,7 +43,7 @@ public class KgpSurfaceCompositingTests
 
     #region Surface.Composite KGP Clipping
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_FitsInBounds_NoClipping()
     {
         var parent = new Surface(10, 5, DefaultMetrics);
@@ -54,12 +55,12 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 0, offsetY: 0);
 
-        Assert.True(parent[0, 0].HasKgp);
-        Assert.Equal(4, parent[0, 0].Kgp!.Data.WidthInCells);
-        Assert.Equal(2, parent[0, 0].Kgp!.Data.HeightInCells);
+        Assert.IsTrue(parent[0, 0].HasKgp);
+        Assert.AreEqual(4, parent[0, 0].Kgp!.Data.WidthInCells);
+        Assert.AreEqual(2, parent[0, 0].Kgp!.Data.HeightInCells);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_ExtendsRight_ClipsWidth()
     {
         var parent = new Surface(6, 5, DefaultMetrics);
@@ -72,11 +73,11 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 3, offsetY: 0);
 
-        Assert.True(parent[3, 0].HasKgp);
-        Assert.Equal(3, parent[3, 0].Kgp!.Data.WidthInCells);
+        Assert.IsTrue(parent[3, 0].HasKgp);
+        Assert.AreEqual(3, parent[3, 0].Kgp!.Data.WidthInCells);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_ExtendsDown_ClipsHeight()
     {
         var parent = new Surface(10, 3, DefaultMetrics);
@@ -89,11 +90,11 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 0, offsetY: 2);
 
-        Assert.True(parent[0, 2].HasKgp);
-        Assert.Equal(1, parent[0, 2].Kgp!.Data.HeightInCells);
+        Assert.IsTrue(parent[0, 2].HasKgp);
+        Assert.AreEqual(1, parent[0, 2].Kgp!.Data.HeightInCells);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_CompletelyOutOfBounds_RemovesKgp()
     {
         var parent = new Surface(3, 3, DefaultMetrics);
@@ -108,10 +109,10 @@ public class KgpSurfaceCompositingTests
 
         // Cell at x=3 is out of bounds, so nothing should be written
         // The composite should handle this gracefully
-        Assert.False(parent[0, 0].HasKgp);
+        Assert.IsFalse(parent[0, 0].HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_PreservesZIndex()
     {
         var parent = new Surface(10, 5, DefaultMetrics);
@@ -123,10 +124,10 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 0, offsetY: 0);
 
-        Assert.Equal(5, parent[0, 0].Kgp!.Data.ZIndex);
+        Assert.AreEqual(5, parent[0, 0].Kgp!.Data.ZIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_ClippedPreservesZIndex()
     {
         var parent = new Surface(3, 3, DefaultMetrics);
@@ -138,11 +139,11 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 1, offsetY: 0);
 
-        Assert.True(parent[1, 0].HasKgp);
-        Assert.Equal(3, parent[1, 0].Kgp!.Data.ZIndex);
+        Assert.IsTrue(parent[1, 0].HasKgp);
+        Assert.AreEqual(3, parent[1, 0].Kgp!.Data.ZIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_ClippedByClipRect_ReanchorsVisibleRegion()
     {
         var parent = new Surface(10, 5, DefaultMetrics);
@@ -153,17 +154,17 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: 0, offsetY: 0, clip: new Rect(2, 1, 8, 4));
 
-        Assert.False(parent[0, 0].HasKgp);
-        Assert.True(parent[2, 1].HasKgp);
-        Assert.Equal(4, parent[2, 1].Kgp!.Data.WidthInCells);
-        Assert.Equal(3, parent[2, 1].Kgp!.Data.HeightInCells);
-        Assert.Equal(20, parent[2, 1].Kgp!.Data.ClipX);
-        Assert.Equal(20, parent[2, 1].Kgp!.Data.ClipY);
-        Assert.Equal(40, parent[2, 1].Kgp!.Data.ClipW);
-        Assert.Equal(60, parent[2, 1].Kgp!.Data.ClipH);
+        Assert.IsFalse(parent[0, 0].HasKgp);
+        Assert.IsTrue(parent[2, 1].HasKgp);
+        Assert.AreEqual(4, parent[2, 1].Kgp!.Data.WidthInCells);
+        Assert.AreEqual(3, parent[2, 1].Kgp!.Data.HeightInCells);
+        Assert.AreEqual(20, parent[2, 1].Kgp!.Data.ClipX);
+        Assert.AreEqual(20, parent[2, 1].Kgp!.Data.ClipY);
+        Assert.AreEqual(40, parent[2, 1].Kgp!.Data.ClipW);
+        Assert.AreEqual(60, parent[2, 1].Kgp!.Data.ClipH);
     }
 
-    [Fact]
+    [TestMethod]
     public void Composite_KgpImage_WithNegativeOffset_ReanchorsVisibleRegion()
     {
         var parent = new Surface(10, 5, DefaultMetrics);
@@ -174,16 +175,16 @@ public class KgpSurfaceCompositingTests
 
         parent.Composite(child, offsetX: -2, offsetY: -1);
 
-        Assert.True(parent[0, 0].HasKgp);
-        Assert.Equal(4, parent[0, 0].Kgp!.Data.WidthInCells);
-        Assert.Equal(3, parent[0, 0].Kgp!.Data.HeightInCells);
-        Assert.Equal(20, parent[0, 0].Kgp!.Data.ClipX);
-        Assert.Equal(20, parent[0, 0].Kgp!.Data.ClipY);
-        Assert.Equal(40, parent[0, 0].Kgp!.Data.ClipW);
-        Assert.Equal(60, parent[0, 0].Kgp!.Data.ClipH);
+        Assert.IsTrue(parent[0, 0].HasKgp);
+        Assert.AreEqual(4, parent[0, 0].Kgp!.Data.WidthInCells);
+        Assert.AreEqual(3, parent[0, 0].Kgp!.Data.HeightInCells);
+        Assert.AreEqual(20, parent[0, 0].Kgp!.Data.ClipX);
+        Assert.AreEqual(20, parent[0, 0].Kgp!.Data.ClipY);
+        Assert.AreEqual(40, parent[0, 0].Kgp!.Data.ClipW);
+        Assert.AreEqual(60, parent[0, 0].Kgp!.Data.ClipH);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_OccluderContent_IsClippedToVisibleCompositeRegion()
     {
         var parent = new Surface(12, 12, DefaultMetrics);
@@ -200,11 +201,11 @@ public class KgpSurfaceCompositingTests
 
         context.RenderChild(child);
 
-        var occluder = Assert.Single(registry.Occluders);
-        Assert.Equal(new Rect(0, 1, 6, 4), occluder.Bounds);
+        var occluder = TestSeq.Single(registry.Occluders);
+        Assert.AreEqual(new Rect(0, 1, 6, 4), occluder.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void RenderChild_HiddenNestedButtonRow_DoesNotRegisterOffscreenOccluder()
     {
         var parent = new Surface(20, 12, DefaultMetrics);
@@ -242,14 +243,14 @@ public class KgpSurfaceCompositingTests
 
         context.RenderChild(child);
 
-        Assert.DoesNotContain(registry.Occluders, o => o.Bounds.Y >= 5);
+        Assert.IsFalse(registry.Occluders.Any(o => o.Bounds.Y >= 5));
     }
 
     #endregion
 
     #region CompositeSurface KGP Layer Resolution
 
-    [Fact]
+    [TestMethod]
     public void CompositeSurface_KgpOnUpperLayer_OccludesLower()
     {
         var layer1 = new Surface(10, 5, DefaultMetrics);
@@ -265,10 +266,10 @@ public class KgpSurfaceCompositingTests
         composite.AddLayer(layer2);
 
         var resolved = composite.GetCell(2, 1);
-        Assert.True(resolved.HasKgp);
+        Assert.IsTrue(resolved.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompositeSurface_TextOverKgp_TextWins()
     {
         var layer1 = new Surface(10, 5, DefaultMetrics);
@@ -284,11 +285,11 @@ public class KgpSurfaceCompositingTests
         composite.AddLayer(layer2);
 
         var resolved = composite.GetCell(2, 1);
-        Assert.Equal("X", resolved.Character);
-        Assert.False(resolved.HasKgp);
+        Assert.AreEqual("X", resolved.Character);
+        Assert.IsFalse(resolved.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompositeSurface_TransparentAboveKgp_KgpShowsThrough()
     {
         var layer1 = new Surface(10, 5, DefaultMetrics);
@@ -304,10 +305,10 @@ public class KgpSurfaceCompositingTests
         composite.AddLayer(layer2);
 
         var resolved = composite.GetCell(2, 1);
-        Assert.True(resolved.HasKgp);
+        Assert.IsTrue(resolved.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void CompositeSurface_KgpOnlyLayer_Preserved()
     {
         var layer = new Surface(10, 5, DefaultMetrics);
@@ -319,8 +320,8 @@ public class KgpSurfaceCompositingTests
         composite.AddLayer(layer);
 
         var resolved = composite.GetCell(0, 0);
-        Assert.True(resolved.HasKgp);
-        Assert.Equal(1u, resolved.Kgp!.Data.ImageId);
+        Assert.IsTrue(resolved.HasKgp);
+        Assert.AreEqual(1u, resolved.Kgp!.Data.ImageId);
     }
 
     private sealed class TestWritingNode(params (int X, int Y, string Text)[] writes) : Hex1bNode
@@ -341,23 +342,23 @@ public class KgpSurfaceCompositingTests
 
     #region KgpVisibility
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_FullyVisible_SinglePlacement()
     {
         var kgpData = CreateKgpData(widthInCells: 4, heightInCells: 2, sourcePixelWidth: 40, sourcePixelHeight: 40);
         var tracked = Track(kgpData);
         var vis = new KgpVisibility(tracked, anchorX: 0, anchorY: 0, layerIndex: 0);
 
-        Assert.True(vis.IsFullyVisible);
-        Assert.False(vis.IsFullyOccluded);
+        Assert.IsTrue(vis.IsFullyVisible);
+        Assert.IsFalse(vis.IsFullyOccluded);
 
         var placements = vis.GeneratePlacements(DefaultMetrics);
-        Assert.Single(placements);
-        Assert.Equal(0, placements[0].CellX);
-        Assert.Equal(0, placements[0].CellY);
+        TestSeq.Single(placements);
+        Assert.AreEqual(0, placements[0].CellX);
+        Assert.AreEqual(0, placements[0].CellY);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_FullyOccluded_NoPlacements()
     {
         var kgpData = CreateKgpData(widthInCells: 4, heightInCells: 2, sourcePixelWidth: 40, sourcePixelHeight: 40);
@@ -367,14 +368,14 @@ public class KgpSurfaceCompositingTests
         // Occlude the entire image
         vis.ApplyOcclusion(new Rect(0, 0, 4, 2), DefaultMetrics);
 
-        Assert.True(vis.IsFullyOccluded);
-        Assert.False(vis.IsFullyVisible);
+        Assert.IsTrue(vis.IsFullyOccluded);
+        Assert.IsFalse(vis.IsFullyVisible);
 
         var placements = vis.GeneratePlacements(DefaultMetrics);
-        Assert.Empty(placements);
+        Assert.IsEmpty(placements);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_PartialOcclusion_ReducesVisibleRegions()
     {
         var kgpData = CreateKgpData(widthInCells: 4, heightInCells: 2, sourcePixelWidth: 40, sourcePixelHeight: 40);
@@ -384,12 +385,12 @@ public class KgpSurfaceCompositingTests
         // Occlude the right half of the image
         vis.ApplyOcclusion(new Rect(2, 0, 2, 2), DefaultMetrics);
 
-        Assert.False(vis.IsFullyVisible);
-        Assert.False(vis.IsFullyOccluded);
-        Assert.True(vis.VisibleRegions.Count >= 1);
+        Assert.IsFalse(vis.IsFullyVisible);
+        Assert.IsFalse(vis.IsFullyOccluded);
+        Assert.IsTrue(vis.VisibleRegions.Count >= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_OcclusionOutsideImage_NoEffect()
     {
         var kgpData = CreateKgpData(widthInCells: 4, heightInCells: 2, sourcePixelWidth: 40, sourcePixelHeight: 40);
@@ -399,15 +400,15 @@ public class KgpSurfaceCompositingTests
         // Occlude outside the image bounds
         vis.ApplyOcclusion(new Rect(10, 10, 5, 5), DefaultMetrics);
 
-        Assert.False(vis.IsFullyVisible); // ApplyOcclusion sets this to false
-        Assert.False(vis.IsFullyOccluded);
+        Assert.IsFalse(vis.IsFullyVisible); // ApplyOcclusion sets this to false
+        Assert.IsFalse(vis.IsFullyOccluded);
         
         var placements = vis.GeneratePlacements(DefaultMetrics);
         // Should still generate a placement for the visible region
-        Assert.True(placements.Count >= 1);
+        Assert.IsTrue(placements.Count >= 1);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_CenterOcclusion_GeneratesMultipleRegions()
     {
         var kgpData = CreateKgpData(widthInCells: 10, heightInCells: 10, sourcePixelWidth: 100, sourcePixelHeight: 200);
@@ -417,12 +418,12 @@ public class KgpSurfaceCompositingTests
         // Occlude a 2x2 block in the center of the 10x10 image
         vis.ApplyOcclusion(new Rect(4, 4, 2, 2), DefaultMetrics);
 
-        Assert.False(vis.IsFullyOccluded);
+        Assert.IsFalse(vis.IsFullyOccluded);
         // Punching a hole in the center should create 4 regions (top, bottom, left, right)
-        Assert.True(vis.VisibleRegions.Count == 4);
+        Assert.IsTrue(vis.VisibleRegions.Count == 4);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_PreservesZIndex()
     {
         var kgpData = CreateKgpData(widthInCells: 4, heightInCells: 2, zIndex: 5, sourcePixelWidth: 40, sourcePixelHeight: 40);
@@ -430,11 +431,11 @@ public class KgpSurfaceCompositingTests
         var vis = new KgpVisibility(tracked, anchorX: 0, anchorY: 0, layerIndex: 0);
 
         var placements = vis.GeneratePlacements(DefaultMetrics);
-        Assert.Single(placements);
-        Assert.Equal(5, placements[0].Data.ZIndex);
+        TestSeq.Single(placements);
+        Assert.AreEqual(5, placements[0].Data.ZIndex);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_PartialOcclusion_PlacementsPreserveZIndex()
     {
         var kgpData = CreateKgpData(widthInCells: 10, heightInCells: 10, zIndex: 3, sourcePixelWidth: 100, sourcePixelHeight: 200);
@@ -446,26 +447,26 @@ public class KgpSurfaceCompositingTests
         var placements = vis.GeneratePlacements(DefaultMetrics);
         foreach (var (data, _, _) in placements)
         {
-            Assert.Equal(3, data.ZIndex);
+            Assert.AreEqual(3, data.ZIndex);
         }
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpVisibility_LayerIndex_Stored()
     {
         var kgpData = CreateKgpData();
         var tracked = Track(kgpData);
         var vis = new KgpVisibility(tracked, anchorX: 5, anchorY: 3, layerIndex: 7);
 
-        Assert.Equal(7, vis.LayerIndex);
-        Assert.Equal((5, 3), vis.AnchorPosition);
+        Assert.AreEqual(7, vis.LayerIndex);
+        Assert.AreEqual((5, 3), vis.AnchorPosition);
     }
 
     #endregion
 
     #region SurfaceLayerContext.CreateKgp
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromCellData_ReturnsTrackedObject()
     {
         var store = new TrackedObjectStore();
@@ -479,11 +480,11 @@ public class KgpSurfaceCompositingTests
         var kgpData = CreateKgpData();
         var tracked = ctx.CreateKgp(kgpData);
 
-        Assert.NotNull(tracked);
-        Assert.Equal(kgpData.ImageId, tracked!.Data.ImageId);
+        Assert.IsNotNull(tracked);
+        Assert.AreEqual(kgpData.ImageId, tracked!.Data.ImageId);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_NullStore_ReturnsNull()
     {
         var ctx = new Hex1b.Widgets.SurfaceLayerContext(
@@ -496,10 +497,10 @@ public class KgpSurfaceCompositingTests
         var kgpData = CreateKgpData();
         var tracked = ctx.CreateKgp(kgpData);
 
-        Assert.Null(tracked);
+        Assert.IsNull(tracked);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromPixelData_ReturnsTrackedObject()
     {
         var store = new TrackedObjectStore();
@@ -514,10 +515,10 @@ public class KgpSurfaceCompositingTests
         var pixels = new byte[2 * 2 * 4];
         var tracked = ctx.CreateKgp(pixels, 2, 2);
 
-        Assert.NotNull(tracked);
+        Assert.IsNotNull(tracked);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromPixelData_BelowText_NegativeZIndex()
     {
         var store = new TrackedObjectStore();
@@ -531,11 +532,11 @@ public class KgpSurfaceCompositingTests
         var pixels = new byte[2 * 2 * 4];
         var tracked = ctx.CreateKgp(pixels, 2, 2, KgpZOrder.BelowText);
 
-        Assert.NotNull(tracked);
-        Assert.True(tracked!.Data.ZIndex < 0);
+        Assert.IsNotNull(tracked);
+        Assert.IsTrue(tracked!.Data.ZIndex < 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_FromPixelData_AboveText_PositiveZIndex()
     {
         var store = new TrackedObjectStore();
@@ -549,11 +550,11 @@ public class KgpSurfaceCompositingTests
         var pixels = new byte[2 * 2 * 4];
         var tracked = ctx.CreateKgp(pixels, 2, 2, KgpZOrder.AboveText);
 
-        Assert.NotNull(tracked);
-        Assert.True(tracked!.Data.ZIndex > 0);
+        Assert.IsNotNull(tracked);
+        Assert.IsTrue(tracked!.Data.ZIndex > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceLayerContext_CreateKgp_Deduplicates()
     {
         var store = new TrackedObjectStore();
@@ -568,20 +569,20 @@ public class KgpSurfaceCompositingTests
         var tracked1 = ctx.CreateKgp(kgpData);
         var tracked2 = ctx.CreateKgp(kgpData);
 
-        Assert.NotNull(tracked1);
-        Assert.NotNull(tracked2);
-        Assert.Same(tracked1, tracked2);
+        Assert.IsNotNull(tracked1);
+        Assert.IsNotNull(tracked2);
+        Assert.AreSame(tracked1, tracked2);
     }
 
     #endregion
 
     #region Surface.Composite preserves KGP through cell operations
 
-    [Fact]
+    [TestMethod]
     public void Surface_HasKgp_TracksThroughComposite()
     {
         var parent = new Surface(10, 5, DefaultMetrics);
-        Assert.False(parent.HasKgp);
+        Assert.IsFalse(parent.HasKgp);
 
         var child = new Surface(4, 2, DefaultMetrics);
         var kgpData = CreateKgpData();
@@ -589,10 +590,10 @@ public class KgpSurfaceCompositingTests
         child[0, 0] = new SurfaceCell(" ", null, null, Kgp: tracked);
 
         parent.Composite(child, offsetX: 0, offsetY: 0);
-        Assert.True(parent.HasKgp);
+        Assert.IsTrue(parent.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_Clone_PreservesKgp()
     {
         var surface = new Surface(10, 5, DefaultMetrics);
@@ -601,8 +602,8 @@ public class KgpSurfaceCompositingTests
         surface[2, 1] = new SurfaceCell(" ", null, null, Kgp: tracked);
 
         var clone = surface.Clone();
-        Assert.True(clone.HasKgp);
-        Assert.True(clone[2, 1].HasKgp);
+        Assert.IsTrue(clone.HasKgp);
+        Assert.IsTrue(clone[2, 1].HasKgp);
     }
 
     #endregion

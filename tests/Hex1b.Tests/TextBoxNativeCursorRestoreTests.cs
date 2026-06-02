@@ -9,9 +9,10 @@ namespace Hex1b.Tests;
 /// still be restored to the TextBox even though the TextBox's own cursor coordinates
 /// did not change since the previous frame.
 /// </summary>
+[TestClass]
 public class TextBoxNativeCursorRestoreTests
 {
-    [Fact]
+    [TestMethod]
     public async Task FocusedTextBox_AfterSiblingRepaint_NativeCursorReturnsToTextBox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -49,7 +50,7 @@ public class TextBoxNativeCursorRestoreTests
         // i.e. the second visible row), not on the activity row (row 0).
         // The exact column depends on the default theme's left bracket width but
         // the row should be 1.
-        Assert.Equal(1, snapshot1.CursorY);
+        Assert.AreEqual(1, snapshot1.CursorY);
 
         // Mutate the activity row (same width) and force a re-render.
         activity = "Loaded....";
@@ -69,7 +70,7 @@ public class TextBoxNativeCursorRestoreTests
         // RenderFrameWithSurface() rewrote cells on the activity row (row 0),
         // moving the hardware cursor there. Without the fix, snapshot2.CursorY
         // is 0 (the activity row); with the fix it's still 1 (the TextBox row).
-        Assert.Equal(snapshot1.CursorY, snapshot2.CursorY);
-        Assert.Equal(snapshot1.CursorX, snapshot2.CursorX);
+        Assert.AreEqual(snapshot1.CursorY, snapshot2.CursorY);
+        Assert.AreEqual(snapshot1.CursorX, snapshot2.CursorX);
     }
 }

@@ -10,6 +10,7 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class EditorNodeRenderingTests
 {
     // Helper: resolve expected cell colors from theme.
@@ -65,7 +66,7 @@ public class EditorNodeRenderingTests
         return (node, workload, terminal, context, theme);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyDocument_ShowsCursorOnFirstCellAndTildesBelow()
     {
         // NOTE: Empty doc rendering may change if we add line numbers or gutter.
@@ -92,16 +93,16 @@ public class EditorNodeRenderingTests
 
         // Line 0: cursor cell (space with cursor colors), rest are spaces
         var cell00 = snapshot.GetCell(0, 0);
-        Assert.Equal(cursorFg, cell00.Foreground);
-        Assert.Equal(cursorBg, cell00.Background);
+        Assert.AreEqual(cursorFg, cell00.Foreground);
+        Assert.AreEqual(cursorBg, cell00.Background);
 
         // Lines 1-4: tilde markers
         for (var y = 1; y < 5; y++)
         {
-            Assert.Equal("~", snapshot.GetCell(0, y).Character);
+            Assert.AreEqual("~", snapshot.GetCell(0, y).Character);
             for (var x = 1; x < 20; x++)
             {
-                Assert.Equal(" ", snapshot.GetCell(x, y).Character);
+                Assert.AreEqual(" ", snapshot.GetCell(x, y).Character);
             }
         }
 
@@ -109,7 +110,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SingleLineDocument_ShowsTextOnLine0AndTildesBelow()
     {
         // NOTE: May change with line number gutter.
@@ -130,32 +131,32 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0: "Hello" with cursor on 'H' (cursor at offset 0)
-        Assert.Equal("H", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(cursorFg, snapshot.GetCell(0, 0).Foreground);
-        Assert.Equal(cursorBg, snapshot.GetCell(0, 0).Background);
+        Assert.AreEqual("H", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(cursorFg, snapshot.GetCell(0, 0).Foreground);
+        Assert.AreEqual(cursorBg, snapshot.GetCell(0, 0).Background);
 
-        Assert.Equal("e", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("l", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("o", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("e", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("l", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("o", snapshot.GetCell(4, 0).Character);
 
         // Padding after text
         for (var x = 5; x < 20; x++)
         {
-            Assert.Equal(" ", snapshot.GetCell(x, 0).Character);
+            Assert.AreEqual(" ", snapshot.GetCell(x, 0).Character);
         }
 
         // Lines 1-4: tilde markers
         for (var y = 1; y < 5; y++)
         {
-            Assert.Equal("~", snapshot.GetCell(0, y).Character);
+            Assert.AreEqual("~", snapshot.GetCell(0, y).Character);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultiLineDocument_EachLineAtCorrectYPosition()
     {
         // NOTE: May change with line number gutter.
@@ -176,28 +177,28 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Line 0: "AAA" (cursor on 'A' at col 0)
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(cursorFg, snapshot.GetCell(0, 0).Foreground);
-        Assert.Equal("A", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("A", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(cursorFg, snapshot.GetCell(0, 0).Foreground);
+        Assert.AreEqual("A", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(2, 0).Character);
 
         // Line 1: "BBB"
-        Assert.Equal("B", snapshot.GetCell(0, 1).Character);
-        Assert.Equal("B", snapshot.GetCell(1, 1).Character);
-        Assert.Equal("B", snapshot.GetCell(2, 1).Character);
+        Assert.AreEqual("B", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("B", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("B", snapshot.GetCell(2, 1).Character);
 
         // Line 2: "CCC"
-        Assert.Equal("C", snapshot.GetCell(0, 2).Character);
+        Assert.AreEqual("C", snapshot.GetCell(0, 2).Character);
 
         // Lines 3-4: tilde markers (past 3-line doc)
-        Assert.Equal("~", snapshot.GetCell(0, 3).Character);
-        Assert.Equal("~", snapshot.GetCell(0, 4).Character);
+        Assert.AreEqual("~", snapshot.GetCell(0, 3).Character);
+        Assert.AreEqual("~", snapshot.GetCell(0, 4).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_LineLongerThanViewport_TruncatedToViewportWidth()
     {
         // NOTE: Horizontal scrolling may change truncation behavior in future.
@@ -215,18 +216,18 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Only first 5 chars visible (viewport width = 5)
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("B", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("C", snapshot.GetCell(2, 0).Character);
-        Assert.Equal("D", snapshot.GetCell(3, 0).Character);
-        Assert.Equal("E", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("B", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("C", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("D", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("E", snapshot.GetCell(4, 0).Character);
         // No chars past viewport edge (cols 5+ not in our viewport)
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ShortLine_PaddedWithSpacesToViewportWidth()
     {
         // NOTE: Padding behavior may change with background fill or gutter.
@@ -245,21 +246,21 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // "Hi" at cols 0-1, then spaces at cols 2-9
-        Assert.Equal("H", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("i", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("H", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("i", snapshot.GetCell(1, 0).Character);
         for (var x = 2; x < 10; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(" ", cell.Character);
-            Assert.Equal(textFg, cell.Foreground);
-            Assert.Equal(textBg, cell.Background);
+            Assert.AreEqual(" ", cell.Character);
+            Assert.AreEqual(textFg, cell.Foreground);
+            Assert.AreEqual(textBg, cell.Background);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorOnFirstChar_HasCursorColors()
     {
         // NOTE: Cursor rendering may change to use reverse video or underline.
@@ -283,15 +284,15 @@ public class EditorNodeRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
         var cell = snapshot.GetCell(0, 0);
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(cursorFg, cell.Foreground);
-        Assert.Equal(cursorBg, cell.Background);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(cursorFg, cell.Foreground);
+        Assert.AreEqual(cursorBg, cell.Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorMidLine_OnlyCursorCellHasCursorColors()
     {
         // NOTE: Cursor rendering may change with multi-cursor or selection highlighting.
@@ -318,26 +319,26 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // 'A' and 'B' at cols 0-1: NOT cursor colors
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.NotEqual(cursorBg, snapshot.GetCell(0, 0).Background);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreNotEqual(cursorBg, snapshot.GetCell(0, 0).Background);
 
-        Assert.Equal("B", snapshot.GetCell(1, 0).Character);
-        Assert.NotEqual(cursorBg, snapshot.GetCell(1, 0).Background);
+        Assert.AreEqual("B", snapshot.GetCell(1, 0).Character);
+        Assert.AreNotEqual(cursorBg, snapshot.GetCell(1, 0).Background);
 
         // 'C' at col 2: cursor colors
-        Assert.Equal("C", snapshot.GetCell(2, 0).Character);
-        Assert.Equal(cursorFg, snapshot.GetCell(2, 0).Foreground);
-        Assert.Equal(cursorBg, snapshot.GetCell(2, 0).Background);
+        Assert.AreEqual("C", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual(cursorFg, snapshot.GetCell(2, 0).Foreground);
+        Assert.AreEqual(cursorBg, snapshot.GetCell(2, 0).Background);
 
         // 'D' and 'E' at cols 3-4: NOT cursor colors
-        Assert.Equal("D", snapshot.GetCell(3, 0).Character);
-        Assert.NotEqual(cursorBg, snapshot.GetCell(3, 0).Background);
+        Assert.AreEqual("D", snapshot.GetCell(3, 0).Character);
+        Assert.AreNotEqual(cursorBg, snapshot.GetCell(3, 0).Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorAtEndOfLine_CursorOnSpaceAfterLastChar()
     {
         // NOTE: End-of-line cursor behavior may change with virtual space mode.
@@ -362,19 +363,19 @@ public class EditorNodeRenderingTests
             .ApplyAsync(terminal, TestContext.Current.CancellationToken);
 
         var snapshot = terminal.CreateSnapshot();
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("B", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("B", snapshot.GetCell(1, 0).Character);
 
         var cursorCell = snapshot.GetCell(2, 0);
-        Assert.Equal(" ", cursorCell.Character);
-        Assert.Equal(cursorFg, cursorCell.Foreground);
-        Assert.Equal(cursorBg, cursorCell.Background);
+        Assert.AreEqual(" ", cursorCell.Character);
+        Assert.AreEqual(cursorFg, cursorCell.Foreground);
+        Assert.AreEqual(cursorBg, cursorCell.Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_Unfocused_NoCellHasCursorColors()
     {
         // NOTE: Unfocused editor may gain dimmed cursor in future.
@@ -397,7 +398,7 @@ public class EditorNodeRenderingTests
         {
             for (var x = 0; x < 20; x++)
             {
-                Assert.NotEqual(cursorBg, snapshot.GetCell(x, y).Background);
+                Assert.AreNotEqual(cursorBg, snapshot.GetCell(x, y).Background);
             }
         }
 
@@ -405,7 +406,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EOFTildeMarkers_ShowTildeWithTextColorsNotCursorColors()
     {
         // NOTE: EOF marker style (tilde vs empty) may become configurable.
@@ -429,14 +430,14 @@ public class EditorNodeRenderingTests
         for (var y = 1; y < 4; y++)
         {
             var tildeCell = snapshot.GetCell(0, y);
-            Assert.Equal("~", tildeCell.Character);
-            Assert.Equal(textFg, tildeCell.Foreground);
-            Assert.Equal(textBg, tildeCell.Background);
-            Assert.NotEqual(cursorBg, tildeCell.Background);
+            Assert.AreEqual("~", tildeCell.Character);
+            Assert.AreEqual(textFg, tildeCell.Foreground);
+            Assert.AreEqual(textBg, tildeCell.Background);
+            Assert.AreNotEqual(cursorBg, tildeCell.Background);
 
             for (var x = 1; x < 10; x++)
             {
-                Assert.Equal(" ", snapshot.GetCell(x, y).Character);
+                Assert.AreEqual(" ", snapshot.GetCell(x, y).Character);
             }
         }
 
@@ -444,7 +445,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ViewportFillsBounds_EveryCellHasContent()
     {
         // NOTE: Viewport fill behavior may change with margin/padding support.
@@ -467,8 +468,7 @@ public class EditorNodeRenderingTests
             for (var x = 0; x < 8; x++)
             {
                 var cell = snapshot.GetCell(x, y);
-                Assert.False(string.IsNullOrEmpty(cell.Character),
-                    $"Cell ({x},{y}) should have content but was empty");
+                Assert.IsFalse(string.IsNullOrEmpty(cell.Character), $"Cell ({x},{y}) should have content but was empty");
             }
         }
 
@@ -476,7 +476,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SmallViewport3Lines_Only3RowsRendered()
     {
         // NOTE: With scrollbar, viewport may shrink by 1 column.
@@ -500,16 +500,16 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0: "L1" (line 1)
-        Assert.Equal("L", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("1", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("L", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("1", snapshot.GetCell(1, 0).Character);
 
         // Row 1: "L2" (line 2)
-        Assert.Equal("L", snapshot.GetCell(0, 1).Character);
-        Assert.Equal("2", snapshot.GetCell(1, 1).Character);
+        Assert.AreEqual("L", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual("2", snapshot.GetCell(1, 1).Character);
 
         // Row 2: "L3" (line 3)
-        Assert.Equal("L", snapshot.GetCell(0, 2).Character);
-        Assert.Equal("3", snapshot.GetCell(1, 2).Character);
+        Assert.AreEqual("L", snapshot.GetCell(0, 2).Character);
+        Assert.AreEqual("3", snapshot.GetCell(1, 2).Character);
 
         // Lines 4 and 5 are NOT visible (only 3-line viewport)
         // We can't directly assert "not rendered" but they're offscreen
@@ -518,7 +518,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_LargeDocSmallViewport_OnlyViewportWindowVisible()
     {
         // NOTE: Scroll indicator may appear in future.
@@ -549,7 +549,7 @@ public class EditorNodeRenderingTests
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyLinesInDocument_ShowSpacesNotTildes()
     {
         // NOTE: Empty lines may gain whitespace indicators in future.
@@ -568,28 +568,28 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Row 0: "A"
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
 
         // Row 1: empty line in document — should be spaces, NOT tilde
-        Assert.Equal(" ", snapshot.GetCell(0, 1).Character);
-        Assert.NotEqual("~", snapshot.GetCell(0, 1).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(0, 1).Character);
+        Assert.AreNotEqual("~", snapshot.GetCell(0, 1).Character);
         // Verify it's spaces across the whole line
         for (var x = 0; x < 10; x++)
         {
-            Assert.Equal(" ", snapshot.GetCell(x, 1).Character);
+            Assert.AreEqual(" ", snapshot.GetCell(x, 1).Character);
         }
 
         // Row 2: "B"
-        Assert.Equal("B", snapshot.GetCell(0, 2).Character);
+        Assert.AreEqual("B", snapshot.GetCell(0, 2).Character);
 
         // Row 3: past EOF — should be tilde
-        Assert.Equal("~", snapshot.GetCell(0, 3).Character);
+        Assert.AreEqual("~", snapshot.GetCell(0, 3).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ThemeColorsOnText_AllNonCursorCellsHaveTextColors()
     {
         // NOTE: Theme color application may change with syntax highlighting.
@@ -612,15 +612,15 @@ public class EditorNodeRenderingTests
         for (var x = 1; x <= 3; x++)
         {
             var cell = snapshot.GetCell(x, 0);
-            Assert.Equal(textFg, cell.Foreground);
-            Assert.Equal(textBg, cell.Background);
+            Assert.AreEqual(textFg, cell.Foreground);
+            Assert.AreEqual(textBg, cell.Background);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ThemeColorsOnCursor_CursorCellMatchesTheme()
     {
         // NOTE: Cursor style (block, bar, underline) may become configurable.
@@ -642,15 +642,15 @@ public class EditorNodeRenderingTests
 
         var snapshot = terminal.CreateSnapshot();
         var cell = snapshot.GetCell(0, 0);
-        Assert.Equal("X", cell.Character);
-        Assert.Equal(cursorFg, cell.Foreground);
-        Assert.Equal(cursorBg, cell.Background);
+        Assert.AreEqual("X", cell.Character);
+        Assert.AreEqual(cursorFg, cell.Foreground);
+        Assert.AreEqual(cursorBg, cell.Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ScrollbarAppearsWhenContentOverflows()
     {
         // NOTE: Scrollbar appears on the rightmost column when doc has more lines than viewport.
@@ -694,13 +694,13 @@ public class EditorNodeRenderingTests
                 hasTrackOrThumb = true;
         }
 
-        Assert.True(hasTrackOrThumb, "Scrollbar should appear in rightmost column");
+        Assert.IsTrue(hasTrackOrThumb, "Scrollbar should appear in rightmost column");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_NoScrollbarWhenContentFits()
     {
         // NOTE: No scrollbar when all content fits in viewport.
@@ -725,15 +725,15 @@ public class EditorNodeRenderingTests
         for (var row = 0; row < 5; row++)
         {
             var cell = snapshot.GetCell(scrollCol, row);
-            Assert.NotEqual(trackChar, cell.Character);
-            Assert.NotEqual(thumbChar, cell.Character);
+            Assert.AreNotEqual(trackChar, cell.Character);
+            Assert.AreNotEqual(thumbChar, cell.Character);
         }
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_LongLine_ReducesViewportForHorizontalScrollbar()
     {
         // Line longer than viewport should reduce viewport height for horizontal scrollbar
@@ -741,28 +741,28 @@ public class EditorNodeRenderingTests
         var (node, workload, terminal, context, theme) = CreateEditor(longLine, 20, 5);
 
         // With horizontal scrollbar, viewport lines should be reduced by 1
-        Assert.Equal(4, node.ViewportLines);
-        Assert.Equal(20, node.ViewportColumns); // no vertical scrollbar
+        Assert.AreEqual(4, node.ViewportLines);
+        Assert.AreEqual(20, node.ViewportColumns); // no vertical scrollbar
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_VerticalOverflow_ReducesViewportForScrollbar()
     {
         // Many lines should reduce viewport columns for vertical scrollbar
         var lines = string.Join("\n", Enumerable.Range(1, 20).Select(i => $"Line{i}"));
         var (node, workload, terminal, context, theme) = CreateEditor(lines, 20, 5);
 
-        Assert.Equal(19, node.ViewportColumns);
-        Assert.Equal(5, node.ViewportLines); // no horizontal scrollbar
+        Assert.AreEqual(19, node.ViewportColumns);
+        Assert.AreEqual(5, node.ViewportLines); // no horizontal scrollbar
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public void HorizontalScroll_CursorMovesRight_ScrollsHorizontally()
     {
         // Moving cursor past viewport width should trigger horizontal scrolling
@@ -787,13 +787,13 @@ public class EditorNodeRenderingTests
         node.NotifyCursorChanged();
         node.Arrange(new Rect(0, 0, 20, 5));
 
-        Assert.True(node.HorizontalScrollOffset > 0, "Horizontal scroll should be non-zero when cursor is past viewport");
+        Assert.IsTrue(node.HorizontalScrollOffset > 0, "Horizontal scroll should be non-zero when cursor is past viewport");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HorizontalScrollbar_AppearsAtBottom()
     {
         // When content is wider than viewport, horizontal scrollbar renders on bottom row
@@ -835,13 +835,13 @@ public class EditorNodeRenderingTests
                 hasTrackOrThumb = true;
         }
 
-        Assert.True(hasTrackOrThumb, "Horizontal scrollbar should appear on bottom row");
+        Assert.IsTrue(hasTrackOrThumb, "Horizontal scrollbar should appear on bottom row");
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WideCharacter_OccupiesTwoDisplayColumns()
     {
         // ⚡ (U+26A1) has Emoji_Presentation → display width 2
@@ -859,22 +859,21 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Col 0: 'A' (1-wide), cursor on 'A' by default
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
         // Col 1: '⚡' main cell (2-wide)
-        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("⚡", snapshot.GetCell(1, 0).Character);
         // Col 2: continuation cell (empty/wide char continuation)
-        Assert.True(snapshot.GetCell(2, 0).Character is "" or " ",
-            "Col 2 should be continuation cell for wide ⚡");
+        Assert.IsTrue(snapshot.GetCell(2, 0).Character is "" or " ", "Col 2 should be continuation cell for wide ⚡");
         // Col 3: 'B' (1-wide) — shifted by the extra column from ⚡
-        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("B", snapshot.GetCell(3, 0).Character);
         // Col 4+: padding spaces
-        Assert.Equal(" ", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual(" ", snapshot.GetCell(4, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorOnWideChar_BothColumnsHaveCursorColors()
     {
         // Cursor on ⚡ should highlight both display columns
@@ -901,15 +900,15 @@ public class EditorNodeRenderingTests
 
         // Col 1: ⚡ main cell with cursor colors
         var cell1 = snapshot.GetCell(1, 0);
-        Assert.Equal("⚡", cell1.Character);
-        Assert.Equal(cursorFg, cell1.Foreground);
-        Assert.Equal(cursorBg, cell1.Background);
+        Assert.AreEqual("⚡", cell1.Character);
+        Assert.AreEqual(cursorFg, cell1.Foreground);
+        Assert.AreEqual(cursorBg, cell1.Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CursorAfterWideChar_CursorAtCorrectDisplayColumn()
     {
         // Cursor on 'B' (after 2-wide ⚡) should be at display col 3
@@ -936,24 +935,24 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Col 0: 'A' (normal colors)
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal(textFg, snapshot.GetCell(0, 0).Foreground);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual(textFg, snapshot.GetCell(0, 0).Foreground);
 
         // Col 1: '⚡' (normal colors — cursor has moved past)
-        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
-        Assert.Equal(textFg, snapshot.GetCell(1, 0).Foreground);
+        Assert.AreEqual("⚡", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual(textFg, snapshot.GetCell(1, 0).Foreground);
 
         // Col 3: 'B' with cursor colors
         var cellB = snapshot.GetCell(3, 0);
-        Assert.Equal("B", cellB.Character);
-        Assert.Equal(cursorFg, cellB.Foreground);
-        Assert.Equal(cursorBg, cellB.Background);
+        Assert.AreEqual("B", cellB.Character);
+        Assert.AreEqual(cursorFg, cellB.Foreground);
+        Assert.AreEqual(cursorBg, cellB.Background);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MultipleWideChars_CorrectDisplayLayout()
     {
         // "⌚⌛" — both 2-wide (Emoji_Presentation=Yes), should occupy 4 display columns
@@ -971,19 +970,19 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Col 0: ⌚ main (2-wide)
-        Assert.Equal("⌚", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("⌚", snapshot.GetCell(0, 0).Character);
         // Col 1: continuation
         // Col 2: ⌛ main (2-wide)
-        Assert.Equal("⌛", snapshot.GetCell(2, 0).Character);
+        Assert.AreEqual("⌛", snapshot.GetCell(2, 0).Character);
         // Col 3: continuation
         // Col 4: X (1-wide)
-        Assert.Equal("X", snapshot.GetCell(4, 0).Character);
+        Assert.AreEqual("X", snapshot.GetCell(4, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WideCharAtViewportEdge_TruncatedNotOverflow()
     {
         // Viewport width 4: "A⚡B" — A(1) + ⚡(2) = 3 cols, B starts at col 3
@@ -1002,9 +1001,9 @@ public class EditorNodeRenderingTests
         var snapshot = terminal.CreateSnapshot();
 
         // Col 0: A, Col 1: ⚡ (2-wide), Col 3: B — all fit in 4 cols
-        Assert.Equal("A", snapshot.GetCell(0, 0).Character);
-        Assert.Equal("⚡", snapshot.GetCell(1, 0).Character);
-        Assert.Equal("B", snapshot.GetCell(3, 0).Character);
+        Assert.AreEqual("A", snapshot.GetCell(0, 0).Character);
+        Assert.AreEqual("⚡", snapshot.GetCell(1, 0).Character);
+        Assert.AreEqual("B", snapshot.GetCell(3, 0).Character);
 
         workload.Dispose();
         terminal.Dispose();

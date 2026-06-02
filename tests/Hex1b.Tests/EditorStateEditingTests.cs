@@ -6,11 +6,12 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for EditorState word-level and line-level deletion operations.
 /// </summary>
+[TestClass]
 public class EditorStateEditingTests
 {
     // ── DeleteWordBackward ──────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_DeletesWord()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -20,11 +21,11 @@ public class EditorStateEditingTests
         state.DeleteWordBackward();
 
         // Should delete "World" (word boundary from end)
-        Assert.Equal(new DocumentOffset(6), state.Cursor.Position);
-        Assert.Equal("Hello ", doc.GetText());
+        Assert.AreEqual(new DocumentOffset(6), state.Cursor.Position);
+        Assert.AreEqual("Hello ", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_AtDocumentStart_NoOp()
     {
         var doc = new Hex1bDocument("Hello");
@@ -33,10 +34,10 @@ public class EditorStateEditingTests
 
         state.DeleteWordBackward();
 
-        Assert.Equal("Hello", doc.GetText());
+        Assert.AreEqual("Hello", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_ReadOnly_NoOp()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -45,10 +46,10 @@ public class EditorStateEditingTests
 
         state.DeleteWordBackward();
 
-        Assert.Equal("Hello World", doc.GetText());
+        Assert.AreEqual("Hello World", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_WithSelection_DeletesSelection()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -58,11 +59,11 @@ public class EditorStateEditingTests
 
         state.DeleteWordBackward();
 
-        Assert.Equal("Hello ", doc.GetText());
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual("Hello ", doc.GetText());
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordBackward_MiddleOfWord_DeletesPartialWord()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -78,7 +79,7 @@ public class EditorStateEditingTests
 
     // ── DeleteWordForward ───────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordForward_DeletesWord()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -88,11 +89,11 @@ public class EditorStateEditingTests
         state.DeleteWordForward();
 
         // Deletes "Hello " (word + trailing space per word boundary behavior)
-        Assert.Equal(DocumentOffset.Zero, state.Cursor.Position);
-        Assert.Equal("World", doc.GetText());
+        Assert.AreEqual(DocumentOffset.Zero, state.Cursor.Position);
+        Assert.AreEqual("World", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordForward_AtDocumentEnd_NoOp()
     {
         var doc = new Hex1bDocument("Hello");
@@ -101,10 +102,10 @@ public class EditorStateEditingTests
 
         state.DeleteWordForward();
 
-        Assert.Equal("Hello", doc.GetText());
+        Assert.AreEqual("Hello", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordForward_ReadOnly_NoOp()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -113,10 +114,10 @@ public class EditorStateEditingTests
 
         state.DeleteWordForward();
 
-        Assert.Equal("Hello World", doc.GetText());
+        Assert.AreEqual("Hello World", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteWordForward_WithSelection_DeletesSelection()
     {
         var doc = new Hex1bDocument("Hello World");
@@ -126,13 +127,13 @@ public class EditorStateEditingTests
 
         state.DeleteWordForward();
 
-        Assert.Equal(" World", doc.GetText());
-        Assert.False(state.Cursor.HasSelection);
+        Assert.AreEqual(" World", doc.GetText());
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
     // ── DeleteLine ──────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_DeletesCurrentLine()
     {
         var doc = new Hex1bDocument("Line 1\nLine 2\nLine 3");
@@ -142,11 +143,11 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.Equal("Line 1\nLine 3", doc.GetText());
-        Assert.Equal(2, doc.LineCount);
+        Assert.AreEqual("Line 1\nLine 3", doc.GetText());
+        Assert.AreEqual(2, doc.LineCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_FirstLine_DeletesFirstLine()
     {
         var doc = new Hex1bDocument("Line 1\nLine 2\nLine 3");
@@ -155,10 +156,10 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.Equal("Line 2\nLine 3", doc.GetText());
+        Assert.AreEqual("Line 2\nLine 3", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_LastLine_DeletesLastLine()
     {
         var doc = new Hex1bDocument("Line 1\nLine 2\nLine 3");
@@ -167,10 +168,10 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.Equal("Line 1\nLine 2", doc.GetText());
+        Assert.AreEqual("Line 1\nLine 2", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_OnlyLine_EmptiesDocument()
     {
         var doc = new Hex1bDocument("Hello");
@@ -179,11 +180,11 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.Equal("", doc.GetText());
-        Assert.Equal(0, doc.Length);
+        Assert.AreEqual("", doc.GetText());
+        Assert.AreEqual(0, doc.Length);
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_ReadOnly_NoOp()
     {
         var doc = new Hex1bDocument("Hello\nWorld");
@@ -192,10 +193,10 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.Equal("Hello\nWorld", doc.GetText());
+        Assert.AreEqual("Hello\nWorld", doc.GetText());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeleteLine_ClearsSelection()
     {
         var doc = new Hex1bDocument("Line 1\nLine 2\nLine 3");
@@ -205,23 +206,23 @@ public class EditorStateEditingTests
 
         state.DeleteLine();
 
-        Assert.False(state.Cursor.HasSelection);
+        Assert.IsFalse(state.Cursor.HasSelection);
     }
 
     // ── EnsureSelectionAnchor (DocumentCursor) ──────────────────
 
-    [Fact]
+    [TestMethod]
     public void EnsureSelectionAnchor_SetsAnchorIfNull()
     {
         var cursor = new DocumentCursor { Position = new DocumentOffset(5) };
-        Assert.Null(cursor.SelectionAnchor);
+        Assert.IsNull(cursor.SelectionAnchor);
 
         cursor.EnsureSelectionAnchor();
 
-        Assert.Equal(new DocumentOffset(5), cursor.SelectionAnchor);
+        Assert.AreEqual(new DocumentOffset(5), cursor.SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void EnsureSelectionAnchor_DoesNotOverwriteExisting()
     {
         var cursor = new DocumentCursor
@@ -232,6 +233,6 @@ public class EditorStateEditingTests
 
         cursor.EnsureSelectionAnchor();
 
-        Assert.Equal(new DocumentOffset(3), cursor.SelectionAnchor); // unchanged
+        Assert.AreEqual(new DocumentOffset(3), cursor.SelectionAnchor); // unchanged
     }
 }

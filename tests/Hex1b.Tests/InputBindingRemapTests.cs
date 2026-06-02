@@ -2,6 +2,7 @@ using Hex1b.Input;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class InputBindingRemapTests
 {
     private static readonly ActionId TestMoveUp = new("Test.MoveUp");
@@ -9,19 +10,19 @@ public class InputBindingRemapTests
     private static readonly ActionId TestActivate = new("Test.Activate");
     private static readonly ActionId TestUnregistered = new("Test.Unregistered");
 
-    [Fact]
+    [TestMethod]
     public void Triggers_SetsActionIdOnBinding()
     {
         var builder = new InputBindingsBuilder();
 
         builder.Key(Hex1bKey.UpArrow).Triggers(TestMoveUp, _ => { }, "Move up");
 
-        Assert.Single(builder.Bindings);
-        Assert.Equal(TestMoveUp, builder.Bindings[0].ActionId);
-        Assert.Equal("Move up", builder.Bindings[0].Description);
+        TestSeq.Single(builder.Bindings);
+        Assert.AreEqual(TestMoveUp, builder.Bindings[0].ActionId);
+        Assert.AreEqual("Move up", builder.Bindings[0].Description);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_RegistersHandlerInRegistry()
     {
         var builder = new InputBindingsBuilder();
@@ -31,11 +32,11 @@ public class InputBindingRemapTests
         // Verify handler is registered by creating a rebinding
         builder.Key(Hex1bKey.K).Triggers(TestMoveUp);
 
-        Assert.Equal(2, builder.Bindings.Count);
-        Assert.Equal(TestMoveUp, builder.Bindings[1].ActionId);
+        Assert.AreEqual(2, builder.Bindings.Count);
+        Assert.AreEqual(TestMoveUp, builder.Bindings[1].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Triggers_RebindingResolvesCorrectHandler()
     {
         var builder = new InputBindingsBuilder();
@@ -53,10 +54,10 @@ public class InputBindingRemapTests
         var context = CreateMockContext();
         await builder.Bindings[1].ExecuteAsync(context);
 
-        Assert.True(handlerCalled);
+        Assert.IsTrue(handlerCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_AsyncHandler_SetsActionIdAndRegisters()
     {
         var builder = new InputBindingsBuilder();
@@ -64,23 +65,23 @@ public class InputBindingRemapTests
         builder.Key(Hex1bKey.UpArrow).Triggers(TestMoveUp,
             _ => Task.CompletedTask, "Move up");
 
-        Assert.Equal(TestMoveUp, builder.Bindings[0].ActionId);
+        Assert.AreEqual(TestMoveUp, builder.Bindings[0].ActionId);
 
         // Verify rebinding works
         builder.Key(Hex1bKey.K).Triggers(TestMoveUp);
-        Assert.Equal(2, builder.Bindings.Count);
+        Assert.AreEqual(2, builder.Bindings.Count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_Unregistered_Throws()
     {
         var builder = new InputBindingsBuilder();
 
-        Assert.Throws<InvalidOperationException>(() =>
+        Assert.ThrowsExactly<InvalidOperationException>(() =>
             builder.Key(Hex1bKey.K).Triggers(TestUnregistered));
     }
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_RemovesAllMatchingBindings()
     {
         var builder = new InputBindingsBuilder();
@@ -91,11 +92,11 @@ public class InputBindingRemapTests
 
         builder.Remove(TestActivate);
 
-        Assert.Single(builder.Bindings);
-        Assert.Equal(TestMoveUp, builder.Bindings[0].ActionId);
+        TestSeq.Single(builder.Bindings);
+        Assert.AreEqual(TestMoveUp, builder.Bindings[0].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_PreservesRegistry()
     {
         var builder = new InputBindingsBuilder();
@@ -103,15 +104,15 @@ public class InputBindingRemapTests
         builder.Key(Hex1bKey.Enter).Triggers(TestActivate, _ => { }, "Activate");
         builder.Remove(TestActivate);
 
-        Assert.Empty(builder.Bindings);
+        Assert.IsEmpty(builder.Bindings);
 
         // Handler still in registry — can rebind
         builder.Key(Hex1bKey.K).Triggers(TestActivate);
-        Assert.Single(builder.Bindings);
-        Assert.Equal(TestActivate, builder.Bindings[0].ActionId);
+        TestSeq.Single(builder.Bindings);
+        Assert.AreEqual(TestActivate, builder.Bindings[0].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_RemovesMouseBindingsToo()
     {
         var builder = new InputBindingsBuilder();
@@ -121,11 +122,11 @@ public class InputBindingRemapTests
 
         builder.Remove(TestActivate);
 
-        Assert.Empty(builder.Bindings);
-        Assert.Empty(builder.MouseBindings);
+        Assert.IsEmpty(builder.Bindings);
+        Assert.IsEmpty(builder.MouseBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void Remove_ByActionId_UnknownId_IsNoOp()
     {
         var builder = new InputBindingsBuilder();
@@ -133,10 +134,10 @@ public class InputBindingRemapTests
 
         builder.Remove(TestUnregistered); // should not throw
 
-        Assert.Single(builder.Bindings);
+        TestSeq.Single(builder.Bindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void RemoveAll_ClearsAllBindingTypes()
     {
         var builder = new InputBindingsBuilder();
@@ -148,12 +149,12 @@ public class InputBindingRemapTests
 
         builder.RemoveAll();
 
-        Assert.Empty(builder.Bindings);
-        Assert.Empty(builder.MouseBindings);
-        Assert.Empty(builder.CharacterBindings);
+        Assert.IsEmpty(builder.Bindings);
+        Assert.IsEmpty(builder.MouseBindings);
+        Assert.IsEmpty(builder.CharacterBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void RemoveAll_PreservesRegistry()
     {
         var builder = new InputBindingsBuilder();
@@ -163,10 +164,10 @@ public class InputBindingRemapTests
 
         // Can still rebind
         builder.Key(Hex1bKey.K).Triggers(TestActivate);
-        Assert.Single(builder.Bindings);
+        TestSeq.Single(builder.Bindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetBindings_ReturnsMatchingBindings()
     {
         var builder = new InputBindingsBuilder();
@@ -176,22 +177,22 @@ public class InputBindingRemapTests
         builder.Key(Hex1bKey.UpArrow).Triggers(TestMoveUp, _ => { }, "Move up");
 
         var activateBindings = builder.GetBindings(TestActivate);
-        Assert.Equal(2, activateBindings.Count);
+        Assert.AreEqual(2, activateBindings.Count);
 
         var moveUpBindings = builder.GetBindings(TestMoveUp);
-        Assert.Single(moveUpBindings);
+        TestSeq.Single(moveUpBindings);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetBindings_UnknownId_ReturnsEmpty()
     {
         var builder = new InputBindingsBuilder();
 
         var result = builder.GetBindings(TestUnregistered);
-        Assert.Empty(result);
+        Assert.IsEmpty(result);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetAllActionIds_ReturnsAllUniqueIds()
     {
         var builder = new InputBindingsBuilder();
@@ -202,21 +203,21 @@ public class InputBindingRemapTests
         builder.Key(Hex1bKey.DownArrow).Triggers(TestMoveDown, _ => { }, "Move down");
 
         var ids = builder.GetAllActionIds();
-        Assert.Equal(3, ids.Count);
+        Assert.AreEqual(3, ids.Count);
         Assert.Contains(TestActivate, ids);
         Assert.Contains(TestMoveUp, ids);
         Assert.Contains(TestMoveDown, ids);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetAllActionIds_Empty_ReturnsEmpty()
     {
         var builder = new InputBindingsBuilder();
         var ids = builder.GetAllActionIds();
-        Assert.Empty(ids);
+        Assert.IsEmpty(ids);
     }
 
-    [Fact]
+    [TestMethod]
     public void RemapPattern_RemoveThenBind_Works()
     {
         var builder = new InputBindingsBuilder();
@@ -232,14 +233,14 @@ public class InputBindingRemapTests
         builder.Remove(TestMoveDown);
         builder.Key(Hex1bKey.J).Triggers(TestMoveDown);
 
-        Assert.Equal(2, builder.Bindings.Count);
-        Assert.Equal(Hex1bKey.K, builder.Bindings[0].Steps[0].Key);
-        Assert.Equal(TestMoveUp, builder.Bindings[0].ActionId);
-        Assert.Equal(Hex1bKey.J, builder.Bindings[1].Steps[0].Key);
-        Assert.Equal(TestMoveDown, builder.Bindings[1].ActionId);
+        Assert.AreEqual(2, builder.Bindings.Count);
+        Assert.AreEqual(Hex1bKey.K, builder.Bindings[0].Steps[0].Key);
+        Assert.AreEqual(TestMoveUp, builder.Bindings[0].ActionId);
+        Assert.AreEqual(Hex1bKey.J, builder.Bindings[1].Steps[0].Key);
+        Assert.AreEqual(TestMoveDown, builder.Bindings[1].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void AliasPattern_BindWithoutRemove_KeepsBoth()
     {
         var builder = new InputBindingsBuilder();
@@ -249,53 +250,53 @@ public class InputBindingRemapTests
         // Alias: just Bind (don't Remove)
         builder.Key(Hex1bKey.K).Triggers(TestMoveUp);
 
-        Assert.Equal(2, builder.Bindings.Count);
-        Assert.Equal(Hex1bKey.UpArrow, builder.Bindings[0].Steps[0].Key);
-        Assert.Equal(Hex1bKey.K, builder.Bindings[1].Steps[0].Key);
-        Assert.All(builder.Bindings, b => Assert.Equal(TestMoveUp, b.ActionId));
+        Assert.AreEqual(2, builder.Bindings.Count);
+        Assert.AreEqual(Hex1bKey.UpArrow, builder.Bindings[0].Steps[0].Key);
+        Assert.AreEqual(Hex1bKey.K, builder.Bindings[1].Steps[0].Key);
+        TestSeq.All(builder.Bindings, b => Assert.AreEqual(TestMoveUp, b.ActionId));
     }
 
-    [Fact]
+    [TestMethod]
     public void MouseBinding_Triggers_SetsActionId()
     {
         var builder = new InputBindingsBuilder();
 
         builder.Mouse(MouseButton.Left).Triggers(TestActivate, _ => { }, "Click");
 
-        Assert.Single(builder.MouseBindings);
-        Assert.Equal(TestActivate, builder.MouseBindings[0].ActionId);
+        TestSeq.Single(builder.MouseBindings);
+        Assert.AreEqual(TestActivate, builder.MouseBindings[0].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Action_WithoutTriggers_HasNullActionId()
     {
         var builder = new InputBindingsBuilder();
 
         builder.Key(Hex1bKey.Enter).Action(_ => { }, "Press enter");
 
-        Assert.Single(builder.Bindings);
-        Assert.Null(builder.Bindings[0].ActionId);
+        TestSeq.Single(builder.Bindings);
+        Assert.IsNull(builder.Bindings[0].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionId_ToString_ReturnsValue()
     {
         var id = new ActionId("List.MoveUp");
-        Assert.Equal("List.MoveUp", id.ToString());
+        Assert.AreEqual("List.MoveUp", id.ToString());
     }
 
-    [Fact]
+    [TestMethod]
     public void ActionId_Equality_WorksCorrectly()
     {
         var id1 = new ActionId("List.MoveUp");
         var id2 = new ActionId("List.MoveUp");
         var id3 = new ActionId("List.MoveDown");
 
-        Assert.Equal(id1, id2);
-        Assert.NotEqual(id1, id3);
+        Assert.AreEqual(id1, id2);
+        Assert.AreNotEqual(id1, id3);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_FirstRegistrationWins()
     {
         var builder = new InputBindingsBuilder();
@@ -315,32 +316,32 @@ public class InputBindingRemapTests
         var context = CreateMockContext();
         builder.Bindings[2].ExecuteAsync(context).Wait();
 
-        Assert.True(firstHandlerCalled);
-        Assert.False(secondHandlerCalled);
+        Assert.IsTrue(firstHandlerCalled);
+        Assert.IsFalse(secondHandlerCalled);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_WithModifiers_PreservesModifiers()
     {
         var builder = new InputBindingsBuilder();
 
         builder.Ctrl().Key(Hex1bKey.A).Triggers(TestActivate, _ => { }, "Select all");
 
-        Assert.Single(builder.Bindings);
-        Assert.Equal(Hex1bModifiers.Control, builder.Bindings[0].Steps[0].Modifiers);
-        Assert.Equal(Hex1bKey.A, builder.Bindings[0].Steps[0].Key);
-        Assert.Equal(TestActivate, builder.Bindings[0].ActionId);
+        TestSeq.Single(builder.Bindings);
+        Assert.AreEqual(Hex1bModifiers.Control, builder.Bindings[0].Steps[0].Modifiers);
+        Assert.AreEqual(Hex1bKey.A, builder.Bindings[0].Steps[0].Key);
+        Assert.AreEqual(TestActivate, builder.Bindings[0].ActionId);
     }
 
-    [Fact]
+    [TestMethod]
     public void Triggers_WithGlobal_PreservesGlobalFlag()
     {
         var builder = new InputBindingsBuilder();
 
         builder.Key(Hex1bKey.F1).Global().Triggers(TestActivate, _ => { }, "Help");
 
-        Assert.True(builder.Bindings[0].IsGlobal);
-        Assert.Equal(TestActivate, builder.Bindings[0].ActionId);
+        Assert.IsTrue(builder.Bindings[0].IsGlobal);
+        Assert.AreEqual(TestActivate, builder.Bindings[0].ActionId);
     }
 
     private static InputBindingActionContext CreateMockContext()

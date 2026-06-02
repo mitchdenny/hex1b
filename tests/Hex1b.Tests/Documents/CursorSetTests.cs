@@ -6,35 +6,36 @@ namespace Hex1b.Tests.Documents;
 /// Tests for CursorSet: sorted ordering, merging, snapshot/restore, multi-cursor operations.
 /// NOTE: These tests may need updates when selection rendering or multi-cursor behaviors change.
 /// </summary>
+[TestClass]
 public class CursorSetTests
 {
     // ── Construction ─────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Constructor_CreatesOneCursorAtOrigin()
     {
         var set = new CursorSet();
-        Assert.Single(set);
-        Assert.Equal(0, set.Primary.Position.Value);
-        Assert.Equal(0, set.PrimaryIndex);
+        TestSeq.Single(set);
+        Assert.AreEqual(0, set.Primary.Position.Value);
+        Assert.AreEqual(0, set.PrimaryIndex);
     }
 
     // ── Add ─────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Add_InsertsInSortedOrder()
     {
         var set = new CursorSet();
         set.Add(new DocumentOffset(10));
         set.Add(new DocumentOffset(5));
 
-        Assert.Equal(3, set.Count);
-        Assert.Equal(0, set[0].Position.Value);
-        Assert.Equal(5, set[1].Position.Value);
-        Assert.Equal(10, set[2].Position.Value);
+        Assert.AreEqual(3, set.Count);
+        Assert.AreEqual(0, set[0].Position.Value);
+        Assert.AreEqual(5, set[1].Position.Value);
+        Assert.AreEqual(10, set[2].Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_AdjustsPrimaryIndex_WhenInsertedBefore()
     {
         var set = new CursorSet();
@@ -42,23 +43,23 @@ public class CursorSetTests
         set.Add(new DocumentOffset(5));
 
         // Primary was at index 0 (pos 10), add at index 0 (pos 5) pushes primary to index 1
-        Assert.Equal(1, set.PrimaryIndex);
-        Assert.Equal(10, set.Primary.Position.Value);
+        Assert.AreEqual(1, set.PrimaryIndex);
+        Assert.AreEqual(10, set.Primary.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_WithSelection()
     {
         var set = new CursorSet();
         var idx = set.Add(new DocumentOffset(10), new DocumentOffset(5));
         var cursor = set[idx];
 
-        Assert.Equal(10, cursor.Position.Value);
-        Assert.NotNull(cursor.SelectionAnchor);
-        Assert.Equal(5, cursor.SelectionAnchor!.Value.Value);
+        Assert.AreEqual(10, cursor.Position.Value);
+        Assert.IsNotNull(cursor.SelectionAnchor);
+        Assert.AreEqual(5, cursor.SelectionAnchor!.Value.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Add_MultipleCursors_MaintainsSortOrder()
     {
         var set = new CursorSet();
@@ -67,16 +68,16 @@ public class CursorSetTests
         set.Add(new DocumentOffset(30));
         set.Add(new DocumentOffset(15));
 
-        Assert.Equal(5, set.Count);
+        Assert.AreEqual(5, set.Count);
         for (var i = 1; i < set.Count; i++)
         {
-            Assert.True(set[i].Position >= set[i - 1].Position);
+            Assert.IsTrue(set[i].Position >= set[i - 1].Position);
         }
     }
 
     // ── CollapseToSingle ────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void CollapseToSingle_KeepsPrimary()
     {
         var set = new CursorSet();
@@ -86,35 +87,35 @@ public class CursorSetTests
 
         set.CollapseToSingle();
 
-        Assert.Single(set);
-        Assert.Equal(5, set.Primary.Position.Value);
+        TestSeq.Single(set);
+        Assert.AreEqual(5, set.Primary.Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void CollapseToSingle_NoOp_WhenAlreadySingle()
     {
         var set = new CursorSet();
         set.Primary.Position = new DocumentOffset(5);
         set.CollapseToSingle();
 
-        Assert.Single(set);
-        Assert.Equal(5, set.Primary.Position.Value);
+        TestSeq.Single(set);
+        Assert.AreEqual(5, set.Primary.Position.Value);
     }
 
     // ── MergeOverlapping ────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void MergeOverlapping_MergesSamePosition()
     {
         var set = new CursorSet();
         set.Add(new DocumentOffset(0)); // Duplicate of primary
 
-        Assert.Equal(2, set.Count);
+        Assert.AreEqual(2, set.Count);
         set.MergeOverlapping();
-        Assert.Single(set);
+        TestSeq.Single(set);
     }
 
-    [Fact]
+    [TestMethod]
     public void MergeOverlapping_PreservesNonOverlapping()
     {
         var set = new CursorSet();
@@ -124,13 +125,13 @@ public class CursorSetTests
 
         set.MergeOverlapping();
 
-        Assert.Equal(3, set.Count);
-        Assert.Equal(5, set[0].Position.Value);
-        Assert.Equal(10, set[1].Position.Value);
-        Assert.Equal(20, set[2].Position.Value);
+        Assert.AreEqual(3, set.Count);
+        Assert.AreEqual(5, set[0].Position.Value);
+        Assert.AreEqual(10, set[1].Position.Value);
+        Assert.AreEqual(20, set[2].Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void MergeOverlapping_MergesOverlappingSelections()
     {
         var set = new CursorSet();
@@ -142,11 +143,11 @@ public class CursorSetTests
 
         set.MergeOverlapping();
 
-        Assert.Single(set);
+        TestSeq.Single(set);
         // Merged selection should span 0..15
     }
 
-    [Fact]
+    [TestMethod]
     public void MergeOverlapping_PrefersPrimary()
     {
         var set = new CursorSet();
@@ -156,13 +157,13 @@ public class CursorSetTests
 
         set.MergeOverlapping();
 
-        Assert.Single(set);
-        Assert.Same(primary, set.Primary);
+        TestSeq.Single(set);
+        Assert.AreSame(primary, set.Primary);
     }
 
     // ── InReverseOrder ──────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void InReverseOrder_IteratesHighestFirst()
     {
         var set = new CursorSet();
@@ -176,13 +177,13 @@ public class CursorSetTests
             positions.Add(cursor.Position.Value);
         }
 
-        Assert.Equal(3, positions.Count);
-        Assert.Equal(20, positions[0]);
-        Assert.Equal(10, positions[1]);
-        Assert.Equal(5, positions[2]);
+        Assert.AreEqual(3, positions.Count);
+        Assert.AreEqual(20, positions[0]);
+        Assert.AreEqual(10, positions[1]);
+        Assert.AreEqual(5, positions[2]);
     }
 
-    [Fact]
+    [TestMethod]
     public void InReverseOrder_ProvicesCorrectIndices()
     {
         var set = new CursorSet();
@@ -195,12 +196,12 @@ public class CursorSetTests
             indices.Add(index);
         }
 
-        Assert.Equal([2, 1, 0], indices);
+        TestSeq.AreEqual([2, 1, 0], indices);
     }
 
     // ── Snapshot/Restore ────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Snapshot_CapturesAllCursors()
     {
         var set = new CursorSet();
@@ -210,15 +211,15 @@ public class CursorSetTests
 
         var snap = set.Snapshot();
 
-        Assert.Equal(2, snap.Entries.Count);
-        Assert.Equal(0, snap.PrimaryIndex);
-        Assert.Equal(5, snap.Entries[0].Position.Value);
-        Assert.Equal(new DocumentOffset(2), snap.Entries[0].SelectionAnchor);
-        Assert.Equal(10, snap.Entries[1].Position.Value);
-        Assert.Null(snap.Entries[1].SelectionAnchor);
+        Assert.AreEqual(2, snap.Entries.Count);
+        Assert.AreEqual(0, snap.PrimaryIndex);
+        Assert.AreEqual(5, snap.Entries[0].Position.Value);
+        Assert.AreEqual(new DocumentOffset(2), snap.Entries[0].SelectionAnchor);
+        Assert.AreEqual(10, snap.Entries[1].Position.Value);
+        Assert.IsNull(snap.Entries[1].SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Restore_ReplacesAllCursors()
     {
         var set = new CursorSet();
@@ -234,14 +235,14 @@ public class CursorSetTests
 
         set.Restore(snap);
 
-        Assert.Equal(2, set.Count);
-        Assert.Equal(1, set.PrimaryIndex);
-        Assert.Equal(3, set[0].Position.Value);
-        Assert.Equal(7, set[1].Position.Value);
-        Assert.Equal(new DocumentOffset(5), set[1].SelectionAnchor);
+        Assert.AreEqual(2, set.Count);
+        Assert.AreEqual(1, set.PrimaryIndex);
+        Assert.AreEqual(3, set[0].Position.Value);
+        Assert.AreEqual(7, set[1].Position.Value);
+        Assert.AreEqual(new DocumentOffset(5), set[1].SelectionAnchor);
     }
 
-    [Fact]
+    [TestMethod]
     public void Snapshot_Restore_Roundtrip()
     {
         var set = new CursorSet();
@@ -258,15 +259,15 @@ public class CursorSetTests
         // Restore
         set.Restore(snap);
 
-        Assert.Equal(3, set.Count);
-        Assert.Equal(5, set[0].Position.Value);
-        Assert.Equal(10, set[1].Position.Value);
-        Assert.Equal(15, set[2].Position.Value);
+        Assert.AreEqual(3, set.Count);
+        Assert.AreEqual(5, set[0].Position.Value);
+        Assert.AreEqual(10, set[1].Position.Value);
+        Assert.AreEqual(15, set[2].Position.Value);
     }
 
     // ── ClampAll ────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void ClampAll_ClampsAllCursors()
     {
         var set = new CursorSet();
@@ -275,11 +276,11 @@ public class CursorSetTests
 
         set.ClampAll(30);
 
-        Assert.Equal(30, set[0].Position.Value);
-        Assert.Equal(30, set[1].Position.Value);
+        Assert.AreEqual(30, set[0].Position.Value);
+        Assert.AreEqual(30, set[1].Position.Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void ClampAll_ClampsSelectionAnchors()
     {
         var set = new CursorSet();
@@ -288,13 +289,13 @@ public class CursorSetTests
 
         set.ClampAll(20);
 
-        Assert.Equal(10, set.Primary.Position.Value);
-        Assert.Equal(20, set.Primary.SelectionAnchor!.Value.Value);
+        Assert.AreEqual(10, set.Primary.Position.Value);
+        Assert.AreEqual(20, set.Primary.SelectionAnchor!.Value.Value);
     }
 
     // ── Sort ────────────────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Sort_ReordersCursorsAndTracksPrimary()
     {
         var set = new CursorSet();
@@ -306,14 +307,14 @@ public class CursorSetTests
         set.Sort();
 
         // After sort: [other(10), primary(15)]
-        Assert.Equal(10, set[0].Position.Value);
-        Assert.Equal(15, set[1].Position.Value);
-        Assert.Equal(1, set.PrimaryIndex);
+        Assert.AreEqual(10, set[0].Position.Value);
+        Assert.AreEqual(15, set[1].Position.Value);
+        Assert.AreEqual(1, set.PrimaryIndex);
     }
 
     // ── IReadOnlyList ───────────────────────────────────────────
 
-    [Fact]
+    [TestMethod]
     public void Enumeration_ReturnsAllCursors()
     {
         var set = new CursorSet();
@@ -325,17 +326,17 @@ public class CursorSetTests
         {
             count++;
         }
-        Assert.Equal(3, count);
+        Assert.AreEqual(3, count);
     }
 
-    [Fact]
+    [TestMethod]
     public void Count_ReflectsAdditions()
     {
         var set = new CursorSet();
-        Assert.Single(set);
+        TestSeq.Single(set);
         set.Add(new DocumentOffset(10));
-        Assert.Equal(2, set.Count);
+        Assert.AreEqual(2, set.Count);
         set.Add(new DocumentOffset(20));
-        Assert.Equal(3, set.Count);
+        Assert.AreEqual(3, set.Count);
     }
 }

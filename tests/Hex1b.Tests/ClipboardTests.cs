@@ -7,6 +7,7 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for clipboard functionality via OSC 52.
 /// </summary>
+[TestClass]
 public class ClipboardTests
 {
     /// <summary>
@@ -68,7 +69,7 @@ public class ClipboardTests
         public void TriggerDisconnect() => Disconnected?.Invoke();
     }
 
-    [Fact(Skip = "Integration test needs rework - terminal/app connection issue")]
+    [TestMethod, Ignore("Integration test needs rework - terminal/app connection issue")]
     public async Task CopyToClipboard_SendsOsc52Sequence_ToOutput()
     {
         // Arrange
@@ -117,7 +118,7 @@ public class ClipboardTests
         await runTask;
         
         // Assert
-        Assert.True(copyTriggered, "Button click should have triggered copy");
+        Assert.IsTrue(copyTriggered, "Button click should have triggered copy");
         
         // Verify the OSC 52 sequence was sent
         var output = presentation.CapturedOutput;
@@ -127,7 +128,7 @@ public class ClipboardTests
         Assert.Contains(expectedOsc52, output);
     }
 
-    [Fact]
+    [TestMethod]
     public void CopyToClipboard_GeneratesCorrectOsc52Format()
     {
         // This is a unit test to verify the OSC 52 format is correct
@@ -139,10 +140,10 @@ public class ClipboardTests
         // ESC = 0x1B, BEL = 0x07
         Assert.StartsWith("\x1b]52;c;", expected);
         Assert.EndsWith("\x07", expected);
-        Assert.Equal("SGVsbG8sIFdvcmxkIQ==", expectedBase64);
+        Assert.AreEqual("SGVsbG8sIFdvcmxkIQ==", expectedBase64);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task InputBindingActionContext_CopyToClipboard_InvokesCallback()
     {
         // Arrange
@@ -161,7 +162,7 @@ public class ClipboardTests
         context.CopyToClipboard("Test text");
 
         // Assert
-        Assert.Equal("Test text", copiedText);
+        Assert.AreEqual("Test text", copiedText);
         await Task.CompletedTask; // Make the compiler happy about async
     }
 }

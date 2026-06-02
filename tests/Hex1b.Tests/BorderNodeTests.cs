@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Comprehensive tests for BorderNode layout, rendering, theming, and input handling.
 /// Tests both direct node operations and integration with Hex1bApp using fluent API.
 /// </summary>
+[TestClass]
 public class BorderNodeTests
 {
     private static Hex1bRenderContext CreateContext(IHex1bAppTerminalWorkloadAdapter workload)
@@ -19,7 +20,7 @@ public class BorderNodeTests
 
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_AddsBorderToChildSize()
     {
         var child = new TextBlockNode { Text = "Hello" };
@@ -28,11 +29,11 @@ public class BorderNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Child is 5 wide, 1 tall. Border adds 2 to each dimension.
-        Assert.Equal(7, size.Width);
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(7, size.Width);
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithNoChild_ReturnsMinimalBorder()
     {
         var node = new BorderNode { Child = null };
@@ -40,11 +41,11 @@ public class BorderNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // Just the border: 2 wide, 2 tall
-        Assert.Equal(2, size.Width);
-        Assert.Equal(2, size.Height);
+        Assert.AreEqual(2, size.Width);
+        Assert.AreEqual(2, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsConstraints()
     {
         var child = new TextBlockNode { Text = "This is a long text line" };
@@ -52,11 +53,11 @@ public class BorderNodeTests
 
         var size = node.Measure(new Constraints(0, 15, 0, 5));
 
-        Assert.True(size.Width <= 15);
-        Assert.True(size.Height <= 5);
+        Assert.IsTrue(size.Width <= 15);
+        Assert.IsTrue(size.Height <= 5);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithMultilineChild_CalculatesCorrectHeight()
     {
         // Simulate a VStack with multiple children
@@ -74,11 +75,11 @@ public class BorderNodeTests
         var size = node.Measure(Constraints.Unbounded);
 
         // VStack: 6 chars wide, 3 tall + 2 for border = 8x5
-        Assert.Equal(8, size.Width);
-        Assert.Equal(5, size.Height);
+        Assert.AreEqual(8, size.Width);
+        Assert.AreEqual(5, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithTightConstraints_RespectsMinimum()
     {
         var child = new TextBlockNode { Text = "Hi" };
@@ -87,11 +88,11 @@ public class BorderNodeTests
         // Very tight constraints
         var size = node.Measure(new Constraints(3, 3, 3, 3));
 
-        Assert.Equal(3, size.Width);
-        Assert.Equal(3, size.Height);
+        Assert.AreEqual(3, size.Width);
+        Assert.AreEqual(3, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFixedSizeHints_RespectsHints()
     {
         var child = new TextBlockNode { Text = "Small" };
@@ -105,11 +106,11 @@ public class BorderNodeTests
         // Even with unbounded constraints, should return the fixed size
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(82, size.Width);
-        Assert.Equal(26, size.Height);
+        Assert.AreEqual(82, size.Width);
+        Assert.AreEqual(26, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithFixedSizeHints_ClampsToConstraints()
     {
         var child = new TextBlockNode { Text = "Small" };
@@ -123,11 +124,11 @@ public class BorderNodeTests
         // Constraints are smaller than hints - should clamp
         var size = node.Measure(new Constraints(0, 80, 0, 24));
 
-        Assert.Equal(80, size.Width);
-        Assert.Equal(24, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(24, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WithPartialFixedHint_UsesChildForOther()
     {
         var child = new TextBlockNode { Text = "Hello" }; // 5 wide, 1 tall
@@ -140,15 +141,15 @@ public class BorderNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(20, size.Width);
-        Assert.Equal(3, size.Height); // child height (1) + border (2)
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(3, size.Height); // child height (1) + border (2)
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_PositionsChildInsideBorder()
     {
         var child = new TextBlockNode { Text = "Test" };
@@ -158,14 +159,14 @@ public class BorderNodeTests
         node.Arrange(new Rect(5, 3, 20, 10));
 
         // Child should be offset by 1 in each direction
-        Assert.Equal(6, child.Bounds.X);
-        Assert.Equal(4, child.Bounds.Y);
+        Assert.AreEqual(6, child.Bounds.X);
+        Assert.AreEqual(4, child.Bounds.Y);
         // Child should be 2 smaller in each dimension
-        Assert.Equal(18, child.Bounds.Width);
-        Assert.Equal(8, child.Bounds.Height);
+        Assert.AreEqual(18, child.Bounds.Width);
+        Assert.AreEqual(8, child.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
@@ -173,22 +174,22 @@ public class BorderNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_WithMinimalBounds_DoesNotCrash()
     {
         var node = new BorderNode { Child = new TextBlockNode { Text = "Test" } };
         
         // Minimal 2x2 border with no inner space
         node.Measure(Constraints.Tight(2, 2));
-        var ex = Record.Exception(() => node.Arrange(new Rect(0, 0, 2, 2)));
+        var ex = TestSeq.RecordException(() => node.Arrange(new Rect(0, 0, 2, 2)));
         
-        Assert.Null(ex);
+        Assert.IsNull(ex);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_ChildGetsZeroSizeWhenBorderFillsSpace()
     {
         var child = new TextBlockNode { Text = "Test" };
@@ -198,15 +199,15 @@ public class BorderNodeTests
         node.Arrange(new Rect(0, 0, 2, 2));
 
         // Child should have zero width and height
-        Assert.Equal(0, child.Bounds.Width);
-        Assert.Equal(0, child.Bounds.Height);
+        Assert.AreEqual(0, child.Bounds.Width);
+        Assert.AreEqual(0, child.Bounds.Height);
     }
 
     #endregion
 
     #region Rendering Tests - Border Characters
 
-    [Fact]
+    [TestMethod]
     public async Task Render_DrawsTopBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -237,7 +238,7 @@ public class BorderNodeTests
         Assert.Contains("┐", topLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_DrawsBottomBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -266,7 +267,7 @@ public class BorderNodeTests
         Assert.Contains("┘", bottomLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_DrawsVerticalBorders()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -293,7 +294,7 @@ public class BorderNodeTests
         Assert.Contains("│", middleLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CompleteBorderBox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -331,7 +332,7 @@ public class BorderNodeTests
 
     #region Rendering Tests - Title
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithTitle_ShowsTitleInTopBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -358,7 +359,7 @@ public class BorderNodeTests
         Assert.Contains("My Title", topLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithLongTitle_TruncatesTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -387,7 +388,7 @@ public class BorderNodeTests
         Assert.Contains("This I", topLine);  // First 6 chars of title
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithShortTitle_CentersTitleInBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -418,7 +419,7 @@ public class BorderNodeTests
         Assert.Contains("T─", topLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithEmptyTitle_DrawsNormalBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -443,10 +444,10 @@ public class BorderNodeTests
 
         var topLine = snapshot.GetLineTrimmed(0);
         // Should be ┌────────┐ without title
-        Assert.Equal("┌────────┐", topLine);
+        Assert.AreEqual("┌────────┐", topLine);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithNullTitle_DrawsNormalBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -470,14 +471,14 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         var topLine = snapshot.GetLineTrimmed(0);
-        Assert.Equal("┌────────┐", topLine);
+        Assert.AreEqual("┌────────┐", topLine);
     }
 
     #endregion
 
     #region Rendering Tests - Child Content
 
-    [Fact]
+    [TestMethod]
     public async Task Render_RendersChildContent()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -500,7 +501,7 @@ public class BorderNodeTests
         Assert.Contains("Hello", terminal.CreateSnapshot().GetScreenText());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ChildContentInsideBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -528,7 +529,7 @@ public class BorderNodeTests
         Assert.Contains("┌", line0);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithNoChild_DrawsEmptyBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -558,7 +559,7 @@ public class BorderNodeTests
 
     #region Rendering Tests - Narrow Terminal
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InNarrowTerminal_StillDrawsBorder()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -587,7 +588,7 @@ public class BorderNodeTests
         Assert.Contains("┘", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_MinimalBorder_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -610,15 +611,15 @@ public class BorderNodeTests
         var line1 = snapshot.GetLineTrimmed(1);
         
         // With width=2, we get: ┌┐ on top, └┘ on bottom
-        Assert.Equal("┌┐", line0);
-        Assert.Equal("└┘", line1);
+        Assert.AreEqual("┌┐", line0);
+        Assert.AreEqual("└┘", line1);
     }
 
     #endregion
 
     #region Theming Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomTheme_UsesThemeCharacters()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -655,7 +656,7 @@ public class BorderNodeTests
         Assert.Contains("║", screenText);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_DoubleLineBorderTheme_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -689,17 +690,17 @@ public class BorderNodeTests
         var line1 = snapshot.GetLineTrimmed(1);
         var line2 = snapshot.GetLineTrimmed(2);
 
-        Assert.Equal("╔════╗", line0);
+        Assert.AreEqual("╔════╗", line0);
         Assert.StartsWith("║", line1);
         Assert.EndsWith("║", line1);
-        Assert.Equal("╚════╝", line2);
+        Assert.AreEqual("╚════╝", line2);
     }
 
     #endregion
 
     #region Focus Tests
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_ReturnsFocusableChildren()
     {
         var textBox = new TextBoxNode { State = new TextBoxState() };
@@ -707,11 +708,11 @@ public class BorderNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
+        TestSeq.Single(focusables);
         Assert.Contains(textBox, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNonFocusableChild_ReturnsEmpty()
     {
         var textBlock = new TextBlockNode { Text = "Not focusable" };
@@ -719,20 +720,20 @@ public class BorderNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNoChild_ReturnsEmpty()
     {
         var node = new BorderNode { Child = null };
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Empty(focusables);
+        Assert.IsEmpty(focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetFocusableNodes_WithNestedContainers_FindsAllFocusables()
     {
         var textBox1 = new TextBoxNode { State = new TextBoxState() };
@@ -745,24 +746,24 @@ public class BorderNodeTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Equal(2, focusables.Count);
+        Assert.AreEqual(2, focusables.Count);
         Assert.Contains(textBox1, focusables);
         Assert.Contains(textBox2, focusables);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsFalse()
     {
         var node = new BorderNode();
 
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
     #endregion
 
     #region Input Handling Tests
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_PassesToChild()
     {
         var state = new TextBoxState { Text = "test", CursorPosition = 4 };
@@ -777,21 +778,21 @@ public class BorderNodeTests
         // Use InputRouter to dispatch input through the node tree
         var result = await InputRouter.RouteInputAsync(node, new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None), focusRing, routerState, null, TestContext.Current.CancellationToken);
 
-        Assert.Equal(InputResult.Handled, result);
-        Assert.Equal("testA", state.Text);
+        Assert.AreEqual(InputResult.Handled, result);
+        Assert.AreEqual("testA", state.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WithNoChild_ReturnsFalse()
     {
         var node = new BorderNode { Child = null };
 
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_WithNonFocusedChild_ReturnsFalse()
     {
         var state = new TextBoxState { Text = "test" };
@@ -801,15 +802,15 @@ public class BorderNodeTests
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'A', Hex1bModifiers.None));
 
         // TextBox should not handle input when not focused
-        Assert.Equal(InputResult.NotHandled, result);
-        Assert.Equal("test", state.Text);
+        Assert.AreEqual(InputResult.NotHandled, result);
+        Assert.AreEqual("test", state.Text);
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithTextBlock_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -836,15 +837,15 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Hello World"));
+        Assert.IsTrue(snapshot.ContainsText("Hello World"));
         // Check for border characters
-        Assert.True(snapshot.ContainsText("┌"));
-        Assert.True(snapshot.ContainsText("┐"));
-        Assert.True(snapshot.ContainsText("└"));
-        Assert.True(snapshot.ContainsText("┘"));
+        Assert.IsTrue(snapshot.ContainsText("┌"));
+        Assert.IsTrue(snapshot.ContainsText("┐"));
+        Assert.IsTrue(snapshot.ContainsText("└"));
+        Assert.IsTrue(snapshot.ContainsText("┘"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithTitle_ShowsTitle()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -871,11 +872,11 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("My Panel"));
-        Assert.True(snapshot.ContainsText("Content"));
+        Assert.IsTrue(snapshot.ContainsText("My Panel"));
+        Assert.IsTrue(snapshot.ContainsText("Content"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithVStack_RendersMultipleLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -906,13 +907,13 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Line 1"));
-        Assert.True(snapshot.ContainsText("Line 2"));
-        Assert.True(snapshot.ContainsText("Line 3"));
-        Assert.True(snapshot.ContainsText("List"));
+        Assert.IsTrue(snapshot.ContainsText("Line 1"));
+        Assert.IsTrue(snapshot.ContainsText("Line 2"));
+        Assert.IsTrue(snapshot.ContainsText("Line 3"));
+        Assert.IsTrue(snapshot.ContainsText("List"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithTextBox_HandlesFocus()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -939,10 +940,10 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Hello", text);
+        Assert.AreEqual("Hello", text);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_NestedBorders_RenderCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -971,12 +972,12 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Outer"));
-        Assert.True(snapshot.ContainsText("Inner"));
-        Assert.True(snapshot.ContainsText("Nested"));
+        Assert.IsTrue(snapshot.ContainsText("Outer"));
+        Assert.IsTrue(snapshot.ContainsText("Inner"));
+        Assert.IsTrue(snapshot.ContainsText("Nested"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderInNarrowTerminal_TruncatesGracefully()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1004,11 +1005,11 @@ public class BorderNodeTests
         await runTask;
 
         // Border characters should be present - use captured snapshot
-        Assert.True(snapshot.ContainsText("┌"));
-        Assert.True(snapshot.ContainsText("┐"));
+        Assert.IsTrue(snapshot.ContainsText("┌"));
+        Assert.IsTrue(snapshot.ContainsText("┐"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultipleBordersInHStack_RenderSideBySide()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1038,13 +1039,13 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Left"));
-        Assert.True(snapshot.ContainsText("Right"));
-        Assert.True(snapshot.ContainsText("L"));
-        Assert.True(snapshot.ContainsText("R"));
+        Assert.IsTrue(snapshot.ContainsText("Left"));
+        Assert.IsTrue(snapshot.ContainsText("Right"));
+        Assert.IsTrue(snapshot.ContainsText("L"));
+        Assert.IsTrue(snapshot.ContainsText("R"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithButton_HandlesClick()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1070,10 +1071,10 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(clicked);
+        Assert.IsTrue(clicked);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderWithMultipleButtons_NavigatesFocus()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1103,10 +1104,10 @@ public class BorderNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.Equal("Second", clickedButton);
+        Assert.AreEqual("Second", clickedButton);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_BorderAtOffset_RendersAtCorrectPosition()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1136,13 +1137,13 @@ public class BorderNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Header"));
-        Assert.True(snapshot.ContainsText("Content"));
+        Assert.IsTrue(snapshot.ContainsText("Header"));
+        Assert.IsTrue(snapshot.ContainsText("Content"));
         // Border characters should be present
-        Assert.True(snapshot.ContainsText("┌"));
+        Assert.IsTrue(snapshot.ContainsText("┌"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_EmptyBorder_RendersMinimalBox()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1184,7 +1185,7 @@ public class BorderNodeTests
     /// The border should use the default (empty) global background, not inherit
     /// a modified theme from a sibling ThemePanelNode.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BorderNode_UsesGlobalBackground_WhenThemeIsDefault()
     {
         // Arrange
@@ -1198,15 +1199,15 @@ public class BorderNodeTests
         var globalBgAnsi = globalBg.IsDefault ? "" : globalBg.ToBackgroundAnsi();
         
         // Assert - default theme should have default background (empty ANSI code)
-        Assert.True(globalBg.IsDefault, "Default theme should have IsDefault=true for BackgroundColor");
-        Assert.Equal("", globalBgAnsi);
+        Assert.IsTrue(globalBg.IsDefault, "Default theme should have IsDefault=true for BackgroundColor");
+        Assert.AreEqual("", globalBgAnsi);
     }
 
     /// <summary>
     /// Verifies that when a theme is mutated with a white global background,
     /// the mutated theme returns the correct white ANSI code.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemeMutation_SetsGlobalBackground_ReturnsCorrectAnsi()
     {
         // Arrange - Clone the theme to allow mutation
@@ -1221,18 +1222,18 @@ public class BorderNodeTests
         var mutatedBg = mutatedTheme.GetGlobalBackground();
         
         // Assert
-        Assert.True(originalBg.IsDefault, "Original theme should have default background");
-        Assert.False(mutatedBg.IsDefault, "Mutated theme should NOT have default background");
-        Assert.Equal(255, mutatedBg.R);
-        Assert.Equal(255, mutatedBg.G);
-        Assert.Equal(255, mutatedBg.B);
+        Assert.IsTrue(originalBg.IsDefault, "Original theme should have default background");
+        Assert.IsFalse(mutatedBg.IsDefault, "Mutated theme should NOT have default background");
+        Assert.AreEqual(255, mutatedBg.R);
+        Assert.AreEqual(255, mutatedBg.G);
+        Assert.AreEqual(255, mutatedBg.B);
     }
 
     /// <summary>
     /// Tests that ThemePanelNode correctly restores the theme after rendering.
     /// This is critical for siblings that render after the ThemePanelNode.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task ThemePanelNode_RestoresTheme_AfterRendering()
     {
         // Arrange
@@ -1258,16 +1259,16 @@ public class BorderNodeTests
         var themeAfter = context.Theme;
         var bgAfter = themeAfter.GetGlobalBackground();
         
-        Assert.True(bgBefore.IsDefault, "Theme before should have default background");
-        Assert.True(bgAfter.IsDefault, "Theme after should be restored to default background");
-        Assert.Same(themeBefore, themeAfter);
+        Assert.IsTrue(bgBefore.IsDefault, "Theme before should have default background");
+        Assert.IsTrue(bgAfter.IsDefault, "Theme after should be restored to default background");
+        Assert.AreSame(themeBefore, themeAfter);
     }
 
     /// <summary>
     /// Tests the full scenario: rendering a VStack with InfoBar (white bg theme)
     /// followed by a Border (should use default bg theme).
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task VStack_WithInfoBarThenBorder_BorderHasDefaultBackground()
     {
         // This simulates the bug scenario:
@@ -1311,15 +1312,14 @@ public class BorderNodeTests
         
         // Assert
         // After infobar, theme should be restored to default
-        Assert.True(bgAfterInfoBar.IsDefault, 
-            "Theme should be restored after ThemePanelNode renders, but global background is still modified!");
+        Assert.IsTrue(bgAfterInfoBar.IsDefault, "Theme should be restored after ThemePanelNode renders, but global background is still modified!");
     }
 
     /// <summary>
     /// Tests the actual border rendering to verify no white background is in the output.
     /// This catches the case where the border incorrectly gets a background color.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BorderNode_Render_NoBackgroundColorWhenDefaultTheme()
     {
         // Arrange
@@ -1335,20 +1335,18 @@ public class BorderNodeTests
         
         // Assert - Check the top-left corner cell's background
         var topLeftCell = surface[0, 0];
-        Assert.True(topLeftCell.Background == null, 
-            $"Top-left corner should have null background, but has RGB({topLeftCell.Background?.R},{topLeftCell.Background?.G},{topLeftCell.Background?.B})");
+        Assert.IsTrue(topLeftCell.Background == null, $"Top-left corner should have null background, but has RGB({topLeftCell.Background?.R},{topLeftCell.Background?.G},{topLeftCell.Background?.B})");
         
         // Check a border character cell (horizontal line)
         var topBorderCell = surface[1, 0];
-        Assert.True(topBorderCell.Background == null, 
-            $"Top border should have null background, but has RGB({topBorderCell.Background?.R},{topBorderCell.Background?.G},{topBorderCell.Background?.B})");
+        Assert.IsTrue(topBorderCell.Background == null, $"Top border should have null background, but has RGB({topBorderCell.Background?.R},{topBorderCell.Background?.G},{topBorderCell.Background?.B})");
     }
 
     /// <summary>
     /// Tests that after a ThemePanelNode renders with white background,
     /// a sibling BorderNode does NOT have white background in its cells.
     /// </summary>
-    [Fact]
+    [TestMethod]
     public async Task BorderNode_AfterThemePanelRender_NoWhiteBackground()
     {
         // Arrange
@@ -1379,35 +1377,34 @@ public class BorderNodeTests
                       borderTopLeft.Background.Value.G == 255 && 
                       borderTopLeft.Background.Value.B == 255;
         
-        Assert.False(isWhite, 
-            $"Border top-left should NOT have white background, but has RGB({borderTopLeft.Background?.R},{borderTopLeft.Background?.G},{borderTopLeft.Background?.B})");
+        Assert.IsFalse(isWhite, $"Border top-left should NOT have white background, but has RGB({borderTopLeft.Background?.R},{borderTopLeft.Background?.G},{borderTopLeft.Background?.B})");
     }
 
     #endregion
 
     #region Theme Fallback Chain Tests
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_ExplicitValueWins()
     {
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.TopLine, "━");
         
-        Assert.Equal("━", theme.Get(BorderTheme.TopLine));
+        Assert.AreEqual("━", theme.Get(BorderTheme.TopLine));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_FallsBackToParentElement()
     {
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.HorizontalLine, "═");
         
         // TopLine not set → falls back to HorizontalLine
-        Assert.Equal("═", theme.Get(BorderTheme.TopLine));
-        Assert.Equal("═", theme.Get(BorderTheme.BottomLine));
+        Assert.AreEqual("═", theme.Get(BorderTheme.TopLine));
+        Assert.AreEqual("═", theme.Get(BorderTheme.BottomLine));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_ExplicitOverridesTakesPrecedence()
     {
         var theme = new Hex1bTheme("Test")
@@ -1415,23 +1412,23 @@ public class BorderNodeTests
             .Set(BorderTheme.TopLine, "━");
         
         // TopLine explicitly set → uses it; BottomLine falls back
-        Assert.Equal("━", theme.Get(BorderTheme.TopLine));
-        Assert.Equal("═", theme.Get(BorderTheme.BottomLine));
+        Assert.AreEqual("━", theme.Get(BorderTheme.TopLine));
+        Assert.AreEqual("═", theme.Get(BorderTheme.BottomLine));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_DefaultThemeUsesDefaults()
     {
         var theme = new Hex1bTheme("Test");
         
         // Nothing set → falls through chain to DefaultValue
-        Assert.Equal("─", theme.Get(BorderTheme.TopLine));
-        Assert.Equal("─", theme.Get(BorderTheme.BottomLine));
-        Assert.Equal("│", theme.Get(BorderTheme.LeftLine));
-        Assert.Equal("│", theme.Get(BorderTheme.RightLine));
+        Assert.AreEqual("─", theme.Get(BorderTheme.TopLine));
+        Assert.AreEqual("─", theme.Get(BorderTheme.BottomLine));
+        Assert.AreEqual("│", theme.Get(BorderTheme.LeftLine));
+        Assert.AreEqual("│", theme.Get(BorderTheme.RightLine));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_ColorChainResolvesCorrectly()
     {
         var red = Hex1bColor.FromRgb(255, 0, 0);
@@ -1441,14 +1438,14 @@ public class BorderNodeTests
             .Set(BorderTheme.TopBorderColor, blue);
         
         // TopBorderColor explicitly set → blue
-        Assert.Equal(blue, theme.Get(BorderTheme.TopBorderColor));
+        Assert.AreEqual(blue, theme.Get(BorderTheme.TopBorderColor));
         // BottomBorderColor → HorizontalBorderColor → BorderColor → red
-        Assert.Equal(red, theme.Get(BorderTheme.BottomBorderColor));
+        Assert.AreEqual(red, theme.Get(BorderTheme.BottomBorderColor));
         // LeftBorderColor → VerticalBorderColor → BorderColor → red
-        Assert.Equal(red, theme.Get(BorderTheme.LeftBorderColor));
+        Assert.AreEqual(red, theme.Get(BorderTheme.LeftBorderColor));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_AxisColorOverridesBase()
     {
         var red = Hex1bColor.FromRgb(255, 0, 0);
@@ -1458,39 +1455,39 @@ public class BorderNodeTests
             .Set(BorderTheme.HorizontalBorderColor, green);
         
         // Top/Bottom → HorizontalBorderColor → green
-        Assert.Equal(green, theme.Get(BorderTheme.TopBorderColor));
-        Assert.Equal(green, theme.Get(BorderTheme.BottomBorderColor));
+        Assert.AreEqual(green, theme.Get(BorderTheme.TopBorderColor));
+        Assert.AreEqual(green, theme.Get(BorderTheme.BottomBorderColor));
         // Left/Right → VerticalBorderColor → BorderColor → red
-        Assert.Equal(red, theme.Get(BorderTheme.LeftBorderColor));
-        Assert.Equal(red, theme.Get(BorderTheme.RightBorderColor));
+        Assert.AreEqual(red, theme.Get(BorderTheme.LeftBorderColor));
+        Assert.AreEqual(red, theme.Get(BorderTheme.RightBorderColor));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_VerticalLineChain()
     {
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.VerticalLine, "║");
         
-        Assert.Equal("║", theme.Get(BorderTheme.LeftLine));
-        Assert.Equal("║", theme.Get(BorderTheme.RightLine));
+        Assert.AreEqual("║", theme.Get(BorderTheme.LeftLine));
+        Assert.AreEqual("║", theme.Get(BorderTheme.RightLine));
     }
 
-    [Fact]
+    [TestMethod]
     public void ThemeFallback_PerSideVerticalOverride()
     {
         var theme = new Hex1bTheme("Test")
             .Set(BorderTheme.VerticalLine, "║")
             .Set(BorderTheme.LeftLine, "┃");
         
-        Assert.Equal("┃", theme.Get(BorderTheme.LeftLine));
-        Assert.Equal("║", theme.Get(BorderTheme.RightLine));
+        Assert.AreEqual("┃", theme.Get(BorderTheme.LeftLine));
+        Assert.AreEqual("║", theme.Get(BorderTheme.RightLine));
     }
 
     #endregion
 
     #region Per-Side Border Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithDifferentTopAndBottomLines_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1522,7 +1519,7 @@ public class BorderNodeTests
         Assert.DoesNotContain("━", line2);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithDifferentLeftAndRightLines_DrawsCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1550,7 +1547,7 @@ public class BorderNodeTests
         Assert.EndsWith("║", line1);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HorizontalLineFallback_AppliesToBothTopAndBottom()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -1578,8 +1575,8 @@ public class BorderNodeTests
         var line0 = snapshot.GetLineTrimmed(0);
         var line2 = snapshot.GetLineTrimmed(2);
 
-        Assert.Equal("╔════╗", line0);
-        Assert.Equal("╚════╝", line2);
+        Assert.AreEqual("╔════╗", line0);
+        Assert.AreEqual("╚════╝", line2);
     }
 
     #endregion

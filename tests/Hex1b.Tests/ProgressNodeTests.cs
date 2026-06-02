@@ -6,9 +6,10 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class ProgressNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_FillsAvailableWidth()
     {
         // Arrange
@@ -19,11 +20,11 @@ public class ProgressNodeTests
         var size = node.Measure(constraints);
 
         // Assert
-        Assert.Equal(80, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_RespectsMinWidth()
     {
         // Arrange
@@ -34,11 +35,11 @@ public class ProgressNodeTests
         var size = node.Measure(constraints);
 
         // Assert
-        Assert.Equal(80, size.Width); // Should fill available width
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(80, size.Width); // Should fill available width
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_UnboundedWidth_UsesDefaultWidth()
     {
         // Arrange
@@ -49,11 +50,11 @@ public class ProgressNodeTests
         var size = node.Measure(constraints);
 
         // Assert
-        Assert.Equal(20, size.Width); // Default width when unbounded
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width); // Default width when unbounded
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_PreservesNodeOnSameType()
     {
         // Arrange
@@ -66,11 +67,11 @@ public class ProgressNodeTests
         var node2 = widget2.ReconcileAsync(node1, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.Same(node1, node2);
-        Assert.Equal(75, ((ProgressNode)node2).Value);
+        Assert.AreSame(node1, node2);
+        Assert.AreEqual(75, ((ProgressNode)node2).Value);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnValueChange()
     {
         // Arrange
@@ -85,10 +86,10 @@ public class ProgressNodeTests
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnMinimumChange()
     {
         // Arrange
@@ -103,10 +104,10 @@ public class ProgressNodeTests
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnMaximumChange()
     {
         // Arrange
@@ -121,10 +122,10 @@ public class ProgressNodeTests
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_MarksDirtyOnIndeterminateChange()
     {
         // Arrange
@@ -139,10 +140,10 @@ public class ProgressNodeTests
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.True(node.IsDirty);
+        Assert.IsTrue(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void Reconcile_DoesNotMarkDirtyWhenUnchanged()
     {
         // Arrange
@@ -157,76 +158,76 @@ public class ProgressNodeTests
         widget2.ReconcileAsync(node, context).GetAwaiter().GetResult();
 
         // Assert
-        Assert.False(node.IsDirty);
+        Assert.IsFalse(node.IsDirty);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetExpectedNodeType_ReturnsProgressNode()
     {
         // Arrange
         var widget = new ProgressWidget();
 
         // Act & Assert
-        Assert.Equal(typeof(ProgressNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(ProgressNode), widget.GetExpectedNodeType());
     }
 
-    [Fact]
+    [TestMethod]
     public void IsFocusable_ReturnsFalse()
     {
         // Arrange
         var node = new ProgressNode();
 
         // Assert
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Theory]
-    [InlineData(0, 0, 100, 0.0)]
-    [InlineData(50, 0, 100, 0.5)]
-    [InlineData(100, 0, 100, 1.0)]
-    [InlineData(25, 0, 100, 0.25)]
-    [InlineData(-25, -50, 50, 0.25)]
-    [InlineData(0, -100, 100, 0.5)]
+    [TestMethod]
+    [DataRow(0, 0, 100, 0.0)]
+    [DataRow(50, 0, 100, 0.5)]
+    [DataRow(100, 0, 100, 1.0)]
+    [DataRow(25, 0, 100, 0.25)]
+    [DataRow(-25, -50, 50, 0.25)]
+    [DataRow(0, -100, 100, 0.5)]
     public void DeterminateMode_CalculatesPercentageCorrectly(double value, double min, double max, double expectedPercentage)
     {
         // This is a logic test - we verify the percentage calculation
         var range = max - min;
         var actualPercentage = range > 0 ? Math.Clamp((value - min) / range, 0.0, 1.0) : 0.0;
         
-        Assert.Equal(expectedPercentage, actualPercentage, precision: 5);
+        Assert.AreEqual(expectedPercentage, actualPercentage, delta: 5);
     }
 
-    [Fact]
+    [TestMethod]
     public void IndeterminateMode_SetsIsIndeterminate()
     {
         // Arrange & Act
         var widget = new ProgressWidget { IsIndeterminate = true };
 
         // Assert
-        Assert.True(widget.IsIndeterminate);
+        Assert.IsTrue(widget.IsIndeterminate);
     }
 
-    [Fact]
+    [TestMethod]
     public void IndeterminateMode_SetsDefaultRedrawDelay()
     {
         // Arrange & Act
         var widget = new ProgressWidget { IsIndeterminate = true };
 
         // Assert - should auto-schedule redraws
-        Assert.Equal(ProgressWidget.DefaultAnimationInterval, widget.GetEffectiveRedrawDelay());
+        Assert.AreEqual(ProgressWidget.DefaultAnimationInterval, widget.GetEffectiveRedrawDelay());
     }
 
-    [Fact]
+    [TestMethod]
     public void DeterminateMode_DoesNotSetRedrawDelay()
     {
         // Arrange & Act
         var widget = new ProgressWidget { Value = 50 };
 
         // Assert - no auto-redraw for determinate progress
-        Assert.Null(widget.GetEffectiveRedrawDelay());
+        Assert.IsNull(widget.GetEffectiveRedrawDelay());
     }
 
-    [Fact]
+    [TestMethod]
     public void IndeterminateNode_MeasuresCorrectly()
     {
         // Arrange
@@ -237,13 +238,13 @@ public class ProgressNodeTests
         var size = node.Measure(constraints);
         
         // Assert - should still measure like a normal progress bar
-        Assert.Equal(20, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(20, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
     #region Visual Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_ZeroPercent_ShowsAllEmpty()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -271,7 +272,7 @@ public class ProgressNodeTests
         Assert.DoesNotContain("█", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_HundredPercent_ShowsAllFilled()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -299,7 +300,7 @@ public class ProgressNodeTests
         Assert.DoesNotContain("░", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_FiftyPercent_ShowsHalfFilled()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -327,7 +328,7 @@ public class ProgressNodeTests
         Assert.Contains("░░░░░░░░░░", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithHalfCellPrecision_ShowsHalfCharacter()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -361,7 +362,7 @@ public class ProgressNodeTests
         Assert.Contains("██", line); // 2 full blocks
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithHalfCellPrecision_17_5Percent_ShowsThreeFullOneHalf()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -393,7 +394,7 @@ public class ProgressNodeTests
         Assert.Contains("▐", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithHalfCellPrecision_2_5Percent_ShowsOnlyHalf()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -426,7 +427,7 @@ public class ProgressNodeTests
         Assert.DoesNotContain("██", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithHalfCellPrecision_ZeroPercent_NoHalfChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -457,7 +458,7 @@ public class ProgressNodeTests
         Assert.DoesNotContain("▌", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithCustomFilledCharacter_UsesThemedChar()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -488,7 +489,7 @@ public class ProgressNodeTests
         Assert.Contains("·", line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithBrailleCharacters_DisplaysBraille()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -524,15 +525,15 @@ public class ProgressNodeTests
         Assert.Contains("⢀", line);
     }
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(10, 1)]
-    [InlineData(20, 2)]
-    [InlineData(30, 3)]
-    [InlineData(50, 5)]
-    [InlineData(70, 7)]
-    [InlineData(90, 9)]
-    [InlineData(100, 10)]
+    [TestMethod]
+    [DataRow(0, 0)]
+    [DataRow(10, 1)]
+    [DataRow(20, 2)]
+    [DataRow(30, 3)]
+    [DataRow(50, 5)]
+    [DataRow(70, 7)]
+    [DataRow(90, 9)]
+    [DataRow(100, 10)]
     public void Render_DeterminatePercentages_CalculatesCorrectFilledWidth(int percent, int expectedFilledCells)
     {
         // Test the fill calculation logic directly
@@ -540,16 +541,16 @@ public class ProgressNodeTests
         var percentage = percent / 100.0;
         var filledWidth = (int)Math.Round(percentage * width);
         
-        Assert.Equal(expectedFilledCells, filledWidth);
+        Assert.AreEqual(expectedFilledCells, filledWidth);
     }
 
-    [Theory]
-    [InlineData(5, 0, true)]   // 5% of 10 = 0.5 = 0 full + half
-    [InlineData(15, 1, true)]  // 15% of 10 = 1.5 = 1 full + half
-    [InlineData(25, 2, true)]  // 25% of 10 = 2.5 = 2 full + half
-    [InlineData(30, 3, false)] // 30% of 10 = 3.0 = 3 full + no half
-    [InlineData(50, 5, false)] // 50% of 10 = 5.0 = 5 full + no half
-    [InlineData(55, 5, true)]  // 55% of 10 = 5.5 = 5 full + half
+    [TestMethod]
+    [DataRow(5, 0, true)]   // 5% of 10 = 0.5 = 0 full + half
+    [DataRow(15, 1, true)]  // 15% of 10 = 1.5 = 1 full + half
+    [DataRow(25, 2, true)]  // 25% of 10 = 2.5 = 2 full + half
+    [DataRow(30, 3, false)] // 30% of 10 = 3.0 = 3 full + no half
+    [DataRow(50, 5, false)] // 50% of 10 = 5.0 = 5 full + no half
+    [DataRow(55, 5, true)]  // 55% of 10 = 5.5 = 5 full + half
     public void Render_HalfCellPrecision_CalculatesCorrectly(int percent, int expectedFullCells, bool expectedHalfCell)
     {
         var width = 10;
@@ -558,11 +559,11 @@ public class ProgressNodeTests
         var filledWidth = (int)(halfCellUnits / 2);
         var hasHalfCell = ((int)halfCellUnits % 2) == 1;
         
-        Assert.Equal(expectedFullCells, filledWidth);
-        Assert.Equal(expectedHalfCell, hasHalfCell);
+        Assert.AreEqual(expectedFullCells, filledWidth);
+        Assert.AreEqual(expectedHalfCell, hasHalfCell);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_CustomRange_NegativeToPositive_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();

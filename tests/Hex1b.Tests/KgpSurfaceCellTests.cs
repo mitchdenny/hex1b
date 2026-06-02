@@ -10,6 +10,7 @@ namespace Hex1b.Tests;
 /// Tests for KGP (Kitty Graphics Protocol) support in surface cells,
 /// tracked object store, surface tracking, and surface comparer.
 /// </summary>
+[TestClass]
 public class KgpSurfaceCellTests
 {
     private static KgpCellData CreateKgpData(string imageContent = "test-image", int zIndex = -1)
@@ -28,78 +29,78 @@ public class KgpSurfaceCellTests
 
     #region SurfaceCell KGP
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_WithKgp_HasKgpReturnsTrue()
     {
         var kgpData = CreateKgpData();
         var tracked = new TrackedObject<KgpCellData>(kgpData, _ => { });
         var cell = new SurfaceCell("", null, null, Kgp: tracked);
 
-        Assert.True(cell.HasKgp);
+        Assert.IsTrue(cell.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_WithoutKgp_HasKgpReturnsFalse()
     {
         var cell = new SurfaceCell("A", null, null);
 
-        Assert.False(cell.HasKgp);
+        Assert.IsFalse(cell.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceCell_DefaultValues_KgpIsNull()
     {
         var cell = new SurfaceCell("A", null, null);
 
-        Assert.Null(cell.Kgp);
-        Assert.False(cell.HasKgp);
+        Assert.IsNull(cell.Kgp);
+        Assert.IsFalse(cell.HasKgp);
     }
 
     #endregion
 
     #region Surface KGP Count Tracking
 
-    [Fact]
+    [TestMethod]
     public void Surface_TracksKgpCount_IncrementOnSet()
     {
         var surface = new Surface(10, 5);
-        Assert.False(surface.HasKgp);
+        Assert.IsFalse(surface.HasKgp);
 
         var kgpData = CreateKgpData();
         var tracked = new TrackedObject<KgpCellData>(kgpData, _ => { });
         surface[0, 0] = new SurfaceCell("", null, null, Kgp: tracked);
 
-        Assert.True(surface.HasKgp);
+        Assert.IsTrue(surface.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_TracksKgpCount_DecrementOnOverwrite()
     {
         var surface = new Surface(10, 5);
         var kgpData = CreateKgpData();
         var tracked = new TrackedObject<KgpCellData>(kgpData, _ => { });
         surface[0, 0] = new SurfaceCell("", null, null, Kgp: tracked);
-        Assert.True(surface.HasKgp);
+        Assert.IsTrue(surface.HasKgp);
 
         // Overwrite with non-KGP cell
         surface[0, 0] = new SurfaceCell("A", null, null);
-        Assert.False(surface.HasKgp);
+        Assert.IsFalse(surface.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_Clear_ResetsKgpCount()
     {
         var surface = new Surface(10, 5);
         var kgpData = CreateKgpData();
         var tracked = new TrackedObject<KgpCellData>(kgpData, _ => { });
         surface[0, 0] = new SurfaceCell("", null, null, Kgp: tracked);
-        Assert.True(surface.HasKgp);
+        Assert.IsTrue(surface.HasKgp);
 
         surface.Clear();
-        Assert.False(surface.HasKgp);
+        Assert.IsFalse(surface.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_TrySetCell_TracksKgpCount()
     {
         var surface = new Surface(10, 5);
@@ -107,10 +108,10 @@ public class KgpSurfaceCellTests
         var tracked = new TrackedObject<KgpCellData>(kgpData, _ => { });
         
         surface.TrySetCell(3, 2, new SurfaceCell("", null, null, Kgp: tracked));
-        Assert.True(surface.HasKgp);
+        Assert.IsTrue(surface.HasKgp);
     }
 
-    [Fact]
+    [TestMethod]
     public void Surface_Clone_PreservesKgpCount()
     {
         var surface = new Surface(10, 5);
@@ -119,14 +120,14 @@ public class KgpSurfaceCellTests
         surface[0, 0] = new SurfaceCell("", null, null, Kgp: tracked);
         
         var clone = surface.Clone();
-        Assert.True(clone.HasKgp);
+        Assert.IsTrue(clone.HasKgp);
     }
 
     #endregion
 
     #region TrackedObjectStore KGP
 
-    [Fact]
+    [TestMethod]
     public void TrackedObjectStore_GetOrCreateKgp_CreatesNewTrackedObject()
     {
         var store = new TrackedObjectStore();
@@ -134,12 +135,12 @@ public class KgpSurfaceCellTests
 
         var tracked = store.GetOrCreateKgp(kgpData);
 
-        Assert.NotNull(tracked);
-        Assert.Same(kgpData, tracked.Data);
-        Assert.Equal(1, store.KgpCount);
+        Assert.IsNotNull(tracked);
+        Assert.AreSame(kgpData, tracked.Data);
+        Assert.AreEqual(1, store.KgpCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void TrackedObjectStore_GetOrCreateKgp_DeduplicatesByHash()
     {
         var store = new TrackedObjectStore();
@@ -150,11 +151,11 @@ public class KgpSurfaceCellTests
         var tracked2 = store.GetOrCreateKgp(kgpData2);
 
         // Same tracked object returned for same hash
-        Assert.Same(tracked1, tracked2);
-        Assert.Equal(1, store.KgpCount);
+        Assert.AreSame(tracked1, tracked2);
+        Assert.AreEqual(1, store.KgpCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void TrackedObjectStore_GetOrCreateKgp_DifferentHashCreatesNew()
     {
         var store = new TrackedObjectStore();
@@ -164,47 +165,47 @@ public class KgpSurfaceCellTests
         var tracked1 = store.GetOrCreateKgp(kgpData1);
         var tracked2 = store.GetOrCreateKgp(kgpData2);
 
-        Assert.NotSame(tracked1, tracked2);
-        Assert.Equal(2, store.KgpCount);
+        Assert.AreNotSame(tracked1, tracked2);
+        Assert.AreEqual(2, store.KgpCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void TrackedObjectStore_GetOrCreateKgp_RefCounting()
     {
         var store = new TrackedObjectStore();
         var kgpData = CreateKgpData();
 
         var tracked = store.GetOrCreateKgp(kgpData);
-        Assert.Equal(1, store.KgpCount);
+        Assert.AreEqual(1, store.KgpCount);
 
         // Second reference
         var tracked2 = store.GetOrCreateKgp(kgpData);
-        Assert.Equal(1, store.KgpCount); // Still one unique object
+        Assert.AreEqual(1, store.KgpCount); // Still one unique object
 
         // Release both
         tracked.Release();
-        Assert.Equal(1, store.KgpCount); // Still tracked (refcount > 0)
+        Assert.AreEqual(1, store.KgpCount); // Still tracked (refcount > 0)
         tracked2.Release();
-        Assert.Equal(0, store.KgpCount); // Removed at zero refs
+        Assert.AreEqual(0, store.KgpCount); // Removed at zero refs
     }
 
-    [Fact]
+    [TestMethod]
     public void TrackedObjectStore_Clear_RemovesKgp()
     {
         var store = new TrackedObjectStore();
         store.GetOrCreateKgp(CreateKgpData("img1"));
         store.GetOrCreateKgp(CreateKgpData("img2"));
-        Assert.Equal(2, store.KgpCount);
+        Assert.AreEqual(2, store.KgpCount);
 
         store.Clear();
-        Assert.Equal(0, store.KgpCount);
+        Assert.AreEqual(0, store.KgpCount);
     }
 
     #endregion
 
     #region SurfaceComparer KGP
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_DetectsKgpChange()
     {
         var prev = new Surface(10, 5);
@@ -216,11 +217,11 @@ public class KgpSurfaceCellTests
 
         var diff = SurfaceComparer.Compare(prev, curr);
 
-        Assert.True(diff.ChangedCells.Count > 0);
-        Assert.Contains(diff.ChangedCells, c => c.X == 0 && c.Y == 0);
+        Assert.IsTrue(diff.ChangedCells.Count > 0);
+        Assert.IsTrue(diff.ChangedCells.Any(c => c.X == 0 && c.Y == 0));
     }
 
-    [Fact]
+    [TestMethod]
     public void SurfaceComparer_IgnoresIdenticalKgp()
     {
         var kgpData = CreateKgpData("same-image");
@@ -236,14 +237,14 @@ public class KgpSurfaceCellTests
         var diff = SurfaceComparer.Compare(prev, curr);
 
         // Same content hash → no change
-        Assert.DoesNotContain(diff.ChangedCells, c => c.X == 0 && c.Y == 0);
+        Assert.IsFalse(diff.ChangedCells.Any(c => c.X == 0 && c.Y == 0));
     }
 
     #endregion
 
     #region KgpCellData ZIndex
 
-    [Fact]
+    [TestMethod]
     public void KgpCellData_BuildPlacement_UsesZIndex()
     {
         var kgpData = CreateKgpData(zIndex: 5);
@@ -253,7 +254,7 @@ public class KgpSurfaceCellTests
         Assert.DoesNotContain("z=-1", payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpCellData_BuildPlacement_DefaultZIndexIsNegativeOne()
     {
         var kgpData = CreateKgpData();
@@ -262,7 +263,7 @@ public class KgpSurfaceCellTests
         Assert.Contains("z=-1", payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpCellData_BuildPlacement_PositiveZIndex()
     {
         var kgpData = CreateKgpData(zIndex: 3);
@@ -271,13 +272,13 @@ public class KgpSurfaceCellTests
         Assert.Contains("z=3", payload);
     }
 
-    [Fact]
+    [TestMethod]
     public void KgpCellData_WithClip_PreservesZIndex()
     {
         var kgpData = CreateKgpData(zIndex: 7);
         var clipped = kgpData.WithClip(10, 20, 30, 40, 2, 1);
 
-        Assert.Equal(7, clipped.ZIndex);
+        Assert.AreEqual(7, clipped.ZIndex);
         Assert.Contains("z=7", clipped.BuildPlacementPayload());
     }
 

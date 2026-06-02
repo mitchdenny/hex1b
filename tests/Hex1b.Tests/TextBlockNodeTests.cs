@@ -7,57 +7,58 @@ namespace Hex1b.Tests;
 /// <summary>
 /// Tests for TextBlockNode rendering using Hex1bTerminal.
 /// </summary>
+[TestClass]
 public class TextBlockNodeTests
 {
     #region Measurement Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_ReturnsCorrectSize()
     {
         var node = new TextBlockNode { Text = "Hello World" };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(11, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(11, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_EmptyText_ReturnsZeroWidth()
     {
         var node = new TextBlockNode { Text = "" };
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(0, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMaxWidthConstraint()
     {
         var node = new TextBlockNode { Text = "This is a very long text that exceeds constraints" };
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
-        Assert.Equal(10, size.Width);
+        Assert.AreEqual(10, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_RespectsMinWidthConstraint()
     {
         var node = new TextBlockNode { Text = "Hi" };
 
         var size = node.Measure(new Constraints(10, 20, 0, 5));
 
-        Assert.Equal(10, size.Width);
+        Assert.AreEqual(10, size.Width);
     }
 
     #endregion
 
     #region Wrapping Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithWrap_CalculatesMultipleLines()
     {
         var node = new TextBlockNode 
@@ -70,11 +71,11 @@ public class TextBlockNodeTests
         var size = node.Measure(new Constraints(0, 10, 0, int.MaxValue));
 
         // "Hello" (5), "World from" (10), "Hex1b" (5) - needs multiple lines
-        Assert.True(size.Height > 1, $"Expected height > 1, got {size.Height}");
-        Assert.True(size.Width <= 10, $"Expected width <= 10, got {size.Width}");
+        Assert.IsTrue(size.Height > 1, $"Expected height > 1, got {size.Height}");
+        Assert.IsTrue(size.Width <= 10, $"Expected width <= 10, got {size.Width}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithWrap_SingleLineWhenFits()
     {
         var node = new TextBlockNode 
@@ -85,11 +86,11 @@ public class TextBlockNodeTests
 
         var size = node.Measure(new Constraints(0, 40, 0, int.MaxValue));
 
-        Assert.Equal(1, size.Height);
-        Assert.Equal(5, size.Width);
+        Assert.AreEqual(1, size.Height);
+        Assert.AreEqual(5, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithWrap_UnboundedWidth_SingleLine()
     {
         var node = new TextBlockNode 
@@ -100,11 +101,11 @@ public class TextBlockNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(1, size.Height);
-        Assert.Equal(45, size.Width);
+        Assert.AreEqual(1, size.Height);
+        Assert.AreEqual(45, size.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithWrap_PrefersWordBoundaries()
     {
         var node = new TextBlockNode
@@ -116,11 +117,11 @@ public class TextBlockNodeTests
         // Width 7 can't fit "Hello w" without splitting "world", so it should wrap at the space.
         var size = node.Measure(new Constraints(0, 7, 0, int.MaxValue));
 
-        Assert.Equal(2, size.Height);
-        Assert.True(size.Width <= 7, $"Expected width <= 7, got {size.Width}");
+        Assert.AreEqual(2, size.Height);
+        Assert.IsTrue(size.Width <= 7, $"Expected width <= 7, got {size.Width}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithEllipsis_RespectsMaxWidth()
     {
         var node = new TextBlockNode 
@@ -131,11 +132,11 @@ public class TextBlockNodeTests
 
         var size = node.Measure(new Constraints(0, 10, 0, 5));
 
-        Assert.Equal(10, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(10, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Measure_WithOverflow_IgnoresConstraint()
     {
         var node = new TextBlockNode 
@@ -147,15 +148,15 @@ public class TextBlockNodeTests
         // Default behavior - width is clamped but not reduced naturally
         var size = node.Measure(new Constraints(0, 5, 0, 5));
 
-        Assert.Equal(5, size.Width);  // Clamped by Constrain()
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width);  // Clamped by Constrain()
+        Assert.AreEqual(1, size.Height);
     }
 
     #endregion
 
     #region Rendering Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WritesTextToTerminal()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -171,10 +172,10 @@ public class TextBlockNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Hello World", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_EmptyText_WritesNothing()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -189,10 +190,10 @@ public class TextBlockNodeTests
             .Build()
             .ApplyAsync(terminal);
 
-        Assert.Equal("", terminal.CreateSnapshot().GetLineTrimmed(0));
+        Assert.AreEqual("", terminal.CreateSnapshot().GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_SpecialCharacters_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -208,10 +209,10 @@ public class TextBlockNodeTests
             .Build()
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
-        Assert.Equal("Hello → World ← Test", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Hello → World ← Test", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_InNarrowTerminal_TextIsTruncatedByTerminalWidth()
     {
         // Terminal is only 10 chars wide - text will wrap/truncate at terminal boundary
@@ -229,12 +230,12 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // The first line should contain the first 10 characters
-        Assert.Equal("This is a ", snapshot.GetLine(0));
+        Assert.AreEqual("This is a ", snapshot.GetLine(0));
         // The rest wraps to the next line (terminal behavior, not widget)
-        Assert.Equal("long text", snapshot.GetLineTrimmed(1));
+        Assert.AreEqual("long text", snapshot.GetLineTrimmed(1));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_AtSpecificPosition_WritesAtCursorPosition()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -253,10 +254,10 @@ public class TextBlockNodeTests
 
         // Check that text appears at the right position
         var line = snapshot.GetLine(3);
-        Assert.Equal("     Positioned", line.TrimEnd());
+        Assert.AreEqual("     Positioned", line.TrimEnd());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_VeryLongText_WrapsAtTerminalEdge()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -274,16 +275,16 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
 
         // First 20 chars on line 0
-        Assert.Equal("ABCDEFGHIJKLMNOPQRST", snapshot.GetLine(0));
+        Assert.AreEqual("ABCDEFGHIJKLMNOPQRST", snapshot.GetLine(0));
         // Remaining chars on line 1
-        Assert.Equal("UVWXYZ", snapshot.GetLineTrimmed(1));
+        Assert.AreEqual("UVWXYZ", snapshot.GetLineTrimmed(1));
     }
 
     #endregion
 
     #region Clipping Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithLayoutProvider_ClipsToClipRect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -312,10 +313,10 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Text should be clipped to 10 characters
-        Assert.Equal("Hello Worl", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Hello Worl", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithLayoutProvider_ClipsWhenStartingOutsideClipRect()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -344,10 +345,10 @@ public class TextBlockNodeTests
         
         // Only chars from index 5-14 should appear (FGHIJKLMNO), at positions 5-14
         var line = snapshot.GetLine(0);
-        Assert.Equal("     FGHIJKLMNO", line.Substring(0, 15));
+        Assert.AreEqual("     FGHIJKLMNO", line.Substring(0, 15));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithLayoutProviderOverflow_DoesNotClip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -374,10 +375,10 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear (no clipping)
-        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Hello World", snapshot.GetLineTrimmed(0));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Render_WithoutLayoutProvider_DoesNotClip()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -396,14 +397,14 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         
         // Full text should appear
-        Assert.Equal("Hello World", snapshot.GetLineTrimmed(0));
+        Assert.AreEqual("Hello World", snapshot.GetLineTrimmed(0));
     }
 
     #endregion
 
     #region Layout Tests
 
-    [Fact]
+    [TestMethod]
     public async Task Arrange_SetsBounds()
     {
         var node = new TextBlockNode { Text = "Test" };
@@ -411,36 +412,36 @@ public class TextBlockNodeTests
 
         node.Arrange(bounds);
 
-        Assert.Equal(bounds, node.Bounds);
+        Assert.AreEqual(bounds, node.Bounds);
     }
 
     #endregion
 
     #region Focus and Input Tests
 
-    [Fact]
+    [TestMethod]
     public async Task IsFocusable_ReturnsFalse()
     {
         var node = new TextBlockNode { Text = "Test" };
 
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task HandleInput_AlwaysReturnsFalse()
     {
         var node = new TextBlockNode { Text = "Test" };
 
         var result = node.HandleInput(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
-        Assert.Equal(InputResult.NotHandled, result);
+        Assert.AreEqual(InputResult.NotHandled, result);
     }
 
     #endregion
 
     #region Integration Tests with Hex1bApp
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlockWidget_RendersViaHex1bApp()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -461,10 +462,10 @@ public class TextBlockNodeTests
             .ApplyWithCaptureAsync(terminal, TestContext.Current.CancellationToken);
         await runTask;
 
-        Assert.True(snapshot.ContainsText("Integration Test"));
+        Assert.IsTrue(snapshot.ContainsText("Integration Test"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_MultipleTextBlocks_InVStack_RenderOnSeparateLines()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -495,25 +496,25 @@ public class TextBlockNodeTests
         await runTask;
 
         // Use the captured snapshot for assertions (app has exited, alternate screen restored)
-        Assert.True(snapshot.ContainsText("First Line"));
-        Assert.True(snapshot.ContainsText("Second Line"));
-        Assert.True(snapshot.ContainsText("Third Line"));
+        Assert.IsTrue(snapshot.ContainsText("First Line"));
+        Assert.IsTrue(snapshot.ContainsText("Second Line"));
+        Assert.IsTrue(snapshot.ContainsText("Third Line"));
 
         // Verify they appear at different positions
         var firstPositions = snapshot.FindText("First Line");
         var secondPositions = snapshot.FindText("Second Line");
         var thirdPositions = snapshot.FindText("Third Line");
 
-        Assert.Single(firstPositions);
-        Assert.Single(secondPositions);
-        Assert.Single(thirdPositions);
+        TestSeq.Single(firstPositions);
+        TestSeq.Single(secondPositions);
+        TestSeq.Single(thirdPositions);
 
         // Each should be on a different line
-        Assert.NotEqual(firstPositions[0].Line, secondPositions[0].Line);
-        Assert.NotEqual(secondPositions[0].Line, thirdPositions[0].Line);
+        Assert.AreNotEqual(firstPositions[0].Line, secondPositions[0].Line);
+        Assert.AreNotEqual(secondPositions[0].Line, thirdPositions[0].Line);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlock_WithStateChange_UpdatesOnReRender()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -548,10 +549,10 @@ public class TextBlockNodeTests
         await runTask;
 
         // The button was clicked, counter was incremented. May be higher than 2 due to Ctrl+C triggering exit render.
-        Assert.True(counter >= 2, $"Expected counter >= 2 but was {counter}");
+        Assert.IsTrue(counter >= 2, $"Expected counter >= 2 but was {counter}");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlock_InNarrowTerminal_RendersCorrectly()
     {
         // Very narrow terminal - 15 chars wide
@@ -583,12 +584,12 @@ public class TextBlockNodeTests
 
         // Use captured snapshot for assertions
         // "Short" should fit on its line
-        Assert.True(snapshot.ContainsText("Short"));
+        Assert.IsTrue(snapshot.ContainsText("Short"));
         // Long text will wrap at terminal edge
-        Assert.True(snapshot.ContainsText("A longer text h"));
+        Assert.IsTrue(snapshot.ContainsText("A longer text h"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlock_WithDynamicState_ShowsCurrentValue()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -616,10 +617,10 @@ public class TextBlockNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("Hello from State"));
+        Assert.IsTrue(snapshot.ContainsText("Hello from State"));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlock_EmptyString_DoesNotCrash()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -644,7 +645,7 @@ public class TextBlockNodeTests
         // Should complete without error (test passes if no exception thrown)
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Integration_TextBlock_UnicodeContent_RendersCorrectly()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
@@ -669,8 +670,8 @@ public class TextBlockNodeTests
         await runTask;
 
         // Use captured snapshot for assertions
-        Assert.True(snapshot.ContainsText("日本語テスト"));
-        Assert.True(snapshot.ContainsText("🎉"));
+        Assert.IsTrue(snapshot.ContainsText("日本語テスト"));
+        Assert.IsTrue(snapshot.ContainsText("🎉"));
     }
 
     #endregion

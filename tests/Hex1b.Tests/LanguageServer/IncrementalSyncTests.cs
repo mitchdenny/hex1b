@@ -3,18 +3,19 @@ using Hex1b.LanguageServer.Protocol;
 
 namespace Hex1b.Tests.LanguageServer;
 
+[TestClass]
 public class IncrementalSyncTests
 {
-    [Fact]
+    [TestMethod]
     public void TextDocumentContentChangeEvent_FullSync_HasNullRange()
     {
         var change = new TextDocumentContentChangeEvent { Text = "full text" };
-        Assert.Null(change.Range);
-        Assert.Null(change.RangeLength);
-        Assert.Equal("full text", change.Text);
+        Assert.IsNull(change.Range);
+        Assert.IsNull(change.RangeLength);
+        Assert.AreEqual("full text", change.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void TextDocumentContentChangeEvent_IncrementalSync_HasRange()
     {
         var change = new TextDocumentContentChangeEvent
@@ -27,15 +28,15 @@ public class IncrementalSyncTests
             Text = "replacement"
         };
 
-        Assert.NotNull(change.Range);
-        Assert.Equal(0, change.Range.Start.Line);
-        Assert.Equal(5, change.Range.Start.Character);
-        Assert.Equal(0, change.Range.End.Line);
-        Assert.Equal(10, change.Range.End.Character);
-        Assert.Equal("replacement", change.Text);
+        Assert.IsNotNull(change.Range);
+        Assert.AreEqual(0, change.Range.Start.Line);
+        Assert.AreEqual(5, change.Range.Start.Character);
+        Assert.AreEqual(0, change.Range.End.Line);
+        Assert.AreEqual(10, change.Range.End.Character);
+        Assert.AreEqual("replacement", change.Text);
     }
 
-    [Fact]
+    [TestMethod]
     public void TextDocumentContentChangeEvent_Serialization_RoundTrips()
     {
         var change = new TextDocumentContentChangeEvent
@@ -52,17 +53,17 @@ public class IncrementalSyncTests
         var json = JsonSerializer.Serialize(change);
         var deserialized = JsonSerializer.Deserialize<TextDocumentContentChangeEvent>(json);
 
-        Assert.NotNull(deserialized);
-        Assert.Equal("hello", deserialized.Text);
-        Assert.Equal(5, deserialized.RangeLength);
-        Assert.NotNull(deserialized.Range);
-        Assert.Equal(1, deserialized.Range.Start.Line);
-        Assert.Equal(0, deserialized.Range.Start.Character);
-        Assert.Equal(1, deserialized.Range.End.Line);
-        Assert.Equal(5, deserialized.Range.End.Character);
+        Assert.IsNotNull(deserialized);
+        Assert.AreEqual("hello", deserialized.Text);
+        Assert.AreEqual(5, deserialized.RangeLength);
+        Assert.IsNotNull(deserialized.Range);
+        Assert.AreEqual(1, deserialized.Range.Start.Line);
+        Assert.AreEqual(0, deserialized.Range.Start.Character);
+        Assert.AreEqual(1, deserialized.Range.End.Line);
+        Assert.AreEqual(5, deserialized.Range.End.Character);
     }
 
-    [Fact]
+    [TestMethod]
     public void TextDocumentContentChangeEvent_FullSync_Serialization_OmitsNullRange()
     {
         var options = new JsonSerializerOptions { DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull };
@@ -71,8 +72,8 @@ public class IncrementalSyncTests
         var json = JsonSerializer.Serialize(change, options);
         var doc = JsonDocument.Parse(json);
 
-        Assert.False(doc.RootElement.TryGetProperty("range", out _));
-        Assert.False(doc.RootElement.TryGetProperty("rangeLength", out _));
-        Assert.Equal("full content", doc.RootElement.GetProperty("text").GetString());
+        Assert.IsFalse(doc.RootElement.TryGetProperty("range", out _));
+        Assert.IsFalse(doc.RootElement.TryGetProperty("rangeLength", out _));
+        Assert.AreEqual("full content", doc.RootElement.GetProperty("text").GetString());
     }
 }

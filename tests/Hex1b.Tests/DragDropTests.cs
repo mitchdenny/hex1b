@@ -9,41 +9,42 @@ namespace Hex1b.Tests;
 /// Tests for DraggableNode, DraggableWidget, DroppableNode, DroppableWidget,
 /// DragDropManager, and the drag-drop extension methods.
 /// </summary>
+[TestClass]
 public class DragDropTests
 {
     #region DraggableNode Tests
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsFocusable_ReturnsTrue()
     {
         var node = new DraggableNode();
-        Assert.True(node.IsFocusable);
+        Assert.IsTrue(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsDragging_DefaultFalse()
     {
         var node = new DraggableNode();
-        Assert.False(node.IsDragging);
+        Assert.IsFalse(node.IsDragging);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsDragging_SetTrue_MarksDirty()
     {
         var node = new DraggableNode();
         node.IsDragging = true;
-        Assert.True(node.IsDragging);
+        Assert.IsTrue(node.IsDragging);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_IsDragging_SetSameValue_NoChange()
     {
         var node = new DraggableNode();
         node.IsDragging = false; // Already false
-        Assert.False(node.IsDragging);
+        Assert.IsFalse(node.IsDragging);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_Measure_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Drag Me" };
@@ -52,20 +53,20 @@ public class DragDropTests
         var size = node.Measure(Constraints.Unbounded);
 
         // ButtonNode: " Drag Me " = 2 + 7 = 9 (Phase 2 chip layout)
-        Assert.Equal(9, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(9, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_Measure_NullChild_ReturnsZero()
     {
         var node = new DraggableNode { Child = null };
         var size = node.Measure(Constraints.Unbounded);
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_Arrange_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Test" };
@@ -75,10 +76,10 @@ public class DragDropTests
 
         node.Arrange(rect);
 
-        Assert.Equal(rect, child.Bounds);
+        Assert.AreEqual(rect, child.Bounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_GetChildren_ReturnsChild()
     {
         var child = new ButtonNode { Label = "Test" };
@@ -86,18 +87,18 @@ public class DragDropTests
 
         var children = node.GetChildren();
 
-        Assert.Single(children);
-        Assert.Same(child, children[0]);
+        TestSeq.Single(children);
+        Assert.AreSame(child, children[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_GetChildren_NullChild_ReturnsEmpty()
     {
         var node = new DraggableNode { Child = null };
-        Assert.Empty(node.GetChildren());
+        Assert.IsEmpty(node.GetChildren());
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_GetFocusableNodes_ReturnsOnlySelf()
     {
         var child = new ButtonNode { Label = "Focusable" };
@@ -105,11 +106,11 @@ public class DragDropTests
 
         var focusables = node.GetFocusableNodes().ToList();
 
-        Assert.Single(focusables);
-        Assert.Same(node, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(node, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_HitTestBounds_EqualsBounds()
     {
         var node = new DraggableNode { Child = new ButtonNode { Label = "Test" } };
@@ -117,52 +118,52 @@ public class DragDropTests
         var rect = new Rect(0, 0, 10, 1);
         node.Arrange(rect);
 
-        Assert.Equal(rect, node.HitTestBounds);
+        Assert.AreEqual(rect, node.HitTestBounds);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableNode_DragData_CanBeSet()
     {
         var data = new { Id = "task-1", Name = "Test Task" };
         var node = new DraggableNode { DragData = data };
-        Assert.Same(data, node.DragData);
+        Assert.AreSame(data, node.DragData);
     }
 
     #endregion
 
     #region DroppableNode Tests
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_IsFocusable_ReturnsFalse()
     {
         var node = new DroppableNode();
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_IsHoveredByDrag_DefaultFalse()
     {
         var node = new DroppableNode();
-        Assert.False(node.IsHoveredByDrag);
+        Assert.IsFalse(node.IsHoveredByDrag);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_IsHoveredByDrag_SetTrue_MarksDirty()
     {
         var node = new DroppableNode();
         node.IsHoveredByDrag = true;
-        Assert.True(node.IsHoveredByDrag);
+        Assert.IsTrue(node.IsHoveredByDrag);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_Accepts_NoPredicate_AcceptsAll()
     {
         var node = new DroppableNode { AcceptPredicate = null };
-        Assert.True(node.Accepts("anything"));
-        Assert.True(node.Accepts(42));
+        Assert.IsTrue(node.Accepts("anything"));
+        Assert.IsTrue(node.Accepts(42));
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_Accepts_WithPredicate_FiltersCorrectly()
     {
         var node = new DroppableNode
@@ -170,12 +171,12 @@ public class DragDropTests
             AcceptPredicate = data => data is string s && s.StartsWith("task")
         };
 
-        Assert.True(node.Accepts("task-1"));
-        Assert.False(node.Accepts("bug-1"));
-        Assert.False(node.Accepts(42));
+        Assert.IsTrue(node.Accepts("task-1"));
+        Assert.IsFalse(node.Accepts("bug-1"));
+        Assert.IsFalse(node.Accepts(42));
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_Measure_DelegatesToChild()
     {
         var child = new ButtonNode { Label = "Drop" };
@@ -183,11 +184,11 @@ public class DragDropTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(6, size.Width); // " Drop " (Phase 2 chip layout)
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(6, size.Width); // " Drop " (Phase 2 chip layout)
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_GetFocusableNodes_ReturnsFocusableChildren()
     {
         var button = new ButtonNode { Label = "Click" };
@@ -196,29 +197,29 @@ public class DragDropTests
         var focusables = node.GetFocusableNodes().ToList();
 
         // DroppableNode delegates to children
-        Assert.Single(focusables);
-        Assert.Same(button, focusables[0]);
+        TestSeq.Single(focusables);
+        Assert.AreSame(button, focusables[0]);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_GetFocusableNodes_NullChild_ReturnsEmpty()
     {
         var node = new DroppableNode { Child = null };
-        Assert.Empty(node.GetFocusableNodes());
+        Assert.IsEmpty(node.GetFocusableNodes());
     }
 
     #endregion
 
     #region DragDropManager Tests
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_IsDragging_DefaultFalse()
     {
         var manager = new DragDropManager();
-        Assert.False(manager.IsDragging);
+        Assert.IsFalse(manager.IsDragging);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_StartDrag_SetsState()
     {
         var manager = new DragDropManager();
@@ -226,15 +227,15 @@ public class DragDropTests
 
         manager.StartDrag(source, "test-data", 10, 20);
 
-        Assert.True(manager.IsDragging);
-        Assert.Same(source, manager.ActiveSource);
-        Assert.Equal("test-data", manager.ActiveDragData);
-        Assert.Equal(10, manager.DragX);
-        Assert.Equal(20, manager.DragY);
-        Assert.Null(manager.HoveredTarget);
+        Assert.IsTrue(manager.IsDragging);
+        Assert.AreSame(source, manager.ActiveSource);
+        Assert.AreEqual("test-data", manager.ActiveDragData);
+        Assert.AreEqual(10, manager.DragX);
+        Assert.AreEqual(20, manager.DragY);
+        Assert.IsNull(manager.HoveredTarget);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_UpdatePosition_UpdatesState()
     {
         var manager = new DragDropManager();
@@ -244,12 +245,12 @@ public class DragDropTests
         manager.StartDrag(source, "data", 0, 0);
         manager.UpdatePosition(15, 25, target);
 
-        Assert.Equal(15, manager.DragX);
-        Assert.Equal(25, manager.DragY);
-        Assert.Same(target, manager.HoveredTarget);
+        Assert.AreEqual(15, manager.DragX);
+        Assert.AreEqual(25, manager.DragY);
+        Assert.AreSame(target, manager.HoveredTarget);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_EndDrag_ClearsState()
     {
         var manager = new DragDropManager();
@@ -260,98 +261,98 @@ public class DragDropTests
         manager.UpdatePosition(15, 25, target);
         manager.EndDrag();
 
-        Assert.False(manager.IsDragging);
-        Assert.Null(manager.ActiveSource);
-        Assert.Null(manager.ActiveDragData);
-        Assert.Null(manager.HoveredTarget);
+        Assert.IsFalse(manager.IsDragging);
+        Assert.IsNull(manager.ActiveSource);
+        Assert.IsNull(manager.ActiveDragData);
+        Assert.IsNull(manager.HoveredTarget);
     }
 
     #endregion
 
     #region Widget Reconciliation Tests
 
-    [Fact]
+    [TestMethod]
     public void DraggableWidget_GetExpectedNodeType_ReturnsDraggableNode()
     {
         var widget = new DraggableWidget("drag-data", dc => new TextBlockWidget("Test"));
-        Assert.Equal(typeof(DraggableNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(DraggableNode), widget.GetExpectedNodeType());
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableWidget_GetExpectedNodeType_ReturnsDroppableNode()
     {
         var widget = new DroppableWidget(dc => new TextBlockWidget("Target"));
-        Assert.Equal(typeof(DroppableNode), widget.GetExpectedNodeType());
+        Assert.AreEqual(typeof(DroppableNode), widget.GetExpectedNodeType());
     }
 
     #endregion
 
     #region Context Tests
 
-    [Fact]
+    [TestMethod]
     public void DraggableContext_IsDragging_ReflectsNodeState()
     {
         var node = new DraggableNode { DragData = "test" };
         var context = new DraggableContext(node);
 
-        Assert.False(context.IsDragging);
+        Assert.IsFalse(context.IsDragging);
 
         node.IsDragging = true;
-        Assert.True(context.IsDragging);
+        Assert.IsTrue(context.IsDragging);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableContext_DragData_ReflectsNodeState()
     {
         var node = new DraggableNode { DragData = "my-data" };
         var context = new DraggableContext(node);
 
-        Assert.Equal("my-data", context.DragData);
+        Assert.AreEqual("my-data", context.DragData);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableContext_IsHoveredByDrag_ReflectsNodeState()
     {
         var node = new DroppableNode();
         var context = new DroppableContext(node);
 
-        Assert.False(context.IsHoveredByDrag);
+        Assert.IsFalse(context.IsHoveredByDrag);
 
         node.IsHoveredByDrag = true;
-        Assert.True(context.IsHoveredByDrag);
+        Assert.IsTrue(context.IsHoveredByDrag);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableContext_CanAcceptDrag_ReflectsNodeState()
     {
         var node = new DroppableNode { CanAcceptDrag = true };
         var context = new DroppableContext(node);
-        Assert.True(context.CanAcceptDrag);
+        Assert.IsTrue(context.CanAcceptDrag);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableContext_HoveredDragData_ReflectsNodeState()
     {
         var node = new DroppableNode { HoveredDragData = "test-data" };
         var context = new DroppableContext(node);
-        Assert.Equal("test-data", context.HoveredDragData);
+        Assert.AreEqual("test-data", context.HoveredDragData);
     }
 
     #endregion
 
     #region Extension Method Tests
 
-    [Fact]
+    [TestMethod]
     public void Draggable_Extension_CreatesDraggableWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Draggable("data", dc => new TextBlockWidget("Content"));
 
-        Assert.IsType<DraggableWidget>(widget);
-        Assert.Equal("data", widget.DragData);
+        TestSeq.IsType<DraggableWidget>(widget);
+        Assert.AreEqual("data", widget.DragData);
     }
 
-    [Fact]
+    [TestMethod]
     public void Draggable_ArrayExtension_CreatesDraggableWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
@@ -361,57 +362,57 @@ public class DragDropTests
             new TextBlockWidget("Line 2"),
         });
 
-        Assert.IsType<DraggableWidget>(widget);
+        TestSeq.IsType<DraggableWidget>(widget);
     }
 
-    [Fact]
+    [TestMethod]
     public void Droppable_Extension_CreatesDroppableWidget()
     {
         var ctx = new WidgetContext<VStackWidget>();
         var widget = ctx.Droppable(dc => new TextBlockWidget("Target"));
 
-        Assert.IsType<DroppableWidget>(widget);
+        TestSeq.IsType<DroppableWidget>(widget);
     }
 
-    [Fact]
+    [TestMethod]
     public void DraggableWidget_DragOverlay_SetsBuilder()
     {
         var widget = new DraggableWidget("data", dc => new TextBlockWidget("Content"))
             .DragOverlay(dc => new TextBlockWidget("Ghost"));
 
-        Assert.NotNull(widget.DragOverlayBuilder);
+        Assert.IsNotNull(widget.DragOverlayBuilder);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableWidget_Accept_SetsPredicate()
     {
         var widget = new DroppableWidget(dc => new TextBlockWidget("Target"))
             .Accept(data => data is string);
 
-        Assert.NotNull(widget.AcceptPredicate);
+        Assert.IsNotNull(widget.AcceptPredicate);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableWidget_OnDrop_SetsHandler()
     {
         var widget = new DroppableWidget(dc => new TextBlockWidget("Target"))
             .OnDrop(e => { });
 
-        Assert.NotNull(widget.DropHandler);
+        Assert.IsNotNull(widget.DropHandler);
     }
 
     #endregion
 
     #region Drag Overlay Tests
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_BuildOverlayWidget_NoDrag_ReturnsNull()
     {
         var manager = new DragDropManager();
-        Assert.Null(manager.BuildOverlayWidget());
+        Assert.IsNull(manager.BuildOverlayWidget());
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_BuildOverlayWidget_NoBuilder_ReturnsNull()
     {
         var manager = new DragDropManager();
@@ -424,10 +425,10 @@ public class DragDropTests
         manager.StartDrag(source, "test", 10, 20);
 
         // No DragOverlayBuilder set on the widget
-        Assert.Null(manager.BuildOverlayWidget());
+        Assert.IsNull(manager.BuildOverlayWidget());
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_BuildOverlayWidget_WithBuilder_ReturnsOverlay()
     {
         var manager = new DragDropManager();
@@ -442,11 +443,11 @@ public class DragDropTests
         manager.StartDrag(source, "test", 10, 20);
 
         var overlay = manager.BuildOverlayWidget();
-        Assert.NotNull(overlay);
-        Assert.IsType<DragOverlayWidget>(overlay);
+        Assert.IsNotNull(overlay);
+        TestSeq.IsType<DragOverlayWidget>(overlay);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_BuildOverlayWidget_UsesCurrentPosition()
     {
         var manager = new DragDropManager();
@@ -462,26 +463,26 @@ public class DragDropTests
         manager.UpdatePosition(30, 15, null);
 
         var overlay = (DragOverlayWidget)manager.BuildOverlayWidget()!;
-        Assert.Equal(30, overlay.CursorX);
-        Assert.Equal(15, overlay.CursorY);
+        Assert.AreEqual(30, overlay.CursorX);
+        Assert.AreEqual(15, overlay.CursorY);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragOverlayNode_IsFocusable_ReturnsFalse()
     {
         var node = new DragOverlayNode();
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragOverlayNode_GetFocusableNodes_ReturnsEmpty()
     {
         var child = new ButtonNode { Label = "Ghost" };
         var node = new DragOverlayNode { Child = child };
-        Assert.Empty(node.GetFocusableNodes());
+        Assert.IsEmpty(node.GetFocusableNodes());
     }
 
-    [Fact]
+    [TestMethod]
     public void DragOverlayNode_Arrange_PositionsAtCursorWithOffset()
     {
         var child = new TextBlockNode { Text = "Ghost" };
@@ -496,29 +497,29 @@ public class DragDropTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Child should be positioned at cursor + 1 offset
-        Assert.Equal(11, child.Bounds.X);
-        Assert.Equal(5, child.Bounds.Y);
+        Assert.AreEqual(11, child.Bounds.X);
+        Assert.AreEqual(5, child.Bounds.Y);
     }
 
     #endregion
 
     #region DropTargetNode Tests
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_IsNotFocusable()
     {
         var node = new DropTargetNode();
-        Assert.False(node.IsFocusable);
+        Assert.IsFalse(node.IsFocusable);
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_IsActive_DefaultFalse()
     {
         var node = new DropTargetNode();
-        Assert.False(node.IsActive);
+        Assert.IsFalse(node.IsActive);
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_Measure_WhenInactive_MeasuresChild()
     {
         var node = new DropTargetNode();
@@ -528,11 +529,11 @@ public class DragDropTests
         var size = node.Measure(new Constraints(0, 40, 0, 20));
 
         // Inactive node still measures child — visibility is controlled by builder callback
-        Assert.Equal(1, size.Height);
-        Assert.True(size.Width > 0);
+        Assert.AreEqual(1, size.Height);
+        Assert.IsTrue(size.Width > 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_Measure_WhenActive_MeasuresChild()
     {
         var node = new DropTargetNode();
@@ -542,28 +543,28 @@ public class DragDropTests
 
         var size = node.Measure(new Constraints(0, 40, 0, 20));
 
-        Assert.Equal(1, size.Height); // TextBlock is 1 row
+        Assert.AreEqual(1, size.Height); // TextBlock is 1 row
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_TargetId_CanBeSet()
     {
         var node = new DropTargetNode { TargetId = "after-card-2" };
-        Assert.Equal("after-card-2", node.TargetId);
+        Assert.AreEqual("after-card-2", node.TargetId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetNode_GetFocusableNodes_ReturnsEmpty()
     {
         var node = new DropTargetNode { Child = new TextBlockNode() };
-        Assert.Empty(node.GetFocusableNodes());
+        Assert.IsEmpty(node.GetFocusableNodes());
     }
 
     #endregion
 
     #region DropTarget Proximity Tests
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_FindDropTargets_FindsDescendants()
     {
         var droppable = new DroppableNode();
@@ -575,12 +576,12 @@ public class DragDropTests
 
         var targets = droppable.FindDropTargets();
 
-        Assert.Equal(2, targets.Count);
-        Assert.Equal("pos-1", targets[0].TargetId);
-        Assert.Equal("pos-2", targets[1].TargetId);
+        Assert.AreEqual(2, targets.Count);
+        Assert.AreEqual("pos-1", targets[0].TargetId);
+        Assert.AreEqual("pos-2", targets[1].TargetId);
     }
 
-    [Fact]
+    [TestMethod]
     public void DroppableNode_FindDropTargets_EmptyWhenNone()
     {
         var droppable = new DroppableNode();
@@ -588,10 +589,10 @@ public class DragDropTests
 
         var targets = droppable.FindDropTargets();
 
-        Assert.Empty(targets);
+        Assert.IsEmpty(targets);
     }
 
-    [Fact]
+    [TestMethod]
     public void DragDropManager_ActiveDropTarget_ClearedOnEndDrag()
     {
         var manager = new DragDropManager();
@@ -601,35 +602,35 @@ public class DragDropTests
 
         manager.EndDrag();
 
-        Assert.Null(manager.ActiveDropTarget);
+        Assert.IsNull(manager.ActiveDropTarget);
     }
 
     #endregion
 
     #region DropTargetContext Tests
 
-    [Fact]
+    [TestMethod]
     public void DropTargetContext_IsActive_ReflectsNodeState()
     {
         var node = new DropTargetNode { TargetId = "test" };
         var ctx = new DropTargetContext(node);
 
-        Assert.False(ctx.IsActive);
+        Assert.IsFalse(ctx.IsActive);
 
         node.IsActive = true;
-        Assert.True(ctx.IsActive);
+        Assert.IsTrue(ctx.IsActive);
     }
 
-    [Fact]
+    [TestMethod]
     public void DropTargetContext_DragData_ReflectsNodeState()
     {
         var node = new DropTargetNode { TargetId = "test" };
         var ctx = new DropTargetContext(node);
 
-        Assert.Null(ctx.DragData);
+        Assert.IsNull(ctx.DragData);
 
         node.DragData = "some-data";
-        Assert.Equal("some-data", ctx.DragData);
+        Assert.AreEqual("some-data", ctx.DragData);
     }
 
     #endregion

@@ -3,20 +3,21 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class GridNodeTests
 {
     #region Measure Tests
 
-    [Fact]
+    [TestMethod]
     public void Measure_EmptyGrid_ReturnsZero()
     {
         var node = CreateGridNode([], 0, 0, [], []);
         var size = node.Measure(Constraints.Unbounded);
-        Assert.Equal(0, size.Width);
-        Assert.Equal(0, size.Height);
+        Assert.AreEqual(0, size.Width);
+        Assert.AreEqual(0, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_SingleCell_ReturnsContentSize()
     {
         var child = new TextBlockNode { Text = "Hello" }; // 5 wide, 1 tall
@@ -28,11 +29,11 @@ public class GridNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(5, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(5, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_TwoColumnContent_SumsWidths()
     {
         var left = new TextBlockNode { Text = "Left" };   // 4 wide
@@ -48,11 +49,11 @@ public class GridNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(10, size.Width); // 4 + 6
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(10, size.Width); // 4 + 6
+        Assert.AreEqual(1, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_TwoRowContent_SumsHeights()
     {
         var top = new TextBlockNode { Text = "Top" };
@@ -68,11 +69,11 @@ public class GridNodeTests
 
         var size = node.Measure(Constraints.Unbounded);
 
-        Assert.Equal(6, size.Width); // max("Top", "Bottom")
-        Assert.Equal(2, size.Height); // 1 + 1
+        Assert.AreEqual(6, size.Width); // max("Top", "Bottom")
+        Assert.AreEqual(2, size.Height); // 1 + 1
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_FixedColumns_UsesFixedWidths()
     {
         var child = new TextBlockNode { Text = "Hi" };
@@ -84,10 +85,10 @@ public class GridNodeTests
 
         var size = node.Measure(new Constraints(0, 100, 0, 100));
 
-        Assert.Equal(50, size.Width); // 20 + 30
+        Assert.AreEqual(50, size.Width); // 20 + 30
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_FillColumns_DistributeRemainingSpace()
     {
         var child = new TextBlockNode { Text = "Hi" };
@@ -99,10 +100,10 @@ public class GridNodeTests
 
         var size = node.Measure(new Constraints(0, 100, 0, 100));
 
-        Assert.Equal(100, size.Width); // 10 + 45 + 45
+        Assert.AreEqual(100, size.Width); // 10 + 45 + 45
     }
 
-    [Fact]
+    [TestMethod]
     public void Measure_WeightedFillColumns_DistributeProportionally()
     {
         var child = new TextBlockNode { Text = "Hi" };
@@ -114,14 +115,14 @@ public class GridNodeTests
 
         var size = node.Measure(new Constraints(0, 80, 0, 100));
 
-        Assert.Equal(80, size.Width); // 20 + 60
+        Assert.AreEqual(80, size.Width); // 20 + 60
     }
 
     #endregion
 
     #region Arrange Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_SingleCell_FillsBounds()
     {
         var child = new TextBlockNode { Text = "Hello" };
@@ -134,11 +135,11 @@ public class GridNodeTests
         node.Measure(new Constraints(0, 80, 0, 24));
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, child.Bounds.X);
-        Assert.Equal(0, child.Bounds.Y);
+        Assert.AreEqual(0, child.Bounds.X);
+        Assert.AreEqual(0, child.Bounds.Y);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_TwoFixedColumns_PositionsCorrectly()
     {
         var left = new TextBlockNode { Text = "L" };
@@ -155,13 +156,13 @@ public class GridNodeTests
         node.Measure(new Constraints(0, 80, 0, 24));
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, left.Bounds.X);
-        Assert.Equal(20, left.Bounds.Width);
-        Assert.Equal(20, right.Bounds.X);
-        Assert.Equal(30, right.Bounds.Width);
+        Assert.AreEqual(0, left.Bounds.X);
+        Assert.AreEqual(20, left.Bounds.Width);
+        Assert.AreEqual(20, right.Bounds.X);
+        Assert.AreEqual(30, right.Bounds.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_TwoFixedRows_PositionsCorrectly()
     {
         var top = new TextBlockNode { Text = "T" };
@@ -178,13 +179,13 @@ public class GridNodeTests
         node.Measure(new Constraints(0, 80, 0, 24));
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, top.Bounds.Y);
-        Assert.Equal(5, top.Bounds.Height);
-        Assert.Equal(5, bottom.Bounds.Y);
-        Assert.Equal(10, bottom.Bounds.Height);
+        Assert.AreEqual(0, top.Bounds.Y);
+        Assert.AreEqual(5, top.Bounds.Height);
+        Assert.AreEqual(5, bottom.Bounds.Y);
+        Assert.AreEqual(10, bottom.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_MixedFixedAndFillColumns_DistributesCorrectly()
     {
         var nav = new TextBlockNode { Text = "Nav" };
@@ -201,13 +202,13 @@ public class GridNodeTests
         node.Measure(new Constraints(0, 80, 0, 24));
         node.Arrange(new Rect(0, 0, 80, 24));
 
-        Assert.Equal(0, nav.Bounds.X);
-        Assert.Equal(20, nav.Bounds.Width);
-        Assert.Equal(20, content.Bounds.X);
-        Assert.Equal(60, content.Bounds.Width); // 80 - 20
+        Assert.AreEqual(0, nav.Bounds.X);
+        Assert.AreEqual(20, nav.Bounds.Width);
+        Assert.AreEqual(20, content.Bounds.X);
+        Assert.AreEqual(60, content.Bounds.Width); // 80 - 20
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_WithOffset_PositionsRelativeToOrigin()
     {
         var child = new TextBlockNode { Text = "Hi" };
@@ -220,15 +221,15 @@ public class GridNodeTests
         node.Measure(new Constraints(0, 80, 0, 24));
         node.Arrange(new Rect(10, 5, 80, 24));
 
-        Assert.Equal(10, child.Bounds.X);
-        Assert.Equal(5, child.Bounds.Y);
+        Assert.AreEqual(10, child.Bounds.X);
+        Assert.AreEqual(5, child.Bounds.Y);
     }
 
     #endregion
 
     #region Spanning Tests
 
-    [Fact]
+    [TestMethod]
     public void Arrange_RowSpan_CellSpansMultipleRows()
     {
         var nav = new TextBlockNode { Text = "Nav" };
@@ -249,25 +250,25 @@ public class GridNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Nav spans rows 0-1
-        Assert.Equal(0, nav.Bounds.X);
-        Assert.Equal(0, nav.Bounds.Y);
-        Assert.Equal(20, nav.Bounds.Width);
-        Assert.Equal(10, nav.Bounds.Height); // 3 + 7
+        Assert.AreEqual(0, nav.Bounds.X);
+        Assert.AreEqual(0, nav.Bounds.Y);
+        Assert.AreEqual(20, nav.Bounds.Width);
+        Assert.AreEqual(10, nav.Bounds.Height); // 3 + 7
 
         // Header is row 0, col 1
-        Assert.Equal(20, header.Bounds.X);
-        Assert.Equal(0, header.Bounds.Y);
-        Assert.Equal(60, header.Bounds.Width);
-        Assert.Equal(3, header.Bounds.Height);
+        Assert.AreEqual(20, header.Bounds.X);
+        Assert.AreEqual(0, header.Bounds.Y);
+        Assert.AreEqual(60, header.Bounds.Width);
+        Assert.AreEqual(3, header.Bounds.Height);
 
         // Content is row 1, col 1
-        Assert.Equal(20, content.Bounds.X);
-        Assert.Equal(3, content.Bounds.Y);
-        Assert.Equal(60, content.Bounds.Width);
-        Assert.Equal(7, content.Bounds.Height);
+        Assert.AreEqual(20, content.Bounds.X);
+        Assert.AreEqual(3, content.Bounds.Y);
+        Assert.AreEqual(60, content.Bounds.Width);
+        Assert.AreEqual(7, content.Bounds.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void Arrange_ColumnSpan_CellSpansMultipleColumns()
     {
         var header = new TextBlockNode { Text = "Header" };
@@ -288,124 +289,124 @@ public class GridNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Header spans both columns
-        Assert.Equal(0, header.Bounds.X);
-        Assert.Equal(80, header.Bounds.Width); // 30 + 50
-        Assert.Equal(3, header.Bounds.Height);
+        Assert.AreEqual(0, header.Bounds.X);
+        Assert.AreEqual(80, header.Bounds.Width); // 30 + 50
+        Assert.AreEqual(3, header.Bounds.Height);
 
         // Left in col 0
-        Assert.Equal(0, left.Bounds.X);
-        Assert.Equal(30, left.Bounds.Width);
+        Assert.AreEqual(0, left.Bounds.X);
+        Assert.AreEqual(30, left.Bounds.Width);
 
         // Right in col 1
-        Assert.Equal(30, right.Bounds.X);
-        Assert.Equal(50, right.Bounds.Width);
+        Assert.AreEqual(30, right.Bounds.X);
+        Assert.AreEqual(50, right.Bounds.Width);
     }
 
     #endregion
 
     #region GridCellWidget Fluent API Tests
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_Row_SetsRowAndDefaultSpan()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).Row(2);
-        Assert.Equal(2, cell.RowIndex);
-        Assert.Equal(1, cell.RowSpanCount);
+        Assert.AreEqual(2, cell.RowIndex);
+        Assert.AreEqual(1, cell.RowSpanCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_RowSpan_SetsRowAndSpan()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).RowSpan(1, 3);
-        Assert.Equal(1, cell.RowIndex);
-        Assert.Equal(3, cell.RowSpanCount);
+        Assert.AreEqual(1, cell.RowIndex);
+        Assert.AreEqual(3, cell.RowSpanCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_Column_SetsColumnAndDefaultSpan()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).Column(4);
-        Assert.Equal(4, cell.ColumnIndex);
-        Assert.Equal(1, cell.ColumnSpanCount);
+        Assert.AreEqual(4, cell.ColumnIndex);
+        Assert.AreEqual(1, cell.ColumnSpanCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_ColumnSpan_SetsColumnAndSpan()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).ColumnSpan(2, 3);
-        Assert.Equal(2, cell.ColumnIndex);
-        Assert.Equal(3, cell.ColumnSpanCount);
+        Assert.AreEqual(2, cell.ColumnIndex);
+        Assert.AreEqual(3, cell.ColumnSpanCount);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_Width_SetsFixedWidthHint()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).Width(25);
-        Assert.Equal(SizeHint.Fixed(25), cell.CellWidthHint);
+        Assert.AreEqual(SizeHint.Fixed(25), cell.CellWidthHint);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_FillWidth_SetsFillHint()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).FillWidth();
-        Assert.Equal(SizeHint.Fill, cell.CellWidthHint);
+        Assert.AreEqual(SizeHint.Fill, cell.CellWidthHint);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_Height_SetsFixedHeightHint()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).Height(10);
-        Assert.Equal(SizeHint.Fixed(10), cell.CellHeightHint);
+        Assert.AreEqual(SizeHint.Fixed(10), cell.CellHeightHint);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridCellWidget_FillHeight_SetsFillHint()
     {
         var cell = new GridCellWidget(new TextBlockWidget("test")).FillHeight();
-        Assert.Equal(SizeHint.Fill, cell.CellHeightHint);
+        Assert.AreEqual(SizeHint.Fill, cell.CellHeightHint);
     }
 
     #endregion
 
     #region GridColumnDefinition / GridRowDefinition Tests
 
-    [Fact]
+    [TestMethod]
     public void GridColumnDefinition_DefaultConstructor_UsesContentSizing()
     {
         var def = new GridColumnDefinition();
-        Assert.Equal(SizeHint.Content, def.Width);
+        Assert.AreEqual(SizeHint.Content, def.Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridRowDefinition_DefaultConstructor_UsesContentSizing()
     {
         var def = new GridRowDefinition();
-        Assert.Equal(SizeHint.Content, def.Height);
+        Assert.AreEqual(SizeHint.Content, def.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridDefinitionCollection_AddSizeHint_CreatesColumnDefinition()
     {
         var columns = new GridDefinitionCollection<GridColumnDefinition>();
         columns.Add(SizeHint.Fixed(20));
-        Assert.Single(columns);
-        Assert.Equal(SizeHint.Fixed(20), columns[0].Width);
+        TestSeq.Single(columns);
+        Assert.AreEqual(SizeHint.Fixed(20), columns[0].Width);
     }
 
-    [Fact]
+    [TestMethod]
     public void GridDefinitionCollection_AddSizeHint_CreatesRowDefinition()
     {
         var rows = new GridDefinitionCollection<GridRowDefinition>();
         rows.Add(SizeHint.Fill);
-        Assert.Single(rows);
-        Assert.Equal(SizeHint.Fill, rows[0].Height);
+        TestSeq.Single(rows);
+        Assert.AreEqual(SizeHint.Fill, rows[0].Height);
     }
 
     #endregion
 
     #region GetChildren Tests
 
-    [Fact]
+    [TestMethod]
     public void GetChildren_ReturnsAllCellNodes()
     {
         var a = new TextBlockNode { Text = "A" };
@@ -424,7 +425,7 @@ public class GridNodeTests
 
         var children = node.GetChildren().ToList();
 
-        Assert.Equal(3, children.Count);
+        Assert.AreEqual(3, children.Count);
         Assert.Contains(a, children);
         Assert.Contains(b, children);
         Assert.Contains(c, children);
@@ -434,7 +435,7 @@ public class GridNodeTests
 
     #region Classic Layout Scenario
 
-    [Fact]
+    [TestMethod]
     public void Arrange_ClassicSidebarLayout_PositionsCorrectly()
     {
         // Sidebar layout:
@@ -458,13 +459,13 @@ public class GridNodeTests
         node.Arrange(new Rect(0, 0, 80, 24));
 
         // Nav: col 0, rows 0-1, 20w × 24h
-        Assert.Equal(new Rect(0, 0, 20, 24), nav.Bounds);
+        Assert.AreEqual(new Rect(0, 0, 20, 24), nav.Bounds);
 
         // Header: col 1, row 0, 60w × 3h
-        Assert.Equal(new Rect(20, 0, 60, 3), header.Bounds);
+        Assert.AreEqual(new Rect(20, 0, 60, 3), header.Bounds);
 
         // Content: col 1, row 1, 60w × 21h
-        Assert.Equal(new Rect(20, 3, 60, 21), content.Bounds);
+        Assert.AreEqual(new Rect(20, 3, 60, 21), content.Bounds);
     }
 
     #endregion

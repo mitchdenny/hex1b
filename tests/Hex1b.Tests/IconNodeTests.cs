@@ -4,36 +4,37 @@ using Hex1b.Widgets;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class IconNodeTests
 {
-    [Fact]
+    [TestMethod]
     public void Measure_SingleCharIcon_Returns1x1()
     {
         var node = new IconNode { Icon = "▶" };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
         
-        Assert.Equal(1, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(1, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void Measure_MultiCharIcon_ReturnsCorrectWidth()
     {
         var node = new IconNode { Icon = "[x]" };
         var size = node.Measure(new Constraints(0, 100, 0, 10));
         
-        Assert.Equal(3, size.Width);
-        Assert.Equal(1, size.Height);
+        Assert.AreEqual(3, size.Width);
+        Assert.AreEqual(1, size.Height);
     }
     
-    [Fact]
+    [TestMethod]
     public void IsClickable_WithoutHandler_ReturnsFalse()
     {
         var node = new IconNode { Icon = "▶" };
-        Assert.False(node.IsClickable);
+        Assert.IsFalse(node.IsClickable);
     }
     
-    [Fact]
+    [TestMethod]
     public void IsClickable_WithHandler_ReturnsTrue()
     {
         var node = new IconNode 
@@ -41,10 +42,10 @@ public class IconNodeTests
             Icon = "▶",
             ClickCallback = _ => Task.CompletedTask
         };
-        Assert.True(node.IsClickable);
+        Assert.IsTrue(node.IsClickable);
     }
     
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_WithHandler_AddsMouseBinding()
     {
         var node = new IconNode 
@@ -56,10 +57,10 @@ public class IconNodeTests
         var builder = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(builder);
         
-        Assert.NotEmpty(builder.MouseBindings);
+        Assert.IsNotEmpty(builder.MouseBindings);
     }
     
-    [Fact]
+    [TestMethod]
     public void ConfigureDefaultBindings_WithoutHandler_NoBindings()
     {
         var node = new IconNode { Icon = "▶" };
@@ -67,10 +68,10 @@ public class IconNodeTests
         var builder = new InputBindingsBuilder();
         node.ConfigureDefaultBindings(builder);
         
-        Assert.Empty(builder.MouseBindings);
+        Assert.IsEmpty(builder.MouseBindings);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_CreatesNewNode()
     {
         var widget = new IconWidget("▶");
@@ -78,11 +79,11 @@ public class IconNodeTests
         
         var node = await widget.ReconcileAsync(null, context);
         
-        Assert.IsType<IconNode>(node);
-        Assert.Equal("▶", ((IconNode)node).Icon);
+        TestSeq.IsType<IconNode>(node);
+        Assert.AreEqual("▶", ((IconNode)node).Icon);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_UpdatesExistingNode()
     {
         var existingNode = new IconNode { Icon = "▶" };
@@ -91,11 +92,11 @@ public class IconNodeTests
         
         var node = await widget.ReconcileAsync(existingNode, context);
         
-        Assert.Same(existingNode, node);
-        Assert.Equal("▼", ((IconNode)node).Icon);
+        Assert.AreSame(existingNode, node);
+        Assert.AreEqual("▼", ((IconNode)node).Icon);
     }
     
-    [Fact]
+    [TestMethod]
     public async Task Reconcile_WithClickHandler_SetsCallback()
     {
         var widget = new IconWidget("▶").OnClick(_ => { });
@@ -104,16 +105,16 @@ public class IconNodeTests
         var node = await widget.ReconcileAsync(null, context);
         var iconNode = (IconNode)node;
         
-        Assert.NotNull(iconNode.ClickCallback);
+        Assert.IsNotNull(iconNode.ClickCallback);
     }
     
-    [Fact]
+    [TestMethod]
     public void Widget_OnClick_ReturnsNewWidgetWithHandler()
     {
         var widget = new IconWidget("▶");
         var withClick = widget.OnClick(_ => { });
         
-        Assert.NotSame(widget, withClick);
-        Assert.NotNull(withClick.ClickHandler);
+        Assert.AreNotSame(widget, withClick);
+        Assert.IsNotNull(withClick.ClickHandler);
     }
 }
