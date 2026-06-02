@@ -1,66 +1,198 @@
 name: 'Generate Version'
-description: 'Generates version strings for NuGet packages based on latest git tag'
+description: >-
+  Computes the Hex1b NuGet package version for the current build based on
+  branch context, event type, and an optional release flag. Emits:
+    - kind:    one of "alpha" | "beta" | "release" | "pr"
+    - base:    the bare X.Y.Z the package will ship as (or would ship as)
+    - version: the full version string to use for the build
+
+inputs:
+  release-flag:
+    description: >-
+      "true" to request a final release build. Honored only when the workflow
+      is triggered by workflow_dispatch from a release/X.Y branch. Ignored in
+      every other context.
+    required: false
+    default: 'false'
 
 outputs:
-  preview:
-    description: 'Preview version for GitHub Packages (X.Y.0-preview.[run].[sha].[attempt])'
-    value: ${{ steps.version.outputs.preview }}
-  pr:
-    description: 'PR version for GitHub Packages (X.Y.0-[pr].[run].[sha].[attempt])'
-    value: ${{ steps.version.outputs.pr }}
-  release:
-    description: 'Release version for NuGet.org (X.Y.0)'
-    value: ${{ steps.version.outputs.release }}
+  version:
+    description: 'Full version string to pass as HEX1B_VERSION / PackageVersion'
+    value: ${{ steps.compute.outputs.version }}
+  kind:
+    description: 'alpha | beta | release | pr'
+    value: ${{ steps.compute.outputs.kind }}
+  base:
+    description: 'Bare X.Y.Z (no prerelease suffix)'
+    value: ${{ steps.compute.outputs.base }}
 
 runs:
   using: 'composite'
   steps:
-    - name: Get latest version from git tags
-      id: latest
+    - name: Compute version
+      id: compute
       shell: bash
+      env:
+        EVENT_NAME: ${{ github.event_name }}
+        REF_NAME: ${{ github.ref_name }}
+        BASE_REF: ${{ github.base_ref }}
+        PR_NUMBER: ${{ github.event.pull_request.number }}
+        RUN_NUMBER: ${{ github.run_number }}
+        RUN_ATTEMPT: ${{ github.run_attempt }}
+        GIT_SHA: ${{ github.sha }}
+        RELEASE_FLAG: ${{ inputs.release-flag }}
       run: |
-        echo "Fetching latest version from git tags..."
-        
-        # Fetch all tags to ensure we have them
-        git fetch --tags --quiet 2>/dev/null || true
-        
-        # Get the latest semver tag (vX.Y.Z format), sorted by version
-        LATEST_TAG=$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | sort -V | tail -n1)
-        
-        if [ -z "$LATEST_TAG" ]; then
-          LATEST_VERSION="0.0.0"
-        else
-          # Strip the 'v' prefix
-          LATEST_VERSION="${LATEST_TAG#v}"
-        fi
-        
-        echo "Latest version from git tags: $LATEST_VERSION"
-        echo "latest=$LATEST_VERSION" >> $GITHUB_OUTPUT
+        set -euo pipefail
 
-    - name: Calculate next version
-      id: version
-      shell: bash
-      run: |
-        LATEST_VERSION="${{ steps.latest.outputs.latest }}"
-        
-        # Parse major.minor.patch
-        MAJOR=$(echo "$LATEST_VERSION" | cut -d'.' -f1)
-        MINOR=$(echo "$LATEST_VERSION" | cut -d'.' -f2)
-        
-        # Increment minor version, reset patch to 0
-        NEXT_MINOR=$((MINOR + 1))
-        BASE_VERSION="${MAJOR}.${NEXT_MINOR}.0"
-        
-        echo "Next base version: $BASE_VERSION"
-        
-        SHORT_SHA=$(echo "${{ github.sha }}" | cut -c1-7)
-        PREVIEW_VERSION="${BASE_VERSION}-preview.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
-        PR_VERSION="${BASE_VERSION}-pr.${{ github.event.pull_request.number }}.${{ github.run_id }}.${SHORT_SHA}.${{ github.run_attempt }}"
-        RELEASE_VERSION="${BASE_VERSION}"
-        
-        echo "preview=$PREVIEW_VERSION" >> $GITHUB_OUTPUT
-        echo "pr=$PR_VERSION" >> $GITHUB_OUTPUT
-        echo "release=$RELEASE_VERSION" >> $GITHUB_OUTPUT
-        echo "Generated preview version: $PREVIEW_VERSION"
-        echo "Generated PR version: $PR_VERSION"
-        echo "Generated release version: $RELEASE_VERSION"
+        git fetch --tags --quiet 2>/dev/null || true
+        # Fetch remote heads so we can enumerate release/* branches even from
+        # a shallow checkout.
+        git fetch origin --quiet 2>/dev/null || true
+
+        SHORT_SHA="${GIT_SHA:0:7}"
+
+        # ----- helpers -------------------------------------------------------
+        highest_release_branch_minor() {
+          # Emits "MAJOR MINOR" of the highest release/MAJOR.MINOR branch, or
+          # nothing if no such branch exists.
+          git ls-remote --heads origin 'release/*' 2>/dev/null \
+            | awk '{print $2}' \
+            | sed -E 's@^refs/heads/release/@@' \
+            | grep -E '^[0-9]+\.[0-9]+$' \
+            | sort -t. -k1,1n -k2,2n \
+            | tail -n1 \
+            | awk -F. '{print $1, $2}'
+        }
+
+        highest_tag_minor_for_major() {
+          # $1 = MAJOR. Emits the highest MINOR among vMAJOR.*.* tags, or
+          # nothing if no such tag exists.
+          local major="$1"
+          git tag -l "v${major}.*.*" 2>/dev/null \
+            | sed -E "s@^v${major}\\.@@" \
+            | grep -E '^[0-9]+\.[0-9]+$' \
+            | awk -F. '{print $1}' \
+            | sort -n \
+            | tail -n1
+        }
+
+        highest_tag_patch_for() {
+          # $1=MAJOR $2=MINOR. Emits the highest PATCH among vMAJOR.MINOR.* tags.
+          local major="$1" minor="$2"
+          git tag -l "v${major}.${minor}.*" 2>/dev/null \
+            | sed -E "s@^v${major}\\.${minor}\\.@@" \
+            | grep -E '^[0-9]+$' \
+            | sort -n \
+            | tail -n1
+        }
+
+        # ----- determine target branch --------------------------------------
+        TARGET=""
+        if [[ "$EVENT_NAME" == "pull_request" ]]; then
+          TARGET="$BASE_REF"
+        else
+          TARGET="$REF_NAME"
+        fi
+
+        if [[ -z "$TARGET" ]]; then
+          echo "::error::Could not determine target branch (event=$EVENT_NAME)"
+          exit 1
+        fi
+
+        # ----- compute base x.y.z from target -------------------------------
+        BASE=""
+        if [[ "$TARGET" == "main" ]]; then
+          # Alpha base: highest known minor (from release branches OR tags) + 1.
+          # Major is currently pinned to 0 to match the project's 0.x line; if
+          # a future release branch advances the major, derive it from there.
+          MAJOR=0
+          BRANCH_INFO="$(highest_release_branch_minor || true)"
+          BRANCH_MAJOR=""
+          BRANCH_MINOR=""
+          if [[ -n "$BRANCH_INFO" ]]; then
+            BRANCH_MAJOR="${BRANCH_INFO%% *}"
+            BRANCH_MINOR="${BRANCH_INFO##* }"
+          fi
+
+          if [[ -n "$BRANCH_MAJOR" && "$BRANCH_MAJOR" -gt "$MAJOR" ]]; then
+            MAJOR="$BRANCH_MAJOR"
+          fi
+
+          HIGHEST_MINOR=0
+          # Tag-derived minor for current major
+          TAG_MINOR="$(highest_tag_minor_for_major "$MAJOR" || true)"
+          if [[ -n "$TAG_MINOR" && "$TAG_MINOR" -gt "$HIGHEST_MINOR" ]]; then
+            HIGHEST_MINOR="$TAG_MINOR"
+          fi
+          # Branch-derived minor (only counts if it matches the resolved major)
+          if [[ -n "$BRANCH_MINOR" && "$BRANCH_MAJOR" == "$MAJOR" ]]; then
+            if [[ "$BRANCH_MINOR" -gt "$HIGHEST_MINOR" ]]; then
+              HIGHEST_MINOR="$BRANCH_MINOR"
+            fi
+          fi
+
+          NEXT_MINOR=$((HIGHEST_MINOR + 1))
+          BASE="${MAJOR}.${NEXT_MINOR}.0"
+          BRANCH_KIND="alpha"
+        elif [[ "$TARGET" =~ ^release/([0-9]+)\.([0-9]+)$ ]]; then
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+          LAST_PATCH="$(highest_tag_patch_for "$MAJOR" "$MINOR" || true)"
+          if [[ -z "$LAST_PATCH" ]]; then
+            PATCH=0
+          else
+            PATCH=$((LAST_PATCH + 1))
+          fi
+          BASE="${MAJOR}.${MINOR}.${PATCH}"
+          BRANCH_KIND="beta"
+        else
+          echo "::error::Unsupported branch '$TARGET'. Builds are only supported on 'main' or 'release/X.Y'."
+          exit 1
+        fi
+
+        # ----- decide kind & version ---------------------------------------
+        KIND=""
+        VERSION=""
+        case "$EVENT_NAME" in
+          pull_request)
+            KIND="pr"
+            if [[ -z "$PR_NUMBER" ]]; then
+              echo "::error::pull_request event missing PR number"
+              exit 1
+            fi
+            VERSION="${BASE}-pr.${PR_NUMBER}.${RUN_NUMBER}.${RUN_ATTEMPT}.${SHORT_SHA}"
+            ;;
+          push)
+            KIND="$BRANCH_KIND"
+            VERSION="${BASE}-${KIND}.${RUN_NUMBER}.${RUN_ATTEMPT}.${SHORT_SHA}"
+            ;;
+          workflow_dispatch)
+            if [[ "$RELEASE_FLAG" == "true" ]]; then
+              if [[ "$BRANCH_KIND" != "beta" ]]; then
+                echo "::error::release-flag=true is only supported from a release/X.Y branch (got '$TARGET')."
+                exit 1
+              fi
+              KIND="release"
+              VERSION="${BASE}"
+            else
+              KIND="$BRANCH_KIND"
+              VERSION="${BASE}-${KIND}.${RUN_NUMBER}.${RUN_ATTEMPT}.${SHORT_SHA}"
+            fi
+            ;;
+          *)
+            echo "::error::Unsupported event '$EVENT_NAME'"
+            exit 1
+            ;;
+        esac
+
+        echo "Resolved target branch : $TARGET"
+        echo "Event                  : $EVENT_NAME"
+        echo "Kind                   : $KIND"
+        echo "Base                   : $BASE"
+        echo "Version                : $VERSION"
+
+        {
+          echo "kind=$KIND"
+          echo "base=$BASE"
+          echo "version=$VERSION"
+        } >> "$GITHUB_OUTPUT"
