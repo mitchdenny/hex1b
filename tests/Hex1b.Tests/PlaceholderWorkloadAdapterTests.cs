@@ -1,13 +1,14 @@
 using System.Text;
 using System.Threading.Channels;
 using Hex1b;
-using Xunit;
+using Hex1b.Testing;
 
 namespace Hex1b.Tests;
 
+[TestClass]
 public class PlaceholderWorkloadAdapterTests
 {
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_StartsFromPlaceholder_BeforePrimaryConnects()
     {
         var primary = new FakeConnectableAdapter();
@@ -18,11 +19,11 @@ public class PlaceholderWorkloadAdapterTests
             primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
 
         var data = await adapter.ReadOutputAsync(TestCancel());
-        Assert.Equal("PLACEHOLDER", Encoding.UTF8.GetString(data.Span));
-        Assert.Same(placeholder, adapter.ActiveChild);
+        Assert.AreEqual("PLACEHOLDER", Encoding.UTF8.GetString(data.Span));
+        Assert.AreSame(placeholder, adapter.ActiveChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_OnPrimaryConnected_PrependsResetThenStreamsPrimary()
     {
         var primary = new FakeConnectableAdapter();
@@ -40,11 +41,11 @@ public class PlaceholderWorkloadAdapterTests
         AssertContainsSequence(first, "\x1b[?1049l"u8);
 
         var second = await adapter.ReadOutputAsync(TestCancel());
-        Assert.Equal("PRIMARY"u8.ToArray(), second.ToArray());
-        Assert.Same(primary, adapter.ActiveChild);
+        TestSeq.AreEqual("PRIMARY"u8.ToArray(), second.ToArray());
+        Assert.AreSame(primary, adapter.ActiveChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_OnPrimaryDisconnect_ReturnsToPlaceholder_WhenPolicyOnDisconnect()
     {
         var primary = new FakeConnectableAdapter();
@@ -68,11 +69,11 @@ public class PlaceholderWorkloadAdapterTests
         // the swap completed.
         placeholder.EnqueueOutput("BACK"u8.ToArray());
         var placeholderAgain = await adapter.ReadOutputAsync(TestCancel());
-        Assert.Equal("BACK"u8.ToArray(), placeholderAgain.ToArray());
-        Assert.Same(placeholder, adapter.ActiveChild);
+        TestSeq.AreEqual("BACK"u8.ToArray(), placeholderAgain.ToArray());
+        Assert.AreSame(placeholder, adapter.ActiveChild);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadOutputAsync_OneShotPolicy_StopsOnPrimaryDisconnect()
     {
         var primary = new FakeConnectableAdapter();
@@ -92,11 +93,11 @@ public class PlaceholderWorkloadAdapterTests
         primary.SignalDisconnected();
 
         var trailing = await adapter.ReadOutputAsync(TestCancel());
-        Assert.True(trailing.IsEmpty);
-        Assert.True(disconnected);
+        Assert.IsTrue(trailing.IsEmpty);
+        Assert.IsTrue(disconnected);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WriteInputAsync_OnlyDeliveredToActiveChild()
     {
         var primary = new FakeConnectableAdapter();
@@ -106,8 +107,8 @@ public class PlaceholderWorkloadAdapterTests
             primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
 
         await adapter.WriteInputAsync(new byte[] { 1 });
-        Assert.Equal(1, placeholder.WrittenInputCount);
-        Assert.Equal(0, primary.WrittenInputCount);
+        Assert.AreEqual(1, placeholder.WrittenInputCount);
+        Assert.AreEqual(0, primary.WrittenInputCount);
 
         primary.EnqueueOutput("X"u8.ToArray());
         primary.SignalConnected();
@@ -115,11 +116,11 @@ public class PlaceholderWorkloadAdapterTests
         _ = await adapter.ReadOutputAsync(TestCancel()); // X — confirms swap
 
         await adapter.WriteInputAsync(new byte[] { 2 });
-        Assert.Equal(1, placeholder.WrittenInputCount);
-        Assert.Equal(1, primary.WrittenInputCount);
+        Assert.AreEqual(1, placeholder.WrittenInputCount);
+        Assert.AreEqual(1, primary.WrittenInputCount);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_FansOutToBothChildren()
     {
         var primary = new FakeConnectableAdapter();
@@ -128,11 +129,11 @@ public class PlaceholderWorkloadAdapterTests
             primary, placeholder, PlaceholderResumePolicy.OnDisconnect);
 
         await adapter.ResizeAsync(100, 40);
-        Assert.Equal((100, 40), placeholder.LastResize);
-        Assert.Equal((100, 40), primary.LastResize);
+        Assert.AreEqual((100, 40), placeholder.LastResize);
+        Assert.AreEqual((100, 40), primary.LastResize);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task SwapToRepaintable_InvokesRequestFullRepaint()
     {
         var primary = new RepaintablePrimary();
@@ -144,10 +145,10 @@ public class PlaceholderWorkloadAdapterTests
         primary.SignalConnected();
         _ = await adapter.ReadOutputAsync(TestCancel()); // reset (and triggers repaint)
 
-        Assert.Equal(1, primary.RepaintRequests);
+        Assert.AreEqual(1, primary.RepaintRequests);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ResizeAsync_RequestsRepaintOnRepaintableChildren()
     {
         var primary = new RepaintablePrimary();
@@ -157,11 +158,11 @@ public class PlaceholderWorkloadAdapterTests
 
         await adapter.ResizeAsync(120, 30);
 
-        Assert.Equal(1, placeholder.RepaintRequests);
-        Assert.Equal(1, primary.RepaintRequests);
+        Assert.AreEqual(1, placeholder.RepaintRequests);
+        Assert.AreEqual(1, primary.RepaintRequests);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task PlaceholderRunCallback_IsInvoked_WhenSupplied()
     {
         var primary = new FakeConnectableAdapter();
