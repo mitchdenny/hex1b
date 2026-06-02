@@ -4,12 +4,51 @@ on:
   pull_request:
     branches:
       - main
+      - 'release/**'
   push:
     branches:
       - main
+      - 'release/**'
   workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish as a final release (only honored from a release/X.Y branch).'
+        type: boolean
+        default: false
+
+# Serialize publishes per branch so that NuGet pushes and tag/GH-release
+# creation happen in commit order. PR builds get their own per-PR group so
+# concurrent PRs do not block each other.
+concurrency:
+  group: >-
+    deploy-${{
+      github.event_name == 'pull_request' && format('pr-{0}', github.event.pull_request.number)
+      || github.ref_name
+    }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Compute the build version exactly once and fan it out to every downstream
+  # job. Computing per-job is unsafe: a tag created mid-run would desync the
+  # build, publish and GitHub-release steps.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      kind: ${{ steps.v.outputs.kind }}
+      base: ${{ steps.v.outputs.base }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate version
+        id: v
+        uses: ./.github/actions/version
+        with:
+          release-flag: ${{ github.event_name == 'workflow_dispatch' && inputs.release || 'false' }}
+
   test:
     name: test (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
@@ -232,18 +271,14 @@ jobs:
 
   build-pr:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
-    if: github.event_name == 'pull_request'
+    needs: [version, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    if: needs.version.outputs.kind == 'pr'
     permissions:
       contents: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -293,33 +328,33 @@ jobs:
 
       - name: Build and pack Hex1b (PR version for GH Packages)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
+          dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -o ./artifacts
 
       - name: Build and pack Hex1b.McpServer (PR version for GH Packages)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -o ./artifacts
+          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -o ./artifacts
 
       - name: Restore Hex1b.Tool against packaged Hex1b (PR version for GH Packages)
         id: tool_pack_restore
         uses: ./.github/actions/restore-hex1b-tool-pack
         with:
-          package-version: ${{ steps.version.outputs.pr }}
+          package-version: ${{ needs.version.outputs.version }}
 
       - name: Build and pack Hex1b.Tool (PR version for GH Packages)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.pr }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ steps.version.outputs.pr }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
+          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
           if [ -n "$unexpected_windows_assets" ]; then
             echo ""
             echo "Unexpected Windows PTY payload detected:"
@@ -329,7 +364,7 @@ jobs:
           # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
           # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
           # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.pr }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
+          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
           if [ -n "$analyzer_leak" ]; then
             echo ""
             echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
@@ -338,11 +373,11 @@ jobs:
           fi
           echo ""
           echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.pr }}.nupkg | head -30
+          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.pr }}.nupkg)
+          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
           expected_tool_assets=(
             "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
             "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
@@ -380,18 +415,14 @@ jobs:
 
   build-release:
     runs-on: ubuntu-latest
-    needs: [test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [version, test, build-native-linux-x64, build-native-linux-arm64, build-native-osx-x64, build-native-osx-arm64, build-pty-host-windows-x64, build-pty-host-windows-arm64]
+    if: needs.version.outputs.kind != 'pr'
     permissions:
       contents: read
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -441,33 +472,33 @@ jobs:
 
       - name: Build and pack Hex1b (release version for NuGet.org)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
+          dotnet pack src/Hex1b/Hex1b.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -o ./artifacts
 
       - name: Build and pack Hex1b.McpServer (release version for NuGet.org)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -o ./artifacts
+          dotnet pack src/Hex1b.McpServer/Hex1b.McpServer.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -o ./artifacts
 
       - name: Restore Hex1b.Tool against packaged Hex1b (release version for NuGet.org)
         id: tool_pack_restore
         uses: ./.github/actions/restore-hex1b-tool-pack
         with:
-          package-version: ${{ steps.version.outputs.release }}
+          package-version: ${{ needs.version.outputs.version }}
 
       - name: Build and pack Hex1b.Tool (release version for NuGet.org)
         env:
-          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
-          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ steps.version.outputs.release }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ steps.version.outputs.release }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
+          dotnet pack src/Hex1b.Tool/Hex1b.Tool.csproj -c Release -p:PackageVersion=${{ needs.version.outputs.version }} -p:UseHex1bPackageReference=true -p:Hex1bPackageVersion=${{ needs.version.outputs.version }} --configfile "${{ steps.tool_pack_restore.outputs.config_path }}" --no-restore -o ./artifacts
 
       - name: Verify package contents
         run: |
           echo "Hex1b package contents:"
-          unzip -l ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
-          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
+          unzip -l ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E "runtimes|native|hex1binterop|hex1bpty" || echo "No native libraries found in Hex1b package!"
+          unexpected_windows_assets=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -E '^runtimes/win-(x64|arm64)/native/' | grep -vE '^runtimes/win-(x64|arm64)/native/hex1bpty\.exe$' || true)
           if [ -n "$unexpected_windows_assets" ]; then
             echo ""
             echo "Unexpected Windows PTY payload detected:"
@@ -477,7 +508,7 @@ jobs:
           # The Hex1b.Analyzers project is repo-only and must never ship inside the Hex1b NuGet
           # package. Fail the build if the analyzer dll, an analyzers/ folder, or anything else
           # carrying the analyzer name leaks into the package.
-          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ steps.version.outputs.release }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
+          analyzer_leak=$(unzip -Z1 ./artifacts/Hex1b.${{ needs.version.outputs.version }}.nupkg | grep -iE '(^|/)Hex1b\.Analyzers(\.|/)|^analyzers/' || true)
           if [ -n "$analyzer_leak" ]; then
             echo ""
             echo "Hex1b.Analyzers leaked into the Hex1b NuGet package:"
@@ -486,11 +517,11 @@ jobs:
           fi
           echo ""
           echo "Hex1b.McpServer package contents:"
-          unzip -l ./artifacts/Hex1b.McpServer.${{ steps.version.outputs.release }}.nupkg | head -30
+          unzip -l ./artifacts/Hex1b.McpServer.${{ needs.version.outputs.version }}.nupkg | head -30
           echo ""
           echo "Hex1b.Tool package contents:"
-          unzip -l ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
-          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ steps.version.outputs.release }}.nupkg)
+          unzip -l ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg | grep -E "tools|DotnetToolSettings|hex1bpty|hex1binterop" || echo "No tool settings found in Hex1b.Tool package!"
+          tool_package_contents=$(unzip -Z1 ./artifacts/Hex1b.Tool.${{ needs.version.outputs.version }}.nupkg)
           expected_tool_assets=(
             "tools/net10.0/any/runtimes/linux-x64/native/libhex1binterop.so"
             "tools/net10.0/any/runtimes/linux-arm64/native/libhex1binterop.so"
@@ -528,8 +559,8 @@ jobs:
 
   publish-pr:
     runs-on: ubuntu-latest
-    needs: build-pr
-    if: github.event_name == 'pull_request'
+    needs: [version, build-pr]
+    if: needs.version.outputs.kind == 'pr'
     permissions:
       contents: read
       packages: write
@@ -538,10 +569,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -563,7 +590,7 @@ jobs:
       - name: Post package info to PR
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_VERSION: ${{ steps.version.outputs.pr }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -e
           
@@ -685,8 +712,8 @@ jobs:
 
   publish-release:
     runs-on: ubuntu-latest
-    needs: build-release
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [version, build-release]
+    if: needs.version.outputs.kind != 'pr'
     environment: production
     permissions:
       contents: write
@@ -695,10 +722,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Download artifacts
         uses: actions/download-artifact@v4
@@ -711,10 +734,27 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Skip stale beta if final tag now exists
+        id: stale-check
+        if: needs.version.outputs.kind == 'beta'
+        run: |
+          set -euo pipefail
+          # If a final vX.Y.Z release for this same base shipped while this
+          # beta was in flight, do not publish the now-stale beta.
+          git fetch --tags --quiet 2>/dev/null || true
+          BASE="${{ needs.version.outputs.base }}"
+          if git rev-parse -q --verify "refs/tags/v${BASE}" >/dev/null; then
+            echo "Tag v${BASE} already exists; skipping stale beta publish."
+            echo "skip=true" >> $GITHUB_OUTPUT
+          else
+            echo "skip=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Check if packages exist on NuGet.org
         id: check-package
+        if: steps.stale-check.outputs.skip != 'true'
         run: |
-          PACKAGE_VERSION="${{ steps.version.outputs.release }}"
+          PACKAGE_VERSION="${{ needs.version.outputs.version }}"
           
           # Check Hex1b
           echo "Checking if Hex1b version $PACKAGE_VERSION exists on NuGet.org..."
@@ -778,10 +818,10 @@ jobs:
             --skip-duplicate
 
       - name: Create GitHub Release
-        if: steps.check-package.outputs.exists == 'false'
+        if: needs.version.outputs.kind == 'release' && steps.check-package.outputs.exists == 'false'
         env:
           GH_TOKEN: ${{ github.token }}
-          PACKAGE_VERSION: ${{ steps.version.outputs.release }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
         run: |
           # Create release notes
           cat > /tmp/release_notes.md << EOF
@@ -830,8 +870,8 @@ jobs:
 
   deploy-pullrequest:
     runs-on: ubuntu-latest
-    needs: publish-pr
-    if: github.event_name == 'pull_request'
+    needs: [version, publish-pr]
+    if: needs.version.outputs.kind == 'pr'
     environment: pullrequest
     concurrency:
       group: deploy-pr-${{ github.event.pull_request.number }}
@@ -844,10 +884,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -878,7 +914,7 @@ jobs:
           AZURE__SUBSCRIPTIONID: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
           AZURE__LOCATION: 'westus3'
           AZURE__RESOURCEGROUP: 'hex1b-pr-${{ github.event.pull_request.number }}'
-          HEX1B_VERSION: ${{ steps.version.outputs.pr }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -e
           aspire deploy --debug
@@ -996,8 +1032,11 @@ jobs:
 
   deploy-production:
     runs-on: ubuntu-latest
-    needs: publish-release
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    needs: [version, publish-release]
+    # Production deploys only happen for builds off main (alpha line).
+    # Release-branch beta and final builds publish packages but do not redeploy
+    # production.
+    if: needs.version.outputs.kind == 'alpha' && github.event_name == 'push' && github.ref_name == 'main'
     environment: production
     concurrency:
       group: deploy-production
@@ -1009,10 +1048,6 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Generate version
-        id: version
-        uses: ./.github/actions/version
 
       - name: Setup .NET
         uses: actions/setup-dotnet@v4
@@ -1046,7 +1081,7 @@ jobs:
           Parameters__customDomain: ${{ vars.CUSTOM_DOMAIN }}
           Parameters__certificateName: ${{ secrets.CERTIFICATE_NAME }}
           Parameters__minReplicas: '1'
-          HEX1B_VERSION: ${{ steps.version.outputs.release }}
+          HEX1B_VERSION: ${{ needs.version.outputs.version }}
         run: |
           set -e
           aspire deploy --debug
