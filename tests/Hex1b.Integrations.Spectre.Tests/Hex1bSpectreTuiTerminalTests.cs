@@ -5,15 +5,16 @@ using Spectre.Tui.Ansi;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class Hex1bSpectreTuiTerminalTests
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_NullAdapter_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new Hex1bSpectreTuiTerminal(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new Hex1bSpectreTuiTerminal(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task GetSize_ReturnsAdapterDimensions_InFullscreenMode()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -23,11 +24,11 @@ public class Hex1bSpectreTuiTerminalTests
 
         var size = terminal.GetSize();
 
-        Assert.Equal(120, size.Width);
-        Assert.Equal(40, size.Height);
+        Assert.AreEqual(120, size.Width);
+        Assert.AreEqual(40, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public void GetSize_FallsBackToStandardDefaults_WhenAdapterIsZero()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -37,11 +38,11 @@ public class Hex1bSpectreTuiTerminalTests
 
         var size = terminal.GetSize();
 
-        Assert.Equal(80, size.Width);
-        Assert.Equal(24, size.Height);
+        Assert.AreEqual(80, size.Width);
+        Assert.AreEqual(24, size.Height);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Flush_WritesRenderedBufferToAdapter()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -57,11 +58,11 @@ public class Hex1bSpectreTuiTerminalTests
         terminal.Flush();
 
         var output = DrainOutput(adapter);
-        Assert.Contains("H", output);
-        Assert.Contains("i", output);
+        StringAssert.Contains(output, "H");
+        StringAssert.Contains(output, "i");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task EnteringFullscreenMode_EmitsAlternateScreenSequence()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -73,10 +74,10 @@ public class Hex1bSpectreTuiTerminalTests
         terminal.Flush();
 
         var output = DrainOutput(adapter);
-        Assert.Contains("\x1b[?1049h", output);
+        StringAssert.Contains(output, "\x1b[?1049h");
     }
 
-    [Fact]
+    [TestMethod]
     public void HideCursor_DoesNotEmitCursorHideSequence()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -91,7 +92,7 @@ public class Hex1bSpectreTuiTerminalTests
         terminal.Flush();
 
         var pending = DrainOutput(adapter);
-        Assert.DoesNotContain("\x1b[?25l", pending);
+        Assert.IsFalse(pending.Contains("\x1b[?25l"));
     }
 
     private static string DrainOutput(Hex1bAppWorkloadAdapter adapter)
@@ -104,4 +105,3 @@ public class Hex1bSpectreTuiTerminalTests
         return sb.ToString();
     }
 }
-

@@ -5,9 +5,10 @@ using Spectre.Console;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class WithSpectreConsoleBuilderTests
 {
-    [Fact]
+    [TestMethod]
     public async Task WithSpectreConsole_RunsUserDelegate_AndForwardsOutput()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -25,10 +26,10 @@ public class WithSpectreConsoleBuilderTests
         await terminal.RunAsync().WaitAsync(TimeSpan.FromSeconds(5));
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
-        Assert.Contains("hi", screenText);
+        StringAssert.Contains(screenText, "hi");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithSpectreConsole_SyncOverload_RunsToCompletion()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -43,21 +44,21 @@ public class WithSpectreConsoleBuilderTests
         await terminal.RunAsync().WaitAsync(TimeSpan.FromSeconds(5));
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
-        Assert.Contains("plain text", screenText);
+        StringAssert.Contains(screenText, "plain text");
     }
 
-    [Fact]
+    [TestMethod]
     public void WithSpectreConsole_NullDelegate_Throws()
     {
         var builder = Hex1bTerminal.CreateBuilder();
-        Assert.Throws<ArgumentNullException>(
+        Assert.ThrowsExactly<ArgumentNullException>(
             () => builder.WithSpectreConsole((Func<global::Spectre.Console.IAnsiConsole, CancellationToken, Task>)null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithSpectreConsole_NullBuilder_Throws()
     {
-        Assert.Throws<ArgumentNullException>(
+        Assert.ThrowsExactly<ArgumentNullException>(
             () => ((Hex1bTerminalBuilder)null!).WithSpectreConsole((c, ct) => Task.CompletedTask));
     }
 }

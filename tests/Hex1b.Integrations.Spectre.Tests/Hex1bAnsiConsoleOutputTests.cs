@@ -4,9 +4,10 @@ using Hex1b.Integrations.Spectre.SpectreConsole;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class Hex1bAnsiConsoleOutputTests
 {
-    [Fact]
+    [TestMethod]
     public void Writer_WhenWritingString_ForwardsBytesToAdapter()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -16,10 +17,10 @@ public class Hex1bAnsiConsoleOutputTests
         output.Writer.Flush();
 
         var captured = DrainOutput(adapter);
-        Assert.Equal("hello", captured);
+        Assert.AreEqual("hello", captured);
     }
 
-    [Fact]
+    [TestMethod]
     public void Writer_WhenWritingChar_ForwardsCharToAdapter()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -29,10 +30,10 @@ public class Hex1bAnsiConsoleOutputTests
         output.Writer.Flush();
 
         var captured = DrainOutput(adapter);
-        Assert.Equal("x", captured);
+        Assert.AreEqual("x", captured);
     }
 
-    [Fact]
+    [TestMethod]
     public void Writer_WhenWritingAnsiSequence_PreservesEscapeBytes()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -42,10 +43,10 @@ public class Hex1bAnsiConsoleOutputTests
         output.Writer.Flush();
 
         var captured = DrainOutput(adapter);
-        Assert.Equal("\x1b[31mred\x1b[0m", captured);
+        Assert.AreEqual("\x1b[31mred\x1b[0m", captured);
     }
 
-    [Fact]
+    [TestMethod]
     public void Writer_WhenWritingSpan_ForwardsContents()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -55,28 +56,28 @@ public class Hex1bAnsiConsoleOutputTests
         output.Writer.Flush();
 
         var captured = DrainOutput(adapter);
-        Assert.Equal("bcde", captured);
+        Assert.AreEqual("bcde", captured);
     }
 
-    [Fact]
+    [TestMethod]
     public void IsTerminal_AlwaysReturnsTrue()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var output = new Hex1bAnsiConsoleOutput(adapter);
 
-        Assert.True(output.IsTerminal);
+        Assert.IsTrue(output.IsTerminal);
     }
 
-    [Fact]
+    [TestMethod]
     public void Encoding_AlwaysUtf8()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var output = new Hex1bAnsiConsoleOutput(adapter);
 
-        Assert.Equal(Encoding.UTF8, output.Writer.Encoding);
+        Assert.AreEqual(Encoding.UTF8, output.Writer.Encoding);
     }
 
-    [Fact]
+    [TestMethod]
     public void SetEncoding_DoesNotThrow()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -84,7 +85,7 @@ public class Hex1bAnsiConsoleOutputTests
 
         // Should silently no-op rather than throw.
         output.SetEncoding(Encoding.ASCII);
-        Assert.Equal(Encoding.UTF8, output.Writer.Encoding);
+        Assert.AreEqual(Encoding.UTF8, output.Writer.Encoding);
     }
 
     private static string DrainOutput(Hex1bAppWorkloadAdapter adapter)

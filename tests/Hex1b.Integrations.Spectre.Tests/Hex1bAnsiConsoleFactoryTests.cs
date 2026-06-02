@@ -5,20 +5,21 @@ using Spectre.Console;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class Hex1bAnsiConsoleFactoryTests
 {
-    [Fact]
+    [TestMethod]
     public void Create_WithAdapter_ProducesUsableConsole()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var console = Hex1bAnsiConsole.Create(adapter);
 
-        Assert.NotNull(console);
-        Assert.NotNull(console.Profile);
-        Assert.True(console.Profile.Out.IsTerminal);
+        Assert.IsNotNull(console);
+        Assert.IsNotNull(console.Profile);
+        Assert.IsTrue(console.Profile.Out.IsTerminal);
     }
 
-    [Fact]
+    [TestMethod]
     public void Create_WhenWritingMarkup_FlowsAnsiToAdapter()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -27,13 +28,13 @@ public class Hex1bAnsiConsoleFactoryTests
         console.MarkupLine("[red]hello[/]");
 
         var captured = DrainOutput(adapter);
-        Assert.Contains("hello", captured);
+        StringAssert.Contains(captured, "hello");
         // SGR red foreground sequence — proof Spectre actually emitted ANSI
         // and our writer faithfully passed the escape bytes through.
-        Assert.Contains("\x1b[", captured);
+        StringAssert.Contains(captured, "\x1b[");
     }
 
-    [Fact]
+    [TestMethod]
     public void Create_WhenWritingPlainText_FlowsExpectedBytes()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -42,10 +43,10 @@ public class Hex1bAnsiConsoleFactoryTests
         console.Write("plain text\n");
 
         var captured = DrainOutput(adapter);
-        Assert.Contains("plain text", captured);
+        StringAssert.Contains(captured, "plain text");
     }
 
-    [Fact]
+    [TestMethod]
     public void Create_OverridesInputEvenWhenSettingsProvided()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -57,16 +58,16 @@ public class Hex1bAnsiConsoleFactoryTests
 
         var console = Hex1bAnsiConsole.Create(adapter, settings);
 
-        Assert.IsType<Hex1bAnsiConsoleInput>(console.Input);
+        Assert.IsInstanceOfType<Hex1bAnsiConsoleInput>(console.Input);
     }
 
-    [Fact]
+    [TestMethod]
     public void Create_DefaultsAnsiSupportToYes()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var console = Hex1bAnsiConsole.Create(adapter);
 
-        Assert.True(console.Profile.Capabilities.Ansi);
+        Assert.IsTrue(console.Profile.Capabilities.Ansi);
     }
 
     private static string DrainOutput(Hex1bAppWorkloadAdapter adapter)

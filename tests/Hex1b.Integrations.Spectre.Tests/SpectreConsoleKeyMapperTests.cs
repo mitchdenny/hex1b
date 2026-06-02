@@ -3,11 +3,12 @@ using Hex1b.Integrations.Spectre.SpectreConsole;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class SpectreConsoleKeyMapperTests
 {
     public static TheoryData<Hex1bKey, ConsoleKey> KeyMappings()
     {
-        var data = new TheoryData<Hex1bKey, ConsoleKey>
+        return new TheoryData<Hex1bKey, ConsoleKey>
         {
             { Hex1bKey.A, ConsoleKey.A },
             { Hex1bKey.Z, ConsoleKey.Z },
@@ -33,37 +34,36 @@ public class SpectreConsoleKeyMapperTests
             { Hex1bKey.NumPad0, ConsoleKey.NumPad0 },
             { Hex1bKey.NumPad9, ConsoleKey.NumPad9 },
         };
-        return data;
     }
 
-    [Theory]
-    [MemberData(nameof(KeyMappings))]
+    [TestMethod]
+    [DynamicData(nameof(KeyMappings))]
     public void ToConsoleKey_RoundTripsCanonicalKeys(Hex1bKey input, ConsoleKey expected)
     {
         var actual = SpectreConsoleKeyMapper.ToConsoleKey(input);
-        Assert.Equal(expected, actual);
+        Assert.AreEqual(expected, actual);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToConsoleKey_UnknownKey_ReturnsNoName()
     {
-        Assert.Equal(ConsoleKey.NoName, SpectreConsoleKeyMapper.ToConsoleKey(Hex1bKey.None));
+        Assert.AreEqual(ConsoleKey.NoName, SpectreConsoleKeyMapper.ToConsoleKey(Hex1bKey.None));
     }
 
-    [Fact]
+    [TestMethod]
     public void ToConsoleKeyInfo_PrintableLetter_PreservesCharacter()
     {
         var evt = new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None);
 
         var info = SpectreConsoleKeyMapper.ToConsoleKeyInfo(evt);
 
-        Assert.NotNull(info);
-        Assert.Equal('a', info!.Value.KeyChar);
-        Assert.Equal(ConsoleKey.A, info.Value.Key);
-        Assert.Equal((ConsoleModifiers)0, info.Value.Modifiers);
+        Assert.IsNotNull(info);
+        Assert.AreEqual('a', info!.Value.KeyChar);
+        Assert.AreEqual(ConsoleKey.A, info.Value.Key);
+        Assert.AreEqual((ConsoleModifiers)0, info.Value.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToConsoleKeyInfo_AllModifiers_AreFlagged()
     {
         var evt = new Hex1bKeyEvent(
@@ -73,23 +73,23 @@ public class SpectreConsoleKeyMapperTests
 
         var info = SpectreConsoleKeyMapper.ToConsoleKeyInfo(evt);
 
-        Assert.NotNull(info);
-        Assert.True((info!.Value.Modifiers & ConsoleModifiers.Shift) != 0);
-        Assert.True((info.Value.Modifiers & ConsoleModifiers.Alt) != 0);
-        Assert.True((info.Value.Modifiers & ConsoleModifiers.Control) != 0);
+        Assert.IsNotNull(info);
+        Assert.IsTrue((info!.Value.Modifiers & ConsoleModifiers.Shift) != 0);
+        Assert.IsTrue((info.Value.Modifiers & ConsoleModifiers.Alt) != 0);
+        Assert.IsTrue((info.Value.Modifiers & ConsoleModifiers.Control) != 0);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToConsoleKeyInfo_EmptyEvent_ReturnsNull()
     {
         var evt = new Hex1bKeyEvent(Hex1bKey.None, "", Hex1bModifiers.None);
 
         var info = SpectreConsoleKeyMapper.ToConsoleKeyInfo(evt);
 
-        Assert.Null(info);
+        Assert.IsNull(info);
     }
 
-    [Fact]
+    [TestMethod]
     public void ToConsoleKeyInfo_UnknownKeyButPrintableChar_ReturnsInfo()
     {
         // e.g. paste text — we still want Spectre to see the character.
@@ -97,8 +97,8 @@ public class SpectreConsoleKeyMapperTests
 
         var info = SpectreConsoleKeyMapper.ToConsoleKeyInfo(evt);
 
-        Assert.NotNull(info);
-        Assert.Equal('x', info!.Value.KeyChar);
-        Assert.Equal(ConsoleKey.NoName, info.Value.Key);
+        Assert.IsNotNull(info);
+        Assert.AreEqual('x', info!.Value.KeyChar);
+        Assert.AreEqual(ConsoleKey.NoName, info.Value.Key);
     }
 }

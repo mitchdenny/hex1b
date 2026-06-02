@@ -5,15 +5,16 @@ using Spectre.Tui.App;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class Hex1bSpectreTuiInputReaderTests
 {
-    [Fact]
+    [TestMethod]
     public void Constructor_NullAdapter_Throws()
     {
-        Assert.Throws<ArgumentNullException>(() => new Hex1bSpectreTuiInputReader(null!));
+        Assert.ThrowsExactly<ArgumentNullException>(() => new Hex1bSpectreTuiInputReader(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Read_ReturnsKeyMessage_WhenChannelHasKeyEvent()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -23,12 +24,12 @@ public class Hex1bSpectreTuiInputReaderTests
 
         var message = await reader.Read(CancellationToken.None);
 
-        var keyMessage = Assert.IsType<KeyMessage>(message);
-        Assert.Equal(ConsoleKey.A, keyMessage.Info.Key);
-        Assert.Equal('a', keyMessage.Info.KeyChar);
+        var keyMessage = TestSeq.IsType<KeyMessage>(message);
+        Assert.AreEqual(ConsoleKey.A, keyMessage.Info.Key);
+        Assert.AreEqual('a', keyMessage.Info.KeyChar);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Read_ReturnsNull_WhenChannelEmpty()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -36,10 +37,10 @@ public class Hex1bSpectreTuiInputReaderTests
 
         var message = await reader.Read(CancellationToken.None);
 
-        Assert.Null(message);
+        Assert.IsNull(message);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Read_SkipsNonKeyEvents()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -52,11 +53,11 @@ public class Hex1bSpectreTuiInputReaderTests
 
         var message = await reader.Read(CancellationToken.None);
 
-        var keyMessage = Assert.IsType<KeyMessage>(message);
-        Assert.Equal(ConsoleKey.Enter, keyMessage.Info.Key);
+        var keyMessage = TestSeq.IsType<KeyMessage>(message);
+        Assert.AreEqual(ConsoleKey.Enter, keyMessage.Info.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task Read_ReturnsNull_WhenOnlyUnmappedKeyEventsPresent()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -68,10 +69,10 @@ public class Hex1bSpectreTuiInputReaderTests
 
         var message = await reader.Read(CancellationToken.None);
 
-        Assert.Null(message);
+        Assert.IsNull(message);
     }
 
-    [Fact]
+    [TestMethod]
     public void Initialize_DoesNotThrow()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();

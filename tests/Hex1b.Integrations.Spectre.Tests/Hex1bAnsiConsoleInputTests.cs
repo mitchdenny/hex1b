@@ -4,18 +4,19 @@ using Hex1b.Integrations.Spectre.SpectreConsole;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class Hex1bAnsiConsoleInputTests
 {
-    [Fact]
+    [TestMethod]
     public void IsKeyAvailable_WithEmptyChannel_ReturnsFalse()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var input = new Hex1bAnsiConsoleInput(adapter);
 
-        Assert.False(input.IsKeyAvailable());
+        Assert.IsFalse(input.IsKeyAvailable());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsKeyAvailable_AfterWritingKey_ReturnsTrue()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -23,10 +24,10 @@ public class Hex1bAnsiConsoleInputTests
 
         await adapter.WriteInputEventAsync(new Hex1bKeyEvent(Hex1bKey.A, 'a', Hex1bModifiers.None));
 
-        Assert.True(input.IsKeyAvailable());
+        Assert.IsTrue(input.IsKeyAvailable());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task IsKeyAvailable_WithOnlyResizeEvent_DrainsItAndReturnsFalse()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -34,10 +35,10 @@ public class Hex1bAnsiConsoleInputTests
 
         await adapter.WriteInputEventAsync(new Hex1bResizeEvent(120, 30));
 
-        Assert.False(input.IsKeyAvailable());
+        Assert.IsFalse(input.IsKeyAvailable());
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadKey_WithKeyInChannel_ReturnsConsoleKeyInfo()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -48,11 +49,11 @@ public class Hex1bAnsiConsoleInputTests
 
         var result = input.ReadKey(intercept: true);
 
-        Assert.NotNull(result);
-        Assert.Equal(ConsoleKey.Enter, result!.Value.Key);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(ConsoleKey.Enter, result!.Value.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadKey_WithModifiers_PreservesModifierFlags()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -63,12 +64,12 @@ public class Hex1bAnsiConsoleInputTests
 
         var result = input.ReadKey(intercept: true);
 
-        Assert.NotNull(result);
-        Assert.Equal(ConsoleKey.C, result!.Value.Key);
-        Assert.Equal(ConsoleModifiers.Control, result.Value.Modifiers);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(ConsoleKey.C, result!.Value.Key);
+        Assert.AreEqual(ConsoleModifiers.Control, result.Value.Modifiers);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadKey_DiscardsNonKeyEvents()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -80,29 +81,29 @@ public class Hex1bAnsiConsoleInputTests
 
         var result = input.ReadKey(intercept: true);
 
-        Assert.NotNull(result);
-        Assert.Equal(ConsoleKey.Q, result!.Value.Key);
-        Assert.Equal('q', result.Value.KeyChar);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(ConsoleKey.Q, result!.Value.Key);
+        Assert.AreEqual('q', result.Value.KeyChar);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadKeyAsync_AwaitsUntilKeyArrives()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
         var input = new Hex1bAnsiConsoleInput(adapter);
 
         var readTask = input.ReadKeyAsync(intercept: true, CancellationToken.None);
-        Assert.False(readTask.IsCompleted);
+        Assert.IsFalse(readTask.IsCompleted);
 
         await adapter.WriteInputEventAsync(
             new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None));
 
         var result = await readTask.WaitAsync(TimeSpan.FromSeconds(2));
-        Assert.NotNull(result);
-        Assert.Equal(ConsoleKey.Spacebar, result!.Value.Key);
+        Assert.IsNotNull(result);
+        Assert.AreEqual(ConsoleKey.Spacebar, result!.Value.Key);
     }
 
-    [Fact]
+    [TestMethod]
     public async Task ReadKeyAsync_RespectsCancellation()
     {
         using var adapter = new Hex1bAppWorkloadAdapter();
@@ -112,7 +113,8 @@ public class Hex1bAnsiConsoleInputTests
         var readTask = input.ReadKeyAsync(intercept: true, cts.Token);
         cts.Cancel();
 
-        await Assert.ThrowsAnyAsync<OperationCanceledException>(
+        var ex = await TestSeq.RecordExceptionAsync(
             () => readTask.WaitAsync(TimeSpan.FromSeconds(2)));
+        Assert.IsInstanceOfType<OperationCanceledException>(ex);
     }
 }

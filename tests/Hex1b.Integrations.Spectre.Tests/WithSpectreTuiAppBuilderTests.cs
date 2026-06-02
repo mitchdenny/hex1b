@@ -6,32 +6,33 @@ using Spectre.Tui.App;
 
 namespace Hex1b.Integrations.Spectre.Tests;
 
+[TestClass]
 public class WithSpectreTuiAppBuilderTests
 {
-    [Fact]
+    [TestMethod]
     public void WithSpectreTuiApp_NullScreen_Throws()
     {
         var builder = Hex1bTerminal.CreateBuilder();
-        Assert.Throws<ArgumentNullException>(
+        Assert.ThrowsExactly<ArgumentNullException>(
             () => builder.WithSpectreTuiApp(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithSpectreTuiApp_NullBuilder_Throws()
     {
-        Assert.Throws<ArgumentNullException>(
+        Assert.ThrowsExactly<ArgumentNullException>(
             () => ((Hex1bTerminalBuilder)null!).WithSpectreTuiApp(new QuitOnAttachScreen()));
     }
 
-    [Fact]
+    [TestMethod]
     public void WithSpectreTuiTerminal_NullDelegate_Throws()
     {
         var builder = Hex1bTerminal.CreateBuilder();
-        Assert.Throws<ArgumentNullException>(
+        Assert.ThrowsExactly<ArgumentNullException>(
             () => builder.WithSpectreTuiTerminal(null!));
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithSpectreTuiTerminal_RunsToCompletion_AndForwardsOutput()
     {
         await using var terminal = Hex1bTerminal.CreateBuilder()
@@ -50,10 +51,10 @@ public class WithSpectreTuiAppBuilderTests
         await terminal.RunAsync().WaitAsync(TimeSpan.FromSeconds(5));
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
-        Assert.Contains("hi", screenText);
+        StringAssert.Contains(screenText, "hi");
     }
 
-    [Fact]
+    [TestMethod]
     public async Task WithSpectreTuiApp_RunsScreen_UntilQuit()
     {
         // QuitOnAttachScreen schedules context.Quit() shortly after the
@@ -70,7 +71,7 @@ public class WithSpectreTuiAppBuilderTests
         await terminal.RunAsync().WaitAsync(TimeSpan.FromSeconds(10));
 
         var screenText = terminal.CreateSnapshot().GetScreenText();
-        Assert.Contains("X", screenText);
+        StringAssert.Contains(screenText, "X");
     }
 
     private sealed class QuitOnAttachScreen : Screen
