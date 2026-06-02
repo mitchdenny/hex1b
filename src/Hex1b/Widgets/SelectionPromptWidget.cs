@@ -31,6 +31,7 @@ namespace Hex1b.Widgets;
 public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
 {
     internal Func<T, string>? ItemTextSelector { get; init; }
+    internal Func<T, string>? FilterTextSelector { get; init; }
     internal Func<T, Task>? SelectedHandler { get; init; }
     internal int MaxVisibleItemsValue { get; init; } = 8;
     internal string PromptText { get; init; } = "Filter:";
@@ -40,6 +41,7 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
     {
         var state = ctx.UseState(() => new SelectionPromptState());
         var selector = ItemTextSelector ?? (i => i?.ToString() ?? string.Empty);
+        var filterSelector = FilterTextSelector ?? selector;
 
         var filter = state.Filter;
         var filtered = new List<T>(Items.Count);
@@ -51,7 +53,7 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
         {
             foreach (var item in Items)
             {
-                if (selector(item).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
+                if (filterSelector(item).IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0)
                 {
                     filtered.Add(item);
                 }
@@ -79,7 +81,7 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
             v.Text(PromptText).FixedHeight(1),
 
             v.TextBox(state.Filter)
-                .Predict((text, _) => Task.FromResult<string?>(PredictFirstMatch(text, Items, selector)))
+                .Predict((text, _) => Task.FromResult<string?>(PredictFirstMatch(text, Items, filterSelector)))
                 .OnTextChanged(e =>
                 {
                     if (state.Filter != e.NewText)

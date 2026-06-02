@@ -46,6 +46,7 @@ await using var terminal = Hex1bTerminal.CreateBuilder()
             v.Text(""),
             v.SelectionPrompt(commands)
                 .ItemText(c => $"{c.Name,-22}  {c.Description}")
+                .FilterText(c => c.Name)
                 .Prompt("> ")
                 .MaxVisibleItems(10)
                 .EmptyMessage("(no matching commands)")

@@ -27,6 +27,18 @@ public static class SelectionPromptExtensions
         => widget with { ItemTextSelector = selector };
 
     /// <summary>
+    /// Overrides the string projection used for filter matching and
+    /// Right-Arrow prediction. When unset, the <see cref="ItemText{T}"/>
+    /// selector is used for both display and filtering; setting this lets
+    /// you display rich rows (e.g. <c>name + description</c>) while
+    /// filtering only on a salient subset (e.g. <c>name</c>).
+    /// </summary>
+    public static SelectionPromptWidget<T> FilterText<T>(
+        this SelectionPromptWidget<T> widget,
+        Func<T, string> selector)
+        => widget with { FilterTextSelector = selector };
+
+    /// <summary>
     /// Sets the maximum number of list rows shown at once. The list scrolls
     /// within this window. Defaults to 8.
     /// </summary>
