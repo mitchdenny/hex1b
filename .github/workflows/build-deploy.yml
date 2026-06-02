@@ -59,20 +59,20 @@ jobs:
         run: |
           dotnet test tests/Hex1b.Tests/Hex1b.Tests.csproj \
             --no-build \
-            --logger "trx;LogFileName=test-results.trx" \
-            --results-directory ./TestResults
+            -- --report-trx --report-trx-filename test-results.trx \
+               --results-directory ./TestResults
           dotnet test tests/Hex1b.Analyzers.Tests/Hex1b.Analyzers.Tests.csproj \
             --no-build \
-            --logger "trx;LogFileName=analyzer-test-results.trx" \
-            --results-directory ./TestResults
+            -- --report-trx --report-trx-filename analyzer-test-results.trx \
+               --results-directory ./TestResults
           dotnet test tests/Hex1b.McpServer.Tests/Hex1b.McpServer.Tests.csproj \
             --no-build \
-            --logger "trx;LogFileName=mcp-test-results.trx" \
-            --results-directory ./TestResults
+            -- --report-trx --report-trx-filename mcp-test-results.trx \
+               --results-directory ./TestResults
           dotnet test tests/Hex1b.Tool.Tests/Hex1b.Tool.Tests.csproj \
             --no-build \
-            --logger "trx;LogFileName=tool-test-results.trx" \
-            --results-directory ./TestResults
+            -- --report-trx --report-trx-filename tool-test-results.trx \
+               --results-directory ./TestResults
 
       - name: Download and install Aspire CLI
         if: runner.os == 'Linux'
