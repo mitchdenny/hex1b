@@ -1,3 +1,5 @@
+#pragma warning disable HEX1B002 // PlaceholderResumePolicy is experimental — internal usage is allowed.
+using System.Diagnostics.CodeAnalysis;
 using System.Text;
 
 namespace Hex1b;
@@ -428,6 +430,7 @@ internal sealed class PlaceholderWorkloadAdapter : IHex1bTerminalWorkloadAdapter
 /// Controls what happens when the primary workload disconnects after having
 /// been active.
 /// </summary>
+[Experimental("HEX1B002", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/placeholder.md")]
 public enum PlaceholderResumePolicy
 {
     /// <summary>

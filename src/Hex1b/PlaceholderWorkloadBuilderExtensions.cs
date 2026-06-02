@@ -1,9 +1,12 @@
+using System.Diagnostics.CodeAnalysis;
+
 namespace Hex1b;
 
 /// <summary>
 /// Builder extensions for configuring a placeholder workload that drives the
 /// terminal until the real ("primary") workload signals it is ready.
 /// </summary>
+[Experimental("HEX1B002", UrlFormat = "https://github.com/hex1b/hex1b/blob/main/docs/experimental/placeholder.md")]
 public static class PlaceholderWorkloadBuilderExtensions
 {
     /// <summary>

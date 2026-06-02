@@ -1,3 +1,4 @@
+#pragma warning disable HEX1B002 // Placeholder workload API is experimental — sample exercises experimental API.
 using System.Diagnostics;
 using Hex1b;
 using Hex1b.Input;
