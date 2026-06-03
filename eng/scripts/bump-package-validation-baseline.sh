@@ -24,11 +24,10 @@ if ! git ls-remote --exit-code --heads origin "$BRANCH" >/dev/null 2>&1; then
   exit 0
 fi
 
-# Branch name for the PR: stable per (base-branch, version) so re-runs update
-# the same PR instead of fanning out duplicates. Slashes in BRANCH are
-# flattened so the bot branch is always a single path segment.
+# Branch-name slug. Slashes in BRANCH are flattened so the bot head ref is
+# always a single path segment. The full head ref name is chosen later based
+# on whether we are reusing an existing open PR.
 BRANCH_SLUG="${BRANCH//\//-}"
-PR_BRANCH="bot/baseline-bump/${BRANCH_SLUG}-to-${VERSION}"
 
 WORKTREE="$(mktemp -d)"
 trap 'rm -rf "$WORKTREE"' EXIT
@@ -103,6 +102,26 @@ if git diff --quiet -- "$CSPROJ"; then
   exit 0
 fi
 
+# If an open bump PR is already targeting $BRANCH, reuse its head ref so the
+# existing PR is updated in place. Otherwise mint a fresh, version-suffixed
+# head ref to avoid colliding with any previously closed/merged bump PR that
+# may have been opened against the same target branch.
+EXISTING_HEAD="$(gh pr list \
+  --base "$BRANCH" \
+  --state open \
+  --json number,headRefName \
+  --jq "[.[] | select(.headRefName | startswith(\"bot/baseline-bump/${BRANCH_SLUG}\"))][0].headRefName // empty" \
+  2>/dev/null || true)"
+
+if [[ -n "$EXISTING_HEAD" ]]; then
+  PR_BRANCH="$EXISTING_HEAD"
+  REUSED_PR="true"
+  echo "Reusing existing open bump PR head '$PR_BRANCH' targeting $BRANCH."
+else
+  PR_BRANCH="bot/baseline-bump/${BRANCH_SLUG}-to-${VERSION}"
+  REUSED_PR="false"
+fi
+
 git checkout -B "$PR_BRANCH"
 git add "$CSPROJ"
 git commit -m "ci: bump PackageValidationBaselineVersion to $VERSION on $BRANCH"
@@ -119,8 +138,10 @@ Merging this PR makes the next build on \`$BRANCH\` validate the public API agai
 EOF
 )
 
-if EXISTING_PR=$(gh pr view "$PR_BRANCH" --json number --jq .number 2>/dev/null); then
-  echo "PR #$EXISTING_PR already exists for $PR_BRANCH; force-push above updated it."
+if [[ "$REUSED_PR" == "true" ]]; then
+  # Refresh the title/body so a stale "to 0.163.0" PR now reads "to 0.164.0".
+  gh pr edit "$PR_BRANCH" --title "$PR_TITLE" --body "$PR_BODY"
+  echo "Updated existing PR for $PR_BRANCH (force-push above already refreshed the diff)."
 else
   gh pr create \
     --base "$BRANCH" \
