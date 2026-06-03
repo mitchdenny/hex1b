@@ -39,7 +39,7 @@ jobs:
       base: ${{ steps.v.outputs.base }}
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
@@ -65,10 +65,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -122,7 +122,7 @@ jobs:
 
       - name: Setup Node.js for content build
         if: runner.os == 'Linux'
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: '20'
 
@@ -148,14 +148,14 @@ jobs:
           reporter: dotnet-trx
 
       - name: Upload test results
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: success() || failure()
         with:
           name: test-results-${{ runner.os }}
           path: ./TestResults/
 
       - name: Upload SVG attachments
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         if: success() || failure()
         with:
           name: svg-attachments-${{ runner.os }}
@@ -167,14 +167,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build native library
         working-directory: src/Hex1b/native
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native/libhex1binterop.so
@@ -183,14 +183,14 @@ jobs:
     runs-on: ubuntu-24.04-arm
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build native library
         working-directory: src/Hex1b/native
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native/libhex1binterop.so
@@ -199,14 +199,14 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build native library (cross-compile x86_64 from ARM64)
         working-directory: src/Hex1b/native
         run: make TARGET_ARCH=x86_64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native/libhex1binterop.dylib
@@ -215,14 +215,14 @@ jobs:
     runs-on: macos-15
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Build native library
         working-directory: src/Hex1b/native
         run: make
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native/libhex1binterop.dylib
@@ -231,10 +231,10 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -243,7 +243,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-x64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-x64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pty-host-windows-x64
           path: artifacts/pty-host/win-x64/hex1bpty.exe
@@ -252,10 +252,10 @@ jobs:
     runs-on: windows-11-arm
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -264,7 +264,7 @@ jobs:
         run: dotnet publish .\src\Hex1b.PtyHost\Hex1b.PtyHost.csproj -c Release -r win-arm64 --nologo -p:PublishAot=true -p:SelfContained=true -o .\artifacts\pty-host\win-arm64
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: pty-host-windows-arm64
           path: artifacts/pty-host/win-arm64/hex1bpty.exe
@@ -278,45 +278,45 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -408,7 +408,7 @@ jobs:
           printf '%s\n' "${expected_tool_assets[@]}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nuget-packages-pr
           path: ./artifacts/*.nupkg
@@ -422,45 +422,45 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
       - name: Download native library - linux-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-linux-x64
           path: src/Hex1b/runtimes/linux-x64/native
 
       - name: Download native library - linux-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-linux-arm64
           path: src/Hex1b/runtimes/linux-arm64/native
 
       - name: Download native library - osx-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-osx-x64
           path: src/Hex1b/runtimes/osx-x64/native
 
       - name: Download native library - osx-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: native-osx-arm64
           path: src/Hex1b/runtimes/osx-arm64/native
 
       - name: Download PTY shim - win-x64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pty-host-windows-x64
           path: src/Hex1b/runtimes/win-x64/native
 
       - name: Download PTY shim - win-arm64
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: pty-host-windows-arm64
           path: src/Hex1b/runtimes/win-arm64/native
@@ -552,7 +552,7 @@ jobs:
           printf '%s\n' "${expected_tool_assets[@]}"
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nuget-packages-release
           path: ./artifacts/*.nupkg
@@ -568,16 +568,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nuget-packages-pr
           path: ./artifacts
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -721,16 +721,16 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Download artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v5
         with:
           name: nuget-packages-release
           path: ./artifacts
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
@@ -885,10 +885,10 @@ jobs:
 
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Setup .NET
-        uses: actions/setup-dotnet@v4
+        uses: actions/setup-dotnet@v5
         with:
           dotnet-version: '10.0.x'
 
