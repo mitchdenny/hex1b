@@ -1,0 +1,134 @@
+name: Bump package validation baseline
+
+# After a stable vX.Y.Z release ships, rewrite the bot-managed
+# <PackageValidationBaselineVersion> block in src/Hex1b/Hex1b.csproj and open
+# follow-up PR(s):
+#   * Always against release/X.Y (so the next patch on that line validates
+#     against X.Y.Z).
+#   * Against main only when X.Y is the highest-minor-of-the-highest-major
+#     across every stable vX.Y.Z tag (i.e. this release is the "latest
+#     line"). When a new release/X.Y branch is later cut from main, the
+#     first beta on that branch inherits whatever baseline main carried —
+#     no extra branching required here.
+#
+# Alpha / beta builds are not tagged and don't create GH releases, so they
+# never trigger this workflow. The version-input on workflow_dispatch lets
+# humans re-run the bumper against a known-good tag if a PR was closed by
+# mistake or the original run failed mid-flight.
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Stable version to bump baseline to (e.g. 1.0.1). Omit to use the latest stable git tag.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: baseline-bump
+  cancel-in-progress: false
+
+jobs:
+  bump:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve target version
+        id: resolve
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+          INPUT_VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git fetch --tags --quiet
+
+          if [[ "$EVENT_NAME" == "release" ]]; then
+            RAW="$RELEASE_TAG"
+          elif [[ -n "$INPUT_VERSION" ]]; then
+            RAW="$INPUT_VERSION"
+          else
+            # Pick the highest stable tag.
+            RAW="$(git tag -l 'v[0-9]*.[0-9]*.[0-9]*' \
+              | grep -Ev '-' \
+              | sed -E 's/^v//' \
+              | sort -t. -k1,1n -k2,2n -k3,3n \
+              | tail -n1)"
+            if [[ -z "$RAW" ]]; then
+              echo "::notice::No stable tags exist; nothing to bump."
+              echo "skip=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+            RAW="v$RAW"
+          fi
+
+          VERSION="${RAW#v}"
+          if [[ ! "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.([0-9]+)$ ]]; then
+            echo "::notice::Tag '$RAW' is not a stable vX.Y.Z; skipping."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          MAJOR="${BASH_REMATCH[1]}"
+          MINOR="${BASH_REMATCH[2]}"
+
+          # Decide whether main should also get the bump: only when X.Y is the
+          # highest minor of the highest major across all stable tags. We
+          # include the current VERSION in the comparison so a brand-new line
+          # released right now still counts as the latest.
+          HIGHEST_MAJOR="$( { git tag -l 'v[0-9]*.[0-9]*.[0-9]*' | grep -Ev '-' | sed -E 's/^v//'; echo "$VERSION"; } \
+            | awk -F. '{print $1}' | sort -n | tail -n1)"
+          HIGHEST_MINOR_OF_HIGHEST_MAJOR="$( { git tag -l "v${HIGHEST_MAJOR}.*.*" | grep -Ev '-' | sed -E "s/^v${HIGHEST_MAJOR}\\.//"; \
+              [[ "$MAJOR" == "$HIGHEST_MAJOR" ]] && echo "${MINOR}.0" || true; } \
+            | awk -F. '{print $1}' | sort -n | tail -n1)"
+
+          BUMP_MAIN="false"
+          if [[ "$MAJOR" == "$HIGHEST_MAJOR" && "$MINOR" == "$HIGHEST_MINOR_OF_HIGHEST_MAJOR" ]]; then
+            BUMP_MAIN="true"
+          fi
+
+          echo "Resolved version : $VERSION"
+          echo "Release branch   : release/${MAJOR}.${MINOR}"
+          echo "Highest major    : $HIGHEST_MAJOR"
+          echo "Highest minor    : $HIGHEST_MINOR_OF_HIGHEST_MAJOR"
+          echo "Bump main?       : $BUMP_MAIN"
+
+          {
+            echo "skip=false"
+            echo "version=$VERSION"
+            echo "major=$MAJOR"
+            echo "minor=$MINOR"
+            echo "bump_main=$BUMP_MAIN"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Configure git identity
+        if: steps.resolve.outputs.skip != 'true'
+        run: |
+          git config user.name  'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+      - name: Bump release/X.Y baseline
+        if: steps.resolve.outputs.skip != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION:  ${{ steps.resolve.outputs.version }}
+          MAJOR:    ${{ steps.resolve.outputs.major }}
+          MINOR:    ${{ steps.resolve.outputs.minor }}
+        run: ./eng/scripts/bump-package-validation-baseline.sh "release/${MAJOR}.${MINOR}" "$VERSION"
+
+      - name: Bump main baseline
+        if: steps.resolve.outputs.skip != 'true' && steps.resolve.outputs.bump_main == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION:  ${{ steps.resolve.outputs.version }}
+        run: ./eng/scripts/bump-package-validation-baseline.sh main "$VERSION"

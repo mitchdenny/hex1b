@@ -39,6 +39,21 @@
     <!-- Additional Package Settings -->
     <PackageRequireLicenseAcceptance>false</PackageRequireLicenseAcceptance>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
+
+    <!--
+      Public-surface validation. PackageValidationBaselineVersion lives in the
+      bot-managed block below and is rewritten by .github/workflows/baseline-bump.yml
+      after every stable release (see that workflow for the full rules). Until
+      the first stable release ships the baseline element is absent, so we only
+      get intra-package framework-compat checks; once it appears, breaking-API
+      changes against the published baseline surface as build errors locally
+      and in CI. To deliberately ship a breaking change, comment the element
+      out for the spike and let the bot restore it on the next release.
+    -->
+    <EnablePackageValidation>true</EnablePackageValidation>
+    <!-- BEGIN: bot-managed baseline -->
+    <!-- <PackageValidationBaselineVersion>X.Y.Z</PackageValidationBaselineVersion> -->
+    <!-- END: bot-managed baseline -->
   </PropertyGroup>
 
   <ItemGroup>
