@@ -52,7 +52,7 @@
     -->
     <EnablePackageValidation>true</EnablePackageValidation>
     <!-- BEGIN: bot-managed baseline -->
-    <PackageValidationBaselineVersion>0.163.0</PackageValidationBaselineVersion>
+    <PackageValidationBaselineVersion>0.164.1</PackageValidationBaselineVersion>
     <!-- END: bot-managed baseline -->
   </PropertyGroup>
 
