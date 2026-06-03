@@ -718,6 +718,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      actions: write  # so the post-release step can dispatch baseline-bump.yml
 
     steps:
       - name: Checkout code
@@ -867,6 +868,23 @@ jobs:
             --title "v${PACKAGE_VERSION}" \
             --notes-file /tmp/release_notes.md \
             ./artifacts/*.nupkg
+
+      - name: Dispatch baseline-bump workflow
+        # The release above is created via GITHUB_TOKEN, so the resulting
+        # `release: published` event will NOT cascade to other workflows
+        # (events triggered by GITHUB_TOKEN don't start new workflow runs).
+        # workflow_dispatch is one of the documented exceptions, so we kick
+        # baseline-bump.yml explicitly here. Runs against the default branch
+        # so the latest bump rules and rewrite script are used regardless of
+        # which release/X.Y branch shipped this release.
+        if: needs.version.outputs.kind == 'release' && steps.check-package.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PACKAGE_VERSION: ${{ needs.version.outputs.version }}
+        run: |
+          gh workflow run baseline-bump.yml \
+            --ref "${{ github.event.repository.default_branch }}" \
+            -f version="${PACKAGE_VERSION}"
 
   deploy-production:
     runs-on: ubuntu-latest
