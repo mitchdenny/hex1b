@@ -10,18 +10,18 @@ namespace Hex1b.Widgets;
 /// custom rendering via <c>ItemTemplate</c> — see <see cref="ListItemContext{T}"/>.
 /// </summary>
 /// <typeparam name="T">The item type.</typeparam>
-public record TypedListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
+public record ListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
 {
     /// <summary>Rebindable action: Move selection up.</summary>
-    public static readonly ActionId MoveUp = new($"{nameof(TypedListWidget<T>)}.{nameof(MoveUp)}");
+    public static readonly ActionId MoveUp = new($"{nameof(ListWidget<T>)}.{nameof(MoveUp)}");
     /// <summary>Rebindable action: Move selection down.</summary>
-    public static readonly ActionId MoveDown = new($"{nameof(TypedListWidget<T>)}.{nameof(MoveDown)}");
+    public static readonly ActionId MoveDown = new($"{nameof(ListWidget<T>)}.{nameof(MoveDown)}");
     /// <summary>Rebindable action: Activate the selected item.</summary>
-    public static readonly ActionId Activate = new($"{nameof(TypedListWidget<T>)}.{nameof(Activate)}");
+    public static readonly ActionId Activate = new($"{nameof(ListWidget<T>)}.{nameof(Activate)}");
     /// <summary>Rebindable action: Scroll up.</summary>
-    public static readonly ActionId ScrollUp = new($"{nameof(TypedListWidget<T>)}.{nameof(ScrollUp)}");
+    public static readonly ActionId ScrollUp = new($"{nameof(ListWidget<T>)}.{nameof(ScrollUp)}");
     /// <summary>Rebindable action: Scroll down.</summary>
-    public static readonly ActionId ScrollDown = new($"{nameof(TypedListWidget<T>)}.{nameof(ScrollDown)}");
+    public static readonly ActionId ScrollDown = new($"{nameof(ListWidget<T>)}.{nameof(ScrollDown)}");
 
     /// <summary>
     /// The initial selected index when the list is first created. Defaults to 0.
@@ -79,9 +79,9 @@ public record TypedListWidget<T>(IReadOnlyList<T> Items) : Hex1bWidget
     }
 
     /// <summary>
-    /// Creates the concrete node type. Derived widgets (e.g. <see cref="ListWidget"/>)
-    /// override this to return their specialized node so casts in user-facing tests
-    /// and event args stay strongly typed.
+    /// Creates the concrete node type. Derived widgets override this to return
+    /// their specialized node so casts in user-facing tests and event args stay
+    /// strongly typed.
     /// </summary>
     private protected virtual TypedListNode<T> CreateNode() => new();
 

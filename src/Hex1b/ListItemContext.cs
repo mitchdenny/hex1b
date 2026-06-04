@@ -3,7 +3,7 @@ using Hex1b.Widgets;
 namespace Hex1b;
 
 /// <summary>
-/// Context passed to an <c>ItemTemplate</c> callback on <see cref="TypedListWidget{T}"/>.
+/// Context passed to an <c>ItemTemplate</c> callback on <see cref="ListWidget{T}"/>.
 /// Exposes the per-row item value alongside the row's current selection, focus, and hover
 /// state so the template can decide how to style itself. Derives from
 /// <see cref="WidgetContext{TParentWidget}"/> so the usual fluent extension methods
@@ -11,7 +11,7 @@ namespace Hex1b;
 /// builder.
 /// </summary>
 /// <typeparam name="T">The item type of the parent list.</typeparam>
-public sealed class ListItemContext<T> : WidgetContext<TypedListWidget<T>>
+public sealed class ListItemContext<T> : WidgetContext<ListWidget<T>>
 {
     /// <summary>The item value backing this row.</summary>
     public T Item { get; }

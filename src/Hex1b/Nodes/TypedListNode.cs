@@ -8,7 +8,7 @@ using Hex1b.Widgets;
 namespace Hex1b;
 
 /// <summary>
-/// Render node for <see cref="TypedListWidget{T}"/>. Supports two render modes:
+/// Render node for <see cref="ListWidget{T}"/>. Supports two render modes:
 /// <list type="bullet">
 ///   <item>
 ///     <description>
@@ -34,7 +34,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// The source widget that was reconciled into this node.
     /// </summary>
-    public TypedListWidget<T>? SourceWidget { get; set; }
+    public ListWidget<T>? SourceWidget { get; set; }
 
     private IReadOnlyList<T> _items = [];
     /// <summary>
@@ -267,7 +267,7 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     #endregion
 
     /// <summary>
-    /// Default binding configuration uses <see cref="TypedListWidget{T}"/>'s
+    /// Default binding configuration uses <see cref="ListWidget{T}"/>'s
     /// rebindable actions. The <see cref="ListNode"/> override redirects to the
     /// legacy <see cref="ListWidget"/> action ids so existing rebind code keeps
     /// working.
@@ -276,11 +276,11 @@ public class TypedListNode<T> : Hex1bNode, ILayoutProvider
     {
         ConfigureDefaultBindings(
             bindings,
-            TypedListWidget<T>.MoveUp,
-            TypedListWidget<T>.MoveDown,
-            TypedListWidget<T>.Activate,
-            TypedListWidget<T>.ScrollUp,
-            TypedListWidget<T>.ScrollDown);
+            ListWidget<T>.MoveUp,
+            ListWidget<T>.MoveDown,
+            ListWidget<T>.Activate,
+            ListWidget<T>.ScrollUp,
+            ListWidget<T>.ScrollDown);
     }
 
     internal void ConfigureDefaultBindings(

@@ -4,11 +4,11 @@ using Hex1b.Widgets;
 namespace Hex1b.Events;
 
 /// <summary>
-/// Event arguments for <see cref="TypedListWidget{T}"/> selection-change events.
+/// Event arguments for <see cref="ListWidget{T}"/> selection-change events.
 /// Carries the typed item value rather than just its string representation.
 /// </summary>
 /// <typeparam name="T">The item type of the list.</typeparam>
-public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<TypedListWidget<T>, TypedListNode<T>>
+public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<ListWidget<T>, TypedListNode<T>>
 {
     /// <summary>
     /// The index of the newly selected item.
@@ -27,7 +27,7 @@ public sealed class ListSelectionChangedEventArgs<T> : WidgetEventArgs<TypedList
     public string SelectedText => SelectedItem?.ToString() ?? string.Empty;
 
     public ListSelectionChangedEventArgs(
-        TypedListWidget<T> widget,
+        ListWidget<T> widget,
         TypedListNode<T> node,
         InputBindingActionContext context,
         int selectedIndex,

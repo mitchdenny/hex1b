@@ -4,11 +4,11 @@ using Hex1b.Widgets;
 namespace Hex1b.Events;
 
 /// <summary>
-/// Event arguments for <see cref="TypedListWidget{T}"/> item-activation events
+/// Event arguments for <see cref="ListWidget{T}"/> item-activation events
 /// (Enter, Space, or click).
 /// </summary>
 /// <typeparam name="T">The item type of the list.</typeparam>
-public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<TypedListWidget<T>, TypedListNode<T>>
+public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<ListWidget<T>, TypedListNode<T>>
 {
     /// <summary>
     /// The index of the activated item.
@@ -27,7 +27,7 @@ public sealed class ListItemActivatedEventArgs<T> : WidgetEventArgs<TypedListWid
     public string ActivatedText => ActivatedItem?.ToString() ?? string.Empty;
 
     public ListItemActivatedEventArgs(
-        TypedListWidget<T> widget,
+        ListWidget<T> widget,
         TypedListNode<T> node,
         InputBindingActionContext context,
         int activatedIndex,

@@ -116,7 +116,7 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
 
             filtered.Count == 0
                 ? v.Text("  " + EmptyMessage)
-                : v.TypedList(filtered)
+                : v.List(filtered)
                     .SelectedIndex(state.SelectedIndex)
                     .ItemKey(i => selector(i))
                     .OnSelectionChanged(e =>

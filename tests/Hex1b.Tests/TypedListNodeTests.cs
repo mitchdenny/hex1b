@@ -7,7 +7,7 @@ using Hex1b.Widgets;
 namespace Hex1b.Tests;
 
 /// <summary>
-/// Tests for <see cref="TypedListWidget{T}"/> / <see cref="TypedListNode{T}"/>:
+/// Tests for <see cref="ListWidget{T}"/> / <see cref="TypedListNode{T}"/>:
 /// generic-item behavior, ItemHeight layout math, mouse hit-test with multi-row
 /// items, hover invalidation, key-based child reuse, typed event args, and
 /// template-mode rendering parity.
@@ -309,10 +309,10 @@ public class TypedListNodeTests
     [TestMethod]
     public void SelectedIndex_ControlledMode_OverridesNodeSelection()
     {
-        // Reconcile a TypedListWidget twice: the second time with .SelectedIndex(2).
+        // Reconcile a ListWidget twice: the second time with .SelectedIndex(2).
         // The node should adopt the controlled value on the second pass even though
         // the node's own SelectedIndex was 0 after the first pass.
-        var widget1 = new TypedListWidget<string>(["a", "b", "c", "d"]);
+        var widget1 = new ListWidget<string>(["a", "b", "c", "d"]);
         var widget2 = widget1.SelectedIndex(2);
 
         Assert.IsNull(widget1.ControlledSelectedIndex);
@@ -322,7 +322,7 @@ public class TypedListNodeTests
     [TestMethod]
     public void SelectedIndex_ControlledMode_ClampsOutOfRange()
     {
-        var widget = new TypedListWidget<string>(["a", "b"]).SelectedIndex(99);
+        var widget = new ListWidget<string>(["a", "b"]).SelectedIndex(99);
 
         Assert.AreEqual(99, widget.ControlledSelectedIndex);
         // The clamp is applied inside ApplyState during reconciliation, not on
@@ -357,10 +357,10 @@ public class TypedListNodeTests
     [TestMethod]
     public void ItemHeight_ClampsToOne()
     {
-        var widget = new TypedListWidget<string>(["a"]).ItemHeight(0);
+        var widget = new ListWidget<string>(["a"]).ItemHeight(0);
         Assert.AreEqual(1, widget.ItemHeight);
 
-        widget = new TypedListWidget<string>(["a"]).ItemHeight(-5);
+        widget = new ListWidget<string>(["a"]).ItemHeight(-5);
         Assert.AreEqual(1, widget.ItemHeight);
     }
 

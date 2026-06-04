@@ -32,7 +32,7 @@
       MSTEST0057: requires CallerFilePath/LineNumber on custom TestMethodAttribute subclasses;
                   not actionable while preserving the existing constructor signatures.
     -->
-    <NoWarn>$(NoWarn);MSTESTEXP;CS8602;CS8604;MSTEST0014;MSTEST0030;MSTEST0032;MSTEST0057</NoWarn>
+    <NoWarn>$(NoWarn);MSTESTEXP;CS8602;CS8604;MSTEST0014;MSTEST0030;MSTEST0032;MSTEST0057;HEX1B0100;HEX1B0101</NoWarn>
   </PropertyGroup>
 
   <!--

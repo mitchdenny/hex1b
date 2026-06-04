@@ -2,7 +2,7 @@ using Hex1b;
 using Hex1b.Input;
 using Hex1b.Widgets;
 
-// ── A cute playlist demo for TypedList<T> + ItemTemplate ─────────
+// ── A cute playlist demo for ListWidget<T> + ItemTemplate ─────────
 // Pick a track with Enter / Space / click — the row's template morphs into
 // a "Now Playing" banner with a dancing equalizer. Pick another track and
 // it takes over; the old one collapses back to its compact view.
@@ -73,9 +73,9 @@ Hex1bWidget BuildUi(RootContext ctx) => ctx.Border(b => [
         ]).FixedHeight(1),
         v.Text(""),
 
-        // The star of the show: TypedList<Track> with a template that
+        // The star of the show: ListWidget<Track> with a template that
         // branches on whether the row is the currently-playing track.
-        v.TypedList(tracks)
+        v.List(tracks)
             .ItemHeight(3)
             .ItemKey(t => t.Number)
             .OnItemActivated(args =>
@@ -103,7 +103,7 @@ Hex1bWidget BuildUi(RootContext ctx) => ctx.Border(b => [
             "Esc / Ctrl+C", "Exit",
         ])
     ])
-]).Title(" TypedList demo: pick a track ");
+]).Title(" ListWidget<T> demo: pick a track ");
 
 static Hex1bWidget RenderCompact(ListItemContext<Track> context)
 {

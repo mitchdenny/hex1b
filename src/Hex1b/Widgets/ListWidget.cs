@@ -8,6 +8,22 @@ namespace Hex1b.Widgets;
 /// Widget for displaying a selectable list of items.
 /// Selection state is owned by the node and preserved across reconciliation.
 /// </summary>
+/// <remarks>
+/// <para>
+/// This non-generic widget is preserved for back-compat with existing code that
+/// rebinds <see cref="MoveUp"/> / <see cref="MoveDown"/> / <see cref="Activate"/>
+/// action ids or constructs <c>new ListWidget(items)</c> directly. New code
+/// should prefer <see cref="ListWidget{T}"/>, which supports custom per-row
+/// templates and typed event args. The <c>context.List(items)</c> extension
+/// now returns <see cref="ListWidget{T}"/> of <see cref="string"/>.
+/// </para>
+/// </remarks>
+[Obsolete(
+    "ListWidget is deprecated. Use ListWidget<T> instead — context.List(items) " +
+    "now returns ListWidget<string>. The non-generic ListWidget is retained for " +
+    "back-compat and will be removed in a future release.",
+    DiagnosticId = "HEX1B0100",
+    UrlFormat = "https://github.com/mitchdenny/hex1b/blob/main/docs/diagnostics/{0}.md")]
 public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
 {
     /// <summary>Rebindable action: Move selection up.</summary>

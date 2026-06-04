@@ -924,7 +924,7 @@ public class ListNodeTests
         
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(ctx.List(items)
-                .OnItemActivated((ListItemActivatedEventArgs args) => activatedAction = args.ActivatedText)),
+                .OnItemActivated((ListItemActivatedEventArgs<string> args) => activatedAction = args.ActivatedText)),
             new Hex1bAppOptions { WorkloadAdapter = workload }
         );
         
