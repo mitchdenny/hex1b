@@ -534,7 +534,11 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
             ListWidget<T>.MoveDown,
             ListWidget<T>.Activate,
             ListWidget<T>.ScrollUp,
-            ListWidget<T>.ScrollDown);
+            ListWidget<T>.ScrollDown,
+            ListWidget<T>.MoveToFirst,
+            ListWidget<T>.MoveToLast,
+            ListWidget<T>.PageUp,
+            ListWidget<T>.PageDown);
     }
 
     internal void ConfigureDefaultBindings(
@@ -543,10 +547,19 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         ActionId moveDown,
         ActionId activate,
         ActionId scrollUp,
-        ActionId scrollDown)
+        ActionId scrollDown,
+        ActionId moveToFirst,
+        ActionId moveToLast,
+        ActionId pageUp,
+        ActionId pageDown)
     {
         bindings.Key(Hex1bKey.UpArrow).Triggers(moveUp, MoveUpWithEvent, "Move up");
         bindings.Key(Hex1bKey.DownArrow).Triggers(moveDown, MoveDownWithEvent, "Move down");
+
+        bindings.Key(Hex1bKey.Home).Triggers(moveToFirst, MoveToFirstWithEvent, "First item");
+        bindings.Key(Hex1bKey.End).Triggers(moveToLast, MoveToLastWithEvent, "Last item");
+        bindings.Key(Hex1bKey.PageUp).Triggers(pageUp, PageUpWithEvent, "Page up");
+        bindings.Key(Hex1bKey.PageDown).Triggers(pageDown, PageDownWithEvent, "Page down");
 
         bindings.Key(Hex1bKey.Enter).Triggers(activate, ActivateItemWithEvent, "Activate item");
         bindings.Key(Hex1bKey.Spacebar).Triggers(activate, ActivateItemWithEvent, "Activate item");
@@ -622,6 +635,79 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         var count = EffectiveItemCount;
         if (count == 0) return;
         SelectedIndex = (SelectedIndex + 1) % count;
+    }
+
+    internal void MoveToFirst()
+    {
+        if (EffectiveItemCount == 0) return;
+        SelectedIndex = 0;
+    }
+
+    internal void MoveToLast()
+    {
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        SelectedIndex = count - 1;
+    }
+
+    internal void PageUp()
+    {
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        var step = Math.Max(1, VisibleItemCount);
+        SelectedIndex = Math.Max(0, SelectedIndex - step);
+    }
+
+    internal void PageDown()
+    {
+        var count = EffectiveItemCount;
+        if (count == 0) return;
+        var step = Math.Max(1, VisibleItemCount);
+        SelectedIndex = Math.Min(count - 1, SelectedIndex + step);
+    }
+
+    private async Task MoveToFirstWithEvent(InputBindingActionContext ctx)
+    {
+        var previous = SelectedIndex;
+        MoveToFirst();
+        if (previous != SelectedIndex && SelectionChangedAction != null)
+        {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await SelectionChangedAction(ctx);
+        }
+    }
+
+    private async Task MoveToLastWithEvent(InputBindingActionContext ctx)
+    {
+        var previous = SelectedIndex;
+        MoveToLast();
+        if (previous != SelectedIndex && SelectionChangedAction != null)
+        {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await SelectionChangedAction(ctx);
+        }
+    }
+
+    private async Task PageUpWithEvent(InputBindingActionContext ctx)
+    {
+        var previous = SelectedIndex;
+        PageUp();
+        if (previous != SelectedIndex && SelectionChangedAction != null)
+        {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await SelectionChangedAction(ctx);
+        }
+    }
+
+    private async Task PageDownWithEvent(InputBindingActionContext ctx)
+    {
+        var previous = SelectedIndex;
+        PageDown();
+        if (previous != SelectedIndex && SelectionChangedAction != null)
+        {
+            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await SelectionChangedAction(ctx);
+        }
     }
 
     internal void SetSelection(int index)
@@ -884,6 +970,10 @@ public sealed class ListNode : ListNode<string>
             ListWidget.MoveDown,
             ListWidget.Activate,
             ListWidget.ScrollUp,
-            ListWidget.ScrollDown);
+            ListWidget.ScrollDown,
+            ListWidget.MoveToFirst,
+            ListWidget.MoveToLast,
+            ListWidget.PageUp,
+            ListWidget.PageDown);
     }
 }

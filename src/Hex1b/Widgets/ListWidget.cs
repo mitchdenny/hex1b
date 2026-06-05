@@ -38,6 +38,14 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
     public static readonly ActionId ScrollUp = new($"{nameof(ListWidget)}.{nameof(ScrollUp)}");
     /// <summary>Rebindable action: Scroll down.</summary>
     public static readonly ActionId ScrollDown = new($"{nameof(ListWidget)}.{nameof(ScrollDown)}");
+    /// <summary>Rebindable action: Move selection to the first item.</summary>
+    public static readonly ActionId MoveToFirst = new($"{nameof(ListWidget)}.{nameof(MoveToFirst)}");
+    /// <summary>Rebindable action: Move selection to the last item.</summary>
+    public static readonly ActionId MoveToLast = new($"{nameof(ListWidget)}.{nameof(MoveToLast)}");
+    /// <summary>Rebindable action: Move selection up by one viewport.</summary>
+    public static readonly ActionId PageUp = new($"{nameof(ListWidget)}.{nameof(PageUp)}");
+    /// <summary>Rebindable action: Move selection down by one viewport.</summary>
+    public static readonly ActionId PageDown = new($"{nameof(ListWidget)}.{nameof(PageDown)}");
 
     /// <summary>
     /// The initial selected index when the list is first created.
@@ -165,6 +173,14 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
     public static readonly ActionId ScrollUp = new($"{nameof(ListWidget<T>)}.{nameof(ScrollUp)}");
     /// <summary>Rebindable action: Scroll down.</summary>
     public static readonly ActionId ScrollDown = new($"{nameof(ListWidget<T>)}.{nameof(ScrollDown)}");
+    /// <summary>Rebindable action: Move selection to the first item.</summary>
+    public static readonly ActionId MoveToFirst = new($"{nameof(ListWidget<T>)}.{nameof(MoveToFirst)}");
+    /// <summary>Rebindable action: Move selection to the last item.</summary>
+    public static readonly ActionId MoveToLast = new($"{nameof(ListWidget<T>)}.{nameof(MoveToLast)}");
+    /// <summary>Rebindable action: Move selection up by one viewport.</summary>
+    public static readonly ActionId PageUp = new($"{nameof(ListWidget<T>)}.{nameof(PageUp)}");
+    /// <summary>Rebindable action: Move selection down by one viewport.</summary>
+    public static readonly ActionId PageDown = new($"{nameof(ListWidget<T>)}.{nameof(PageDown)}");
 
     /// <summary>
     /// The initial selected index when the list is first created. Defaults to 0.

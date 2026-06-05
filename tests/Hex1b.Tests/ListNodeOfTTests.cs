@@ -617,4 +617,81 @@ public class ListNodeOfTTests
     }
 
     #endregion
+
+    #region Home/End/PageUp/PageDown bindings
+
+    [TestMethod]
+    public void MoveToFirst_FromMiddle_SelectsIndexZero()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 42 };
+        node.MoveToFirst();
+        Assert.AreEqual(0, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void MoveToLast_FromMiddle_SelectsLastIndex()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 42 };
+        node.MoveToLast();
+        Assert.AreEqual(99, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void PageDown_AdvancesByViewportHeight()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 0 };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
+
+        node.PageDown();
+
+        // VisibleItemCount is 10 with a 10-row viewport and ItemHeight=1.
+        Assert.AreEqual(10, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void PageUp_RetreatsByViewportHeight()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 50 };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
+
+        node.PageUp();
+
+        Assert.AreEqual(40, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void PageDown_NearEnd_ClampsToLastItem()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 95 };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
+
+        node.PageDown();
+
+        Assert.AreEqual(99, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void PageUp_NearStart_ClampsToFirstItem()
+    {
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 3 };
+        node.Measure(new Constraints(0, 20, 0, 10));
+        node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
+
+        node.PageUp();
+
+        Assert.AreEqual(0, node.SelectedIndex);
+    }
+
+    [TestMethod]
+    public void MoveToFirst_EmptyList_IsNoOp()
+    {
+        var node = new ListNode<int>();
+        node.MoveToFirst();
+        Assert.AreEqual(0, node.SelectedIndex);
+    }
+
+    #endregion
 }
