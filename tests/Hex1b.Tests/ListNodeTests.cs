@@ -200,7 +200,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -222,7 +222,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -244,7 +244,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 1, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), FocusedIndex = 1, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -273,7 +273,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), SelectedIndex = 2, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("First", "Second", "Third"), FocusedIndex = 2, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -306,7 +306,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -329,7 +329,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -355,7 +355,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Test Item"), SelectedIndex = 0, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Test Item"), FocusedIndex = 0, IsFocused = false };
         node.Arrange(new Rect(5, 3, 20, 5));
         
         node.Render(context);
@@ -416,7 +416,7 @@ public class ListNodeTests
             .Set(ListTheme.SelectedForegroundColor, Hex1bColor.Yellow)
             .Set(ListTheme.SelectedBackgroundColor, Hex1bColor.Red);
         var context = CreateContext(workload, theme);
-        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -443,7 +443,7 @@ public class ListNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.SelectedIndicator, "► ");
         var context = CreateContext(workload, theme);
-        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -466,7 +466,7 @@ public class ListNodeTests
         var theme = Hex1bThemes.Default.Clone()
             .Set(ListTheme.UnselectedIndicator, "- ");
         var context = CreateContext(workload, theme);
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -487,7 +487,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(40, 10).Build();
         var context = CreateContext(workload, Hex1bThemes.HighContrast);
-        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 40, 10));
         
         node.Render(context);
@@ -539,7 +539,7 @@ public class ListNodeTests
 
         using var terminal = Hex1bTerminal.CreateBuilder().WithWorkload(workload).WithHeadless().WithDimensions(5, 5).Build();
         var context = CreateContext(workload);
-        var node = new ListNode { Items = CreateItems("Test"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Test"), FocusedIndex = 0, IsFocused = true };
         node.Arrange(new Rect(0, 0, 5, 5));
         
         node.Render(context);
@@ -561,66 +561,66 @@ public class ListNodeTests
     [TestMethod]
     public async Task HandleInput_DownArrow_MovesSelection()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), FocusedIndex = 0, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task HandleInput_UpArrow_MovesSelection()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), FocusedIndex = 2, IsFocused = true };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task HandleInput_DownArrow_WrapsAround()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 1, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task HandleInput_UpArrow_WrapsAround()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task HandleInput_MultipleDownArrows_NavigatesCorrectly()
     {
-        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), FocusedIndex = 0, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.AreEqual(3, node.SelectedIndex);
+        Assert.AreEqual(3, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task HandleInput_MultipleUpArrows_NavigatesCorrectly()
     {
-        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), SelectedIndex = 3, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("A", "B", "C", "D"), FocusedIndex = 3, IsFocused = true };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     #endregion
@@ -630,9 +630,9 @@ public class ListNodeTests
     [TestMethod]
     public async Task HandleInput_Enter_InvokesOnItemActivated()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 1, IsFocused = true };
         string? activatedItem = null;
-        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
+        node.ItemActivatedAction = _ => { activatedItem = node.FocusedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
@@ -644,9 +644,9 @@ public class ListNodeTests
     [TestMethod]
     public async Task HandleInput_Space_InvokesOnItemActivated()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         string? activatedItem = null;
-        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
+        node.ItemActivatedAction = _ => { activatedItem = node.FocusedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Spacebar, ' ', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
@@ -658,7 +658,7 @@ public class ListNodeTests
     [TestMethod]
     public async Task HandleInput_Enter_WithoutCallback_StillReturnsHandled()
     {
-        var node = new ListNode { Items = CreateItems("Item 1"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1"), FocusedIndex = 0, IsFocused = true };
         // No OnItemActivated callback set
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
@@ -671,7 +671,7 @@ public class ListNodeTests
     {
         var node = new ListNode { Items = [], IsFocused = true };
         string? activatedItem = null;
-        node.ItemActivatedAction = _ => { activatedItem = node.SelectedText; return Task.CompletedTask; };
+        node.ItemActivatedAction = _ => { activatedItem = node.FocusedText; return Task.CompletedTask; };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.Enter, '\r', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
@@ -684,11 +684,11 @@ public class ListNodeTests
     #region Input Handling - Selection Changed Callback Tests
 
     [TestMethod]
-    public async Task HandleInput_DownArrow_InvokesOnSelectionChanged()
+    public async Task HandleInput_DownArrow_InvokesOnFocusChanged()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         string? selectedItem = null;
-        node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
+        node.FocusChangedAction = _ => { selectedItem = node.FocusedText; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
@@ -697,11 +697,11 @@ public class ListNodeTests
     }
 
     [TestMethod]
-    public async Task HandleInput_UpArrow_InvokesOnSelectionChanged()
+    public async Task HandleInput_UpArrow_InvokesOnFocusChanged()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 1, IsFocused = true };
         string? selectedItem = null;
-        node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
+        node.FocusChangedAction = _ => { selectedItem = node.FocusedText; return Task.CompletedTask; };
         
         await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.UpArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
@@ -719,13 +719,13 @@ public class ListNodeTests
         // Note: With the new input binding architecture, bindings execute at the node level
         // regardless of focus. Focus is a tree concept handled by InputRouter.RouteInput().
         // When using RouteInputToNode() for testing, bindings always execute.
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = false };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = false };
         
         var result = await InputRouter.RouteInputToNodeAsync(node, new Hex1bKeyEvent(Hex1bKey.DownArrow, '\0', Hex1bModifiers.None), null, null, TestContext.Current.CancellationToken);
         
         // Bindings execute regardless of focus state when using RouteInputToNode
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(1, node.SelectedIndex);  // Selection changed
+        Assert.AreEqual(1, node.FocusedIndex);  // Selection changed
     }
 
     [TestMethod]
@@ -1099,7 +1099,7 @@ public class ListNodeTests
         var result = node.HandleMouseClick(5, 1, mouseEvent);
 
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
@@ -1117,7 +1117,7 @@ public class ListNodeTests
         var result = node.HandleMouseClick(5, 5, mouseEvent);
 
         Assert.AreEqual(InputResult.NotHandled, result);
-        Assert.AreEqual(0, node.SelectedIndex); // Unchanged
+        Assert.AreEqual(0, node.FocusedIndex); // Unchanged
     }
 
     [TestMethod]
@@ -1141,7 +1141,7 @@ public class ListNodeTests
     [TestMethod]
     public async Task MouseWheelDown_MovesSelectionDown()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), FocusedIndex = 0, IsFocused = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 3));
         
@@ -1153,13 +1153,13 @@ public class ListNodeTests
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollDownBinding!.ExecuteAsync(ctx);
         
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task MouseWheelUp_MovesSelectionUp()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), SelectedIndex = 2, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2", "Item 3"), FocusedIndex = 2, IsFocused = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 3));
         
@@ -1171,13 +1171,13 @@ public class ListNodeTests
         var ctx = new InputBindingActionContext(new FocusRing(), null, default);
         await scrollUpBinding!.ExecuteAsync(ctx);
         
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task MouseWheelDown_WrapsAroundToFirstItem()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 1, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 1, IsFocused = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 2));
         
@@ -1189,13 +1189,13 @@ public class ListNodeTests
         await scrollDownBinding!.ExecuteAsync(ctx);
         
         // Should wrap around to first item
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task MouseWheelUp_WrapsAroundToLastItem()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 2));
         
@@ -1207,18 +1207,18 @@ public class ListNodeTests
         await scrollUpBinding!.ExecuteAsync(ctx);
         
         // Should wrap around to last item
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
     public async Task MouseWheel_InvokesSelectionChangedEvent()
     {
-        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), SelectedIndex = 0, IsFocused = true };
+        var node = new ListNode { Items = CreateItems("Item 1", "Item 2"), FocusedIndex = 0, IsFocused = true };
         node.Measure(Constraints.Unbounded);
         node.Arrange(new Rect(0, 0, 20, 2));
         
         string? selectedItem = null;
-        node.SelectionChangedAction = _ => { selectedItem = node.SelectedText; return Task.CompletedTask; };
+        node.FocusChangedAction = _ => { selectedItem = node.FocusedText; return Task.CompletedTask; };
         
         var builder = node.BuildBindings();
         var scrollDownBinding = builder.MouseBindings.FirstOrDefault(b => b.Button == MouseButton.ScrollDown);
@@ -1271,7 +1271,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 2 // Last visible item in viewport of 3
+            FocusedIndex = 2 // Last visible item in viewport of 3
         };
         
         node.Measure(new Constraints(0, 100, 0, 3));
@@ -1284,7 +1284,7 @@ public class ListNodeTests
         node.MoveDown();
         
         // Scroll offset should adjust to show item 3
-        Assert.AreEqual(3, node.SelectedIndex);
+        Assert.AreEqual(3, node.FocusedIndex);
         Assert.AreEqual(1, node.ScrollOffset); // Now showing items 1, 2, 3
     }
 
@@ -1294,7 +1294,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 3
+            FocusedIndex = 3
         };
         
         node.Measure(new Constraints(0, 100, 0, 3));
@@ -1310,7 +1310,7 @@ public class ListNodeTests
         node.MoveUp(); // Now at index 0
         
         // Scroll should adjust to show item 0
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
         Assert.AreEqual(0, node.ScrollOffset);
     }
 
@@ -1320,14 +1320,14 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 0
+            FocusedIndex = 0
         };
         
         node.Measure(new Constraints(0, 100, 0, 3));
         node.Arrange(new Rect(0, 0, 20, 3));
         
         // Navigate to the last item
-        node.SelectedIndex = 4;
+        node.FocusedIndex = 4;
         
         // Scroll offset should be at max (showing items 2, 3, 4)
         Assert.AreEqual(2, node.ScrollOffset);
@@ -1343,7 +1343,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 0
+            FocusedIndex = 0
         };
         
         // Constrain to 3 rows
@@ -1386,7 +1386,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 4 // Select last item, which should scroll
+            FocusedIndex = 4 // Select last item, which should scroll
         };
         
         // Constrain to 3 rows
@@ -1425,7 +1425,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 3 // Scroll offset will be 1, showing items 2, 3, 4
+            FocusedIndex = 3 // Scroll offset will be 1, showing items 2, 3, 4
         };
         
         node.Measure(new Constraints(0, 20, 0, 3));
@@ -1440,7 +1440,7 @@ public class ListNodeTests
         var result = node.HandleMouseClick(5, 2, mouseEvent);
         
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(3, node.SelectedIndex);
+        Assert.AreEqual(3, node.FocusedIndex);
     }
 
     [TestMethod]
@@ -1449,7 +1449,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 4 // Last item
+            FocusedIndex = 4 // Last item
         };
         
         node.Measure(new Constraints(0, 20, 0, 3));
@@ -1458,7 +1458,7 @@ public class ListNodeTests
         // Navigate down from last item (should wrap to first)
         node.MoveDown();
         
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
         Assert.AreEqual(0, node.ScrollOffset); // Should scroll to show first item
     }
 
@@ -1552,7 +1552,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = CreateItems("Item 1", "Item 2", "Item 3", "Item 4", "Item 5"),
-            SelectedIndex = 4
+            FocusedIndex = 4
         };
         
         node.Measure(new Constraints(0, 20, 0, 3));
@@ -1700,7 +1700,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = items,
-            SelectedIndex = 25 // Middle of the list - "Item 25"
+            FocusedIndex = 25 // Middle of the list - "Item 25"
         };
         
         // Constrain to 10 rows
@@ -1742,7 +1742,7 @@ public class ListNodeTests
         var node = new ListNode 
         { 
             Items = items,
-            SelectedIndex = 49 // Last item - "Item 49"
+            FocusedIndex = 49 // Last item - "Item 49"
         };
         
         node.Measure(new Constraints(0, 40, 0, 10));
@@ -1754,7 +1754,7 @@ public class ListNodeTests
         // Navigate down (should wrap to first item)
         node.MoveDown();
         
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
         Assert.AreEqual(0, node.ScrollOffset); // Should scroll back to start
     }
 
@@ -1789,7 +1789,7 @@ public class ListNodeTests
         
         // Select the last item in the list
         listNode.SetSelection(29);
-        Assert.AreEqual(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.FocusedIndex);
         
         // Verify scroll offset to show item 29 (should scroll to 15 = 29 - 15 + 1)
         Assert.AreEqual(15, listNode.ScrollOffset);
@@ -1808,7 +1808,7 @@ public class ListNodeTests
         // EnsureSelectionVisible should have adjusted scroll offset
         // Scroll offset should be at least 20 (29 - 10 + 1 = 20)
         Assert.AreEqual(20, listNode.ScrollOffset);
-        Assert.AreEqual(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.FocusedIndex);
     }
 
     [TestMethod]
@@ -1834,7 +1834,7 @@ public class ListNodeTests
         
         // Select the first item
         listNode.SetSelection(0);
-        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.FocusedIndex);
         Assert.AreEqual(0, listNode.ScrollOffset);
         
         // Shrink the splitter
@@ -1847,7 +1847,7 @@ public class ListNodeTests
         
         // First item should still be visible at the top
         Assert.AreEqual(0, listNode.ScrollOffset);
-        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.FocusedIndex);
     }
 
     [TestMethod]
@@ -1874,7 +1874,7 @@ public class ListNodeTests
         
         // Select a middle item (item 15)
         listNode.SetSelection(15);
-        Assert.AreEqual(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.FocusedIndex);
         
         // Initial scroll offset should be 1 (to show items 1-15 in 15-row viewport)
         Assert.AreEqual(1, listNode.ScrollOffset);
@@ -1890,7 +1890,7 @@ public class ListNodeTests
         // Item 15 should still be visible
         // Scroll offset should be adjusted: 15 - 6 + 1 = 10
         Assert.AreEqual(10, listNode.ScrollOffset);
-        Assert.AreEqual(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.FocusedIndex);
     }
 
     [TestMethod]
@@ -1917,7 +1917,7 @@ public class ListNodeTests
         
         // Select item near the end
         listNode.SetSelection(28);
-        Assert.AreEqual(28, listNode.SelectedIndex);
+        Assert.AreEqual(28, listNode.FocusedIndex);
         
         // Scroll offset should be 24 (28 - 5 + 1)
         Assert.AreEqual(24, listNode.ScrollOffset);
@@ -1933,11 +1933,11 @@ public class ListNodeTests
         // Scroll offset should be adjusted to show item 28 (28 - 15 + 1 = 14)
         // But it could also stay at a higher offset if selection is visible
         Assert.IsTrue(listNode.ScrollOffset >= 14 && listNode.ScrollOffset <= 24);
-        Assert.AreEqual(28, listNode.SelectedIndex);
+        Assert.AreEqual(28, listNode.FocusedIndex);
         
         // Selection should still be within visible range
-        Assert.IsTrue(listNode.SelectedIndex >= listNode.ScrollOffset);
-        Assert.IsTrue(listNode.SelectedIndex < listNode.ScrollOffset + listNode.ViewportHeight);
+        Assert.IsTrue(listNode.FocusedIndex >= listNode.ScrollOffset);
+        Assert.IsTrue(listNode.FocusedIndex < listNode.ScrollOffset + listNode.ViewportHeight);
     }
 
     [TestMethod]
@@ -1966,7 +1966,7 @@ public class ListNodeTests
         
         // Select the last item
         listNode.SetSelection(29);
-        Assert.AreEqual(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.FocusedIndex);
         
         // Now move splitter down (increase top size), shrinking list
         splitterNode.FirstSize = 12; // List now gets 20 - 12 - 1 = 7 rows
@@ -1979,7 +1979,7 @@ public class ListNodeTests
         // Selected item (29) should still be visible
         // Scroll offset should be 23 (29 - 7 + 1)
         Assert.AreEqual(23, listNode.ScrollOffset);
-        Assert.AreEqual(29, listNode.SelectedIndex);
+        Assert.AreEqual(29, listNode.FocusedIndex);
     }
 
     [TestMethod]
@@ -2005,7 +2005,7 @@ public class ListNodeTests
         
         // Select the first item
         listNode.SetSelection(0);
-        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.FocusedIndex);
         Assert.AreEqual(0, listNode.ScrollOffset);
         
         // Move splitter down, shrinking list
@@ -2018,7 +2018,7 @@ public class ListNodeTests
         
         // First item should still be visible
         Assert.AreEqual(0, listNode.ScrollOffset);
-        Assert.AreEqual(0, listNode.SelectedIndex);
+        Assert.AreEqual(0, listNode.FocusedIndex);
     }
 
     [TestMethod]
@@ -2047,7 +2047,7 @@ public class ListNodeTests
         
         // Select a middle item (item 15)
         listNode.SetSelection(15);
-        Assert.AreEqual(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.FocusedIndex);
         
         // Initial scroll offset should be 2 (to show items 2-15 in 14-row viewport)
         Assert.AreEqual(2, listNode.ScrollOffset);
@@ -2063,12 +2063,12 @@ public class ListNodeTests
         // Item 15 should still be visible
         // Scroll offset should be 11 (15 - 5 + 1)
         Assert.AreEqual(11, listNode.ScrollOffset);
-        Assert.AreEqual(15, listNode.SelectedIndex);
+        Assert.AreEqual(15, listNode.FocusedIndex);
     }
 
     #endregion
     
-    #region InitialSelectedIndex Tests
+    #region InitialFocusedIndex Tests
 
     [TestMethod]
     public async Task ListWidget_InitialSelectedIndex_SetsSelectionOnNewNode()
@@ -2081,8 +2081,8 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert
-        Assert.AreEqual(2, node!.SelectedIndex);
-        Assert.AreEqual("Cherry", node.SelectedText);
+        Assert.AreEqual(2, node!.FocusedIndex);
+        Assert.AreEqual("Cherry", node.FocusedText);
     }
 
     [TestMethod]
@@ -2096,7 +2096,7 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert - should be clamped to last item
-        Assert.AreEqual(1, node!.SelectedIndex);
+        Assert.AreEqual(1, node!.FocusedIndex);
     }
 
     [TestMethod]
@@ -2110,7 +2110,7 @@ public class ListNodeTests
         var node = await widget.ReconcileAsync(null, context) as ListNode;
         
         // Assert
-        Assert.AreEqual(0, node!.SelectedIndex);
+        Assert.AreEqual(0, node!.FocusedIndex);
     }
 
     #endregion

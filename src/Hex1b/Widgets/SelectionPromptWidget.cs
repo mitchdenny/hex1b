@@ -117,13 +117,13 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
             filtered.Count == 0
                 ? v.Text("  " + EmptyMessage)
                 : v.List(filtered)
-                    .SelectedIndex(state.SelectedIndex)
+                    .FocusedIndex(state.SelectedIndex)
                     .ItemKey(i => selector(i))
-                    .OnSelectionChanged(e =>
+                    .OnFocusChanged(e =>
                     {
-                        if (state.SelectedIndex != e.SelectedIndex)
+                        if (state.SelectedIndex != e.FocusedIndex)
                         {
-                            state.SelectedIndex = e.SelectedIndex;
+                            state.SelectedIndex = e.FocusedIndex;
                         }
                     })
                     .ItemTemplate(rowContext => RenderRow(rowContext, filter, selector))
@@ -137,7 +137,7 @@ public sealed record SelectionPromptWidget<T>(IReadOnlyList<T> Items) : Hex1bWid
         Func<T, string> selector)
     {
         var text = selector(rowContext.Item);
-        var marker = rowContext.IsSelected ? "▶ " : "  ";
+        var marker = rowContext.IsFocused ? "▶ " : "  ";
 
         // No active filter -> single text span, no highlighting needed.
         if (filter.Length == 0)

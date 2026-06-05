@@ -85,19 +85,19 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         }
     }
 
-    private int _selectedIndex = 0;
+    private int _focusedIndex = 0;
     /// <summary>
     /// The currently selected index. Preserved across reconciliation.
     /// </summary>
-    public int SelectedIndex
+    public int FocusedIndex
     {
-        get => _selectedIndex;
+        get => _focusedIndex;
         set
         {
-            if (_selectedIndex != value)
+            if (_focusedIndex != value)
             {
-                _selectedIndex = value;
-                EnsureSelectionVisible();
+                _focusedIndex = value;
+                EnsureFocusVisible();
                 MarkDirty();
             }
         }
@@ -146,12 +146,12 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     /// The currently selected item, or <c>default</c> if the list is empty or
     /// the selected row hasn't been loaded yet (virtualized mode).
     /// </summary>
-    public T? SelectedItem
+    public T? FocusedItem
     {
         get
         {
-            if (SelectedIndex < 0 || SelectedIndex >= EffectiveItemCount) return default;
-            return TryGetEffectiveItem(SelectedIndex, out var item) ? item : default;
+            if (FocusedIndex < 0 || FocusedIndex >= EffectiveItemCount) return default;
+            return TryGetEffectiveItem(FocusedIndex, out var item) ? item : default;
         }
     }
 
@@ -159,12 +159,12 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     /// The text of the currently selected item (via <see cref="object.ToString"/>),
     /// or <c>null</c> if the list is empty / not yet loaded.
     /// </summary>
-    public string? SelectedText
+    public string? FocusedText
     {
         get
         {
-            if (SelectedIndex < 0 || SelectedIndex >= EffectiveItemCount) return null;
-            return TryGetEffectiveItem(SelectedIndex, out var item)
+            if (FocusedIndex < 0 || FocusedIndex >= EffectiveItemCount) return null;
+            return TryGetEffectiveItem(FocusedIndex, out var item)
                 ? item?.ToString() ?? string.Empty
                 : null;
         }
@@ -399,17 +399,17 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Ensures the currently selected item is loaded before a selection event
     /// fires. Called from selection/activation handlers so user code reading
-    /// <see cref="SelectedItem"/> never sees <c>default(T)</c> for an un-loaded
+    /// <see cref="FocusedItem"/> never sees <c>default(T)</c> for an un-loaded
     /// row. No-op in non-virtualized mode.
     /// </summary>
-    internal async ValueTask EnsureSelectedItemLoadedAsync(CancellationToken cancellationToken = default)
+    internal async ValueTask EnsureFocusedItemLoadedAsync(CancellationToken cancellationToken = default)
     {
         if (!IsVirtualized) return;
-        if (TryGetEffectiveItem(_selectedIndex, out _)) return;
+        if (TryGetEffectiveItem(_focusedIndex, out _)) return;
 
         // Load a small window around the selection so subsequent moves are quick.
         var window = Math.Max(1, VisibleItemCount + VirtualizationBuffer * 2);
-        var start = Math.Max(0, _selectedIndex - VirtualizationBuffer);
+        var start = Math.Max(0, _focusedIndex - VirtualizationBuffer);
         await LoadDataAsync(start, window, cancellationToken).ConfigureAwait(false);
     }
 
@@ -445,7 +445,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     /// <summary>
     /// Internal action invoked when selection changes.
     /// </summary>
-    internal Func<InputBindingActionContext, Task>? SelectionChangedAction { get; set; }
+    internal Func<InputBindingActionContext, Task>? FocusChangedAction { get; set; }
 
     /// <summary>
     /// Internal action invoked when an item is activated.
@@ -577,14 +577,14 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
 
         if (itemIndex >= 0 && itemIndex < EffectiveItemCount)
         {
-            var previousIndex = SelectedIndex;
+            var previousIndex = FocusedIndex;
             SetSelection(itemIndex);
 
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
 
-            if (previousIndex != SelectedIndex && SelectionChangedAction != null)
+            if (previousIndex != FocusedIndex && FocusChangedAction != null)
             {
-                await SelectionChangedAction(ctx);
+                await FocusChangedAction(ctx);
             }
 
             if (ItemActivatedAction != null)
@@ -598,7 +598,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     {
         if (ItemActivatedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
             await ItemActivatedAction(ctx);
         }
     }
@@ -606,20 +606,20 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     private async Task MoveUpWithEvent(InputBindingActionContext ctx)
     {
         MoveUp();
-        if (SelectionChangedAction != null)
+        if (FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
     private async Task MoveDownWithEvent(InputBindingActionContext ctx)
     {
         MoveDown();
-        if (SelectionChangedAction != null)
+        if (FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
@@ -627,27 +627,27 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     {
         var count = EffectiveItemCount;
         if (count == 0) return;
-        SelectedIndex = SelectedIndex <= 0 ? count - 1 : SelectedIndex - 1;
+        FocusedIndex = FocusedIndex <= 0 ? count - 1 : FocusedIndex - 1;
     }
 
     internal void MoveDown()
     {
         var count = EffectiveItemCount;
         if (count == 0) return;
-        SelectedIndex = (SelectedIndex + 1) % count;
+        FocusedIndex = (FocusedIndex + 1) % count;
     }
 
     internal void MoveToFirst()
     {
         if (EffectiveItemCount == 0) return;
-        SelectedIndex = 0;
+        FocusedIndex = 0;
     }
 
     internal void MoveToLast()
     {
         var count = EffectiveItemCount;
         if (count == 0) return;
-        SelectedIndex = count - 1;
+        FocusedIndex = count - 1;
     }
 
     internal void PageUp()
@@ -655,7 +655,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         var count = EffectiveItemCount;
         if (count == 0) return;
         var step = Math.Max(1, VisibleItemCount);
-        SelectedIndex = Math.Max(0, SelectedIndex - step);
+        FocusedIndex = Math.Max(0, FocusedIndex - step);
     }
 
     internal void PageDown()
@@ -663,50 +663,50 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
         var count = EffectiveItemCount;
         if (count == 0) return;
         var step = Math.Max(1, VisibleItemCount);
-        SelectedIndex = Math.Min(count - 1, SelectedIndex + step);
+        FocusedIndex = Math.Min(count - 1, FocusedIndex + step);
     }
 
     private async Task MoveToFirstWithEvent(InputBindingActionContext ctx)
     {
-        var previous = SelectedIndex;
+        var previous = FocusedIndex;
         MoveToFirst();
-        if (previous != SelectedIndex && SelectionChangedAction != null)
+        if (previous != FocusedIndex && FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
     private async Task MoveToLastWithEvent(InputBindingActionContext ctx)
     {
-        var previous = SelectedIndex;
+        var previous = FocusedIndex;
         MoveToLast();
-        if (previous != SelectedIndex && SelectionChangedAction != null)
+        if (previous != FocusedIndex && FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
     private async Task PageUpWithEvent(InputBindingActionContext ctx)
     {
-        var previous = SelectedIndex;
+        var previous = FocusedIndex;
         PageUp();
-        if (previous != SelectedIndex && SelectionChangedAction != null)
+        if (previous != FocusedIndex && FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
     private async Task PageDownWithEvent(InputBindingActionContext ctx)
     {
-        var previous = SelectedIndex;
+        var previous = FocusedIndex;
         PageDown();
-        if (previous != SelectedIndex && SelectionChangedAction != null)
+        if (previous != FocusedIndex && FocusChangedAction != null)
         {
-            await EnsureSelectedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
-            await SelectionChangedAction(ctx);
+            await EnsureFocusedItemLoadedAsync(ctx.CancellationToken).ConfigureAwait(false);
+            await FocusChangedAction(ctx);
         }
     }
 
@@ -714,22 +714,22 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
     {
         var count = EffectiveItemCount;
         if (count == 0 || index < 0 || index >= count) return;
-        SelectedIndex = index;
+        FocusedIndex = index;
     }
 
-    private void EnsureSelectionVisible()
+    private void EnsureFocusVisible()
     {
         var visible = VisibleItemCount;
         var count = EffectiveItemCount;
         if (visible <= 0 || count == 0) return;
 
-        if (SelectedIndex < _scrollOffset)
+        if (FocusedIndex < _scrollOffset)
         {
-            _scrollOffset = SelectedIndex;
+            _scrollOffset = FocusedIndex;
         }
-        else if (SelectedIndex >= _scrollOffset + visible)
+        else if (FocusedIndex >= _scrollOffset + visible)
         {
-            _scrollOffset = SelectedIndex - visible + 1;
+            _scrollOffset = FocusedIndex - visible + 1;
         }
 
         _scrollOffset = Math.Clamp(_scrollOffset, 0, MaxScrollOffset);
@@ -790,7 +790,7 @@ public class ListNode<T> : Hex1bNode, ILayoutProvider
 
         _viewportHeight = bounds.Height;
         _scrollOffset = Math.Clamp(_scrollOffset, 0, MaxScrollOffset);
-        EnsureSelectionVisible();
+        EnsureFocusVisible();
 
         // Arrange the empty-state child (if any) to fill the list bounds.
         if (EmptyChildNode is { } emptyChild && ShouldShowEmptyState)
@@ -915,7 +915,7 @@ internal static class ListRenderCore
             var item = node.TryGetEffectiveItem(i, out var value)
                 ? value?.ToString() ?? string.Empty
                 : LoadingPlaceholder;
-            var isSelected = i == node.SelectedIndex;
+            var isSelected = i == node.FocusedIndex;
             var isHoveredItem = i == hoveredItemIndex;
 
             var x = node.Bounds.X;

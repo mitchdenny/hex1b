@@ -656,7 +656,7 @@ public class AsciinemaRecorderTests : IDisposable
                     b.Text("📋 Todo Items"),
                     b.Text(""),
                     b.List(listItems)
-                        .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                        .OnFocusChanged(e => state.SelectedIndex = e.FocusedIndex)
                         .OnItemActivated(_ => state.ToggleSelected()),
                     b.Text(""),
                     b.Text("↑↓ Navigate  Space: Toggle")
@@ -689,7 +689,7 @@ public class AsciinemaRecorderTests : IDisposable
                     b.Text("📋 Todo Items"),
                     b.Text(""),
                     b.List(listItems)
-                        .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                        .OnFocusChanged(e => state.SelectedIndex = e.FocusedIndex)
                         .OnItemActivated(_ => state.ToggleSelected()),
                     b.Text(""),
                     b.Text("↑↓ Nav  Space: Toggle")
@@ -717,7 +717,7 @@ public class AsciinemaRecorderTests : IDisposable
                 
                 v.Border(b => [
                     b.List(listItems)
-                        .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                        .OnFocusChanged(e => state.SelectedIndex = e.FocusedIndex)
                         .OnItemActivated(_ => state.ToggleSelected())
                 ]).Title("Items").FillHeight(),
                 
@@ -734,7 +734,7 @@ public class AsciinemaRecorderTests : IDisposable
                 v.Text($"Todo [{completedCount}/{totalCount}]"),
                 v.Text("────────────────────"),
                 v.List(listItems)
-                    .OnSelectionChanged(e => state.SelectedIndex = e.SelectedIndex)
+                    .OnFocusChanged(e => state.SelectedIndex = e.FocusedIndex)
                     .OnItemActivated(_ => state.ToggleSelected())
                     .FillHeight(),
                 v.Text("────────────────────"),

@@ -20,7 +20,7 @@ public static class ListExtensions
     /// The non-generic <c>ListWidget</c> previously returned here has been
     /// replaced with <see cref="ListWidget{T}"/> of <typeparamref name="T"/>.
     /// Callers using only string items keep working unchanged because typed
-    /// event args still expose <c>SelectedText</c> / <c>ActivatedText</c>
+    /// event args still expose <c>FocusedText</c> / <c>ActivatedText</c>
     /// convenience accessors. The legacy non-generic <c>ListWidget</c> remains
     /// available for direct construction (<c>new ListWidget(items)</c>) but
     /// is marked obsolete.
@@ -93,39 +93,39 @@ public static class ListExtensions
         => widget with { ItemKeySelector = keySelector };
 
     /// <summary>
-    /// Sets the index that should be selected when the list is first created.
-    /// Ignored on subsequent reconciliations.
+    /// Sets the index that should be focused (cursor row) when the list is first
+    /// created. Ignored on subsequent reconciliations.
     /// </summary>
-    public static ListWidget<T> InitialSelectedIndex<T>(
+    public static ListWidget<T> InitialFocusedIndex<T>(
         this ListWidget<T> widget,
         int index)
-        => widget with { InitialSelectedIndex = index };
+        => widget with { InitialFocusedIndex = index };
 
     /// <summary>
-    /// Drives the list's selected index on every reconciliation. Use this when
-    /// the selection lives in an owning composite's state (e.g. a search-filtered
+    /// Drives the list's focused (cursor) index on every reconciliation. Use this
+    /// when the cursor lives in an owning composite's state (e.g. a search-filtered
     /// selection prompt where a focused textbox forwards Up/Down to the list).
     /// </summary>
-    public static ListWidget<T> SelectedIndex<T>(
+    public static ListWidget<T> FocusedIndex<T>(
         this ListWidget<T> widget,
         int index)
-        => widget with { ControlledSelectedIndex = index };
+        => widget with { ControlledFocusedIndex = index };
 
     /// <summary>
-    /// Sets a synchronous handler invoked when the selection changes.
+    /// Sets a synchronous handler invoked when the focused (cursor) row changes.
     /// </summary>
-    public static ListWidget<T> OnSelectionChanged<T>(
+    public static ListWidget<T> OnFocusChanged<T>(
         this ListWidget<T> widget,
-        Action<ListSelectionChangedEventArgs<T>> handler)
-        => widget with { SelectionChangedHandler = args => { handler(args); return Task.CompletedTask; } };
+        Action<ListFocusChangedEventArgs<T>> handler)
+        => widget with { FocusChangedHandler = args => { handler(args); return Task.CompletedTask; } };
 
     /// <summary>
-    /// Sets an asynchronous handler invoked when the selection changes.
+    /// Sets an asynchronous handler invoked when the focused (cursor) row changes.
     /// </summary>
-    public static ListWidget<T> OnSelectionChanged<T>(
+    public static ListWidget<T> OnFocusChanged<T>(
         this ListWidget<T> widget,
-        Func<ListSelectionChangedEventArgs<T>, Task> handler)
-        => widget with { SelectionChangedHandler = handler };
+        Func<ListFocusChangedEventArgs<T>, Task> handler)
+        => widget with { FocusChangedHandler = handler };
 
     /// <summary>
     /// Sets a synchronous handler invoked when an item is activated

@@ -108,8 +108,8 @@ Hex1bWidget BuildUi(RootContext ctx) => ctx.Border(b => [
 static Hex1bWidget RenderCompact(ListItemContext<Track> context)
 {
     var track = context.Item;
-    var marker = context.IsSelected ? "▸" : " ";
-    var hoverHint = context.IsHovered && !context.IsSelected ? "·" : " ";
+    var marker = context.IsFocused ? "▸" : " ";
+    var hoverHint = context.IsHovered && !context.IsFocused ? "·" : " ";
     var length = $"{track.Length.Minutes}:{track.Length.Seconds:00}";
 
     return context.VStack(v => [

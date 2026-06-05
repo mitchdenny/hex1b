@@ -65,7 +65,7 @@ public class ListNodeOfTTests
         var result = node.HandleMouseClick(5, 3, ev);
 
         Assert.AreEqual(InputResult.Handled, result);
-        Assert.AreEqual(1, node.SelectedIndex);
+        Assert.AreEqual(1, node.FocusedIndex);
     }
 
     [TestMethod]
@@ -83,7 +83,7 @@ public class ListNodeOfTTests
         var result = node.HandleMouseClick(5, 8, ev);
 
         Assert.AreEqual(InputResult.NotHandled, result);
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     #endregion
@@ -156,12 +156,12 @@ public class ListNodeOfTTests
                 new Country("Australia", "Canberra"),
                 new Country("Japan", "Tokyo"),
             ],
-            SelectedIndex = 1,
+            FocusedIndex = 1,
         };
 
-        Assert.IsNotNull(node.SelectedItem);
-        Assert.AreEqual("Japan", node.SelectedItem!.Name);
-        Assert.AreEqual("Japan", node.SelectedText);
+        Assert.IsNotNull(node.FocusedItem);
+        Assert.AreEqual("Japan", node.FocusedItem!.Name);
+        Assert.AreEqual("Japan", node.FocusedText);
     }
 
     [TestMethod]
@@ -175,11 +175,11 @@ public class ListNodeOfTTests
                 new Country("B", "Y"),
             ],
         };
-        node.SelectedIndex = 1;
+        node.FocusedIndex = 1;
 
         node.MoveDown();
 
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     #endregion
@@ -239,7 +239,7 @@ public class ListNodeOfTTests
                 ctx.List(items)
                     .ItemTemplate(context =>
                     {
-                        var prefix = context.IsSelected ? "* " : "  ";
+                        var prefix = context.IsFocused ? "* " : "  ";
                         return context.Text(prefix + context.Item.Name + " - " + context.Item.Capital);
                     })),
             new Hex1bAppOptions { WorkloadAdapter = workload });
@@ -265,7 +265,7 @@ public class ListNodeOfTTests
     #region Typed event args
 
     [TestMethod]
-    public async Task OnSelectionChanged_DeliversTypedItem()
+    public async Task OnFocusChanged_DeliversTypedItem()
     {
         using var workload = new Hex1bAppWorkloadAdapter();
         using var terminal = Hex1bTerminal.CreateBuilder()
@@ -284,10 +284,10 @@ public class ListNodeOfTTests
         using var app = new Hex1bApp(
             ctx => Task.FromResult<Hex1bWidget>(
                 ctx.List(items)
-                    .OnSelectionChanged((ListSelectionChangedEventArgs<Country> args) =>
+                    .OnFocusChanged((ListFocusChangedEventArgs<Country> args) =>
                     {
-                        received = args.SelectedItem;
-                        receivedIndex = args.SelectedIndex;
+                        received = args.FocusedItem;
+                        receivedIndex = args.FocusedIndex;
                     })),
             new Hex1bAppOptions { WorkloadAdapter = workload });
 
@@ -309,22 +309,22 @@ public class ListNodeOfTTests
     [TestMethod]
     public void SelectedIndex_ControlledMode_OverridesNodeSelection()
     {
-        // Reconcile a ListWidget twice: the second time with .SelectedIndex(2).
+        // Reconcile a ListWidget twice: the second time with .FocusedIndex(2).
         // The node should adopt the controlled value on the second pass even though
         // the node's own SelectedIndex was 0 after the first pass.
         var widget1 = new ListWidget<string>(["a", "b", "c", "d"]);
-        var widget2 = widget1.SelectedIndex(2);
+        var widget2 = widget1.FocusedIndex(2);
 
-        Assert.IsNull(widget1.ControlledSelectedIndex);
-        Assert.AreEqual(2, widget2.ControlledSelectedIndex);
+        Assert.IsNull(widget1.ControlledFocusedIndex);
+        Assert.AreEqual(2, widget2.ControlledFocusedIndex);
     }
 
     [TestMethod]
     public void SelectedIndex_ControlledMode_ClampsOutOfRange()
     {
-        var widget = new ListWidget<string>(["a", "b"]).SelectedIndex(99);
+        var widget = new ListWidget<string>(["a", "b"]).FocusedIndex(99);
 
-        Assert.AreEqual(99, widget.ControlledSelectedIndex);
+        Assert.AreEqual(99, widget.ControlledFocusedIndex);
         // The clamp is applied inside ApplyState during reconciliation, not on
         // the widget itself — the widget just records the requested value.
     }
@@ -346,8 +346,8 @@ public class ListNodeOfTTests
         // No items -> visibleCount = 5, maxScroll = 0
         Assert.AreEqual(0, node.MaxScrollOffset);
         Assert.AreEqual(-1, node.HoveredItemIndex);
-        Assert.IsNull(node.SelectedItem);
-        Assert.IsNull(node.SelectedText);
+        Assert.IsNull(node.FocusedItem);
+        Assert.IsNull(node.FocusedText);
     }
 
     #endregion
@@ -370,11 +370,11 @@ public class ListNodeOfTTests
         var node = new ListNode<string>
         {
             Items = ["a", "b", "c"],
-            SelectedIndex = 2,
+            FocusedIndex = 2,
         };
 
-        Assert.AreEqual(2, node.SelectedIndex);
-        Assert.AreEqual("c", node.SelectedItem);
+        Assert.AreEqual(2, node.FocusedIndex);
+        Assert.AreEqual("c", node.FocusedItem);
     }
 
     #endregion
@@ -472,10 +472,10 @@ public class ListNodeOfTTests
         var node = new ListNode<string> { DataSource = source };
 
         await node.LoadDataAsync(0, 50);
-        node.SelectedIndex = 25;
+        node.FocusedIndex = 25;
 
-        Assert.AreEqual("item-25", node.SelectedItem);
-        Assert.AreEqual("item-25", node.SelectedText);
+        Assert.AreEqual("item-25", node.FocusedItem);
+        Assert.AreEqual("item-25", node.FocusedText);
     }
 
     [TestMethod]
@@ -488,12 +488,12 @@ public class ListNodeOfTTests
         await node.LoadDataAsync(0, 50);
 
         // Move selection well past the cache window without re-loading first.
-        node.SelectedIndex = 500;
-        Assert.IsNull(node.SelectedItem, "Item shouldn't be loaded yet.");
+        node.FocusedIndex = 500;
+        Assert.IsNull(node.FocusedItem, "Item shouldn't be loaded yet.");
 
-        await node.EnsureSelectedItemLoadedAsync();
+        await node.EnsureFocusedItemLoadedAsync();
 
-        Assert.AreEqual("item-500", node.SelectedItem);
+        Assert.AreEqual("item-500", node.FocusedItem);
     }
 
     [TestMethod]
@@ -623,66 +623,66 @@ public class ListNodeOfTTests
     [TestMethod]
     public void MoveToFirst_FromMiddle_SelectsIndexZero()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 42 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 42 };
         node.MoveToFirst();
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     [TestMethod]
     public void MoveToLast_FromMiddle_SelectsLastIndex()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 42 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 42 };
         node.MoveToLast();
-        Assert.AreEqual(99, node.SelectedIndex);
+        Assert.AreEqual(99, node.FocusedIndex);
     }
 
     [TestMethod]
     public void PageDown_AdvancesByViewportHeight()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 0 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 0 };
         node.Measure(new Constraints(0, 20, 0, 10));
         node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
 
         node.PageDown();
 
         // VisibleItemCount is 10 with a 10-row viewport and ItemHeight=1.
-        Assert.AreEqual(10, node.SelectedIndex);
+        Assert.AreEqual(10, node.FocusedIndex);
     }
 
     [TestMethod]
     public void PageUp_RetreatsByViewportHeight()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 50 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 50 };
         node.Measure(new Constraints(0, 20, 0, 10));
         node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
 
         node.PageUp();
 
-        Assert.AreEqual(40, node.SelectedIndex);
+        Assert.AreEqual(40, node.FocusedIndex);
     }
 
     [TestMethod]
     public void PageDown_NearEnd_ClampsToLastItem()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 95 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 95 };
         node.Measure(new Constraints(0, 20, 0, 10));
         node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
 
         node.PageDown();
 
-        Assert.AreEqual(99, node.SelectedIndex);
+        Assert.AreEqual(99, node.FocusedIndex);
     }
 
     [TestMethod]
     public void PageUp_NearStart_ClampsToFirstItem()
     {
-        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), SelectedIndex = 3 };
+        var node = new ListNode<int> { Items = Enumerable.Range(0, 100).ToList(), FocusedIndex = 3 };
         node.Measure(new Constraints(0, 20, 0, 10));
         node.Arrange(new Hex1b.Layout.Rect(0, 0, 20, 10));
 
         node.PageUp();
 
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     [TestMethod]
@@ -690,7 +690,7 @@ public class ListNodeOfTTests
     {
         var node = new ListNode<int>();
         node.MoveToFirst();
-        Assert.AreEqual(0, node.SelectedIndex);
+        Assert.AreEqual(0, node.FocusedIndex);
     }
 
     #endregion

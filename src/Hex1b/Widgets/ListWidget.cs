@@ -96,26 +96,26 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
         // Apply initial selection for new nodes
         if (isNewNode && Items.Count > 0)
         {
-            node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, Items.Count - 1);
+            node.FocusedIndex = Math.Clamp(InitialSelectedIndex, 0, Items.Count - 1);
         }
         // Clamp selection if items changed
-        else if (node.SelectedIndex >= Items.Count && Items.Count > 0)
+        else if (node.FocusedIndex >= Items.Count && Items.Count > 0)
         {
-            node.SelectedIndex = Items.Count - 1;
+            node.FocusedIndex = Items.Count - 1;
         }
         else if (Items.Count == 0)
         {
-            node.SelectedIndex = 0;
+            node.FocusedIndex = 0;
         }
         
         // Set up event handlers
         if (SelectionChangedHandler != null)
         {
-            node.SelectionChangedAction = ctx =>
+            node.FocusChangedAction = ctx =>
             {
-                if (node.SelectedText != null)
+                if (node.FocusedText != null)
                 {
-                    var args = new ListSelectionChangedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
+                    var args = new ListSelectionChangedEventArgs(this, node, ctx, node.FocusedIndex, node.FocusedText);
                     return SelectionChangedHandler(args);
                 }
                 return Task.CompletedTask;
@@ -123,16 +123,16 @@ public sealed record ListWidget(IReadOnlyList<string> Items) : Hex1bWidget
         }
         else
         {
-            node.SelectionChangedAction = null;
+            node.FocusChangedAction = null;
         }
 
         if (ItemActivatedHandler != null)
         {
             node.ItemActivatedAction = ctx =>
             {
-                if (node.SelectedText != null)
+                if (node.FocusedText != null)
                 {
-                    var args = new ListItemActivatedEventArgs(this, node, ctx, node.SelectedIndex, node.SelectedText);
+                    var args = new ListItemActivatedEventArgs(this, node, ctx, node.FocusedIndex, node.FocusedText);
                     return ItemActivatedHandler(args);
                 }
                 return Task.CompletedTask;
@@ -183,19 +183,19 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
     public static readonly ActionId PageDown = new($"{nameof(ListWidget<T>)}.{nameof(PageDown)}");
 
     /// <summary>
-    /// The initial selected index when the list is first created. Defaults to 0.
+    /// The initial focused index when the list is first created. Defaults to 0.
     /// Only applied when the node is new.
     /// </summary>
-    public int InitialSelectedIndex { get; init; } = 0;
+    public int InitialFocusedIndex { get; init; } = 0;
 
     /// <summary>
-    /// When set, drives the selected index on every reconciliation rather than only
-    /// at creation time. Use this to build "controlled" lists whose selection lives
+    /// When set, drives the focused index on every reconciliation rather than only
+    /// at creation time. Use this to build "controlled" lists whose cursor lives
     /// in an owning composite's state (e.g. a search-filtered selection prompt where
     /// the textbox forwards Up/Down to the list). Out-of-range values are clamped to
     /// the current item range.
     /// </summary>
-    public int? ControlledSelectedIndex { get; init; }
+    public int? ControlledFocusedIndex { get; init; }
 
     /// <summary>
     /// The fixed row height in terminal rows for each item. Defaults to 1.
@@ -218,7 +218,7 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
     /// </summary>
     internal Func<T, object>? ItemKeySelector { get; init; }
 
-    internal Func<ListSelectionChangedEventArgs<T>, Task>? SelectionChangedHandler { get; init; }
+    internal Func<ListFocusChangedEventArgs<T>, Task>? FocusChangedHandler { get; init; }
     internal Func<ListItemActivatedEventArgs<T>, Task>? ItemActivatedHandler { get; init; }
 
     /// <summary>
@@ -353,50 +353,50 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         // Apply initial selection for new nodes; clamp otherwise.
         if (isNewNode && count > 0)
         {
-            node.SelectedIndex = Math.Clamp(InitialSelectedIndex, 0, count - 1);
+            node.FocusedIndex = Math.Clamp(InitialFocusedIndex, 0, count - 1);
         }
-        else if (node.SelectedIndex >= count && count > 0)
+        else if (node.FocusedIndex >= count && count > 0)
         {
-            node.SelectedIndex = count - 1;
+            node.FocusedIndex = count - 1;
         }
         else if (count == 0)
         {
-            node.SelectedIndex = 0;
+            node.FocusedIndex = 0;
         }
 
-        // Controlled selection wins after the clamp pass so the owning composite
+        // Controlled focus wins after the clamp pass so the owning composite
         // can override the node's persisted choice on every frame.
-        if (ControlledSelectedIndex is int controlled && count > 0)
+        if (ControlledFocusedIndex is int controlled && count > 0)
         {
-            node.SelectedIndex = Math.Clamp(controlled, 0, count - 1);
+            node.FocusedIndex = Math.Clamp(controlled, 0, count - 1);
         }
 
-        if (SelectionChangedHandler is { } selChanged)
+        if (FocusChangedHandler is { } focChanged)
         {
-            node.SelectionChangedAction = ctx =>
+            node.FocusChangedAction = ctx =>
             {
-                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.EffectiveItemCount &&
-                    node.TryGetEffectiveItem(node.SelectedIndex, out var item))
+                if (node.FocusedIndex >= 0 && node.FocusedIndex < node.EffectiveItemCount &&
+                    node.TryGetEffectiveItem(node.FocusedIndex, out var item))
                 {
-                    var args = new ListSelectionChangedEventArgs<T>(this, node, ctx, node.SelectedIndex, item);
-                    return selChanged(args);
+                    var args = new ListFocusChangedEventArgs<T>(this, node, ctx, node.FocusedIndex, item);
+                    return focChanged(args);
                 }
                 return Task.CompletedTask;
             };
         }
         else
         {
-            node.SelectionChangedAction = null;
+            node.FocusChangedAction = null;
         }
 
         if (ItemActivatedHandler is { } activated)
         {
             node.ItemActivatedAction = ctx =>
             {
-                if (node.SelectedIndex >= 0 && node.SelectedIndex < node.EffectiveItemCount &&
-                    node.TryGetEffectiveItem(node.SelectedIndex, out var item))
+                if (node.FocusedIndex >= 0 && node.FocusedIndex < node.EffectiveItemCount &&
+                    node.TryGetEffectiveItem(node.FocusedIndex, out var item))
                 {
-                    var args = new ListItemActivatedEventArgs<T>(this, node, ctx, node.SelectedIndex, item);
+                    var args = new ListItemActivatedEventArgs<T>(this, node, ctx, node.FocusedIndex, item);
                     return activated(args);
                 }
                 return Task.CompletedTask;
@@ -430,7 +430,7 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
         }
 
         var template = Template;
-        var snapshotSelected = node.SelectedIndex;
+        var snapshotSelected = node.FocusedIndex;
         var snapshotFocused = node.IsFocused;
         var snapshotHovered = node.IsHovered ? node.HoveredItemIndex : -1;
 
@@ -495,8 +495,8 @@ public record ListWidget<T>(IReadOnlyList<T>? Items) : Hex1bWidget
             var itemContext = new ListItemContext<T>(
                 item!,
                 absoluteIndex,
-                isSelected: absoluteIndex == snapshotSelected,
-                isFocused: snapshotFocused,
+                isFocused: absoluteIndex == snapshotSelected,
+                ownerHasFocus: snapshotFocused,
                 isHovered: absoluteIndex == snapshotHovered,
                 isLoaded: isLoaded);
 

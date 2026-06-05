@@ -145,7 +145,7 @@ internal sealed class DiagnosticNode
                 break;
             case ListNode list:
                 props["itemCount"] = ToElement(list.Items?.Count ?? 0);
-                props["selectedIndex"] = ToElement(list.SelectedIndex);
+                props["selectedIndex"] = ToElement(list.FocusedIndex);
                 break;
             case PickerNode picker:
                 props["selectedIndex"] = ToElement(picker.SelectedIndex);
