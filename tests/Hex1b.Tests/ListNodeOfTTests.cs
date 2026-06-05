@@ -450,7 +450,7 @@ public class ListNodeOfTTests
     public async Task DataSource_DoesNotMaterialiseEntireCollection_OnReconcile()
     {
         var source = new CountingDataSource<int>(Enumerable.Range(0, 100_000).ToList());
-        var widget = new ListWidget<int>(Array.Empty<int>()).DataSource(source);
+        var widget = new ListWidget<int>(null) { DataSource = source };
 
         var ctx = ReconcileContext.CreateRoot();
         var node = (ListNode<int>)await widget.ReconcileAsync(null, ctx);

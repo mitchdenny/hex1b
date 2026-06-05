@@ -11,9 +11,9 @@ public static class ListExtensions
 {
     /// <summary>
     /// Creates a typed list bound to <paramref name="items"/>. Pass <c>null</c>
-    /// to construct an empty list (useful when the items will be supplied later
-    /// via <see cref="DataSource{T}(ListWidget{T}, IListDataSource{T})"/> or
-    /// while a parent composite is still resolving its data).
+    /// to construct an empty list (useful when a parent composite is still
+    /// resolving its data or when you'll supply items later by using the
+    /// <see cref="IListDataSource{T}"/> overload).
     /// Use <see cref="ItemTemplate{T}"/> to render each row as a custom widget tree.
     /// </summary>
     /// <remarks>
@@ -110,38 +110,6 @@ public static class ListExtensions
         this ListWidget<T> widget,
         int index)
         => widget with { ControlledSelectedIndex = index };
-
-    /// <summary>
-    /// Binds the list to a virtualized <see cref="IListDataSource{T}"/> instead
-    /// of an in-memory <c>Items</c> collection. The node fetches only a window
-    /// of items around the visible viewport on each frame and re-fetches when
-    /// the user scrolls or the source raises
-    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>.
-    /// Use this for very large datasets (search results, paged APIs, indexed
-    /// files) where materialising the full list isn't practical.
-    /// </summary>
-    /// <remarks>
-    /// When a data source is bound the widget's <c>Items</c> is ignored — pass
-    /// <see cref="Array.Empty{T}()"/> at construction. Item templates work
-    /// with virtualization; templates can branch on
-    /// <see cref="ListItemContext{T}.IsLoaded"/> to render a placeholder for
-    /// in-flight rows.
-    /// </remarks>
-    public static ListWidget<T> DataSource<T>(
-        this ListWidget<T> widget,
-        IListDataSource<T> dataSource)
-        => widget with { DataSource = dataSource };
-
-    /// <summary>
-    /// Convenience overload that wraps <paramref name="items"/> in a
-    /// <see cref="ListDataSource{T}"/>. Forwards
-    /// <see cref="System.Collections.Specialized.INotifyCollectionChanged"/>
-    /// when the inner list supports it.
-    /// </summary>
-    public static ListWidget<T> DataSource<T>(
-        this ListWidget<T> widget,
-        IReadOnlyList<T> items)
-        => widget with { DataSource = new ListDataSource<T>(items) };
 
     /// <summary>
     /// Sets a synchronous handler invoked when the selection changes.

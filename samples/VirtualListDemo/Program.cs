@@ -38,8 +38,7 @@ Hex1bWidget BuildUi(RootContext ctx) => ctx.Border(b => [
         v.Text("     Up/Down moves selection. Selecting a row past the cached window awaits a fetch.").FixedHeight(1),
         v.Text(""),
 
-        v.List((IReadOnlyList<Row>)Array.Empty<Row>())
-            .DataSource(dataSource)
+        v.List(dataSource)
             .ItemHeight(2)
             .ItemKey(r => r.Id)
             .OnItemActivated(args =>
